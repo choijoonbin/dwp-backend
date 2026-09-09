@@ -57,6 +57,11 @@ public interface MeetingMediaProvider {
     /** Idempotently terminates the named room; an already absent room is successful. */
     void endRoom(String roomName);
 
+    /** Disconnects one exact participant. This does not claim cached JWT revocation. */
+    default void disconnectParticipant(PreparedRoom room, UUID participantId, long userId) {
+        throw new UnsupportedOperationException("Participant disconnect is unavailable.");
+    }
+
     record Capability(
             boolean available,
             String provider,

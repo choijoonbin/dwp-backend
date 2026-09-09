@@ -17,6 +17,7 @@ import java.util.Collections;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
@@ -58,7 +59,7 @@ public class DirectNotificationMaterializer {
                 request.recipientUserIds().stream().distinct().toList(),
                 trimmed(request.threadKey()),
                 normalizedLocale(request.locale()),
-                trimmed(request.reasonCode()),
+                canonicalReasonCode(request.reasonCode()),
                 trimmed(request.actorReference()),
                 trimmed(request.subjectReference()),
                 trimmed(request.targetReference()),
@@ -187,6 +188,19 @@ public class DirectNotificationMaterializer {
 
     private String normalizedLocale(String value) {
         return value == null || value.isBlank() ? "ko-KR" : value.trim();
+    }
+
+    static String canonicalReasonCode(String value) {
+        String normalized = value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
+        return switch (normalized) {
+            case "MENTION", "MENTIONED" -> "MENTION";
+            case "ROLE" -> "ROLE";
+            case "ORGANIZATION", "ORG" -> "ORGANIZATION";
+            case "SUBSCRIPTION", "SUBSCRIBED" -> "SUBSCRIPTION";
+            case "MANDATORY_POLICY", "MANDATORY" -> "MANDATORY_POLICY";
+            case "DIRECT", "DIRECT_RECIPIENT" -> "DIRECT";
+            default -> "DIRECT";
+        };
     }
 
     private String trimmed(String value) {

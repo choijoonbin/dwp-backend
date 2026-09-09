@@ -5,6 +5,8 @@ import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
 import reactor.core.publisher.Mono;
 
+import java.util.List;
+
 import static org.assertj.core.api.Assertions.assertThat;
 
 class SecurityHeadersFilterTest {
@@ -29,6 +31,63 @@ class SecurityHeadersFilterTest {
                 .block();
 
         assertSecurityHeaders(exchange);
+    }
+
+    @Test
+    void preventsCachingAgentActivityAndRunHistoryOnEveryGatewayOutcome() {
+        for (String path : List.of(
+                "/api/agent/v1/activity",
+                "/api/agent/v1/activity/events",
+                "/api/agent/v1/activity/events/event-1",
+                "/api/agent/v1/runs",
+                "/api/agent/v1/runs/run-1")) {
+            MockServerWebExchange successful = MockServerWebExchange.from(
+                    MockServerHttpRequest.get(path));
+            filter.filter(successful, ignored -> Mono.empty()).block();
+            assertThat(successful.getResponse().getHeaders().getFirst("Cache-Control"))
+                    .as(path)
+                    .isEqualTo("private, no-store, max-age=0");
+
+            MockServerWebExchange failed = MockServerWebExchange.from(
+                    MockServerHttpRequest.get(path));
+            filter.filter(failed, ignored -> Mono.error(new IllegalStateException("upstream failed")))
+                    .onErrorResume(ignored -> Mono.empty())
+                    .block();
+            assertThat(failed.getResponse().getHeaders().getFirst("Cache-Control"))
+                    .as(path + " failure")
+                    .isEqualTo("private, no-store, max-age=0");
+        }
+    }
+
+    @Test
+    void doesNotClassifyAdjacentAgentRoutesAsPrivateHistory() {
+        for (String path : List.of(
+                "/api/agent/v1/activity-export",
+                "/api/agent/v1/runsheet",
+                "/api/agent/v1/ask")) {
+            MockServerWebExchange exchange = MockServerWebExchange.from(
+                    MockServerHttpRequest.get(path));
+
+            filter.filter(exchange, ignored -> Mono.empty()).block();
+
+            assertThat(exchange.getResponse().getHeaders().getFirst("Cache-Control"))
+                    .as(path)
+                    .isNull();
+        }
+    }
+
+    @Test
+    void restoresPrivateNoStoreAfterALateUpstreamHeaderOverride() {
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/agent/v1/runs/run-1"));
+
+        filter.filter(exchange, current -> {
+            current.getResponse().getHeaders().set("Cache-Control", "public, max-age=3600");
+            return current.getResponse().setComplete();
+        }).block();
+
+        assertThat(exchange.getResponse().getHeaders().getFirst("Cache-Control"))
+                .isEqualTo("private, no-store, max-age=0");
     }
 
     @Test

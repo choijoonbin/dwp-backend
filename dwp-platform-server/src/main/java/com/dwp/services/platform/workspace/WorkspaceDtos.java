@@ -126,6 +126,10 @@ public final class WorkspaceDtos {
             String eventKind,
             String sourceEventId,
             String objectId,
+            String sourceReference,
+            Long resourceVersion,
+            UUID idempotencyKey,
+            String resultState,
             String executionId,
             Long executionVersion,
             Integer attempt,
@@ -145,7 +149,8 @@ public final class WorkspaceDtos {
             this(id, occurredAt, actor, actorName, state, title, summary, objectType,
                     objectLabel, source, tool, auditId, progress, sourceRoute,
                     "CHANGE", id.toString(), null, null, null, null, null, null,
-                    null, "LEGACY", "AVAILABLE", "RESTRICTED", "LEGACY_UNLINKED", null);
+                    null, null, null, null, null, "LEGACY", "AVAILABLE", "RESTRICTED",
+                    "LEGACY_UNLINKED", null);
         }
     }
 

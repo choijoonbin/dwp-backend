@@ -160,7 +160,39 @@ public class NotificationAdminRepository {
                        type.updated_at,
                        type_version.source_event_type,
                        type_version.priority,
+                       type_version.min_schema_version,
                        type_version.max_schema_version,
+                       type_version.data_classification,
+                       COALESCE(NULLIF(type_version.contract_payload ->> 'audienceMode', ''),
+                                'DIRECT') AS audience_mode,
+                       COALESCE(NULLIF(type_version.contract_payload ->> 'interruptionLevel', ''),
+                                'ACTIVE') AS interruption_level,
+                       COALESCE(
+                           LOWER(type_version.contract_payload ->> 'userConfigurable') = 'true',
+                           TRUE
+                       ) AS user_configurable,
+                       COALESCE(NULLIF(type_version.contract_payload ->> 'previewPolicy', ''),
+                                'CLASSIFICATION_AWARE') AS preview_policy,
+                       ARRAY(
+                           SELECT jsonb_array_elements_text(
+                               CASE
+                                   WHEN jsonb_typeof(
+                                       type_version.contract_payload -> 'requiredVariables'
+                                   ) = 'array'
+                                   THEN type_version.contract_payload -> 'requiredVariables'
+                                   ELSE '[]'::jsonb
+                               END
+                           )
+                       ) AS required_variables,
+                       MAX(NULLIF(template.action_payload ->> 'route', '')) FILTER (
+                           WHERE template.state = 'PUBLISHED'
+                       ) AS deep_link_template,
+                       COALESCE(NULLIF(type_version.contract_payload ->> 'dedupeStrategy', ''),
+                                'SOURCE_EVENT_RECIPIENT') AS dedupe_strategy,
+                       NULLIF(type_version.contract_payload ->> 'endEventType', '') AS end_event_type,
+                       COALESCE(NULLIF(type_version.contract_payload ->> 'retentionPolicy', ''),
+                                'TENANT_DEFAULT_LEGAL_HOLD_AWARE') AS retention_policy,
+                       NULLIF(type_version.contract_payload ->> 'runbookUrl', '') AS runbook_url,
                        type_version.version,
                        ARRAY_REMOVE(ARRAY_AGG(DISTINCT template.channel), NULL) AS channels,
                        EXISTS (
@@ -205,7 +237,8 @@ public class NotificationAdminRepository {
                           type.owner_team, type.lifecycle_state, type.updated_at,
                           type_version.type_version_id, type_version.contract_payload,
                           type_version.source_event_type, type_version.priority,
-                          type_version.max_schema_version, type_version.version
+                          type_version.min_schema_version, type_version.max_schema_version,
+                          type_version.data_classification, type_version.version
                  ORDER BY type.updated_at DESC, type.type_id
                  OFFSET :offset
                  LIMIT :limit
@@ -228,7 +261,20 @@ public class NotificationAdminRepository {
                     apiState(lifecycle),
                     contractHealth(lifecycle, templates),
                     resultSet.getLong("volume_24h"),
+                    resultSet.getInt("min_schema_version"),
                     resultSet.getInt("max_schema_version"),
+                    resultSet.getInt("max_schema_version"),
+                    resultSet.getString("data_classification"),
+                    resultSet.getString("audience_mode"),
+                    resultSet.getString("interruption_level"),
+                    resultSet.getBoolean("user_configurable"),
+                    resultSet.getString("preview_policy"),
+                    stringArray(resultSet.getArray("required_variables")),
+                    resultSet.getString("deep_link_template"),
+                    resultSet.getString("dedupe_strategy"),
+                    resultSet.getString("end_event_type"),
+                    resultSet.getString("retention_policy"),
+                    resultSet.getString("runbook_url"),
                     NotificationVersionCodec.external(resultSet.getLong("version")),
                     instant(resultSet.getTimestamp("updated_at")));
         });

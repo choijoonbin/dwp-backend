@@ -71,6 +71,7 @@ final class ApprovalCommandSql02 {
 
     static final String OWNED_REQUEST_SELECT_APR_REQUESTS = """
         SELECT request.status, request.title, workflow.sla_minutes,
+               request.management_resource_set_key,
                workflow_version.definition::text AS workflow_definition,
                form_version.schema_payload::text AS form_schema,
                payload.payload::text AS request_payload,
@@ -105,6 +106,7 @@ final class ApprovalCommandSql02 {
 
     static final String INFORMATION_RUNTIME_SELECT_APR_REQUESTS = """
         SELECT form_version.schema_payload::text AS form_schema,
+               request.management_resource_set_key,
                payload.payload::text AS request_payload
           FROM apr_requests request
           JOIN apr_form_versions form_version
@@ -117,6 +119,14 @@ final class ApprovalCommandSql02 {
            AND request.request_id = :requestId
            AND request.requester_user_id = :userId
            AND request.status = 'NEEDS_INFO'
+        """;
+
+    static final String OWNED_REQUEST_MANAGEMENT_SCOPE_SELECT_APR_REQUESTS = """
+        SELECT management_resource_set_key
+          FROM apr_requests
+         WHERE tenant_id = :tenantId
+           AND request_id = :requestId
+           AND requester_user_id = :userId
         """;
 
     static final String APPEND_PAYLOAD_REVISION_INSERT_APR_REQUEST_PAYLOAD_VERSIONS = """

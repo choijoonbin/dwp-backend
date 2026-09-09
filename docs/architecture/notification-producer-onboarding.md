@@ -2,7 +2,7 @@
 
 Status: `required-for-every-product-integration`
 
-Last reviewed: 2026-08-27
+Last reviewed: 2026-09-09
 
 ## Decision
 
@@ -44,7 +44,10 @@ Conformance Gate와 통합 회귀를 소유한다. 앱 작업이 끝나면 알�
 
 금지 항목은 다음과 같다.
 
-- 앱에서 Notification REST API, Email, Push Provider를 직접 호출하지 않는다.
+- 앱에서 Notification 공개 REST API, Email, Push Provider를 직접 호출하지 않는다. 기존 업무
+  Outbox를 이전하는 동안 승인된 내부 Direct Intent 계약을 사용할 때는 payload-free 원장,
+  source/app/token binding, 수신자별 멱등 ID, lease와 제한 재시도, 엄격한 성공 영수증을 모두 갖춰야
+  한다. 현재 승인된 범위는 [Meeting invitation in-app notification delivery](../workspace/meeting-invitation-notification-delivery-2026-09-09.md)뿐이다.
 - 이미 번역된 제목·본문·HTML, 임의 이메일 주소, Device Token, Secret을 Event에 넣지 않는다.
 - Producer가 `MANDATORY`, `SECURITY`, Quiet Hours 우회 같은 정책 결과를 직접 결정하지 않는다.
 - 감사 Event, UI Toast 또는 단순 DB Insert를 알림 발행으로 간주하지 않는다.
@@ -139,7 +142,7 @@ Conformance Gate와 통합 회귀를 소유한다. 앱 작업이 끝나면 알�
 | 그룹 일반 메시지    | 대화 설정이 `ALL`인 멤버만             | `MESSAGING.CHANNEL_MESSAGE` | 구현·자동 테스트             |
 | 메시지 삭제         | 해당 Target을 `DELETED`로 전환         | Target lifecycle            | 구현·자동 테스트             |
 | 대화 초대·제거      | 초대 대상·제거 대상과 관리자           | 별도 계약 필요              | 미구현, 앱 Backlog           |
-| 회의 초대·변경·취소 | 참석자, 주최자 제외 규칙               | 별도 계약 필요              | 미구현, Meetings Backlog     |
+| 회의 초대·변경·취소 | 현재 활성 사내 참석자                  | 5개 Meetings 계약           | In-app materialization 구현  |
 | 통화 부재·녹화 준비 | 당사자와 접근 권한 보유자              | 별도 계약 필요              | 미구현, Meetings Backlog     |
 | 보안·보존 위반      | 권한 있는 관리자, 최소 Preview         | 별도 Mandatory 계약         | 미구현, Governance 결정 필요 |
 

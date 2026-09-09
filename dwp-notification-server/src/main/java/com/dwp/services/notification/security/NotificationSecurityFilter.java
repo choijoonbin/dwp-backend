@@ -125,7 +125,9 @@ public class NotificationSecurityFilter extends OncePerRequestFilter {
         if (path.startsWith("/v1/admin/")) {
             String resource = adminResource(path);
             if (resource == null) return false;
-            if (path.endsWith("/approve") || path.endsWith("/publish")) {
+            if (path.endsWith("/approve")
+                    || path.endsWith("/publish")
+                    || path.endsWith("/reject")) {
                 return has(permissions, resource, "APPROVE");
             }
             if (path.endsWith("/preview")) {

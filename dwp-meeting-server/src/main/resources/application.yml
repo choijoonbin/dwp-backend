@@ -45,6 +45,27 @@ dwp:
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   meeting:
     service-token: ${DWP_MEETING_SERVICE_TOKEN:}
+    invitation-delivery:
+      enabled: ${DWP_MEETING_INVITATION_DELIVERY_ENABLED:false}
+      base-url: ${DWP_MEETING_INVITATION_DELIVERY_BASE_URL:}
+      service-token: ${DWP_MEETING_INVITATION_DELIVERY_TOKEN:}
+      allow-http: ${DWP_MEETING_INVITATION_DELIVERY_ALLOW_HTTP:false}
+      connect-timeout: ${DWP_MEETING_INVITATION_DELIVERY_CONNECT_TIMEOUT:PT2S}
+      request-timeout: ${DWP_MEETING_INVITATION_DELIVERY_REQUEST_TIMEOUT:PT3S}
+      maximum-response-bytes: ${DWP_MEETING_INVITATION_DELIVERY_MAX_RESPONSE_BYTES:65536}
+      batch-size: ${DWP_MEETING_INVITATION_DELIVERY_BATCH_SIZE:20}
+      maximum-attempts: ${DWP_MEETING_INVITATION_DELIVERY_MAXIMUM_ATTEMPTS:8}
+      poll-delay: ${DWP_MEETING_INVITATION_DELIVERY_POLL_DELAY:PT10S}
+      retry-delay: ${DWP_MEETING_INVITATION_DELIVERY_RETRY_DELAY:PT30S}
+      lease-duration: ${DWP_MEETING_INVITATION_DELIVERY_LEASE_DURATION:PT2M}
+    followup-authority:
+      provider: ${DWP_MEETING_FOLLOWUP_AUTHORITY_PROVIDER:disabled}
+      base-url: ${SERVICE_AUTH_URL:http://localhost:8001}
+      service-token: ${DWP_MEETING_FOLLOWUP_AUTHORITY_TOKEN:}
+      allow-http: ${DWP_MEETING_FOLLOWUP_AUTHORITY_ALLOW_HTTP:false}
+      connect-timeout: ${DWP_MEETING_FOLLOWUP_AUTHORITY_CONNECT_TIMEOUT:PT2S}
+      request-timeout: ${DWP_MEETING_FOLLOWUP_AUTHORITY_REQUEST_TIMEOUT:PT3S}
+      maximum-response-bytes: ${DWP_MEETING_FOLLOWUP_AUTHORITY_MAX_RESPONSE_BYTES:65536}
     # v4 remains a DRAFT contract candidate. Exact enforcement cannot activate
     # until the immutable bundle and owner-service attack evidence are released.
     product-authorization-v4-enabled: ${DWP_MEETING_PRODUCT_AUTHORIZATION_V4_ENABLED:false}

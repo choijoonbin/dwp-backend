@@ -150,31 +150,6 @@ public class NotificationTemplateService {
         return result;
     }
 
-    @Transactional
-    public TemplateRevision retireDraft(
-            NotificationRequestContext.Actor actor,
-            UUID revisionId,
-            TemplateDecisionRequest request,
-            String idempotencyKey) {
-        databaseScope.applyWorker(actor.tenantId());
-        Request receipt = idempotencyRepository.begin(
-                actor,
-                idempotencyKey,
-                "TENANT_NOTIFICATION_TEMPLATE_DRAFT_RETIRE",
-                Map.of("revisionId", revisionId, "request", request));
-        TemplateRevision replay = idempotencyRepository.replay(receipt, TemplateRevision.class);
-        if (replay != null) return replay;
-        requireDraft(actor.tenantId(), revisionId);
-        int expected = Math.toIntExact(positive(request.expectedVersion(), "expectedVersion"));
-        if (!repository.retireDraft(actor.tenantId(), revisionId, expected)) {
-            throw new NotificationException(NotificationErrorCode.NOTIFICATION_STALE_VERSION);
-        }
-        TemplateRevision result = repository.revision(actor.tenantId(), revisionId).orElseThrow();
-        record(actor, "notification.template.draft.retired", result, request.reason());
-        idempotencyRepository.complete(actor, receipt, result);
-        return result;
-    }
-
     private TemplateVariant variant(
             ProviderVariant provider,
             List<TemplateRevision> revisions) {

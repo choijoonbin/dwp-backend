@@ -86,7 +86,18 @@ class MeetingMediaWebhookTransactions {
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public void cleanupSucceeded(CleanupClaim claim) {
+        Meeting meeting = claim.participant() == null ? null : meetings.lockMeeting(
+                claim.participant().tenantId(), claim.participant().meetingId());
         webhooks.completeCleanup(claim, OffsetDateTime.now(clock));
+        if (claim.participant() != null) {
+            var target = claim.participant();
+            var participant = meetings.participant(target.tenantId(), target.meetingId(),
+                    target.participantId()).orElseThrow();
+            audit.providerParticipant(target.tenantId(), meeting, participant,
+                    "meeting.provider.blocked-participant.disconnected", claim.eventId(),
+                    Map.of("providerEventId", claim.eventId(),
+                            "roomIncarnation", target.incarnation().toString()));
+        }
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -94,6 +105,11 @@ class MeetingMediaWebhookTransactions {
         OffsetDateTime failedAt = OffsetDateTime.now(clock);
         webhooks.failCleanup(
                 claim, failedAt, failedAt.plus(recoveryProperties.getRetryDelay()));
+    }
+
+    @Transactional(readOnly = true, propagation = Propagation.REQUIRES_NEW)
+    public long participantCleanupUserId(CleanupClaim claim) {
+        return webhooks.participantCleanupUserId(claim.participant());
     }
 
     private ApplyResult roomStarted(ProviderEvent event, MeetingBinding binding) {
@@ -141,6 +157,15 @@ class MeetingMediaWebhookTransactions {
         if (!"LIVE".equals(binding.lifecycleState())
                 || !"ACTIVE".equals(binding.mediaAccessState())) {
             webhooks.complete(event, "CLEANUP_REQUIRED", "MEDIA_SESSION_REVOKED");
+            return ApplyResult.cleanupResult(event.room().roomName());
+        }
+        if (meetings.participantMediaBlocked(binding.tenantId(), binding.meetingId(),
+                participant.participantId())) {
+            // The signed provider event has passed exact room/participant binding above.
+            // Keep the denial projection and use the bounded webhook cleanup queue; a
+            // cached self-hosted JWT must never turn this into a normal reconnect.
+            participantAudit(event, binding, "DENIED", "meeting.provider.blocked-participant.joined");
+            webhooks.complete(event, "CLEANUP_REQUIRED", "PARTICIPANT_DISCONNECT_FENCE");
             return ApplyResult.cleanupResult(event.room().roomName());
         }
         boolean changed = webhooks.participantJoined(event);

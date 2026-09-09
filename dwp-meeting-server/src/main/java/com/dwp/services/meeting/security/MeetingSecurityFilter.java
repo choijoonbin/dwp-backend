@@ -65,8 +65,8 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
             EXPECTED_DECISION_REVISION, CURRENT_CONTEXT, CURRENT_SCOPE,
             ACTIVE_ACCESS_MODE, ROLLOUT_STATE, ROLLOUT_REVISION, ROLLOUT_COHORT,
             SUPPORT_SESSION, ACTOR_TENANT);
-    private static final String UUID_PATH = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-"
-            + "[0-9a-f]{4}-[0-9a-f]{12}";
+    private static final String UUID_PATH = "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-"
+            + "[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}";
     private static final Pattern VIEW_ONLY_POST = Pattern.compile(
             "^/v1/meetings/" + UUID_PATH + "/(?:"
                     + "artifacts/" + UUID_PATH + "/(?:access-ticket|transcript/query)"
@@ -336,6 +336,10 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
 
     private boolean workspacePath(String path) {
         return path.equals("/v1/preferences") || path.equals("/v1/personal-room")
+                || path.matches("/v1/meetings/" + UUID_PATH
+                        + "/participants/" + UUID_PATH + "/disconnect")
+                || path.matches("/v1/meetings/" + UUID_PATH
+                        + "/intelligence/reports/" + UUID_PATH + "/exports")
                 || path.equals("/v1/history/bookmarks")
                 || path.matches("/v1/meetings/[0-9A-Fa-f-]{36}/bookmark")
                 || path.equals("/v1/schedule-draft")

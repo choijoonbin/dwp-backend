@@ -609,6 +609,33 @@
         },
         "type": "object"
       },
+      "ApiResponseDisconnectResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DisconnectResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseFacilitationCommandResponsePollResponse": {
         "properties": {
           "correlationId": {
@@ -2474,6 +2501,39 @@
         },
         "type": "object"
       },
+      "DisconnectCommand": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DisconnectResponse": {
+        "properties": {
+          "blockedForCurrentSession": {
+            "type": "boolean"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "meetingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "participantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "DraftAgendaItem": {
         "properties": {
           "itemId": {
@@ -2591,6 +2651,24 @@
             "type": "boolean"
           }
         },
+        "type": "object"
+      },
+      "ExportCommand": {
+        "properties": {
+          "expectedReportVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "format": {
+            "minLength": 1,
+            "pattern": "JSON|MARKDOWN",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedReportVersion",
+          "format"
+        ],
         "type": "object"
       },
       "FacilitationCommandResponsePollResponse": {
@@ -2849,8 +2927,18 @@
           "participantRole": {
             "type": "string"
           },
+          "publicationState": {
+            "type": "string"
+          },
           "recordingAvailable": {
             "type": "boolean"
+          },
+          "retentionState": {
+            "type": "string"
+          },
+          "retentionUntil": {
+            "format": "date-time",
+            "type": "string"
           },
           "title": {
             "type": "string"
@@ -5642,6 +5730,48 @@
         ]
       }
     },
+    "/v1/admin/operations/export": {
+      "get": {
+        "operationId": "adminOperationsExport",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "maxLength": 80,
+              "minLength": 0,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "video-meeting-controller"
+        ]
+      }
+    },
     "/v1/admin/overview": {
       "get": {
         "operationId": "adminOverview",
@@ -5652,6 +5782,8 @@
             "required": false,
             "schema": {
               "default": "UTC",
+              "maxLength": 80,
+              "minLength": 0,
               "type": "string"
             }
           }
@@ -6148,6 +6280,40 @@
             "schema": {
               "default": false,
               "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "publication",
+            "required": false,
+            "schema": {
+              "default": "ALL",
+              "enum": [
+                "ALL",
+                "NONE",
+                "DRAFT",
+                "APPROVED",
+                "PUBLISHED",
+                "REJECTED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "retention",
+            "required": false,
+            "schema": {
+              "default": "ALL",
+              "enum": [
+                "ALL",
+                "UNCONFIGURED",
+                "ACTIVE",
+                "EXPIRING_SOON",
+                "EXPIRED",
+                "LEGAL_HOLD"
+              ],
+              "type": "string"
             }
           }
         ],
@@ -8625,6 +8791,71 @@
         ]
       }
     },
+    "/v1/meetings/{meetingId}/intelligence/reports/{reportId}/exports": {
+      "post": {
+        "operationId": "export",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reportId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-intelligence-report-export-controller"
+        ]
+      }
+    },
     "/v1/meetings/{meetingId}/intelligence/reports/{reportId}/publish": {
       "post": {
         "operationId": "publish",
@@ -9468,6 +9699,72 @@
         },
         "tags": [
           "video-meeting-preparation-controller"
+        ]
+      }
+    },
+    "/v1/meetings/{meetingId}/participants/{participantId}/disconnect": {
+      "post": {
+        "operationId": "disconnect",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DisconnectCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDisconnectResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting-participant-disconnect-controller"
         ]
       }
     },

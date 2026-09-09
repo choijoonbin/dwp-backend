@@ -13,6 +13,8 @@ import java.util.Map;
 
 public final class RegistryDtos {
 
+    public static final int AGENT_CATALOG_SCHEMA_VERSION = 1;
+
     private RegistryDtos() {
     }
 
@@ -58,7 +60,8 @@ public final class RegistryDtos {
             ReferenceLifecycle lifecycleState,
             Long version,
             LocalDateTime updatedAt,
-            Long updatedBy) {
+            Long updatedBy,
+            AgentCatalogProfile agentCatalogProfile) {
     }
 
     public record RegistryEntryDetail(
@@ -74,7 +77,50 @@ public final class RegistryDtos {
             String description,
             String ownerRef,
             RiskTier riskTier,
-            String artifactVersion) {
+            String artifactVersion,
+            LocalDateTime updatedAt,
+            AgentCatalogProfile agentCatalogProfile) {
+    }
+
+    public enum AgentCatalogCategory {
+        GENERAL,
+        APPROVAL
+    }
+
+    public enum AgentSourceAccessMode {
+        READ_ONLY
+    }
+
+    public enum AgentSourcePermissionMatch {
+        ANY_OF
+    }
+
+    public record LocalizedCatalogText(
+            @NotBlank @Size(max = 1000) String ko,
+            @NotBlank @Size(max = 1000) String en) {
+    }
+
+    public record AgentCatalogSource(
+            @NotBlank @Pattern(regexp = "[A-Z][A-Z0-9_]{0,63}") String sourceSystem,
+            @NotNull LocalizedCatalogText displayName,
+            @NotNull @Size(min = 1, max = 8) List<
+                    @NotBlank @Pattern(regexp = "[A-Z][A-Z0-9_.-]{0,99}:[A-Z][A-Z0-9_.-]{0,39}") String>
+                    requiredPermissions,
+            @NotNull AgentSourcePermissionMatch permissionMatch,
+            @NotNull AgentSourceAccessMode accessMode) {
+    }
+
+    public record AgentCatalogProfile(
+            @NotNull @Min(1) Integer schemaVersion,
+            @NotNull AgentCatalogCategory category,
+            @NotNull LocalizedCatalogText displayName,
+            @NotNull LocalizedCatalogText description,
+            @NotNull @Size(min = 1, max = 8) List<LocalizedCatalogText> capabilities,
+            @NotNull @Size(min = 1, max = 8) List<LocalizedCatalogText> boundaries,
+            @NotNull @Size(min = 1, max = 8) List<AgentCatalogSource> sources,
+            @NotNull @Size(min = 1, max = 6) List<LocalizedCatalogText> starterPrompts,
+            @NotNull LocalizedCatalogText safetySummary,
+            boolean humanConfirmationRequired) {
     }
 
     public record PageResult<T>(
@@ -98,4 +144,3 @@ public final class RegistryDtos {
                 "version", entry.getVersion() == null ? 0L : entry.getVersion());
     }
 }
-

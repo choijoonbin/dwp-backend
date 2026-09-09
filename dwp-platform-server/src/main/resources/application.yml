@@ -104,6 +104,7 @@ dwp:
       views-shadow-compare-enabled: ${DWP_HOME_VIEWS_SHADOW_COMPARE_ENABLED:false}
       views-read-enabled: ${DWP_HOME_VIEWS_READ_ENABLED:false}
     product-authorization-approvals-v2-enabled: ${DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED:false}
+    product-authorization-dwaion-v6-enabled: ${DWP_PLATFORM_PRODUCT_AUTHORIZATION_DWAION_V6_ENABLED:false}
     product-surface-telemetry:
       collection-enabled: ${DWP_PRODUCT_SURFACE_TELEMETRY_COLLECTION_ENABLED:false}
       maintenance-enabled: ${DWP_PRODUCT_SURFACE_TELEMETRY_MAINTENANCE_ENABLED:true}

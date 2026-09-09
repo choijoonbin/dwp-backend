@@ -16,8 +16,22 @@ import java.util.UUID;
 public class ActivityRepository {
     private static final String SELECT_EVENT = """
             SELECT e.*, (SELECT w.work_key FROM wrk_items w
-              WHERE w.tenant_id=e.tenant_id AND w.work_item_id::text=e.object_id) AS source_work_key
-            FROM wrk_activity_events e WHERE
+              WHERE w.tenant_id=e.tenant_id AND w.work_item_id::text=e.object_id) AS source_work_key,
+              binding.source_reference AS command_source_reference,
+              binding.resource_version AS command_resource_version,
+              binding.idempotency_key AS command_idempotency_key,
+              binding.result_state AS command_result_state,
+              COALESCE(e.correlation_id, (SELECT audit.correlation_id
+                FROM sys_platform_audit_events audit
+                WHERE audit.tenant_id=e.tenant_id AND audit.audit_event_id=e.audit_record_id))
+                AS bound_correlation_id,
+              (SELECT task.deleted_at FROM personal_work_tasks task
+                WHERE task.tenant_id=e.tenant_id AND task.owner_user_id=e.visible_to_user_id
+                  AND task.task_id::text=e.object_id) AS personal_deleted_at
+            FROM wrk_activity_events e
+            LEFT JOIN wrk_personal_work_activity_bindings binding
+              ON binding.activity_event_id=e.activity_event_id
+            WHERE
             """;
     // Audiences are not grants. An item must still exist and the viewer must have
     // its current domain permission AND current object ownership/catalog grant.
@@ -30,11 +44,20 @@ public class ActivityRepository {
                  AND e.visible_to_user_id = 900018
                  AND e.correlation_id = 'activity-local-joonbin'
                  AND e.source_event_id LIKE 'activity-local:%'))
-             AND ((e.object_type = 'WORK_ITEM' AND :workView
-                   AND e.source_system IN ('WORKSPACE','DWP_WORKSPACE')
-                   AND EXISTS (SELECT 1 FROM wrk_items w WHERE w.tenant_id = e.tenant_id
-                     AND w.work_item_id::text = e.object_id AND w.assignee_user_id = :user
-                     AND w.work_type = 'TASK' AND w.source_system IN ('WORKSPACE','DWP_WORKSPACE')))
+             AND ((e.object_type = 'WORK_ITEM' AND :workView AND
+                    ((e.source_system IN ('WORKSPACE','DWP_WORKSPACE')
+                      AND EXISTS (SELECT 1 FROM wrk_items w WHERE w.tenant_id = e.tenant_id
+                        AND w.work_item_id::text = e.object_id AND w.assignee_user_id = :user
+                        AND w.work_type = 'TASK' AND w.source_system IN ('WORKSPACE','DWP_WORKSPACE')))
+                     OR (e.source_system = 'PERSONAL_TASK'
+                      AND EXISTS (SELECT 1 FROM personal_work_tasks task
+                        WHERE task.tenant_id = e.tenant_id AND task.owner_user_id = :user
+                          AND task.task_id::text = e.object_id)
+                      AND EXISTS (SELECT 1 FROM wrk_personal_work_activity_bindings binding
+                        WHERE binding.activity_event_id = e.activity_event_id
+                          AND binding.tenant_id = e.tenant_id
+                          AND binding.actor_user_id = :user
+                          AND binding.resource_id::text = e.object_id))))
                OR (e.object_type = 'WORKSPACE_APP' AND e.source_system = 'DWP Apps' AND :appsView
                    AND EXISTS (SELECT 1 FROM adm_workspace_apps app
                      WHERE app.tenant_id = e.tenant_id AND app.app_key = e.object_id
@@ -121,19 +144,34 @@ public class ActivityRepository {
     private WorkspaceDtos.ActivityEvent event(ResultSet rs, boolean korean) throws SQLException {
         UUID auditId = rs.getObject("audit_record_id", UUID.class);
         String objectId = rs.getString("object_id");
-        String route = "WORK_ITEM".equals(rs.getString("object_type"))
-                ? "/work?item=" + java.net.URLEncoder.encode(rs.getString("source_work_key"),
-                    java.nio.charset.StandardCharsets.UTF_8)
-                : "/apps?app=" + java.net.URLEncoder.encode(objectId, java.nio.charset.StandardCharsets.UTF_8);
+        String source = rs.getString("source_system");
+        boolean deletedPersonalTask = "PERSONAL_TASK".equals(source)
+                && rs.getObject("personal_deleted_at") != null;
+        String route;
+        if ("PERSONAL_TASK".equals(source)) {
+            route = deletedPersonalTask ? null : "/work/queue?work=" + java.net.URLEncoder.encode(
+                    "PERSONAL_TASK:" + rs.getString("command_source_reference") + ":",
+                    java.nio.charset.StandardCharsets.UTF_8);
+        } else if ("WORK_ITEM".equals(rs.getString("object_type"))) {
+            route = "/work?item=" + java.net.URLEncoder.encode(rs.getString("source_work_key"),
+                    java.nio.charset.StandardCharsets.UTF_8);
+        } else {
+            route = "/apps?app=" + java.net.URLEncoder.encode(objectId,
+                    java.nio.charset.StandardCharsets.UTF_8);
+        }
         return new WorkspaceDtos.ActivityEvent(rs.getObject("activity_event_id", UUID.class),
                 rs.getObject("occurred_at", OffsetDateTime.class), rs.getString("actor_kind"),
                 rs.getString("actor_name"), rs.getString("event_state"), localized(rs, "title", korean),
                 localized(rs, "summary", korean), rs.getString("object_type"), localized(rs, "object_label", korean),
-                rs.getString("source_system"), rs.getString("tool_name"), auditId == null ? null : auditId.toString(),
+                source, rs.getString("tool_name"), auditId == null ? null : auditId.toString(),
                 (Integer) rs.getObject("progress"), route, rs.getString("event_kind"), rs.getString("source_event_id"),
-                objectId, rs.getString("execution_id"), (Long) rs.getObject("execution_version"),
-                (Integer) rs.getObject("attempt"), rs.getString("work_status"), rs.getString("correlation_id"),
-                auditId, rs.getString("data_provenance"), "AVAILABLE", "RESTRICTED",
+                objectId, rs.getString("command_source_reference"),
+                (Long) rs.getObject("command_resource_version"),
+                rs.getObject("command_idempotency_key", UUID.class), rs.getString("command_result_state"),
+                rs.getString("execution_id"), (Long) rs.getObject("execution_version"),
+                (Integer) rs.getObject("attempt"), rs.getString("work_status"), rs.getString("bound_correlation_id"),
+                auditId, rs.getString("data_provenance"),
+                deletedPersonalTask ? "DELETED" : "AVAILABLE", "RESTRICTED",
                 auditId == null ? "LEGACY_UNLINKED" : "VERIFIED", null);
     }
 

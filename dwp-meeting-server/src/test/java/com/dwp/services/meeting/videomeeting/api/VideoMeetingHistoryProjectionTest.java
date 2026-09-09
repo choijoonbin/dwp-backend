@@ -27,6 +27,9 @@ class VideoMeetingHistoryProjectionTest {
         assertThat(response.actualDurationMinutes()).isEqualTo(45);
         assertThat(response.recordingAvailable()).isFalse();
         assertThat(response.transcriptAvailable()).isFalse();
+        assertThat(response.publicationState()).isEqualTo("NONE");
+        assertThat(response.retentionState()).isEqualTo("UNCONFIGURED");
+        assertThat(response.retentionUntil()).isNull();
     }
 
     @Test
@@ -34,6 +37,17 @@ class VideoMeetingHistoryProjectionTest {
         var response = VideoMeetingDtos.history(new MeetingCard(meeting(), 6, null));
         assertThat(response.participantRole()).isEqualTo("ATTENDEE");
         assertThat(response.canHost()).isFalse();
+    }
+
+    @Test
+    void carriesOnlyTheAuthorizedEvidenceProjectionSuppliedByTheRepository() {
+        OffsetDateTime retention = OffsetDateTime.parse("2026-10-07T01:45:00Z");
+        var response = VideoMeetingDtos.history(
+                new MeetingCard(meeting(), 6, ParticipantRole.ORGANIZER),
+                "PUBLISHED", "ACTIVE", retention);
+        assertThat(response.publicationState()).isEqualTo("PUBLISHED");
+        assertThat(response.retentionState()).isEqualTo("ACTIVE");
+        assertThat(response.retentionUntil()).isEqualTo(retention);
     }
 
     private Meeting meeting() {

@@ -8,6 +8,11 @@ import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.Size;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.CacheControl;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -21,6 +26,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
 import java.util.List;
+import java.nio.charset.StandardCharsets;
 
 @Validated
 @RestController
@@ -186,14 +192,37 @@ public class VideoMeetingController {
     public ApiResponse<VideoMeetingDtos.PageResponse<VideoMeetingDtos.HistoryItemResponse>> history(
             @RequestParam(defaultValue = "0") @Min(0) int page,
             @RequestParam(defaultValue = "30") @Min(1) @Max(100) int pageSize,
-            @RequestParam(defaultValue = "false") boolean favoriteOnly) {
-        return ApiResponse.success(service.history(page, pageSize, favoriteOnly));
+            @RequestParam(defaultValue = "false") boolean favoriteOnly,
+            @RequestParam(defaultValue = "ALL")
+            VideoMeetingDtos.HistoryPublicationFilter publication,
+            @RequestParam(defaultValue = "ALL")
+            VideoMeetingDtos.HistoryRetentionFilter retention) {
+        return ApiResponse.success(service.history(
+                page, pageSize, favoriteOnly, publication, retention));
     }
 
     @GetMapping("/admin/overview")
     public ApiResponse<VideoMeetingDtos.AdminOverviewResponse> adminOverview(
-            @RequestParam(defaultValue = "UTC") String timeZone) {
+            @RequestParam(defaultValue = "UTC") @Size(max = 80) String timeZone) {
         return ApiResponse.success(service.adminOverview(timeZone));
+    }
+
+    @GetMapping(value = "/admin/operations/export", produces = "text/csv")
+    public ResponseEntity<byte[]> adminOperationsExport(
+            @RequestParam(defaultValue = "UTC") @Size(max = 80) String timeZone,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
+        VideoMeetingService.AdminOperationsExport export =
+                service.adminOperationsExport(timeZone, correlationId);
+        byte[] content = export.content();
+        return ResponseEntity.ok()
+                .cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.PRAGMA, "no-cache")
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(export.filename(), StandardCharsets.UTF_8).build().toString())
+                .header("X-Content-Type-Options", "nosniff")
+                .contentType(MediaType.parseMediaType("text/csv;charset=UTF-8"))
+                .contentLength(content.length)
+                .body(content);
     }
 
     @GetMapping("/admin/policy")

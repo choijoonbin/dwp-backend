@@ -57,7 +57,7 @@ class MeetingProductSurfaceV4DraftConsumerTest {
                         Function.identity()));
         JsonNode routes = projection().path("routes");
 
-        assertThat(runtime).hasSize(routes.size());
+        assertThat(runtime).hasSizeGreaterThanOrEqualTo(routes.size());
         routes.forEach(route -> {
             MeetingProductAccessPolicy.BindingContract binding =
                     runtime.get(route.path("routeContractKey").asText());
@@ -142,7 +142,35 @@ class MeetingProductSurfaceV4DraftConsumerTest {
         assertThat(textValues(predicate.path("targetBindingKinds"), null))
                 .containsExactly("SELF");
         assertThat(textValues(predicate.path("routeContractKeys"), null))
-                .containsExactlyInAnyOrderElementsOf(runtime.keySet());
+                .containsExactlyInAnyOrderElementsOf(
+                        routes.stream()
+                                .map(route -> route.path("routeContractKey").asText())
+                                .collect(Collectors.toSet()));
+    }
+
+    @Test
+    void latestRegistryAddsTheDedicatedMeetingMutationActions() throws Exception {
+        JsonNode bundle = document(
+                "contracts/product-authorization/product-surfaces-v1.bundle-v6.json");
+        Map<String, MeetingProductAccessPolicy.BindingContract> runtime =
+                policy.bindingContracts().stream().collect(Collectors.toUnmodifiableMap(
+                        MeetingProductAccessPolicy.BindingContract::routeContractKey,
+                        Function.identity()));
+        Map<String, JsonNode> routes = nodes(bundle.path("routes")).stream()
+                .collect(Collectors.toUnmodifiableMap(
+                        value -> value.path("routeContractKey").asText(),
+                        Function.identity()));
+
+        for (Map.Entry<String, String> action : Map.of(
+                "route.meetings.work.participant-disconnect.action",
+                "meetings.work.participant.disconnect",
+                "route.meetings.work.intelligence-report-export.action",
+                "meetings.work.intelligence-report.export").entrySet()) {
+            JsonNode route = routes.get(action.getKey());
+            assertThat(route).isNotNull();
+            assertMaterializedBinding(route, runtime);
+            assertCapabilityMatchesRuntime(bundle, runtime, action.getValue(), action.getKey());
+        }
     }
 
     private void assertMaterializedBinding(

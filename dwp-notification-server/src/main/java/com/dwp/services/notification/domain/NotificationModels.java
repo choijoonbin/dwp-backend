@@ -332,7 +332,20 @@ public final class NotificationModels {
             String state,
             String contractHealth,
             long volume24Hours,
+            int minSchemaVersion,
+            int maxSchemaVersion,
             int schemaVersion,
+            String dataClassification,
+            String audienceMode,
+            String interruptionLevel,
+            boolean userConfigurable,
+            String previewPolicy,
+            List<String> requiredVariables,
+            String deepLinkTemplate,
+            String dedupeStrategy,
+            String endEventType,
+            String retentionPolicy,
+            String runbookUrl,
             String version,
             Instant updatedAt) {
     }
@@ -389,6 +402,33 @@ public final class NotificationModels {
             @Min(1) @Max(10000) Integer maxPerWindow) {
     }
 
+    public record PolicySimulationContext(
+            @NotBlank
+            @Pattern(regexp = "KNOWLEDGE_WORKER|FRONTLINE|EXECUTIVE|ON_CALL")
+            String persona,
+            @NotBlank @Size(max = 80) String timeZone,
+            @NotBlank @Pattern(regexp = "(?:[01]\\d|2[0-3]):[0-5]\\d") String localTime,
+            boolean focusMode,
+            boolean quietHoursActive) {
+    }
+
+    public record PolicySimulationChannelOutcome(
+            String channel,
+            String outcome,
+            String reason,
+            Integer maxPerWindow) {
+    }
+
+    public record PolicySimulationOutcome(
+            PolicySimulationContext context,
+            List<PolicySimulationChannelOutcome> channels,
+            int immediateChannelCount,
+            int deferredChannelCount,
+            int suppressedChannelCount,
+            String attentionRisk,
+            String providerCostState) {
+    }
+
     public record TenantPolicyChangeRequest(
             @NotBlank @Pattern(regexp = "APP|TYPE") String scopeType,
             @NotBlank @Size(max = 200) String scopeKey,
@@ -399,7 +439,8 @@ public final class NotificationModels {
             @NotBlank @Size(min = 10, max = 500) String changeReason,
             @NotBlank
             @JsonDeserialize(using = DecimalVersionStringDeserializer.class)
-            String expectedVersion) {
+            String expectedVersion,
+            @Valid PolicySimulationContext simulation) {
     }
 
     public record TenantPolicy(
@@ -433,7 +474,8 @@ public final class NotificationModels {
             long affectedTypeCount,
             long observedRecipients30Days,
             List<PolicyRuntimeChannelPreview> runtimeChannels,
-            List<String> riskFlags) {
+            List<String> riskFlags,
+            PolicySimulationOutcome simulation) {
     }
 
     public record PolicyRuntimeChannelPreview(
@@ -450,6 +492,13 @@ public final class NotificationModels {
             @JsonDeserialize(using = DecimalVersionStringDeserializer.class)
             String expectedVersion,
             @NotBlank @Size(min = 10, max = 500) String approvalReason) {
+    }
+
+    public record DraftDecisionRequest(
+            @NotBlank
+            @JsonDeserialize(using = DecimalVersionStringDeserializer.class)
+            String expectedVersion,
+            @NotBlank @Size(min = 10, max = 500) String reason) {
     }
 
     public record DirectMaterializationRequest(

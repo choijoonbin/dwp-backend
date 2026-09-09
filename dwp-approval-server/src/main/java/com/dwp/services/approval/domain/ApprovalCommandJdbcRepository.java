@@ -192,7 +192,8 @@ abstract class ApprovalCommandJdbcRepository {
 
 
     protected RequestRuntime ownedRequest(ApprovalRequestContext.Actor actor, UUID requestId) {
-        return jdbc.query(ApprovalCommandSql02.OWNED_REQUEST_SELECT_APR_REQUESTS, actorParams(actor).addValue("requestId", requestId), result -> {
+        return jdbc.query(ApprovalCommandSql02.OWNED_REQUEST_SELECT_APR_REQUESTS,
+                identityParams(actor).addValue("requestId", requestId), result -> {
             if (!result.next()) throw new BaseException(ErrorCode.NOT_FOUND);
             int slaMinutes = result.getInt("sla_minutes");
             return new RequestRuntime(
@@ -204,20 +205,35 @@ abstract class ApprovalCommandJdbcRepository {
                     payloadSupport.object(result.getString("request_payload"),
                             "Stored approval request data is invalid."),
                     result.getString("binding_type"),
-                    result.getString("binding_condition"));
+                    result.getString("binding_condition"),
+                    result.getString("management_resource_set_key"));
         });
     }
 
     protected InformationRuntime informationRuntime(
             ApprovalRequestContext.Actor actor,
             UUID requestId) {
-        return jdbc.query(ApprovalCommandSql02.INFORMATION_RUNTIME_SELECT_APR_REQUESTS, actorParams(actor).addValue("requestId", requestId), result -> {
+        return jdbc.query(ApprovalCommandSql02.INFORMATION_RUNTIME_SELECT_APR_REQUESTS,
+                identityParams(actor).addValue("requestId", requestId), result -> {
             if (!result.next()) throw new BaseException(ErrorCode.INVALID_STATE);
             return new InformationRuntime(
                     result.getString("form_schema"),
                     payloadSupport.object(result.getString("request_payload"),
-                            "Stored approval request data is invalid."));
+                            "Stored approval request data is invalid."),
+                    result.getString("management_resource_set_key"));
         });
+    }
+
+    protected String ownedRequestManagementScope(
+            ApprovalRequestContext.Actor actor,
+            UUID requestId) {
+        return jdbc.query(
+                ApprovalCommandSql02.OWNED_REQUEST_MANAGEMENT_SCOPE_SELECT_APR_REQUESTS,
+                identityParams(actor).addValue("requestId", requestId),
+                result -> {
+                    if (!result.next()) throw new BaseException(ErrorCode.NOT_FOUND);
+                    return result.getString("management_resource_set_key");
+                });
     }
 
     protected void appendPayloadRevision(
@@ -226,7 +242,7 @@ abstract class ApprovalCommandJdbcRepository {
             String changeType,
             String correlationId,
             String reason) {
-        jdbc.update(ApprovalCommandSql02.APPEND_PAYLOAD_REVISION_INSERT_APR_REQUEST_PAYLOAD_VERSIONS, actorParams(actor)
+        jdbc.update(ApprovalCommandSql02.APPEND_PAYLOAD_REVISION_INSERT_APR_REQUEST_PAYLOAD_VERSIONS, identityParams(actor)
                 .addValue("requestId", requestId)
                 .addValue("changeType", changeType)
                 .addValue("reason", reason)
@@ -284,10 +300,41 @@ abstract class ApprovalCommandJdbcRepository {
     }
 
     protected MapSqlParameterSource actorParams(ApprovalRequestContext.Actor actor) {
+        return identityParams(actor)
+                .addValue("managementScope", managementResourceSetKey());
+    }
+
+    protected MapSqlParameterSource workActorParams(
+            ApprovalRequestContext.Actor actor,
+            String managementResourceSetKey) {
+        if (managementResourceSetKey == null
+                || !managementResourceSetKey.matches("[A-Z][A-Z0-9_]{2,79}")) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Approval work object scope evidence is invalid.");
+        }
+        ApprovalDecisionRevisionContext.current().ifPresent(evidence -> {
+            if (evidence.routeContractKey() == null
+                    || !evidence.routeContractKey().startsWith("route.approvals.work.")) {
+                throw new BaseException(
+                        ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                        "Approval work object scope cannot be used by this route.");
+            }
+        });
+        ApprovalManagementScopeContext.current().ifPresent(evidence -> {
+            if (!managementResourceSetKey.equals(evidence.resourceSetKey())) {
+                throw new BaseException(
+                        ErrorCode.RESOURCE_NOT_AVAILABLE,
+                        "The Approval object is outside the selected management scope.");
+            }
+        });
+        return identityParams(actor).addValue("managementScope", managementResourceSetKey);
+    }
+
+    protected MapSqlParameterSource identityParams(ApprovalRequestContext.Actor actor) {
         return new MapSqlParameterSource()
                 .addValue("tenantId", actor.tenantId())
-                .addValue("userId", actor.userId())
-                .addValue("managementScope", managementResourceSetKey());
+                .addValue("userId", actor.userId());
     }
 
     protected String normalizedPriority(String value) {
@@ -492,12 +539,14 @@ abstract class ApprovalCommandJdbcRepository {
             String formSchema,
             Map<String, Object> payload,
             String bindingType,
-            String bindingCondition) {
+            String bindingCondition,
+            String managementResourceSetKey) {
     }
 
     protected record InformationRuntime(
             String formSchema,
-            Map<String, Object> payload) {
+            Map<String, Object> payload,
+            String managementResourceSetKey) {
     }
 
 

@@ -21,6 +21,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.UUID;
 
+import static com.dwp.services.platform.registry.GovernedAgentCatalogProfiles.jsonFor;
+
 @Service
 public class PlatformTenantProvisioningService {
 
@@ -266,18 +268,21 @@ public class PlatformTenantProvisioningService {
             jdbc.update("""
                     INSERT INTO adm_registry_entries (
                         tenant_id, registry_type, entry_key, revision, name,
-                        description, owner_ref, risk_tier, artifact_version, lifecycle_state)
-                    VALUES (?, 'AGENT', ?, 1, ?, ?, ?, ?, ?, 'ACTIVE')
+                        description, owner_ref, risk_tier, artifact_version, lifecycle_state,
+                        agent_catalog_profile)
+                    VALUES (?, 'AGENT', ?, 1, ?, ?, ?, ?, ?, 'ACTIVE', CAST(? AS jsonb))
                     ON CONFLICT (tenant_id, registry_type, entry_key, revision) DO UPDATE
                     SET name = EXCLUDED.name,
                         description = EXCLUDED.description,
                         owner_ref = EXCLUDED.owner_ref,
                         risk_tier = EXCLUDED.risk_tier,
                         artifact_version = EXCLUDED.artifact_version,
+                        agent_catalog_profile = EXCLUDED.agent_catalog_profile,
                         lifecycle_state = 'ACTIVE',
                         updated_at = CURRENT_TIMESTAMP
                     """, tenantId, agent.entryKey(), agent.name(), agent.description(),
-                    agent.ownerRef(), agent.riskTier(), agent.artifactVersion());
+                    agent.ownerRef(), agent.riskTier(), agent.artifactVersion(),
+                    jsonFor(agent.entryKey()));
         }
         for (String managedKey : List.of(
                 "REFERENCE_PLANNER", "DWP_ASSISTANT", "DWP_APPROVAL_EXPERT")) {

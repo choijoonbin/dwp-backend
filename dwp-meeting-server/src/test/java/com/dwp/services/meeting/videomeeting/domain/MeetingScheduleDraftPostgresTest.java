@@ -120,6 +120,25 @@ class MeetingScheduleDraftPostgresTest extends MeetingWorkspacePostgresFixture {
     }
 
     @Test
+    void preHostEntryCannotBePersistedInAnOtherwisePartialDraft() {
+        SaveScheduleDraftRequest safe = valid(null, "Pre-host attempt", null);
+        SaveScheduleDraftRequest unsupported = new SaveScheduleDraftRequest(
+                safe.expectedVersion(), safe.title(), safe.agenda(), safe.startsAt(),
+                safe.durationMinutes(), safe.timeZone(), safe.accessScope(),
+                safe.waitingRoomEnabled(), true, safe.participantUserIds(),
+                safe.agendaItems(), safe.recurrence(), safe.sourceTemplateId(),
+                safe.sourceTemplateVersion(), safe.lastStep());
+
+        assertThatThrownBy(() -> own(() -> drafts.save(
+                unsupported, "draft-pre-host-rejected", null)))
+                .isInstanceOfSatisfying(BaseException.class,
+                        error -> assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+        assertThat(count("vm_meeting_schedule_drafts")).isZero();
+        assertThat(count("vm_meeting_schedule_draft_commands")).isZero();
+    }
+
+    @Test
     void databaseRejectsDuplicateOwnerSlotAndCrossTenantDraftChildren() {
         var saved = own(() -> drafts.save(valid(null, "Private slot", null),
                 "draft-constraint-save", null));

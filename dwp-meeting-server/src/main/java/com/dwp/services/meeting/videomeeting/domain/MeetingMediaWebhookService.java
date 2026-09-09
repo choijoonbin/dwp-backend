@@ -42,7 +42,15 @@ public class MeetingMediaWebhookService {
 
     private void cleanup(CleanupClaim claim) {
         try {
-            mediaProvider.endRoom(claim.roomName());
+            if (claim.participant() == null) {
+                mediaProvider.endRoom(claim.roomName());
+            } else {
+                var target = claim.participant();
+                mediaProvider.disconnectParticipant(new MeetingMediaProvider.PreparedRoom(
+                                claim.provider(), claim.roomName(), target.tenantId(),
+                                target.meetingId(), target.incarnation()),
+                        target.participantId(), transactions.participantCleanupUserId(claim));
+            }
             transactions.cleanupSucceeded(claim);
         } catch (RuntimeException failure) {
             try {

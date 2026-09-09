@@ -48,7 +48,7 @@ class ProductAuthorizationSeedLoaderTest {
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L);
         assertThat(contract.bundleStatus()).isEqualTo("DRAFT");
         assertThat(contract.version()).isEqualTo(6);
-        assertThat(contract.routes()).hasSize(161);
+        assertThat(contract.routes()).hasSize(163);
     }
 
     @Test

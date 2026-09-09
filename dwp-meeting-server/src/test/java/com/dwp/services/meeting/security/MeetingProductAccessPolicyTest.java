@@ -13,11 +13,13 @@ class MeetingProductAccessPolicyTest {
     @Test
     void exposesTheExactPMeetingsPageDataActionConsumerBindings() {
         assertThat(policy.bindingContracts())
-                .hasSize(3)
+                .hasSize(5)
                 .extracting(MeetingProductAccessPolicy.BindingContract::routeKind)
                 .containsExactly(
                         MeetingProductAccessPolicy.RouteKind.PAGE,
                         MeetingProductAccessPolicy.RouteKind.DATA,
+                        MeetingProductAccessPolicy.RouteKind.ACTION,
+                        MeetingProductAccessPolicy.RouteKind.ACTION,
                         MeetingProductAccessPolicy.RouteKind.ACTION);
         assertThat(policy.bindingContracts()).allSatisfy(binding -> {
             assertThat(binding.policyId()).isEqualTo("P-MEETINGS");
@@ -34,7 +36,9 @@ class MeetingProductAccessPolicyTest {
                 .containsExactly(
                         "route.meetings.work.home.page",
                         "route.meetings.work.meetings.data",
-                        "route.meetings.work.meeting-create.action");
+                        "route.meetings.work.meeting-create.action",
+                        "route.meetings.work.participant-disconnect.action",
+                        "route.meetings.work.intelligence-report-export.action");
     }
 
     @Test
@@ -70,5 +74,73 @@ class MeetingProductAccessPolicyTest {
             assertThat(decision.allowed()).isFalse();
             assertThat(decision.reasonCode()).isEqualTo("TENANT_ACTOR_SCOPE_MISMATCH");
         });
+    }
+
+    @Test
+    void disconnectRequiresTheDedicatedRouteContractAndUpdateCapability() {
+        String path = "/v1/meetings/00000000-0000-4000-8000-000000000001"
+                + "/participants/00000000-0000-4000-8000-000000000002/disconnect";
+        String scope = policy.selfScope(7L, 19L);
+
+        assertThat(policy.authorize(new MeetingProductAccessPolicy.RequestEvidence(
+                7L, 19L, "POST", path,
+                "route.meetings.work.participant-disconnect.action", scope,
+                MeetingProductAccessPolicy.ActiveAccessMode.NORMAL, false,
+                Set.of("APP.MEETINGS:UPDATE"))).allowed()).isTrue();
+        assertThat(policy.authorize(new MeetingProductAccessPolicy.RequestEvidence(
+                7L, 19L, "POST", path,
+                "route.meetings.work.meeting-create.action", scope,
+                MeetingProductAccessPolicy.ActiveAccessMode.NORMAL, false,
+                Set.of("APP.MEETINGS:UPDATE"))).reasonCode())
+                .isEqualTo("ROUTE_CONTRACT_MISMATCH");
+        assertThat(policy.authorize(new MeetingProductAccessPolicy.RequestEvidence(
+                7L, 19L, "POST", path,
+                "route.meetings.work.participant-disconnect.action", scope,
+                MeetingProductAccessPolicy.ActiveAccessMode.NORMAL, false,
+                Set.of("APP.MEETINGS:CREATE"))).reasonCode())
+                .isEqualTo("EXACT_ROUTE_AUTHORITY_REQUIRED");
+    }
+
+    @Test
+    void intelligenceExportRequiresItsDedicatedRouteContractAndUpdateCapability() {
+        String path = "/v1/meetings/00000000-0000-4000-8000-000000000001"
+                + "/intelligence/reports/00000000-0000-4000-8000-000000000003/exports";
+        String scope = policy.selfScope(7L, 19L);
+
+        assertThat(policy.authorize(new MeetingProductAccessPolicy.RequestEvidence(
+                7L, 19L, "POST", path,
+                "route.meetings.work.intelligence-report-export.action", scope,
+                MeetingProductAccessPolicy.ActiveAccessMode.NORMAL, false,
+                Set.of("APP.MEETINGS:UPDATE"))).allowed()).isTrue();
+        assertThat(policy.authorize(new MeetingProductAccessPolicy.RequestEvidence(
+                7L, 19L, "POST", path,
+                "route.meetings.work.participant-disconnect.action", scope,
+                MeetingProductAccessPolicy.ActiveAccessMode.NORMAL, false,
+                Set.of("APP.MEETINGS:UPDATE"))).reasonCode())
+                .isEqualTo("ROUTE_CONTRACT_MISMATCH");
+    }
+
+    @Test
+    void dynamicMutationBindingsRejectTemplatesMalformedIdsAndSiblingPaths() {
+        String disconnect = "/v1/meetings/00000000-0000-4000-8000-000000000001"
+                + "/participants/00000000-0000-4000-8000-000000000002/disconnect";
+        String export = "/v1/meetings/00000000-0000-4000-8000-000000000001"
+                + "/intelligence/reports/00000000-0000-4000-8000-000000000003/exports";
+
+        assertThat(policy.ownsCandidate("POST", disconnect)).isTrue();
+        assertThat(policy.ownsCandidate("POST", export)).isTrue();
+        assertThat(policy.ownsCandidate("GET", disconnect)).isFalse();
+        assertThat(policy.ownsCandidate("POST", disconnect + "/extra")).isFalse();
+        assertThat(policy.ownsCandidate("POST", export + "/extra")).isFalse();
+        assertThat(policy.ownsCandidate("POST", export.replace(
+                "00000000-0000-4000-8000-000000000003", "not-a-uuid"))).isFalse();
+        assertThat(policy.ownsCandidate(
+                "POST",
+                "/v1/meetings/{meetingId}/participants/{participantId}/disconnect"))
+                .isFalse();
+        assertThat(policy.ownsCandidate(
+                "POST",
+                "/v1/meetings/{meetingId}/intelligence/reports/{reportId}/exports"))
+                .isFalse();
     }
 }

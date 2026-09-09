@@ -6,6 +6,7 @@ import com.dwp.services.notification.common.NotificationException;
 import com.dwp.services.notification.domain.NotificationIdempotencyRepository.Request;
 import com.dwp.services.notification.domain.NotificationModels.PolicyChannelRule;
 import com.dwp.services.notification.domain.NotificationModels.PolicyPublishRequest;
+import com.dwp.services.notification.domain.NotificationModels.PolicySimulationContext;
 import com.dwp.services.notification.domain.NotificationModels.TenantPolicy;
 import com.dwp.services.notification.domain.NotificationModels.TenantPolicyChangeRequest;
 import com.dwp.services.notification.security.NotificationDatabaseScope;
@@ -67,6 +68,11 @@ class NotificationAdminServiceTest {
         });
         assertThat(preview.riskFlags()).containsExactly(
                 "MANDATORY_DELIVERY", "QUIET_HOURS_BYPASS", "USER_OVERRIDE_RESTRICTED");
+        assertThat(preview.simulation().channels()).singleElement().satisfies(channel -> {
+            assertThat(channel.outcome()).isEqualTo("IMMEDIATE");
+            assertThat(channel.reason()).isEqualTo("POLICY_ADMITTED");
+        });
+        assertThat(preview.simulation().attentionRisk()).isEqualTo("HIGH");
     }
 
     @Test
@@ -82,6 +88,35 @@ class NotificationAdminServiceTest {
                 .isInstanceOfSatisfying(NotificationException.class, exception ->
                         assertThat(exception.errorCode()).isEqualTo(
                                 NotificationErrorCode.NOTIFICATION_CAPABILITY_DISABLED));
+    }
+
+    @Test
+    void simulatesFocusAndQuietHoursWithTheServerPolicyRules() {
+        TenantPolicyChangeRequest base = changeRequest(
+                false,
+                false,
+                List.of(new PolicyChannelRule("IN_APP", true, "IMMEDIATE", true, 100)));
+        TenantPolicyChangeRequest request = new TenantPolicyChangeRequest(
+                base.scopeType(),
+                base.scopeKey(),
+                base.mandatory(),
+                base.quietHoursBypass(),
+                base.digestMode(),
+                base.channels(),
+                base.changeReason(),
+                base.expectedVersion(),
+                new PolicySimulationContext(
+                        "KNOWLEDGE_WORKER", "Asia/Seoul", "22:30", true, true));
+
+        var preview = service.previewPolicy(actor, request);
+
+        assertThat(preview.simulation().context().timeZone()).isEqualTo("Asia/Seoul");
+        assertThat(preview.simulation().channels()).singleElement().satisfies(channel -> {
+            assertThat(channel.outcome()).isEqualTo("DEFERRED");
+            assertThat(channel.reason()).isEqualTo("QUIET_HOURS");
+        });
+        assertThat(preview.simulation().deferredChannelCount()).isEqualTo(1);
+        assertThat(preview.simulation().providerCostState()).isEqualTo("NOT_APPLICABLE");
     }
 
     @Test
@@ -164,6 +199,7 @@ class NotificationAdminServiceTest {
                 "IMMEDIATE",
                 channels,
                 "Protect user attention with governed routing",
-                "0");
+                "0",
+                null);
     }
 }

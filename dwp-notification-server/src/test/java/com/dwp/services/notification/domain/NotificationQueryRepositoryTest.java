@@ -11,6 +11,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.NullSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -101,6 +102,17 @@ class NotificationQueryRepositoryTest {
         assertThat(mapper.valueToTree(reason).path("kind").isTextual()).isTrue();
         assertThat(mapper.readValue(mapper.writeValueAsString(reason), NotificationReason.class))
                 .isEqualTo(reason);
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "'  Human actor  ',Human actor",
+            "'user:900018',",
+            "'urn:dwp:meetings',",
+            "'A72E7930-7D2B-4D9E-86C4-45DCEB42F331',"
+    })
+    void exposesOnlyHumanReadableActorLabels(String raw, String expected) {
+        assertThat(NotificationQueryRepository.displayActorLabel(raw)).isEqualTo(expected);
     }
 
     @ParameterizedTest

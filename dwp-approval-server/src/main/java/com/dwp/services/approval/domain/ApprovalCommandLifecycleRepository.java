@@ -78,7 +78,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
                 actor.tenantId(), request.workflowId(), request.formId(), payload, false);
         validateRequestPayload(workflow.formSchema(), payload, false);
         String payloadJson = payloadSupport.json(payload);
-        MapSqlParameterSource params = actorParams(actor)
+        MapSqlParameterSource params = workActorParams(
+                actor, workflow.managementResourceSetKey())
                 .addValue("requestId", requestId)
                 .addValue("workflowVersionId", workflow.workflowVersionId())
                 .addValue("formVersionId", workflow.formVersionId())
@@ -120,7 +121,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
         ApprovalCommandRepository.RuntimeStep firstStep = steps.get(0);
         UUID firstStepId = UUID.randomUUID();
         UUID firstTaskId = UUID.randomUUID();
-        MapSqlParameterSource params = actorParams(actor)
+        MapSqlParameterSource params = workActorParams(
+                actor, request.managementResourceSetKey())
                 .addValue("requestId", requestId)
                 .addValue("expectedVersion", expectedVersion)
                 .addValue("slaMinutes", request.slaMinutes())
@@ -133,7 +135,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
             ApprovalCommandRepository.RuntimeStep step = steps.get(index);
             cumulativeMinutes = Math.addExact(cumulativeMinutes, step.slaMinutes());
             UUID stepId = index == 0 ? firstStepId : UUID.randomUUID();
-            jdbc.update(ApprovalCommandSql01.SUBMIT_INSERT_APR_STEPS, actorParams(actor)
+            jdbc.update(ApprovalCommandSql01.SUBMIT_INSERT_APR_STEPS, workActorParams(
+                    actor, request.managementResourceSetKey())
                     .addValue("requestId", requestId)
                     .addValue("stepId", stepId)
                     .addValue("stepKey", step.key())
@@ -144,7 +147,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
                     .addValue("status", index == 0 ? "IN_PROGRESS" : "WAITING")
                     .addValue("cumulativeMinutes", cumulativeMinutes));
         }
-        jdbc.update(ApprovalCommandSql01.APR_STEPS_INSERT_APR_TASKS, actorParams(actor)
+        jdbc.update(ApprovalCommandSql01.APR_STEPS_INSERT_APR_TASKS, workActorParams(
+                actor, request.managementResourceSetKey())
                 .addValue("requestId", requestId)
                 .addValue("taskId", firstTaskId)
                 .addValue("stepId", firstStepId)
@@ -170,7 +174,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
             UUID requestId,
             long expectedVersion,
             String correlationId) {
-        MapSqlParameterSource params = actorParams(actor)
+        String managementScope = ownedRequestManagementScope(actor, requestId);
+        MapSqlParameterSource params = workActorParams(actor, managementScope)
                 .addValue("requestId", requestId)
                 .addValue("expectedVersion", expectedVersion);
         int updated = jdbc.update(ApprovalCommandSql01.WITHDRAW_UPDATE_APR_REQUESTS, params);
@@ -199,7 +204,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
         }
         amendedFields.sort(String::compareTo);
         String amendedPayloadJson = payloadSupport.json(amendedPayload);
-        MapSqlParameterSource params = actorParams(actor)
+        MapSqlParameterSource params = workActorParams(
+                actor, current.managementResourceSetKey())
                 .addValue("requestId", requestId)
                 .addValue("expectedVersion", request.expectedVersion())
                 .addValue("message", request.message().trim())
@@ -238,7 +244,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
                 && task.assigneeUserId() == null && !task.delegatedAccess()) {
             throw new BaseException(ErrorCode.FORBIDDEN);
         }
-        int updated = jdbc.update(ApprovalCommandSql01.CLAIM_UPDATE_APR_TASKS, actorParams(actor)
+        int updated = jdbc.update(ApprovalCommandSql01.CLAIM_UPDATE_APR_TASKS, workActorParams(
+                actor, task.managementResourceSetKey())
                 .addValue("personPublicId", actor.personPublicId())
                 .addValue("delegatedFromUserId", task.delegatedFromUserId())
                 .addValue("taskId", task.summary().taskId())
@@ -320,7 +327,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
                     "The approval decision is not supported.");
         }
 
-        MapSqlParameterSource params = actorParams(actor)
+        MapSqlParameterSource params = workActorParams(
+                actor, task.managementResourceSetKey())
                 .addValue("taskId", task.summary().taskId())
                 .addValue("requestId", task.summary().requestId())
                 .addValue("expectedVersion", decision.expectedVersion())
@@ -338,7 +346,12 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
             if (nextStep == null) {
                 requestStatus = "APPROVED";
             } else {
-                activateNextStep(actor, task.summary().requestId(), nextStep, correlationId);
+                activateNextStep(
+                        actor,
+                        task.summary().requestId(),
+                        task.managementResourceSetKey(),
+                        nextStep,
+                        correlationId);
             }
         } else if ("REJECT".equals(normalized)) {
             jdbc.update(ApprovalCommandSql01.IN_UPDATE_APR_STEPS_3, params);
@@ -387,10 +400,11 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
     private void activateNextStep(
             ApprovalRequestContext.Actor actor,
             UUID requestId,
+            String managementResourceSetKey,
             NextStep nextStep,
             String correlationId) {
         UUID taskId = UUID.randomUUID();
-        MapSqlParameterSource params = actorParams(actor)
+        MapSqlParameterSource params = workActorParams(actor, managementResourceSetKey)
                 .addValue("requestId", requestId)
                 .addValue("stepId", nextStep.stepId())
                 .addValue("taskId", taskId)

@@ -44,6 +44,7 @@ public class VideoMeetingRepository {
     private final NamedParameterJdbcTemplate namedJdbc;
     private final VideoMeetingJdbcCodec codec;
     private final VideoMeetingQueryRepository queries;
+    private final MeetingHistoryProjectionRepository historyProjection;
     private final VideoMeetingPreparationRepository preparation;
     private final MeetingTemplateRepository templates;
     private final VideoMeetingTenantDirectoryRepository tenantDirectory;
@@ -55,6 +56,7 @@ public class VideoMeetingRepository {
         this.namedJdbc = new NamedParameterJdbcTemplate(jdbc);
         this.codec = new VideoMeetingJdbcCodec(objectMapper);
         this.queries = new VideoMeetingQueryRepository(jdbc, namedJdbc, codec);
+        this.historyProjection = new MeetingHistoryProjectionRepository(namedJdbc, codec);
         this.preparation = new VideoMeetingPreparationRepository(jdbc);
         this.templates = new MeetingTemplateRepository(jdbc, objectMapper);
         this.tenantDirectory = new VideoMeetingTenantDirectoryRepository(jdbc, namedJdbc, codec);
@@ -432,6 +434,16 @@ public class VideoMeetingRepository {
                 .stream().findFirst();
     }
 
+    public boolean participantMediaBlocked(long tenantId, UUID meetingId, UUID participantId) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS (SELECT 1 FROM vm_meeting_participant_disconnects command
+                  JOIN vm_meetings meeting ON meeting.tenant_id=command.tenant_id
+                   AND meeting.meeting_id=command.meeting_id
+                   AND meeting.media_incarnation=command.room_incarnation
+                 WHERE command.tenant_id=? AND command.meeting_id=? AND command.participant_id=?)
+                """, Boolean.class, tenantId, meetingId, participantId));
+    }
+
     public void beginEnding(
             Meeting meeting, UUID mediaIncarnation, long expectedVersion) {
         int updated = jdbc.update("""
@@ -531,6 +543,19 @@ public class VideoMeetingRepository {
     public PagedMeetings history(
             long tenantId, long userId, int page, int pageSize, boolean favoriteOnly) {
         return queries.history(tenantId, userId, page, pageSize, favoriteOnly);
+    }
+
+    MeetingHistoryProjectionRepository.PagedHistory historyProjection(
+            long tenantId,
+            long userId,
+            int page,
+            int pageSize,
+            boolean favoriteOnly,
+            VideoMeetingDtos.HistoryPublicationFilter publication,
+            VideoMeetingDtos.HistoryRetentionFilter retention,
+            OffsetDateTime now) {
+        return historyProjection.history(
+                tenantId, userId, page, pageSize, favoriteOnly, publication, retention, now);
     }
 
     public List<Participant> waitingParticipants(long tenantId, UUID meetingId) {

@@ -153,6 +153,50 @@ class MeetingSecurityFilterTest {
     }
 
     @Test
+    void participantContentMutationsRemainPrivateAndRejectSupportInLegacyRollout()
+            throws ServletException, IOException {
+        MeetingSecurityFilter filter = new MeetingSecurityFilter(
+                "trusted-token", new ObjectMapper().findAndRegisterModules());
+        for (ActionCandidate candidate : actionCandidates()) {
+            MockHttpServletRequest support = request("POST", candidate.path());
+            support.addHeader(MeetingSecurityFilter.SERVICE_TOKEN, "trusted-token");
+            support.addHeader(MeetingSecurityFilter.USER, "101");
+            support.addHeader(MeetingSecurityFilter.TENANT, "77");
+            support.addHeader(MeetingSecurityFilter.ROLES, "PROVIDER_SUPPORT");
+            support.addHeader(MeetingSecurityFilter.PERMISSIONS, "APP.MEETINGS:UPDATE");
+            MockHttpServletResponse denied = new MockHttpServletResponse();
+            AtomicBoolean deniedInvocation = new AtomicBoolean();
+
+            filter.doFilter(support, denied, (servletRequest, servletResponse) ->
+                    deniedInvocation.set(true));
+
+            assertThat(denied.getStatus()).as(candidate.path()).isEqualTo(403);
+            assertThat(deniedInvocation).as(candidate.path()).isFalse();
+
+            MockHttpServletRequest workspace = request("POST", candidate.path());
+            workspace.addHeader(MeetingSecurityFilter.SERVICE_TOKEN, "trusted-token");
+            workspace.addHeader(MeetingSecurityFilter.USER, "101");
+            workspace.addHeader(MeetingSecurityFilter.TENANT, "77");
+            workspace.addHeader(MeetingSecurityFilter.ROLES, "WORKSPACE_MEMBER");
+            workspace.addHeader(
+                    MeetingSecurityFilter.PERMISSIONS, "APP.MEETINGS:UPDATE");
+            MockHttpServletResponse accepted = new MockHttpServletResponse();
+            AtomicBoolean acceptedInvocation = new AtomicBoolean();
+
+            filter.doFilter(workspace, accepted, (servletRequest, servletResponse) ->
+                    acceptedInvocation.set(true));
+
+            assertThat(acceptedInvocation).as(candidate.path()).isTrue();
+            assertThat(accepted.getHeader("Cache-Control"))
+                    .as(candidate.path()).isEqualTo("private, no-store");
+            assertThat(accepted.getHeader("Pragma"))
+                    .as(candidate.path()).isEqualTo("no-cache");
+            assertThat(accepted.getHeader("Referrer-Policy"))
+                    .as(candidate.path()).isEqualTo("no-referrer");
+        }
+    }
+
+    @Test
     void draftV4CannotActivateWithoutTheOwnerServiceReadinessLatch()
             throws ServletException, IOException {
         MeetingSecurityFilter filter = new MeetingSecurityFilter(
@@ -343,6 +387,53 @@ class MeetingSecurityFilterTest {
         }
     }
 
+    @Test
+    void governedMeetingMutationsRequireTheExactCurrentDecisionRevision()
+            throws ServletException, IOException {
+        MeetingSecurityFilter filter = exactFilter();
+        for (ActionCandidate candidate : actionCandidates()) {
+            for (String expected : List.of("", "psr-" + "d".repeat(64))) {
+                MockHttpServletRequest request = exactRequest("POST", candidate.path());
+                replaceHeader(request, MeetingSecurityFilter.PERMISSIONS,
+                        "APP.MEETINGS:UPDATE");
+                replaceHeader(request, MeetingSecurityFilter.ROUTE_CONTRACT,
+                        candidate.routeContractKey());
+                if (!expected.isEmpty()) {
+                    request.addHeader(
+                            MeetingSecurityFilter.EXPECTED_DECISION_REVISION, expected);
+                }
+                MockHttpServletResponse response = new MockHttpServletResponse();
+                AtomicBoolean invoked = new AtomicBoolean();
+
+                filter.doFilter(request, response, (servletRequest, servletResponse) ->
+                        invoked.set(true));
+
+                assertThat(response.getStatus()).as(candidate.path()).isEqualTo(409);
+                assertThat(invoked).as(candidate.path()).isFalse();
+            }
+
+            MockHttpServletRequest accepted = exactRequest("POST", candidate.path());
+            replaceHeader(accepted, MeetingSecurityFilter.PERMISSIONS,
+                    "APP.MEETINGS:UPDATE");
+            replaceHeader(accepted, MeetingSecurityFilter.ROUTE_CONTRACT,
+                    candidate.routeContractKey());
+            accepted.addHeader(MeetingSecurityFilter.EXPECTED_DECISION_REVISION,
+                    "psr-" + "c".repeat(64));
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            AtomicBoolean invoked = new AtomicBoolean();
+
+            filter.doFilter(accepted, response, (servletRequest, servletResponse) ->
+                    invoked.set(true));
+
+            assertThat(response.getStatus()).as(candidate.path()).isEqualTo(200);
+            assertThat(invoked).as(candidate.path()).isTrue();
+            assertThat(response.getHeader(MeetingSecurityFilter.RESPONSE_DECISION_REVISION))
+                    .as(candidate.path()).isEqualTo("psr-" + "c".repeat(64));
+            assertThat(response.getHeader("Cache-Control"))
+                    .as(candidate.path()).isEqualTo("private, no-store");
+        }
+    }
+
     private MeetingSecurityFilter exactFilter() {
         return new MeetingSecurityFilter(
                 "trusted-token", true, new ObjectMapper().findAndRegisterModules(),
@@ -353,7 +444,33 @@ class MeetingSecurityFilterTest {
         return List.of(
                 new Candidate("GET", "/v1/home", "APP.MEETINGS:VIEW"),
                 new Candidate("GET", "/v1/meetings", "APP.MEETINGS:VIEW"),
-                new Candidate("POST", "/v1/meetings", "APP.MEETINGS:CREATE"));
+                new Candidate("POST", "/v1/meetings", "APP.MEETINGS:CREATE"),
+                new Candidate(
+                        "POST",
+                        "/v1/meetings/00000000-0000-4000-8000-000000000001"
+                                + "/participants/00000000-0000-4000-8000-000000000002"
+                                + "/disconnect",
+                        "APP.MEETINGS:UPDATE"),
+                new Candidate(
+                        "POST",
+                        "/v1/meetings/00000000-0000-4000-8000-000000000001"
+                                + "/intelligence/reports/"
+                                + "00000000-0000-4000-8000-000000000003/exports",
+                        "APP.MEETINGS:UPDATE"));
+    }
+
+    private List<ActionCandidate> actionCandidates() {
+        return List.of(
+                new ActionCandidate(
+                        "/v1/meetings/00000000-0000-4000-8000-000000000001"
+                                + "/participants/00000000-0000-4000-8000-000000000002"
+                                + "/disconnect",
+                        "route.meetings.work.participant-disconnect.action"),
+                new ActionCandidate(
+                        "/v1/meetings/00000000-0000-4000-8000-000000000001"
+                                + "/intelligence/reports/"
+                                + "00000000-0000-4000-8000-000000000003/exports",
+                        "route.meetings.work.intelligence-report-export.action"));
     }
 
     private void replaceHeader(
@@ -394,6 +511,9 @@ class MeetingSecurityFilterTest {
     }
 
     private record Candidate(String method, String path, String permission) {
+    }
+
+    private record ActionCandidate(String path, String routeContractKey) {
     }
 
     private record Sibling(String method, String path, String permission) {

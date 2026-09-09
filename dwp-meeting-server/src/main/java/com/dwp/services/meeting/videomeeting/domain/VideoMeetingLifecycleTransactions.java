@@ -74,6 +74,9 @@ class VideoMeetingLifecycleTransactions {
             String correlationId) {
         Meeting meeting = meetings.lockMeeting(subject.tenantId(), meetingId);
         Participant host = requireHost(subject, meeting);
+        if (VideoMeetingEntryPolicy.requiresUnverifiedAuthority(meeting)) {
+            throw VideoMeetingEntryPolicy.runtimeUnavailable();
+        }
         if (meeting.live()) {
             return Preparation.replay(meetings.detail(meeting), host.participantRole());
         }

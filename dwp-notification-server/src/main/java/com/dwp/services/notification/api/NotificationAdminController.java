@@ -4,12 +4,14 @@ import com.dwp.services.notification.common.ApiResponse;
 import com.dwp.services.notification.domain.NotificationAdminService;
 import com.dwp.services.notification.domain.NotificationModels.AdminOverview;
 import com.dwp.services.notification.domain.NotificationModels.DeliveryOperations;
+import com.dwp.services.notification.domain.NotificationModels.DraftDecisionRequest;
 import com.dwp.services.notification.domain.NotificationModels.PolicyPublishRequest;
 import com.dwp.services.notification.domain.NotificationModels.TenantPolicy;
 import com.dwp.services.notification.domain.NotificationModels.TenantPolicyChangeRequest;
 import com.dwp.services.notification.domain.NotificationModels.TenantPolicyPage;
 import com.dwp.services.notification.domain.NotificationModels.TenantPolicyPreview;
 import com.dwp.services.notification.domain.NotificationModels.TypeContractPage;
+import com.dwp.services.notification.domain.NotificationDraftGovernanceService;
 import com.dwp.services.notification.domain.NotificationTemplateModels.TemplateDecisionRequest;
 import com.dwp.services.notification.domain.NotificationTemplateModels.TemplateDraftRequest;
 import com.dwp.services.notification.domain.NotificationTemplateModels.TemplatePreview;
@@ -40,12 +42,15 @@ public class NotificationAdminController {
 
     private final NotificationAdminService service;
     private final NotificationTemplateService templateService;
+    private final NotificationDraftGovernanceService draftGovernanceService;
 
     public NotificationAdminController(
             NotificationAdminService service,
-            NotificationTemplateService templateService) {
+            NotificationTemplateService templateService,
+            NotificationDraftGovernanceService draftGovernanceService) {
         this.service = service;
         this.templateService = templateService;
+        this.draftGovernanceService = draftGovernanceService;
     }
 
     @GetMapping("/overview")
@@ -96,6 +101,24 @@ public class NotificationAdminController {
                 service.publishPolicy(actor(), policyId, request, idempotencyKey));
     }
 
+    @PostMapping("/policies/{policyId}/withdraw")
+    public ApiResponse<TenantPolicy> withdrawPolicyDraft(
+            @PathVariable UUID policyId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody DraftDecisionRequest request) {
+        return ApiResponse.success(draftGovernanceService.withdrawPolicyDraft(
+                actor(), policyId, request, idempotencyKey));
+    }
+
+    @PostMapping("/policies/{policyId}/reject")
+    public ApiResponse<TenantPolicy> rejectPolicyDraft(
+            @PathVariable UUID policyId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody DraftDecisionRequest request) {
+        return ApiResponse.success(draftGovernanceService.rejectPolicyDraft(
+                actor(), policyId, request, idempotencyKey));
+    }
+
     @GetMapping("/templates")
     public ApiResponse<TemplateWorkspace> templates() {
         return ApiResponse.success(templateService.workspace(actor()));
@@ -128,9 +151,27 @@ public class NotificationAdminController {
     public ApiResponse<TemplateRevision> retireTemplateDraft(
             @PathVariable UUID revisionId,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @Valid @RequestBody TemplateDecisionRequest request) {
-        return ApiResponse.success(
-                templateService.retireDraft(actor(), revisionId, request, idempotencyKey));
+            @Valid @RequestBody DraftDecisionRequest request) {
+        return ApiResponse.success(draftGovernanceService.withdrawTemplateDraft(
+                actor(), revisionId, request, idempotencyKey));
+    }
+
+    @PostMapping("/templates/{revisionId}/withdraw")
+    public ApiResponse<TemplateRevision> withdrawTemplateDraft(
+            @PathVariable UUID revisionId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody DraftDecisionRequest request) {
+        return ApiResponse.success(draftGovernanceService.withdrawTemplateDraft(
+                actor(), revisionId, request, idempotencyKey));
+    }
+
+    @PostMapping("/templates/{revisionId}/reject")
+    public ApiResponse<TemplateRevision> rejectTemplateDraft(
+            @PathVariable UUID revisionId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @Valid @RequestBody DraftDecisionRequest request) {
+        return ApiResponse.success(draftGovernanceService.rejectTemplateDraft(
+                actor(), revisionId, request, idempotencyKey));
     }
 
     private NotificationRequestContext.Actor actor() {

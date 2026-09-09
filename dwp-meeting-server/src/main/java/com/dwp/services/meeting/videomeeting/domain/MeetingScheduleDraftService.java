@@ -310,6 +310,7 @@ public class MeetingScheduleDraftService {
                     && (request.durationMinutes() < 5 || request.durationMinutes() > 1_440)
                 || request.accessScope() != null
                     && !Set.of("INTERNAL", "INVITED").contains(request.accessScope())
+                || Boolean.TRUE.equals(request.allowJoinBeforeHost())
                 || request.lastStep() != null
                     && !Set.of("DETAILS", "SCHEDULE", "RECURRENCE", "REVIEW")
                             .contains(request.lastStep())

@@ -2,11 +2,26 @@ package com.dwp.services.notification.config;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.config.YamlPropertiesFactoryBean;
 import org.springframework.core.io.ClassPathResource;
 
 class NotificationRuntimeConfigurationInvariantTest {
+
+    @Test
+    void meetingsProducerIdentityOwnershipAndEntitlementAreConfiguredTogether()
+            throws IOException {
+        String application = new ClassPathResource("application.yml")
+                .getContentAsString(StandardCharsets.UTF_8);
+        assertThat(application)
+                .contains("dwp-meeting-server=meetings")
+                .contains("meetings=APP.MEETINGS:VIEW")
+                .contains("dwp-messaging-server,dwp-meeting-server")
+                .contains("urn:dwp:meetings=dwp-meeting-server");
+    }
 
     @Test
     void longLivedStreamsDoNotRetainOpenEntityManagers() {

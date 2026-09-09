@@ -52,6 +52,76 @@ class GeneratedProductRouteCatalogTest {
     }
 
     @Test
+    void v6MeetingMutationsResolveOnlyToTheirDedicatedActionRoutes() {
+        for (List<String> binding : List.of(
+                List.of(
+                        "/api/meetings/v1/meetings/"
+                                + "00000000-0000-4000-8000-000000000001/participants/"
+                                + "00000000-0000-4000-8000-000000000002/disconnect",
+                        "route.meetings.work.participant-disconnect.action"),
+                List.of(
+                        "/api/meetings/v1/meetings/"
+                                + "00000000-0000-4000-8000-000000000001/"
+                                + "intelligence/reports/"
+                                + "00000000-0000-4000-8000-000000000003/exports",
+                        "route.meetings.work.intelligence-report-export.action"))) {
+            String path = binding.get(0);
+            var latest = catalog(6).match("POST", path);
+
+            assertThat(latest.status()).as(path)
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(latest.uniqueRoute().routeContractKey())
+                    .as(path).isEqualTo(binding.get(1));
+            assertThat(latest.uniqueRoute().routeKind()).as(path).isEqualTo("ACTION");
+            assertThat(latest.uniqueRoute().stateChanging()).as(path).isTrue();
+            assertThat(catalog(5).match("POST", path).uniqueRoute()).as(path).isNull();
+            assertThat(catalog(6).match("GET", path).status()).as(path)
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.UNGOVERNED);
+        }
+    }
+
+    @Test
+    void v6ClosesEveryDeclaredDwaionUserAndAdministrationMutation() {
+        GeneratedProductRouteCatalog latest = catalog(6);
+        for (List<String> binding : List.of(
+                List.of("POST", "/api/agent/v1/proposals/"
+                        + "00000000-0000-4000-8000-000000000001/decisions",
+                        "route.dwaion.work.proposal-decision.action"),
+                List.of("POST", "/api/agent/v1/routines/"
+                        + "00000000-0000-4000-8000-000000000001/archive",
+                        "route.dwaion.work.routine-archive.action"),
+                List.of("POST", "/api/agent/v1/personal-data/deletions",
+                        "route.dwaion.work.personal-deletion-request.action"),
+                List.of("POST", "/api/agent/v1/artifacts/"
+                        + "00000000-0000-4000-8000-000000000001/exports",
+                        "route.dwaion.work.artifact-export.action"),
+                List.of("POST", "/api/agent/v1/admin/gates/PRODUCTION_READINESS/decision",
+                        "route.dwaion.management.gate-decision.action"),
+                List.of("POST", "/api/platform/v1/admin/dwaion/agents/DWP_ASSISTANT/"
+                        + "revisions/2/activate",
+                        "route.dwaion.management.agent-revision-activate.action"))) {
+            var match = latest.match(binding.get(0), binding.get(1));
+            assertThat(match.status()).as(binding.toString())
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(match.uniqueRoute().routeContractKey()).as(binding.toString())
+                    .isEqualTo(binding.get(2));
+            assertThat(match.uniqueRoute().stateChanging()).as(binding.toString()).isTrue();
+            assertThat(catalog(5).match(binding.get(0), binding.get(1)).uniqueRoute())
+                    .as(binding.toString()).isNull();
+        }
+
+        long dwaionRoutes = latest.routesForTesting().stream()
+                .filter(route -> "dwaion".equals(route.productKey()))
+                .count();
+        long dwaionActions = latest.routesForTesting().stream()
+                .filter(route -> "dwaion".equals(route.productKey()))
+                .filter(GeneratedProductRouteCatalog.Route::stateChanging)
+                .count();
+        assertThat(dwaionRoutes).isEqualTo(95);
+        assertThat(dwaionActions).isEqualTo(57);
+    }
+
+    @Test
     void declaredAuthorityEndpointUsesAStrictClosedShape() throws Exception {
         ObjectNode unknownField = bundle(3);
         ((ObjectNode) unknownField.withArray("authorityEndpoints").get(0))

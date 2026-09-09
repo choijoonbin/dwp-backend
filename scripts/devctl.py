@@ -231,6 +231,8 @@ PROFILES = {
 }
 for optional_service in OPTIONAL_RUNTIME_SERVICES:
     PROFILES[optional_service] = {optional_service}
+if "meeting" in OPTIONAL_RUNTIME_SERVICES:
+    PROFILES["meeting"] = {"auth", "notification", "meeting"}
 
 START_ORDER = (
     "auth",
@@ -248,7 +250,8 @@ START_ORDER = (
 )
 START_PHASES = (
     ("platform",),
-    ("auth", "people", "provider", "approval", "space", "messaging", "notification", "meeting", "agent"),
+    ("auth", "people", "provider", "approval", "space", "messaging", "notification", "agent"),
+    ("meeting",),
     ("gateway",),
     ("frontend",),
 )
@@ -342,6 +345,10 @@ def load_agent_local_environment(path: Path | None = None) -> dict[str, str]:
 
 def local_environment() -> dict[str, str]:
     environment = os.environ.copy()
+    meeting_notification_token = environment.get(
+        "DWP_MEETING_INVITATION_DELIVERY_TOKEN",
+        "dwp-local-meeting-notification-token",
+    )
     defaults = {
         "DB_HOST": "localhost",
         "DB_PORT": "5432",
@@ -370,6 +377,25 @@ def local_environment() -> dict[str, str]:
         "SERVICE_MEETING_URL": "http://localhost:8009",
         "DWP_PRODUCT_SURFACE_TOKEN": (
             "dwp-local-product-surface-token-change-outside-local"
+        ),
+        "DWP_MEETING_FOLLOWUP_AUTHORITY_PROVIDER": "auth-product-surface",
+        "DWP_MEETING_FOLLOWUP_AUTHORITY_TOKEN": (
+            "dwp-local-meeting-followup-authority-token-change-outside-local"
+        ),
+        "DWP_MEETING_FOLLOWUP_AUTHORITY_ALLOW_HTTP": "true",
+        "DWP_MEETING_INVITATION_DELIVERY_ENABLED": "true",
+        "DWP_MEETING_INVITATION_DELIVERY_BASE_URL": "http://localhost:8008",
+        "DWP_MEETING_INVITATION_DELIVERY_TOKEN": meeting_notification_token,
+        "DWP_MEETING_INVITATION_DELIVERY_ALLOW_HTTP": "true",
+        "DWP_WORK_MEETING_SOURCE_BASE_URL": "http://localhost:8009",
+        "DWP_WORK_MEETING_ASSERTION_KEY_ID": "local-work-meeting-v1",
+        "DWP_WORK_MEETING_ASSERTION_SECRET_BASE64": (
+            "ZHdwLWxvY2FsLXdvcmstbWVldGluZy1zZWNyZXQtdjEh"
+        ),
+        "DWP_WORK_MEETING_SOURCE_ALLOW_HTTP": "true",
+        "DWP_MEETING_WORK_ASSERTION_KEY_ID": "local-work-meeting-v1",
+        "DWP_MEETING_WORK_ASSERTION_SECRET_BASE64": (
+            "ZHdwLWxvY2FsLXdvcmstbWVldGluZy1zZWNyZXQtdjEh"
         ),
         "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
         "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",
@@ -447,7 +473,17 @@ def local_environment() -> dict[str, str]:
             "dwp-people-server=dwp-local-people-notification-token,"
             "dwp-platform-server=dwp-local-platform-notification-token,"
             "dwp-space-server=dwp-local-space-notification-token,"
-            "dwp-messaging-server=dwp-local-messaging-notification-token"
+            "dwp-messaging-server=dwp-local-messaging-notification-token,"
+            f"dwp-meeting-server={meeting_notification_token}"
+        ),
+        "DWP_NOTIFICATION_ALLOWED_PRODUCERS": (
+            "dwp-approval-server,dwp-people-server,dwp-platform-server,"
+            "dwp-space-server,dwp-messaging-server,dwp-meeting-server"
+        ),
+        "DWP_NOTIFICATION_PRODUCER_APP_BINDINGS": (
+            "dwp-approval-server=approvals,dwp-people-server=hcm|people,"
+            "dwp-platform-server=platform,dwp-space-server=space,"
+            "dwp-messaging-server=messaging,dwp-meeting-server=meetings"
         ),
         "DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED": "true",
         "DWP_NOTIFICATION_DOMAIN_EVENTS_ENABLED": "true",
@@ -517,6 +553,23 @@ def service_environment(service_name: str) -> dict[str, str]:
             environment.pop(key, None)
     if service_name not in {"auth", "gateway"}:
         environment.pop("DWP_PRODUCT_SURFACE_TOKEN", None)
+    if service_name not in {"auth", "meeting"}:
+        environment.pop("DWP_MEETING_FOLLOWUP_AUTHORITY_TOKEN", None)
+    if service_name != "meeting":
+        environment.pop("DWP_MEETING_FOLLOWUP_AUTHORITY_PROVIDER", None)
+        environment.pop("DWP_MEETING_FOLLOWUP_AUTHORITY_ALLOW_HTTP", None)
+        environment.pop("DWP_MEETING_INVITATION_DELIVERY_ENABLED", None)
+        environment.pop("DWP_MEETING_INVITATION_DELIVERY_BASE_URL", None)
+        environment.pop("DWP_MEETING_INVITATION_DELIVERY_TOKEN", None)
+        environment.pop("DWP_MEETING_INVITATION_DELIVERY_ALLOW_HTTP", None)
+    if service_name != "platform":
+        environment.pop("DWP_WORK_MEETING_SOURCE_BASE_URL", None)
+        environment.pop("DWP_WORK_MEETING_ASSERTION_KEY_ID", None)
+        environment.pop("DWP_WORK_MEETING_ASSERTION_SECRET_BASE64", None)
+        environment.pop("DWP_WORK_MEETING_SOURCE_ALLOW_HTTP", None)
+    if service_name != "meeting":
+        environment.pop("DWP_MEETING_WORK_ASSERTION_KEY_ID", None)
+        environment.pop("DWP_MEETING_WORK_ASSERTION_SECRET_BASE64", None)
     if service_name != "auth":
         environment.pop("DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED", None)
         environment.pop(
@@ -598,6 +651,8 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_NOTIFICATION_FLYWAY_LOCATIONS", None)
         environment.pop("DWP_NOTIFICATION_CURSOR_SECRET", None)
         environment.pop("DWP_NOTIFICATION_PRODUCER_TOKENS", None)
+        environment.pop("DWP_NOTIFICATION_ALLOWED_PRODUCERS", None)
+        environment.pop("DWP_NOTIFICATION_PRODUCER_APP_BINDINGS", None)
         environment.pop("DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED", None)
         environment.pop("DWP_NOTIFICATION_DOMAIN_EVENTS_ENABLED", None)
         environment.pop("NOTIFICATION_DB_USERNAME", None)

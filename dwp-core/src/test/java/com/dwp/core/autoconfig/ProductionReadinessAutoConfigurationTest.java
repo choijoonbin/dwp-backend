@@ -3,6 +3,7 @@ package com.dwp.core.autoconfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.env.MockEnvironment;
 
+import java.nio.charset.StandardCharsets;
 import java.security.KeyPairGenerator;
 import java.util.Base64;
 
@@ -82,6 +83,9 @@ class ProductionReadinessAutoConfigurationTest {
         MockEnvironment environment = productionBase("dwp-auth-server")
                 .withProperty("jwt.secret", secret("jwt"))
                 .withProperty("dwp.auth.product-surface-token", secret("product-surface"))
+                .withProperty(
+                        "dwp.auth.meeting-followup-authority-token",
+                        secret("meeting-followup-authority"))
                 .withProperty("dwp.auth.approval-recovery-token", secret("approval-recovery"))
                 .withProperty("dwp.security.session.cookie-secure", "true")
                 .withProperty("dwp.identity-sync.token", secret("identity"))
@@ -344,6 +348,50 @@ class ProductionReadinessAutoConfigurationTest {
     }
 
     @Test
+    void rejectsUnsafeMeetingFollowupSourceVerifierInProduction() {
+        MockEnvironment environment = completeMeetingProduction()
+                .withProperty("DWP_MEETING_WORK_ASSERTION_KEY_ID", "fixture-work-meeting-v1")
+                .withProperty(
+                        "DWP_MEETING_WORK_ASSERTION_SECRET_BASE64",
+                        Base64.getEncoder().encodeToString(
+                                "fixture-work-meeting-secret-that-must-not-ship"
+                                        .getBytes(StandardCharsets.UTF_8)));
+
+        var runner = new ProductionReadinessAutoConfiguration()
+                .dwpProductionReadinessGuard(environment);
+
+        assertThatIllegalStateException().isThrownBy(() -> runner.run(null))
+                .withMessageContaining("DWP_MEETING_WORK_ASSERTION_KEY_ID")
+                .withMessageContaining("DWP_MEETING_WORK_ASSERTION_SECRET_BASE64");
+    }
+
+    @Test
+    void rejectsDisabledOrLocalMeetingFollowupCurrentAuthorityInProduction() {
+        MockEnvironment environment = completeMeetingProduction()
+                .withProperty("dwp.meeting.followup-authority.provider", "disabled")
+                .withProperty(
+                        "dwp.meeting.followup-authority.base-url",
+                        "http://localhost:8001")
+                .withProperty(
+                        "dwp.meeting.followup-authority.service-token",
+                        "dwp-local-meeting-followup-authority-token-change-outside-local")
+                .withProperty("dwp.meeting.followup-authority.allow-http", "true");
+
+        var runner = new ProductionReadinessAutoConfiguration()
+                .dwpProductionReadinessGuard(environment);
+
+        assertThatIllegalStateException().isThrownBy(() -> runner.run(null))
+                .withMessageContaining(
+                        "dwp.meeting.followup-authority.provider must be auth-product-surface")
+                .withMessageContaining(
+                        "dwp.meeting.followup-authority.base-url")
+                .withMessageContaining(
+                        "dwp.meeting.followup-authority.service-token uses a local default")
+                .withMessageContaining(
+                        "dwp.meeting.followup-authority.allow-http must be false");
+    }
+
+    @Test
     void rejectsIncompleteOrFixtureApprovalStepUpConfiguration() {
         MockEnvironment environment = completeApprovalProduction()
                 .withProperty("dwp.approval.product-authorization-v2-enabled", "false")
@@ -455,6 +503,28 @@ class ProductionReadinessAutoConfigurationTest {
     }
 
     @Test
+    void rejectsUnsafePlatformMeetingFollowupSourceAuthorityInProduction() {
+        MockEnvironment environment = completePlatformProduction()
+                .withProperty("DWP_WORK_MEETING_SOURCE_BASE_URL", "http://localhost:8009")
+                .withProperty("DWP_WORK_MEETING_SOURCE_ALLOW_HTTP", "true")
+                .withProperty("DWP_WORK_MEETING_ASSERTION_KEY_ID", "local-work-meeting-v1")
+                .withProperty(
+                        "DWP_WORK_MEETING_ASSERTION_SECRET_BASE64",
+                        Base64.getEncoder().encodeToString(
+                                "local-work-meeting-secret-that-must-not-ship"
+                                        .getBytes(StandardCharsets.UTF_8)));
+
+        var runner = new ProductionReadinessAutoConfiguration()
+                .dwpProductionReadinessGuard(environment);
+
+        assertThatIllegalStateException().isThrownBy(() -> runner.run(null))
+                .withMessageContaining("DWP_WORK_MEETING_SOURCE_BASE_URL")
+                .withMessageContaining("DWP_WORK_MEETING_SOURCE_ALLOW_HTTP must be false")
+                .withMessageContaining("DWP_WORK_MEETING_ASSERTION_KEY_ID")
+                .withMessageContaining("DWP_WORK_MEETING_ASSERTION_SECRET_BASE64");
+    }
+
+    @Test
     void acceptsAPlatformThatCollectsTelemetryWithRetentionMaintenance() throws Exception {
         MockEnvironment environment = completePlatformProduction()
                 .withProperty(
@@ -505,6 +575,9 @@ class ProductionReadinessAutoConfigurationTest {
         return productionBase("dwp-auth-server")
                 .withProperty("jwt.secret", secret("jwt"))
                 .withProperty("dwp.auth.product-surface-token", secret("product-surface"))
+                .withProperty(
+                        "dwp.auth.meeting-followup-authority-token",
+                        secret("meeting-followup-authority"))
                 .withProperty("dwp.auth.approval-recovery-token", secret("approval-recovery"))
                 .withProperty("dwp.security.session.cookie-secure", "true")
                 .withProperty("dwp.identity-sync.token", secret("identity"))
@@ -556,12 +629,38 @@ class ProductionReadinessAutoConfigurationTest {
                 .withProperty(
                         "dwp.platform.product-surface-telemetry.collection-enabled", "false")
                 .withProperty(
-                        "dwp.platform.product-surface-telemetry.maintenance-enabled", "true");
+                        "dwp.platform.product-surface-telemetry.maintenance-enabled", "true")
+                .withProperty(
+                        "DWP_WORK_MEETING_SOURCE_BASE_URL",
+                        "https://meeting.corp.example.com")
+                .withProperty("DWP_WORK_MEETING_SOURCE_ALLOW_HTTP", "false")
+                .withProperty(
+                        "DWP_WORK_MEETING_ASSERTION_KEY_ID",
+                        "prod-work-meeting-2026-09")
+                .withProperty(
+                        "DWP_WORK_MEETING_ASSERTION_SECRET_BASE64",
+                        assertionSecret("work-meeting"));
     }
 
     private MockEnvironment completeMeetingProduction() {
         return productionBase("dwp-meeting-server")
                 .withProperty("dwp.meeting.service-token", secret("meeting"))
+                .withProperty(
+                        "dwp.meeting.followup-authority.provider",
+                        "auth-product-surface")
+                .withProperty(
+                        "dwp.meeting.followup-authority.base-url",
+                        "https://auth.corp.example.com")
+                .withProperty(
+                        "dwp.meeting.followup-authority.service-token",
+                        secret("meeting-followup-authority"))
+                .withProperty(
+                        "DWP_MEETING_WORK_ASSERTION_KEY_ID",
+                        "prod-work-meeting-2026-09")
+                .withProperty(
+                        "DWP_MEETING_WORK_ASSERTION_SECRET_BASE64",
+                        assertionSecret("work-meeting"))
+                .withProperty("dwp.meeting.followup-authority.allow-http", "false")
                 .withProperty("dwp.meeting.provider", "livekit")
                 .withProperty("dwp.meeting.livekit.client-url", "wss://meet.corp.example.com")
                 .withProperty("dwp.meeting.livekit.api-url", "https://meet-api.corp.example.com")
@@ -621,6 +720,12 @@ class ProductionReadinessAutoConfigurationTest {
 
     private String secret(String purpose) {
         return "production-" + purpose + "-secret-at-least-24-characters";
+    }
+
+    private String assertionSecret(String purpose) {
+        return Base64.getEncoder().encodeToString(
+                ("production-" + purpose + "-assertion-secret-2026-09")
+                        .getBytes(StandardCharsets.UTF_8));
     }
 
     private static String rsaPrivateKeyPem(int bits) {

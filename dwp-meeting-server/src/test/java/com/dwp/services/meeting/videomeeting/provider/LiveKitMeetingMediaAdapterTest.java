@@ -323,6 +323,42 @@ class LiveKitMeetingMediaAdapterTest {
         return new ObjectMapper().readTree(claims);
     }
 
+    @Test
+    void disconnectBindsExactRoomAndParticipantAndTreatsAbsentAsComplete() throws Exception {
+        LiveKitAPI api = mock(LiveKitAPI.class);
+        RoomServiceClient rooms = mock(RoomServiceClient.class);
+        @SuppressWarnings("unchecked") Call<java.util.List<Room>> list = mock(Call.class);
+        @SuppressWarnings("unchecked") Call<Void> remove = mock(Call.class);
+        LiveKitMeetingMediaAdapter adapter = new LiveKitMeetingMediaAdapter(configuredProperties(), api);
+        var room = adapter.planRoom(MEETING_ID, 77, ROOM_INCARNATION);
+        String identity = LiveKitMeetingMediaAdapter.participantIdentity(77, MEETING_ID, PARTICIPANT_ID, ROOM_INCARNATION, 42);
+        when(api.getRoom()).thenReturn(rooms);
+        when(rooms.listRooms(java.util.List.of(room.roomName()))).thenReturn(list);
+        when(list.execute()).thenReturn(Response.success(java.util.List.of(Room.newBuilder().setName(room.roomName()).setMetadata(room.roomMetadata()).build())));
+        when(rooms.removeParticipant(room.roomName(), identity)).thenReturn(remove);
+        when(remove.timeout()).thenReturn(new okio.Timeout());
+        when(remove.execute()).thenReturn(Response.success(null));
+        adapter.disconnectParticipant(room, PARTICIPANT_ID, 42);
+        verify(rooms).removeParticipant(room.roomName(), identity);
+        when(list.execute()).thenReturn(Response.success(java.util.List.of()));
+        adapter.disconnectParticipant(room, PARTICIPANT_ID, 42);
+        verify(rooms).removeParticipant(room.roomName(), identity);
+    }
+
+    @Test
+    void disconnectRejectsDifferentRoomMetadataBeforeAnyParticipantCommand() throws Exception {
+        LiveKitAPI api = mock(LiveKitAPI.class);
+        RoomServiceClient rooms = mock(RoomServiceClient.class);
+        @SuppressWarnings("unchecked") Call<java.util.List<Room>> list = mock(Call.class);
+        LiveKitMeetingMediaAdapter adapter = new LiveKitMeetingMediaAdapter(configuredProperties(), api);
+        var room = adapter.planRoom(MEETING_ID, 77, ROOM_INCARNATION);
+        when(api.getRoom()).thenReturn(rooms);
+        when(rooms.listRooms(java.util.List.of(room.roomName()))).thenReturn(list);
+        when(list.execute()).thenReturn(Response.success(java.util.List.of(Room.newBuilder().setName(room.roomName()).setMetadata("{}").build())));
+        assertThatThrownBy(() -> adapter.disconnectParticipant(room, PARTICIPANT_ID, 42)).hasMessageContaining("binding");
+        verify(rooms, never()).removeParticipant(anyString(), anyString());
+    }
+
     private MeetingMediaProperties configuredProperties() {
         MeetingMediaProperties properties = new MeetingMediaProperties();
         properties.getLivekit().setApiUrl("http://localhost:7880");

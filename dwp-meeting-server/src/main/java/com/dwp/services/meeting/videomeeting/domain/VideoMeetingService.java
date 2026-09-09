@@ -44,6 +44,7 @@ public class VideoMeetingService {
     private final VideoMeetingLifecycleCoordinator lifecycle;
     private final VideoMeetingContentAdmissionGuard contentAdmissionGuard;
     private final VideoMeetingAuditRecorder audit;
+    private final MeetingAdminOperationsExportService adminOperationsExport;
     private final Clock clock;
 
     @Autowired
@@ -83,6 +84,8 @@ public class VideoMeetingService {
         this.lifecycle = lifecycle;
         this.contentAdmissionGuard = contentAdmissionGuard;
         this.audit = audit;
+        this.adminOperationsExport = new MeetingAdminOperationsExportService(
+                repository, mediaProvider, audit, clock);
         this.clock = clock;
     }
 
@@ -206,6 +209,9 @@ public class VideoMeetingService {
         String normalized = joinCodeGenerator.normalize(code);
         Meeting meeting = repository.resolveCode(subject.tenantId(), normalized)
                 .orElseThrow(joinCodeGenerator::invalidCode);
+        if (VideoMeetingEntryPolicy.requiresUnverifiedAuthority(meeting)) {
+            throw joinCodeGenerator.invalidCode();
+        }
         Optional<Participant> membership = repository.participant(
                 subject.tenantId(), meeting.meetingId(), subject.userId());
         if (meeting.accessScope() == AccessScope.INVITED && membership.isEmpty()) {
@@ -233,11 +239,16 @@ public class VideoMeetingService {
         MeetingRequestContext.Subject subject = MeetingRequestContext.get();
         String commandKey = commandKey(idempotencyKey);
         Meeting meeting = repository.lockMeeting(subject.tenantId(), meetingId);
+        if (VideoMeetingEntryPolicy.requiresUnverifiedAuthority(meeting)) {
+            throw joinCodeGenerator.invalidCode();
+        }
         requireJoinable(meeting);
         TenantPolicy policy = requireEnabledPolicy(subject);
         Participant participant = repository.participant(
                         subject.tenantId(), meetingId, subject.userId())
                 .orElseGet(() -> createWalkInParticipant(subject, meeting, policy));
+        if (repository.participantMediaBlocked(subject.tenantId(), meetingId, participant.participantId()))
+            throw new BaseException(ErrorCode.FORBIDDEN, "The participant connection was ended for this meeting session.");
         if (participant.admitted() || participant.attendanceState() == AttendanceState.REQUESTED) {
             return VideoMeetingDtos.JoinRequestResponse.from(participant);
         }
@@ -292,6 +303,9 @@ public class VideoMeetingService {
             String correlationId) {
         MeetingRequestContext.Subject subject = MeetingRequestContext.get();
         Meeting meeting = repository.lockMeeting(subject.tenantId(), meetingId);
+        if (VideoMeetingEntryPolicy.requiresUnverifiedAuthority(meeting)) {
+            throw VideoMeetingEntryPolicy.runtimeUnavailable();
+        }
         requireHost(subject, meeting);
         Participant current = repository.participant(subject.tenantId(), meetingId, participantId)
                 .orElseThrow(() -> notFound("The meeting participant was not found."));
@@ -333,6 +347,9 @@ public class VideoMeetingService {
                         subject.tenantId(), meetingId, subject.userId())
                 .orElseThrow(() -> new BaseException(
                         ErrorCode.ENTITY_NOT_FOUND, "The meeting was not found."));
+        if (VideoMeetingEntryPolicy.requiresUnverifiedAuthority(meeting)) {
+            throw VideoMeetingEntryPolicy.runtimeUnavailable();
+        }
         if (!meeting.live()) throw invalidState("The meeting is not live.");
         VideoMeetingRepository.MediaSession mediaSession = repository.mediaSession(
                         subject.tenantId(), meetingId)
@@ -345,7 +362,8 @@ public class VideoMeetingService {
                         subject.tenantId(), meetingId, subject.userId())
                 .orElseThrow(() -> new BaseException(
                         ErrorCode.FORBIDDEN, "Meeting admission is required."));
-        if (!participant.admitted()) {
+        if (!participant.admitted() || repository.participantMediaBlocked(
+                subject.tenantId(), meetingId, participant.participantId())) {
             throw new BaseException(ErrorCode.FORBIDDEN, "Meeting admission is required.");
         }
         if (request != null && request.joinRequestId() != null
@@ -455,10 +473,12 @@ public class VideoMeetingService {
                     ErrorCode.INVALID_INPUT_VALUE,
                     "Chat retention cannot exceed meeting retention.");
         }
-        if (request.guestsAllowed() || request.allowJoinBeforeHost()) {
+        if (request.guestsAllowed() || request.allowJoinBeforeHost()
+                || !request.requireAuthenticatedInternalUsers()) {
             throw new BaseException(
                     ErrorCode.INVALID_INPUT_VALUE,
-                    "External access and joining before the host require a verified identity rollout.");
+                    "External access, unauthenticated entry, and joining before the host require "
+                            + "a verified identity rollout.");
         }
         repository.ensurePolicy(subject.tenantId(), subject.userId());
         TenantPolicy updated = repository.updatePolicy(
@@ -480,23 +500,42 @@ public class VideoMeetingService {
         return VideoMeetingDtos.PolicyResponse.from(updated);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public VideoMeetingDtos.PageResponse<VideoMeetingDtos.HistoryItemResponse> history(
             int page, int pageSize) {
-        return history(page, pageSize, false);
+        return history(
+                page, pageSize, false,
+                VideoMeetingDtos.HistoryPublicationFilter.ALL,
+                VideoMeetingDtos.HistoryRetentionFilter.ALL);
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public VideoMeetingDtos.PageResponse<VideoMeetingDtos.HistoryItemResponse> history(
             int page, int pageSize, boolean favoriteOnly) {
+        return history(
+                page, pageSize, favoriteOnly,
+                VideoMeetingDtos.HistoryPublicationFilter.ALL,
+                VideoMeetingDtos.HistoryRetentionFilter.ALL);
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public VideoMeetingDtos.PageResponse<VideoMeetingDtos.HistoryItemResponse> history(
+            int page,
+            int pageSize,
+            boolean favoriteOnly,
+            VideoMeetingDtos.HistoryPublicationFilter publication,
+            VideoMeetingDtos.HistoryRetentionFilter retention) {
         if (favoriteOnly) MeetingWorkspacePolicy.require("APP.MEETINGS", "VIEW");
         MeetingRequestContext.Subject subject = MeetingRequestContext.get();
         int boundedPage = Math.max(0, page);
         int boundedSize = Math.max(1, Math.min(100, pageSize));
-        VideoMeetingRepository.PagedMeetings history = repository.history(
-                subject.tenantId(), subject.userId(), boundedPage, boundedSize, favoriteOnly);
+        MeetingHistoryProjectionRepository.PagedHistory history = repository.historyProjection(
+                subject.tenantId(), subject.userId(), boundedPage, boundedSize, favoriteOnly,
+                publication, retention, OffsetDateTime.now(clock));
         return new VideoMeetingDtos.PageResponse<>(
-                history.items().stream().map(VideoMeetingDtos::history).toList(),
+                history.items().stream().map(item -> VideoMeetingDtos.history(
+                        item.card(), item.publicationState(), item.retentionState(),
+                        item.retentionUntil())).toList(),
                 history.total(), boundedPage, boundedSize);
     }
 
@@ -516,6 +555,24 @@ public class VideoMeetingService {
                 new VideoMeetingDtos.AdminCapabilitiesResponse(
                         capability.video(), capability.screenShare(),
                         policy.participantChatAllowed(), false, false, false, false));
+    }
+
+    @Transactional
+    public AdminOperationsExport adminOperationsExport(
+            String requestedTimeZone, String correlationId) {
+        return adminOperationsExport.export(requestedTimeZone, correlationId);
+    }
+
+    public record AdminOperationsExport(String filename, byte[] content) {
+        public AdminOperationsExport {
+            Objects.requireNonNull(filename, "filename");
+            content = Objects.requireNonNull(content, "content").clone();
+        }
+
+        @Override
+        public byte[] content() {
+            return content.clone();
+        }
     }
 
     private Participant createWalkInParticipant(

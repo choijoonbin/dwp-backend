@@ -71,6 +71,29 @@ public class VideoMeetingAuditRecorder {
                 "INFO", "STANDARD", metadata);
     }
 
+    /** Export evidence is metadata-only and never contains meeting, participant, or report data. */
+    public void adminOperationsExport(
+            MeetingRequestContext.Subject subject,
+            String correlationId,
+            Map<String, Object> evidence) {
+        record(subject, "DATA_EXPORT", "meeting.admin.operations.exported",
+                "MEETING_ADMIN_OPERATIONS_EXPORT", Long.toString(subject.tenantId()),
+                correlationId, "INFO", "EXTENDED", evidence);
+    }
+
+    /** Report export evidence is metadata-only and never contains meeting or report text. */
+    public void intelligenceReportExport(
+            MeetingRequestContext.Subject subject,
+            Meeting meeting,
+            UUID reportId,
+            String correlationId,
+            Map<String, Object> evidence) {
+        record(subject, "DATA_EXPORT", "meeting.intelligence.report-exported",
+                "MEETING_INTELLIGENCE_REPORT", reportId.toString(), correlationId,
+                "INFO", "EXTENDED",
+                merge(evidence, Map.of("meetingId", meeting.meetingId().toString())));
+    }
+
     public void collaboration(
             MeetingRequestContext.Subject subject,
             Meeting meeting,

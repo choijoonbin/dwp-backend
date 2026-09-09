@@ -133,8 +133,7 @@ public final class PilotAuthorizationFixtureAdapter {
                         && "INFORMATIONAL_ONLY".equals(fixture.path("registryLineage")
                         .path("authority").asText()),
                 "Global registry authority is forbidden for pilot fixtures.");
-        require(requiredArray(fixture.path("registryLineage"), "versions").size() == 5,
-                "Pilot fixture registry lineage must contain exactly v1 through v5.");
+        validateRegistryLineage();
         requiredArray(fixture, "testCases").forEach(this::registryReference);
         requiredArray(fixture.path("catalogs"), "stepUpChallenges")
                 .forEach(this::registryReference);
@@ -142,6 +141,26 @@ public final class PilotAuthorizationFixtureAdapter {
                 "Pilot fixture must contain exactly 71 test cases.");
         require(requiredArray(fixture, "negativeCases").size() == 46,
                 "Pilot fixture must contain exactly 46 negative cases.");
+    }
+
+    private void validateRegistryLineage() {
+        JsonNode lineage = fixture.path("registryLineage");
+        long latestAliasVersion = lineage.path("latestAliasVersion").asLong();
+        ArrayNode versions = requiredArray(lineage, "versions");
+        require("product-surfaces".equals(lineage.path("bundleKey").asText())
+                        && lineage.path("indexSha256").asText().matches("^[0-9a-f]{64}$")
+                        && latestAliasVersion > 0
+                        && versions.size() == latestAliasVersion,
+                "Pilot fixture registry lineage must contain every version through its latest alias.");
+        for (int index = 0; index < versions.size(); index++) {
+            JsonNode version = versions.get(index);
+            require(version.isObject()
+                            && version.size() == 3
+                            && "product-surfaces".equals(version.path("bundleKey").asText())
+                            && version.path("version").asLong() == index + 1L
+                            && version.path("sha256").asText().matches("^[0-9a-f]{64}$"),
+                    "Pilot fixture registry lineage must be canonical and contiguous.");
+        }
     }
 
     private Map<String, JsonNode> indexComponents() {

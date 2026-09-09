@@ -1,10 +1,16 @@
 # Verified workspace activity history
 
-Implementation contract, updated 2026-09-07. This is a read-only execution/change-history surface,
+Implementation contract, updated 2026-09-08. This is a read-only execution/change-history surface,
 not a second task, calendar, notification, or audit administration application.
 
 ## Supported source ownership
 
+- `PERSONAL_TASK`: committed Personal Work task commands are projected through V229.
+  The event's historical audience and the current task owner must match the viewer,
+  with `APP.WORK:VIEW` required on every list/detail/evidence request. A soft-deleted
+  personal task retains authorized history with `sourceAccess=DELETED` and
+  `sourceRoute=null`; its source cannot be opened. Available tasks use only the
+  rebuilt `/work/queue?work=PERSONAL_TASK%3A<taskId>%3A` route.
 - `WORK_ITEM`: only native `TASK` rows owned by `WORKSPACE` or `DWP_WORKSPACE` qualify.
   The event's historical audience must match the viewer, the referenced workspace row
   must still exist and currently be assigned to the viewer, and the viewer must
@@ -14,7 +20,7 @@ not a second task, calendar, notification, or audit administration application.
 - `WORKSPACE_APP` from the native `DWP Apps` writer: historical audience, active catalog row, `APP.APPS:VIEW`, and the
   catalog row's current resource `:VIEW` permission are all required.
 - `APP.ACTIVITY:VIEW` grants access to the common history surface, not its source objects.
-  Unsupported object types, lost permissions, deleted objects, and another user's or
+  Unsupported object types, lost permissions, unavailable native Workspace objects, and another user's or
   tenant's objects are absent from lists/counts and produce indistinguishable 404 details.
   `coverage.supportedObjectTypes` is derived from the viewer's current source permissions;
   a viewer with no readable Platform source receives an empty coverage list, never a claim
@@ -44,6 +50,66 @@ Runtime workspace commands create the actual audit record and their activity fac
 in the same transaction. `auditRecordId` has a tenant-qualified deferred foreign key.
 Work source event identity includes stable work UUID and resulting optimistic version;
 duplicate writes fail. Verified live rows are append-only.
+
+## Personal Work command projection (V229)
+
+Successful `CREATE`, `UPDATE`, `STATUS`, and `DELETE` commands bind their existing
+receipt, timeline version, audit row, Activity event, and binding row in one database
+transaction using deferred constraint triggers. `DAY_PLAN` is excluded. Per-item
+batch commands use the same path; failed commands create no Activity fact. Source
+event identity is `personal-work-command:<ownerUserId>:<commandId>` and Activity UUIDs
+are deterministic. Tenant/owner-qualified command and resource-version uniqueness
+prevent duplicate replay, including concurrent attempts. Existing V228 receipts are
+backfilled through the same projector.
+
+The additive public fields are `sourceReference`, `resourceVersion`, `idempotencyKey`,
+and `resultState`. `state=COMPLETED` means the command completed; `resultState` records
+the task outcome (`OPEN`, `IN_PROGRESS`, `WAITING`, `COMPLETED`, `ARCHIVED`, `DELETED`).
+No execution identity or running-task count is synthesized. The actor-qualified source
+event, current owner, source reference, resource version, command key, result, audit
+identity and audit correlation remain attached to the historical fact.
+
+Bound receipt semantic fields, audit rows, timeline rows, events and binding rows are
+protected against later mutation. `request_fingerprint` is intentionally excluded from
+the receipt guard for V228 compatibility canonicalization. Functions use
+`SET search_path FROM CURRENT` for Flyway custom-schema installations. V229 is already
+applied locally with checksum `1899611165`; do not edit an applied migration.
+
+The Activity detail shows command evidence and opens the verified Personal Work route.
+Browser back restores the source-button focus once only when the same event, location,
+available access and route still match. Revoked access, a changed route or another
+event cannot restore that focus. The Work owner subsequently added a Personal Work
+origin button with exact `source=PERSONAL_TASK` filtering and return-focus handling.
+That implementation and its additional 1280/390/320 browser cases belong to the Work
+follow-up task; they are not edits or additional E2E passes claimed by this Activity task.
+The Work owner's final v5 report confirms all six Personal Work origin/return cases
+(1280/390/320 across Chromium and mobile) passed at source snapshot
+`4cdc185b3d2e0040720a45a21691878a2c48ef6a6f5fa9e1bf1f359fea8f68f2`.
+The Activity frontend closeout links that raw report separately from its own 14 E2E passes.
+
+### Local demo replay
+
+From `dwp-backend`, start Platform with the standard local service/runtime tokens and
+`DWP_ACTIVITY_LOCAL_FIXTURES_ENABLED=true`, `DWP_OPENAPI_ENABLED=true`, then run:
+
+```sh
+DWP_ACTIVITY_SEED_PROFILE=local-joonbin \
+DWP_PLATFORM_SERVICE_TOKEN=dwp-local-platform-service-token \
+bash dwp-platform-server/scripts/seed-local-personal-work-activity-demo.sh
+```
+
+This loopback-only script uses real Work APIs for tenant `1`, user `900018`
+(`joonbin@sk.com`). Fixed command UUIDs produce four tasks in OPEN, IN_PROGRESS,
+WAITING and COMPLETED states without duplicating history or overwriting subsequent
+tester edits. The four creates plus three status commands account for seven seed
+events; with the pre-existing verification history the local account has 20 personal
+task receipts, 20 bindings and 20 events. Two further replays on 2026-09-08 preserved
+those counts. These Personal Work facts have `dataProvenance=LIVE`; the separate
+opt-in `SAMPLE` fixture rule below still applies only to sample data.
+
+Local recovery and final verification evidence is recorded in
+`output/activity-closeout-2026-09-08/` under the parent DWP workspace. Production
+validation and deployment were explicitly excluded from this closeout.
 
 ## HTTP contracts
 

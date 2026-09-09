@@ -33,6 +33,116 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
         for name, environment in environments.items():
             self.assertEqual(product_token in environment, name in {"auth", "gateway"})
 
+        current_authority_token = "DWP_MEETING_FOLLOWUP_AUTHORITY_TOKEN"
+        self.assertEqual(
+            environments["auth"][current_authority_token],
+            environments["meeting"][current_authority_token],
+        )
+        for name, environment in environments.items():
+            self.assertEqual(
+                current_authority_token in environment, name in {"auth", "meeting"}
+            )
+        self.assertEqual(
+            environments["meeting"]["DWP_MEETING_FOLLOWUP_AUTHORITY_PROVIDER"],
+            "auth-product-surface",
+        )
+        self.assertEqual(
+            environments["meeting"]["DWP_MEETING_FOLLOWUP_AUTHORITY_ALLOW_HTTP"],
+            "true",
+        )
+        for key in (
+            "DWP_MEETING_FOLLOWUP_AUTHORITY_PROVIDER",
+            "DWP_MEETING_FOLLOWUP_AUTHORITY_ALLOW_HTTP",
+        ):
+            self.assertTrue(
+                all(
+                    key not in environment
+                    for name, environment in environments.items()
+                    if name != "meeting"
+                )
+            )
+
+        invitation_token = "DWP_MEETING_INVITATION_DELIVERY_TOKEN"
+        self.assertEqual(
+            environments["meeting"][invitation_token],
+            "dwp-local-meeting-notification-token",
+        )
+        self.assertEqual(
+            environments["meeting"]["DWP_MEETING_INVITATION_DELIVERY_BASE_URL"],
+            "http://localhost:8008",
+        )
+        self.assertEqual(
+            environments["meeting"]["DWP_MEETING_INVITATION_DELIVERY_ENABLED"],
+            "true",
+        )
+        self.assertEqual(
+            environments["meeting"]["DWP_MEETING_INVITATION_DELIVERY_ALLOW_HTTP"],
+            "true",
+        )
+        notification_tokens = environments["notification"][
+            "DWP_NOTIFICATION_PRODUCER_TOKENS"
+        ]
+        self.assertIn(
+            "dwp-meeting-server=" + environments["meeting"][invitation_token],
+            notification_tokens.split(","),
+        )
+        self.assertIn(
+            "dwp-meeting-server",
+            environments["notification"][
+                "DWP_NOTIFICATION_ALLOWED_PRODUCERS"
+            ].split(","),
+        )
+        self.assertIn(
+            "dwp-meeting-server=meetings",
+            environments["notification"][
+                "DWP_NOTIFICATION_PRODUCER_APP_BINDINGS"
+            ].split(","),
+        )
+        for name, environment in environments.items():
+            self.assertEqual(invitation_token in environment, name == "meeting")
+            self.assertEqual(
+                "DWP_MEETING_INVITATION_DELIVERY_ENABLED" in environment,
+                name == "meeting",
+            )
+            self.assertEqual(
+                "DWP_NOTIFICATION_ALLOWED_PRODUCERS" in environment,
+                name == "notification",
+            )
+            self.assertEqual(
+                "DWP_NOTIFICATION_PRODUCER_APP_BINDINGS" in environment,
+                name == "notification",
+            )
+
+        platform_assertion_secret = "DWP_WORK_MEETING_ASSERTION_SECRET_BASE64"
+        meeting_assertion_secret = "DWP_MEETING_WORK_ASSERTION_SECRET_BASE64"
+        self.assertEqual(
+            environments["platform"][platform_assertion_secret],
+            environments["meeting"][meeting_assertion_secret],
+        )
+        self.assertEqual(
+            environments["platform"]["DWP_WORK_MEETING_SOURCE_BASE_URL"],
+            "http://localhost:8009",
+        )
+        self.assertEqual(
+            environments["platform"]["DWP_WORK_MEETING_ASSERTION_KEY_ID"],
+            environments["meeting"]["DWP_MEETING_WORK_ASSERTION_KEY_ID"],
+        )
+        self.assertEqual(
+            environments["platform"]["DWP_WORK_MEETING_SOURCE_ALLOW_HTTP"],
+            "true",
+        )
+        for name, environment in environments.items():
+            self.assertEqual(
+                platform_assertion_secret in environment, name == "platform"
+            )
+            self.assertEqual(
+                meeting_assertion_secret in environment, name == "meeting"
+            )
+            self.assertEqual(
+                "DWP_WORK_MEETING_SOURCE_ALLOW_HTTP" in environment,
+                name == "platform",
+            )
+
         auth_only = {
             "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
             "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",
@@ -183,6 +293,43 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
 
             with self.assertRaisesRegex(RuntimeError, "Invalid Agent local environment entry"):
                 devctl.load_agent_local_environment(path)
+
+
+class MeetingInvitationDevctlTest(unittest.TestCase):
+    def test_meeting_profile_starts_invitation_delivery_dependencies(self) -> None:
+        self.assertEqual(
+            [service.name for service in devctl.resolve_services(["meeting"])],
+            ["auth", "notification", "meeting"],
+        )
+
+        phase_by_service = {
+            service_name: phase_index
+            for phase_index, phase in enumerate(devctl.START_PHASES)
+            for service_name in phase
+        }
+        self.assertLess(phase_by_service["auth"], phase_by_service["meeting"])
+        self.assertLess(phase_by_service["notification"], phase_by_service["meeting"])
+
+    def test_single_meeting_delivery_token_override_is_shared_with_notification(
+        self,
+    ) -> None:
+        custom_token = "custom-meeting-notification-token"
+        with patch.dict(
+            os.environ,
+            {"DWP_MEETING_INVITATION_DELIVERY_TOKEN": custom_token},
+            clear=True,
+        ):
+            meeting_environment = devctl.service_environment("meeting")
+            notification_environment = devctl.service_environment("notification")
+
+        self.assertEqual(
+            meeting_environment["DWP_MEETING_INVITATION_DELIVERY_TOKEN"],
+            custom_token,
+        )
+        self.assertIn(
+            f"dwp-meeting-server={custom_token}",
+            notification_environment["DWP_NOTIFICATION_PRODUCER_TOKENS"].split(","),
+        )
 
 
 class ServiceStartupTimeoutTest(unittest.TestCase):

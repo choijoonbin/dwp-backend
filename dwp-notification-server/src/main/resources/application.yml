@@ -73,7 +73,7 @@ dwp:
     gateway-source: ${DWP_NOTIFICATION_GATEWAY_SOURCE:dwp-gateway}
     producer-tokens: ${DWP_NOTIFICATION_PRODUCER_TOKENS:}
     producer-app-bindings: >-
-      ${DWP_NOTIFICATION_PRODUCER_APP_BINDINGS:dwp-approval-server=approvals,dwp-people-server=hcm|people,dwp-platform-server=platform,dwp-space-server=space,dwp-messaging-server=messaging}
+      ${DWP_NOTIFICATION_PRODUCER_APP_BINDINGS:dwp-approval-server=approvals,dwp-people-server=hcm|people,dwp-platform-server=platform,dwp-space-server=space,dwp-messaging-server=messaging,dwp-meeting-server=meetings}
     cursor-secret: ${DWP_NOTIFICATION_CURSOR_SECRET:}
     cursor-ttl: ${DWP_NOTIFICATION_CURSOR_TTL:24h}
     sse-timeout: ${DWP_NOTIFICATION_SSE_TIMEOUT:30m}
@@ -90,7 +90,7 @@ dwp:
       window: ${DWP_NOTIFICATION_ADMISSION_WINDOW:PT1H}
     recipient-entitlements:
       app-view-bindings: >-
-        ${DWP_NOTIFICATION_APP_VIEW_BINDINGS:approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW}
+        ${DWP_NOTIFICATION_APP_VIEW_BINDINGS:approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,meetings=APP.MEETINGS:VIEW}
     retention:
       enabled: ${DWP_NOTIFICATION_RETENTION_ENABLED:true}
       default-ttl: ${DWP_NOTIFICATION_DEFAULT_RETENTION_TTL:P0D}
@@ -118,7 +118,7 @@ dwp:
       batch-size: ${DWP_NOTIFICATION_OUTBOX_BATCH_SIZE:50}
       fixed-delay: ${DWP_NOTIFICATION_OUTBOX_FIXED_DELAY:1s}
       initial-delay: ${DWP_NOTIFICATION_OUTBOX_INITIAL_DELAY:5s}
-    allowed-producers: ${DWP_NOTIFICATION_ALLOWED_PRODUCERS:dwp-approval-server,dwp-people-server,dwp-platform-server,dwp-space-server,dwp-messaging-server}
+    allowed-producers: ${DWP_NOTIFICATION_ALLOWED_PRODUCERS:dwp-approval-server,dwp-people-server,dwp-platform-server,dwp-space-server,dwp-messaging-server,dwp-meeting-server}
     domain-events:
       enabled: ${DWP_NOTIFICATION_DOMAIN_EVENTS_ENABLED:false}
       topic: ${DWP_DOMAIN_EVENT_TOPIC:dwp.domain-events.v1}
@@ -126,7 +126,7 @@ dwp:
       dead-letter-topic: ${DWP_NOTIFICATION_DOMAIN_EVENT_DLT:dwp.domain-events.v1.DLT}
       retry-interval: ${DWP_NOTIFICATION_DOMAIN_EVENT_RETRY_INTERVAL:1s}
       maximum-attempts: ${DWP_NOTIFICATION_DOMAIN_EVENT_MAX_ATTEMPTS:4}
-      producer-sources: ${DWP_NOTIFICATION_DOMAIN_EVENT_SOURCES:urn:dwp:messaging=dwp-messaging-server}
+      producer-sources: ${DWP_NOTIFICATION_DOMAIN_EVENT_SOURCES:urn:dwp:messaging=dwp-messaging-server,urn:dwp:meetings=dwp-meeting-server}
     approval-pilot:
       enabled: ${DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED:false}
       topic: ${DWP_NOTIFICATION_APPROVAL_PILOT_TOPIC:dwp.approval.events.v1}

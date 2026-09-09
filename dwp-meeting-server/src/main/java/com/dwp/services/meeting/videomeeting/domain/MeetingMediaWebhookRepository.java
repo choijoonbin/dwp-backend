@@ -240,13 +240,30 @@ class MeetingMediaWebhookRepository {
                  WHERE event.provider_code = candidate.provider_code
                    AND event.provider_event_id = candidate.provider_event_id
                 RETURNING event.provider_code, event.provider_event_id,
-                          event.provider_room_name, event.cleanup_fence
+                          event.provider_room_name, event.cleanup_fence,
+                          event.reason_code, event.tenant_id, event.meeting_id,
+                          event.room_incarnation, event.participant_id
                 """, (row, index) -> new CleanupClaim(
-                        row.getString("provider_code"),
-                        row.getString("provider_event_id"),
-                        row.getString("provider_room_name"),
-                        row.getObject("cleanup_fence", UUID.class)),
+                        row.getString("provider_code"), row.getString("provider_event_id"),
+                        row.getString("provider_room_name"), row.getObject("cleanup_fence", UUID.class),
+                        "PARTICIPANT_DISCONNECT_FENCE".equals(row.getString("reason_code"))
+                                ? new ParticipantCleanup(row.getLong("tenant_id"),
+                                        row.getObject("meeting_id", UUID.class),
+                                        row.getObject("room_incarnation", UUID.class),
+                                        row.getObject("participant_id", UUID.class)) : null),
                 maximumAttempts, now, now, now, fence, leaseUntil).stream().findFirst();
+    }
+
+    long participantCleanupUserId(ParticipantCleanup target) {
+        // The immutable fence binds the identity. Do not replace it with mutable
+        // provider metadata or a new incarnation's participant projection.
+        return jdbc.query("""
+                SELECT participant_user_id FROM vm_meeting_participant_disconnects
+                 WHERE tenant_id=? AND meeting_id=? AND room_incarnation=? AND participant_id=?
+                """, (row, index) -> row.getLong("participant_user_id"),
+                target.tenantId(), target.meetingId(), target.incarnation(), target.participantId())
+                .stream().findFirst().orElseThrow(() -> new BaseException(
+                        ErrorCode.RESOURCE_CONFLICT, "The participant disconnect binding is unavailable."));
     }
 
     void completeCleanup(CleanupClaim claim, OffsetDateTime completedAt) {
@@ -311,6 +328,9 @@ class MeetingMediaWebhookRepository {
             UUID participantId, long userId, boolean userIdNull, String attendanceState) {
     }
 
-    record CleanupClaim(String provider, String eventId, String roomName, UUID fence) {
+    record ParticipantCleanup(long tenantId, UUID meetingId, UUID incarnation, UUID participantId) { }
+
+    record CleanupClaim(String provider, String eventId, String roomName, UUID fence,
+                        ParticipantCleanup participant) {
     }
 }

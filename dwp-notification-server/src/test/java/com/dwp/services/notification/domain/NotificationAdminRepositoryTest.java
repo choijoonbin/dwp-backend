@@ -39,7 +39,13 @@ class NotificationAdminRepositoryTest {
         assertThat(sql.getValue())
                 .contains("CAST(:query AS text) IS NULL")
                 .contains("CAST(:state AS text) IS NULL")
-                .contains("CAST(:appKey AS text) IS NULL");
+                .contains("CAST(:appKey AS text) IS NULL")
+                .contains("type_version.min_schema_version")
+                .contains("requiredVariables")
+                .contains("deep_link_template")
+                .contains("dedupeStrategy")
+                .contains("retentionPolicy")
+                .contains("runbookUrl");
         assertThat(params.getValue().getSqlType("query")).isEqualTo(Types.VARCHAR);
         assertThat(params.getValue().getSqlType("state")).isEqualTo(Types.VARCHAR);
         assertThat(params.getValue().getSqlType("appKey")).isEqualTo(Types.VARCHAR);

@@ -24,6 +24,8 @@ public class DwaionAgentRegistryController {
     private static final String TENANT_HEADER = "X-DWP-Tenant-ID";
     private static final String USER_HEADER = "X-DWP-User-ID";
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
+    private static final String EXPECTED_DECISION_REVISION_HEADER =
+            "X-DWP-Expected-Decision-Revision";
 
     private final RegistryService service;
 
@@ -54,6 +56,8 @@ public class DwaionAgentRegistryController {
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestHeader(USER_HEADER) Long userId,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @RequestHeader(value = EXPECTED_DECISION_REVISION_HEADER, required = false)
+            String expectedDecisionRevision,
             @Valid @RequestBody CreateDwaionAgentRequest request) {
         return ApiResponse.success(service.create(
                 tenantId,
@@ -74,44 +78,52 @@ public class DwaionAgentRegistryController {
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestHeader(USER_HEADER) Long userId,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @RequestHeader(value = EXPECTED_DECISION_REVISION_HEADER, required = false)
+            String expectedDecisionRevision,
             @PathVariable String entryKey,
             @Valid @RequestBody RegistryDtos.CreateRegistryRevisionRequest request) {
         return ApiResponse.success(service.createRevision(
                 tenantId, userId, correlationId, RegistryType.AGENT, entryKey, request));
     }
 
-    @PatchMapping("/{entryKey}/revisions/{revision}")
+    @PatchMapping("/{entryKey}/revisions/{revisionNumber}")
     public ApiResponse<RegistryDtos.RegistryEntryResponse> updateRevision(
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestHeader(USER_HEADER) Long userId,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @RequestHeader(value = EXPECTED_DECISION_REVISION_HEADER, required = false)
+            String expectedDecisionRevision,
             @PathVariable String entryKey,
-            @PathVariable Integer revision,
+            @PathVariable("revisionNumber") Integer revision,
             @Valid @RequestBody RegistryDtos.UpdateRegistryRevisionRequest request) {
         return ApiResponse.success(service.updateRevision(
                 tenantId, userId, correlationId, RegistryType.AGENT, entryKey, revision, request));
     }
 
-    @PostMapping("/{entryKey}/revisions/{revision}/activate")
+    @PostMapping("/{entryKey}/revisions/{revisionNumber}/activate")
     public ApiResponse<RegistryDtos.RegistryEntryResponse> activateRevision(
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestHeader(USER_HEADER) Long userId,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @RequestHeader(value = EXPECTED_DECISION_REVISION_HEADER, required = false)
+            String expectedDecisionRevision,
             @PathVariable String entryKey,
-            @PathVariable Integer revision,
+            @PathVariable("revisionNumber") Integer revision,
             @Valid @RequestBody RegistryDtos.VersionRequest request) {
         return ApiResponse.success(service.activateRevision(
                 tenantId, userId, correlationId, RegistryType.AGENT, entryKey,
                 revision, request.version()));
     }
 
-    @PostMapping("/{entryKey}/revisions/{revision}/retire")
+    @PostMapping("/{entryKey}/revisions/{revisionNumber}/retire")
     public ApiResponse<RegistryDtos.RegistryEntryResponse> retireRevision(
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestHeader(USER_HEADER) Long userId,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @RequestHeader(value = EXPECTED_DECISION_REVISION_HEADER, required = false)
+            String expectedDecisionRevision,
             @PathVariable String entryKey,
-            @PathVariable Integer revision,
+            @PathVariable("revisionNumber") Integer revision,
             @Valid @RequestBody RegistryDtos.VersionRequest request) {
         return ApiResponse.success(service.retireRevision(
                 tenantId, userId, correlationId, RegistryType.AGENT, entryKey,

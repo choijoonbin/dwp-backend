@@ -20,8 +20,9 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v3.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v6.json"
 )
+PRODUCT_AUTHORIZATION_VERSION = 6
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 TELEMETRY_PUBLIC_PATH = "/api/platform/v1/observability/product-surface-events"
 TELEMETRY_TRUSTED_HEADERS = {"X-DWP-Tenant-ID", "X-DWP-Rollout-Cohort"}
@@ -282,11 +283,13 @@ def product_governed_operations() -> dict[tuple[str, str], bool]:
         ) from error
     if (
         registry.get("bundleKey") != "product-surfaces"
-        or registry.get("version") != 3
+        or registry.get("version") != PRODUCT_AUTHORIZATION_VERSION
         or registry.get("bundleStatus") != "DRAFT"
         or not isinstance(registry.get("routes"), list)
     ):
-        raise RuntimeError("Product authorization v3 registry is invalid")
+        raise RuntimeError(
+            f"Product authorization v{PRODUCT_AUTHORIZATION_VERSION} registry is invalid"
+        )
     operations: dict[tuple[str, str], bool] = {}
     for route in registry["routes"]:
         subject = route.get("subject", {})
@@ -316,7 +319,9 @@ def product_governed_operations() -> dict[tuple[str, str], bool]:
             key = (path, method)
             operations[key] = operations.get(key, False) or state_changing
     if not operations:
-        raise RuntimeError("Product authorization v3 registry has no public operations")
+        raise RuntimeError(
+            f"Product authorization v{PRODUCT_AUTHORIZATION_VERSION} registry has no public operations"
+        )
     return operations
 
 

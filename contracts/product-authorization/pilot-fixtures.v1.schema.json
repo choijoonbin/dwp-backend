@@ -39,7 +39,7 @@
         "authority": { "const": "INFORMATIONAL_ONLY" },
         "bundleKey": { "const": "product-surfaces" },
         "indexSha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" },
-        "latestAliasVersion": { "const": 5 },
+        "latestAliasVersion": { "const": 6 },
         "versions": {
           "type": "array",
           "prefixItems": [
@@ -47,11 +47,12 @@
             { "$ref": "#/$defs/registryRefV2" },
             { "$ref": "#/$defs/registryRefV3" },
             { "$ref": "#/$defs/registryRefV4" },
-            { "$ref": "#/$defs/registryRefV5" }
+            { "$ref": "#/$defs/registryRefV5" },
+            { "$ref": "#/$defs/registryRefV6" }
           ],
           "items": false,
-          "minItems": 5,
-          "maxItems": 5
+          "minItems": 6,
+          "maxItems": 6
         }
       }
     },
@@ -164,13 +165,24 @@
         "sha256": { "const": "c69816a06349fcbd45a0d946debfbce1d67e09b3ed87a8b056ec8a43f852109f" }
       }
     },
+    "registryRefV6": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bundleKey", "version", "sha256"],
+      "properties": {
+        "bundleKey": { "const": "product-surfaces" },
+        "version": { "const": 6 },
+        "sha256": { "const": "9f5392cc75344a4bb2262cfc3283c5bfb831745c9efe336a318e2999c304912f" }
+      }
+    },
     "registryReference": {
       "oneOf": [
         { "$ref": "#/$defs/registryRefV1" },
         { "$ref": "#/$defs/registryRefV2" },
         { "$ref": "#/$defs/registryRefV3" },
         { "$ref": "#/$defs/registryRefV4" },
-        { "$ref": "#/$defs/registryRefV5" }
+        { "$ref": "#/$defs/registryRefV5" },
+        { "$ref": "#/$defs/registryRefV6" }
       ]
     },
     "openRecord": {

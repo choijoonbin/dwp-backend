@@ -26,7 +26,8 @@ public class NotificationRecipientEntitlementAdmission {
             "approvals", "APP.APPROVALS:VIEW",
             "hcm", "APP.HCM:VIEW",
             "messaging", "APP.MESSAGING:VIEW",
-            "space", "APP.SPACES:VIEW");
+            "space", "APP.SPACES:VIEW",
+            "meetings", "APP.MEETINGS:VIEW");
 
     private final NotificationRecipientEntitlementDirectory directory;
     private final Map<String, String> viewPermissions;
@@ -35,7 +36,8 @@ public class NotificationRecipientEntitlementAdmission {
             NotificationRecipientEntitlementDirectory directory,
             @Value("${dwp.notification.recipient-entitlements.app-view-bindings:"
                     + "approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,"
-                    + "messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW}")
+                    + "messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,"
+                    + "meetings=APP.MEETINGS:VIEW}")
             String bindings) {
         this.directory = directory;
         this.viewPermissions = parseBindings(bindings);

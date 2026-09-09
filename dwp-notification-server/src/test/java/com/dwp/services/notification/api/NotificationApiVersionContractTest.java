@@ -2,10 +2,12 @@ package com.dwp.services.notification.api;
 
 import com.dwp.services.notification.domain.NotificationModels.Summary;
 import com.dwp.services.notification.domain.NotificationModels.Capabilities;
+import com.dwp.services.notification.domain.NotificationModels.DraftDecisionRequest;
 import com.dwp.services.notification.domain.NotificationModels.SubscriptionRuleUpdate;
 import com.dwp.services.notification.domain.NotificationModels.VersionRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.Validation;
 import org.junit.jupiter.api.Test;
 
 import java.time.Instant;
@@ -56,6 +58,21 @@ class NotificationApiVersionContractTest {
         assertThat(objectMapper.readValue(
                 "{\"expectedVersion\":\"9007199254740993\"}", VersionRequest.class)
                 .expectedVersion()).isEqualTo("9007199254740993");
+    }
+
+    @Test
+    void draftDecisionsRequireAStringVersionAndMeaningfulReason() throws Exception {
+        assertThatThrownBy(() -> objectMapper.readValue(
+                "{\"expectedVersion\":1,\"reason\":\"A complete rejection reason\"}",
+                DraftDecisionRequest.class))
+                .isInstanceOf(com.fasterxml.jackson.databind.JsonMappingException.class);
+        try (var factory = Validation.buildDefaultValidatorFactory()) {
+            var violations = factory.getValidator().validate(
+                    new DraftDecisionRequest("1", "Too short"));
+            assertThat(violations)
+                    .extracting(violation -> violation.getPropertyPath().toString())
+                    .containsExactly("reason");
+        }
     }
 
     @Test

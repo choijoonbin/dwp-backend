@@ -13,13 +13,15 @@ class NotificationSecurityFilterTest {
     private static final String GATEWAY_TOKEN = "gateway-secret-token-at-least-24";
     private static final String APPROVAL_TOKEN = "approval-secret-token-at-least-24";
     private static final String PEOPLE_TOKEN = "people-secret-token-at-least-24";
+    private static final String MEETING_TOKEN = "meeting-secret-token-at-least-24";
 
     private final NotificationSecurityFilter filter = new NotificationSecurityFilter(
             GATEWAY_TOKEN,
             "dwp-gateway",
-            "dwp-approval-server,dwp-people-server",
+            "dwp-approval-server,dwp-people-server,dwp-meeting-server",
             "dwp-approval-server=" + APPROVAL_TOKEN
-                    + ",dwp-people-server=" + PEOPLE_TOKEN,
+                    + ",dwp-people-server=" + PEOPLE_TOKEN
+                    + ",dwp-meeting-server=" + MEETING_TOKEN,
             new ObjectMapper().findAndRegisterModules());
 
     @Test
@@ -150,6 +152,42 @@ class NotificationSecurityFilterTest {
     }
 
     @Test
+    void draftGovernanceRoutesRequireGatewayIdentityAndExactDecisionPermissions()
+            throws Exception {
+        MockHttpServletRequest unauthenticated = request(
+                "POST",
+                "/v1/admin/policies/id/reject",
+                "ADMIN.NOTIFICATION_POLICY:APPROVE");
+        unauthenticated.removeHeader(NotificationSecurityFilter.SERVICE_TOKEN_HEADER);
+
+        assertThat(execute(unauthenticated).getStatus()).isEqualTo(401);
+        assertThat(execute(request(
+                "POST", "/v1/admin/policies/id/reject", "ADMIN.NOTIFICATION_POLICY:MANAGE"))
+                .getStatus()).isEqualTo(403);
+        assertThat(execute(request(
+                "POST", "/v1/admin/policies/id/reject", "ADMIN.NOTIFICATION_POLICY:APPROVE"))
+                .getStatus()).isEqualTo(200);
+        assertThat(execute(request(
+                "POST", "/v1/admin/policies/id/withdraw", "ADMIN.NOTIFICATION_POLICY:APPROVE"))
+                .getStatus()).isEqualTo(403);
+        assertThat(execute(request(
+                "POST", "/v1/admin/policies/id/withdraw", "ADMIN.NOTIFICATION_POLICY:MANAGE"))
+                .getStatus()).isEqualTo(200);
+        assertThat(execute(request(
+                "POST", "/v1/admin/templates/id/reject", "ADMIN.NOTIFICATION_TEMPLATE:MANAGE"))
+                .getStatus()).isEqualTo(403);
+        assertThat(execute(request(
+                "POST", "/v1/admin/templates/id/reject", "ADMIN.NOTIFICATION_TEMPLATE:APPROVE"))
+                .getStatus()).isEqualTo(200);
+        assertThat(execute(request(
+                "POST", "/v1/admin/templates/id/withdraw", "ADMIN.NOTIFICATION_TEMPLATE:APPROVE"))
+                .getStatus()).isEqualTo(403);
+        assertThat(execute(request(
+                "POST", "/v1/admin/templates/id/withdraw", "ADMIN.NOTIFICATION_TEMPLATE:MANAGE"))
+                .getStatus()).isEqualTo(200);
+    }
+
+    @Test
     void internalProducerMustBeExplicitlyAllowlisted() throws Exception {
         MockHttpServletRequest allowed = internal(
                 "dwp-approval-server", APPROVAL_TOKEN);
@@ -158,8 +196,11 @@ class NotificationSecurityFilterTest {
                 "dwp-approval-server", PEOPLE_TOKEN);
         MockHttpServletRequest gatewayToken = internal(
                 "dwp-approval-server", GATEWAY_TOKEN);
+        MockHttpServletRequest meeting = internal(
+                "dwp-meeting-server", MEETING_TOKEN);
 
         assertThat(execute(allowed).getStatus()).isEqualTo(200);
+        assertThat(execute(meeting).getStatus()).isEqualTo(200);
         assertThat(execute(denied).getStatus()).isEqualTo(403);
         assertThat(execute(wrongBinding).getStatus()).isEqualTo(403);
         assertThat(execute(gatewayToken).getStatus()).isEqualTo(403);

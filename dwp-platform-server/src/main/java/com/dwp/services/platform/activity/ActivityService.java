@@ -95,7 +95,8 @@ public class ActivityService {
     private WorkspaceDtos.ActivityEvent withCursor(WorkspaceDtos.ActivityEvent e, String resumeCursor) {
         return new WorkspaceDtos.ActivityEvent(e.id(), e.occurredAt(), e.actor(), e.actorName(), e.state(),
                 e.title(), e.summary(), e.objectType(), e.objectLabel(), e.source(), e.tool(), e.auditId(),
-                e.progress(), e.sourceRoute(), e.eventKind(), e.sourceEventId(), e.objectId(), e.executionId(),
+                e.progress(), e.sourceRoute(), e.eventKind(), e.sourceEventId(), e.objectId(),
+                e.sourceReference(), e.resourceVersion(), e.idempotencyKey(), e.resultState(), e.executionId(),
                 e.executionVersion(), e.attempt(), e.workStatus(), e.correlationId(), e.auditRecordId(),
                 e.dataProvenance(), e.sourceAccess(), e.auditAccess(), e.auditStatus(), resumeCursor);
     }

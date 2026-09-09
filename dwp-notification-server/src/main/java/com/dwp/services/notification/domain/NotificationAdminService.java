@@ -10,6 +10,9 @@ import com.dwp.services.notification.domain.NotificationModels.DeliveryOperation
 import com.dwp.services.notification.domain.NotificationModels.OperationalFinding;
 import com.dwp.services.notification.domain.NotificationModels.PolicyChannelRule;
 import com.dwp.services.notification.domain.NotificationModels.PolicyRuntimeChannelPreview;
+import com.dwp.services.notification.domain.NotificationModels.PolicySimulationChannelOutcome;
+import com.dwp.services.notification.domain.NotificationModels.PolicySimulationContext;
+import com.dwp.services.notification.domain.NotificationModels.PolicySimulationOutcome;
 import com.dwp.services.notification.domain.NotificationModels.PolicyPublishRequest;
 import com.dwp.services.notification.domain.NotificationModels.ProviderHealth;
 import com.dwp.services.notification.domain.NotificationModels.TenantPolicy;
@@ -29,6 +32,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.LocalTime;
+import java.time.ZoneId;
+import java.time.DateTimeException;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashSet;
@@ -227,7 +233,8 @@ public class NotificationAdminService {
                 repository.observedRecipients30Days(
                         actor.tenantId(), request.scopeType(), request.scopeKey()),
                 runtimeChannels(request),
-                riskFlags(request));
+                riskFlags(request),
+                simulatePolicy(request));
     }
 
     @Transactional
@@ -367,6 +374,15 @@ public class NotificationAdminService {
             throw new IllegalArgumentException(
                     "Mandatory notifications must use a managed, enabled in-app route.");
         }
+        if (request.simulation() != null) {
+            try {
+                ZoneId.of(request.simulation().timeZone());
+                LocalTime.parse(request.simulation().localTime());
+            } catch (DateTimeException exception) {
+                throw new IllegalArgumentException(
+                        "Notification policy simulation requires a valid time zone and local time.");
+            }
+        }
     }
 
     private void requireExpectedVersion(String value, long currentVersion) {
@@ -416,6 +432,64 @@ public class NotificationAdminService {
                     channel.userOverridable(),
                     admitted);
         }).toList();
+    }
+
+    private PolicySimulationOutcome simulatePolicy(TenantPolicyChangeRequest request) {
+        PolicySimulationContext context = request.simulation() == null
+                ? new PolicySimulationContext(
+                        "KNOWLEDGE_WORKER", "UTC", "09:00", false, false)
+                : request.simulation();
+        List<PolicySimulationChannelOutcome> channels = request.channels().stream()
+                .map(channel -> simulationChannel(request, context, channel))
+                .toList();
+        int immediate = countSimulationOutcome(channels, "IMMEDIATE");
+        int deferred = countSimulationOutcome(channels, "DEFERRED");
+        int suppressed = countSimulationOutcome(channels, "SUPPRESSED");
+        boolean externalEnabled = request.channels().stream()
+                .anyMatch(channel -> !"IN_APP".equals(channel.channel()) && channel.enabled());
+        String attentionRisk = request.mandatory() && request.quietHoursBypass()
+                ? "HIGH"
+                : immediate > 2 ? "HIGH" : immediate > 0 ? "MEDIUM" : "LOW";
+        return new PolicySimulationOutcome(
+                context,
+                channels,
+                immediate,
+                deferred,
+                suppressed,
+                attentionRisk,
+                externalEnabled ? "RATE_CARD_REQUIRED" : "NOT_APPLICABLE");
+    }
+
+    private PolicySimulationChannelOutcome simulationChannel(
+            TenantPolicyChangeRequest request,
+            PolicySimulationContext context,
+            PolicyChannelRule channel) {
+        if (!channel.enabled() || "MUTED".equals(channel.defaultMode())) {
+            return new PolicySimulationChannelOutcome(
+                    channel.channel(), "SUPPRESSED", "POLICY_MUTED", channel.maxPerWindow());
+        }
+        if (context.quietHoursActive() && !request.quietHoursBypass()) {
+            return new PolicySimulationChannelOutcome(
+                    channel.channel(), "DEFERRED", "QUIET_HOURS", channel.maxPerWindow());
+        }
+        if (context.focusMode() && !request.quietHoursBypass()) {
+            return new PolicySimulationChannelOutcome(
+                    channel.channel(), "DEFERRED", "FOCUS_MODE", channel.maxPerWindow());
+        }
+        if ("DIGEST".equals(channel.defaultMode())) {
+            return new PolicySimulationChannelOutcome(
+                    channel.channel(), "DEFERRED", "DIGEST_WINDOW", channel.maxPerWindow());
+        }
+        return new PolicySimulationChannelOutcome(
+                channel.channel(), "IMMEDIATE", "POLICY_ADMITTED", channel.maxPerWindow());
+    }
+
+    private int countSimulationOutcome(
+            List<PolicySimulationChannelOutcome> channels,
+            String outcome) {
+        return Math.toIntExact(channels.stream()
+                .filter(channel -> outcome.equals(channel.outcome()))
+                .count());
     }
 
     private String scopeLabel(String scopeType, String scopeKey) {

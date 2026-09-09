@@ -93,6 +93,10 @@ class ActivityPostgresIntegrationTest {
                 """, FOREIGN_LEGACY_EVENT);
         Flyway.configure().dataSource(source).locations("filesystem:src/main/resources/db/migration")
                 .target("222").load().migrate();
+        // Keep the staged V221 -> V222 assertions above, then expose the repository to
+        // every current Activity-owned projection used by the production query.
+        Flyway.configure().dataSource(source).locations("filesystem:src/main/resources/db/migration")
+                .load().migrate();
     }
 
     @BeforeEach

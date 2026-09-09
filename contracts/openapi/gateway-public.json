@@ -11152,6 +11152,33 @@
         },
         "type": "object"
       },
+      "meeting_ApiResponseDisconnectResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/meeting_DisconnectResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "meeting_ApiResponseFacilitationCommandResponsePollResponse": {
         "properties": {
           "correlationId": {
@@ -13017,6 +13044,39 @@
         },
         "type": "object"
       },
+      "meeting_DisconnectCommand": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "meeting_DisconnectResponse": {
+        "properties": {
+          "blockedForCurrentSession": {
+            "type": "boolean"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "meetingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "participantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "meeting_DraftAgendaItem": {
         "properties": {
           "itemId": {
@@ -13134,6 +13194,24 @@
             "type": "boolean"
           }
         },
+        "type": "object"
+      },
+      "meeting_ExportCommand": {
+        "properties": {
+          "expectedReportVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "format": {
+            "minLength": 1,
+            "pattern": "JSON|MARKDOWN",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedReportVersion",
+          "format"
+        ],
         "type": "object"
       },
       "meeting_FacilitationCommandResponsePollResponse": {
@@ -13392,8 +13470,18 @@
           "participantRole": {
             "type": "string"
           },
+          "publicationState": {
+            "type": "string"
+          },
           "recordingAvailable": {
             "type": "boolean"
+          },
+          "retentionState": {
+            "type": "string"
+          },
+          "retentionUntil": {
+            "format": "date-time",
+            "type": "string"
           },
           "title": {
             "type": "string"
@@ -26780,6 +26868,10 @@
             "format": "uuid",
             "type": "string"
           },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
           "objectId": {
             "type": "string"
           },
@@ -26797,6 +26889,13 @@
             "format": "int32",
             "type": "integer"
           },
+          "resourceVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "resultState": {
+            "type": "string"
+          },
           "resumeCursor": {
             "type": "string"
           },
@@ -26807,6 +26906,9 @@
             "type": "string"
           },
           "sourceEventId": {
+            "type": "string"
+          },
+          "sourceReference": {
             "type": "string"
           },
           "sourceRoute": {
@@ -26825,6 +26927,73 @@
             "type": "string"
           },
           "workStatus": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ActivityEvidenceReceipt": {
+        "description": "Authorized audit linkage and the audit owner's reported daily checkpoint, not a compliance attestation.",
+        "properties": {
+          "auditAccess": {
+            "enum": [
+              "AVAILABLE",
+              "RESTRICTED"
+            ],
+            "type": "string"
+          },
+          "auditRecordId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "hashAlgorithm": {
+            "enum": [
+              "SHA-256"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "integrityScope": {
+            "enum": [
+              "DAILY_CHECKPOINT_REPORTED"
+            ],
+            "type": "string"
+          },
+          "integrityStatus": {
+            "enum": [
+              "VERIFIED",
+              "FAILED",
+              "PENDING",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "linkStatus": {
+            "enum": [
+              "LINKED",
+              "NOT_LINKED"
+            ],
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recordHash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verifiedAt": {
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -26857,6 +27026,79 @@
           },
           "startCursor": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ActivitySourceStatus": {
+        "description": "A personal source ledger observation; LOCAL_FIXTURE is explicitly seeded development data.",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "lastAttemptAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastSuccessAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resourceKind": {
+            "enum": [
+              "MAIL",
+              "CALENDAR"
+            ],
+            "type": "string"
+          },
+          "semantics": {
+            "enum": [
+              "PERSONAL_SYNC_LEDGER",
+              "LOCAL_FIXTURE"
+            ],
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "READY",
+              "SYNCING",
+              "STALE",
+              "RESET_REQUIRED",
+              "AUTHENTICATION_REQUIRED",
+              "SUSPENDED",
+              "NOT_CONNECTED",
+              "REAUTHORIZATION_REQUIRED",
+              "REVOKED",
+              "CONFIGURATION_REQUIRED",
+              "DEGRADED",
+              "UNAVAILABLE",
+              "DRAFT",
+              "REVIEW_REQUIRED",
+              "BLOCKED"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ActivitySourceStatuses": {
+        "properties": {
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/platform_ActivitySourceStatus"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -27087,6 +27329,120 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "platform_AgentCatalogProfile": {
+        "properties": {
+          "boundaries": {
+            "items": {
+              "$ref": "#/components/schemas/platform_LocalizedCatalogText"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/platform_LocalizedCatalogText"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "category": {
+            "enum": [
+              "GENERAL",
+              "APPROVAL"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "$ref": "#/components/schemas/platform_LocalizedCatalogText"
+          },
+          "displayName": {
+            "$ref": "#/components/schemas/platform_LocalizedCatalogText"
+          },
+          "humanConfirmationRequired": {
+            "type": "boolean"
+          },
+          "safetySummary": {
+            "$ref": "#/components/schemas/platform_LocalizedCatalogText"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/platform_AgentCatalogSource"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "starterPrompts": {
+            "items": {
+              "$ref": "#/components/schemas/platform_LocalizedCatalogText"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "boundaries",
+          "capabilities",
+          "category",
+          "description",
+          "displayName",
+          "safetySummary",
+          "schemaVersion",
+          "sources",
+          "starterPrompts"
+        ],
+        "type": "object"
+      },
+      "platform_AgentCatalogSource": {
+        "properties": {
+          "accessMode": {
+            "enum": [
+              "READ_ONLY"
+            ],
+            "type": "string"
+          },
+          "displayName": {
+            "$ref": "#/components/schemas/platform_LocalizedCatalogText"
+          },
+          "permissionMatch": {
+            "enum": [
+              "ANY_OF"
+            ],
+            "type": "string"
+          },
+          "requiredPermissions": {
+            "items": {
+              "minLength": 1,
+              "pattern": "[A-Z][A-Z0-9_.-]{0,99}:[A-Z][A-Z0-9_.-]{0,39}",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "sourceSystem": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{0,63}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accessMode",
+          "displayName",
+          "permissionMatch",
+          "requiredPermissions",
+          "sourceSystem"
+        ],
         "type": "object"
       },
       "platform_AnnouncementDefinition": {
@@ -27393,6 +27749,33 @@
         },
         "type": "object"
       },
+      "platform_ApiResponseActivityEvidenceReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_ActivityEvidenceReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponseActivityFeed": {
         "properties": {
           "correlationId": {
@@ -27400,6 +27783,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_ActivityFeed"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseActivitySourceStatuses": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_ActivitySourceStatuses"
           },
           "errorCode": {
             "type": "string"
@@ -28615,33 +29025,6 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_EventSummary"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "platform_ApiResponseEvidence": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/platform_Evidence"
           },
           "errorCode": {
             "type": "string"
@@ -31909,33 +32292,6 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_SiteCampusAssignment"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "platform_ApiResponseSourceStatuses": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/platform_SourceStatuses"
           },
           "errorCode": {
             "type": "string"
@@ -37776,45 +38132,6 @@
         },
         "type": "object"
       },
-      "platform_Evidence": {
-        "properties": {
-          "auditAccess": {
-            "type": "string"
-          },
-          "auditRecordId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "eventId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "hashAlgorithm": {
-            "type": "string"
-          },
-          "integrityScope": {
-            "type": "string"
-          },
-          "integrityStatus": {
-            "type": "string"
-          },
-          "linkStatus": {
-            "type": "string"
-          },
-          "observedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "recordHash": {
-            "type": "string"
-          },
-          "verifiedAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "platform_ExecutionSummary": {
         "properties": {
           "cancelled": {
@@ -39772,6 +40089,25 @@
             "$ref": "#/components/schemas/platform_ThreadSummary"
           }
         },
+        "type": "object"
+      },
+      "platform_LocalizedCatalogText": {
+        "properties": {
+          "en": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "ko": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "en",
+          "ko"
+        ],
         "type": "object"
       },
       "platform_LocalizedCopy": {
@@ -42236,6 +42572,9 @@
       },
       "platform_RegistryEntryResponse": {
         "properties": {
+          "agentCatalogProfile": {
+            "$ref": "#/components/schemas/platform_AgentCatalogProfile"
+          },
           "artifactVersion": {
             "type": "string"
           },
@@ -43542,6 +43881,9 @@
       },
       "platform_RuntimeRegistryEntry": {
         "properties": {
+          "agentCatalogProfile": {
+            "$ref": "#/components/schemas/platform_AgentCatalogProfile"
+          },
           "artifactVersion": {
             "type": "string"
           },
@@ -43580,6 +43922,10 @@
               "HIGH",
               "CRITICAL"
             ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -44444,53 +44790,6 @@
           "until",
           "version"
         ],
-        "type": "object"
-      },
-      "platform_SourceStatus": {
-        "properties": {
-          "label": {
-            "type": "string"
-          },
-          "lastAttemptAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "lastSuccessAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "observedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "resourceKind": {
-            "type": "string"
-          },
-          "semantics": {
-            "type": "string"
-          },
-          "sourceId": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "platform_SourceStatuses": {
-        "properties": {
-          "observedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "sources": {
-            "items": {
-              "$ref": "#/components/schemas/platform_SourceStatus"
-            },
-            "type": "array"
-          }
-        },
         "type": "object"
       },
       "platform_Subject": {
@@ -61922,6 +62221,48 @@
         ]
       }
     },
+    "/api/meetings/v1/admin/operations/export": {
+      "get": {
+        "operationId": "meeting_adminOperationsExport",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": false,
+            "schema": {
+              "default": "UTC",
+              "maxLength": 80,
+              "minLength": 0,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting"
+        ]
+      }
+    },
     "/api/meetings/v1/admin/overview": {
       "get": {
         "operationId": "meeting_adminOverview",
@@ -61932,6 +62273,8 @@
             "required": false,
             "schema": {
               "default": "UTC",
+              "maxLength": 80,
+              "minLength": 0,
               "type": "string"
             }
           }
@@ -62429,6 +62772,40 @@
               "default": false,
               "type": "boolean"
             }
+          },
+          {
+            "in": "query",
+            "name": "publication",
+            "required": false,
+            "schema": {
+              "default": "ALL",
+              "enum": [
+                "ALL",
+                "NONE",
+                "DRAFT",
+                "APPROVED",
+                "PUBLISHED",
+                "REJECTED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "retention",
+            "required": false,
+            "schema": {
+              "default": "ALL",
+              "enum": [
+                "ALL",
+                "UNCONFIGURED",
+                "ACTIVE",
+                "EXPIRING_SOON",
+                "EXPIRED",
+                "LEGAL_HOLD"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -62493,6 +62870,18 @@
             "required": false,
             "schema": {
               "default": "UTC",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }
@@ -62648,6 +63037,18 @@
               "minimum": 1,
               "type": "integer"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -62683,6 +63084,36 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -64905,6 +65336,101 @@
         ]
       }
     },
+    "/api/meetings/v1/meetings/{meetingId}/intelligence/reports/{reportId}/exports": {
+      "post": {
+        "operationId": "meeting_export",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reportId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/meeting_ExportCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              },
+              "text/markdown": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting"
+        ]
+      }
+    },
     "/api/meetings/v1/meetings/{meetingId}/intelligence/reports/{reportId}/publish": {
       "post": {
         "operationId": "meeting_publish",
@@ -65740,6 +66266,102 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/meeting_ApiResponsePreparationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "meeting"
+        ]
+      }
+    },
+    "/api/meetings/v1/meetings/{meetingId}/participants/{participantId}/disconnect": {
+      "post": {
+        "operationId": "meeting_disconnect",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "meetingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "participantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/meeting_DisconnectCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/meeting_ApiResponseDisconnectResponse"
                 }
               }
             },
@@ -68257,6 +68879,18 @@
               "format": "int32",
               "type": "integer"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -68293,6 +68927,36 @@
             "schema": {
               "format": "uuid",
               "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -69020,6 +69684,20 @@
     "/api/messaging/v1/home": {
       "get": {
         "operationId": "messaging_home",
+        "parameters": [
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -69965,6 +70643,18 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -70162,6 +70852,36 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -70738,6 +71458,20 @@
     "/api/notifications/v1/summary/by-app": {
       "get": {
         "operationId": "notification_byApp",
+        "parameters": [
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -78256,6 +78990,18 @@
               "format": "int32",
               "type": "integer"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -78283,6 +79029,36 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -78324,6 +79100,18 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -78362,6 +79150,36 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -78391,7 +79209,7 @@
         ]
       }
     },
-    "/api/platform/v1/admin/dwaion/agents/{entryKey}/revisions/{revision}": {
+    "/api/platform/v1/admin/dwaion/agents/{entryKey}/revisions/{revisionNumber}": {
       "patch": {
         "operationId": "platform_updateRevision_1",
         "parameters": [
@@ -78413,11 +79231,41 @@
           },
           {
             "in": "path",
-            "name": "revision",
+            "name": "revisionNumber",
             "required": true,
             "schema": {
               "format": "int32",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -78448,7 +79296,7 @@
         ]
       }
     },
-    "/api/platform/v1/admin/dwaion/agents/{entryKey}/revisions/{revision}/activate": {
+    "/api/platform/v1/admin/dwaion/agents/{entryKey}/revisions/{revisionNumber}/activate": {
       "post": {
         "operationId": "platform_activateRevision_1",
         "parameters": [
@@ -78470,11 +79318,41 @@
           },
           {
             "in": "path",
-            "name": "revision",
+            "name": "revisionNumber",
             "required": true,
             "schema": {
               "format": "int32",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -78505,7 +79383,7 @@
         ]
       }
     },
-    "/api/platform/v1/admin/dwaion/agents/{entryKey}/revisions/{revision}/retire": {
+    "/api/platform/v1/admin/dwaion/agents/{entryKey}/revisions/{revisionNumber}/retire": {
       "post": {
         "operationId": "platform_retireRevision_1",
         "parameters": [
@@ -78527,11 +79405,41 @@
           },
           {
             "in": "path",
-            "name": "revision",
+            "name": "revisionNumber",
             "required": true,
             "schema": {
               "format": "int32",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -85607,6 +86515,18 @@
               "format": "date-time",
               "type": "string"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -85642,6 +86562,36 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -86039,6 +86989,18 @@
             "required": false,
             "schema": {
               "default": "Asia/Seoul",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }
@@ -89973,7 +90935,20 @@
     "/api/platform/v1/mail/home": {
       "get": {
         "operationId": "platform_home",
-        "parameters": [],
+        "parameters": [
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -90001,6 +90976,36 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -90572,6 +91577,18 @@
               "default": 30,
               "format": "int32",
               "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
             }
           }
         ],
@@ -92129,6 +93146,36 @@
               "format": "uuid",
               "type": "string"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
           }
         ],
         "requestBody": {
@@ -92352,6 +93399,36 @@
             "required": true,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -92648,6 +93725,18 @@
               "format": "date-time",
               "type": "string"
             }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -92677,6 +93766,18 @@
             "required": true,
             "schema": {
               "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }
@@ -93021,6 +94122,7 @@
     },
     "/api/platform/v1/workspace/activity/audit/evidence/{auditRecordId}": {
       "get": {
+        "description": "Requires APP.ACTIVITY:VIEW and APP.ASK:VIEW plus exact tenant, actor, dwp-agent-runtime source, and AGENT_RUN target. Missing, pending ingestion and unreadable records are indistinguishable 404 responses.",
         "operationId": "platform_agentEvidence",
         "parameters": [
           {
@@ -93038,13 +94140,23 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/platform_ApiResponseEvidence"
+                  "$ref": "#/components/schemas/platform_ApiResponseActivityEvidenceReceipt"
                 }
               }
             },
-            "description": "OK"
+            "description": "Authorized observation"
+          },
+          "401": {
+            "description": "Trusted tenant and user identity is required"
+          },
+          "403": {
+            "description": "Personal Activity permission is required"
+          },
+          "404": {
+            "description": "Evidence is unavailable or its source is no longer accessible"
           }
         },
+        "summary": "Read a self-owned Agent audit receipt",
         "tags": [
           "platform"
         ]
@@ -93091,6 +94203,7 @@
     },
     "/api/platform/v1/workspace/activity/events/{id}/evidence": {
       "get": {
+        "description": "Rechecks current source ACL. Audit hash and checkpoint require ADMIN.AUDIT_VIEW:VIEW; other viewers receive RESTRICTED without audit data.",
         "operationId": "platform_evidence",
         "parameters": [
           {
@@ -93108,13 +94221,23 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/platform_ApiResponseEvidence"
+                  "$ref": "#/components/schemas/platform_ApiResponseActivityEvidenceReceipt"
                 }
               }
             },
-            "description": "OK"
+            "description": "Authorized observation"
+          },
+          "401": {
+            "description": "Trusted tenant and user identity is required"
+          },
+          "403": {
+            "description": "Personal Activity permission is required"
+          },
+          "404": {
+            "description": "Evidence is unavailable or its source is no longer accessible"
           }
         },
+        "summary": "Read an authorized native activity audit receipt",
         "tags": [
           "platform"
         ]
@@ -93143,6 +94266,7 @@
     },
     "/api/platform/v1/workspace/activity/sources/status": {
       "get": {
+        "description": "Requires APP.ACTIVITY:VIEW and the source's APP.MAIL:VIEW or APP.CALENDAR:VIEW. Empty coverage is not a healthy-rate assertion.",
         "operationId": "platform_sources",
         "parameters": [],
         "responses": {
@@ -93150,13 +94274,23 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/platform_ApiResponseSourceStatuses"
+                  "$ref": "#/components/schemas/platform_ApiResponseActivitySourceStatuses"
                 }
               }
             },
-            "description": "OK"
+            "description": "Authorized observation"
+          },
+          "401": {
+            "description": "Trusted tenant and user identity is required"
+          },
+          "403": {
+            "description": "Personal Activity permission is required"
+          },
+          "404": {
+            "description": "Evidence is unavailable or its source is no longer accessible"
           }
         },
+        "summary": "Read personal source synchronization observations",
         "tags": [
           "platform"
         ]
@@ -98677,6 +99811,20 @@
     "/api/spaces/v1/home": {
       "get": {
         "operationId": "space_home",
+        "parameters": [
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -98733,6 +99881,36 @@
             "required": false,
             "schema": {
               "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
             }
           }
         ],
@@ -98900,6 +100078,18 @@
             "name": "spaceKey",
             "required": true,
             "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
               "type": "string"
             }
           }

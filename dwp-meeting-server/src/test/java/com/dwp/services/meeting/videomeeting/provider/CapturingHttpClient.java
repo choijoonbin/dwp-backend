@@ -28,6 +28,7 @@ final class CapturingHttpClient extends HttpClient {
     private byte[] body = "{}".getBytes(java.nio.charset.StandardCharsets.UTF_8);
     private String contentType = "application/json";
     private Long contentLength;
+    private Duration responseReadDelay = Duration.ZERO;
     private int sendCount;
     private TrackingInputStream responseStream;
 
@@ -36,12 +37,19 @@ final class CapturingHttpClient extends HttpClient {
         this.contentType = contentType;
         this.body = body;
         this.contentLength = null;
+        this.responseReadDelay = Duration.ZERO;
     }
 
     void respondWithContentLength(
             int status, String contentType, byte[] body, long declaredLength) {
         respond(status, contentType, body);
         this.contentLength = declaredLength;
+    }
+
+    void respondWithReadDelay(
+            int status, String contentType, byte[] body, Duration readDelay) {
+        respond(status, contentType, body);
+        this.responseReadDelay = readDelay;
     }
 
     HttpRequest request() {
@@ -89,7 +97,7 @@ final class CapturingHttpClient extends HttpClient {
             HttpRequest request, HttpResponse.BodyHandler<T> responseBodyHandler) {
         this.request = request;
         sendCount++;
-        responseStream = new TrackingInputStream(body);
+        responseStream = new TrackingInputStream(body, responseReadDelay);
         return (HttpResponse<T>) new Response<>(
                 request, status, contentType, contentLength, responseStream);
     }
@@ -150,13 +158,16 @@ final class CapturingHttpClient extends HttpClient {
     private static final class TrackingInputStream extends ByteArrayInputStream {
         private int bytesRead;
         private boolean closed;
+        private final Duration readDelay;
 
-        private TrackingInputStream(byte[] body) {
+        private TrackingInputStream(byte[] body, Duration readDelay) {
             super(body);
+            this.readDelay = readDelay;
         }
 
         @Override
         public synchronized int read(byte[] bytes, int offset, int length) {
+            delay();
             int count = super.read(bytes, offset, length);
             if (count > 0) bytesRead += count;
             return count;
@@ -164,6 +175,7 @@ final class CapturingHttpClient extends HttpClient {
 
         @Override
         public synchronized int read() {
+            delay();
             int value = super.read();
             if (value >= 0) bytesRead++;
             return value;
@@ -173,6 +185,16 @@ final class CapturingHttpClient extends HttpClient {
         public void close() throws java.io.IOException {
             closed = true;
             super.close();
+        }
+
+        private void delay() {
+            if (readDelay.isZero()) return;
+            try {
+                Thread.sleep(readDelay);
+            } catch (InterruptedException interrupted) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Test response read was interrupted.", interrupted);
+            }
         }
     }
 }

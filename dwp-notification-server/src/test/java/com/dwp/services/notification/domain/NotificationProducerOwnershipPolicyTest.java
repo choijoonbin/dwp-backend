@@ -16,12 +16,14 @@ class NotificationProducerOwnershipPolicyTest {
 
     private final NotificationProducerOwnershipPolicy policy =
             new NotificationProducerOwnershipPolicy(
-                    "dwp-messaging-server=messaging,dwp-people-server=hcm|people");
+                    "dwp-messaging-server=messaging,dwp-people-server=hcm|people,"
+                            + "dwp-meeting-server=meetings");
 
     @Test
     void permitsOnlyTheProducerThatOwnsTheContractApp() {
         policy.requireOwnership(actor("dwp-messaging-server"), contract("messaging"));
         policy.requireAppOwnership(actor("dwp-messaging-server"), "MESSAGING");
+        policy.requireAppOwnership(actor("dwp-meeting-server"), "MEETINGS");
 
         assertThatThrownBy(() -> policy.requireOwnership(
                 actor("dwp-people-server"), contract("messaging")))

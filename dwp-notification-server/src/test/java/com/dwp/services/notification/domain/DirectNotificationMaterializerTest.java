@@ -8,6 +8,8 @@ import com.dwp.services.notification.domain.NotificationModels.MaterializationRe
 import com.dwp.services.notification.security.NotificationRequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.CsvSource;
 
 import java.time.Instant;
 import java.util.List;
@@ -82,6 +84,20 @@ class DirectNotificationMaterializerTest {
                 .isInstanceOf(NotificationException.class);
         verify(transactions, never()).materialize(
                 anyLong(), any(), any(), any(), anyString(), anyString(), any(), any());
+    }
+
+    @ParameterizedTest
+    @CsvSource({
+            "DIRECT,DIRECT",
+            "DIRECT_RECIPIENT,DIRECT",
+            "mentioned,MENTION",
+            "ORG,ORGANIZATION",
+            "SUBSCRIBED,SUBSCRIPTION",
+            "meeting.invitation.created.v1,DIRECT",
+            "'   ',DIRECT"
+    })
+    void canonicalizesRecipientReasonsBeforePersistence(String input, String expected) {
+        assertThat(DirectNotificationMaterializer.canonicalReasonCode(input)).isEqualTo(expected);
     }
 
     private NotificationRequestContext.Actor actor() {

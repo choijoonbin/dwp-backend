@@ -259,6 +259,26 @@ public class LiveKitMeetingMediaAdapter implements MeetingMediaProvider {
         return rooms.stream().filter(room -> roomName.equals(room.getName())).findFirst();
     }
 
+    @Override
+    public void disconnectParticipant(PreparedRoom room, UUID participantId, long userId) {
+        requireAvailable();
+        if (!validRoomPlan(room) || participantId == null || userId <= 0)
+            throw providerFailure("The LiveKit participant binding is invalid.");
+        try {
+            Optional<Room> existing = findRoom(room.roomName());
+            if (existing.isEmpty()) return;
+            requireMatchingRoom(existing.orElseThrow(), room);
+            var call = api.getRoom().removeParticipant(room.roomName(), participantIdentity(
+                    room.tenantId(), room.meetingId(), participantId, room.incarnation(), userId));
+            call.timeout().timeout(5, TimeUnit.SECONDS);
+            Response<?> response = call.execute();
+            if (!response.isSuccessful() && response.code() != 404)
+                throw providerFailure("LiveKit participant disconnect failed with status " + response.code() + ".");
+        } catch (IOException failure) {
+            throw providerFailure("LiveKit participant disconnect could not complete.", failure);
+        }
+    }
+
     private boolean validRoomPlan(PreparedRoom room) {
         return room != null
                 && "LIVEKIT".equals(room.provider())

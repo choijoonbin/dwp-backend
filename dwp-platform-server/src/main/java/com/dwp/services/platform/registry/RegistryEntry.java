@@ -1,5 +1,6 @@
 package com.dwp.services.platform.registry;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.dwp.core.entity.BaseEntity;
 import com.dwp.services.platform.reference.ReferenceLifecycle;
 import jakarta.persistence.Column;
@@ -17,6 +18,8 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Entity
 @Table(
@@ -64,6 +67,10 @@ public class RegistryEntry extends BaseEntity {
     @Column(name = "artifact_version", nullable = false, length = 64)
     private String artifactVersion;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "agent_catalog_profile", columnDefinition = "jsonb")
+    private JsonNode agentCatalogProfile;
+
     @Builder.Default
     @Enumerated(EnumType.STRING)
     @Column(name = "lifecycle_state", nullable = false, length = 20)
@@ -73,4 +80,3 @@ public class RegistryEntry extends BaseEntity {
     @Column(name = "version", nullable = false)
     private Long version;
 }
-

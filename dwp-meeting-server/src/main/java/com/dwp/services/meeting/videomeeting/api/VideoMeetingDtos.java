@@ -552,7 +552,18 @@ public final class VideoMeetingDtos {
             int participantPeak,
             Integer averageQualityScore,
             boolean recordingAvailable,
-            boolean transcriptAvailable) {
+            boolean transcriptAvailable,
+            String publicationState,
+            String retentionState,
+            OffsetDateTime retentionUntil) {
+    }
+
+    public enum HistoryPublicationFilter {
+        ALL, NONE, DRAFT, APPROVED, PUBLISHED, REJECTED
+    }
+
+    public enum HistoryRetentionFilter {
+        ALL, UNCONFIGURED, ACTIVE, EXPIRING_SOON, EXPIRED, LEGAL_HOLD
     }
 
     public record AdminCapabilitiesResponse(
@@ -597,6 +608,14 @@ public final class VideoMeetingDtos {
     }
 
     public static HistoryItemResponse history(VideoMeetingModels.MeetingCard card) {
+        return history(card, "NONE", "UNCONFIGURED", null);
+    }
+
+    public static HistoryItemResponse history(
+            VideoMeetingModels.MeetingCard card,
+            String publicationState,
+            String retentionState,
+            OffsetDateTime retentionUntil) {
         VideoMeetingModels.Meeting meeting = card.meeting();
         int actualDuration = meeting.startedAt() == null || meeting.endedAt() == null
                 ? 0 : safeMinutes(Duration.between(meeting.startedAt(), meeting.endedAt()));
@@ -604,7 +623,8 @@ public final class VideoMeetingDtos {
                 meeting.meetingId(), meeting.title(), meeting.organizerUserId(),
                 meeting.organizerName(), effectiveRole(card.viewerRole()).name(),
                 effectiveRole(card.viewerRole()).canHost(), meeting.endedAt(), actualDuration,
-                card.participantCount(), null, false, false);
+                card.participantCount(), null, false, false,
+                publicationState, retentionState, retentionUntil);
     }
 
     private static VideoMeetingModels.ParticipantRole effectiveRole(

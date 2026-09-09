@@ -187,6 +187,10 @@
             "format": "uuid",
             "type": "string"
           },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
           "objectId": {
             "type": "string"
           },
@@ -204,6 +208,13 @@
             "format": "int32",
             "type": "integer"
           },
+          "resourceVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "resultState": {
+            "type": "string"
+          },
           "resumeCursor": {
             "type": "string"
           },
@@ -214,6 +225,9 @@
             "type": "string"
           },
           "sourceEventId": {
+            "type": "string"
+          },
+          "sourceReference": {
             "type": "string"
           },
           "sourceRoute": {
@@ -232,6 +246,73 @@
             "type": "string"
           },
           "workStatus": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ActivityEvidenceReceipt": {
+        "description": "Authorized audit linkage and the audit owner's reported daily checkpoint, not a compliance attestation.",
+        "properties": {
+          "auditAccess": {
+            "enum": [
+              "AVAILABLE",
+              "RESTRICTED"
+            ],
+            "type": "string"
+          },
+          "auditRecordId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "hashAlgorithm": {
+            "enum": [
+              "SHA-256"
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "integrityScope": {
+            "enum": [
+              "DAILY_CHECKPOINT_REPORTED"
+            ],
+            "type": "string"
+          },
+          "integrityStatus": {
+            "enum": [
+              "VERIFIED",
+              "FAILED",
+              "PENDING",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "linkStatus": {
+            "enum": [
+              "LINKED",
+              "NOT_LINKED"
+            ],
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recordHash": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "verifiedAt": {
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -264,6 +345,79 @@
           },
           "startCursor": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ActivitySourceStatus": {
+        "description": "A personal source ledger observation; LOCAL_FIXTURE is explicitly seeded development data.",
+        "properties": {
+          "label": {
+            "type": "string"
+          },
+          "lastAttemptAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastSuccessAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resourceKind": {
+            "enum": [
+              "MAIL",
+              "CALENDAR"
+            ],
+            "type": "string"
+          },
+          "semantics": {
+            "enum": [
+              "PERSONAL_SYNC_LEDGER",
+              "LOCAL_FIXTURE"
+            ],
+            "type": "string"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "READY",
+              "SYNCING",
+              "STALE",
+              "RESET_REQUIRED",
+              "AUTHENTICATION_REQUIRED",
+              "SUSPENDED",
+              "NOT_CONNECTED",
+              "REAUTHORIZATION_REQUIRED",
+              "REVOKED",
+              "CONFIGURATION_REQUIRED",
+              "DEGRADED",
+              "UNAVAILABLE",
+              "DRAFT",
+              "REVIEW_REQUIRED",
+              "BLOCKED"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ActivitySourceStatuses": {
+        "properties": {
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/ActivitySourceStatus"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -494,6 +648,120 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "AgentCatalogProfile": {
+        "properties": {
+          "boundaries": {
+            "items": {
+              "$ref": "#/components/schemas/LocalizedCatalogText"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "capabilities": {
+            "items": {
+              "$ref": "#/components/schemas/LocalizedCatalogText"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "category": {
+            "enum": [
+              "GENERAL",
+              "APPROVAL"
+            ],
+            "type": "string"
+          },
+          "description": {
+            "$ref": "#/components/schemas/LocalizedCatalogText"
+          },
+          "displayName": {
+            "$ref": "#/components/schemas/LocalizedCatalogText"
+          },
+          "humanConfirmationRequired": {
+            "type": "boolean"
+          },
+          "safetySummary": {
+            "$ref": "#/components/schemas/LocalizedCatalogText"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/AgentCatalogSource"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "starterPrompts": {
+            "items": {
+              "$ref": "#/components/schemas/LocalizedCatalogText"
+            },
+            "maxItems": 6,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "boundaries",
+          "capabilities",
+          "category",
+          "description",
+          "displayName",
+          "safetySummary",
+          "schemaVersion",
+          "sources",
+          "starterPrompts"
+        ],
+        "type": "object"
+      },
+      "AgentCatalogSource": {
+        "properties": {
+          "accessMode": {
+            "enum": [
+              "READ_ONLY"
+            ],
+            "type": "string"
+          },
+          "displayName": {
+            "$ref": "#/components/schemas/LocalizedCatalogText"
+          },
+          "permissionMatch": {
+            "enum": [
+              "ANY_OF"
+            ],
+            "type": "string"
+          },
+          "requiredPermissions": {
+            "items": {
+              "minLength": 1,
+              "pattern": "[A-Z][A-Z0-9_.-]{0,99}:[A-Z][A-Z0-9_.-]{0,39}",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "sourceSystem": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{0,63}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "accessMode",
+          "displayName",
+          "permissionMatch",
+          "requiredPermissions",
+          "sourceSystem"
+        ],
         "type": "object"
       },
       "AnnouncementDefinition": {
@@ -909,6 +1177,33 @@
         },
         "type": "object"
       },
+      "ApiResponseActivityEvidenceReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ActivityEvidenceReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseActivityFeed": {
         "properties": {
           "correlationId": {
@@ -916,6 +1211,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/ActivityFeed"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseActivitySourceStatuses": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ActivitySourceStatuses"
           },
           "errorCode": {
             "type": "string"
@@ -2185,33 +2507,6 @@
           },
           "data": {
             "$ref": "#/components/schemas/EventSummary"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseEvidence": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/Evidence"
           },
           "errorCode": {
             "type": "string"
@@ -5506,33 +5801,6 @@
           },
           "data": {
             "$ref": "#/components/schemas/SiteCampusAssignment"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseSourceStatuses": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "$ref": "#/components/schemas/SourceStatuses"
           },
           "errorCode": {
             "type": "string"
@@ -11644,45 +11912,6 @@
         },
         "type": "object"
       },
-      "Evidence": {
-        "properties": {
-          "auditAccess": {
-            "type": "string"
-          },
-          "auditRecordId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "eventId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "hashAlgorithm": {
-            "type": "string"
-          },
-          "integrityScope": {
-            "type": "string"
-          },
-          "integrityStatus": {
-            "type": "string"
-          },
-          "linkStatus": {
-            "type": "string"
-          },
-          "observedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "recordHash": {
-            "type": "string"
-          },
-          "verifiedAt": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ExecutionSummary": {
         "properties": {
           "cancelled": {
@@ -13649,6 +13878,25 @@
             "$ref": "#/components/schemas/ThreadSummary"
           }
         },
+        "type": "object"
+      },
+      "LocalizedCatalogText": {
+        "properties": {
+          "en": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "ko": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "en",
+          "ko"
+        ],
         "type": "object"
       },
       "LocalizedCopy": {
@@ -16230,6 +16478,9 @@
       },
       "RegistryEntryResponse": {
         "properties": {
+          "agentCatalogProfile": {
+            "$ref": "#/components/schemas/AgentCatalogProfile"
+          },
           "artifactVersion": {
             "type": "string"
           },
@@ -17553,6 +17804,9 @@
       },
       "RuntimeRegistryEntry": {
         "properties": {
+          "agentCatalogProfile": {
+            "$ref": "#/components/schemas/AgentCatalogProfile"
+          },
           "artifactVersion": {
             "type": "string"
           },
@@ -17591,6 +17845,10 @@
               "HIGH",
               "CRITICAL"
             ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -18455,53 +18713,6 @@
           "until",
           "version"
         ],
-        "type": "object"
-      },
-      "SourceStatus": {
-        "properties": {
-          "label": {
-            "type": "string"
-          },
-          "lastAttemptAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "lastSuccessAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "observedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "resourceKind": {
-            "type": "string"
-          },
-          "semantics": {
-            "type": "string"
-          },
-          "sourceId": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "SourceStatuses": {
-        "properties": {
-          "observedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "sources": {
-            "items": {
-              "$ref": "#/components/schemas/SourceStatus"
-            },
-            "type": "array"
-          }
-        },
         "type": "object"
       },
       "Subject": {
@@ -25274,7 +25485,7 @@
         ]
       }
     },
-    "/v1/admin/dwaion/agents/{entryKey}/revisions/{revision}": {
+    "/v1/admin/dwaion/agents/{entryKey}/revisions/{revisionNumber}": {
       "patch": {
         "operationId": "updateRevision_1",
         "parameters": [
@@ -25296,7 +25507,7 @@
           },
           {
             "in": "path",
-            "name": "revision",
+            "name": "revisionNumber",
             "required": true,
             "schema": {
               "format": "int32",
@@ -25331,7 +25542,7 @@
         ]
       }
     },
-    "/v1/admin/dwaion/agents/{entryKey}/revisions/{revision}/activate": {
+    "/v1/admin/dwaion/agents/{entryKey}/revisions/{revisionNumber}/activate": {
       "post": {
         "operationId": "activateRevision_1",
         "parameters": [
@@ -25353,7 +25564,7 @@
           },
           {
             "in": "path",
-            "name": "revision",
+            "name": "revisionNumber",
             "required": true,
             "schema": {
               "format": "int32",
@@ -25388,7 +25599,7 @@
         ]
       }
     },
-    "/v1/admin/dwaion/agents/{entryKey}/revisions/{revision}/retire": {
+    "/v1/admin/dwaion/agents/{entryKey}/revisions/{revisionNumber}/retire": {
       "post": {
         "operationId": "retireRevision_1",
         "parameters": [
@@ -25410,7 +25621,7 @@
           },
           {
             "in": "path",
-            "name": "revision",
+            "name": "revisionNumber",
             "required": true,
             "schema": {
               "format": "int32",
@@ -39424,6 +39635,7 @@
     },
     "/v1/workspace/activity/audit/evidence/{auditRecordId}": {
       "get": {
+        "description": "Requires APP.ACTIVITY:VIEW and APP.ASK:VIEW plus exact tenant, actor, dwp-agent-runtime source, and AGENT_RUN target. Missing, pending ingestion and unreadable records are indistinguishable 404 responses.",
         "operationId": "agentEvidence",
         "parameters": [
           {
@@ -39441,13 +39653,23 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseEvidence"
+                  "$ref": "#/components/schemas/ApiResponseActivityEvidenceReceipt"
                 }
               }
             },
-            "description": "OK"
+            "description": "Authorized observation"
+          },
+          "401": {
+            "description": "Trusted tenant and user identity is required"
+          },
+          "403": {
+            "description": "Personal Activity permission is required"
+          },
+          "404": {
+            "description": "Evidence is unavailable or its source is no longer accessible"
           }
         },
+        "summary": "Read a self-owned Agent audit receipt",
         "tags": [
           "activity-evidence-controller"
         ]
@@ -39494,6 +39716,7 @@
     },
     "/v1/workspace/activity/events/{id}/evidence": {
       "get": {
+        "description": "Rechecks current source ACL. Audit hash and checkpoint require ADMIN.AUDIT_VIEW:VIEW; other viewers receive RESTRICTED without audit data.",
         "operationId": "evidence",
         "parameters": [
           {
@@ -39511,13 +39734,23 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseEvidence"
+                  "$ref": "#/components/schemas/ApiResponseActivityEvidenceReceipt"
                 }
               }
             },
-            "description": "OK"
+            "description": "Authorized observation"
+          },
+          "401": {
+            "description": "Trusted tenant and user identity is required"
+          },
+          "403": {
+            "description": "Personal Activity permission is required"
+          },
+          "404": {
+            "description": "Evidence is unavailable or its source is no longer accessible"
           }
         },
+        "summary": "Read an authorized native activity audit receipt",
         "tags": [
           "activity-evidence-controller"
         ]
@@ -39546,6 +39779,7 @@
     },
     "/v1/workspace/activity/sources/status": {
       "get": {
+        "description": "Requires APP.ACTIVITY:VIEW and the source's APP.MAIL:VIEW or APP.CALENDAR:VIEW. Empty coverage is not a healthy-rate assertion.",
         "operationId": "sources",
         "parameters": [],
         "responses": {
@@ -39553,13 +39787,23 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseSourceStatuses"
+                  "$ref": "#/components/schemas/ApiResponseActivitySourceStatuses"
                 }
               }
             },
-            "description": "OK"
+            "description": "Authorized observation"
+          },
+          "401": {
+            "description": "Trusted tenant and user identity is required"
+          },
+          "403": {
+            "description": "Personal Activity permission is required"
+          },
+          "404": {
+            "description": "Evidence is unavailable or its source is no longer accessible"
           }
         },
+        "summary": "Read personal source synchronization observations",
         "tags": [
           "activity-evidence-controller"
         ]

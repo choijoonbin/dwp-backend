@@ -65,6 +65,9 @@ public class VideoMeetingScheduleService {
         var recurrence = request.recurrence();
         validateRecurrence(recurrence);
         var meeting = request.meeting();
+        VideoMeetingEntryPolicy.requireSupportedCreation(
+                meeting.accessScope(), meeting.guestAccessEnabled(),
+                meeting.allowJoinBeforeHost(), meeting.guestInvitees());
         ZoneId zone = zone(meeting.timeZone());
         SeriesPreviewResponse preview = previewSeries(
                 new SeriesPreviewRequest(meeting, recurrence));
@@ -122,6 +125,9 @@ public class VideoMeetingScheduleService {
             throw invalid("A recurrence rule and meeting are required.");
         validateRecurrence(request.recurrence());
         var meeting = request.meeting();
+        VideoMeetingEntryPolicy.requireSupportedCreation(
+                meeting.accessScope(), meeting.guestAccessEnabled(),
+                meeting.allowJoinBeforeHost(), meeting.guestInvitees());
         ZoneId zone = zone(meeting.timeZone());
         if (meeting.startsAt() == null || !meeting.startsAt().toInstant().isAfter(clock.instant()))
             throw invalid("The recurring meeting must start in the future.");

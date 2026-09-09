@@ -11,6 +11,36 @@ import static org.assertj.core.api.Assertions.assertThat;
 class NotificationMigrationInvariantTest {
 
     @Test
+    void registersMeetingsContractsWithSafeLocalizedPreparationActions() throws IOException {
+        String migration = resource(
+                "db/migration/V24__register_meetings_notification_contracts.sql");
+
+        assertThat(migration)
+                .contains(
+                        "MEETINGS.INVITATION_CREATED",
+                        "MEETINGS.INVITATION_RESCHEDULED",
+                        "MEETINGS.INVITATION_CANCELLED",
+                        "MEETINGS.PREPARATION_MATERIAL_ADDED",
+                        "MEETINGS.PREPARATION_MATERIAL_REMOVED")
+                .contains(
+                        "meetings.meeting.scheduled.v1",
+                        "meetings.meeting.rescheduled.v1",
+                        "meetings.meeting.cancelled.v1",
+                        "meetings.meeting.preparation-material-added.v1",
+                        "meetings.meeting.preparation-material-removed.v1")
+                .contains("'meetings', 'Collaboration Platform', 'ACTIVE'")
+                .contains("'IN_APP', 'ko-KR'", "'IN_APP', 'en-US'")
+                .contains("/meetings/mine?view=preparation&meetingId={{meetingId}}")
+                .contains("NULL, 'APP', 'meetings', 1")
+                .contains("'IMMEDIATE', TRUE, 60, 'in-app-interactive'")
+                .contains("uq_ntf_policy_normalized_scope_version")
+                .contains("ON CONFLICT (scope_tenant_id, scope_type, scope_key, version)")
+                .contains("ON CONFLICT (policy_id, channel)")
+                .contains("conflicts with the canonical contract")
+                .doesNotContain("joinCode", "meetingTitle", "participantEmail", "accessToken");
+    }
+
+    @Test
     void recordsEntitlementSuppressionWithoutCreatingRecipientDeliveryState()
             throws IOException {
         String migration = resource(
@@ -265,6 +295,34 @@ class NotificationMigrationInvariantTest {
                 .contains("action_payload = '{}'::jsonb")
                 .contains("first_activity_at = last_activity_at")
                 .contains("FORCE ROW LEVEL SECURITY");
+    }
+
+    @Test
+    void enrichesTheOperationalContractCatalogWithoutRecipientContent() throws IOException {
+        String migration = resource(
+                "db/migration/V25__enrich_notification_contract_catalog_metadata.sql");
+
+        assertThat(migration)
+                .contains("requiredVariables")
+                .contains("SOURCE_EVENT_RECIPIENT")
+                .contains("TENANT_DEFAULT_LEGAL_HOLD_AWARE")
+                .contains("/notifications/admin/operations?typeKey=")
+                .contains("approval.task.decided.v1")
+                .doesNotContain("safe_body", "sanitized_template_variables", "recipient_user_id");
+    }
+
+    @Test
+    void inventoriesUserPushEndpointsWithoutPersistingProviderSecrets() throws IOException {
+        String migration = resource(
+                "db/migration/V26__add_user_notification_delivery_endpoint_inventory.sql");
+
+        assertThat(migration)
+                .contains("CREATE TABLE ntf_user_delivery_endpoints")
+                .contains("user_id = ntf_current_user_id()")
+                .contains("FORCE ROW LEVEL SECURITY")
+                .contains("endpoint_fingerprint ~ '^[a-f0-9]{64}$'")
+                .contains("never contain a raw push token or subscription URL")
+                .doesNotContain("endpoint_url", "push_token", "private_key", "auth_secret");
     }
 
     private String resource(String path) throws IOException {

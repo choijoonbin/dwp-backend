@@ -35,7 +35,7 @@ class ActivityEvidencePostgresTest {
     static void migrate() {
         var source = new PGSimpleDataSource();
         source.setURL(POSTGRES.getJdbcUrl()); source.setUser(POSTGRES.getUsername()); source.setPassword(POSTGRES.getPassword());
-        Flyway.configure().dataSource(source).locations("filesystem:src/main/resources/db/migration").target("222").load().migrate();
+        Flyway.configure().dataSource(source).locations("filesystem:src/main/resources/db/migration").load().migrate();
         jdbc = new JdbcTemplate(source);
     }
 

@@ -2,7 +2,7 @@
 
 Status: `in-app-pilot-and-tenant-governance-implemented`; production release gates remain open
 
-Last reviewed: 2026-08-27
+Last reviewed: 2026-09-09
 
 Canonical product and solution decision:
 [`R1 DWP Notification Platform 및 Omnichannel Delivery ADR`](../../../dwp-frontend/docs/03-architecture/R1%20DWP%20Notification%20Platform%20및%20Omnichannel%20Delivery%20ADR.md)
@@ -19,6 +19,13 @@ center and canonical `/notifications/settings` surface use these APIs rather tha
 Messaging emits approved facts through its transactional outbox. The notification service
 materializes only registered contracts, enforces effective policy, time-bounded suppressions and
 per-user/type admission limits, then records durable audit and delivery-outbox evidence.
+
+Meetings now migrates its pre-existing payload-free invitation outbox through the authenticated
+internal direct-intent owner contract. Its per-recipient ledger adds deterministic identities,
+leases, bounded retries, and strict visible-materialization receipts. This narrow migration path
+is documented in
+[`meeting-invitation-notification-delivery-2026-09-09.md`](../workspace/meeting-invitation-notification-delivery-2026-09-09.md);
+it does not enable external email, calendar, push, or read-receipt delivery.
 
 Tenant policy and template changes use immutable drafts with separate author and approver duties.
 Notification operators can preview, activate and revoke bounded tenant/app/type/channel
@@ -149,7 +156,7 @@ and bulk lanes. Bulk traffic cannot consume the reserved critical worker capacit
 
 | Boundary               | Contract                                                                                     |
 | ---------------------- | -------------------------------------------------------------------------------------------- |
-| Producer               | Emits an approved business fact through `DomainEventRecorder`; no direct provider call       |
+| Producer               | Uses `DomainEventRecorder`, or an approved durable app-outbox bridge to the internal direct-intent contract; no channel-provider call |
 | Domain event transport | Existing Kafka topic and `dwp-core` outbox/inbox semantics                                   |
 | Materializer           | Validates type/schema and atomically creates intent, inbox projection and delivery outbox    |
 | User query             | PostgreSQL keyset query scoped by session tenant and user                                    |

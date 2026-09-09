@@ -300,6 +300,78 @@ class VideoMeetingServiceTest {
     }
 
     @Test
+    void unverifiedCreationOptionsCannotReplayALegacyIdempotentMeeting() {
+        MeetingRequestContext.set(subject());
+        when(repository.ensurePolicy(TENANT_ID, USER_ID)).thenReturn(policy());
+
+        assertThatThrownBy(() -> service().instant(
+                new VideoMeetingDtos.InstantMeetingRequest(
+                        "Public meeting", null, null, AccessScope.PUBLIC_CODE,
+                        true, true, false, false, false, List.of(), List.of()),
+                "legacy-public-command", "corr-public"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+
+        verify(repository, never()).lockCreationKey(anyLong(), anyLong(), any());
+        verify(repository, never()).byIdempotency(anyLong(), anyLong(), any());
+        verify(repository, never()).create(any());
+    }
+
+    @Test
+    void legacyUnsafeMeetingCannotResolveRequestAdmissionOrIssueAToken() {
+        UUID meetingId = UUID.randomUUID();
+        Meeting unsafe = meeting(
+                meetingId, LifecycleState.ENDED, 3,
+                AccessScope.PUBLIC_CODE, true, true);
+        BaseException unavailable = new BaseException(
+                ErrorCode.ENTITY_NOT_FOUND, "The meeting code is invalid or unavailable.");
+        MeetingRequestContext.set(subject());
+        when(joinCodeGenerator.normalize("7K9M4Q2X8R6T")).thenReturn("7K9M4Q2X8R6T");
+        when(joinCodeGenerator.invalidCode()).thenReturn(unavailable);
+        when(repository.resolveCode(TENANT_ID, "7K9M4Q2X8R6T"))
+                .thenReturn(Optional.of(unsafe));
+
+        assertThatThrownBy(() -> service().resolveCode("7K9M4Q2X8R6T"))
+                .isSameAs(unavailable);
+        verify(repository, never()).detail(any());
+
+        when(repository.lockMeeting(TENANT_ID, meetingId)).thenReturn(unsafe);
+        assertThatThrownBy(() -> service().requestJoin(
+                meetingId, null, "unsafe-join-command", "corr-join"))
+                .isSameAs(unavailable);
+        verify(repository, never()).ensurePolicy(TENANT_ID, USER_ID);
+        verify(repository, never()).requestJoin(
+                anyLong(), any(), any(), anyBoolean(), anyLong());
+
+        when(repository.lockAccessibleMeeting(TENANT_ID, meetingId, USER_ID))
+                .thenReturn(Optional.of(unsafe));
+        assertThatThrownBy(() -> service().token(meetingId, null, "corr-token"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        verify(repository, never()).mediaSession(TENANT_ID, meetingId);
+        verify(mediaProvider, never()).issueParticipantToken(
+                any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void policyCannotDisableAuthenticatedInternalIdentityAsAHiddenGuestBypass() {
+        MeetingRequestContext.set(subject());
+        VideoMeetingDtos.TenantPolicyUpdateRequest request =
+                new VideoMeetingDtos.TenantPolicyUpdateRequest(
+                        true, true, false, true, true, true, "NEVER",
+                        false, false, 100, 90, 30, 0);
+
+        assertThatThrownBy(() -> service().updatePolicy(
+                request, "policy-command-unauthenticated", "corr-policy"))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+
+        verify(repository, never()).updatePolicy(anyLong(), any(), anyLong());
+    }
+
+    @Test
     void artifactRetentionCannotExceedMeetingRetention() {
         MeetingRequestContext.set(subject());
         VideoMeetingDtos.TenantPolicyUpdateRequest request =
@@ -433,12 +505,22 @@ class VideoMeetingServiceTest {
     }
 
     private Meeting meeting(UUID id, LifecycleState state, long version) {
+        return meeting(id, state, version, AccessScope.INVITED, false, false);
+    }
+
+    private Meeting meeting(
+            UUID id,
+            LifecycleState state,
+            long version,
+            AccessScope accessScope,
+            boolean guestAccessEnabled,
+            boolean allowJoinBeforeHost) {
         boolean liveOrEnded = state == LifecycleState.LIVE || state == LifecycleState.ENDED;
         return new Meeting(
                 id, TENANT_ID, "Test meeting", "Description", "Agenda", state,
-                AccessScope.INVITED, "7K9M4Q2X8R6T", NOW.plusHours(1),
-                NOW.plusHours(2), "Asia/Seoul", true, false,
-                false, false, false,
+                accessScope, "7K9M4Q2X8R6T", NOW.plusHours(1),
+                NOW.plusHours(2), "Asia/Seoul", true, guestAccessEnabled,
+                allowJoinBeforeHost, false, false,
                 liveOrEnded ? "LIVEKIT" : null, liveOrEnded ? "formal-room" : null,
                 USER_ID, subject().personPublicId(), "박현우",
                 liveOrEnded ? NOW : null, state == LifecycleState.ENDED ? NOW.plusHours(1) : null,

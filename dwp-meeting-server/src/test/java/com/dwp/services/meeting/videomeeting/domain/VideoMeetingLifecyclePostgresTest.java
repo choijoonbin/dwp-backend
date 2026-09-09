@@ -1,5 +1,6 @@
 package com.dwp.services.meeting.videomeeting.domain;
 
+import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.meeting.security.MeetingRequestContext;
 import com.dwp.services.meeting.videomeeting.audit.VideoMeetingAuditRecorder;
@@ -125,6 +126,45 @@ class VideoMeetingLifecyclePostgresTest {
         assertThat(meetingState(meetingId)).isEqualTo("LIVE");
         assertThat(operationState(prepared.operation().operationId())).isEqualTo("SUCCEEDED");
         assertThat(eventCount(meetingId, "STARTED")).isOne();
+    }
+
+    @Test
+    void retainedUnsafeScheduledMeetingCannotCreateAProviderStartOperation() {
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations("filesystem:src/main/resources/db/migration")
+                .cleanDisabled(false)
+                .load().clean();
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations("filesystem:src/main/resources/db/migration")
+                .target(MigrationVersion.fromVersion("39"))
+                .load().migrate();
+        UUID meetingId = scheduledMeetingId();
+        jdbc.update("""
+                UPDATE vm_meetings
+                   SET access_scope='PUBLIC_CODE', guest_access_enabled=TRUE,
+                       allow_join_before_host=TRUE
+                 WHERE meeting_id=?
+                """, meetingId);
+        Flyway.configure()
+                .dataSource(dataSource)
+                .locations("filesystem:src/main/resources/db/migration")
+                .load().migrate();
+
+        MeetingRequestContext.Subject subject = subject(meetingId);
+        VideoMeetingLifecycleTransactions lifecycle = transactionsAt(now);
+        assertThatThrownBy(() -> transaction.execute(status -> lifecycle.prepareStart(
+                subject, meetingId, meetingVersion(meetingId),
+                "unsafe-start-rejected", "unsafe-start-rejected")))
+                .isInstanceOfSatisfying(BaseException.class,
+                        error -> assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_STATE));
+
+        assertThat(meetingState(meetingId)).isEqualTo("SCHEDULED");
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM vm_meeting_media_operations WHERE meeting_id = ?
+                """, Integer.class, meetingId)).isZero();
     }
 
     @Test

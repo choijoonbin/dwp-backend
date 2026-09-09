@@ -88,6 +88,43 @@ VALUES
      'PUBLISHED', 'seed-approval-request-rejected-v1')
 ON CONFLICT DO NOTHING;
 
+-- Repeatable local seed runs after versioned migrations. Keep the demo contracts on the
+-- same rich catalog contract as production registrations created before V25.
+UPDATE ntf_notification_type_versions type_version
+   SET contract_payload = type_version.contract_payload || jsonb_build_object(
+       'requiredVariables', CASE type.type_key
+           WHEN 'APPROVAL.ACTION_REQUIRED'
+               THEN '["requestTitle","requesterName","taskId"]'::jsonb
+           WHEN 'APPROVAL.REQUEST_SUBMITTED'
+               THEN '["requestTitle","decision","requestId"]'::jsonb
+           WHEN 'APPROVAL.REQUEST_APPROVED'
+               THEN '["requestTitle","decision","requestId"]'::jsonb
+           WHEN 'APPROVAL.REQUEST_REJECTED'
+               THEN '["requestTitle","decision","requestId"]'::jsonb
+           WHEN 'HCM.LEAVE_APPROVED' THEN '["leavePeriod"]'::jsonb
+           WHEN 'SPACE.MENTION'
+               THEN '["spaceName","senderName","messagePreview","conversationId"]'::jsonb
+           ELSE '[]'::jsonb
+       END,
+       'dedupeStrategy', 'SOURCE_EVENT_RECIPIENT',
+       'retentionPolicy', 'TENANT_DEFAULT_LEGAL_HOLD_AWARE',
+       'runbookUrl', '/notifications/admin/operations?typeKey=' || type.type_key,
+       'endEventType', CASE type.type_key
+           WHEN 'APPROVAL.ACTION_REQUIRED' THEN 'approval.task.decided.v1'
+           ELSE NULL
+       END
+   )
+  FROM ntf_notification_types type
+ WHERE type.type_id = type_version.type_id
+   AND type.type_key IN (
+       'APPROVAL.ACTION_REQUIRED',
+       'APPROVAL.REQUEST_SUBMITTED',
+       'APPROVAL.REQUEST_APPROVED',
+       'APPROVAL.REQUEST_REJECTED',
+       'HCM.LEAVE_APPROVED',
+       'SPACE.MENTION'
+   );
+
 INSERT INTO ntf_user_delivery_profiles (
     tenant_id, user_id, timezone, quiet_schedule, default_channels,
     digest_frequency, digest_local_time)
@@ -95,6 +132,20 @@ VALUES (
     1, 900018, 'Asia/Seoul',
     '{"enabled":false,"start":"22:00","end":"07:00"}'::jsonb,
     '["IN_APP"]'::jsonb, 'IMMEDIATE', TIME '09:00')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO ntf_user_delivery_endpoints (
+    endpoint_id, tenant_id, user_id, channel, display_name, platform,
+    endpoint_hint, endpoint_fingerprint, state, last_seen_at)
+VALUES
+    ('24000000-0000-0000-0000-000000000001', 1, 900018,
+     'WEB_PUSH', '업무용 Chrome · MacBook Pro', 'WEB',
+     'Chrome 141 · Seoul', repeat('a', 64), 'ACTIVE',
+     CURRENT_TIMESTAMP - INTERVAL '12 minutes'),
+    ('24000000-0000-0000-0000-000000000002', 1, 900018,
+     'MOBILE_PUSH', 'iPhone 17 Pro', 'IOS',
+     'DWP Mobile · iOS', repeat('b', 64), 'ACTIVE',
+     CURRENT_TIMESTAMP - INTERVAL '2 hours')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO ntf_user_counters (tenant_id, user_id)

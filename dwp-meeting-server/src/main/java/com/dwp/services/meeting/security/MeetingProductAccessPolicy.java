@@ -5,14 +5,15 @@ import org.springframework.stereotype.Component;
 
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
- * Owner-service PEP for the first immutable P-MEETINGS contract slice.
+ * Owner-service PEP for the P-MEETINGS registry bindings.
  *
- * <p>The v4 registry is a DRAFT candidate, so this policy is inert unless the
- * tenant rollout selects exact enforcement and the service readiness latch is
- * explicitly enabled. Scope keys are opaque selectors, not bearer grants: the
- * owner recomputes the actor/tenant-bound SELF key before accepting one.</p>
+ * <p>The v4 base and its later draft supersets remain inert unless the tenant
+ * rollout selects exact enforcement and the service readiness latch is explicitly
+ * enabled. Scope keys are opaque selectors, not bearer grants: the owner recomputes
+ * the actor/tenant-bound SELF key before accepting one.</p>
  */
 @Component
 public final class MeetingProductAccessPolicy {
@@ -25,6 +26,16 @@ public final class MeetingProductAccessPolicy {
 
     private static final String SELF_SOURCE = "SELF";
     private static final String SELF_KIND = "SELF";
+    private static final Pattern PARTICIPANT_DISCONNECT_PATH = Pattern.compile(
+            "^/v1/meetings/[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-"
+                    + "[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/participants/"
+                    + "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-"
+                    + "[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/disconnect$");
+    private static final Pattern INTELLIGENCE_REPORT_EXPORT_PATH = Pattern.compile(
+            "^/v1/meetings/[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-"
+                    + "[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/intelligence/reports/"
+                    + "[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-"
+                    + "[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}/exports$");
     private static final List<Binding> BINDINGS = List.of(
             new Binding(
                     "route.meetings.work.home.page",
@@ -49,6 +60,22 @@ public final class MeetingProductAccessPolicy {
                     "/v1/meetings",
                     "meetings.work.meeting.create",
                     "APP.MEETINGS:CREATE",
+                    false),
+            new Binding(
+                    "route.meetings.work.participant-disconnect.action",
+                    RouteKind.ACTION,
+                    "POST",
+                    "/v1/meetings/{meetingId}/participants/{participantId}/disconnect",
+                    "meetings.work.participant.disconnect",
+                    "APP.MEETINGS:UPDATE",
+                    false),
+            new Binding(
+                    "route.meetings.work.intelligence-report-export.action",
+                    RouteKind.ACTION,
+                    "POST",
+                    "/v1/meetings/{meetingId}/intelligence/reports/{reportId}/exports",
+                    "meetings.work.intelligence-report.export",
+                    "APP.MEETINGS:UPDATE",
                     false));
 
     public Decision authorize(RequestEvidence evidence) {
@@ -57,7 +84,7 @@ public final class MeetingProductAccessPolicy {
         }
         Binding binding = BINDINGS.stream()
                 .filter(candidate -> candidate.method().equals(evidence.method()))
-                .filter(candidate -> candidate.servicePath().equals(evidence.path()))
+                .filter(candidate -> matches(candidate, evidence.path()))
                 .findFirst().orElse(null);
         if (binding == null) return Decision.denied("EXACT_SERVICE_BINDING_REQUIRED");
         if (!binding.routeContractKey().equals(evidence.routeContractKey())) {
@@ -80,7 +107,18 @@ public final class MeetingProductAccessPolicy {
 
     public boolean ownsCandidate(String method, String path) {
         return BINDINGS.stream().anyMatch(binding ->
-                binding.method().equals(method) && binding.servicePath().equals(path));
+                binding.method().equals(method) && matches(binding, path));
+    }
+
+    private boolean matches(Binding binding, String path) {
+        if (path == null) return false;
+        return switch (binding.routeContractKey()) {
+            case "route.meetings.work.participant-disconnect.action" ->
+                    PARTICIPANT_DISCONNECT_PATH.matcher(path).matches();
+            case "route.meetings.work.intelligence-report-export.action" ->
+                    INTELLIGENCE_REPORT_EXPORT_PATH.matcher(path).matches();
+            default -> binding.servicePath().equals(path);
+        };
     }
 
     public String selfScope(long tenantId, long actorId) {

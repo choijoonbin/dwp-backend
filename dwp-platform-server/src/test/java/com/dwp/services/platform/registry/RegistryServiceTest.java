@@ -4,6 +4,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.reference.ReferenceLifecycle;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -32,7 +33,10 @@ class RegistryServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new RegistryService(repository, auditService);
+        service = new RegistryService(
+                repository,
+                auditService,
+                new AgentCatalogProfileCodec(new ObjectMapper()));
     }
 
     @Test
@@ -132,6 +136,61 @@ class RegistryServiceTest {
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
     }
 
+    @Test
+    void runtimeCatalogReturnsTheStoredProfileAndUpdatedRevisionMetadata() throws Exception {
+        RegistryEntry active = entry(70L, 3, ReferenceLifecycle.ACTIVE, 4L);
+        active.setUpdatedAt(java.time.LocalDateTime.of(2026, 9, 9, 10, 30));
+        active.setAgentCatalogProfile(new ObjectMapper().readTree(
+                GovernedAgentCatalogProfiles.jsonFor("DWP_ASSISTANT")));
+        when(repository.findByTenantIdAndRegistryTypeAndLifecycleStateOrderByNameAsc(
+                7L,
+                RegistryType.AGENT,
+                ReferenceLifecycle.ACTIVE)).thenReturn(List.of(active));
+
+        RegistryDtos.RuntimeRegistryEntry result = service.listRuntime(7L, RegistryType.AGENT).getFirst();
+
+        assertThat(result.updatedAt()).isEqualTo(active.getUpdatedAt());
+        assertThat(result.agentCatalogProfile().schemaVersion()).isEqualTo(1);
+        assertThat(result.agentCatalogProfile().sources())
+                .extracting(RegistryDtos.AgentCatalogSource::sourceSystem)
+                .containsExactly("WORK_ITEM", "MAIL", "CALENDAR");
+    }
+
+    @Test
+    void newRevisionKeepsThePublishedAgentProfileUntilAProfilePublishingFlowExists() throws Exception {
+        RegistryEntry active = entry(70L, 1, ReferenceLifecycle.ACTIVE, 3L);
+        active.setAgentCatalogProfile(new ObjectMapper().readTree(
+                GovernedAgentCatalogProfiles.jsonFor("DWP_ASSISTANT")));
+        when(repository.findByTenantIdAndRegistryTypeAndEntryKeyAndLifecycleState(
+                7L,
+                RegistryType.AGENT,
+                "DAILY_BRIEF",
+                ReferenceLifecycle.DRAFT)).thenReturn(Optional.empty());
+        when(repository.findFirstByTenantIdAndRegistryTypeAndEntryKeyOrderByRevisionDesc(
+                7L,
+                RegistryType.AGENT,
+                "DAILY_BRIEF")).thenReturn(Optional.of(active));
+        when(repository.saveAndFlush(any(RegistryEntry.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        service.createRevision(
+                7L,
+                11L,
+                "corr-profile",
+                RegistryType.AGENT,
+                "daily_brief",
+                new RegistryDtos.CreateRegistryRevisionRequest(
+                        "Daily brief",
+                        "New revision",
+                        "team:ai-platform",
+                        RiskTier.MEDIUM,
+                        "1.2.0"));
+
+        verify(repository).saveAndFlush(org.mockito.ArgumentMatchers.argThat(revision ->
+                revision.getAgentCatalogProfile() != null
+                        && revision.getAgentCatalogProfile().path("schemaVersion").asInt() == 1));
+    }
+
     private RegistryEntry entry(
             Long id,
             Integer revision,
@@ -152,4 +211,3 @@ class RegistryServiceTest {
                 .build();
     }
 }
-

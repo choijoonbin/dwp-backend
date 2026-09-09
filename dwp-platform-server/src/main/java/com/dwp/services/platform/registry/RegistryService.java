@@ -23,12 +23,15 @@ public class RegistryService {
 
     private final RegistryEntryRepository repository;
     private final PlatformAuditService auditService;
+    private final AgentCatalogProfileCodec agentCatalogProfileCodec;
 
     public RegistryService(
             RegistryEntryRepository repository,
-            PlatformAuditService auditService) {
+            PlatformAuditService auditService,
+            AgentCatalogProfileCodec agentCatalogProfileCodec) {
         this.repository = repository;
         this.auditService = auditService;
+        this.agentCatalogProfileCodec = agentCatalogProfileCodec;
     }
 
     @Transactional(readOnly = true)
@@ -144,6 +147,9 @@ public class RegistryService {
                 request.ownerRef(),
                 request.riskTier(),
                 request.artifactVersion());
+        revision.setAgentCatalogProfile(head.getAgentCatalogProfile() == null
+                ? null
+                : head.getAgentCatalogProfile().deepCopy());
         revision = save(revision, "A registry revision was created concurrently.");
         auditService.success(
                 tenantId,
@@ -399,7 +405,8 @@ public class RegistryService {
                 entry.getLifecycleState(),
                 entry.getVersion(),
                 entry.getUpdatedAt(),
-                entry.getUpdatedBy());
+                entry.getUpdatedBy(),
+                agentCatalogProfileCodec.decode(entry.getAgentCatalogProfile()));
     }
 
     private RegistryDtos.RuntimeRegistryEntry toRuntimeResponse(RegistryEntry entry) {
@@ -411,7 +418,9 @@ public class RegistryService {
                 entry.getDescription(),
                 entry.getOwnerRef(),
                 entry.getRiskTier(),
-                entry.getArtifactVersion());
+                entry.getArtifactVersion(),
+                entry.getUpdatedAt(),
+                agentCatalogProfileCodec.decode(entry.getAgentCatalogProfile()));
     }
 
     private String normalizeKey(String value) {

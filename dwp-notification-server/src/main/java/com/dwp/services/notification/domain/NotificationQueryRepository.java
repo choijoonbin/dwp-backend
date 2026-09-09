@@ -37,6 +37,9 @@ public class NotificationQueryRepository {
 
     private static final Pattern ENCODED_AUTHORITY_SEPARATOR =
             Pattern.compile("(?i)(^/%2f|%5c)");
+    private static final Pattern MACHINE_ACTOR_REFERENCE = Pattern.compile(
+            "(?i)^(?:[a-z][a-z0-9+.-]{1,31}:|"
+                    + "[0-9a-f]{8}-(?:[0-9a-f]{4}-){3}[0-9a-f]{12}$)");
 
     private static final Map<String, List<String>> REASON_ALIASES = Map.of(
             "DIRECT", List.of("DIRECT", "DIRECT_RECIPIENT"),
@@ -327,7 +330,7 @@ public class NotificationQueryRepository {
         UUID notificationId = resultSet.getObject("notification_id", UUID.class);
         String appKey = resultSet.getString("owner_app_key");
         String reasonCode = resultSet.getString("reason_code");
-        String actorLabel = resultSet.getString("actor_ref");
+        String actorLabel = displayActorLabel(resultSet.getString("actor_ref"));
         InboxItem item = new InboxItem(
                 notificationId,
                 resultSet.getString("thread_key"),
@@ -447,6 +450,18 @@ public class NotificationQueryRepository {
                 .map(Map.Entry::getKey)
                 .findFirst()
                 .orElse(null);
+    }
+
+    static String displayActorLabel(String actorReference) {
+        if (actorReference == null) return null;
+        String label = actorReference.trim();
+        if (label.isEmpty() || label.length() > 120 || MACHINE_ACTOR_REFERENCE.matcher(label).find()) {
+            return null;
+        }
+        for (int index = 0; index < label.length(); index++) {
+            if (Character.isISOControl(label.charAt(index))) return null;
+        }
+        return label;
     }
 
     private String reasonExplanation(NotificationReason reason) {

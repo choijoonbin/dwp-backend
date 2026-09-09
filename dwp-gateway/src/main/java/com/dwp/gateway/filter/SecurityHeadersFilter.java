@@ -22,6 +22,7 @@ public class SecurityHeadersFilter implements GlobalFilter, Ordered {
             + "frame-ancestors 'none'; form-action 'self'";
     private static final String PERMISSIONS_POLICY = "camera=(self), microphone=(self), "
             + "display-capture=(self), geolocation=(), payment=(), usb=()";
+    private static final String PRIVATE_NO_STORE = "private, no-store, max-age=0";
 
     private final String contentSecurityPolicy;
 
@@ -43,6 +44,13 @@ public class SecurityHeadersFilter implements GlobalFilter, Ordered {
         headers.set("X-Frame-Options", "DENY");
         headers.set("Cross-Origin-Opener-Policy", "same-origin");
         headers.set("Cross-Origin-Resource-Policy", "same-origin");
+        if (isPrivateAgentHistoryPath(exchange.getRequest().getURI().getPath())) {
+            headers.set(HttpHeaders.CACHE_CONTROL, PRIVATE_NO_STORE);
+            exchange.getResponse().beforeCommit(() -> {
+                headers.set(HttpHeaders.CACHE_CONTROL, PRIVATE_NO_STORE);
+                return Mono.empty();
+            });
+        }
         if (exchange.getRequest().getSslInfo() != null) {
             headers.set("Strict-Transport-Security", "max-age=31536000; includeSubDomains; preload");
         }
@@ -71,5 +79,14 @@ public class SecurityHeadersFilter implements GlobalFilter, Ordered {
         } catch (IllegalArgumentException | URISyntaxException ignored) {
             return "";
         }
+    }
+
+    private static boolean isPrivateAgentHistoryPath(String path) {
+        return isPathOrDescendant(path, "/api/agent/v1/activity")
+                || isPathOrDescendant(path, "/api/agent/v1/runs");
+    }
+
+    private static boolean isPathOrDescendant(String path, String root) {
+        return path.equals(root) || path.startsWith(root + "/");
     }
 }

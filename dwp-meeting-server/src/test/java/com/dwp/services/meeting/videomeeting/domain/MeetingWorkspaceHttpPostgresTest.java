@@ -214,6 +214,35 @@ class MeetingWorkspaceHttpPostgresTest extends MeetingWorkspacePostgresFixture {
                 """, String.class)).isEqualTo("HOST_OPT_IN");
     }
 
+    @Test
+    void adminOperationsExportUsesRealViewBoundaryAndNoStoreAttachmentResponse() throws Exception {
+        when(media.capability()).thenReturn(
+                new com.dwp.services.meeting.videomeeting.provider.MeetingMediaProvider.Capability(
+                        true, "LIVEKIT", null, true, true, true, true, 600));
+        var exported = mvc.perform(trusted(
+                        get("/v1/admin/operations/export").param("timeZone", "Asia/Seoul"),
+                        "ADMIN.MEETINGS:VIEW", 1, 3)
+                        .header("X-Correlation-ID", "operations-export-http-001"))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType("text/csv;charset=UTF-8"))
+                .andExpect(header().string("Cache-Control", "no-store"))
+                .andExpect(header().string("Pragma", "no-cache"))
+                .andExpect(header().string("X-Content-Type-Options", "nosniff"))
+                .andExpect(header().string("Content-Disposition",
+                        org.hamcrest.Matchers.startsWith("attachment;")))
+                .andReturn().getResponse().getContentAsString();
+        assertThat(exported).contains("meeting-admin-operations-v1")
+                .doesNotContain("DWP 홈 경험 디자인 리뷰");
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM sys_audit_outbox
+                 WHERE payload ->> 'action' = 'meeting.admin.operations.exported'
+                """, Integer.class)).isOne();
+
+        mvc.perform(trusted(get("/v1/admin/operations/export"),
+                        "APP.MEETINGS:VIEW", 1, 3))
+                .andExpect(status().isForbidden());
+    }
+
     private MockHttpServletRequestBuilder trusted(MockHttpServletRequestBuilder request,
             String permissions, long tenant, long user) {
         return request.header(MeetingSecurityFilter.SERVICE_TOKEN, "trusted-workspace-gateway")

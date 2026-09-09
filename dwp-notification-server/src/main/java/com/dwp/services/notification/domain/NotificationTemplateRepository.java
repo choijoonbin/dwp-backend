@@ -225,7 +225,11 @@ public class NotificationTemplateRepository {
                 .addValue("approvalReason", reason.trim())) == 1;
     }
 
-    public boolean retireDraft(long tenantId, UUID revisionId, int expectedRevision) {
+    public boolean retireDraft(
+            long tenantId,
+            long authorId,
+            UUID revisionId,
+            int expectedRevision) {
         return jdbc.update("""
                 UPDATE ntf_tenant_template_revisions
                    SET state = 'RETIRED'
@@ -233,8 +237,30 @@ public class NotificationTemplateRepository {
                    AND template_revision_id = :revisionId
                    AND revision = :expectedRevision
                    AND state = 'DRAFT'
+                   AND created_by = :actorId
                 """, new MapSqlParameterSource()
                 .addValue("tenantId", tenantId)
+                .addValue("actorId", authorId)
+                .addValue("revisionId", revisionId)
+                .addValue("expectedRevision", expectedRevision)) == 1;
+    }
+
+    public boolean rejectDraft(
+            long tenantId,
+            long reviewerId,
+            UUID revisionId,
+            int expectedRevision) {
+        return jdbc.update("""
+                UPDATE ntf_tenant_template_revisions
+                   SET state = 'RETIRED'
+                 WHERE tenant_id = :tenantId
+                   AND template_revision_id = :revisionId
+                   AND revision = :expectedRevision
+                   AND state = 'DRAFT'
+                   AND created_by <> :actorId
+                """, new MapSqlParameterSource()
+                .addValue("tenantId", tenantId)
+                .addValue("actorId", reviewerId)
                 .addValue("revisionId", revisionId)
                 .addValue("expectedRevision", expectedRevision)) == 1;
     }

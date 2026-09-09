@@ -82,6 +82,8 @@ final class VideoMeetingCreationCoordinator {
             List<AgendaItemInput> agendaItems, UUID sourceTemplateId, Long sourceTemplateVersion) {
         MeetingRequestContext.Subject subject = MeetingRequestContext.get();
         TenantPolicy policy = requireEnabledPolicy(subject);
+        rejectUnverifiedEntryOptions(
+                accessScope, guestAccessEnabled, allowJoinBeforeHost, guestInvitees);
         List<AgendaItemInput> orderedAgenda = VideoMeetingPreparationPolicy.canonicalItems(agendaItems);
         if ((sourceTemplateId == null) != (sourceTemplateVersion == null)
                 || sourceTemplateVersion != null && sourceTemplateVersion < 0)
@@ -103,8 +105,6 @@ final class VideoMeetingCreationCoordinator {
         if (existing != null) return idempotentResult(existing, requestHash);
         repository.validateTemplateSource(subject.tenantId(), subject.userId(), sourceTemplateId, sourceTemplateVersion);
 
-        rejectUnverifiedEntryOptions(
-                accessScope, guestAccessEnabled, allowJoinBeforeHost, guestInvitees);
         int participantCount = 1 + canonicalUserIds(participantUserIds).size()
                 + canonicalGuests(guestInvitees).size();
         if (participantCount > policy.maximumParticipants()) {
@@ -275,18 +275,8 @@ final class VideoMeetingCreationCoordinator {
             Boolean guestAccessEnabled,
             Boolean allowJoinBeforeHost,
             List<VideoMeetingDtos.GuestInvitee> guestInvitees) {
-        boolean guestsRequested = guestInvitees != null && !guestInvitees.isEmpty();
-        if (accessScope == AccessScope.PUBLIC_CODE || guestsRequested
-                || Boolean.TRUE.equals(guestAccessEnabled)) {
-            throw new BaseException(
-                    ErrorCode.INVALID_INPUT_VALUE,
-                    "External meeting access is not available until guest identity verification is configured.");
-        }
-        if (Boolean.TRUE.equals(allowJoinBeforeHost)) {
-            throw new BaseException(
-                    ErrorCode.INVALID_INPUT_VALUE,
-                    "Joining before the host is not available in this release.");
-        }
+        VideoMeetingEntryPolicy.requireSupportedCreation(
+                accessScope, guestAccessEnabled, allowJoinBeforeHost, guestInvitees);
     }
 
     private String uniqueJoinCode(MeetingRequestContext.Subject subject) {

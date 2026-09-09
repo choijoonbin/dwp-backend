@@ -28,6 +28,7 @@ import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -260,6 +261,92 @@ class ApprovalManagementScopeArchitecturePostgresTest {
     }
 
     @Test
+    void governedWorkDecisionUsesTheLockedObjectScopeWithoutAnAdminScopeSelection() {
+        seedTenantAndWorkflows();
+        publishBundle(WORKFLOW_A, FORM_A, "RS_TEAM_A", "A");
+        publishBundle(WORKFLOW_B, FORM_B, "RS_TEAM_B", "B");
+        UUID requestA = seedRequest(WORKFLOW_A, FORM_A, "RS_TEAM_A", "A");
+        UUID requestB = seedRequest(WORKFLOW_B, FORM_B, "RS_TEAM_B", "B");
+        UUID taskA = seedTask(requestA, seedStep(requestA, "A"), "A");
+        UUID taskB = seedTask(requestB, seedStep(requestB, "B"), "B");
+        ApprovalRequestContext.Actor actor = actor(17);
+        ApprovalQueryRepository.TaskAccess access = queries.taskDetail(actor, taskA);
+        setDecision("work-scope", "route.approvals.work.task-decision.action");
+
+        ApprovalCommandRepository.DecisionResult result = commands.decide(
+                actor,
+                access,
+                new ApprovalDtos.DecisionRequest("APPROVE", null, 0L),
+                "governed-work-decision");
+
+        assertThat(result.decision()).isEqualTo("APPROVE");
+        assertThat(result.requestStatus()).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM apr_tasks WHERE task_id = ?",
+                String.class,
+                taskA)).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM apr_requests WHERE request_id = ?",
+                String.class,
+                requestA)).isEqualTo("APPROVED");
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM apr_tasks WHERE task_id = ?",
+                String.class,
+                taskB)).isEqualTo("PENDING");
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM apr_requests WHERE request_id = ?",
+                String.class,
+                requestB)).isEqualTo("IN_REVIEW");
+        assertThat(ApprovalManagementScopeContext.current()).isEmpty();
+    }
+
+    @Test
+    void governedInformationResponseUsesTheOwnedRequestScopeWithoutAnAdminScopeSelection() {
+        seedTenantAndWorkflows();
+        publishBundle(WORKFLOW_A, FORM_A, "RS_TEAM_A", "A");
+        publishBundle(WORKFLOW_B, FORM_B, "RS_TEAM_B", "B");
+        UUID requestA = seedRequest(WORKFLOW_A, FORM_A, "RS_TEAM_A", "A");
+        UUID requestB = seedRequest(WORKFLOW_B, FORM_B, "RS_TEAM_B", "B");
+        seedInformationRequest(requestA, seedStep(requestA, "A"));
+        seedInformationRequest(requestB, seedStep(requestB, "B"));
+        ApprovalRequestContext.Actor requester = actor(99);
+        setDecision(
+                "self-scope",
+                "route.approvals.work.request-information-response.action");
+
+        commands.respondToInformationRequest(
+                requester,
+                requestA,
+                new ApprovalDtos.InformationResponseRequest(
+                        "Scoped evidence supplied", Map.of("detail", "updated"), 0L),
+                "governed-information-response");
+
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM apr_requests WHERE request_id = ?",
+                String.class,
+                requestA)).isEqualTo("IN_REVIEW");
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM apr_tasks WHERE request_id = ?",
+                String.class,
+                requestA)).isEqualTo("CLAIMED");
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM apr_requests WHERE request_id = ?",
+                String.class,
+                requestB)).isEqualTo("NEEDS_INFO");
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM apr_tasks WHERE request_id = ?",
+                String.class,
+                requestB)).isEqualTo("INFO_REQUESTED");
+        assertThat(jdbc.queryForObject("""
+                SELECT management_resource_set_key
+                  FROM apr_integration_outbox
+                 WHERE request_id = ?
+                   AND event_type = 'approval.request.information.responded'
+                """, String.class, requestA)).isEqualTo("RS_TEAM_A");
+        assertThat(ApprovalManagementScopeContext.current()).isEmpty();
+    }
+
+    @Test
     void workCatalogNeverProjectsDraftFutureOrExpiredRoutes() {
         seedTenantAndWorkflows();
         publishBundle(WORKFLOW_A, FORM_A, "RS_TEAM_A", "A");
@@ -466,7 +553,9 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                     form_version_id, tenant_id, form_id, version_number,
                     schema_payload, schema_sha256, lifecycle_state,
                     published_at, published_by, created_by)
-                VALUES (?, 42, ?, 1, '{"fields":[]}'::jsonb, ?, 'PUBLISHED',
+                VALUES (?, 42, ?, 1,
+                        '{"fields":[{"key":"detail","type":"TEXT","required":true}]}'::jsonb,
+                        ?, 'PUBLISHED',
                         CURRENT_TIMESTAMP, 99, 99)
                 """, UUID.randomUUID(), formId, "b".repeat(64));
         jdbc.update("""
@@ -522,6 +611,20 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 VALUES (?, 42, ?, ?, 17, 'PENDING')
                 """, taskId, requestId, stepId);
         return taskId;
+    }
+
+    private void seedInformationRequest(UUID requestId, UUID stepId) {
+        jdbc.update("UPDATE apr_requests SET status = 'NEEDS_INFO' WHERE request_id = ?", requestId);
+        jdbc.update("""
+                INSERT INTO apr_request_payloads (
+                    tenant_id, request_id, payload, payload_sha256, schema_version)
+                VALUES (42, ?, '{"detail":"original"}'::jsonb,
+                        encode(sha256(convert_to('{"detail":"original"}', 'UTF8')), 'hex'), 1)
+                """, requestId);
+        UUID taskId = seedTask(requestId, stepId, requestId.toString());
+        jdbc.update(
+                "UPDATE apr_tasks SET status = 'INFO_REQUESTED' WHERE task_id = ?",
+                taskId);
     }
 
     private void insertOutbox(UUID requestId, String scope) {

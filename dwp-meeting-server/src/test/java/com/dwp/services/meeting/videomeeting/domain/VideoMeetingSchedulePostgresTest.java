@@ -73,6 +73,35 @@ class VideoMeetingSchedulePostgresTest extends MeetingWorkspacePostgresFixture {
     }
 
     @Test
+    void recurringPreviewAndCreationRejectEveryUnverifiedEntryModeBeforeWriting() {
+        VideoMeetingScheduleService fixed = fixedSchedules("2027-01-01T00:00:00Z");
+        RecurrenceRequest recurrence = new RecurrenceRequest("WEEKLY", 1, 2);
+        VideoMeetingDtos.ScheduleMeetingRequest safe =
+                meeting("2027-03-07T02:30:00-05:00", "America/New_York");
+        List<VideoMeetingDtos.ScheduleMeetingRequest> unsupported = List.of(
+                entry(safe, AccessScope.PUBLIC_CODE, false, false, List.of()),
+                entry(safe, AccessScope.INVITED, true, false,
+                        List.of(new VideoMeetingDtos.GuestInvitee(
+                                "guest@example.invalid", "External guest"))),
+                entry(safe, AccessScope.INVITED, false, true, List.of()));
+        long seriesBefore = count("vm_meeting_series");
+        long meetingsBefore = count("vm_meetings");
+
+        for (VideoMeetingDtos.ScheduleMeetingRequest request : unsupported) {
+            assertThatThrownBy(() -> own(() -> fixed.previewSeries(
+                    new SeriesPreviewRequest(request, recurrence))))
+                    .isInstanceOf(BaseException.class);
+            assertThatThrownBy(() -> own(() -> fixed.createSeries(
+                    new CreateSeriesRequest(request, recurrence, "0".repeat(64)),
+                    UUID.randomUUID().toString(), "unverified-entry-series")))
+                    .isInstanceOf(BaseException.class);
+        }
+
+        assertThat(count("vm_meeting_series")).isEqualTo(seriesBefore);
+        assertThat(count("vm_meetings")).isEqualTo(meetingsBefore);
+    }
+
+    @Test
     void exactReviewedPreviewCreatesOneSeriesAndPayloadFreeInvitationIntents() {
         VideoMeetingScheduleService fixed = fixedSchedules("2027-01-01T00:00:00Z");
         VideoMeetingDtos.ScheduleMeetingRequest meeting =
@@ -358,6 +387,21 @@ class VideoMeetingSchedulePostgresTest extends MeetingWorkspacePostgresFixture {
                 true, false, false, false, false, List.of(4L), List.of(),
                 List.of(new AgendaItemInput(null, "Decision", "Select option", 4L, 20)),
                 null, null);
+    }
+
+    private VideoMeetingDtos.ScheduleMeetingRequest entry(
+            VideoMeetingDtos.ScheduleMeetingRequest request,
+            AccessScope accessScope,
+            boolean guestAccess,
+            boolean allowJoinBeforeHost,
+            List<VideoMeetingDtos.GuestInvitee> guestInvitees) {
+        return new VideoMeetingDtos.ScheduleMeetingRequest(
+                request.title(), request.description(), request.agenda(), request.startsAt(),
+                request.durationMinutes(), request.timeZone(), accessScope,
+                request.waitingRoomEnabled(), guestAccess, allowJoinBeforeHost,
+                request.defaultMicrophoneEnabled(), request.defaultCameraEnabled(),
+                request.participantUserIds(), guestInvitees, request.agendaItems(),
+                request.sourceTemplateId(), request.sourceTemplateVersion());
     }
 
     private List<UUID> occurrenceIds(String seriesKey) {
