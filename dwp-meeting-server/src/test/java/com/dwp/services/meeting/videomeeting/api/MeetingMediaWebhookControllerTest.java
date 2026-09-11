@@ -32,7 +32,7 @@ class MeetingMediaWebhookControllerTest {
         MockHttpServletRequest request = request("{\"event\":\"room_started\"}");
         ProviderEvent event = event();
         when(webhook.verify(
-                "{\"event\":\"room_started\"}", "Bearer signed-webhook"))
+                "{\"event\":\"room_started\"}", "signed.webhook.token"))
                 .thenReturn(event);
 
         var response = controller.receive(request);
@@ -47,9 +47,21 @@ class MeetingMediaWebhookControllerTest {
         MeetingMediaWebhookController controller = new MeetingMediaWebhookController(
                 webhook, mock(MeetingMediaWebhookService.class));
         MockHttpServletRequest duplicate = request("{}");
-        duplicate.addHeader("Authorization", "Bearer second");
+        duplicate.addHeader("Authorization", "second.signed.token");
 
         assertThatThrownBy(() -> controller.receive(duplicate))
+                .isInstanceOf(BaseException.class);
+
+        MockHttpServletRequest bearer = request("{}");
+        bearer.removeHeader("Authorization");
+        bearer.addHeader("Authorization", "Bearer signed.webhook.token");
+        assertThatThrownBy(() -> controller.receive(bearer))
+                .isInstanceOf(BaseException.class);
+
+        MockHttpServletRequest padded = request("{}");
+        padded.removeHeader("Authorization");
+        padded.addHeader("Authorization", " signed.webhook.token ");
+        assertThatThrownBy(() -> controller.receive(padded))
                 .isInstanceOf(BaseException.class);
 
         MockHttpServletRequest oversized = request("{}");
@@ -64,7 +76,7 @@ class MeetingMediaWebhookControllerTest {
     private MockHttpServletRequest request(String body) {
         MockHttpServletRequest request = new MockHttpServletRequest(
                 "POST", MeetingMediaWebhookController.PATH);
-        request.addHeader("Authorization", "Bearer signed-webhook");
+        request.addHeader("Authorization", "signed.webhook.token");
         request.setContent(body.getBytes(StandardCharsets.UTF_8));
         return request;
     }

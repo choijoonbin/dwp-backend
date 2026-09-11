@@ -214,7 +214,7 @@ class MeetingParticipantWebhookCleanupPostgresTest extends MeetingWorkspacePostg
                 .digest(body.getBytes(StandardCharsets.UTF_8))));
         auth.setTtl(300_000L);
         var request = new MockHttpServletRequest("POST",MeetingMediaWebhookController.PATH);
-        request.addHeader("Authorization","Bearer " + auth.toJwt());
+        request.addHeader("Authorization",auth.toJwt());
         request.setContent(body.getBytes(StandardCharsets.UTF_8));
         return request;
     }

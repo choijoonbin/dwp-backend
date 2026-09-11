@@ -44,6 +44,12 @@ services:
     image: livekit/livekit-server:v1.12.0
     container_name: dwp-livekit
     profiles: ["media"]
+    environment:
+      LIVEKIT_CONFIG: |
+        webhook:
+          api_key: devkey
+          urls:
+            - http://host.docker.internal:8009/internal/v1/media/livekit/webhook
     command:
       - --dev
       - --bind
@@ -58,6 +64,8 @@ services:
       - "7880:7880"
       - "7881:7881"
       - "7882:7882/udp"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - dwp-network
 

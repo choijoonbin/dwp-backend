@@ -102,7 +102,18 @@ class LiveKitMeetingWebhookAdapterTest {
                 API_KEY, "differentsecretsecretsecretsecretsecret");
         attacker.setSha256(bodySha256(body));
 
-        assertThatThrownBy(() -> adapter().verify(body, "Bearer " + attacker.toJwt()))
+        assertThatThrownBy(() -> adapter().verify(body, attacker.toJwt()))
+                .hasMessageContaining("authentication or binding validation failed");
+    }
+
+    @Test
+    void rejectsBearerOrWhitespaceDecoratedSignedTokens() throws Exception {
+        String body = body("room_started", roomMetadata(), null, null);
+        String signed = sign(body);
+
+        assertThatThrownBy(() -> adapter().verify(body, "Bearer " + signed))
+                .hasMessageContaining("authentication or binding validation failed");
+        assertThatThrownBy(() -> adapter().verify(body, " " + signed + " "))
                 .hasMessageContaining("authentication or binding validation failed");
     }
 
@@ -178,7 +189,7 @@ class LiveKitMeetingWebhookAdapterTest {
         AccessToken auth = new AccessToken(API_KEY, API_SECRET);
         auth.setSha256(bodySha256(body));
         auth.setTtl(300_000L);
-        return "Bearer " + auth.toJwt();
+        return auth.toJwt();
     }
 
     private String bodySha256(String body) throws Exception {

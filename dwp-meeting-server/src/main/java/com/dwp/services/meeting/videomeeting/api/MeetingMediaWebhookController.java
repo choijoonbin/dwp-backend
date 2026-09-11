@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
+import java.util.regex.Pattern;
 
 @Hidden
 @RestController
@@ -26,6 +27,8 @@ public class MeetingMediaWebhookController {
 
     public static final String PATH = "/internal/v1/media/livekit/webhook";
     static final int MAXIMUM_BODY_BYTES = 128 * 1024;
+    private static final Pattern SIGNED_TOKEN = Pattern.compile(
+            "[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+");
 
     private final MeetingMediaWebhook webhook;
     private final MeetingMediaWebhookService service;
@@ -63,7 +66,7 @@ public class MeetingMediaWebhookController {
         if (values == null || !values.hasMoreElements()) throw unauthorized();
         String value = values.nextElement();
         if (values.hasMoreElements() || value == null || value.isBlank()
-                || value.length() > 4096 || !value.startsWith("Bearer ")) {
+                || value.length() > 4096 || !SIGNED_TOKEN.matcher(value).matches()) {
             throw unauthorized();
         }
         return value;

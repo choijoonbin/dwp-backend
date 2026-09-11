@@ -62,13 +62,11 @@ public final class LiveKitMeetingWebhookAdapter implements MeetingMediaWebhook {
                 || authorization == null || authorization.isBlank()
                 || authorization.length() > MAX_AUTHORIZATION_LENGTH
                 || authorization.indexOf('\r') >= 0 || authorization.indexOf('\n') >= 0
-                || !authorization.startsWith("Bearer ")) {
+                || !SIGNED_TOKEN.matcher(authorization).matches()) {
             throw invalidWebhook();
         }
         try {
-            String signedToken = authorization.substring("Bearer ".length());
-            if (!SIGNED_TOKEN.matcher(signedToken).matches()) throw invalidWebhook();
-            WebhookEvent verified = receiver.receive(body, signedToken);
+            WebhookEvent verified = receiver.receive(body, authorization);
             EventType type = eventType(verified.getEvent());
             if (!PROVIDER_ID.matcher(verified.getId()).matches()) throw invalidWebhook();
             OffsetDateTime createdAt = requiredTimestamp(verified.getCreatedAt(), 0L);
