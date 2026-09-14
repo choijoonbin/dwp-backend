@@ -156,7 +156,7 @@ final class WorkplaceSpatialGovernanceSql01 {
     static final String ACCESS_RULES_SELECT_WP_SITE_ACCESS_RULES = """
         SELECT access_rule_id, site_id, subject_type, subject_user_id,
                subject_group_ref, permission_code, effect, valid_from,
-               valid_until, lifecycle_state, version
+               valid_until, lifecycle_state, version, floor_id
           FROM wp_site_access_rules
          WHERE tenant_id = ? AND site_id = ?
          ORDER BY subject_type, permission_code, created_at
@@ -165,7 +165,7 @@ final class WorkplaceSpatialGovernanceSql01 {
     static final String ACTIVE_ACCESS_RULES_SELECT_WP_SITE_ACCESS_RULES = """
         SELECT access_rule_id, site_id, subject_type, subject_user_id,
                subject_group_ref, permission_code, effect, valid_from,
-               valid_until, lifecycle_state, version
+               valid_until, lifecycle_state, version, floor_id
           FROM wp_site_access_rules
          WHERE tenant_id = ? AND site_id = ? AND lifecycle_state = 'ACTIVE'
            AND (valid_from IS NULL OR valid_from <= ?)
@@ -176,7 +176,7 @@ final class WorkplaceSpatialGovernanceSql01 {
     static final String ACTIVE_ACCESS_RULES_FOR_SITES_SELECT_WP_SITE_ACCESS_RULES = """
         SELECT access_rule_id, site_id, subject_type, subject_user_id,
                subject_group_ref, permission_code, effect, valid_from,
-               valid_until, lifecycle_state, version
+               valid_until, lifecycle_state, version, floor_id
           FROM wp_site_access_rules
          WHERE tenant_id = ? AND site_id IN (%s) AND lifecycle_state = 'ACTIVE'
            AND (valid_from IS NULL OR valid_from <= ?)
@@ -187,7 +187,7 @@ final class WorkplaceSpatialGovernanceSql01 {
     static final String ACCESS_RULE_SELECT_WP_SITE_ACCESS_RULES = """
         SELECT access_rule_id, site_id, subject_type, subject_user_id,
                subject_group_ref, permission_code, effect, valid_from,
-               valid_until, lifecycle_state, version
+               valid_until, lifecycle_state, version, floor_id
           FROM wp_site_access_rules
          WHERE tenant_id = ? AND access_rule_id = ?
         """;
@@ -196,8 +196,8 @@ final class WorkplaceSpatialGovernanceSql01 {
         INSERT INTO wp_site_access_rules (
             access_rule_id, tenant_id, site_id, subject_type,
             subject_user_id, subject_group_ref, permission_code, effect,
-            valid_from, valid_until, lifecycle_state, created_by, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            valid_from, valid_until, lifecycle_state, created_by, updated_by, floor_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """;
 
     static final String UPDATE_ACCESS_RULE_UPDATE_WP_SITE_ACCESS_RULES = """
@@ -503,7 +503,11 @@ final class WorkplaceSpatialGovernanceSql01 {
     static final String DELEGATED_SCOPES_SELECT_WP_DELEGATED_ADMIN_SCOPES = """
         SELECT delegation_id, delegate_type, delegate_user_id,
                delegate_group_ref, scope_type, site_id, managed_group_ref,
-               permission_codes, valid_from, valid_until, lifecycle_state, version
+               permission_codes, valid_from, valid_until, lifecycle_state, version, floor_scope_restricted,
+               ARRAY(SELECT scope_floor.floor_id FROM wp_delegated_admin_scope_floors scope_floor
+                     WHERE scope_floor.tenant_id = wp_delegated_admin_scopes.tenant_id
+                       AND scope_floor.delegation_id = wp_delegated_admin_scopes.delegation_id
+                     ORDER BY scope_floor.floor_id) AS floor_ids
           FROM wp_delegated_admin_scopes
          WHERE tenant_id = ?
          ORDER BY created_at DESC
@@ -512,7 +516,11 @@ final class WorkplaceSpatialGovernanceSql01 {
     static final String DELEGATED_SCOPE_SELECT_WP_DELEGATED_ADMIN_SCOPES = """
         SELECT delegation_id, delegate_type, delegate_user_id,
                delegate_group_ref, scope_type, site_id, managed_group_ref,
-               permission_codes, valid_from, valid_until, lifecycle_state, version
+               permission_codes, valid_from, valid_until, lifecycle_state, version, floor_scope_restricted,
+               ARRAY(SELECT scope_floor.floor_id FROM wp_delegated_admin_scope_floors scope_floor
+                     WHERE scope_floor.tenant_id = wp_delegated_admin_scopes.tenant_id
+                       AND scope_floor.delegation_id = wp_delegated_admin_scopes.delegation_id
+                     ORDER BY scope_floor.floor_id) AS floor_ids
           FROM wp_delegated_admin_scopes
          WHERE tenant_id = ? AND delegation_id = ?
         """;
@@ -522,8 +530,8 @@ final class WorkplaceSpatialGovernanceSql01 {
             delegation_id, tenant_id, delegate_type, delegate_user_id,
             delegate_group_ref, scope_type, site_id, managed_group_ref,
             permission_codes, valid_from, valid_until, lifecycle_state,
-            created_by, updated_by)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS varchar[]), ?, ?, ?, ?, ?)
+            created_by, updated_by, floor_scope_restricted)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, CAST(? AS varchar[]), ?, ?, ?, ?, ?, ?)
         """;
 
     static final String UPDATE_DELEGATED_SCOPE_UPDATE_WP_DELEGATED_ADMIN_SCOPES = """
@@ -539,7 +547,11 @@ final class WorkplaceSpatialGovernanceSql01 {
     static final String ACTIVE_DELEGATED_SCOPES_SELECT_WP_DELEGATED_ADMIN_SCOPES = """
         SELECT delegation_id, delegate_type, delegate_user_id,
                delegate_group_ref, scope_type, site_id, managed_group_ref,
-               permission_codes, valid_from, valid_until, lifecycle_state, version
+               permission_codes, valid_from, valid_until, lifecycle_state, version, floor_scope_restricted,
+               ARRAY(SELECT scope_floor.floor_id FROM wp_delegated_admin_scope_floors scope_floor
+                     WHERE scope_floor.tenant_id = wp_delegated_admin_scopes.tenant_id
+                       AND scope_floor.delegation_id = wp_delegated_admin_scopes.delegation_id
+                     ORDER BY scope_floor.floor_id) AS floor_ids
           FROM wp_delegated_admin_scopes
          WHERE tenant_id = ? AND lifecycle_state = 'ACTIVE'
            AND (valid_from IS NULL OR valid_from <= ?)

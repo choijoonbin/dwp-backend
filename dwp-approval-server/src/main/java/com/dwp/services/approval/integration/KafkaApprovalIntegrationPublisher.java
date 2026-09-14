@@ -34,12 +34,17 @@ public class KafkaApprovalIntegrationPublisher implements ApprovalIntegrationPub
         header(record, "dwp-event-id", event.eventId().toString());
         header(record, "dwp-event-type", event.eventType());
         header(record, "dwp-tenant-id", Long.toString(event.tenantId()));
+        var publication = kafka.send(record);
         try {
-            kafka.send(record).get(Duration.ofSeconds(10).toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
+            publication.get(Duration.ofSeconds(10).toMillis(), java.util.concurrent.TimeUnit.MILLISECONDS);
         } catch (InterruptedException exception) {
+            publication.cancel(true);
             Thread.currentThread().interrupt();
             throw new IllegalStateException("Approval event publication was interrupted.", exception);
-        } catch (java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException exception) {
+        } catch (java.util.concurrent.TimeoutException exception) {
+            publication.cancel(true);
+            throw new IllegalStateException("Approval event publication failed.", exception);
+        } catch (java.util.concurrent.ExecutionException exception) {
             throw new IllegalStateException("Approval event publication failed.", exception);
         }
     }

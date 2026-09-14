@@ -11,6 +11,7 @@ import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -35,13 +36,14 @@ class WorkplaceRoomAccessAdapterTest {
     void mappedCalendarRoomDelegatesViewAndBookToItsWorkplaceSite() {
         UUID resourceId = UUID.randomUUID();
         UUID siteId = UUID.randomUUID();
+        UUID floorId = UUID.randomUUID();
         when(jdbc.query(
                 anyString(),
                 any(MapSqlParameterSource.class),
                 org.mockito.ArgumentMatchers
                         .<RowMapper<WorkplaceRoomAccessAdapter.ResourceSite>>any()))
                 .thenReturn(List.of(
-                        new WorkplaceRoomAccessAdapter.ResourceSite(resourceId, siteId)));
+                        new WorkplaceRoomAccessAdapter.ResourceSite(resourceId, siteId, floorId)));
         when(governance.viewableSiteIds(
                 1L, 7L, "groups", Set.of(siteId))).thenReturn(Set.of());
         WorkplaceRoomAccessAdapter adapter = new WorkplaceRoomAccessAdapter(jdbc, governance);
@@ -51,7 +53,7 @@ class WorkplaceRoomAccessAdapterTest {
         adapter.requireBook(1L, 7L, "groups", resourceId);
 
         verify(governance).viewableSiteIds(1L, 7L, "groups", Set.of(siteId));
-        verify(governance).requireBookAccess(1L, 7L, "groups", siteId);
+        verify(governance).requireBookAccess(1L, 7L, "groups", siteId, floorId);
     }
 
     @Test
@@ -83,18 +85,21 @@ class WorkplaceRoomAccessAdapterTest {
         UUID legacy = UUID.randomUUID();
         UUID allowedSite = UUID.randomUUID();
         UUID deniedSite = UUID.randomUUID();
+        UUID allowedFloor = UUID.randomUUID(), deniedFloor = UUID.randomUUID();
         when(jdbc.query(
                 anyString(),
                 any(MapSqlParameterSource.class),
                 org.mockito.ArgumentMatchers
                         .<RowMapper<WorkplaceRoomAccessAdapter.ResourceSite>>any()))
                 .thenReturn(List.of(
-                        new WorkplaceRoomAccessAdapter.ResourceSite(first, allowedSite),
-                        new WorkplaceRoomAccessAdapter.ResourceSite(second, allowedSite),
-                        new WorkplaceRoomAccessAdapter.ResourceSite(third, deniedSite)));
+                        new WorkplaceRoomAccessAdapter.ResourceSite(first, allowedSite, allowedFloor),
+                        new WorkplaceRoomAccessAdapter.ResourceSite(second, allowedSite, allowedFloor),
+                        new WorkplaceRoomAccessAdapter.ResourceSite(third, deniedSite, deniedFloor)));
         when(governance.viewableSiteIds(
                 1L, 7L, "groups", Set.of(allowedSite, deniedSite)))
                 .thenReturn(Set.of(allowedSite));
+        when(governance.viewableFloorIds(1L, 7L, "groups", Map.of(allowedFloor, allowedSite)))
+                .thenReturn(Set.of(allowedFloor));
         WorkplaceRoomAccessAdapter adapter = new WorkplaceRoomAccessAdapter(jdbc, governance);
 
         assertThat(adapter.viewableResourceIds(

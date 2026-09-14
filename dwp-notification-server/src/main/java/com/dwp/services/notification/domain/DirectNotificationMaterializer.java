@@ -5,6 +5,8 @@ import com.dwp.services.notification.domain.NotificationMaterializationRepositor
 import com.dwp.services.notification.domain.NotificationModels.DirectMaterializationRequest;
 import com.dwp.services.notification.domain.NotificationModels.MaterializationResult;
 import com.dwp.services.notification.security.NotificationRequestContext;
+import com.dwp.services.notification.integration.ApprovalSlaNotificationPlan;
+import com.dwp.services.notification.integration.ApprovalSlaRecipientAuthority;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -91,6 +93,37 @@ public class DirectNotificationMaterializer {
                 entitledRecipients,
                 admittedAt);
         return result.result();
+    }
+
+    /** All children join the caller's journal transaction; only a verified current SLA profile admits them. */
+    public List<MaterializationResult> materializeApprovalSlaWithinWorkerTransaction(
+            NotificationRequestContext.Actor actor, ApprovalSlaNotificationPlan plan,
+            List<DirectMaterializationRequest> requests, ApprovalSlaRecipientAuthority.Verified authority) {
+        if (actor == null || plan == null || !actor.equals(plan.actor()) || authority == null
+                || !actor.internal() || !"dwp-approval-server".equals(actor.sourceService()))
+            throw new IllegalArgumentException("Current SLA producer authority is required.");
+        authority.requireBatch(plan, requests);
+        transactions.requireExistingWorkerTransaction(actor.tenantId());
+        DirectMaterializationRequest first = requests.getFirst();
+        TemplateContract contract = transactions.contractWithinWorkerTransaction(actor.tenantId(),
+                first.typeKey(), first.sourceEventType(), first.sourceSchemaVersion(), first.locale());
+        ownershipPolicy.requireOwnership(actor, contract);
+        if (!"approvals".equals(contract.ownerAppKey()) || !first.typeKey().equals(contract.typeKey()))
+            throw new IllegalArgumentException("SLA template ownership changed.");
+        List<MaterializationResult> results = new ArrayList<>();
+        for (DirectMaterializationRequest request : requests) {
+            Map<String,Object> variables = sanitize(request.variables());
+            var result = transactions.materializeWithinWorkerTransaction(actor.tenantId(), request, contract,
+                    render(contract, variables), payloadHash(request), "",
+                    Set.of(request.recipientUserIds().getFirst()), Instant.now());
+            results.add(result.result());
+        }
+        TemplateContract latest = transactions.contractWithinWorkerTransaction(actor.tenantId(),
+                first.typeKey(), first.sourceEventType(), first.sourceSchemaVersion(), first.locale());
+        if (!contract.equals(latest)) throw new IllegalArgumentException("SLA rendering contract changed during materialization.");
+        authority.requireCurrent(plan);
+        transactions.requireExistingWorkerTransaction(actor.tenantId());
+        return List.copyOf(results);
     }
 
     private RenderedContent render(TemplateContract contract, Map<String, Object> variables) {

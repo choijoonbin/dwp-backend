@@ -122,8 +122,32 @@ public class WorkplaceSpatialGovernanceRepository extends WorkplaceSpatialGovern
                 tenantId, zoneId, sectionId, request.version()) == 1;
     }
 
+    List<AccessRuleFloorOption> accessRuleFloorOptions(Long tenantId, UUID siteId) {
+        return jdbc.query("""
+                SELECT floor_id, site_id, COALESCE(NULLIF(name_en, ''), name_ko) AS name, lifecycle_state
+                  FROM wp_floors WHERE tenant_id = ? AND site_id = ? ORDER BY floor_number, floor_id
+                """, (result, row) -> new AccessRuleFloorOption(result.getObject("floor_id", UUID.class),
+                result.getObject("site_id", UUID.class), result.getString("name"),
+                WorkplaceTypes.FloorState.valueOf(result.getString("lifecycle_state"))), tenantId, siteId);
+    }
+
+    public void lockSiteAccessScope(Long tenantId, UUID siteId) {
+        jdbc.queryForObject("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+                (result, row) -> 0, "workplace-access:" + tenantId + ":" + siteId);
+    }
+
     public List<AccessRuleRow> accessRules(Long tenantId, UUID siteId) {
         return jdbc.query(WorkplaceSpatialGovernanceSql01.ACCESS_RULES_SELECT_WP_SITE_ACCESS_RULES, this::accessRule, tenantId, siteId);
+    }
+
+    public List<AccessRuleRow> accessRules(Long tenantId, UUID siteId, Set<UUID> floors) {
+        if (floors == null) return accessRules(tenantId, siteId);
+        if (floors.isEmpty()) throw new com.dwp.core.exception.BaseException(com.dwp.core.common.ErrorCode.FORBIDDEN);
+        String placeholders = floors.stream().map(ignored -> "?").collect(Collectors.joining(","));
+        String sql = WorkplaceSpatialGovernanceSql01.ACCESS_RULES_SELECT_WP_SITE_ACCESS_RULES
+                .replace("ORDER BY", "AND floor_id IN (" + placeholders + ") ORDER BY");
+        List<Object> parameters = new ArrayList<>(); parameters.add(tenantId); parameters.add(siteId); parameters.addAll(floors);
+        return jdbc.query(sql, this::accessRule, parameters.toArray());
     }
 
     public List<AccessRuleRow> activeAccessRules(
@@ -157,7 +181,7 @@ public class WorkplaceSpatialGovernanceRepository extends WorkplaceSpatialGovern
         jdbc.update(WorkplaceSpatialGovernanceSql01.CREATE_ACCESS_RULE_INSERT_WP_SITE_ACCESS_RULES, accessRuleId, tenantId, siteId, request.subjectType().name(),
                 request.subjectUserId(), request.subjectGroupRef(), request.permission().name(),
                 request.effect().name(), request.validFrom(), request.validUntil(),
-                request.state().name(), actorId, actorId);
+                request.state().name(), actorId, actorId, request.floorId());
     }
 
     public boolean updateAccessRule(
@@ -420,7 +444,11 @@ public class WorkplaceSpatialGovernanceRepository extends WorkplaceSpatialGovern
         jdbc.update(WorkplaceSpatialGovernanceSql01.CREATE_DELEGATED_SCOPE_INSERT_WP_DELEGATED_ADMIN_SCOPES, delegationId, tenantId, request.delegateType().name(),
                 request.delegateUserId(), request.delegateGroupRef(), request.scopeType().name(),
                 request.siteId(), request.managedGroupRef(), permissionArray(request.permissions()),
-                request.validFrom(), request.validUntil(), request.state().name(), actorId, actorId);
+                request.validFrom(), request.validUntil(), request.state().name(), actorId, actorId, request.floorIds() != null);
+        if (request.floorIds() != null) for (UUID floorId : request.floorIds()) {
+            jdbc.update("INSERT INTO wp_delegated_admin_scope_floors (tenant_id, delegation_id, site_id, floor_id) VALUES (?, ?, ?, ?)",
+                    tenantId, delegationId, request.siteId(), floorId);
+        }
     }
 
     public boolean updateDelegatedScope(
@@ -486,7 +514,7 @@ public class WorkplaceSpatialGovernanceRepository extends WorkplaceSpatialGovern
                 AccessEffect.valueOf(result.getString("effect")),
                 result.getObject("valid_from", OffsetDateTime.class),
                 result.getObject("valid_until", OffsetDateTime.class),
-                RuleState.valueOf(result.getString("lifecycle_state")), result.getLong("version"));
+                RuleState.valueOf(result.getString("lifecycle_state")), result.getLong("version"), result.getObject("floor_id", UUID.class));
     }
 
     private PolicyOverrideRow policyOverride(ResultSet result, int row) throws SQLException {
@@ -557,7 +585,18 @@ public class WorkplaceSpatialGovernanceRepository extends WorkplaceSpatialGovern
                 result.getObject("valid_from", OffsetDateTime.class),
                 result.getObject("valid_until", OffsetDateTime.class),
                 DelegationState.valueOf(result.getString("lifecycle_state")),
-                result.getLong("version"));
+                result.getLong("version"), delegatedFloorIds(result));
+    }
+
+    private List<UUID> delegatedFloorIds(ResultSet result) throws SQLException {
+        boolean restricted = result.getBoolean("floor_scope_restricted");
+        Array array = result.getArray("floor_ids");
+        List<UUID> floors = array == null ? List.of() : Arrays.stream((Object[]) array.getArray())
+                .map(value -> UUID.fromString(String.valueOf(value))).toList();
+        if (restricted == floors.isEmpty()) throw new com.dwp.core.exception.BaseException(
+                com.dwp.core.common.ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                "The persisted delegated floor scope is inconsistent.");
+        return restricted ? List.copyOf(floors) : null;
     }
 
     private <T> Optional<T> one(String sql, RowMapper<T> mapper, Object... arguments) {

@@ -1,0 +1,285 @@
+{
+  "schemaVersion": 1,
+  "owner": "dwp-platform-server",
+  "publicPrefix": "/api/platform",
+  "memberPrefix": "/v1/workplace/experience/collaboration",
+  "adminPrefix": "/v1/admin/workplace/experience/collaboration",
+  "member": {
+    "GET /overview": {
+      "query": {
+        "from": "ISO local date",
+        "to": "ISO local date inclusive, range <= 62 days",
+        "groupRef": "optional verified group UUID"
+      },
+      "response": "CollaborationOverview"
+    },
+    "POST /work-plans": {
+      "authority": "Trusted tenant/user and group membership; OFFICE location must resolve one tenant/site/floor/resource hierarchy and current site VIEW. REMOTE/OFF carry no location. A work plan does not create a booking or require site BOOK.",
+      "body": {
+        "planDate": "ISO local date",
+        "mode": "OFFICE|REMOTE|OFF",
+        "siteId": "UUID|null",
+        "floorId": "UUID|null",
+        "resourceId": "UUID|null",
+        "groupRef": "UUID|null, must be in trusted group refs",
+        "visibility": "PRIVATE|SITE|FLOOR|RESOURCE",
+        "version": "long|null; null=create own date, present=update own date"
+      },
+      "response": "WorkPlan"
+    },
+    "DELETE /work-plans/{planId}": {
+      "query": {
+        "version": "required long"
+      },
+      "response": "MutationResult"
+    },
+    "PUT /sharing-preference": {
+      "body": {
+        "optIn": "boolean",
+        "visibility": "PRIVATE|SITE|FLOOR|RESOURCE",
+        "version": "required long, initial 0"
+      },
+      "response": "SharingPreference"
+    },
+    "DELETE /sharing-preference": {
+      "query": {
+        "version": "required long"
+      },
+      "response": "SharingPreference; optIn=false, all own plans are made PRIVATE"
+    },
+    "GET /resources/{resourceId}/photo": {
+      "response": "authorized PNG/JPEG image bytes; 404 means no registered photo"
+    },
+    "GET /resources/{resourceId}/photo/metadata": {
+      "response": "ResourcePhoto, authorized metadata;404=no registered photo;403 removes protected image"
+    }
+  },
+  "admin": {
+    "GET /overview": {
+      "response": "GovernanceOverview: policy, connectors, privacy counts from actual tables"
+    },
+    "GET /policy": {
+      "response": "SharingPolicy"
+    },
+    "PUT /policy": {
+      "body": {
+        "sharingEnabled": "boolean",
+        "maximumVisibility": "PRIVATE|SITE|FLOOR|RESOURCE",
+        "version": "required long, initial 0",
+        "reason": "required string 1..500",
+        "confirmed": "must be true"
+      },
+      "response": "SharingPolicy"
+    },
+    "PUT /connectors/{kind}": {
+      "kind": "CALENDAR|ACTUAL_PRESENCE|SIGNAGE|VISITOR|VEHICLE",
+      "body": {
+        "provider": "required label [A-Za-z0-9._-] 1..80",
+        "enabled": "boolean",
+        "configurationReference": "optional opaque reference [A-Za-z0-9._:/-] <=160, no endpoint fetching or credentials",
+        "version": "required long, initial 0",
+        "reason": "required string 1..500",
+        "confirmed": "must be true"
+      },
+      "response": "ConnectorStatus; only NOT_CONFIGURED|DISABLED|CONFIGURED_UNVERIFIED"
+    },
+    "POST /sites/{siteId}/access-rules[/ruleId]/review": {
+      "body": {
+        "proposed": "existing SiteAccessRuleRequest, version=null create or required existing version update",
+        "reason": "optional string <=500 for read-only review; changes requires nonblank reason",
+        "confirmed": "boolean"
+      },
+      "response": "GovernanceChangeReview: targetType,targetId,current,proposed,currentActorAccess,knownImpact,warnings,evaluatedAt"
+    },
+    "POST /sites/{siteId}/access-rules[/ruleId]/changes": {
+      "body": {
+        "proposed": "existing SiteAccessRuleRequest",
+        "reason": "required string 1..500",
+        "confirmed": "must be true"
+      },
+      "response": "SiteAccessRule; save and persisted reason audit are atomic"
+    },
+    "POST /delegations[/delegationId]/review": {
+      "body": {
+        "proposed": "existing DelegatedAdminScopeRequest, version=null create or required existing version update",
+        "reason": "optional string <=500 for read-only review; changes requires nonblank reason",
+        "confirmed": "boolean"
+      },
+      "response": "GovernanceChangeReview"
+    },
+    "POST /delegations[/delegationId]/changes": {
+      "body": {
+        "proposed": "existing DelegatedAdminScopeRequest",
+        "reason": "required string 1..500",
+        "confirmed": "must be true"
+      },
+      "response": "DelegatedAdminScope; save and persisted reason audit are atomic"
+    },
+    "POST /resources/{resourceId}/photo": {
+      "multipart": {
+        "file": "PNG/JPEG decoded raster <= 10 MiB",
+        "version": "required existing photo version, initial 0",
+        "reason": "required string 1..500",
+        "altText": "required <=160"
+      },
+      "response": "ResourcePhoto: resourceId,url,altText,contentType,sizeBytes,sha256,version"
+    },
+    "DELETE /resources/{resourceId}/photo": {
+      "query": {
+        "version": "required long",
+        "reason": "required string 1..500"
+      },
+      "response": "MutationResult"
+    },
+    "GET /resources/{resourceId}/photo/metadata": {
+      "response": "ResourcePhoto, delegated CATALOG_VIEW resource scope"
+    },
+    "GET /resources/{resourceId}/photo": {
+      "response": "Authorized PNG/JPEG bytes for current delegated CATALOG_VIEW resource scope; admin ResourcePhoto URL uses admin path, member URL uses site VIEW path"
+    },
+    "POST /booking-policy/review": {
+      "body": {
+        "proposed": "WorkplaceDtos.PolicyRequest exact existing native fields+required version",
+        "reason": "optional string <=500",
+        "confirmed": "boolean"
+      },
+      "response": "GovernanceChangeReview"
+    },
+    "POST /booking-policy/changes": {
+      "body": {
+        "proposed": "WorkplaceDtos.PolicyRequest",
+        "reason": "required nonblank <=500",
+        "confirmed": "must be true"
+      },
+      "response": "Policy; native owner versioned save and reason audit atomic"
+    },
+    "POST /policy-overrides[/overrideId]/review": {
+      "query": {
+        "scopeType": "TENANT|CAMPUS|SITE|FLOOR|ZONE|RESOURCE required; CAMPUS/TENANT global only",
+        "scopeId": "UUID|null matches proposed scope exactly"
+      },
+      "body": {
+        "proposed": "PolicyOverrideRequest exact existing shape; version=null create or required current update",
+        "reason": "optional review;required nonblank changes <=500",
+        "confirmed": "boolean;changes must true"
+      },
+      "response": "GovernanceChangeReview"
+    },
+    "POST /policy-overrides[/overrideId]/changes": {
+      "query": {
+        "scopeType": "TENANT|CAMPUS|SITE|FLOOR|ZONE|RESOURCE required; CAMPUS/TENANT global only",
+        "scopeId": "UUID|null matches proposed scope exactly"
+      },
+      "body": {
+        "proposed": "PolicyOverrideRequest exact existing shape; version=null create or required current update",
+        "reason": "optional review;required nonblank changes <=500",
+        "confirmed": "boolean;changes must true"
+      },
+      "response": "PolicyOverride; native owner save and reason audit atomic"
+    }
+  },
+  "types": {
+    "CollaborationOverview": {
+      "ownPlans": "WorkPlan[]",
+      "sharedPlans": "SharedWorkPlan[]",
+      "preference": "SharingPreference",
+      "policy": "SharingPolicy",
+      "actualPresence": "ConnectorStatus",
+      "generatedAt": "OffsetDateTime",
+      "shareableGroups": "ShareableGroup[] from trusted verified group refs only"
+    },
+    "WorkPlan": {
+      "planId": "UUID",
+      "planDate": "LocalDate",
+      "mode": "enum",
+      "siteId": "UUID|null",
+      "floorId": "UUID|null",
+      "resourceId": "UUID|null",
+      "groupRef": "UUID|null",
+      "visibility": "enum",
+      "version": "long"
+    },
+    "SharedWorkPlan": {
+      "planId": "UUID",
+      "userId": "long",
+      "planDate": "LocalDate",
+      "mode": "enum",
+      "siteId": "UUID|null",
+      "floorId": "UUID|null",
+      "resourceId": "UUID|null",
+      "visibility": "effective enum",
+      "source": "WORK_PLAN; this is planned, never actual employee presence",
+      "displayName": "string|null; only trusted identity projection, currently null"
+    },
+    "SharingPreference": {
+      "optIn": "boolean",
+      "visibility": "enum",
+      "version": "long"
+    },
+    "SharingPolicy": {
+      "sharingEnabled": "boolean",
+      "maximumVisibility": "enum",
+      "version": "long"
+    },
+    "ConnectorStatus": {
+      "kind": "enum",
+      "provider": "string|null",
+      "status": "NOT_CONFIGURED|DISABLED|CONFIGURED_UNVERIFIED",
+      "configurationReference": "string|null",
+      "lastVerifiedAt": "null until actual adapter proof",
+      "version": "long"
+    },
+    "GovernanceOverview": {
+      "policy": "SharingPolicy",
+      "connectors": "ConnectorStatus[]",
+      "privacy": "PrivacySummary",
+      "generatedAt": "OffsetDateTime"
+    },
+    "PrivacySummary": {
+      "bookingRetentionDays": "actual policy long",
+      "legalHoldCount": "actual long",
+      "anonymizedBookingCount": "actual long",
+      "expiredEligibleBookingCount": "actual long",
+      "facilityRequestEligibleRetentionCount": "actual long current terminal request retention eligibility count",
+      "facilityClosureEligibleRetentionCount": "actual long expired closure retention eligibility count excluding held/protected intervals",
+      "facilityRequestsPurgedCount": "actual long persisted per-tenant cumulative physical purge count",
+      "facilityClosuresPurgedCount": "actual long persisted per-tenant cumulative physical purge count"
+    },
+    "MutationResult": {
+      "removed": "boolean"
+    },
+    "ShareableGroup": {
+      "groupRef": "UUID",
+      "displayName": "string|null; currently null, user-readable generic group index is allowed without UUID entry"
+    }
+  },
+  "authority": "Existing trusted tenant/user identity, member Workplace capability, verified group membership, current site VIEW and delegated ACCESS_MANAGE/CATALOG_MANAGE or global tenant administrator; review POST is read-only, changes POST is guarded write",
+  "limitations": "No fabricated live people, external health, connector endpoint fetching, SLO/instant anonymization claims, or prediction simulation. Retention uses existing wp_tenant_policies.booking_retention_days.",
+  "facilityRetentionSemantics": "Current native tenant bookingRetentionDays applies: terminal RESOLVED/CANCELLED requests after updatedAt+days; closures after max(endsAt,updatedAt)+days. Keep active requests, current/future periods, overlapping legal-held booking intervals and protected/in-flight audit evidence. Retained native facility audit metadata has explicit FACILITY_PERSONAL_DATA_REDACTED snapshots with actor/correlation cleared; sanitize native audit outbox copies and remove original ingested central audit PII rows. No inferred historical impacts or external replica deletion guarantee.",
+  "floorAccessOverlay": {
+    "migration": "V252__add_workplace_floor_access_overlay.sql",
+    "requestField": "SiteAccessRuleRequest.floorId: nullable UUID; omitted/null retains legacy SITE rule; immutable after create",
+    "responseFields": [
+      "SiteAccessRule.floorId",
+      "SiteAccessDecision.floorId",
+      "GovernanceChangeReview.proposedActorAccess"
+    ],
+    "scopeOptions": "Existing authorized GET /admin/workplace/governance/sites/{siteId}/access-preview returns availableFloors [{floorId,siteId,name,state:DRAFT|ACTIVE|CLOSED}] from tenant/path-site wp_floors; runtime batch decisions omit options",
+    "authority": "Existing ADMIN.WORKPLACE native permission and SITE ACCESS_MANAGE delegation; no additional grant or registry activation",
+    "evaluation": "Require existing SITE allow first; no active/current FLOOR rules inherits SITE; configured FLOOR rules require matching USER or verified GROUP_REF ALLOW, explicit DENY wins; FLOOR ALLOW never opens SITE navigation",
+    "commandSafety": "Tenant/site/floor FK + owner path validation; version and immutable scope; reason/confirmed atomic reviewed changes and audit; exact tenant/site transaction advisory lock shared with BOOK commands",
+    "rolloutGuard": "UI must match requested floor UUID with native review.proposed.floorId and currentActorAccess/proposedActorAccess.floorId/siteId; absent/mismatched producer prevents dispatch; legacy direct save is unused by native editor",
+    "enforcement": [
+      "Member explore allowed floor list/resources/occupancy/closures",
+      "Floor background",
+      "Workplace create/update/cancel/checkin/release and myBookings",
+      "Assigned-resource list and lending create",
+      "Mapped Calendar ROOM read and BOOK port",
+      "Workplan location save and own/shared projections",
+      "Member resource photo metadata/content",
+      "Member facilities availability/create/mine/detail including filtered total counts"
+    ],
+    "preservedBoundary": "Owned release-window history and cancellation remain owner-only and gain no new SITE permission requirement; existing admin catalog and Room approval owner commands retain existing native authority",
+    "previewBoundary": "Current actor and verified current groups only; no directory-wide staff counts, future membership, external approval completion or predicted connection status"
+  }
+}

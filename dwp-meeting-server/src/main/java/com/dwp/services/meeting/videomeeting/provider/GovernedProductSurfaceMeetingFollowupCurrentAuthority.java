@@ -1,10 +1,12 @@
 package com.dwp.services.meeting.videomeeting.provider;
 
+import com.dwp.core.http.OutboundHttpHeaders;
 import com.dwp.services.meeting.videomeeting.api.MeetingFollowupSourceDtos.Request;
 import com.dwp.services.meeting.videomeeting.domain.MeetingFollowupCurrentAuthority;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpHeaders;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -69,35 +71,42 @@ final class GovernedProductSurfaceMeetingFollowupCurrentAuthority
 
     @Override
     public Decision authorize(Request request) {
+        long responseDeadline = System.nanoTime() + requestTimeout.toNanos();
         if (!valid(request)) return Decision.deny(Denial.ACTION_NOT_AUTHORIZED);
         AuthorityResponse response;
         try {
             byte[] body = mapper.writeValueAsBytes(AuthorityRequest.from(request));
-            HttpRequest outbound = HttpRequest.newBuilder(endpoint)
+            HttpHeaders observability = new HttpHeaders();
+            OutboundHttpHeaders.propagateObservability(observability);
+            HttpRequest.Builder builder = HttpRequest.newBuilder(endpoint)
                     .timeout(requestTimeout)
                     .header("Accept", "application/json")
                     .header("Content-Type", "application/json")
                     .header(TOKEN_HEADER, token)
-                    .header(SERVICE_IDENTITY_HEADER, SERVICE_IDENTITY)
+                    .header(SERVICE_IDENTITY_HEADER, SERVICE_IDENTITY);
+            observability.forEach((name, values) ->
+                    values.forEach(value -> builder.header(name, value)));
+            HttpRequest outbound = builder
                     .POST(HttpRequest.BodyPublishers.ofByteArray(body))
                     .build();
             HttpResponse<InputStream> result = client.send(
                     outbound, HttpResponse.BodyHandlers.ofInputStream());
-            if (result.statusCode() != 200 || !result.headers().firstValue("Content-Type")
-                    .orElse("").toLowerCase(Locale.ROOT).startsWith("application/json")) {
+            if (result.statusCode() != 200 || !jsonContentType(result)) {
                 close(result.body());
                 return Decision.deny(Denial.AUTHORITY_UNVERIFIED);
             }
             response = mapper.readerFor(AuthorityResponse.class)
                     .with(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
-                    .readValue(BoundedHttpResponseReader.read(result, maximumResponseBytes));
+                    .readValue(BoundedHttpResponseReader.readBeforeDeadline(
+                            result, maximumResponseBytes, responseDeadline));
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             return Decision.deny(Denial.AUTHORITY_UNVERIFIED);
         } catch (IOException | RuntimeException exception) {
             return Decision.deny(Denial.AUTHORITY_UNVERIFIED);
         }
-        if (!response.matches(request) || response.allowed() == (response.denial() != null)) {
+        if (response == null || !response.matches(request)
+                || response.allowed() == (response.denial() != null)) {
             return Decision.deny(Denial.AUTHORITY_UNVERIFIED);
         }
         if (!response.allowed()) return Decision.deny(response.denial());
@@ -179,6 +188,14 @@ final class GovernedProductSurfaceMeetingFollowupCurrentAuthority
 
     private static boolean blank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private static boolean jsonContentType(HttpResponse<?> response) {
+        String value = response.headers().firstValue("Content-Type")
+                .orElse("").toLowerCase(Locale.ROOT);
+        int parameter = value.indexOf(';');
+        String mediaType = parameter < 0 ? value : value.substring(0, parameter);
+        return "application/json".equals(mediaType.strip());
     }
 
     private static void close(InputStream input) {

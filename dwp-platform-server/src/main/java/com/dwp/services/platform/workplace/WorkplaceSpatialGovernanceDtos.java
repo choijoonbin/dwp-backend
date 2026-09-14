@@ -125,40 +125,43 @@ public final class WorkplaceSpatialGovernanceDtos {
 
     @Schema(name = "WorkplaceSiteAccessRule")
     public record SiteAccessRule(
-            UUID accessRuleId,
-            UUID siteId,
-            AccessSubjectType subjectType,
-            Long subjectUserId,
-            UUID subjectGroupRef,
-            AccessPermission permission,
-            AccessEffect effect,
-            OffsetDateTime validFrom,
-            OffsetDateTime validUntil,
-            RuleState state,
-            long version) {
+            UUID accessRuleId, UUID siteId, AccessSubjectType subjectType, Long subjectUserId,
+            UUID subjectGroupRef, AccessPermission permission, AccessEffect effect,
+            OffsetDateTime validFrom, OffsetDateTime validUntil, RuleState state, long version, UUID floorId) {
+        public SiteAccessRule(UUID accessRuleId, UUID siteId, AccessSubjectType subjectType, Long subjectUserId,
+                UUID subjectGroupRef, AccessPermission permission, AccessEffect effect,
+                OffsetDateTime validFrom, OffsetDateTime validUntil, RuleState state, long version) {
+            this(accessRuleId, siteId, subjectType, subjectUserId, subjectGroupRef, permission, effect,
+                    validFrom, validUntil, state, version, null);
+        }
     }
 
     public record SiteAccessRuleRequest(
-            @NotNull AccessSubjectType subjectType,
-            @Min(1) Long subjectUserId,
-            UUID subjectGroupRef,
-            @NotNull AccessPermission permission,
-            @NotNull AccessEffect effect,
-            OffsetDateTime validFrom,
-            OffsetDateTime validUntil,
-            @NotNull RuleState state,
-            @Min(0) Long version) {
+            @NotNull AccessSubjectType subjectType, @Min(1) Long subjectUserId, UUID subjectGroupRef,
+            @NotNull AccessPermission permission, @NotNull AccessEffect effect,
+            OffsetDateTime validFrom, OffsetDateTime validUntil, @NotNull RuleState state,
+            @Min(0) Long version, UUID floorId) {
+        public SiteAccessRuleRequest(AccessSubjectType subjectType, Long subjectUserId, UUID subjectGroupRef,
+                AccessPermission permission, AccessEffect effect, OffsetDateTime validFrom,
+                OffsetDateTime validUntil, RuleState state, Long version) {
+            this(subjectType, subjectUserId, subjectGroupRef, permission, effect, validFrom, validUntil, state, version, null);
+        }
     }
 
     public record SiteAccessDecision(
-            UUID siteId,
-            Long userId,
-            AccessPermission requestedPermission,
-            boolean allowed,
-            String decision,
-            List<UUID> matchedRuleIds,
-            OffsetDateTime evaluatedAt) {
+            UUID siteId, Long userId, AccessPermission requestedPermission, boolean allowed,
+            String decision, List<UUID> matchedRuleIds, OffsetDateTime evaluatedAt, UUID floorId, List<AccessRuleFloorOption> availableFloors) {
+        public SiteAccessDecision(UUID siteId, Long userId, AccessPermission requestedPermission, boolean allowed,
+                String decision, List<UUID> matchedRuleIds, OffsetDateTime evaluatedAt, UUID floorId) {
+            this(siteId, userId, requestedPermission, allowed, decision, matchedRuleIds, evaluatedAt, floorId, null);
+        }
+        public SiteAccessDecision(UUID siteId, Long userId, AccessPermission requestedPermission, boolean allowed,
+                String decision, List<UUID> matchedRuleIds, OffsetDateTime evaluatedAt) {
+            this(siteId, userId, requestedPermission, allowed, decision, matchedRuleIds, evaluatedAt, null);
+        }
     }
+
+    public record AccessRuleFloorOption(UUID floorId, UUID siteId, String name, WorkplaceTypes.FloorState state) { }
 
     @Schema(name = "WorkplacePolicyOverride")
     public record PolicyOverride(
@@ -301,7 +304,15 @@ public final class WorkplaceSpatialGovernanceDtos {
             OffsetDateTime validFrom,
             OffsetDateTime validUntil,
             DelegationState state,
-            long version) {
+            long version,
+            List<UUID> floorIds) {
+        public DelegatedAdminScope(UUID delegationId, DelegateType delegateType, Long delegateUserId,
+                UUID delegateGroupRef, DelegatedScopeType scopeType, UUID siteId, UUID managedGroupRef,
+                List<DelegatedPermission> permissions, OffsetDateTime validFrom, OffsetDateTime validUntil,
+                DelegationState state, long version) {
+            this(delegationId, delegateType, delegateUserId, delegateGroupRef, scopeType, siteId,
+                    managedGroupRef, permissions, validFrom, validUntil, state, version, null);
+        }
     }
 
     public record DelegatedAdminScopeRequest(
@@ -315,7 +326,15 @@ public final class WorkplaceSpatialGovernanceDtos {
             OffsetDateTime validFrom,
             OffsetDateTime validUntil,
             @NotNull DelegationState state,
-            @Min(0) Long version) {
+            @Min(0) Long version,
+            @Size(min = 1) List<@NotNull UUID> floorIds) {
+        public DelegatedAdminScopeRequest(DelegateType delegateType, Long delegateUserId,
+                UUID delegateGroupRef, DelegatedScopeType scopeType, UUID siteId, UUID managedGroupRef,
+                List<DelegatedPermission> permissions, OffsetDateTime validFrom, OffsetDateTime validUntil,
+                DelegationState state, Long version) {
+            this(delegateType, delegateUserId, delegateGroupRef, scopeType, siteId, managedGroupRef,
+                    permissions, validFrom, validUntil, state, version, null);
+        }
     }
 
     public record EffectiveDelegatedScope(
@@ -323,6 +342,11 @@ public final class WorkplaceSpatialGovernanceDtos {
             DelegatedScopeType scopeType,
             UUID scopeId,
             List<DelegatedPermission> permissions,
-            OffsetDateTime validUntil) {
+            OffsetDateTime validUntil,
+            List<UUID> floorIds) {
+        public EffectiveDelegatedScope(UUID delegationId, DelegatedScopeType scopeType, UUID scopeId,
+                List<DelegatedPermission> permissions, OffsetDateTime validUntil) {
+            this(delegationId, scopeType, scopeId, permissions, validUntil, null);
+        }
     }
 }

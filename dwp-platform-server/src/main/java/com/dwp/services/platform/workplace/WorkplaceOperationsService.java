@@ -182,19 +182,28 @@ public class WorkplaceOperationsService {
 
     @Transactional(readOnly = true)
     public WorkplaceOperationsDtos.AdminBookingPage adminBookings(
-            Long tenantId,
-            OffsetDateTime from,
-            OffsetDateTime to,
-            BookingStatus status,
-            UUID resourceId,
-            Long userId,
-            String locale,
-            int page,
-            int size) {
+            Long tenantId, OffsetDateTime from, OffsetDateTime to, BookingStatus status,
+            UUID resourceId, Long userId, String locale, int page, int size) {
+        return adminBookings(tenantId, from, to, null, null, status, resourceId, userId, locale, page, size);
+    }
+
+    @Transactional(readOnly = true)
+    public WorkplaceOperationsDtos.AdminBookingPage adminBookings(
+            Long tenantId, OffsetDateTime from, OffsetDateTime to, UUID siteId, UUID floorId,
+            BookingStatus status, UUID resourceId, Long userId, String locale, int page, int size) {
         validateRange(from, to);
         validatePage(page, size);
+        if (siteId != null) catalog.site(tenantId, siteId, korean(locale))
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        if (floorId != null) {
+            var floor = catalog.floor(tenantId, floorId, korean(locale))
+                    .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+            if (siteId == null || !siteId.equals(floor.siteId())) {
+                throw new BaseException(ErrorCode.NOT_FOUND);
+            }
+        }
         WorkplaceOperationsRepository.AdminBookingPageRows result = operations.adminBookings(
-                tenantId, from, to, status, resourceId, userId,
+                tenantId, from, to, siteId, floorId, status, resourceId, userId,
                 korean(locale), page, size);
         return new WorkplaceOperationsDtos.AdminBookingPage(
                 result.content().stream().map(this::adminBooking).toList(),
@@ -334,7 +343,7 @@ public class WorkplaceOperationsService {
             WorkplaceOperationsRepository.AdminBookingRow value) {
         return new WorkplaceOperationsDtos.AdminBooking(
                 value.bookingId(), value.resourceId(), value.resourceName(), value.resourceType(),
-                value.siteName(), value.floorName(), value.userId(), value.personPublicId(),
+                value.siteId(), value.siteName(), value.floorId(), value.floorName(), value.userId(), value.personPublicId(),
                 value.bookedForDisplayName(), value.purpose(), value.startsAt(), value.endsAt(),
                 value.status(), value.visibleToColleagues(), value.checkedInAt(),
                 value.releasedAt(), value.cancelledAt(), value.legalHold(),

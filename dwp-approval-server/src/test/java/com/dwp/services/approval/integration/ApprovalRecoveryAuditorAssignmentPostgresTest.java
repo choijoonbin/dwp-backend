@@ -53,6 +53,7 @@ class ApprovalRecoveryAuditorAssignmentPostgresTest {
                 .locations("classpath:db/migration")
                 .cleanDisabled(false)
                 .load();
+        new JdbcTemplate(dataSource).execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
         flyway.clean();
         flyway.migrate();
         jdbc = new JdbcTemplate(dataSource);
@@ -84,7 +85,7 @@ class ApprovalRecoveryAuditorAssignmentPostgresTest {
                        locked_until = CURRENT_TIMESTAMP + INTERVAL '30 seconds'
                  WHERE outbox_id = ?
                 """, outboxId);
-        integrationOutbox.markPublished(outboxId, "relay-a");
+        publishNative(outboxId);
         assertThat(row(outboxId)).isEqualTo(new AssignmentRow(
                 "ASSIGNED", 300L, "RS_APPROVALS", "revision-1", true));
     }
@@ -199,7 +200,7 @@ class ApprovalRecoveryAuditorAssignmentPostgresTest {
                  WHERE outbox_id = ?
                 """, outboxId);
 
-        integrationOutbox.markPublished(outboxId, "relay-a");
+        publishNative(outboxId);
 
         assertThat(row(outboxId).state()).isEqualTo("NOT_REQUIRED");
         assertThat(claim("worker-a")).isEmpty();
@@ -293,6 +294,22 @@ class ApprovalRecoveryAuditorAssignmentPostgresTest {
                 + ":" + result.getInt("assignment_epoch")
                 + ":" + result.getInt("attempt_count")
                 + ":" + result.getString("reason_code"), outboxId);
+    }
+
+    private void publishNative(UUID outboxId) {
+        jdbc.queryForObject("SELECT seed_approval_tenant(42)",Object.class);
+        UUID request=UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO apr_requests(request_id,tenant_id,request_number,workflow_version_id,form_version_id,title,requester_user_id,status)
+                SELECT ?,42,?,workflow_version_id,form_version_id,'Disposable relay request',99,'IN_REVIEW'
+                  FROM apr_workflow_versions CROSS JOIN apr_form_versions
+                 WHERE apr_workflow_versions.tenant_id=42 AND apr_form_versions.tenant_id=42 LIMIT 1
+                """,request,"RELAY-"+request);
+        jdbc.update("UPDATE apr_integration_outbox SET request_id=?,status='PENDING',locked_by=NULL,locked_until=NULL WHERE outbox_id=?",request,outboxId);
+        var tx=new org.springframework.transaction.support.TransactionTemplate(new org.springframework.jdbc.datasource.DataSourceTransactionManager(jdbc.getDataSource()));
+        var event=tx.execute(status->integrationOutbox.claim(1,"relay-a")).getFirst();
+        assertThat(event.outboxId()).isEqualTo(outboxId);
+        assertThat(Boolean.TRUE.equals(tx.execute(status->integrationOutbox.publishCurrent(event,"relay-a",ignored->{ })))).isTrue();
     }
 
     private UUID seed(String assignmentState, Long originatorUserId, String status) {

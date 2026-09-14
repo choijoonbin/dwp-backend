@@ -1,0 +1,972 @@
+{
+  "schemaVersion": 1,
+  "projectionKey": "approval-release10-projections",
+  "registryRef": {
+    "bundleKey": "product-surfaces",
+    "version": 10,
+    "sha256": "1f97638c95a192f0ec7f01053c3965f79b7a3ee4eb9781ea56e3cf8eccc6889b"
+  },
+  "bindingCount": 8,
+  "bindings": [
+    {
+      "routeContractKey": "route.approvals.admin.retention-claim.data",
+      "profileKey": "full-management",
+      "apiBindingKey": "route.approvals.admin.retention-claim.data.binding.01",
+      "projectionPolicyKey": "route.approvals.admin.retention-claim.data.full-management.projection.v1",
+      "schemaKind": "JSON_RECORD",
+      "schemaVersion": 1,
+      "additionalProperties": false,
+      "method": "GET",
+      "servicePath": "/v1/admin/retention/claims/{claimId}",
+      "responseSchemaKey": "ApprovalRetentionClaim",
+      "openApiSchemaSha256": "5c106536ba24f7054be87e382798275cafc1e81e6e9637549097d1316fb05719",
+      "contentTypes": [
+        "*/*"
+      ]
+    },
+    {
+      "routeContractKey": "route.approvals.admin.retention-policy.data",
+      "profileKey": "full-management",
+      "apiBindingKey": "route.approvals.admin.retention-policy.data.binding.01",
+      "projectionPolicyKey": "route.approvals.admin.retention-policy.data.full-management.projection.v1",
+      "schemaKind": "JSON_RECORD",
+      "schemaVersion": 1,
+      "additionalProperties": false,
+      "method": "GET",
+      "servicePath": "/v1/admin/retention/policy",
+      "responseSchemaKey": "ApprovalRetentionPolicy",
+      "openApiSchemaSha256": "d3ad46a0ef742210a3bba4b9a1482ab79dd7e7afc227b86571dc8dfbd44705e3",
+      "contentTypes": [
+        "*/*"
+      ]
+    },
+    {
+      "routeContractKey": "route.approvals.admin.retention-record.data",
+      "profileKey": "full-management",
+      "apiBindingKey": "route.approvals.admin.retention-record.data.binding.01",
+      "projectionPolicyKey": "route.approvals.admin.retention-record.data.full-management.projection.v1",
+      "schemaKind": "JSON_RECORD",
+      "schemaVersion": 1,
+      "additionalProperties": false,
+      "method": "GET",
+      "servicePath": "/v1/admin/retention/records/{requestId}",
+      "responseSchemaKey": "ApprovalRetentionRecord",
+      "openApiSchemaSha256": "bd37568321e12a5bcdcc3d7e65ff2de8579ffabebad91a8b4851656b264f327b",
+      "contentTypes": [
+        "*/*"
+      ]
+    },
+    {
+      "routeContractKey": "route.approvals.admin.workflow-planning-simulation.data",
+      "profileKey": "full-management",
+      "apiBindingKey": "route.approvals.admin.workflow-planning-simulation.data.binding.01",
+      "projectionPolicyKey": "route.approvals.admin.workflow-planning-simulation.data.full-management.projection.v1",
+      "schemaKind": "JSON_RECORD",
+      "schemaVersion": 1,
+      "additionalProperties": false,
+      "method": "POST",
+      "servicePath": "/v1/admin/workflows/{workflowId}/versions/{versionId}/simulation",
+      "responseSchemaKey": "ApprovalWorkflowPlanningResult",
+      "openApiSchemaSha256": "e42aa72885d0cf219bfcd037689a35c93d198009ca8524af48030f341ee5f070",
+      "contentTypes": [
+        "application/json"
+      ]
+    },
+    {
+      "routeContractKey": "route.approvals.work.signature-audit.data",
+      "profileKey": "full-work",
+      "apiBindingKey": "route.approvals.work.signature-audit.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.signature-audit.data.full-work.projection.v1",
+      "schemaKind": "JSON_RECORD",
+      "schemaVersion": 1,
+      "additionalProperties": false,
+      "method": "GET",
+      "servicePath": "/v1/signature-requests/{signatureRequestId}/audit",
+      "responseSchemaKey": "ApprovalSignatureAudit",
+      "openApiSchemaSha256": "928789cc010f28497c7b7ab76139325b77f2b13afe7a11890536c6bb7380037c",
+      "contentTypes": [
+        "*/*"
+      ]
+    },
+    {
+      "routeContractKey": "route.approvals.work.signature-command-receipt.data",
+      "profileKey": "approval.signature.command-receipt.v1",
+      "apiBindingKey": "route.approvals.work.signature-command-receipt.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.signature-command-receipt.data.approval.signature.command-receipt.v1.projection.v1",
+      "schemaKind": "JSON_RECORD",
+      "schemaVersion": 1,
+      "additionalProperties": false,
+      "method": "GET",
+      "servicePath": "/v1/signature-command-receipts/{idempotencyKey}",
+      "responseSchemaKey": "ApprovalSignatureCommandReceiptMetadata",
+      "openApiSchemaSha256": "90ca054ab5d043930c07e62b263630e9165e90f692f26cee352c7ee232de5012",
+      "contentTypes": [
+        "*/*"
+      ]
+    },
+    {
+      "routeContractKey": "route.approvals.work.signature-context.data",
+      "profileKey": "full-work",
+      "apiBindingKey": "route.approvals.work.signature-context.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.signature-context.data.full-work.projection.v1",
+      "schemaKind": "JSON_RECORD",
+      "schemaVersion": 1,
+      "additionalProperties": false,
+      "method": "GET",
+      "servicePath": "/v1/requests/{requestId}/signature-context",
+      "responseSchemaKey": "ApprovalSignatureContext",
+      "openApiSchemaSha256": "1fc3f80e18997f235440d0125fe039a0c1b6ccfb52897b0ff614356df213f5bd",
+      "contentTypes": [
+        "*/*"
+      ]
+    },
+    {
+      "routeContractKey": "route.approvals.work.signature-request.data",
+      "profileKey": "full-work",
+      "apiBindingKey": "route.approvals.work.signature-request.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.signature-request.data.full-work.projection.v1",
+      "schemaKind": "JSON_RECORD",
+      "schemaVersion": 1,
+      "additionalProperties": false,
+      "method": "GET",
+      "servicePath": "/v1/signature-requests/{signatureRequestId}",
+      "responseSchemaKey": "ApprovalSignatureCeremony",
+      "openApiSchemaSha256": "41ea1a14b49147ef04a54649f82637cef45220879768d3b8ff84ddfc8fdf4489",
+      "contentTypes": [
+        "*/*"
+      ]
+    }
+  ],
+  "schemas": {
+    "ApprovalRetentionClaim": {
+      "additionalProperties": false,
+      "properties": {
+        "claimId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "executionClaimId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "foreignCopyState": {
+          "type": "string"
+        },
+        "foreignRequests": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "inventorySha256": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "resourceSetKey": {
+          "type": "string"
+        },
+        "runtimeReadiness": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "verifiedAcknowledgements": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "version": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalRetentionPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "pending": {
+          "$ref": "#/components/schemas/ApprovalRetentionPublicRules"
+        },
+        "pendingMakerUserId": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "pendingRevision": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "pendingRulesSha256": {
+          "type": "string"
+        },
+        "policyId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "publishEligible": {
+          "type": "boolean"
+        },
+        "publishReason": {
+          "type": "string"
+        },
+        "published": {
+          "$ref": "#/components/schemas/ApprovalRetentionPublicRules"
+        },
+        "publishedRevision": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "publishedRulesSha256": {
+          "type": "string"
+        },
+        "resourceSetKey": {
+          "type": "string"
+        },
+        "runtimeReadiness": {
+          "type": "string"
+        },
+        "version": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalRetentionPublicRules": {
+      "additionalProperties": false,
+      "properties": {
+        "allowPurge": {
+          "type": "boolean"
+        },
+        "allowedClassifications": {
+          "items": {
+            "pattern": "INTERNAL|CONFIDENTIAL|RESTRICTED",
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 1,
+          "type": "array"
+        },
+        "auditEvidenceRetentionDays": {
+          "format": "int32",
+          "maximum": 3650,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "deletedDraftRecoveryDays": {
+          "format": "int32",
+          "maximum": 3650,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "holdEvidenceRetentionDays": {
+          "format": "int32",
+          "maximum": 3650,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxInventoryRows": {
+          "format": "int32",
+          "maximum": 50000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxObjectsPerRecord": {
+          "format": "int32",
+          "maximum": 1000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "receiptRetentionDays": {
+          "format": "int32",
+          "maximum": 3650,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "recordRetentionDays": {
+          "format": "int32",
+          "maximum": 3650,
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "allowPurge",
+        "allowedClassifications",
+        "auditEvidenceRetentionDays",
+        "deletedDraftRecoveryDays",
+        "holdEvidenceRetentionDays",
+        "maxInventoryRows",
+        "maxObjectsPerRecord",
+        "receiptRetentionDays",
+        "recordRetentionDays"
+      ],
+      "type": "object"
+    },
+    "ApprovalRetentionRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "claimEligible": {
+          "type": "boolean"
+        },
+        "claimId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "claimReason": {
+          "type": "string"
+        },
+        "eligibleAfter": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "holdVersion": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "inventoryRows": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "inventorySha256": {
+          "type": "string"
+        },
+        "inventoryTables": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "objectCount": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "policyId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "policyVersion": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "resourceSetKey": {
+          "type": "string"
+        },
+        "runtimeReadiness": {
+          "type": "string"
+        },
+        "state": {
+          "type": "string"
+        },
+        "version": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalSignatureArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "content": {
+          "type": "string"
+        },
+        "mediaType": {
+          "type": "string"
+        },
+        "rendererVersion": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "sizeBytes": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "content",
+        "mediaType",
+        "rendererVersion",
+        "sha256",
+        "sizeBytes"
+      ],
+      "type": "object"
+    },
+    "ApprovalSignatureAudit": {
+      "additionalProperties": false,
+      "properties": {
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/ApprovalSignatureEvent"
+          },
+          "type": "array"
+        },
+        "truncated": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "items",
+        "truncated"
+      ],
+      "type": "object"
+    },
+    "ApprovalSignatureCeremony": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "$ref": "#/components/schemas/ApprovalSignatureArtifact"
+        },
+        "consentReceiptId": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "evidence": {
+          "oneOf": [
+            {
+              "$ref": "#/components/schemas/ApprovalSignatureEvidence"
+            },
+            {
+              "$ref": "#/components/schemas/ApprovalSignatureNullEvidence"
+            }
+          ]
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "preservationState": {
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "signatureRequestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "signerKind": {
+          "enum": [
+            "SELF_ATTESTATION"
+          ],
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/components/schemas/ApprovalSignatureSourcePin"
+        },
+        "sourceDigest": {
+          "type": "string"
+        },
+        "state": {
+          "enum": [
+            "AWAITING_CONSENT",
+            "CONSENTED",
+            "ATTESTED",
+            "CANCELLED"
+          ],
+          "type": "string"
+        },
+        "terms": {
+          "$ref": "#/components/schemas/ApprovalSignatureTerms"
+        },
+        "version": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "artifact",
+        "expiresAt",
+        "preservationState",
+        "requestId",
+        "signatureRequestId",
+        "signerKind",
+        "source",
+        "sourceDigest",
+        "state",
+        "terms",
+        "version"
+      ],
+      "type": "object"
+    },
+    "ApprovalSignatureCommandReceiptMetadata": {
+      "additionalProperties": false,
+      "properties": {
+        "committedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "eventSequence": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "originalOperation": {
+          "enum": [
+            "CREATE",
+            "CONSENT",
+            "SIGN",
+            "CANCEL"
+          ],
+          "type": "string"
+        },
+        "receiptId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "resultState": {
+          "enum": [
+            "AWAITING_CONSENT",
+            "CONSENTED",
+            "ATTESTED",
+            "CANCELLED"
+          ],
+          "type": "string"
+        },
+        "resultVersion": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "signatureRequestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "sourceCurrent": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "committedAt",
+        "eventSequence",
+        "originalOperation",
+        "receiptId",
+        "requestId",
+        "resultState",
+        "resultVersion",
+        "signatureRequestId",
+        "sourceCurrent"
+      ],
+      "type": "object"
+    },
+    "ApprovalSignatureContext": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact": {
+          "$ref": "#/components/schemas/ApprovalSignatureArtifact"
+        },
+        "consentRequired": {
+          "type": "boolean"
+        },
+        "evaluatedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "signerKind": {
+          "enum": [
+            "SELF_ATTESTATION"
+          ],
+          "type": "string"
+        },
+        "signingReadiness": {
+          "type": "string"
+        },
+        "source": {
+          "$ref": "#/components/schemas/ApprovalSignatureSourcePin"
+        },
+        "sourceDigest": {
+          "type": "string"
+        },
+        "terms": {
+          "$ref": "#/components/schemas/ApprovalSignatureTerms"
+        }
+      },
+      "required": [
+        "artifact",
+        "consentRequired",
+        "evaluatedAt",
+        "signerKind",
+        "signingReadiness",
+        "source",
+        "sourceDigest",
+        "terms"
+      ],
+      "type": "object"
+    },
+    "ApprovalSignatureEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "action": {
+          "type": "string"
+        },
+        "eventId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "occurredAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "sequence": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "sourceDigest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "action",
+        "eventId",
+        "occurredAt",
+        "sequence",
+        "sourceDigest"
+      ],
+      "type": "object"
+    },
+    "ApprovalSignatureEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "artifactSha256": {
+          "type": "string"
+        },
+        "attestedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "compactJws": {
+          "type": "string"
+        },
+        "evidenceId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "keyId": {
+          "type": "string"
+        },
+        "proofKind": {
+          "type": "string"
+        },
+        "publicKeyJson": {
+          "type": "string"
+        },
+        "sourceDigest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifactSha256",
+        "attestedAt",
+        "compactJws",
+        "evidenceId",
+        "keyId",
+        "proofKind",
+        "publicKeyJson",
+        "sourceDigest"
+      ],
+      "type": "object"
+    },
+    "ApprovalSignatureNullEvidence": {
+      "type": "null"
+    },
+    "ApprovalSignatureReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "ceremony": {
+          "$ref": "#/components/schemas/ApprovalSignatureCeremony"
+        },
+        "commandReceiptId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "committedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "outcome": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "ceremony",
+        "commandReceiptId",
+        "committedAt",
+        "outcome"
+      ],
+      "type": "object"
+    },
+    "ApprovalSignatureSourcePin": {
+      "additionalProperties": false,
+      "properties": {
+        "artifactSha256": {
+          "type": "string"
+        },
+        "attachmentPolicyId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "attachmentPolicyRevision": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "attachmentPolicySha256": {
+          "type": "string"
+        },
+        "attachmentPolicyVersion": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "documentPolicyId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "documentPolicyRevision": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "documentPolicySha256": {
+          "type": "string"
+        },
+        "documentPolicyVersion": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "formSchemaSha256": {
+          "type": "string"
+        },
+        "formVersionId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "manifestSha256": {
+          "type": "string"
+        },
+        "ownerUserId": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "payloadRevision": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "payloadSha256": {
+          "type": "string"
+        },
+        "providerId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "providerSha256": {
+          "type": "string"
+        },
+        "providerVersion": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "rendererVersion": {
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "requestVersion": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "resourceSetKey": {
+          "type": "string"
+        },
+        "signingKeySha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "workflowSha256": {
+          "type": "string"
+        },
+        "workflowVersionId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifactSha256",
+        "attachmentPolicyId",
+        "attachmentPolicyRevision",
+        "attachmentPolicySha256",
+        "attachmentPolicyVersion",
+        "documentPolicyId",
+        "documentPolicyRevision",
+        "documentPolicySha256",
+        "documentPolicyVersion",
+        "formSchemaSha256",
+        "formVersionId",
+        "manifestSha256",
+        "ownerUserId",
+        "payloadRevision",
+        "payloadSha256",
+        "providerId",
+        "providerSha256",
+        "providerVersion",
+        "rendererVersion",
+        "requestId",
+        "requestVersion",
+        "resourceSetKey",
+        "workflowSha256",
+        "workflowVersionId"
+      ],
+      "type": "object"
+    },
+    "ApprovalSignatureTerms": {
+      "additionalProperties": false,
+      "properties": {
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "locale": {
+          "type": "string"
+        },
+        "sha256": {
+          "type": "string"
+        },
+        "termsId": {
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        },
+        "version": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "expiresAt",
+        "locale",
+        "sha256",
+        "termsId",
+        "text",
+        "version"
+      ],
+      "type": "object"
+    },
+    "ApprovalWorkflowPlanningResult": {
+      "additionalProperties": false,
+      "properties": {
+        "authorityRevision": {
+          "type": "string"
+        },
+        "expiresAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "mode": {
+          "enum": [
+            "ROLE_POOL_PREVIEW"
+          ],
+          "type": "string"
+        },
+        "requesterExclusion": {
+          "enum": [
+            "NOT_EVALUATED"
+          ],
+          "type": "string"
+        },
+        "runtimeEligibility": {
+          "enum": [
+            "NOT_EVALUATED"
+          ],
+          "type": "string"
+        },
+        "snapshotSha256": {
+          "type": "string"
+        },
+        "stages": {
+          "items": {
+            "$ref": "#/components/schemas/ApprovalWorkflowPlanningStage"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "authorityRevision",
+        "expiresAt",
+        "mode",
+        "requesterExclusion",
+        "runtimeEligibility",
+        "snapshotSha256",
+        "stages"
+      ],
+      "type": "object"
+    },
+    "ApprovalWorkflowPlanningStage": {
+      "additionalProperties": false,
+      "properties": {
+        "activeMemberCount": {
+          "format": "int32",
+          "maximum": 1000,
+          "minimum": 0,
+          "type": "integer"
+        },
+        "indicativeThreshold": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "poolWarning": {
+          "type": "string"
+        },
+        "predecessors": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "quorumMode": {
+          "type": "string"
+        },
+        "quorumValue": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "roleCode": {
+          "type": "string"
+        },
+        "selected": {
+          "type": "boolean"
+        },
+        "stepKey": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "activeMemberCount",
+        "predecessors",
+        "quorumMode",
+        "roleCode",
+        "selected",
+        "stepKey"
+      ],
+      "type": "object"
+    }
+  },
+  "schemaClosureSha256": "9cdd8e9f4aef77ccb534277515c3cd55ac2f1397dbc518b0a6e21adb7f366ee6",
+  "checksumAlgorithm": "SHA-256",
+  "checksum": "f6eda1dba67a3733563d27b6aa6920e0242b213b4f954ffeaac5fe81ddda8cde"
+}

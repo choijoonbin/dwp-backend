@@ -39,7 +39,7 @@ final class ApprovalResponseAssembler {
                                 "현재 효력이 있는 사용자 위임입니다.",
                                 "User delegations currently in effect.", delegations)),
                 queries.breachedTasks(actor.tenantId(), 20),
-                queries.integrationDeliveries(actor.tenantId(), 50));
+                queries.integrationDeliveries(actor, 50));
     }
 
     private static ApprovalDtos.OperationSignal signal(

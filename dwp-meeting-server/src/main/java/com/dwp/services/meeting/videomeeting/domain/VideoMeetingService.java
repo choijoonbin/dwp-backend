@@ -146,7 +146,7 @@ public class VideoMeetingService {
         MeetingRequestContext.Subject subject = MeetingRequestContext.get();
         int boundedPage = Math.max(0, page);
         int boundedSize = Math.max(1, Math.min(100, pageSize));
-        VideoMeetingRepository.PagedMeetings meetings = repository.meetings(
+        VideoMeetingQueryModels.PagedMeetings meetings = repository.meetings(
                 subject.tenantId(), subject.userId(), boundedPage, boundedSize);
         return new VideoMeetingDtos.PageResponse<>(
                 meetings.items().stream().map(VideoMeetingDtos::summary).toList(),
@@ -529,7 +529,7 @@ public class VideoMeetingService {
         MeetingRequestContext.Subject subject = MeetingRequestContext.get();
         int boundedPage = Math.max(0, page);
         int boundedSize = Math.max(1, Math.min(100, pageSize));
-        MeetingHistoryProjectionRepository.PagedHistory history = repository.historyProjection(
+        VideoMeetingQueryModels.PagedHistory history = repository.historyProjection(
                 subject.tenantId(), subject.userId(), boundedPage, boundedSize, favoriteOnly,
                 publication, retention, OffsetDateTime.now(clock));
         return new VideoMeetingDtos.PageResponse<>(
@@ -546,7 +546,7 @@ public class VideoMeetingService {
         ZoneId zoneId = validTimeZone(requestedTimeZone);
         OffsetDateTime now = OffsetDateTime.now(clock).atZoneSameInstant(zoneId).toOffsetDateTime();
         OffsetDateTime dayStart = now.toLocalDate().atStartOfDay(zoneId).toOffsetDateTime();
-        VideoMeetingRepository.AdminOverviewData data = repository.adminOverview(
+        VideoMeetingQueryModels.AdminOverviewData data = repository.adminOverview(
                 subject.tenantId(), dayStart, dayStart.plusDays(1), now.minusDays(7));
         MeetingMediaProvider.Capability capability = mediaProvider.capability();
         return new VideoMeetingDtos.AdminOverviewResponse(
@@ -558,21 +558,9 @@ public class VideoMeetingService {
     }
 
     @Transactional
-    public AdminOperationsExport adminOperationsExport(
+    public MeetingAdminOperationsExport adminOperationsExport(
             String requestedTimeZone, String correlationId) {
         return adminOperationsExport.export(requestedTimeZone, correlationId);
-    }
-
-    public record AdminOperationsExport(String filename, byte[] content) {
-        public AdminOperationsExport {
-            Objects.requireNonNull(filename, "filename");
-            content = Objects.requireNonNull(content, "content").clone();
-        }
-
-        @Override
-        public byte[] content() {
-            return content.clone();
-        }
     }
 
     private Participant createWalkInParticipant(

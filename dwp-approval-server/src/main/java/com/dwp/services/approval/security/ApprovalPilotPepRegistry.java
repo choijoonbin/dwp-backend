@@ -1,7 +1,6 @@
 package com.dwp.services.approval.security;
 
 import com.dwp.core.security.ScopedAuthorityToken;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
@@ -11,14 +10,11 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -27,7 +23,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** Runtime-only exact W1a PEP view generated from the DRAFT v2 registry. */
+/** Exact release10 PEP, with immutable v2, v7, v8 and v9 projections validated at startup. */
 @Component
 public final class ApprovalPilotPepRegistry {
 
@@ -39,8 +35,14 @@ public final class ApprovalPilotPepRegistry {
 
     static final String RESOURCE =
             "product-authorization/approval-pilot-pep-v2.generated.json";
-    static final String W1A_V2_CHECKSUM =
-            "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c";
+    static final String V7_RESOURCE =
+            "product-authorization/approval-pilot-pep-v7.generated.json";
+    static final String V8_RESOURCE =
+            "product-authorization/approval-pilot-pep-v8.generated.json";
+    static final String V9_RESOURCE =
+            "product-authorization/approval-pilot-pep-v9.generated.json";
+    static final String V10_RESOURCE =
+            "product-authorization/approval-pilot-pep-v10.generated.json";
 
     private final ObjectMapper objectMapper;
     private final Clock clock;
@@ -56,10 +58,46 @@ public final class ApprovalPilotPepRegistry {
     }
 
     ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock) {
+        this(objectMapper, clock, 10);
+    }
+
+    ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock, boolean baselineOnly) {
+        this(objectMapper, clock, baselineOnly ? 2 : 7);
+    }
+
+    ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock, int version) {
         this.objectMapper = objectMapper;
         this.clock = clock;
-        ObjectNode projection = readProjection();
-        validateEnvelope(projection);
+        require(Set.of(2, 7, 8, 9, 10).contains(version), "Unsupported Approval PEP version");
+        if (version != 2) {
+            new ApprovalPilotPepRegistry(objectMapper, clock, 2);
+        }
+        ObjectNode projection = readProjection(switch (version) {
+            case 2 -> RESOURCE;
+            case 7 -> V7_RESOURCE;
+            case 8 -> V8_RESOURCE;
+            case 9 -> V9_RESOURCE;
+            case 10 -> V10_RESOURCE;
+            default -> throw new IllegalStateException("Unsupported Approval PEP version");
+        });
+        ApprovalPepProjectionLineage.validateEnvelope(objectMapper, projection, version);
+        if (version != 2) ApprovalPepProjectionLineage.validateSuperset(readProjection(RESOURCE), projection);
+        if (version == 8) {
+            new ApprovalPilotPepRegistry(objectMapper, clock, 7);
+            ApprovalPepProjectionLineage.validateSuperset(readProjection(V7_RESOURCE), projection);
+            ApprovalDocumentProjectionSchemaContract.validateResource(objectMapper);
+        }
+        if (version == 9) {
+            new ApprovalPilotPepRegistry(objectMapper, clock, 8);
+            ApprovalPepProjectionLineage.validateSuperset(readProjection(V8_RESOURCE), projection);
+            ApprovalExtensionProjectionSchemaContract.validateResource(objectMapper);
+        }
+        if (version == 10) {
+            new ApprovalPilotPepRegistry(objectMapper, clock, 9);
+            ApprovalPepProjectionLineage.validateSuperset(readProjection(V9_RESOURCE), projection);
+            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
+        }
+        if (version != 2) ApprovalWorkProjectionSchemaContract.validateResource(objectMapper);
         capabilities = index(projection, "capabilities", "contractKey");
         policies = index(projection, "accessPolicies", "accessPolicyKey");
         expressions = index(projection, "entitlementExpressions", "expressionKey");
@@ -81,6 +119,12 @@ public final class ApprovalPilotPepRegistry {
                         .equals(evidence.trustedRouteContractKey()))
                 .findFirst().orElse(null);
         if (trusted == null) return Decision.denied("TRUSTED_ROUTE_KEY_UNKNOWN");
+        boolean literalRouteMismatch = bindings.stream()
+                .filter(binding -> binding.method().equals(evidence.method()))
+                .filter(binding -> binding.path().template().equals(evidence.path()))
+                .filter(binding -> binding.query().matches(evidence.rawQuery()))
+                .anyMatch(binding -> !sameAuthority(binding, trusted));
+        if (literalRouteMismatch) return Decision.denied("UNKNOWN_METHOD_PATH_BINDING");
         List<Binding> matches = collapseEquivalent(bindings.stream()
                 .filter(binding -> binding.method().equals(evidence.method()))
                 .filter(binding -> binding.path().matches(evidence.path()))
@@ -94,8 +138,9 @@ public final class ApprovalPilotPepRegistry {
             binding.profiles().stream()
                     .sorted(Comparator.comparingInt(Profile::precedence).reversed())
                     .filter(profile -> profileAllows(profile, evidence))
+                    .filter(profile -> !ApprovalPep10AuthorityKeys.ROUTE.equals(binding.routeContractKey()) || ApprovalPep10AuthorityKeys.sameResourceSet(evidence.resourceRoles(), capabilities))
                     .findFirst()
-                    .ifPresent(profile -> authorities.add(authority(binding, profile)));
+                    .ifPresent(profile -> authorities.addAll(authorityContributions(binding, profile)));
         }
         return authorities.isEmpty()
                 ? Decision.denied("EXACT_ROUTE_AUTHORITY_REQUIRED")
@@ -236,6 +281,31 @@ public final class ApprovalPilotPepRegistry {
         JsonNode access = profile.requiredAccess();
         String capabilityKey = "CAPABILITY".equals(access.path("type").asText())
                 ? access.path("capabilityContractKey").asText() : null;
+        return authority(binding, profile, capabilityKey);
+    }
+
+    private List<RouteAuthority> authorityContributions(Binding binding, Profile profile) {
+        if (ApprovalPep10AuthorityKeys.ROUTE.equals(binding.routeContractKey())) {
+            return ApprovalPep10AuthorityKeys.planning(binding.routeKind(), profile.profileKey(),
+                    profile.readOnly(), profile.requiredAccess()).stream()
+                    .map(key -> authority(binding, profile, key)).toList();
+        }
+        if (!"route.approvals.admin.policy-impact.data".equals(binding.routeContractKey())) {
+            return List.of(authority(binding, profile));
+        }
+        JsonNode access = profile.requiredAccess();
+        List<String> keys = List.copyOf(textValues(access.path("capabilityContractKeys")));
+        require("DATA".equals(binding.routeKind()) && "full-management".equals(profile.profileKey())
+                        && profile.readOnly() && "CAPABILITY_EXPRESSION".equals(access.path("type").asText())
+                        && "ALL".equals(access.path("mode").asText()) && keys.size() == 3
+                        && access.path("capabilityContractKeys").size() == 3
+                        && Set.copyOf(keys).equals(Set.of("approvals.policy.read", "approvals.design.read",
+                        "approvals.operations.read")),
+                "Policy impact requires three independent management authorities");
+        return keys.stream().map(key -> authority(binding, profile, key)).toList();
+    }
+
+    private RouteAuthority authority(Binding binding, Profile profile, String capabilityKey) {
         JsonNode capability = capabilityKey == null ? null : capabilities.get(capabilityKey);
         ProjectionBinding projection = profile.projections().get(binding.bindingKey());
         return new RouteAuthority(
@@ -276,7 +346,7 @@ public final class ApprovalPilotPepRegistry {
                             bindingProjection, "openApiSchemaSha256");
                     Boolean additionalProperties = booleanOrNull(
                             bindingProjection, "additionalProperties");
-                    requireProjectionFields(profileKey, bindingProjection);
+                    ApprovalProjectionMetadata.validate(routeKey, profileKey, bindingProjection);
                     require(!bindingKey.isBlank() && projections.putIfAbsent(
                             bindingKey,
                             new ProjectionBinding(
@@ -312,33 +382,16 @@ public final class ApprovalPilotPepRegistry {
                         List.copyOf(profiles)));
             }
         }
-        require(result.size() == 47, "Approval Pilot binding count changed");
+        require(result.size() == projection.path("bindingPairCount").asInt(),
+                "Approval Pilot binding count changed");
         return List.copyOf(result);
     }
 
-    private void validateEnvelope(ObjectNode projection) {
-        require(projection.path("schemaVersion").asInt() == 1
-                        && "approval-pilot-pep-v2".equals(projection.path("projectionKey").asText())
-                        && "approval".equals(projection.path("ownerServiceKey").asText()),
-                "Unexpected Approval Pilot PEP envelope");
-        JsonNode registry = projection.path("registryRef");
-        require("product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 2
-                        && W1A_V2_CHECKSUM.equals(registry.path("sha256").asText()),
-                "Approval Pilot registry reference mismatch");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 76
-                        && projection.path("projectedRouteContractCount").asInt() == 39
-                        && projection.path("bindingPairCount").asInt() == 47,
-                "Approval Pilot release counts changed");
-        ObjectNode payload = projection.deepCopy();
-        JsonNode checksum = payload.remove("projectionChecksum");
-        require(checksum != null && checksum.asText().equals(sha256(payload)),
-                "Approval Pilot projection checksum mismatch");
-    }
-
     private void validateClosure(ObjectNode projection) {
-        require(capabilities.size() == 24 && policies.size() == 1
-                        && expressions.size() == 1 && predicates.size() == 6,
+        int version = projection.path("registryRef").path("version").asInt();
+        require(capabilities.size() == (version == 10 ? 37 : version == 9 ? 32 : version == 8 ? 28 : 24) && policies.size() == 1
+                        && expressions.size() == 1 && predicates.size()
+                        == (version == 2 ? 6 : version == 7 ? 7 : version == 8 ? 10 : version == 9 ? 13 : 16),
                 "Approval Pilot descriptor closure count changed");
         capabilities.forEach((capabilityKey, capability) -> {
             String requirement = capability.path("responsibilityRequirement").asText();
@@ -401,25 +454,8 @@ public final class ApprovalPilotPepRegistry {
                 "Approval field-mask projection schema coverage changed");
     }
 
-    private static void requireProjectionFields(String profileKey, JsonNode projection) {
-        Set<String> fields = new LinkedHashSet<>();
-        projection.fieldNames().forEachRemaining(fields::add);
-        Set<String> base = Set.of(
-                "apiBindingKey", "projectionPolicyKey", "responseSchemaKey");
-        if (ApprovalProjectionSchemaContract.isFieldMaskProfile(profileKey)) {
-            Set<String> expected = new LinkedHashSet<>(base);
-            expected.addAll(Set.of(
-                    "schemaVersion", "openApiSchemaSha256", "additionalProperties"));
-            require(fields.equals(expected),
-                    "Approval field-mask projection metadata fields changed");
-        } else {
-            require(fields.equals(base),
-                    "Projection schema metadata is forbidden for this Approval profile");
-        }
-    }
-
-    private ObjectNode readProjection() {
-        try (InputStream input = getClass().getClassLoader().getResourceAsStream(RESOURCE)) {
+    private ObjectNode readProjection(String resource) {
+        try (InputStream input = getClass().getClassLoader().getResourceAsStream(resource)) {
             if (input == null) throw new IllegalStateException("Generated Approval Pilot PEP is absent.");
             JsonNode value = objectMapper.readTree(input);
             if (!(value instanceof ObjectNode object)) {
@@ -528,31 +564,6 @@ public final class ApprovalPilotPepRegistry {
         } catch (IllegalArgumentException exception) {
             return Set.of();
         }
-    }
-
-    private String sha256(JsonNode value) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(objectMapper.writeValueAsBytes(canonical(value))));
-        } catch (JsonProcessingException | NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("Approval Pilot checksum failed.", exception);
-        }
-    }
-
-    private JsonNode canonical(JsonNode value) {
-        if (value.isObject()) {
-            ObjectNode result = objectMapper.createObjectNode();
-            List<String> names = new ArrayList<>();
-            value.fieldNames().forEachRemaining(names::add);
-            names.stream().sorted().forEach(name -> result.set(name, canonical(value.get(name))));
-            return result;
-        }
-        if (value.isArray()) {
-            ArrayNode result = objectMapper.createArrayNode();
-            value.forEach(item -> result.add(canonical(item)));
-            return result;
-        }
-        return value.deepCopy();
     }
 
     private static String textOrNull(JsonNode node, String field) {

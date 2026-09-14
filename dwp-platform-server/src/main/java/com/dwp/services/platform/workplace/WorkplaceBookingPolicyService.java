@@ -38,7 +38,7 @@ final class WorkplaceBookingPolicyService {
             WorkplaceCatalogRepository.PolicyRow policy) {
         bookings.lockResourceBookingScope(tenantId, resource.resourceId());
         runtimeGovernance.requireBookAccess(
-                tenantId, userId, verifiedGroupRefs, site.siteId());
+                tenantId, userId, verifiedGroupRefs, site.siteId(), floor.floorId());
         if (site.state() != SiteState.ACTIVE || floor.state() != FloorState.ACTIVE) {
             throw invalid("This Workplace location is not open for booking.");
         }
@@ -54,6 +54,10 @@ final class WorkplaceBookingPolicyService {
                 || !request.endsAt().isAfter(request.startsAt())
                 || request.startsAt().isBefore(now.minusMinutes(1))) {
             throw invalid("A valid future booking period is required.");
+        }
+        if (bookings.overlapsFacilityClosure(tenantId, resource.resourceId(), request.startsAt(), request.endsAt())) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
+                    "This Workplace resource is closed for the requested booking period.");
         }
         boolean assignedToCurrentUser = userId.equals(resource.assignedUserId())
                 || (personPublicId != null

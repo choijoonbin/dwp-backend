@@ -3,6 +3,7 @@ package com.dwp.services.auth.identity;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.auth.entity.DirectoryGroup;
 import com.dwp.services.auth.entity.DirectoryGroupMember;
+import com.dwp.services.auth.entity.Role;
 import com.dwp.services.auth.entity.User;
 import com.dwp.services.auth.repository.DirectoryGroupMemberRepository;
 import com.dwp.services.auth.repository.DirectoryGroupRepository;
@@ -79,6 +80,58 @@ class IdentitySubjectLookupServiceTest {
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service().subject(4L, 19L))
+                .isInstanceOf(BaseException.class);
+    }
+
+    @Test
+    void returnsOnlyActiveAndStaffedRoleEligibility() {
+        Role role = Role.builder()
+                .roleId(31L)
+                .tenantId(4L)
+                .code("FINANCE_APPROVERS")
+                .name("Finance approvers")
+                .status("ACTIVE")
+                .build();
+        when(roles.findByTenantIdAndCode(4L, "FINANCE_APPROVERS"))
+                .thenReturn(Optional.of(role));
+        when(roleMembers.countEffectiveActiveUsers(4L, 31L)).thenReturn(2L);
+
+        IdentitySubjectLookupService.RoleEligibility result =
+                service().roleEligibility(4L, " finance_approvers ");
+
+        assertThat(result.lifecycleState()).isEqualTo("ACTIVE");
+        assertThat(result.eligibleUserCount()).isEqualTo(2);
+        assertThat(result.eligible()).isTrue();
+    }
+
+    @Test
+    void inactiveRolesRemainIneligibleWithoutResolvingMembers() {
+        Role role = Role.builder()
+                .roleId(31L)
+                .tenantId(4L)
+                .code("FINANCE_APPROVERS")
+                .name("Finance approvers")
+                .status("INACTIVE")
+                .build();
+        when(roles.findByTenantIdAndCode(4L, "FINANCE_APPROVERS"))
+                .thenReturn(Optional.of(role));
+
+        IdentitySubjectLookupService.RoleEligibility result =
+                service().roleEligibility(4L, "FINANCE_APPROVERS");
+
+        assertThat(result.eligible()).isFalse();
+        assertThat(result.eligibleUserCount()).isZero();
+        verifyNoInteractions(roleMembers);
+    }
+
+    @Test
+    void rejectsUnknownOrMalformedCandidateRoles() {
+        when(roles.findByTenantIdAndCode(4L, "UNKNOWN_ROLE"))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service().roleEligibility(4L, "UNKNOWN_ROLE"))
+                .isInstanceOf(BaseException.class);
+        assertThatThrownBy(() -> service().roleEligibility(4L, "finance approvers"))
                 .isInstanceOf(BaseException.class);
     }
 

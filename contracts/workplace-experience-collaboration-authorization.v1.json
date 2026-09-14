@@ -1,0 +1,401 @@
+{
+  "schemaVersion": 1,
+  "publicPrefix": "/api/platform",
+  "authoritySource": "verified tenant/user/groups headers and PlatformSecurityFilter + WorkplaceDelegatedAdminScopeGuard; client claims are never trusted",
+  "alignmentRequired": "Alignment completed in actual PlatformSecurityFilter: narrow collaboration review/changes POST and connectors PUT require MANAGE. Global registry remains independently owned.",
+  "endpoints": [
+    {
+      "method": "GET",
+      "path": "/v1/workplace/experience/collaboration/overview",
+      "resourceKey": "APP.WORKPLACE",
+      "currentPlatformPermission": "VIEW",
+      "intendedPlatformPermission": "VIEW",
+      "delegatedScope": "MEMBER_OWN_OR_VERIFIED_GROUP",
+      "siteBinding": "candidate persisted plan siteId: current site VIEW; nullsite only REMOTE/OFF",
+      "additionalGuards": [
+        "tenant+user authoritative headers",
+        "requested groupRef must be verified",
+        "policy+individual opt-in+plan visibility intersect",
+        "member configurationReference and lastVerifiedAt always redacted"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/workplace/experience/collaboration/work-plans",
+      "resourceKey": "APP.WORKPLACE",
+      "currentPlatformPermission": "UPDATE",
+      "intendedPlatformPermission": "UPDATE",
+      "delegatedScope": "MEMBER_OWN",
+      "siteBinding": "OFFICE siteId/floorId/resourceId must resolve same tenant/site; current site VIEW; a work plan does not create a booking",
+      "additionalGuards": [
+        "trusted group membership for sharing",
+        "sharing policy and consent under locked preference row",
+        "versioned own-date update/create"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/workplace/experience/collaboration/work-plans/{planId}",
+      "resourceKey": "APP.WORKPLACE",
+      "currentPlatformPermission": "UPDATE",
+      "intendedPlatformPermission": "UPDATE",
+      "delegatedScope": "MEMBER_OWN",
+      "siteBinding": "own tenant/user only",
+      "additionalGuards": [
+        "required optimistic version",
+        "withdrawal privatizes existing plans atomically"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/workplace/experience/collaboration/sharing-preference",
+      "resourceKey": "APP.WORKPLACE",
+      "currentPlatformPermission": "UPDATE",
+      "intendedPlatformPermission": "UPDATE",
+      "delegatedScope": "MEMBER_OWN",
+      "siteBinding": "own tenant/user only",
+      "additionalGuards": [
+        "required optimistic version",
+        "withdrawal privatizes existing plans atomically"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/workplace/experience/collaboration/sharing-preference",
+      "resourceKey": "APP.WORKPLACE",
+      "currentPlatformPermission": "UPDATE",
+      "intendedPlatformPermission": "UPDATE",
+      "delegatedScope": "MEMBER_OWN",
+      "siteBinding": "own tenant/user only",
+      "additionalGuards": [
+        "required optimistic version",
+        "withdrawal privatizes existing plans atomically"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workplace/experience/collaboration/resources/{resourceId}/photo",
+      "resourceKey": "APP.WORKPLACE",
+      "currentPlatformPermission": "VIEW",
+      "intendedPlatformPermission": "VIEW",
+      "delegatedScope": "MEMBER",
+      "siteBinding": "resolve registered resource tenant/site; current site VIEW",
+      "additionalGuards": [
+        "404=no registered photo only",
+        "private no-store;403 protected bytes/metadata denied"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/workplace/experience/collaboration/resources/{resourceId}/photo/metadata",
+      "resourceKey": "APP.WORKPLACE",
+      "currentPlatformPermission": "VIEW",
+      "intendedPlatformPermission": "VIEW",
+      "delegatedScope": "MEMBER",
+      "siteBinding": "resolve registered resource tenant/site; current site VIEW",
+      "additionalGuards": [
+        "404=no registered photo only",
+        "private no-store;403 protected bytes/metadata denied"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/workplace/experience/collaboration/overview",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "VIEW",
+      "intendedPlatformPermission": "VIEW",
+      "delegatedScope": "GLOBAL_ONLY",
+      "siteBinding": null,
+      "additionalGuards": [
+        "full tenant administrator role"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/workplace/experience/collaboration/policy",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "VIEW",
+      "intendedPlatformPermission": "VIEW",
+      "delegatedScope": "GLOBAL_ONLY",
+      "siteBinding": null,
+      "additionalGuards": [
+        "full tenant administrator role"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/admin/workplace/experience/collaboration/policy",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "GLOBAL_ONLY",
+      "siteBinding": null,
+      "additionalGuards": [
+        "full tenant administrator role",
+        "reason+confirmed+version;persisted audit atomic"
+      ]
+    },
+    {
+      "method": "PUT",
+      "path": "/v1/admin/workplace/experience/collaboration/connectors/{kind}",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "GLOBAL_ONLY",
+      "siteBinding": null,
+      "additionalGuards": [
+        "full tenant administrator role",
+        "reason+confirmed+version",
+        "metadata allowlist;no credentials/outbound fetch"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/sites/{siteId}/access-rules/review",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "ACCESS_MANAGE",
+      "siteBinding": "siteId path and existing ruleId resolved tenant/site must match",
+      "additionalGuards": [
+        "required current version for update",
+        "review is read-only;changes requires reason+confirmed and atomically appends audit"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/sites/{siteId}/access-rules/{ruleId}/review",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "ACCESS_MANAGE",
+      "siteBinding": "siteId path and existing ruleId resolved tenant/site must match",
+      "additionalGuards": [
+        "required current version for update",
+        "review is read-only;changes requires reason+confirmed and atomically appends audit"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/delegations/review",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "GLOBAL_ONLY",
+      "siteBinding": "proposed registered site;existing delegation same tenant",
+      "additionalGuards": [
+        "full tenant administrator role",
+        "required current version update",
+        "review read-only;changes reason+confirmed atomic audit"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/delegations/{delegationId}/review",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "GLOBAL_ONLY",
+      "siteBinding": "proposed registered site;existing delegation same tenant",
+      "additionalGuards": [
+        "full tenant administrator role",
+        "required current version update",
+        "review read-only;changes reason+confirmed atomic audit"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/sites/{siteId}/access-rules/changes",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "ACCESS_MANAGE",
+      "siteBinding": "siteId path and existing ruleId resolved tenant/site must match",
+      "additionalGuards": [
+        "required current version for update",
+        "review is read-only;changes requires reason+confirmed and atomically appends audit"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/sites/{siteId}/access-rules/{ruleId}/changes",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "ACCESS_MANAGE",
+      "siteBinding": "siteId path and existing ruleId resolved tenant/site must match",
+      "additionalGuards": [
+        "required current version for update",
+        "review is read-only;changes requires reason+confirmed and atomically appends audit"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/delegations/changes",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "GLOBAL_ONLY",
+      "siteBinding": "proposed registered site;existing delegation same tenant",
+      "additionalGuards": [
+        "full tenant administrator role",
+        "required current version update",
+        "review read-only;changes reason+confirmed atomic audit"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/delegations/{delegationId}/changes",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "GLOBAL_ONLY",
+      "siteBinding": "proposed registered site;existing delegation same tenant",
+      "additionalGuards": [
+        "full tenant administrator role",
+        "required current version update",
+        "review read-only;changes reason+confirmed atomic audit"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/workplace/experience/collaboration/resources/{resourceId}/photo",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "VIEW",
+      "intendedPlatformPermission": "VIEW",
+      "delegatedScope": "CATALOG_VIEW",
+      "siteBinding": "resolve RESOURCE to current tenant/site",
+      "additionalGuards": [
+        "full tenant administrator bypasses delegated scope only",
+        "private no-store"
+      ]
+    },
+    {
+      "method": "GET",
+      "path": "/v1/admin/workplace/experience/collaboration/resources/{resourceId}/photo/metadata",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "VIEW",
+      "intendedPlatformPermission": "VIEW",
+      "delegatedScope": "CATALOG_VIEW",
+      "siteBinding": "resolve RESOURCE to current tenant/site",
+      "additionalGuards": [
+        "full tenant administrator bypasses delegated scope only",
+        "private no-store"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/resources/{resourceId}/photo",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "CREATE",
+      "intendedPlatformPermission": "CREATE",
+      "delegatedScope": "CATALOG_MANAGE",
+      "siteBinding": "resolve RESOURCE to current tenant/site",
+      "additionalGuards": [
+        "required optimistic photo version",
+        "reason persisted",
+        "upload PNG/JPEG<=10MiB+decoded image+MIME check",
+        "durable media ledger+tenant storage"
+      ]
+    },
+    {
+      "method": "DELETE",
+      "path": "/v1/admin/workplace/experience/collaboration/resources/{resourceId}/photo",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "CATALOG_MANAGE",
+      "siteBinding": "resolve RESOURCE to current tenant/site",
+      "additionalGuards": [
+        "required optimistic photo version",
+        "reason persisted",
+        "upload PNG/JPEG<=10MiB+decoded image+MIME check",
+        "durable media ledger+tenant storage"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/booking-policy/review",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "GLOBAL_ONLY",
+      "siteBinding": null,
+      "additionalGuards": [
+        "full tenant administrator role",
+        "existing native PolicyRequest exact shape/version",
+        "review read-only;changes reason+confirmed atomic audit"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/booking-policy/changes",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "GLOBAL_ONLY",
+      "siteBinding": null,
+      "additionalGuards": [
+        "full tenant administrator role",
+        "existing native PolicyRequest exact shape/version",
+        "review read-only;changes reason+confirmed atomic audit"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/policy-overrides/review",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "POLICY_MANAGE for SITE/FLOOR/ZONE/RESOURCE;TENANT/CAMPUS GLOBAL_ONLY",
+      "siteBinding": "query scopeType/scopeId resolves native site; existing overrideId resolved site must match query scope",
+      "additionalGuards": [
+        "query/body scope must match exactly",
+        "required current version update",
+        "read-only review;changes reason+confirmed atomic native save/audit"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/policy-overrides/{overrideId}/review",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "POLICY_MANAGE for SITE/FLOOR/ZONE/RESOURCE;TENANT/CAMPUS GLOBAL_ONLY",
+      "siteBinding": "query scopeType/scopeId resolves native site; existing overrideId resolved site must match query scope",
+      "additionalGuards": [
+        "query/body scope must match exactly",
+        "required current version update",
+        "read-only review;changes reason+confirmed atomic native save/audit"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/policy-overrides/changes",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "POLICY_MANAGE for SITE/FLOOR/ZONE/RESOURCE;TENANT/CAMPUS GLOBAL_ONLY",
+      "siteBinding": "query scopeType/scopeId resolves native site; existing overrideId resolved site must match query scope",
+      "additionalGuards": [
+        "query/body scope must match exactly",
+        "required current version update",
+        "read-only review;changes reason+confirmed atomic native save/audit"
+      ]
+    },
+    {
+      "method": "POST",
+      "path": "/v1/admin/workplace/experience/collaboration/policy-overrides/{overrideId}/changes",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "currentPlatformPermission": "MANAGE",
+      "intendedPlatformPermission": "MANAGE",
+      "delegatedScope": "POLICY_MANAGE for SITE/FLOOR/ZONE/RESOURCE;TENANT/CAMPUS GLOBAL_ONLY",
+      "siteBinding": "query scopeType/scopeId resolves native site; existing overrideId resolved site must match query scope",
+      "additionalGuards": [
+        "query/body scope must match exactly",
+        "required current version update",
+        "read-only review;changes reason+confirmed atomic native save/audit"
+      ]
+    }
+  ]
+}

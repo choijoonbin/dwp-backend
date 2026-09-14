@@ -5,6 +5,7 @@ import com.dwp.services.auth.dto.ProductAuthorizationContractDtos;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
 import com.dwp.services.auth.repository.ProductAuthorizationContractRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -32,21 +33,24 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
     private final ProductAuthorizationContractRepository repository;
     private final ProductAuthorizationIdentityEvidenceService evidenceService;
     private final Clock clock;
+    private final String requiredAcr;
 
     @Autowired
     public ProductAuthorizationAuthorityAdapter(
             ProductAuthorizationContractRepository repository,
-            ProductAuthorizationIdentityEvidenceService evidenceService) {
-        this(repository, evidenceService, Clock.systemUTC());
+            ProductAuthorizationIdentityEvidenceService evidenceService,
+            @Value("${dwp.auth.step-up.required-acr:}") String requiredAcr) {
+        this(repository, evidenceService, Clock.systemUTC(), requiredAcr);
     }
 
     ProductAuthorizationAuthorityAdapter(
             ProductAuthorizationContractRepository repository,
             ProductAuthorizationIdentityEvidenceService evidenceService,
-            Clock clock) {
+            Clock clock, String requiredAcr) {
         this.repository = repository;
         this.evidenceService = evidenceService;
         this.clock = clock;
+        this.requiredAcr = requiredAcr;
     }
 
     @Override
@@ -302,7 +306,12 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                     identity,
                     registry.policiesByKey().get(access.accessPolicyKey()),
                     profile.readOnly());
-            case "CAPABILITY_EXPRESSION" -> evaluateCapabilityExpression(
+            case "CAPABILITY_EXPRESSION" -> ApprovalFormAdminSourceCapability.applies(request, profile)
+                    ? ApprovalFormAdminSourceCapability.evaluate(request, registry, identity, profile,
+                            evaluateCapability(request, registry, identity,
+                                    registry.capabilitiesByKey().get("approvals.design.read"),
+                                    profile.predicatePolicyKeys(), true, directEntryScopes))
+                    : evaluateCapabilityExpression(
                     request,
                     registry,
                     identity,
@@ -560,17 +569,6 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity,
             ProductAuthorizationContractDtos.CapabilityContract capability,
             List<String> predicates,
-            boolean readOnly) {
-        return evaluateCapability(
-                request, registry, identity, capability, predicates, readOnly, List.of());
-    }
-
-    private Evaluation evaluateCapability(
-            ProductSurfaceAuthorityDtos.EvaluateRequest request,
-            Registry registry,
-            ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity,
-            ProductAuthorizationContractDtos.CapabilityContract capability,
-            List<String> predicates,
             boolean readOnly,
             List<ProductSurfaceAuthorityDtos.EffectiveScope> entryPolicyScopes) {
         if (capability == null) {
@@ -630,7 +628,13 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         if (scoped) {
             scopes = ScopedAdminDutyPolicy.scopes(request, duties, roles, readOnly);
         } else if (inheritsSelfEntryScope) {
-            scopes = entryPolicyScopes;
+            scopes = readOnly && request.directRouteEvaluation()
+                    && "DATA".equals(registry.routesByKey().get(request.routeContractKey()).routeKind())
+                    ? entryPolicyScopes.stream().map(scope ->
+                            new ProductSurfaceAuthorityDtos.EffectiveScope(
+                                    scope.key(), scope.kind(), scope.displayName(), scope.isDefault(),
+                                    true, scope.validUntil())).toList()
+                    : entryPolicyScopes;
         } else if (roles.isEmpty()) {
             scopes = policyScopes(request, capability.scopeResolver(), validUntil, readOnly);
         } else {
@@ -642,9 +646,9 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             return Evaluation.challenge(
                     ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED,
                     "STEP_UP_REQUIRED",
-                    capability.activationPolicy(),
+                    capability.activationPolicy(), requiredAcr,
                     ProductSurfaceAuthorityDtos.AccessSource.MANAGEMENT,
-                    grants, scopes, validUntil, capability.resourceKey());
+                    grants, scopes, readOnly, validUntil, capability.resourceKey());
         }
         return Evaluation.allowed(
                 ProductSurfaceAuthorityDtos.AccessSource.MANAGEMENT,

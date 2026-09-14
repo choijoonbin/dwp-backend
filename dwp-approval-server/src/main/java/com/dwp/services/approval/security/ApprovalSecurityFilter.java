@@ -3,6 +3,7 @@ package com.dwp.services.approval.security;
 import com.dwp.core.security.ScopedAuthorityToken;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
+import com.dwp.services.approval.document.ApprovalDocumentEndpointPolicy;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -137,6 +138,14 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
                     "Trusted approval service identity is required.");
             return;
         }
+        if (ApprovalRelease9EndpointPolicy.recognizes(request)) {
+            var endpoint = ApprovalRelease9EndpointPolicy.exact(request);
+            if (!gatewayIdentity || endpoint == null || !ApprovalRelease9EndpointPolicy.installed(endpoint, pilotPepRegistry)) {
+                writeError(response, ErrorCode.FORBIDDEN,
+                        "The exact Approval endpoint is not installed for this trusted service.");
+                return;
+            }
+        }
 
         // Runtime reads have a separate least-privilege allowlist and no tenant rollout
         // authority. The static flag is a readiness latch, never an enforcement selector.
@@ -168,6 +177,30 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
             writeError(response, ErrorCode.UNAUTHORIZED,
                     "Verified user and tenant identity are required.");
             return;
+        }
+        if (gatewayIdentity && ApprovalWorkEndpointPolicy.matches(request)) {
+            String plane = exactHeader(request, "X-DWP-Identity-Plane");
+            String mode = exactHeader(request, ACTIVE_ACCESS_MODE_HEADER);
+            // In 000/100 the Gateway deliberately omits decision/mode headers.
+            // Its verified TENANT plane, with no support context, is the legacy NORMAL proof.
+            if ((!exactEnforcement && plane == null)
+                    || (request.getHeader("X-DWP-Identity-Plane") != null && plane == null)
+                    || (request.getHeader(ACTIVE_ACCESS_MODE_HEADER) != null && mode == null)) {
+                writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                        "Verified tenant identity plane is required for Approval work.");
+                return;
+            }
+            if ((plane != null && !"TENANT".equals(plane))
+                    || (mode != null && !Set.of("NORMAL", "ELEVATED").contains(mode))
+                    || roles.stream().anyMatch(role -> role.startsWith("PROVIDER_"))
+                    || request.getHeader("X-DWP-Support-Session-ID") != null
+                    || request.getHeader("X-DWP-Support-Revision") != null
+                    || request.getHeader("X-DWP-Support-Scopes") != null
+                    || request.getHeader("X-DWP-Provider-Tenant-ID") != null) {
+                writeError(response, ErrorCode.FORBIDDEN,
+                        "Provider support authority cannot be used for personal Approval work.");
+                return;
+            }
         }
         ApprovalPilotPepRegistry.Decision pilotDecision = null;
         String currentDecisionRevision = null;
@@ -332,6 +365,16 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             Set<String> roles,
             Set<String> permissions) {
+        if (ApprovalRelease9EndpointPolicy.recognizes(request)) {
+            return ApprovalRelease9EndpointPolicy.legacyAuthorized(request, roles, permissions);
+        }
+        if (ApprovalDocumentEndpointPolicy.matches(request)) {
+            var endpoint = ApprovalDocumentEndpointPolicy.exact(request);
+            return endpoint != null && pilotPepRegistry.bindingContracts().stream().anyMatch(binding ->
+                    endpoint.routeKey().equals(binding.routeContractKey())
+                            && endpoint.method().equals(binding.method()))
+                    && ApprovalDocumentEndpointPolicy.legacyAuthorized(request, roles, permissions);
+        }
         String path = request.getRequestURI();
         String method = request.getMethod();
         Set<String> resourceRoles = parse(request.getHeader(RESOURCE_ROLES_HEADER));
@@ -416,7 +459,7 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
             if (path.startsWith("/v1/tasks")) {
                 return has(permissions, "ACTION.APPROVAL_TASK", "VIEW", "MANAGE");
             }
-            if (path.startsWith("/v1/requests")) {
+            if (path.startsWith("/v1/requests") || path.matches("/v1/draft-commands/[A-Za-z0-9._:-]{1,120}")) {
                 return has(permissions, "ACTION.APPROVAL_REQUEST", "VIEW", "MANAGE");
             }
             if (path.startsWith("/v1/delegations")) {
@@ -443,6 +486,9 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
             return has(permissions, "ACTION.APPROVAL_REQUEST", "CREATE", "MANAGE");
         }
         if (path.matches("/v1/requests/[^/]+/(draft|submit|information-response|withdraw)")) {
+            return has(permissions, "ACTION.APPROVAL_REQUEST", "UPDATE", "MANAGE");
+        }
+        if ("POST".equals(method) && path.matches("/v1/requests/[^/]+/draft/(recover|delete|restore)")) {
             return has(permissions, "ACTION.APPROVAL_REQUEST", "UPDATE", "MANAGE");
         }
         return false;

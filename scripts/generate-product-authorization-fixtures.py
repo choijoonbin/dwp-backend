@@ -50,8 +50,15 @@ ALLOWED_OVERRIDE_REFS = {
     "PS-G010": "test.services-catalog-jit.v1",
 }
 RESERVED_CONTRACTS = {"hcm.reference.publish", "hcm.integration.rotate-secret"}
-REGISTRY_VERSIONS = (1, 2, 3, 4, 5, 6)
+REGISTRY_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 FIXED_GROUP_VERSIONS = {"CANARY": 1, "APPROVALS": 2, "HCM": 3}
+PRESERVED_V7_CATALOG_HASHES = {
+    "negativeCases": "e10edda5033f368387a4e6366538f0132c2695aeeaf144d5b82d72495058a0c4",
+    "testCases": "5f8560abdfef30d526fc5ef19b513a1a5bc14424869e421bc7c5e0cf1d5804d8",
+    "catalogs": "e3d45fc091fe111d21b677baf184bca672904afa1e38318770323a95d3ce7cfd",
+    "approvalsV2": "ba53c548bda0a3b8157654a28ad37c5209abb4cdd6961d0b96e778cad4261f8d",
+    "hcmV3": "8705427dc388ff7e487264a79683b176ba9b3dfa9036f3ab6f35c38deadf4072",
+}
 DESCRIPTOR_SECTIONS = {
     "capabilityContractKeys": ("capabilities", "contractKey"),
     "accessPolicyKeys": ("accessPolicies", "accessPolicyKey"),
@@ -452,7 +459,7 @@ def validate_registry_index(index: dict[str, Any]) -> None:
     if not isinstance(versions, list) or [
         entry.get("version") for entry in versions if isinstance(entry, dict)
     ] != list(REGISTRY_VERSIONS):
-        raise ContractError("Registry lineage must contain the declared versions 1 through 6")
+        raise ContractError("Registry lineage must contain the declared versions 1 through 10")
 
 
 def validate_registry_entry(
@@ -837,6 +844,17 @@ def validate_overrides(source: dict[str, Any]) -> dict[str, Any]:
     return {**payload, "integrity": {"algorithm": "SHA-256", "sha256": expected}}
 
 
+def validate_preserved_v7_catalog(fixture: dict[str, Any]) -> None:
+    protected = {
+        section: fixture[section] for section in ("negativeCases", "testCases", "catalogs")
+    }
+    protected["approvalsV2"] = [t for t in fixture["testCases"] if t["group"] == "APPROVALS"]
+    protected["hcmV3"] = [t for t in fixture["testCases"] if t["group"] == "HCM"]
+    for section, expected in PRESERVED_V7_CATALOG_HASHES.items():
+        if sha256(protected[section]) != expected:
+            raise ContractError(f"Immutable pre-v7 fixture catalog content drift: {section}")
+
+
 def validate_fixtures(
     source: dict[str, Any],
     index: dict[str, Any],
@@ -1004,6 +1022,7 @@ def validate_fixtures(
         normalized, source, index, registries, test_versions, challenge_versions
     )
     normalized["fixtureChecksumAlgorithm"] = "SHA-256"
+    validate_preserved_v7_catalog(normalized)
     normalized["fixtureChecksum"] = sha256(normalized)
     return normalized
 

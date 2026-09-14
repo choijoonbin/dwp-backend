@@ -107,14 +107,14 @@ class MeetingHistoryProjectionPostgresTest extends MeetingWorkspacePostgresFixtu
         assertThat(item(TENANT, HOST).retentionUntil()).isEqualTo(NOW.plusDays(90));
     }
 
-    private MeetingHistoryProjectionRepository.HistoryItem item(long tenant, long user) {
+    private VideoMeetingQueryModels.HistoryItem item(long tenant, long user) {
         return history(tenant, user, HistoryPublicationFilter.ALL,
                 HistoryRetentionFilter.ALL, 0, 100).items().stream()
                 .filter(item -> item.card().meeting().meetingId().equals(meeting))
                 .findFirst().orElseThrow();
     }
 
-    private MeetingHistoryProjectionRepository.PagedHistory history(
+    private VideoMeetingQueryModels.PagedHistory history(
             long tenant,
             long user,
             HistoryPublicationFilter publication,

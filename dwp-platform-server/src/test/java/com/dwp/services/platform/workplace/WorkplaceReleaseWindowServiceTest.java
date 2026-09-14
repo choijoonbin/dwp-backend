@@ -64,14 +64,14 @@ class WorkplaceReleaseWindowServiceTest {
             }
             return null;
         }).when(runtimeGovernance)
-                .requireBookAccess(eq(1L), eq(7L), eq("group-a"), any(UUID.class));
+                .requireBookAccess(eq(1L), eq(7L), eq("group-a"), any(UUID.class), any(UUID.class));
 
         List<WorkplaceReleaseWindowDtos.AssignedResource> result =
                 service.assignedResources(1L, 7L, null, "en-US", "group-a");
 
         assertThat(result).containsExactly(allowed);
-        verify(runtimeGovernance).requireBookAccess(1L, 7L, "group-a", allowedSiteId);
-        verify(runtimeGovernance).requireBookAccess(1L, 7L, "group-a", deniedSiteId);
+        verify(runtimeGovernance).requireBookAccess(1L, 7L, "group-a", allowedSiteId, allowed.floorId());
+        verify(runtimeGovernance).requireBookAccess(1L, 7L, "group-a", deniedSiteId, denied.floorId());
     }
 
     @Test
@@ -129,7 +129,7 @@ class WorkplaceReleaseWindowServiceTest {
         assertThat(result.resourceId()).isEqualTo(resourceId);
         assertThat(result.status()).isEqualTo("ACTIVE");
         verify(releases).lockUserReleaseScope(1L, 7L);
-        verify(runtimeGovernance).requireBookAccess(1L, 7L, "group-a", siteId);
+        verify(runtimeGovernance).requireBookAccess(1L, 7L, "group-a", siteId, floorId);
         verify(audit).audit(
                 eq(1L), eq(7L), eq("workplace.assigned-resource.released"),
                 eq("RELEASE_WINDOW"), eq(created.releaseWindowId()),
@@ -234,6 +234,24 @@ class WorkplaceReleaseWindowServiceTest {
                 .hasMessageContaining("active reservation");
 
         verify(audit, never()).audit(any(), any(), any(), any(), any(), any(), any());
+    }
+
+    @Test
+    void ownedReleaseHistoryAndCancellationPreserveOwnerOnlyAuthorityWithoutNewSiteOrFloorGrant() {
+        UUID resource = UUID.randomUUID();
+        OffsetDateTime from = OffsetDateTime.now().plusDays(1), to = from.plusHours(2);
+        var current = releaseWindowRow(resource, from, to, 3L);
+        when(releases.ownedWindows(1L, 7L, null, from, to, false)).thenReturn(List.of(current));
+        assertThat(service.ownedWindows(1L, 7L, null, from, to, "en")).hasSize(1);
+        when(releases.ownedWindow(1L, 7L, null, current.releaseWindowId(), false)).thenReturn(Optional.of(current));
+        when(releases.lockWindowForUpdate(1L, current.releaseWindowId())).thenReturn(resource);
+        when(releases.cancel(eq(1L), eq(7L), eq(null), eq(current.releaseWindowId()), eq(3L), any())).thenReturn(1);
+        assertThat(service.cancel(1L, 7L, null, current.releaseWindowId(), "en", "owner-only", new WorkplaceDtos.VersionRequest(3L)))
+                .satisfies(result -> assertThat(result.resourceId()).isEqualTo(resource));
+        org.mockito.Mockito.verifyNoInteractions(runtimeGovernance);
+        when(releases.ownedWindow(1L, 8L, null, current.releaseWindowId(), false)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.cancel(1L, 8L, null, current.releaseWindowId(), "en", "other-user", new WorkplaceDtos.VersionRequest(3L)))
+                .isInstanceOfSatisfying(BaseException.class, exception -> assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
     }
 
     private WorkplaceReleaseWindowDtos.AssignedResource assignedResource(UUID siteId) {

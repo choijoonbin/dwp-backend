@@ -31,6 +31,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -139,7 +145,26 @@ class ApprovalManagementScopeArchitecturePostgresTest {
 
         ApprovalManagementScopeContext.set("opaque-a", "RS_TEAM_A");
         assertThat(queries.policies(84)).hasSize(4);
-        assertThat(queries.signatureProviders(84)).hasSize(3);
+        List<ApprovalDtos.SignatureProviderSummary> signatures =
+                queries.signatureProviders(84);
+        assertThat(signatures).hasSize(3);
+        assertThat(signatures)
+                .filteredOn(signature -> "INTERNAL_ATTESTATION".equals(
+                        signature.providerType()))
+                .singleElement()
+                .satisfies(signature -> {
+                    assertThat(signature.capabilities().internalAttestation()).isTrue();
+                    assertThat(signature.capabilities().auditEvidence()).isTrue();
+                    assertThat(signature.capabilities().verifiedIdentity()).isTrue();
+                    assertThat(signature.capabilities().readiness()).isEqualTo("READY");
+                });
+        assertThat(signatures)
+                .filteredOn(signature -> !"INTERNAL_ATTESTATION".equals(
+                        signature.providerType()))
+                .allSatisfy(signature -> {
+                    assertThat(signature.capabilities().remoteSigningSupported()).isTrue();
+                    assertThat(signature.capabilities().readiness()).isNotEqualTo("READY");
+                });
         assertThat(queries.isBlockingPolicyActive(
                 84, "BLOCK_SELF_APPROVAL", "RS_TEAM_A")).isTrue();
     }
@@ -305,10 +330,36 @@ class ApprovalManagementScopeArchitecturePostgresTest {
         seedTenantAndWorkflows();
         publishBundle(WORKFLOW_A, FORM_A, "RS_TEAM_A", "A");
         publishBundle(WORKFLOW_B, FORM_B, "RS_TEAM_B", "B");
+        jdbc.update("""
+                UPDATE apr_form_versions
+                   SET schema_payload = '{"fields":[
+                       {"key":"detail","type":"TEXT","required":true},
+                       {"key":"summary","type":"TEXTAREA","required":true}
+                   ]}'::jsonb
+                 WHERE form_id = ?
+                """, FORM_A);
         UUID requestA = seedRequest(WORKFLOW_A, FORM_A, "RS_TEAM_A", "A");
         UUID requestB = seedRequest(WORKFLOW_B, FORM_B, "RS_TEAM_B", "B");
-        seedInformationRequest(requestA, seedStep(requestA, "A"));
-        seedInformationRequest(requestB, seedStep(requestB, "B"));
+        jdbc.update("""
+                UPDATE apr_request_payloads
+                   SET payload = '{"detail":"original","summary":"Original summary"}'::jsonb,
+                       payload_sha256 = encode(sha256(convert_to(
+                           '{"detail":"original","summary":"Original summary"}'::jsonb::text,
+                           'UTF8')), 'hex')
+                 WHERE request_id = ?
+                """, requestA);
+        jdbc.update("""
+                UPDATE apr_request_payload_versions version
+                   SET payload = payload.payload,
+                       payload_sha256 = payload.payload_sha256
+                  FROM apr_request_payloads payload
+                 WHERE version.tenant_id = payload.tenant_id
+                   AND version.request_id = payload.request_id
+                   AND version.revision_number = 1
+                   AND version.request_id = ?
+                """, requestA);
+        UUID informationTaskA = seedInformationRequest(requestA, seedStep(requestA, "A"));
+        UUID informationTaskB = seedInformationRequest(requestB, seedStep(requestB, "B"));
         ApprovalRequestContext.Actor requester = actor(99);
         setDecision(
                 "self-scope",
@@ -318,7 +369,9 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 requester,
                 requestA,
                 new ApprovalDtos.InformationResponseRequest(
-                        "Scoped evidence supplied", Map.of("detail", "updated"), 0L),
+                        "Scoped evidence supplied",
+                        Map.of("detail", "updated", "summary", " Updated summary "),
+                        0L),
                 "governed-information-response");
 
         assertThat(jdbc.queryForObject(
@@ -326,24 +379,82 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 String.class,
                 requestA)).isEqualTo("IN_REVIEW");
         assertThat(jdbc.queryForObject(
-                "SELECT status FROM apr_tasks WHERE request_id = ?",
+                "SELECT status FROM apr_tasks WHERE task_id = ?",
                 String.class,
-                requestA)).isEqualTo("CLAIMED");
+                informationTaskA)).isEqualTo("SUPERSEDED");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM apr_tasks WHERE request_id = ? AND status = 'PENDING'",
+                Integer.class,
+                requestA)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT schema_version FROM apr_request_payloads WHERE request_id = ?",
+                Integer.class,
+                requestA)).isEqualTo(2);
+        assertThat(jdbc.queryForObject(
+                "SELECT decision_payload_revision FROM apr_tasks WHERE task_id = ?",
+                Integer.class,
+                informationTaskA)).isEqualTo(1);
+        assertThat(queries.decisionPayload(42, informationTaskA))
+                .containsEntry("detail", "original");
+        assertThat(queries.requestPayload(42, requestA))
+                .containsEntry("detail", "updated")
+                .containsEntry("summary", "Updated summary");
+        assertThat(jdbc.queryForObject(
+                "SELECT summary FROM apr_requests WHERE request_id = ?",
+                String.class, requestA)).isEqualTo("Updated summary");
         assertThat(jdbc.queryForObject(
                 "SELECT status FROM apr_requests WHERE request_id = ?",
                 String.class,
                 requestB)).isEqualTo("NEEDS_INFO");
         assertThat(jdbc.queryForObject(
-                "SELECT status FROM apr_tasks WHERE request_id = ?",
+                "SELECT status FROM apr_tasks WHERE task_id = ?",
                 String.class,
-                requestB)).isEqualTo("INFO_REQUESTED");
+                informationTaskB)).isEqualTo("INFO_REQUESTED");
         assertThat(jdbc.queryForObject("""
                 SELECT management_resource_set_key
                   FROM apr_integration_outbox
                  WHERE request_id = ?
                    AND event_type = 'approval.request.information.responded'
                 """, String.class, requestA)).isEqualTo("RS_TEAM_A");
+        jdbc.update("""
+                UPDATE apr_request_payload_versions
+                   SET payload_sha256 = ?
+                 WHERE tenant_id = 42 AND request_id = ? AND revision_number = 1
+                """, "d".repeat(64), requestA);
+        assertThatThrownBy(() -> queries.decisionPayload(42, informationTaskA))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
         assertThat(ApprovalManagementScopeContext.current()).isEmpty();
+    }
+
+    @Test
+    void nonMaterialInformationResponseResumesWithoutChangingPayloadEvidence() {
+        seedTenantAndWorkflows();
+        publishBundle(WORKFLOW_A, FORM_A, "RS_TEAM_A", "A");
+        UUID requestId = seedRequest(WORKFLOW_A, FORM_A, "RS_TEAM_A", "SAME");
+        UUID taskId = seedInformationRequest(requestId, seedStep(requestId, "SAME"));
+        setDecision(
+                "self-scope",
+                "route.approvals.work.request-information-response.action");
+
+        commands.respondToInformationRequest(
+                actor(99), requestId,
+                new ApprovalDtos.InformationResponseRequest(
+                        "Existing evidence confirmed", Map.of("detail", "original"), 0L),
+                "non-material-information-response");
+
+        assertThat(jdbc.queryForObject(
+                "SELECT schema_version FROM apr_request_payloads WHERE request_id = ?",
+                Integer.class, requestId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM apr_tasks WHERE task_id = ?",
+                String.class, taskId)).isEqualTo("CLAIMED");
+        assertThat(jdbc.queryForObject(
+                "SELECT decision_payload_revision IS NULL FROM apr_tasks WHERE task_id = ?",
+                Boolean.class, taskId)).isTrue();
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM apr_tasks WHERE request_id = ? AND status = 'SUPERSEDED'",
+                Integer.class, requestId)).isZero();
     }
 
     @Test
@@ -381,6 +492,157 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 + "effective_to = CURRENT_TIMESTAMP - INTERVAL '1 day' "
                 + "WHERE form_id = ?", FORM_B);
         assertWorkCatalogExcludesBundleB();
+
+        jdbc.update("UPDATE apr_form_workflow_bindings "
+                + "SET effective_to = NULL WHERE form_id = ?", FORM_B);
+        jdbc.update("UPDATE apr_workflow_versions SET lifecycle_state = 'DRAFT' "
+                + "WHERE workflow_id = ?", WORKFLOW_B);
+        assertThat(queries.publishedWorkflowsForWork(42))
+                .extracting(ApprovalDtos.WorkflowSummary::workflowId)
+                .doesNotContain(WORKFLOW_B);
+        assertWorkCatalogExcludesBundleB();
+
+        jdbc.update("UPDATE apr_workflow_versions SET lifecycle_state = 'PUBLISHED' "
+                + "WHERE workflow_id = ?", WORKFLOW_B);
+        jdbc.update("UPDATE apr_forms SET lifecycle_state = 'DRAFT' WHERE form_id = ?", FORM_B);
+        assertWorkCatalogExcludesBundleB();
+
+        jdbc.update("UPDATE apr_forms SET lifecycle_state = 'PUBLISHED' WHERE form_id = ?", FORM_B);
+        jdbc.update("UPDATE apr_form_versions SET lifecycle_state = 'DRAFT' WHERE form_id = ?", FORM_B);
+        assertWorkCatalogExcludesBundleB();
+
+        jdbc.update("UPDATE apr_form_versions SET lifecycle_state = 'PUBLISHED' WHERE form_id = ?", FORM_B);
+        jdbc.update("UPDATE apr_form_categories SET lifecycle_state = 'INACTIVE' "
+                + "WHERE category_id = (SELECT category_id FROM apr_forms WHERE form_id = ?)",
+                FORM_B);
+        assertWorkCatalogExcludesBundleB();
+
+        jdbc.update("UPDATE apr_form_categories SET lifecycle_state = 'ACTIVE' "
+                + "WHERE category_id = (SELECT category_id FROM apr_forms WHERE form_id = ?)",
+                FORM_B);
+        jdbc.update("UPDATE apr_form_workflow_bindings SET lifecycle_state = 'INACTIVE' "
+                + "WHERE form_id = ?", FORM_B);
+        assertWorkCatalogExcludesBundleB();
+    }
+
+    @Test
+    void createAndExistingDraftSubmitFailClosedAfterAssetDeactivation() {
+        seedTenantAndWorkflows();
+        publishBundle(WORKFLOW_A, FORM_A, "RS_TEAM_A", "A");
+        ApprovalRequestContext.Actor requester = actor(99);
+        setDecision("self-scope", "route.approvals.work.request-create.action");
+        jdbc.update("UPDATE apr_form_categories SET lifecycle_state = 'INACTIVE' "
+                + "WHERE category_id = (SELECT category_id FROM apr_forms WHERE form_id = ?)",
+                FORM_A);
+
+        assertThatThrownBy(() -> commands.createDraft(
+                requester,
+                new ApprovalDtos.CreateRequest(
+                        WORKFLOW_A, FORM_A, "Request", "Summary", "NORMAL",
+                        Map.of("detail", "original")),
+                "inactive-create"))
+                .isInstanceOf(BaseException.class);
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM apr_requests WHERE tenant_id = 42",
+                Integer.class)).isZero();
+
+        jdbc.update("UPDATE apr_form_categories SET lifecycle_state = 'ACTIVE' "
+                + "WHERE category_id = (SELECT category_id FROM apr_forms WHERE form_id = ?)",
+                FORM_A);
+        UUID requestId = seedRequest(WORKFLOW_A, FORM_A, "RS_TEAM_A", "DRAFT");
+        jdbc.update("UPDATE apr_requests SET status = 'DRAFT' WHERE request_id = ?", requestId);
+        jdbc.update("UPDATE apr_form_workflow_bindings SET lifecycle_state = 'INACTIVE' "
+                + "WHERE form_id = ?", FORM_A);
+
+        assertThatThrownBy(() -> commands.submit(
+                requester, requestId, 0L, "inactive-draft-submit"))
+                .isInstanceOf(BaseException.class);
+        assertThat(jdbc.queryForObject(
+                "SELECT status FROM apr_requests WHERE request_id = ?",
+                String.class, requestId)).isEqualTo("DRAFT");
+        assertThat(jdbc.queryForObject(
+                "SELECT COUNT(*) FROM apr_steps WHERE request_id = ?",
+                Integer.class, requestId)).isZero();
+    }
+
+    @Test
+    void createHoldsPublishedAssetRowsUntilItsTransactionCommits() throws Exception {
+        seedTenantAndWorkflows();
+        publishBundle(WORKFLOW_A, FORM_A, "RS_TEAM_A", "A");
+        TransactionTemplate transaction = new TransactionTemplate(
+                new DataSourceTransactionManager(dataSource));
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        CountDownLatch created = new CountDownLatch(1);
+        CountDownLatch release = new CountDownLatch(1);
+        try {
+            Future<UUID> create = executor.submit(() -> transaction.execute(ignored -> {
+                UUID requestId = commands.createDraft(
+                        actor(99),
+                        new ApprovalDtos.CreateRequest(
+                                WORKFLOW_A, FORM_A, "Request", "Summary", "NORMAL",
+                                Map.of("detail", "original")),
+                        "locked-create");
+                created.countDown();
+                await(release);
+                return requestId;
+            }));
+            assertThat(created.await(5, TimeUnit.SECONDS)).isTrue();
+            Future<Integer> deactivate = executor.submit(() -> jdbc.update(
+                    "UPDATE apr_form_categories SET lifecycle_state = 'INACTIVE' "
+                            + "WHERE category_id = (SELECT category_id FROM apr_forms "
+                            + "WHERE form_id = ?)",
+                    FORM_A));
+
+            assertThatThrownBy(() -> deactivate.get(200, TimeUnit.MILLISECONDS))
+                    .isInstanceOf(TimeoutException.class);
+            release.countDown();
+
+            assertThat(create.get(5, TimeUnit.SECONDS)).isNotNull();
+            assertThat(deactivate.get(5, TimeUnit.SECONDS)).isEqualTo(1);
+        } finally {
+            release.countDown();
+            executor.shutdownNow();
+        }
+    }
+
+    @Test
+    void operationsProjectionMatchesRetryStatusVersionAndSeparationOfDuties() {
+        seedTenantAndWorkflows();
+        publishBundle(WORKFLOW_A, FORM_A, "RS_TEAM_A", "A");
+        UUID requestId = seedRequest(WORKFLOW_A, FORM_A, "RS_TEAM_A", "RETRY");
+        UUID outboxId = insertOutbox(requestId, "RS_TEAM_A");
+        jdbc.update("""
+                UPDATE apr_integration_outbox
+                   SET status = 'FAILED', version = 4,
+                       event_originator_user_id = 99,
+                       assigned_auditor_user_id = 23,
+                       recovery_auditor_assignment_state = 'ASSIGNED',
+                       recovery_auditor_resource_set_key = 'RS_TEAM_A',
+                       recovery_auditor_assignment_revision = 'auth-revision-7',
+                       recovery_auditor_assigned_at = CURRENT_TIMESTAMP
+                 WHERE outbox_id = ?
+                """, outboxId);
+        ApprovalManagementScopeContext.set("opaque-a", "RS_TEAM_A");
+
+        ApprovalDtos.IntegrationDeliverySummary eligible =
+                queries.integrationDeliveries(actor(17), 50).getFirst();
+        assertThat(eligible.retryEligibility().eligible()).isTrue();
+        assertThat(eligible.retryEligibility().reason()).isEqualTo("ELIGIBLE");
+        assertThat(eligible.retryEligibility().expectedVersion()).isEqualTo(4);
+
+        ApprovalDtos.IntegrationDeliverySummary assignedAuditor =
+                queries.integrationDeliveries(actor(23), 50).getFirst();
+        assertThat(assignedAuditor.retryEligibility().eligible()).isFalse();
+        assertThat(assignedAuditor.retryEligibility().reason())
+                .isEqualTo("SEPARATION_OF_DUTIES");
+
+        jdbc.update("UPDATE apr_integration_outbox SET status = 'PUBLISHED' WHERE outbox_id = ?",
+                outboxId);
+        ApprovalDtos.IntegrationDeliverySummary published =
+                queries.integrationDeliveries(actor(17), 50).getFirst();
+        assertThat(published.retryEligibility().eligible()).isFalse();
+        assertThat(published.retryEligibility().reason())
+                .isEqualTo("STATUS_NOT_RETRYABLE");
     }
 
     @Test
@@ -480,7 +742,7 @@ class ApprovalManagementScopeArchitecturePostgresTest {
     }
 
     @Test
-    void localRepeatableSeedIsUuidBoundAndIdempotentAfterFreshV14Migration()
+    void localRepeatableSeedIsUuidBoundAndIdempotentAfterFreshV15Migration()
             throws Exception {
         String seed = new ClassPathResource(
                 "db/local-seed/R__seed_skax_approval_data.sql")
@@ -554,7 +816,10 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                     schema_payload, schema_sha256, lifecycle_state,
                     published_at, published_by, created_by)
                 VALUES (?, 42, ?, 1,
-                        '{"fields":[{"key":"detail","type":"TEXT","required":true}]}'::jsonb,
+                        '{"fields":[
+                            {"key":"summary","type":"TEXT","required":true},
+                            {"key":"detail","type":"TEXT","required":true}
+                        ]}'::jsonb,
                         ?, 'PUBLISHED',
                         CURRENT_TIMESTAMP, 99, 99)
                 """, UUID.randomUUID(), formId, "b".repeat(64));
@@ -588,6 +853,23 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                    AND workflow_version.version_number = 1
                 """, requestId, "REQ-" + suffix + '-' + requestId,
                 "Request " + suffix, scope, formId, workflowId);
+        jdbc.update("""
+                INSERT INTO apr_request_payloads (
+                    tenant_id, request_id, payload, payload_sha256, schema_version)
+                VALUES (42, ?, '{"summary":"Request summary","detail":"original"}'::jsonb,
+                        encode(sha256(convert_to(
+                            '{"summary":"Request summary","detail":"original"}'::jsonb::text,
+                            'UTF8')), 'hex'), 1)
+                """, requestId);
+        jdbc.update("""
+                INSERT INTO apr_request_payload_versions (
+                    payload_version_id, tenant_id, request_id, revision_number,
+                    payload, payload_sha256, change_type, changed_by)
+                SELECT gen_random_uuid(), tenant_id, request_id, schema_version,
+                       payload, payload_sha256, 'BASELINE', 99
+                  FROM apr_request_payloads
+                 WHERE tenant_id = 42 AND request_id = ?
+                """, requestId);
         return requestId;
     }
 
@@ -613,21 +895,26 @@ class ApprovalManagementScopeArchitecturePostgresTest {
         return taskId;
     }
 
-    private void seedInformationRequest(UUID requestId, UUID stepId) {
+    private UUID seedInformationRequest(UUID requestId, UUID stepId) {
         jdbc.update("UPDATE apr_requests SET status = 'NEEDS_INFO' WHERE request_id = ?", requestId);
-        jdbc.update("""
-                INSERT INTO apr_request_payloads (
-                    tenant_id, request_id, payload, payload_sha256, schema_version)
-                VALUES (42, ?, '{"detail":"original"}'::jsonb,
-                        encode(sha256(convert_to('{"detail":"original"}', 'UTF8')), 'hex'), 1)
-                """, requestId);
         UUID taskId = seedTask(requestId, stepId, requestId.toString());
-        jdbc.update(
-                "UPDATE apr_tasks SET status = 'INFO_REQUESTED' WHERE task_id = ?",
-                taskId);
+        jdbc.update("""
+                UPDATE apr_tasks task
+                   SET status = 'INFO_REQUESTED',
+                       decision_actor_user_id = 17,
+                       decision_reason = 'More information is required',
+                       decision_payload_revision = payload.schema_version,
+                       decision_payload_sha256 = payload.payload_sha256
+                  FROM apr_request_payloads payload
+                 WHERE task.task_id = ?
+                   AND payload.tenant_id = task.tenant_id
+                   AND payload.request_id = task.request_id
+                """, taskId);
+        return taskId;
     }
 
-    private void insertOutbox(UUID requestId, String scope) {
+    private UUID insertOutbox(UUID requestId, String scope) {
+        UUID outboxId = UUID.randomUUID();
         jdbc.update("""
                 INSERT INTO apr_integration_outbox (
                     outbox_id, event_id, tenant_id, request_id,
@@ -636,8 +923,9 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                     management_resource_set_key)
                 VALUES (?, ?, 42, ?, 'approval.request.submitted', '{}'::jsonb,
                         ?, 'PENDING', 'PENDING', ?)
-                """, UUID.randomUUID(), UUID.randomUUID(), requestId,
+                """, outboxId, UUID.randomUUID(), requestId,
                 "c".repeat(64), scope);
+        return outboxId;
     }
 
     private int count(String table, long tenantId, String scope) {
@@ -666,5 +954,16 @@ class ApprovalManagementScopeArchitecturePostgresTest {
         assertThatThrownBy(() -> queries.publishedTemplate(42, WORKFLOW_B))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            if (!latch.await(5, TimeUnit.SECONDS)) {
+                throw new IllegalStateException("Latch timed out.");
+            }
+        } catch (InterruptedException exception) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(exception);
+        }
     }
 }

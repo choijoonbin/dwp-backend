@@ -7,12 +7,14 @@ import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.Artifact;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.AttendanceState;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.HomeProjection;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.Meeting;
-import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.MeetingCard;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.MeetingDetail;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.Participant;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.ParticipantRole;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.PersonSnapshot;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.TenantPolicy;
+import com.dwp.services.meeting.videomeeting.domain.VideoMeetingQueryModels.AdminOverviewData;
+import com.dwp.services.meeting.videomeeting.domain.VideoMeetingQueryModels.PagedHistory;
+import com.dwp.services.meeting.videomeeting.domain.VideoMeetingQueryModels.PagedMeetings;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -30,15 +32,7 @@ import java.util.UUID;
 @Repository
 public class VideoMeetingRepository {
 
-    static final String ACCESS_PREDICATE = """
-            (meeting.organizer_user_id = :userId
-             OR EXISTS (
-                 SELECT 1 FROM vm_meeting_participants access
-                  WHERE access.tenant_id = meeting.tenant_id
-                    AND access.meeting_id = meeting.meeting_id
-                    AND access.user_id = :userId
-                    AND access.attendance_state <> 'DENIED'))
-            """;
+    static final String ACCESS_PREDICATE = MeetingAccessSql.ACCESS_PREDICATE;
 
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate namedJdbc;
@@ -545,7 +539,7 @@ public class VideoMeetingRepository {
         return queries.history(tenantId, userId, page, pageSize, favoriteOnly);
     }
 
-    MeetingHistoryProjectionRepository.PagedHistory historyProjection(
+    PagedHistory historyProjection(
             long tenantId,
             long userId,
             int page,
@@ -660,9 +654,6 @@ public class VideoMeetingRepository {
     public record IdempotentMeeting(Meeting meeting, String requestHash) {
     }
 
-    public record PagedMeetings(List<MeetingCard> items, long total) {
-    }
-
     public record MediaSession(UUID incarnation, String accessState) {
 
         public boolean active() {
@@ -670,11 +661,4 @@ public class VideoMeetingRepository {
         }
     }
 
-    public record AdminOverviewData(
-            int liveMeetings,
-            int scheduledToday,
-            int waitingParticipants,
-            int meetingsLastSevenDays,
-            int failedJoinAttempts) {
-    }
 }

@@ -49,7 +49,7 @@ class WorkplaceReleaseWindowService {
         return releases.assignedResources(
                         tenantId, userId, personPublicId, korean(locale)).stream()
                 .filter(value -> canBook(
-                        tenantId, userId, verifiedGroupRefs, value.siteId()))
+                        tenantId, userId, verifiedGroupRefs, value.siteId(), value.floorId()))
                 .filter(value -> lendingEnabled(tenantId, value.resourceId(), basePolicy))
                 .toList();
     }
@@ -106,7 +106,7 @@ class WorkplaceReleaseWindowService {
                 .floor(tenantId, resource.floorId(), korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         runtimeGovernance.requireBookAccess(
-                tenantId, userId, verifiedGroupRefs, floor.siteId());
+                tenantId, userId, verifiedGroupRefs, floor.siteId(), floor.floorId());
         WorkplaceCatalogRepository.PolicyRow basePolicy = catalog.policy(tenantId);
         WorkplaceCatalogRepository.PolicyRow resolved = runtimeGovernance.effectivePolicy(
                 tenantId,
@@ -231,10 +231,10 @@ class WorkplaceReleaseWindowService {
     }
 
     private boolean canBook(
-            Long tenantId, Long userId, String verifiedGroupRefs, UUID siteId) {
+            Long tenantId, Long userId, String verifiedGroupRefs, UUID siteId, UUID floorId) {
         try {
             runtimeGovernance.requireBookAccess(
-                    tenantId, userId, verifiedGroupRefs, siteId);
+                    tenantId, userId, verifiedGroupRefs, siteId, floorId);
             return true;
         } catch (BaseException exception) {
             if (exception.getErrorCode() == ErrorCode.FORBIDDEN) return false;

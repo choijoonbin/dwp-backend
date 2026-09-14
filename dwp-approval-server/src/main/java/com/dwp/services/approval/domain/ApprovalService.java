@@ -26,16 +26,16 @@ public class ApprovalService {
     private final ApprovalIdentityDirectory identities;
     private final ApprovalHighRiskCommandGuard highRiskGuard;
     private final ApprovalOwnerPredicateEvaluator ownerPredicates;
+    private final ApprovalTaskGovernance taskGovernance;
+    private final ApprovalWorkflowQuorumFacade quorum;
+    private final ApprovalWorkflowManagementCommands workflowCommands;
+    private final ApprovalWorkflowDecisionCommands workflowDecisions;
 
-    public ApprovalService(
-            ApprovalQueryRepository queries,
-            ApprovalCommandRepository commands,
-            AuditOutboxRecorder audit,
-            ApprovalIdentityDirectory identities) {
+    public ApprovalService(ApprovalQueryRepository queries, ApprovalCommandRepository commands,
+            AuditOutboxRecorder audit, ApprovalIdentityDirectory identities) {
         this(queries, commands, audit, identities, null, null);
     }
 
-    @Autowired
     public ApprovalService(
             ApprovalQueryRepository queries,
             ApprovalCommandRepository commands,
@@ -43,12 +43,25 @@ public class ApprovalService {
             ApprovalIdentityDirectory identities,
             ApprovalHighRiskCommandGuard highRiskGuard,
             ApprovalOwnerPredicateEvaluator ownerPredicates) {
+        this(queries, commands, audit, identities, highRiskGuard, ownerPredicates, null);
+    }
+
+    @Autowired
+    public ApprovalService(ApprovalQueryRepository queries, ApprovalCommandRepository commands,
+            AuditOutboxRecorder audit, ApprovalIdentityDirectory identities,
+            ApprovalHighRiskCommandGuard highRiskGuard, ApprovalOwnerPredicateEvaluator ownerPredicates,
+            ApprovalWorkflowQuorumFacade quorum) {
         this.queries = queries;
         this.commands = commands;
         this.audit = audit;
         this.identities = identities;
         this.highRiskGuard = highRiskGuard;
         this.ownerPredicates = ownerPredicates;
+        this.quorum = quorum;
+        workflowCommands = new ApprovalWorkflowManagementCommands(commands, queries, audit);
+        this.taskGovernance = new ApprovalTaskGovernance(
+                queries, identities, ownerPredicates);
+        workflowDecisions = new ApprovalWorkflowDecisionCommands(queries, commands, identities, ownerPredicates, taskGovernance, quorum);
     }
 
     @Transactional
@@ -101,45 +114,17 @@ public class ApprovalService {
 
     @Transactional
     public ApprovalDtos.TaskDetail task(UUID taskId) {
-        ApprovalRequestContext.Actor actor = prepare();
-        ApprovalQueryRepository.TaskAccess access = queries.taskDetail(actor, taskId);
-        boolean selfApprovalBlocked = access.requesterUserId() == actor.userId()
-                && queries.isBlockingPolicyActive(
-                        actor.tenantId(), "BLOCK_SELF_APPROVAL",
-                        access.managementResourceSetKey());
-        boolean candidate = access.assigneeUserId() == null
-                && access.candidateRole() != null
-                && actor.roles().contains(access.candidateRole());
-        boolean assigned = actor.userId().equals(access.assigneeUserId());
-        boolean delegated = access.delegatedAccess();
-        boolean pending = "PENDING".equals(access.summary().status());
-        boolean decisionOpen = pending || "CLAIMED".equals(access.summary().status());
-        boolean governed = ApprovalPilotAuthorizationContext.current().isPresent();
-        boolean canClaimTask = governed
-                ? actor.hasPermission("ACTION.APPROVAL_TASK", "UPDATE")
-                : actor.hasPermission("ACTION.APPROVAL_TASK", "UPDATE", "MANAGE");
-        boolean canDecideTask = governed
-                ? actor.hasPermission("ACTION.APPROVAL_TASK", "APPROVE")
-                : actor.hasPermission("ACTION.APPROVAL_TASK", "APPROVE", "MANAGE");
-        boolean exactDecision = governed || ApprovalPilotAuthorizationContext.requiresPredicate(
-                "predicate.approval-task-decision.v1");
-        return new ApprovalDtos.TaskDetail(
-                access.summary(),
-                queries.requestPayload(actor.tenantId(), access.summary().requestId()),
-                queries.requestFormSchema(actor.tenantId(), access.summary().requestId()),
-                queries.timeline(actor.tenantId(), access.summary().requestId()),
-                canClaimTask && pending && access.assigneeUserId() == null && (candidate || delegated),
-                canDecideTask && decisionOpen && !selfApprovalBlocked
-                        && (assigned || delegated || (!exactDecision && candidate)),
-                selfApprovalBlocked);
+        var actor = prepare();
+        var detail = taskGovernance.detail(actor, taskId);
+        return quorum == null ? detail : quorum.detail(actor, detail);
     }
-
     @Transactional
     public ApprovalDtos.TaskDetail claim(
             UUID taskId,
             long expectedVersion,
             String correlationId) {
         ApprovalRequestContext.Actor actor = prepare();
+        ApprovalWorkflowCommandLiveFence.task(commands.jdbc, actor.tenantId(), taskId);
         ApprovalQueryRepository.TaskAccess task = queries.taskDetail(actor, taskId);
         if (ApprovalPilotAuthorizationContext.requiresPredicate(
                 "predicate.approval-task-claimable.v1")) {
@@ -154,22 +139,18 @@ public class ApprovalService {
         return task(taskId);
     }
 
-    @Transactional
-    public ApprovalDtos.TaskDetail decide(
-            UUID taskId,
-            ApprovalDtos.DecisionRequest request,
-            String correlationId) {
+    @Transactional(noRollbackFor = ApprovalWorkflowQuorumInformationPending.class)
+    public ApprovalDtos.TaskDetail decide(UUID taskId, ApprovalDtos.DecisionRequest request, String correlationId) {
+        return decide(taskId, request, correlationId, ApprovalWorkflowQuorumBindings.expected(request.quorum()));
+    }
+
+    @Transactional(noRollbackFor = ApprovalWorkflowQuorumInformationPending.class)
+    public ApprovalDtos.TaskDetail decide(UUID taskId, ApprovalDtos.DecisionRequest request, String correlationId,
+            ApprovalWorkflowQuorumFacade.ExpectedVote expectedQuorum) {
         ApprovalRequestContext.Actor actor = prepare();
+        ApprovalWorkflowCommandLiveFence.task(commands.jdbc, actor.tenantId(), taskId);
         ApprovalQueryRepository.TaskAccess task = queries.taskDetail(actor, taskId);
-        if (ApprovalPilotAuthorizationContext.requiresPredicate(
-                "predicate.approval-task-decision.v1")) {
-            requireOwnerPredicates();
-            ownerPredicates.lockDecidableTask(actor, task, request.expectedVersion());
-        } else {
-            ApprovalLegacyDelegationGuard.verify(actor, task, identities);
-        }
-        ApprovalCommandRepository.DecisionResult result = commands.decide(
-                actor, task, request, correlationId);
+        var result = workflowDecisions.decide(actor, task, request, correlationId, expectedQuorum);
         record(actor, "approval.task.decided", "APPROVAL_TASK", taskId.toString(),
                 correlationId,
                 Map.of("requestId", task.summary().requestId().toString(),
@@ -192,7 +173,8 @@ public class ApprovalService {
     @Transactional
     public ApprovalDtos.RequestDetail requestDetail(UUID requestId) {
         ApprovalRequestContext.Actor actor = prepare();
-        return queries.requestDetail(actor, requestId);
+        var detail = queries.requestDetail(actor, requestId);
+        return commands.quorumWorkflow(actor.tenantId(), requestId) == null ? detail : requireQuorum().informationDetail(actor, detail);
     }
 
     @Transactional
@@ -229,7 +211,12 @@ public class ApprovalService {
             String correlationId) {
         ApprovalRequestContext.Actor actor = prepare();
         lockOwnedRequest(actor, requestId, expectedVersion);
-        commands.submit(actor, requestId, expectedVersion, correlationId);
+        if (commands.quorumWorkflow(actor.tenantId(), requestId) != null) {
+            requireQuorum().submit(actor, requestId, expectedVersion, correlationId);
+        } else {
+            taskGovernance.requireEligibleCandidateRoles(actor, queries.requestCandidateRoles(actor, requestId));
+            commands.submit(actor, requestId, expectedVersion, correlationId);
+        }
         record(actor, "approval.request.submitted", "APPROVAL_REQUEST", requestId.toString(),
                 correlationId, Map.of());
         return queries.request(actor, requestId);
@@ -242,23 +229,24 @@ public class ApprovalService {
             String correlationId) {
         ApprovalRequestContext.Actor actor = prepare();
         lockOwnedRequest(actor, requestId, expectedVersion);
+        if (commands.quorumWorkflow(actor.tenantId(), requestId) != null) requireQuorum().cancel(actor, requestId);
         commands.withdraw(actor, requestId, expectedVersion, correlationId);
         record(actor, "approval.request.withdrawn", "APPROVAL_REQUEST", requestId.toString(),
                 correlationId, Map.of());
         return queries.request(actor, requestId);
     }
 
-    @Transactional
+    @Transactional(noRollbackFor = ApprovalWorkflowQuorumInformationPending.class)
     public ApprovalDtos.RequestSummary respondToInformationRequest(
             UUID requestId,
             ApprovalDtos.InformationResponseRequest request,
             String correlationId) {
         ApprovalRequestContext.Actor actor = prepare();
-        lockOwnedRequest(actor, requestId, request.expectedVersion());
-        commands.respondToInformationRequest(actor, requestId, request, correlationId);
-        record(actor, "approval.request.information.responded", "APPROVAL_REQUEST",
-                requestId.toString(), correlationId, Map.of());
-        return queries.request(actor, requestId);
+        if (commands.quorumWorkflow(actor.tenantId(), requestId) != null) return requireQuorum().reply(actor, requestId, request);
+        if (request.sourceGeneration() != null) throw new com.dwp.core.exception.BaseException(com.dwp.core.common.ErrorCode.FORBIDDEN);
+        return workflowDecisions.respondLegacy(actor, requestId, request, correlationId,
+                () -> lockOwnedRequest(actor, requestId, request.expectedVersion()),
+                () -> record(actor, "approval.request.information.responded", "APPROVAL_REQUEST", requestId.toString(), correlationId, Map.of()));
     }
 
     @Transactional
@@ -351,28 +339,26 @@ public class ApprovalService {
     }
 
     @Transactional
-    public ApprovalDtos.WorkflowDetail createWorkflowDraft(
-            ApprovalDtos.CreateWorkflowDraftRequest request,
-            String correlationId) {
-        ApprovalRequestContext.Actor actor = prepare();
-        UUID workflowId = commands.createWorkflowDraft(actor, request);
-        record(actor, "approval.workflow.draft.created", "APPROVAL_WORKFLOW",
-                workflowId.toString(), correlationId,
-                Map.of("workflowKey", request.workflowKey()));
-        return queries.workflow(actor.tenantId(), workflowId);
+    public ApprovalDtos.WorkflowDetail createWorkflowDraft(ApprovalDtos.CreateWorkflowDraftRequest request, String correlationId) {
+        return createWorkflowDraft(request, correlationId, request.typedDefinition());
     }
 
     @Transactional
-    public ApprovalDtos.WorkflowDetail updateWorkflowDraft(
-            UUID workflowId,
-            ApprovalDtos.UpdateWorkflowDraftRequest request,
+    public ApprovalDtos.WorkflowDetail createWorkflowDraft(ApprovalDtos.CreateWorkflowDraftRequest request,
+            String correlationId, Map<String, Object> typedDefinition) {
+        return workflowCommands.create(prepare(), request, correlationId, typedDefinition);
+    }
+
+    @Transactional
+    public ApprovalDtos.WorkflowDetail updateWorkflowDraft(UUID workflowId, ApprovalDtos.UpdateWorkflowDraftRequest request,
             String correlationId) {
-        ApprovalRequestContext.Actor actor = prepare();
-        commands.updateWorkflowDraft(actor, workflowId, request);
-        record(actor, "approval.workflow.draft.updated", "APPROVAL_WORKFLOW",
-                workflowId.toString(), correlationId,
-                Map.of("stepCount", request.steps().size()));
-        return queries.workflow(actor.tenantId(), workflowId);
+        return updateWorkflowDraft(workflowId, request, correlationId, request.typedDefinition());
+    }
+
+    @Transactional
+    public ApprovalDtos.WorkflowDetail updateWorkflowDraft(UUID workflowId, ApprovalDtos.UpdateWorkflowDraftRequest request,
+            String correlationId, Map<String, Object> typedDefinition) {
+        return workflowCommands.update(prepare(), workflowId, request, correlationId, typedDefinition);
     }
 
     @Transactional
@@ -397,12 +383,25 @@ public class ApprovalService {
         if (prior(permit)) {
             return queries.workflows(actor.tenantId(), false);
         }
+        taskGovernance.requireEligibleCandidateRoles(
+                actor, queries.workflowCandidateRoles(actor.tenantId(), workflowId));
         commands.publishWorkflow(actor, workflowId, expectedVersion, correlationId);
         record(actor, "approval.workflow.published", "APPROVAL_WORKFLOW",
                 workflowId.toString(), correlationId, Map.of());
         List<ApprovalDtos.WorkflowSummary> result = queries.workflows(actor.tenantId(), false);
         completeHighRisk(permit);
         return result;
+    }
+
+    private ApprovalWorkflowQuorumFacade requireQuorum() {
+        if (quorum == null) throw ApprovalWorkflowQuorum.unavailable("The durable workflow runtime is unavailable.");
+        return quorum;
+    }
+
+    @Transactional(readOnly = true)
+    public ApprovalWorkflowQuorumSimulation.Result simulateWorkflow(UUID requestId,
+            ApprovalWorkflowQuorumSimulation.Input input) {
+        return requireQuorum().simulate(ApprovalRequestContext.require(), requestId, input);
     }
 
     @Transactional
@@ -467,10 +466,11 @@ public class ApprovalService {
             String correlationId) {
         ApprovalRequestContext.Actor actor = prepare();
         commands.updateFormDraft(actor, formId, request);
+        ApprovalDtos.FormDetail updated = queries.form(actor.tenantId(), formId);
         record(actor, "approval.form.draft.updated", "APPROVAL_FORM",
                 formId.toString(), correlationId,
-                Map.of("fieldCount", request.fields().size()));
-        return queries.form(actor.tenantId(), formId);
+                Map.of("fieldCount", updated.form().fieldCount()));
+        return updated;
     }
 
     @Transactional

@@ -330,7 +330,7 @@ public class RoomService {
                 value.resourceId(), value.code(), value.name(), value.nameKo(), value.nameEn(),
                 value.type(), value.site(), value.floor(), value.capacity(), value.features(),
                 value.timeZone(), value.approvalRequired(), value.state(),
-                physicallyOpen && value.state() == ResourceState.AVAILABLE,
+                physicallyOpen && value.available() && value.state() == ResourceState.AVAILABLE,
                 value.version());
     }
 

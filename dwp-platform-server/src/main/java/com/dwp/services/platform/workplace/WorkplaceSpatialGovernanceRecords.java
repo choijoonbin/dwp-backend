@@ -35,7 +35,13 @@ abstract class WorkplaceSpatialGovernanceRecords {
             UUID accessRuleId, UUID siteId, AccessSubjectType subjectType,
             Long subjectUserId, UUID subjectGroupRef, AccessPermission permission,
             AccessEffect effect, OffsetDateTime validFrom, OffsetDateTime validUntil,
-            RuleState state, long version) {
+            RuleState state, long version, UUID floorId) {
+        AccessRuleRow(UUID accessRuleId, UUID siteId, AccessSubjectType subjectType, Long subjectUserId,
+                UUID subjectGroupRef, AccessPermission permission, AccessEffect effect, OffsetDateTime validFrom,
+                OffsetDateTime validUntil, RuleState state, long version) {
+            this(accessRuleId, siteId, subjectType, subjectUserId, subjectGroupRef, permission, effect,
+                    validFrom, validUntil, state, version, null);
+        }
     }
 
     record PolicyOverrideRow(
@@ -126,7 +132,14 @@ abstract class WorkplaceSpatialGovernanceRecords {
             UUID delegateGroupRef, DelegatedScopeType scopeType, UUID siteId,
             UUID managedGroupRef, List<DelegatedPermission> permissions,
             OffsetDateTime validFrom, OffsetDateTime validUntil,
-            DelegationState state, long version) {
+            DelegationState state, long version, List<UUID> floorIds) {
+        DelegatedScopeRow(UUID delegationId, DelegateType delegateType, Long delegateUserId,
+                UUID delegateGroupRef, DelegatedScopeType scopeType, UUID siteId, UUID managedGroupRef,
+                List<DelegatedPermission> permissions, OffsetDateTime validFrom, OffsetDateTime validUntil,
+                DelegationState state, long version) {
+            this(delegationId, delegateType, delegateUserId, delegateGroupRef, scopeType, siteId,
+                    managedGroupRef, permissions, validFrom, validUntil, state, version, null);
+        }
 
         UUID scopeId() {
             return scopeType == DelegatedScopeType.SITE ? siteId : managedGroupRef;

@@ -2,6 +2,7 @@ package com.dwp.services.platform.calendar;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.dwp.services.platform.workplace.WorkplaceExperienceCalendarClosureBridge;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.transaction.annotation.Propagation;
@@ -334,8 +335,8 @@ public class CalendarRepository {
             OffsetDateTime to,
             boolean korean,
             boolean includeRetired) {
-        return jdbc.query(CalendarSql01.RESOURCES_SELECT_CAL_RESOURCE_BOOKINGS, (result, ignored) -> rows.resource(result), korean,
-                to, to, to, from, tenantId, includeRetired);
+        Set<UUID> closed = WorkplaceExperienceCalendarClosureBridge.closedResources(jdbc, tenantId, from, to);
+        return jdbc.query(CalendarSql01.RESOURCES_SELECT_CAL_RESOURCE_BOOKINGS, (result, ignored) -> rows.closureAvailability(rows.resource(result), closed), korean, to, to, to, from, tenantId, includeRetired);
     }
 
     Optional<ResourceRow> resource(Long tenantId, UUID resourceId, boolean korean) {
@@ -357,12 +358,11 @@ public class CalendarRepository {
     }
 
     void lockResource(Long tenantId, UUID resourceId) {
-        jdbc.queryForObject(
-                "SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(?::text, 0))",
-                Integer.class,
-                tenantId + ":" + resourceId);
+        jdbc.queryForObject("SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(?::text, 0))", Integer.class, tenantId + ":" + resourceId);
+        WorkplaceExperienceCalendarClosureBridge.lockMappedResource(jdbc, tenantId, resourceId);
     }
-
+    boolean facilityClosureConflict(Long tenant, UUID resource, OffsetDateTime from, OffsetDateTime to) { return WorkplaceExperienceCalendarClosureBridge.conflict(jdbc, tenant, resource, from, to); }
+    int lockedRoomCapacity(Long tenantId, UUID resourceId) { return CalendarRoomCapacity.locked(jdbc, tenantId, resourceId); }
     void insertBooking(
             Long tenantId,
             Long userId,

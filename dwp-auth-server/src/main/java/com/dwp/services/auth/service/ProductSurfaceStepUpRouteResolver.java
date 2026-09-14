@@ -6,6 +6,9 @@ import com.dwp.services.auth.dto.ProductAuthorizationContractDtos;
 import com.dwp.services.auth.dto.ProductSurfaceStepUpDtos;
 import com.dwp.services.auth.repository.ProductAuthorizationContractRepository;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,7 +27,7 @@ public class ProductSurfaceStepUpRouteResolver {
 
     private static final String BUNDLE_KEY = "product-surfaces";
     private static final java.util.Set<Long> STEP_UP_RUNTIME_BUNDLE_VERSIONS =
-            java.util.Set.of(2L, 3L);
+            java.util.Set.of(2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L);
     private static final String AUTHORITY_ENDPOINT_KEY =
             "product-surface-step-up-challenge.issue";
     private static final String AUTHORITY_PUBLIC_PATH =
@@ -40,9 +43,18 @@ public class ProductSurfaceStepUpRouteResolver {
     private static final Pattern TARGET_ID = Pattern.compile("[A-Za-z0-9._~:@-]{1,200}");
 
     private final ProductAuthorizationContractRepository repository;
+    private final StoredDescriptorSeal seals;
 
     public ProductSurfaceStepUpRouteResolver(ProductAuthorizationContractRepository repository) {
         this.repository = repository;
+        this.seals = null;
+    }
+
+    @Autowired
+    public ProductSurfaceStepUpRouteResolver(ProductAuthorizationContractRepository repository,
+            JdbcTemplate jdbc, ProductAuthorizationContractValidator validator, ObjectMapper mapper) {
+        this.repository = repository;
+        this.seals = new StoredDescriptorSeal(jdbc, repository, validator, mapper);
     }
 
     @Transactional(readOnly = true)
@@ -52,7 +64,19 @@ public class ProductSurfaceStepUpRouteResolver {
                 .findActive(BUNDLE_KEY)
                 .orElseThrow(this::unavailable);
         if (!STEP_UP_RUNTIME_BUNDLE_VERSIONS.contains(stored.version())) throw unavailable();
-        ProductAuthorizationContractDtos.BundleContract contract = repository.loadContract(stored);
+        ProductAuthorizationContractRepository.ActivePointer sealedPointer = null;
+        ProductAuthorizationContractDtos.BundleContract contract;
+        if (java.util.Set.of(9L, 10L).contains(stored.version())) {
+            if (seals == null) throw unavailable();
+            sealedPointer = repository.findActivePointer(BUNDLE_KEY).orElseThrow(this::unavailable);
+            try {
+                contract = seals.loadActive(stored, sealedPointer);
+            } catch (IllegalArgumentException invalidSeal) {
+                throw unavailable();
+            }
+        } else {
+            contract = repository.loadContract(stored);
+        }
         validateAuthorityEndpoint(contract);
 
         List<ResolvedRoute> matches = safe(contract.routes()).stream()
@@ -83,10 +107,11 @@ public class ProductSurfaceStepUpRouteResolver {
             throw mismatch("The registered command is not an active high-risk capability.");
         }
         validateCommandBinding(request, resolved, capability);
-        long pointerRevision = repository.findActivePointer(BUNDLE_KEY)
+        var currentPointer = repository.findActivePointer(BUNDLE_KEY)
                 .filter(pointer -> pointer.bundleId().equals(stored.bundleId()))
-                .map(ProductAuthorizationContractRepository.ActivePointer::revision)
                 .orElseThrow(this::unavailable);
+        if (sealedPointer != null && !sealedPointer.equals(currentPointer)) throw unavailable();
+        long pointerRevision = currentPointer.revision();
         ProductAuthorizationContractDtos.StepUpCommandBinding stepUp = resolved.stepUp();
         return new Resolution(
                 resolved.route().routeContractKey(), resolved.route().subject().productKey(),

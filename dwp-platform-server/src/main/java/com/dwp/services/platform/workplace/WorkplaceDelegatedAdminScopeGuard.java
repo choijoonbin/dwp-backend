@@ -19,7 +19,6 @@ import java.util.stream.Collectors;
 
 import static com.dwp.services.platform.workplace.WorkplaceDelegatedAdminRoutePolicy.ScopeMode;
 import static com.dwp.services.platform.workplace.WorkplaceDelegatedAdminScopeRepository.DelegatedGrant;
-import static com.dwp.services.platform.workplace.WorkplaceDelegatedAdminScopeRepository.SiteTargetType;
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.DelegatedPermission;
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.DelegatedScopeType;
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.PolicyScopeType;
@@ -76,7 +75,7 @@ class WorkplaceDelegatedAdminScopeGuard {
             case SITE_LIST -> authorizeSiteList(request, grants, route.permission());
             case ANY_DELEGATED_SCOPE -> requireAnyScope(grants, route.permission());
             case SITE_QUERY -> requireSite(
-                    tenantId, request.getParameter("siteId"), SiteTargetType.SITE,
+                    tenantId, request.getParameter("siteId"), WorkplaceDelegatedAdminTargetType.SITE,
                     grants, route.permission());
             case POLICY_SCOPE_QUERY -> requirePolicyScope(
                     tenantId, request, grants, route.permission());
@@ -84,7 +83,7 @@ class WorkplaceDelegatedAdminScopeGuard {
                 requireTargets(tenantId, route, grants);
                 requirePolicyScope(tenantId, request, grants, route.permission());
             }
-            case TARGET_SITE -> requireTargets(tenantId, route, grants);
+            case TARGET_SITE, SITE_CONTEXT -> requireTargets(tenantId, route, grants);
             case GLOBAL_ONLY -> throw forbidden();
         }
     }
@@ -145,6 +144,23 @@ class WorkplaceDelegatedAdminScopeGuard {
             Long tenantId,
             WorkplaceDelegatedAdminRoutePolicy.Match route,
             List<DelegatedGrant> grants) {
+        if (grants.stream().anyMatch(grant -> grant.floorIds() != null)) {
+            List<WorkplaceDelegatedAdminScopeRepository.CanonicalTarget> targets = route.targets().stream()
+                    .map(target -> repository.resolveTarget(tenantId, target.type(), uuid(route.variables().get(target.variable())))
+                            .orElseThrow(this::forbidden)).toList();
+            Set<UUID> sites = targets.stream().map(WorkplaceDelegatedAdminScopeRepository.CanonicalTarget::siteId).collect(Collectors.toSet());
+            Set<UUID> floors = targets.stream().map(WorkplaceDelegatedAdminScopeRepository.CanonicalTarget::floorId)
+                    .filter(Objects::nonNull).collect(Collectors.toSet());
+            if (sites.size() != 1 || floors.size() > 1) throw forbidden();
+            UUID site = sites.iterator().next();
+            for (int i = 0; i < targets.size(); i++) {
+                var target = targets.get(i);
+                boolean parentContext = route.targets().get(i).type() == WorkplaceDelegatedAdminTargetType.SITE
+                        && (!floors.isEmpty() || route.scopeMode() == ScopeMode.SITE_CONTEXT);
+                requireScopedGrant(grants, site, target.floorId(), target.siteWide() && !parentContext, route.permission());
+            }
+            return;
+        }
         Set<UUID> resolvedSites = new LinkedHashSet<>();
         for (WorkplaceDelegatedAdminRoutePolicy.Target target : route.targets()) {
             String rawId = route.variables().get(target.variable());
@@ -168,11 +184,11 @@ class WorkplaceDelegatedAdminScopeGuard {
         } catch (IllegalArgumentException | NullPointerException exception) {
             throw forbidden();
         }
-        SiteTargetType targetType = switch (scopeType) {
-            case SITE -> SiteTargetType.SITE;
-            case FLOOR -> SiteTargetType.FLOOR;
-            case ZONE -> SiteTargetType.ZONE;
-            case RESOURCE -> SiteTargetType.RESOURCE;
+        WorkplaceDelegatedAdminTargetType targetType = switch (scopeType) {
+            case SITE -> WorkplaceDelegatedAdminTargetType.SITE;
+            case FLOOR -> WorkplaceDelegatedAdminTargetType.FLOOR;
+            case ZONE -> WorkplaceDelegatedAdminTargetType.ZONE;
+            case RESOURCE -> WorkplaceDelegatedAdminTargetType.RESOURCE;
             case TENANT, CAMPUS -> throw forbidden();
         };
         requireSite(tenantId, request.getParameter("scopeId"), targetType, grants, permission);
@@ -181,9 +197,14 @@ class WorkplaceDelegatedAdminScopeGuard {
     private void requireSite(
             Long tenantId,
             String rawTargetId,
-            SiteTargetType targetType,
+            WorkplaceDelegatedAdminTargetType targetType,
             List<DelegatedGrant> grants,
             DelegatedPermission permission) {
+        if (grants.stream().anyMatch(grant -> grant.floorIds() != null) && targetType != WorkplaceDelegatedAdminTargetType.SITE) {
+            var target = repository.resolveTarget(tenantId, targetType, uuid(rawTargetId)).orElseThrow(this::forbidden);
+            requireScopedGrant(grants, target.siteId(), target.floorId(), target.siteWide(), permission);
+            return;
+        }
         UUID siteId = repository.resolveSite(tenantId, targetType, uuid(rawTargetId))
                 .orElseThrow(this::forbidden);
         requireGrant(grants, siteId, permission);
@@ -200,14 +221,94 @@ class WorkplaceDelegatedAdminScopeGuard {
         if (!allowed) throw forbidden();
     }
 
+    private void requireScopedGrant(List<DelegatedGrant> grants, UUID siteId, UUID floorId,
+            boolean siteWide, DelegatedPermission permission) {
+        if (grants.stream().filter(grant -> grant.scopeType() == DelegatedScopeType.SITE)
+                .filter(grant -> Objects.equals(grant.siteId(), siteId) && permits(grant, permission))
+                .noneMatch(grant -> grant.floorIds() == null || (!siteWide && (floorId == null || grant.floorIds().contains(floorId)))))
+            throw forbidden();
+    }
+
     private boolean permits(DelegatedGrant grant, DelegatedPermission required) {
-        if (grant.permissions().contains(required)) return true;
-        return required == DelegatedPermission.CATALOG_VIEW
-                && grant.permissions().stream().anyMatch(permission -> switch (permission) {
-                    case CATALOG_MANAGE, ACCESS_MANAGE, POLICY_MANAGE,
-                            FLOOR_PLAN_MANAGE -> true;
-                    case CATALOG_VIEW, DELEGATION_VIEW -> false;
-                });
+        return WorkplaceDelegatedPermissionRules.permits(grant.permissions(), required);
+    }
+
+    WorkplaceDelegatedAdminAccessScope scope(HttpServletRequest request, UUID siteId, DelegatedPermission permission) {
+        var principal = principal(request);
+        return effectiveScope(principal, siteId, permission,
+                principal.global() ? List.of() : repository.candidateGrants(principal.tenantId(), principal.userId(), principal.verifiedGroups()),
+                OffsetDateTime.now(clock));
+    }
+
+    WorkplaceDelegatedAdminAccessScope scopeForTarget(HttpServletRequest request, WorkplaceDelegatedAdminTargetType type,
+            UUID targetId, DelegatedPermission permission) {
+        var principal = principal(request);
+        var target = repository.resolveTarget(principal.tenantId(), type, targetId).orElseThrow(this::forbidden);
+        var scope = scope(request, target.siteId(), permission);
+        if (target.siteWide()) scope.requireSiteWide(); else scope.requireFloor(target.floorId());
+        return scope;
+    }
+
+    List<WorkplaceDelegatedAdminAccessScope> visibleScopes(HttpServletRequest request, DelegatedPermission permission) {
+        var principal = principal(request);
+        List<DelegatedGrant> grants = principal.global() ? List.of()
+                : repository.candidateGrants(principal.tenantId(), principal.userId(), principal.verifiedGroups());
+        OffsetDateTime now = OffsetDateTime.now(clock);
+        List<UUID> sites = principal.global() ? repository.tenantSiteIds(principal.tenantId())
+                : grants.stream().filter(grant -> matchesSubject(grant, principal.userId(), principal.verifiedGroups()))
+                    .filter(grant -> active(grant, now) && permits(grant, permission))
+                    .filter(grant -> grant.scopeType() == DelegatedScopeType.SITE).map(DelegatedGrant::siteId)
+                    .filter(Objects::nonNull).distinct().sorted().toList();
+        if (!principal.global() && sites.isEmpty()) throw forbidden();
+        return sites.stream().map(site -> effectiveScope(principal, site, permission, grants, now)).toList();
+    }
+
+    WorkplaceDelegatedAdminAccessScope revalidate(WorkplaceDelegatedAdminAccessScope requested) {
+        if (requested == null) throw forbidden();
+        if (!org.springframework.transaction.support.TransactionSynchronizationManager.isActualTransactionActive()
+                || org.springframework.transaction.support.TransactionSynchronizationManager.isCurrentTransactionReadOnly())
+            throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Delegated scope revalidation requires an actual writable owner transaction.");
+        var principal = requested.principal();
+        List<DelegatedGrant> grants = principal.global() ? List.of()
+                : repository.candidateGrants(principal.tenantId(), principal.userId(), principal.verifiedGroups(), true);
+        OffsetDateTime now = repository.databaseNow();
+        if (now == null) throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE, "The database authority clock is unavailable.");
+        return effectiveScope(principal, requested.siteId(), requested.permission(), grants, now);
+    }
+
+    void requireTarget(WorkplaceDelegatedAdminAccessScope scope, WorkplaceDelegatedAdminTargetType type, UUID id) {
+        if (scope == null) throw forbidden();
+        var target = repository.resolveTarget(scope.tenantId(), type, id).orElseThrow(this::forbidden);
+        if (!Objects.equals(scope.siteId(), target.siteId())) throw forbidden();
+        if (target.siteWide()) scope.requireSiteWide(); else scope.requireFloor(target.floorId());
+    }
+
+    private WorkplaceDelegatedAdminAccessScope effectiveScope(WorkplaceDelegatedAdminAccessScope.Principal principal,
+            UUID siteId, DelegatedPermission permission, List<DelegatedGrant> candidates, OffsetDateTime now) {
+        if (siteId == null || permission == null || repository.resolveTarget(principal.tenantId(), WorkplaceDelegatedAdminTargetType.SITE, siteId).isEmpty())
+            throw forbidden();
+        if (principal.global()) return new WorkplaceDelegatedAdminAccessScope(principal, siteId, permission, null);
+        List<DelegatedGrant> grants = candidates.stream()
+                .filter(grant -> matchesSubject(grant, principal.userId(), principal.verifiedGroups()))
+                .filter(grant -> active(grant, now) && grant.scopeType() == DelegatedScopeType.SITE)
+                .filter(grant -> Objects.equals(grant.siteId(), siteId) && permits(grant, permission)).toList();
+        if (grants.isEmpty()) throw forbidden();
+        if (grants.stream().anyMatch(grant -> grant.floorIds() == null))
+            return new WorkplaceDelegatedAdminAccessScope(principal, siteId, permission, null);
+        Set<UUID> floors = grants.stream().flatMap(grant -> grant.floorIds().stream()).collect(Collectors.toUnmodifiableSet());
+        if (floors.isEmpty()) throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE, "A restricted scope has no persisted floors.");
+        return new WorkplaceDelegatedAdminAccessScope(principal, siteId, permission, floors);
+    }
+
+    private WorkplaceDelegatedAdminAccessScope.Principal principal(HttpServletRequest request) {
+        if (request == null) throw forbidden();
+        Long tenant = positiveLong(request.getHeader(TENANT_HEADER));
+        Long actor = positiveLong(request.getHeader(USER_HEADER));
+        boolean global = isGlobalAdministrator(request);
+        if (tenant == null || (!global && actor == null)) throw forbidden();
+        return new WorkplaceDelegatedAdminAccessScope.Principal(tenant, actor,
+                global ? Set.of() : verifiedGroupRefs(request.getHeader(GROUP_REFS_HEADER)), global);
     }
 
     private boolean active(DelegatedGrant grant, OffsetDateTime now) {
@@ -226,6 +327,8 @@ class WorkplaceDelegatedAdminScopeGuard {
                     && verifiedGroupRefs.contains(grant.delegateGroupRef());
         };
     }
+
+    boolean globalAdministrator(HttpServletRequest request) { return isGlobalAdministrator(request); }
 
     private boolean isGlobalAdministrator(HttpServletRequest request) {
         String roles = request.getHeader(ROLES_HEADER);

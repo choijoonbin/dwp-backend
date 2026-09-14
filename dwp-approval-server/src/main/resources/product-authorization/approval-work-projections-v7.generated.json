@@ -1,0 +1,417 @@
+{
+  "schemaVersion": 1,
+  "projectionKey": "approval-work-projections-v7",
+  "registryRef": {
+    "bundleKey": "product-surfaces",
+    "version": 7,
+    "sha256": "fe9721ef01164c64e03f8798f89765bdf35e55993cf98ad1f6f9c3611dd8d61a"
+  },
+  "bindingCount": 5,
+  "bindings": [
+    {
+      "routeContractKey": "route.approvals.work.draft-command-reconciliation.data",
+      "profileKey": "full-work",
+      "apiBindingKey": "route.approvals.work.draft-command-reconciliation.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.draft-command-reconciliation.data.full-work.projection.v1",
+      "responseSchemaKey": "DraftReconciliation",
+      "schemaVersion": 1,
+      "openApiSchemaSha256": "5f077c0c323ef1821cbc5f3afdfd120899ef576d57099973a4f3883cb3a120cd",
+      "additionalProperties": false
+    },
+    {
+      "routeContractKey": "route.approvals.work.request-draft-revision.data",
+      "profileKey": "full-work",
+      "apiBindingKey": "route.approvals.work.request-draft-revision.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.request-draft-revision.data.full-work.projection.v1",
+      "responseSchemaKey": "DraftRevisionDetail",
+      "schemaVersion": 1,
+      "openApiSchemaSha256": "953f4fa55851c3e2ee3b4cafb406ab0a01fd96556d8cbc545f326949d8f9822a",
+      "additionalProperties": false
+    },
+    {
+      "routeContractKey": "route.approvals.work.request-draft-revisions.data",
+      "profileKey": "full-work",
+      "apiBindingKey": "route.approvals.work.request-draft-revisions.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.request-draft-revisions.data.full-work.projection.v1",
+      "responseSchemaKey": "PageDraftRevision",
+      "schemaVersion": 1,
+      "openApiSchemaSha256": "bccf9505e49ba2d0ad81b3ab7263751a511529764dd87e6e2e7161fe167f6ce6",
+      "additionalProperties": false
+    },
+    {
+      "routeContractKey": "route.approvals.work.requests-search.data",
+      "profileKey": "full-work",
+      "apiBindingKey": "route.approvals.work.requests-search.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.requests-search.data.full-work.projection.v1",
+      "responseSchemaKey": "PageRequestSummary",
+      "schemaVersion": 1,
+      "openApiSchemaSha256": "6d9c0c9fd273bee297f97d44f91b7147f3f966bc0c090c6712b2ebe62aaba46a",
+      "additionalProperties": false
+    },
+    {
+      "routeContractKey": "route.approvals.work.tasks-search.data",
+      "profileKey": "full-work",
+      "apiBindingKey": "route.approvals.work.tasks-search.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.tasks-search.data.full-work.projection.v1",
+      "responseSchemaKey": "PageTaskSummary",
+      "schemaVersion": 1,
+      "openApiSchemaSha256": "27ab4bbfb93395f73d300d67ad423f7cf5f4eb04a6b9025ab665711b6334b54a",
+      "additionalProperties": false
+    }
+  ],
+  "schemas": {
+    "DraftReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "commandType": {
+          "type": "string"
+        },
+        "completedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "draft": {
+          "$ref": "#/components/schemas/DraftState"
+        },
+        "route": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "DraftReconciliation": {
+      "additionalProperties": false,
+      "properties": {
+        "idempotencyKey": {
+          "type": "string"
+        },
+        "receipts": {
+          "items": {
+            "$ref": "#/components/schemas/DraftReceipt"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "DraftRevision": {
+      "additionalProperties": false,
+      "properties": {
+        "changeType": {
+          "type": "string"
+        },
+        "changedBy": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "payloadSha256": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "recoverable": {
+          "type": "boolean"
+        },
+        "recoveryReason": {
+          "type": "string"
+        },
+        "revision": {
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "DraftRevisionDetail": {
+      "additionalProperties": false,
+      "properties": {
+        "draftSnapshot": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "payload": {
+          "additionalProperties": {},
+          "type": "object"
+        },
+        "revision": {
+          "$ref": "#/components/schemas/DraftRevision"
+        }
+      },
+      "type": "object"
+    },
+    "DraftState": {
+      "additionalProperties": false,
+      "properties": {
+        "deletedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "deletedBy": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "payloadRevision": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "version": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "PageDraftRevision": {
+      "additionalProperties": false,
+      "properties": {
+        "evaluatedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "hasNext": {
+          "type": "boolean"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/DraftRevision"
+          },
+          "type": "array"
+        },
+        "page": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "size": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "totalElements": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "totalPages": {
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "PageRequestSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "evaluatedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "hasNext": {
+          "type": "boolean"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/RequestSummary"
+          },
+          "type": "array"
+        },
+        "page": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "size": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "totalElements": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "totalPages": {
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "PageTaskSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "evaluatedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "hasNext": {
+          "type": "boolean"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/TaskSummary"
+          },
+          "type": "array"
+        },
+        "page": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "size": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "totalElements": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "totalPages": {
+          "format": "int32",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "RequestSummary": {
+      "properties": {
+        "completedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "currentStepKey": {
+          "type": "string"
+        },
+        "currentStepName": {
+          "type": "string"
+        },
+        "currentStepSequence": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "dataClassification": {
+          "type": "string"
+        },
+        "dueAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "latestInformationRequest": {
+          "type": "string"
+        },
+        "priority": {
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "requestNumber": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        },
+        "submittedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "totalSteps": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "version": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "workflowNameEn": {
+          "type": "string"
+        },
+        "workflowNameKo": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "TaskSummary": {
+      "properties": {
+        "dataClassification": {
+          "type": "string"
+        },
+        "dueAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "priority": {
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "requestNumber": {
+          "type": "string"
+        },
+        "requesterName": {
+          "type": "string"
+        },
+        "requesterOrgName": {
+          "type": "string"
+        },
+        "riskScore": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "status": {
+          "type": "string"
+        },
+        "stepKey": {
+          "type": "string"
+        },
+        "stepName": {
+          "type": "string"
+        },
+        "stepSequence": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "submittedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "summary": {
+          "type": "string"
+        },
+        "taskId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "version": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "workflowNameEn": {
+          "type": "string"
+        },
+        "workflowNameKo": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "schemaClosureSha256": "92400af19e64105677869bfa2d4f15b4da3eb83fd278f00bbeb08c82b44c308f",
+  "checksumAlgorithm": "SHA-256",
+  "checksum": "c25ac256424a210ef0834170f32857472bf8a5c74d1539551da34efb69cd5152"
+}

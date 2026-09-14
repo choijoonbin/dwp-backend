@@ -1,0 +1,2318 @@
+{
+  "schemaVersion": 1,
+  "kind": "JOINT_V9_SOURCE_APPEND_REVIEW_INPUT",
+  "status": "EXACT_15_ENDPOINT_BINDINGS_READY_WORKPLACE_ACTIVATION_BLOCKED_BY_EXACT_OWNER_SCOPE",
+  "targetBundleKey": "product-surfaces",
+  "targetVersion": 9,
+  "sourceSchemaRef": "contracts/product-authorization/product-surfaces-v1.json schemaVersion=1 version=8 (read-only reference)",
+  "reviewOwner": "Workplace + Platform + Security",
+  "scope": "Report4 + Facilities11 exact current-controller endpoint bindings; collaboration has separate owner input",
+  "append": {
+    "routes": [
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-management",
+            "readOnly": true,
+            "requiredAccess": {
+              "type": "CAPABILITY",
+              "capabilityContractKey": "workplace.experience.view"
+            },
+            "targetBindingKinds": [
+              "OBJECT"
+            ],
+            "responseProjectionBindings": [
+              {
+                "apiBindingKey": "route.workplace.management.experience-overview.data.binding.01",
+                "projectionPolicyKey": "route.workplace.management.experience-overview.data.full-management.projection.v1",
+                "responseSchemaKey": "route.workplace.management.experience-overview.data.response.v1"
+              }
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.management.experience-overview.data.binding.01",
+            "method": "GET",
+            "path": "/api/platform/v1/admin/workplace/experience-report",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.management",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.management.experience-overview.data",
+        "routeKind": "DATA",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.management.experience-overview.data.binding.01",
+            "method": "GET",
+            "path": "/v1/admin/workplace/experience-report",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": true,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.management",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-management",
+            "readOnly": true,
+            "requiredAccess": {
+              "type": "CAPABILITY",
+              "capabilityContractKey": "workplace.experience.view"
+            },
+            "targetBindingKinds": [
+              "OBJECT"
+            ],
+            "responseProjectionBindings": [
+              {
+                "apiBindingKey": "route.workplace.management.experience-booking-detail.data.binding.01",
+                "projectionPolicyKey": "route.workplace.management.experience-booking-detail.data.full-management.projection.v1",
+                "responseSchemaKey": "route.workplace.management.experience-booking-detail.data.response.v1"
+              }
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.management.experience-booking-detail.data.binding.01",
+            "method": "GET",
+            "path": "/api/platform/v1/admin/workplace/experience-report/bookings/{bookingId}",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.management",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.management.experience-booking-detail.data",
+        "routeKind": "DATA",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.management.experience-booking-detail.data.binding.01",
+            "method": "GET",
+            "path": "/v1/admin/workplace/experience-report/bookings/{bookingId}",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": true,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.management",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-management",
+            "readOnly": true,
+            "requiredAccess": {
+              "type": "CAPABILITY",
+              "capabilityContractKey": "workplace.experience.view"
+            },
+            "targetBindingKinds": [
+              "OBJECT"
+            ],
+            "responseProjectionBindings": [
+              {
+                "apiBindingKey": "route.workplace.management.experience-future-booking-impact.data.binding.01",
+                "projectionPolicyKey": "route.workplace.management.experience-future-booking-impact.data.full-management.projection.v1",
+                "responseSchemaKey": "route.workplace.management.experience-future-booking-impact.data.response.v1"
+              }
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.management.experience-future-booking-impact.data.binding.01",
+            "method": "GET",
+            "path": "/api/platform/v1/admin/workplace/resources/{resourceId}/future-booking-impact",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.management",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.management.experience-future-booking-impact.data",
+        "routeKind": "DATA",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.management.experience-future-booking-impact.data.binding.01",
+            "method": "GET",
+            "path": "/v1/admin/workplace/resources/{resourceId}/future-booking-impact",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": true,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.management",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-management",
+            "readOnly": true,
+            "requiredAccess": {
+              "type": "CAPABILITY",
+              "capabilityContractKey": "workplace.experience.view"
+            },
+            "targetBindingKinds": [
+              "OBJECT"
+            ],
+            "responseProjectionBindings": [
+              {
+                "apiBindingKey": "route.workplace.management.experience-policy-impact.data.binding.01",
+                "projectionPolicyKey": "route.workplace.management.experience-policy-impact.data.full-management.projection.v1",
+                "responseSchemaKey": "route.workplace.management.experience-policy-impact.data.response.v1"
+              }
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.management.experience-policy-impact.data.binding.01",
+            "method": "GET",
+            "path": "/api/platform/v1/admin/workplace/policy-impact-preview",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.management",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.management.experience-policy-impact.data",
+        "routeKind": "DATA",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.management.experience-policy-impact.data.binding.01",
+            "method": "GET",
+            "path": "/v1/admin/workplace/policy-impact-preview",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": true,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.management",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-management",
+            "readOnly": true,
+            "requiredAccess": {
+              "type": "CAPABILITY",
+              "capabilityContractKey": "workplace.experience.view"
+            },
+            "targetBindingKinds": [
+              "OBJECT"
+            ],
+            "responseProjectionBindings": [
+              {
+                "apiBindingKey": "route.workplace.management.facility-closures.data.binding.01",
+                "projectionPolicyKey": "route.workplace.management.facility-closures.data.full-management.projection.v1",
+                "responseSchemaKey": "route.workplace.management.facility-closures.data.response.v1"
+              }
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-closures.data.binding.01",
+            "method": "GET",
+            "path": "/api/platform/v1/admin/workplace/experience/facilities/closures",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.management",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.management.facility-closures.data",
+        "routeKind": "DATA",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-closures.data.binding.01",
+            "method": "GET",
+            "path": "/v1/admin/workplace/experience/facilities/closures",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": true,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.management",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-management",
+            "readOnly": true,
+            "requiredAccess": {
+              "type": "CAPABILITY",
+              "capabilityContractKey": "workplace.experience.view"
+            },
+            "targetBindingKinds": [
+              "OBJECT"
+            ],
+            "responseProjectionBindings": [
+              {
+                "apiBindingKey": "route.workplace.management.facility-closure-detail.data.binding.01",
+                "projectionPolicyKey": "route.workplace.management.facility-closure-detail.data.full-management.projection.v1",
+                "responseSchemaKey": "route.workplace.management.facility-closure-detail.data.response.v1"
+              }
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-closure-detail.data.binding.01",
+            "method": "GET",
+            "path": "/api/platform/v1/admin/workplace/experience/facilities/closures/{closureId}",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.management",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.management.facility-closure-detail.data",
+        "routeKind": "DATA",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-closure-detail.data.binding.01",
+            "method": "GET",
+            "path": "/v1/admin/workplace/experience/facilities/closures/{closureId}",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": true,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.management",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-management",
+            "readOnly": false,
+            "requiredAccess": {
+              "type": "CAPABILITY",
+              "capabilityContractKey": "workplace.experience.create"
+            },
+            "targetBindingKinds": [
+              "OBJECT"
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-closure-create.action.binding.01",
+            "method": "POST",
+            "path": "/api/platform/v1/admin/workplace/experience/facilities/resources/{resourceId}/closures",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.management",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.management.facility-closure-create.action",
+        "routeKind": "ACTION",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-closure-create.action.binding.01",
+            "method": "POST",
+            "path": "/v1/admin/workplace/experience/facilities/resources/{resourceId}/closures",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": null,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.management",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-management",
+            "readOnly": false,
+            "requiredAccess": {
+              "type": "CAPABILITY",
+              "capabilityContractKey": "workplace.experience.update"
+            },
+            "targetBindingKinds": [
+              "OBJECT"
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-closure-cancel.action.binding.01",
+            "method": "PUT",
+            "path": "/api/platform/v1/admin/workplace/experience/facilities/closures/{closureId}/cancel",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.management",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.management.facility-closure-cancel.action",
+        "routeKind": "ACTION",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-closure-cancel.action.binding.01",
+            "method": "PUT",
+            "path": "/v1/admin/workplace/experience/facilities/closures/{closureId}/cancel",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": null,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.management",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-management",
+            "readOnly": true,
+            "requiredAccess": {
+              "type": "CAPABILITY",
+              "capabilityContractKey": "workplace.experience.view"
+            },
+            "targetBindingKinds": [
+              "OBJECT"
+            ],
+            "responseProjectionBindings": [
+              {
+                "apiBindingKey": "route.workplace.management.facility-requests.data.binding.01",
+                "projectionPolicyKey": "route.workplace.management.facility-requests.data.full-management.projection.v1",
+                "responseSchemaKey": "route.workplace.management.facility-requests.data.response.v1"
+              }
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-requests.data.binding.01",
+            "method": "GET",
+            "path": "/api/platform/v1/admin/workplace/experience/facilities/requests",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.management",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.management.facility-requests.data",
+        "routeKind": "DATA",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-requests.data.binding.01",
+            "method": "GET",
+            "path": "/v1/admin/workplace/experience/facilities/requests",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": true,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.management",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-management",
+            "readOnly": false,
+            "requiredAccess": {
+              "type": "CAPABILITY",
+              "capabilityContractKey": "workplace.experience.update"
+            },
+            "targetBindingKinds": [
+              "OBJECT"
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-request-status.action.binding.01",
+            "method": "PUT",
+            "path": "/api/platform/v1/admin/workplace/experience/facilities/requests/{requestId}/status",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.management",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.management.facility-request-status.action",
+        "routeKind": "ACTION",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-request-status.action.binding.01",
+            "method": "PUT",
+            "path": "/v1/admin/workplace/experience/facilities/requests/{requestId}/status",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": null,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.management",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-work",
+            "readOnly": false,
+            "requiredAccess": {
+              "type": "CAPABILITY",
+              "capabilityContractKey": "workplace.space.create"
+            },
+            "targetBindingKinds": [
+              "SELF"
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.work.facility-request-create.action.binding.01",
+            "method": "POST",
+            "path": "/api/platform/v1/workplace/experience/facilities/resources/{resourceId}/requests",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.work",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.work.facility-request-create.action",
+        "routeKind": "ACTION",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.work.facility-request-create.action.binding.01",
+            "method": "POST",
+            "path": "/v1/workplace/experience/facilities/resources/{resourceId}/requests",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": null,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.work",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-work",
+            "readOnly": true,
+            "requiredAccess": {
+              "type": "POLICY",
+              "accessPolicyKey": "workplace.work-access.v1"
+            },
+            "targetBindingKinds": [
+              "SELF"
+            ],
+            "responseProjectionBindings": [
+              {
+                "apiBindingKey": "route.workplace.work.facility-own-requests.data.binding.01",
+                "projectionPolicyKey": "route.workplace.work.facility-own-requests.data.full-work.projection.v1",
+                "responseSchemaKey": "route.workplace.work.facility-own-requests.data.response.v1"
+              }
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.work.facility-own-requests.data.binding.01",
+            "method": "GET",
+            "path": "/api/platform/v1/workplace/experience/facilities/requests",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.work",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.work.facility-own-requests.data",
+        "routeKind": "DATA",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.work.facility-own-requests.data.binding.01",
+            "method": "GET",
+            "path": "/v1/workplace/experience/facilities/requests",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": true,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.work",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-work",
+            "readOnly": true,
+            "requiredAccess": {
+              "type": "POLICY",
+              "accessPolicyKey": "workplace.work-access.v1"
+            },
+            "targetBindingKinds": [
+              "SELF"
+            ],
+            "responseProjectionBindings": [
+              {
+                "apiBindingKey": "route.workplace.work.facility-own-request-detail.data.binding.01",
+                "projectionPolicyKey": "route.workplace.work.facility-own-request-detail.data.full-work.projection.v1",
+                "responseSchemaKey": "route.workplace.work.facility-own-request-detail.data.response.v1"
+              }
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.work.facility-own-request-detail.data.binding.01",
+            "method": "GET",
+            "path": "/api/platform/v1/workplace/experience/facilities/requests/{requestId}",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.work",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.work.facility-own-request-detail.data",
+        "routeKind": "DATA",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.work.facility-own-request-detail.data.binding.01",
+            "method": "GET",
+            "path": "/v1/workplace/experience/facilities/requests/{requestId}",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": true,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.work",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-work",
+            "readOnly": true,
+            "requiredAccess": {
+              "type": "POLICY",
+              "accessPolicyKey": "workplace.work-access.v1"
+            },
+            "targetBindingKinds": [
+              "SELF"
+            ],
+            "responseProjectionBindings": [
+              {
+                "apiBindingKey": "route.workplace.work.facility-booking-availability.data.binding.01",
+                "projectionPolicyKey": "route.workplace.work.facility-booking-availability.data.full-work.projection.v1",
+                "responseSchemaKey": "route.workplace.work.facility-booking-availability.data.response.v1"
+              }
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.work.facility-booking-availability.data.binding.01",
+            "method": "GET",
+            "path": "/api/platform/v1/workplace/experience/facilities/resources/{resourceId}/booking-availability",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.work",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.work.facility-booking-availability.data",
+        "routeKind": "DATA",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.work.facility-booking-availability.data.binding.01",
+            "method": "GET",
+            "path": "/v1/workplace/experience/facilities/resources/{resourceId}/booking-availability",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": true,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.work",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      },
+      {
+        "accessProfiles": [
+          {
+            "activeAccessModes": [
+              "NORMAL",
+              "ELEVATED"
+            ],
+            "precedence": 300,
+            "predicatePolicyKeys": [
+              "predicate.workplace-experience-scope.v1"
+            ],
+            "profileKey": "full-management",
+            "readOnly": true,
+            "requiredAccess": {
+              "type": "CAPABILITY",
+              "capabilityContractKey": "workplace.experience.view"
+            },
+            "targetBindingKinds": [
+              "OBJECT"
+            ],
+            "responseProjectionBindings": [
+              {
+                "apiBindingKey": "route.workplace.management.facility-room-booking-impact.data.binding.01",
+                "projectionPolicyKey": "route.workplace.management.facility-room-booking-impact.data.full-management.projection.v1",
+                "responseSchemaKey": "route.workplace.management.facility-room-booking-impact.data.response.v1"
+              }
+            ]
+          }
+        ],
+        "gatewayApiBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-room-booking-impact.data.binding.01",
+            "method": "GET",
+            "path": "/api/platform/v1/admin/workplace/experience/facilities/resources/{resourceId}/room-booking-impact",
+            "pathParameterConstraints": {}
+          }
+        ],
+        "lifecycleState": "ACTIVE",
+        "navigationContextId": "workplace.management",
+        "owner": "Workplace + Platform + Security",
+        "policyVersion": 1,
+        "routeContractKey": "route.workplace.management.facility-room-booking-impact.data",
+        "routeKind": "DATA",
+        "servicePepBindings": [
+          {
+            "bindingKey": "route.workplace.management.facility-room-booking-impact.data.binding.01",
+            "method": "GET",
+            "path": "/v1/admin/workplace/experience/facilities/resources/{resourceId}/room-booking-impact",
+            "pathParameterConstraints": {},
+            "serviceKey": "platform"
+          }
+        ],
+        "sideEffectFree": true,
+        "subject": {
+          "productKey": "workplace",
+          "surfaceKey": "workplace.management",
+          "type": "PRODUCT"
+        },
+        "uiRouteId": null,
+        "uiRoutePattern": null
+      }
+    ]
+  },
+  "existingContractAmendmentRequirements": [
+    {
+      "contractKey": "workplace.space.create",
+      "addRouteContractKeys": [
+        "route.workplace.work.facility-request-create.action"
+      ],
+      "doNotChange": "APP.WORKPLACE:CREATE, requiresProductEntitlement=true, SELF existing native entry semantics"
+    }
+  ],
+  "capabilityTemplatesBlockedUntilScopeOwnerReview": [
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "workplace.experience.view",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "workplace",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.WORKPLACE:VIEW",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.workplace.management.experience-overview.data",
+        "route.workplace.management.experience-booking-detail.data",
+        "route.workplace.management.experience-future-booking-impact.data",
+        "route.workplace.management.experience-policy-impact.data",
+        "route.workplace.management.facility-closures.data",
+        "route.workplace.management.facility-closure-detail.data",
+        "route.workplace.management.facility-requests.data",
+        "route.workplace.management.facility-room-booking-impact.data"
+      ],
+      "scopeResolver": null,
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "workplace.management",
+      "requiredResponsibilityCode": null
+    },
+    {
+      "action": "CREATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "workplace.experience.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "workplace",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.WORKPLACE:CREATE",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.workplace.management.facility-closure-create.action"
+      ],
+      "scopeResolver": null,
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "workplace.management",
+      "requiredResponsibilityCode": null
+    },
+    {
+      "action": "UPDATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "workplace.experience.update",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "workplace",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.WORKPLACE:UPDATE",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.workplace.management.facility-closure-cancel.action",
+        "route.workplace.management.facility-request-status.action"
+      ],
+      "scopeResolver": null,
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "workplace.management",
+      "requiredResponsibilityCode": null
+    }
+  ],
+  "proposedPredicateRegistration": {
+    "predicatePolicyKey": "predicate.workplace-experience-scope.v1",
+    "status": "NEW_OWNER_PREDICATE_EVIDENCE_AND_REGISTRATION_REQUIRED",
+    "mustEvaluate": "actual tenant/user + current member allowed site/requester ownership OR native delegated operation/site/resource binding; conditional separate Rooms authority; source guard already implemented",
+    "existingPredicateMustNotBeBlindlyReused": "predicate.workplace-resource.v1 currently enumerates only old three routes"
+  },
+  "ownerPepRouteAppendReview": {
+    "schemaVersion": 1,
+    "ownerServiceKey": "platform",
+    "productKey": "workplace",
+    "routes": [
+      {
+        "routeContractKey": "route.workplace.management.experience-overview.data",
+        "routeKind": "DATA",
+        "surfaceKey": "workplace.management",
+        "requiredAccess": {
+          "type": "CAPABILITY",
+          "key": "workplace.experience.view"
+        },
+        "bindings": [
+          {
+            "method": "GET",
+            "servicePath": "/v1/admin/workplace/experience-report",
+            "permission": "ADMIN.WORKPLACE:VIEW"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.management.experience-booking-detail.data",
+        "routeKind": "DATA",
+        "surfaceKey": "workplace.management",
+        "requiredAccess": {
+          "type": "CAPABILITY",
+          "key": "workplace.experience.view"
+        },
+        "bindings": [
+          {
+            "method": "GET",
+            "servicePath": "/v1/admin/workplace/experience-report/bookings/{bookingId}",
+            "permission": "ADMIN.WORKPLACE:VIEW"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.management.experience-future-booking-impact.data",
+        "routeKind": "DATA",
+        "surfaceKey": "workplace.management",
+        "requiredAccess": {
+          "type": "CAPABILITY",
+          "key": "workplace.experience.view"
+        },
+        "bindings": [
+          {
+            "method": "GET",
+            "servicePath": "/v1/admin/workplace/resources/{resourceId}/future-booking-impact",
+            "permission": "ADMIN.WORKPLACE:VIEW"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.management.experience-policy-impact.data",
+        "routeKind": "DATA",
+        "surfaceKey": "workplace.management",
+        "requiredAccess": {
+          "type": "CAPABILITY",
+          "key": "workplace.experience.view"
+        },
+        "bindings": [
+          {
+            "method": "GET",
+            "servicePath": "/v1/admin/workplace/policy-impact-preview",
+            "permission": "ADMIN.WORKPLACE:VIEW"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.management.facility-closures.data",
+        "routeKind": "DATA",
+        "surfaceKey": "workplace.management",
+        "requiredAccess": {
+          "type": "CAPABILITY",
+          "key": "workplace.experience.view"
+        },
+        "bindings": [
+          {
+            "method": "GET",
+            "servicePath": "/v1/admin/workplace/experience/facilities/closures",
+            "permission": "ADMIN.WORKPLACE:VIEW"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.management.facility-closure-detail.data",
+        "routeKind": "DATA",
+        "surfaceKey": "workplace.management",
+        "requiredAccess": {
+          "type": "CAPABILITY",
+          "key": "workplace.experience.view"
+        },
+        "bindings": [
+          {
+            "method": "GET",
+            "servicePath": "/v1/admin/workplace/experience/facilities/closures/{closureId}",
+            "permission": "ADMIN.WORKPLACE:VIEW"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.management.facility-closure-create.action",
+        "routeKind": "ACTION",
+        "surfaceKey": "workplace.management",
+        "requiredAccess": {
+          "type": "CAPABILITY",
+          "key": "workplace.experience.create"
+        },
+        "bindings": [
+          {
+            "method": "POST",
+            "servicePath": "/v1/admin/workplace/experience/facilities/resources/{resourceId}/closures",
+            "permission": "ADMIN.WORKPLACE:CREATE"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.management.facility-closure-cancel.action",
+        "routeKind": "ACTION",
+        "surfaceKey": "workplace.management",
+        "requiredAccess": {
+          "type": "CAPABILITY",
+          "key": "workplace.experience.update"
+        },
+        "bindings": [
+          {
+            "method": "PUT",
+            "servicePath": "/v1/admin/workplace/experience/facilities/closures/{closureId}/cancel",
+            "permission": "ADMIN.WORKPLACE:UPDATE"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.management.facility-requests.data",
+        "routeKind": "DATA",
+        "surfaceKey": "workplace.management",
+        "requiredAccess": {
+          "type": "CAPABILITY",
+          "key": "workplace.experience.view"
+        },
+        "bindings": [
+          {
+            "method": "GET",
+            "servicePath": "/v1/admin/workplace/experience/facilities/requests",
+            "permission": "ADMIN.WORKPLACE:VIEW"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.management.facility-request-status.action",
+        "routeKind": "ACTION",
+        "surfaceKey": "workplace.management",
+        "requiredAccess": {
+          "type": "CAPABILITY",
+          "key": "workplace.experience.update"
+        },
+        "bindings": [
+          {
+            "method": "PUT",
+            "servicePath": "/v1/admin/workplace/experience/facilities/requests/{requestId}/status",
+            "permission": "ADMIN.WORKPLACE:UPDATE"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.work.facility-request-create.action",
+        "routeKind": "ACTION",
+        "surfaceKey": "workplace.work",
+        "requiredAccess": {
+          "type": "CAPABILITY",
+          "key": "workplace.space.create"
+        },
+        "bindings": [
+          {
+            "method": "POST",
+            "servicePath": "/v1/workplace/experience/facilities/resources/{resourceId}/requests",
+            "permission": "APP.WORKPLACE:CREATE"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.work.facility-own-requests.data",
+        "routeKind": "DATA",
+        "surfaceKey": "workplace.work",
+        "requiredAccess": {
+          "type": "POLICY",
+          "key": "workplace.work-access.v1"
+        },
+        "bindings": [
+          {
+            "method": "GET",
+            "servicePath": "/v1/workplace/experience/facilities/requests",
+            "permission": "APP.WORKPLACE:VIEW"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.work.facility-own-request-detail.data",
+        "routeKind": "DATA",
+        "surfaceKey": "workplace.work",
+        "requiredAccess": {
+          "type": "POLICY",
+          "key": "workplace.work-access.v1"
+        },
+        "bindings": [
+          {
+            "method": "GET",
+            "servicePath": "/v1/workplace/experience/facilities/requests/{requestId}",
+            "permission": "APP.WORKPLACE:VIEW"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.work.facility-booking-availability.data",
+        "routeKind": "DATA",
+        "surfaceKey": "workplace.work",
+        "requiredAccess": {
+          "type": "POLICY",
+          "key": "workplace.work-access.v1"
+        },
+        "bindings": [
+          {
+            "method": "GET",
+            "servicePath": "/v1/workplace/experience/facilities/resources/{resourceId}/booking-availability",
+            "permission": "APP.WORKPLACE:VIEW"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.workplace.management.facility-room-booking-impact.data",
+        "routeKind": "DATA",
+        "surfaceKey": "workplace.management",
+        "requiredAccess": {
+          "type": "CAPABILITY",
+          "key": "workplace.experience.view"
+        },
+        "bindings": [
+          {
+            "method": "GET",
+            "servicePath": "/v1/admin/workplace/experience/facilities/resources/{resourceId}/room-booking-impact",
+            "permission": "ADMIN.WORKPLACE:VIEW"
+          }
+        ]
+      }
+    ]
+  },
+  "endpointOwnership": [
+    {
+      "routeContractKey": "route.workplace.management.experience-overview.data",
+      "apiBindingKey": "route.workplace.management.experience-overview.data.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "GET",
+      "publicPath": "/api/platform/v1/admin/workplace/experience-report",
+      "servicePath": "/v1/admin/workplace/experience-report",
+      "actualOwnerDto": "WorkplaceExperienceReportDtos.Report",
+      "requiresProductEntitlement": false,
+      "nativePermission": "ADMIN.WORKPLACE:VIEW",
+      "nativeDelegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "nativeSiteBinding": "tenant+siteId query; optional floorId must be in site",
+      "nativeAdditionalOwnerPermission": null,
+      "sourceController": "WorkplaceExperienceReportController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "sourceRegisteredUiRouteId": "workplace.management.overview",
+      "sourceRegisteredUiRoutePattern": "/workplace/admin/overview",
+      "routeKind": "DATA",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "LOW",
+      "scopeResolver": null,
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "mode": "SITE_QUERY",
+        "siteIdBinding": {
+          "location": "query",
+          "name": "siteId",
+          "type": "UUID",
+          "required": true
+        },
+        "delegatedPermission": "CATALOG_VIEW",
+        "nativeTargetBinding": "tenant+siteId query; optional floorId must be in site",
+        "requiresPersonalAppEntitlement": false,
+        "requiresGlobalAppConfigAdminResponsibility": false,
+        "conditionalAdditionalOwnerPermission": null,
+        "authoritativePdpSupport": "NOT_IMPLEMENTED_NATIVE_DELEGATED_SITE_RESOLVER_AND_EVIDENCE_EVALUATOR",
+        "unsupportedFallback": "No RS_WORKPLACE exists in current source. An arbitrary new resolver string is treated as TARGET_POPULATION by policyScopes(), not actual delegated-site validation."
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.management.experience-booking-detail.data",
+      "apiBindingKey": "route.workplace.management.experience-booking-detail.data.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "GET",
+      "publicPath": "/api/platform/v1/admin/workplace/experience-report/bookings/{bookingId}",
+      "servicePath": "/v1/admin/workplace/experience-report/bookings/{bookingId}",
+      "actualOwnerDto": "WorkplaceExperienceReportDtos.BookingDetail",
+      "requiresProductEntitlement": false,
+      "nativePermission": "ADMIN.WORKPLACE:VIEW",
+      "nativeDelegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "nativeSiteBinding": "tenant+siteId query+bookingId SQL joins resolve current actual resource/floor/site",
+      "nativeAdditionalOwnerPermission": null,
+      "sourceController": "WorkplaceExperienceReportController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "routeKind": "DATA",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "LOW",
+      "scopeResolver": null,
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "mode": "SITE_QUERY",
+        "siteIdBinding": {
+          "location": "query",
+          "name": "siteId",
+          "type": "UUID",
+          "required": true
+        },
+        "delegatedPermission": "CATALOG_VIEW",
+        "nativeTargetBinding": "tenant+siteId query+bookingId SQL joins resolve current actual resource/floor/site",
+        "requiresPersonalAppEntitlement": false,
+        "requiresGlobalAppConfigAdminResponsibility": false,
+        "conditionalAdditionalOwnerPermission": null,
+        "authoritativePdpSupport": "NOT_IMPLEMENTED_NATIVE_DELEGATED_SITE_RESOLVER_AND_EVIDENCE_EVALUATOR",
+        "unsupportedFallback": "No RS_WORKPLACE exists in current source. An arbitrary new resolver string is treated as TARGET_POPULATION by policyScopes(), not actual delegated-site validation."
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.management.experience-future-booking-impact.data",
+      "apiBindingKey": "route.workplace.management.experience-future-booking-impact.data.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "GET",
+      "publicPath": "/api/platform/v1/admin/workplace/resources/{resourceId}/future-booking-impact",
+      "servicePath": "/v1/admin/workplace/resources/{resourceId}/future-booking-impact",
+      "actualOwnerDto": "WorkplaceExperienceReportDtos.FutureBookingImpact",
+      "requiresProductEntitlement": false,
+      "nativePermission": "ADMIN.WORKPLACE:VIEW",
+      "nativeDelegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "nativeSiteBinding": "tenant+siteId query+resourceId SQL; ROOM requires separate Rooms owner and currently returns unavailable",
+      "nativeAdditionalOwnerPermission": null,
+      "sourceController": "WorkplaceExperienceReportController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "routeKind": "DATA",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "LOW",
+      "scopeResolver": null,
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "mode": "SITE_QUERY",
+        "siteIdBinding": {
+          "location": "query",
+          "name": "siteId",
+          "type": "UUID",
+          "required": true
+        },
+        "delegatedPermission": "CATALOG_VIEW",
+        "nativeTargetBinding": "tenant+siteId query+resourceId SQL; ROOM requires separate Rooms owner and currently returns unavailable",
+        "requiresPersonalAppEntitlement": false,
+        "requiresGlobalAppConfigAdminResponsibility": false,
+        "conditionalAdditionalOwnerPermission": null,
+        "authoritativePdpSupport": "NOT_IMPLEMENTED_NATIVE_DELEGATED_SITE_RESOLVER_AND_EVIDENCE_EVALUATOR",
+        "unsupportedFallback": "No RS_WORKPLACE exists in current source. An arbitrary new resolver string is treated as TARGET_POPULATION by policyScopes(), not actual delegated-site validation."
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.management.experience-policy-impact.data",
+      "apiBindingKey": "route.workplace.management.experience-policy-impact.data.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "GET",
+      "publicPath": "/api/platform/v1/admin/workplace/policy-impact-preview",
+      "servicePath": "/v1/admin/workplace/policy-impact-preview",
+      "actualOwnerDto": "WorkplaceExperienceReportDtos.PolicyImpact",
+      "requiresProductEntitlement": false,
+      "nativePermission": "ADMIN.WORKPLACE:VIEW",
+      "nativeDelegatedScope": "SITE_QUERY / POLICY_MANAGE",
+      "nativeSiteBinding": "tenant+siteId query; optional floorId; effective native resource policy, no write",
+      "nativeAdditionalOwnerPermission": null,
+      "sourceController": "WorkplaceExperienceReportController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "routeKind": "DATA",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "LOW",
+      "scopeResolver": null,
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "mode": "SITE_QUERY",
+        "siteIdBinding": {
+          "location": "query",
+          "name": "siteId",
+          "type": "UUID",
+          "required": true
+        },
+        "delegatedPermission": "POLICY_MANAGE",
+        "nativeTargetBinding": "tenant+siteId query; optional floorId; effective native resource policy, no write",
+        "requiresPersonalAppEntitlement": false,
+        "requiresGlobalAppConfigAdminResponsibility": false,
+        "conditionalAdditionalOwnerPermission": null,
+        "authoritativePdpSupport": "NOT_IMPLEMENTED_NATIVE_DELEGATED_SITE_RESOLVER_AND_EVIDENCE_EVALUATOR",
+        "unsupportedFallback": "No RS_WORKPLACE exists in current source. An arbitrary new resolver string is treated as TARGET_POPULATION by policyScopes(), not actual delegated-site validation."
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-closures.data",
+      "apiBindingKey": "route.workplace.management.facility-closures.data.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "GET",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/closures",
+      "servicePath": "/v1/admin/workplace/experience/facilities/closures",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.ClosurePage",
+      "requiresProductEntitlement": false,
+      "nativePermission": "ADMIN.WORKPLACE:VIEW",
+      "nativeDelegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "nativeSiteBinding": "siteId query + optional floorId/resourceId + scoped interval SQL",
+      "nativeAdditionalOwnerPermission": null,
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "sourceRegisteredUiRouteId": "workplace.management.operations",
+      "sourceRegisteredUiRoutePattern": "/workplace/admin/operations",
+      "routeKind": "DATA",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "LOW",
+      "scopeResolver": null,
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "mode": "SITE_QUERY",
+        "siteIdBinding": {
+          "location": "query",
+          "name": "siteId",
+          "type": "UUID",
+          "required": true
+        },
+        "delegatedPermission": "CATALOG_VIEW",
+        "nativeTargetBinding": "siteId query + optional floorId/resourceId + scoped interval SQL",
+        "requiresPersonalAppEntitlement": false,
+        "requiresGlobalAppConfigAdminResponsibility": false,
+        "conditionalAdditionalOwnerPermission": null,
+        "authoritativePdpSupport": "NOT_IMPLEMENTED_NATIVE_DELEGATED_SITE_RESOLVER_AND_EVIDENCE_EVALUATOR",
+        "unsupportedFallback": "No RS_WORKPLACE exists in current source. An arbitrary new resolver string is treated as TARGET_POPULATION by policyScopes(), not actual delegated-site validation."
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-closure-detail.data",
+      "apiBindingKey": "route.workplace.management.facility-closure-detail.data.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "GET",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/closures/{closureId}",
+      "servicePath": "/v1/admin/workplace/experience/facilities/closures/{closureId}",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.Closure",
+      "requiresProductEntitlement": false,
+      "nativePermission": "ADMIN.WORKPLACE:VIEW",
+      "nativeDelegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "nativeSiteBinding": "siteId query + closureId SQL resolves native resource FK",
+      "nativeAdditionalOwnerPermission": null,
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "routeKind": "DATA",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "LOW",
+      "scopeResolver": null,
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "mode": "SITE_QUERY",
+        "siteIdBinding": {
+          "location": "query",
+          "name": "siteId",
+          "type": "UUID",
+          "required": true
+        },
+        "delegatedPermission": "CATALOG_VIEW",
+        "nativeTargetBinding": "siteId query + closureId SQL resolves native resource FK",
+        "requiresPersonalAppEntitlement": false,
+        "requiresGlobalAppConfigAdminResponsibility": false,
+        "conditionalAdditionalOwnerPermission": null,
+        "authoritativePdpSupport": "NOT_IMPLEMENTED_NATIVE_DELEGATED_SITE_RESOLVER_AND_EVIDENCE_EVALUATOR",
+        "unsupportedFallback": "No RS_WORKPLACE exists in current source. An arbitrary new resolver string is treated as TARGET_POPULATION by policyScopes(), not actual delegated-site validation."
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-closure-create.action",
+      "apiBindingKey": "route.workplace.management.facility-closure-create.action.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "POST",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/resources/{resourceId}/closures",
+      "servicePath": "/v1/admin/workplace/experience/facilities/resources/{resourceId}/closures",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.Closure",
+      "requiresProductEntitlement": false,
+      "nativePermission": "ADMIN.WORKPLACE:CREATE",
+      "nativeDelegatedScope": "SITE_QUERY / CATALOG_MANAGE",
+      "nativeSiteBinding": "siteId query + resourceId locked native target; body version=current resource version",
+      "nativeAdditionalOwnerPermission": "ADMIN.ROOMS:UPDATE for ROOM targets; enforced by native canonical mapping before closure mutation",
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "routeKind": "ACTION",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "MEDIUM",
+      "scopeResolver": null,
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "mode": "SITE_QUERY",
+        "siteIdBinding": {
+          "location": "query",
+          "name": "siteId",
+          "type": "UUID",
+          "required": true
+        },
+        "delegatedPermission": "CATALOG_MANAGE",
+        "nativeTargetBinding": "siteId query + resourceId locked native target; body version=current resource version",
+        "requiresPersonalAppEntitlement": false,
+        "requiresGlobalAppConfigAdminResponsibility": false,
+        "conditionalAdditionalOwnerPermission": "ADMIN.ROOMS:UPDATE for ROOM targets; enforced by native canonical mapping before closure mutation",
+        "authoritativePdpSupport": "NOT_IMPLEMENTED_NATIVE_DELEGATED_SITE_RESOLVER_AND_EVIDENCE_EVALUATOR",
+        "unsupportedFallback": "No RS_WORKPLACE exists in current source. An arbitrary new resolver string is treated as TARGET_POPULATION by policyScopes(), not actual delegated-site validation."
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-closure-cancel.action",
+      "apiBindingKey": "route.workplace.management.facility-closure-cancel.action.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "PUT",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/closures/{closureId}/cancel",
+      "servicePath": "/v1/admin/workplace/experience/facilities/closures/{closureId}/cancel",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.Closure",
+      "requiresProductEntitlement": false,
+      "nativePermission": "ADMIN.WORKPLACE:UPDATE",
+      "nativeDelegatedScope": "SITE_QUERY / CATALOG_MANAGE",
+      "nativeSiteBinding": "siteId query + closureId native target, resource lock; body closure version",
+      "nativeAdditionalOwnerPermission": "ADMIN.ROOMS:UPDATE for ROOM targets; enforced by native canonical mapping before closure mutation",
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "routeKind": "ACTION",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "MEDIUM",
+      "scopeResolver": null,
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "mode": "SITE_QUERY",
+        "siteIdBinding": {
+          "location": "query",
+          "name": "siteId",
+          "type": "UUID",
+          "required": true
+        },
+        "delegatedPermission": "CATALOG_MANAGE",
+        "nativeTargetBinding": "siteId query + closureId native target, resource lock; body closure version",
+        "requiresPersonalAppEntitlement": false,
+        "requiresGlobalAppConfigAdminResponsibility": false,
+        "conditionalAdditionalOwnerPermission": "ADMIN.ROOMS:UPDATE for ROOM targets; enforced by native canonical mapping before closure mutation",
+        "authoritativePdpSupport": "NOT_IMPLEMENTED_NATIVE_DELEGATED_SITE_RESOLVER_AND_EVIDENCE_EVALUATOR",
+        "unsupportedFallback": "No RS_WORKPLACE exists in current source. An arbitrary new resolver string is treated as TARGET_POPULATION by policyScopes(), not actual delegated-site validation."
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-requests.data",
+      "apiBindingKey": "route.workplace.management.facility-requests.data.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "GET",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/requests",
+      "servicePath": "/v1/admin/workplace/experience/facilities/requests",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.RequestPage",
+      "requiresProductEntitlement": false,
+      "nativePermission": "ADMIN.WORKPLACE:VIEW",
+      "nativeDelegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "nativeSiteBinding": "siteId query + optional floorId/status + scoped native resource FK",
+      "nativeAdditionalOwnerPermission": null,
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "routeKind": "DATA",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "LOW",
+      "scopeResolver": null,
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "mode": "SITE_QUERY",
+        "siteIdBinding": {
+          "location": "query",
+          "name": "siteId",
+          "type": "UUID",
+          "required": true
+        },
+        "delegatedPermission": "CATALOG_VIEW",
+        "nativeTargetBinding": "siteId query + optional floorId/status + scoped native resource FK",
+        "requiresPersonalAppEntitlement": false,
+        "requiresGlobalAppConfigAdminResponsibility": false,
+        "conditionalAdditionalOwnerPermission": null,
+        "authoritativePdpSupport": "NOT_IMPLEMENTED_NATIVE_DELEGATED_SITE_RESOLVER_AND_EVIDENCE_EVALUATOR",
+        "unsupportedFallback": "No RS_WORKPLACE exists in current source. An arbitrary new resolver string is treated as TARGET_POPULATION by policyScopes(), not actual delegated-site validation."
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-request-status.action",
+      "apiBindingKey": "route.workplace.management.facility-request-status.action.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "PUT",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/requests/{requestId}/status",
+      "servicePath": "/v1/admin/workplace/experience/facilities/requests/{requestId}/status",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.FacilityRequest",
+      "requiresProductEntitlement": false,
+      "nativePermission": "ADMIN.WORKPLACE:UPDATE",
+      "nativeDelegatedScope": "SITE_QUERY / CATALOG_MANAGE",
+      "nativeSiteBinding": "siteId query + requestId native resource FK + locked request version",
+      "nativeAdditionalOwnerPermission": null,
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "routeKind": "ACTION",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "MEDIUM",
+      "scopeResolver": null,
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "mode": "SITE_QUERY",
+        "siteIdBinding": {
+          "location": "query",
+          "name": "siteId",
+          "type": "UUID",
+          "required": true
+        },
+        "delegatedPermission": "CATALOG_MANAGE",
+        "nativeTargetBinding": "siteId query + requestId native resource FK + locked request version",
+        "requiresPersonalAppEntitlement": false,
+        "requiresGlobalAppConfigAdminResponsibility": false,
+        "conditionalAdditionalOwnerPermission": null,
+        "authoritativePdpSupport": "NOT_IMPLEMENTED_NATIVE_DELEGATED_SITE_RESOLVER_AND_EVIDENCE_EVALUATOR",
+        "unsupportedFallback": "No RS_WORKPLACE exists in current source. An arbitrary new resolver string is treated as TARGET_POPULATION by policyScopes(), not actual delegated-site validation."
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.work.facility-request-create.action",
+      "apiBindingKey": "route.workplace.work.facility-request-create.action.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "POST",
+      "publicPath": "/api/platform/v1/workplace/experience/facilities/resources/{resourceId}/requests",
+      "servicePath": "/v1/workplace/experience/facilities/resources/{resourceId}/requests",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.FacilityRequest",
+      "requiresProductEntitlement": true,
+      "nativePermission": "APP.WORKPLACE:CREATE",
+      "nativeDelegatedScope": "CURRENT_MEMBER_SITE_ACCESS",
+      "nativeSiteBinding": "actual native tenant/resource→site; current user/site VIEW; actor-owned idempotency",
+      "nativeAdditionalOwnerPermission": null,
+      "sourceController": "WorkplaceExperienceFacilitiesController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "routeKind": "ACTION",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "MEDIUM",
+      "scopeResolver": "SELF",
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "entryScopeResolver": "SELF (existing source-supported)",
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "siteBinding": "actual native tenant/resource→site; current user/site VIEW; actor-owned idempotency",
+        "memberOwnerPath": "requesterUserId + tenant + current allowed site SQL for own requests; resource path resolves actual canonical WP resource/site",
+        "authoritativePdpSupport": "SELF_ENTRY_SUPPORTED_NEW_NATIVE_RESOURCE_SITE_OWN_REQUEST_PREDICATE_NOT_REGISTERED"
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.work.facility-own-requests.data",
+      "apiBindingKey": "route.workplace.work.facility-own-requests.data.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "GET",
+      "publicPath": "/api/platform/v1/workplace/experience/facilities/requests",
+      "servicePath": "/v1/workplace/experience/facilities/requests",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.RequestPage",
+      "requiresProductEntitlement": true,
+      "nativePermission": "APP.WORKPLACE:VIEW",
+      "nativeDelegatedScope": "CURRENT_MEMBER_SITE_ACCESS",
+      "nativeSiteBinding": "SQL tenant+requesterUserId+current authorized site IDs; all other actors excluded before serialization",
+      "nativeAdditionalOwnerPermission": null,
+      "sourceController": "WorkplaceExperienceFacilitiesController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "sourceRegisteredUiRouteId": "workplace.work.home",
+      "sourceRegisteredUiRoutePattern": "/workplace/home",
+      "routeKind": "DATA",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "LOW",
+      "scopeResolver": "SELF",
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "entryScopeResolver": "SELF (existing source-supported)",
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "siteBinding": "SQL tenant+requesterUserId+current authorized site IDs; all other actors excluded before serialization",
+        "memberOwnerPath": "requesterUserId + tenant + current allowed site SQL for own requests; resource path resolves actual canonical WP resource/site",
+        "authoritativePdpSupport": "SELF_ENTRY_SUPPORTED_NEW_NATIVE_RESOURCE_SITE_OWN_REQUEST_PREDICATE_NOT_REGISTERED"
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.work.facility-own-request-detail.data",
+      "apiBindingKey": "route.workplace.work.facility-own-request-detail.data.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "GET",
+      "publicPath": "/api/platform/v1/workplace/experience/facilities/requests/{requestId}",
+      "servicePath": "/v1/workplace/experience/facilities/requests/{requestId}",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.FacilityRequest",
+      "requiresProductEntitlement": true,
+      "nativePermission": "APP.WORKPLACE:VIEW",
+      "nativeDelegatedScope": "CURRENT_MEMBER_SITE_ACCESS",
+      "nativeSiteBinding": "SQL tenant+requesterUserId+requestId+current authorized site IDs",
+      "nativeAdditionalOwnerPermission": null,
+      "sourceController": "WorkplaceExperienceFacilitiesController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "routeKind": "DATA",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "LOW",
+      "scopeResolver": "SELF",
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "entryScopeResolver": "SELF (existing source-supported)",
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "siteBinding": "SQL tenant+requesterUserId+requestId+current authorized site IDs",
+        "memberOwnerPath": "requesterUserId + tenant + current allowed site SQL for own requests; resource path resolves actual canonical WP resource/site",
+        "authoritativePdpSupport": "SELF_ENTRY_SUPPORTED_NEW_NATIVE_RESOURCE_SITE_OWN_REQUEST_PREDICATE_NOT_REGISTERED"
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.work.facility-booking-availability.data",
+      "apiBindingKey": "route.workplace.work.facility-booking-availability.data.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "GET",
+      "publicPath": "/api/platform/v1/workplace/experience/facilities/resources/{resourceId}/booking-availability",
+      "servicePath": "/v1/workplace/experience/facilities/resources/{resourceId}/booking-availability",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.BookingAvailability",
+      "requiresProductEntitlement": true,
+      "nativePermission": "APP.WORKPLACE:VIEW",
+      "nativeDelegatedScope": "CURRENT_MEMBER_SITE_ACCESS",
+      "nativeSiteBinding": "actual tenant/resource→site; current user/site VIEW then BOOK, same resource lock/closure/policy/conflict preflight",
+      "nativeAdditionalOwnerPermission": null,
+      "sourceController": "WorkplaceExperienceFacilitiesController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "routeKind": "DATA",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "LOW",
+      "scopeResolver": "SELF",
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "entryScopeResolver": "SELF (existing source-supported)",
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "siteBinding": "actual tenant/resource→site; current user/site VIEW then BOOK, same resource lock/closure/policy/conflict preflight",
+        "memberOwnerPath": "requesterUserId + tenant + current allowed site SQL for own requests; resource path resolves actual canonical WP resource/site",
+        "authoritativePdpSupport": "SELF_ENTRY_SUPPORTED_NEW_NATIVE_RESOURCE_SITE_OWN_REQUEST_PREDICATE_NOT_REGISTERED"
+      }
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-room-booking-impact.data",
+      "apiBindingKey": "route.workplace.management.facility-room-booking-impact.data.binding.01",
+      "sourceWorkspace": "workplace",
+      "serviceKey": "platform",
+      "ownerService": "dwp-platform-server",
+      "method": "GET",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/resources/{resourceId}/room-booking-impact",
+      "servicePath": "/v1/admin/workplace/experience/facilities/resources/{resourceId}/room-booking-impact",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.RoomBookingImpact",
+      "requiresProductEntitlement": false,
+      "nativePermission": "ADMIN.WORKPLACE:VIEW",
+      "nativeDelegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "nativeSiteBinding": "tenant+siteId query+canonical wp resource→same-tenant calendar_resource_id native FK; scoped actual occurrence query",
+      "nativeAdditionalOwnerPermission": "ADMIN.ROOMS:VIEW; enforced before Calendar source query",
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "nativeBoundaryImplemented": true,
+      "newOwnerPepBindingRegistered": false,
+      "routeKind": "DATA",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "requiredResponsibilityCode": null,
+      "riskTier": "LOW",
+      "scopeResolver": null,
+      "scopeActivationStatus": "BLOCKED_NEW_NATIVE_SITE_PREDICATE_AND_OWNER_PEP_REGISTRATION_REQUIRED",
+      "exactBlockedNativeScope": {
+        "tenantBinding": "trusted X-DWP-Tenant-ID",
+        "actorBinding": "trusted X-DWP-User-ID",
+        "mode": "SITE_QUERY",
+        "siteIdBinding": {
+          "location": "query",
+          "name": "siteId",
+          "type": "UUID",
+          "required": true
+        },
+        "delegatedPermission": "CATALOG_VIEW",
+        "nativeTargetBinding": "tenant+siteId query+canonical wp resource→same-tenant calendar_resource_id native FK; scoped actual occurrence query",
+        "requiresPersonalAppEntitlement": false,
+        "requiresGlobalAppConfigAdminResponsibility": false,
+        "conditionalAdditionalOwnerPermission": "ADMIN.ROOMS:VIEW; enforced before Calendar source query",
+        "authoritativePdpSupport": "NOT_IMPLEMENTED_NATIVE_DELEGATED_SITE_RESOLVER_AND_EVIDENCE_EVALUATOR",
+        "unsupportedFallback": "No RS_WORKPLACE exists in current source. An arbitrary new resolver string is treated as TARGET_POPULATION by policyScopes(), not actual delegated-site validation."
+      }
+    }
+  ],
+  "responseProjectionRequirements": [
+    {
+      "apiBindingKey": "route.workplace.management.experience-overview.data.binding.01",
+      "projectionPolicyKey": "route.workplace.management.experience-overview.data.full-management.projection.v1",
+      "responseSchemaKey": "route.workplace.management.experience-overview.data.response.v1",
+      "actualOwnerDto": "WorkplaceExperienceReportDtos.Report",
+      "officialOpenApiSchemaSha256": null,
+      "status": "ROOT_OFFICIAL_EXPORT_AND_PROJECTION_DERIVATION_REQUIRED",
+      "projectionObligation": "Own requester/current authorized site for member requests; admin scoped target joins; no people/private calendar event title; PublicClosure does not contain reason/operator/id/version."
+    },
+    {
+      "apiBindingKey": "route.workplace.management.experience-booking-detail.data.binding.01",
+      "projectionPolicyKey": "route.workplace.management.experience-booking-detail.data.full-management.projection.v1",
+      "responseSchemaKey": "route.workplace.management.experience-booking-detail.data.response.v1",
+      "actualOwnerDto": "WorkplaceExperienceReportDtos.BookingDetail",
+      "officialOpenApiSchemaSha256": null,
+      "status": "ROOT_OFFICIAL_EXPORT_AND_PROJECTION_DERIVATION_REQUIRED",
+      "projectionObligation": "Own requester/current authorized site for member requests; admin scoped target joins; no people/private calendar event title; PublicClosure does not contain reason/operator/id/version."
+    },
+    {
+      "apiBindingKey": "route.workplace.management.experience-future-booking-impact.data.binding.01",
+      "projectionPolicyKey": "route.workplace.management.experience-future-booking-impact.data.full-management.projection.v1",
+      "responseSchemaKey": "route.workplace.management.experience-future-booking-impact.data.response.v1",
+      "actualOwnerDto": "WorkplaceExperienceReportDtos.FutureBookingImpact",
+      "officialOpenApiSchemaSha256": null,
+      "status": "ROOT_OFFICIAL_EXPORT_AND_PROJECTION_DERIVATION_REQUIRED",
+      "projectionObligation": "Own requester/current authorized site for member requests; admin scoped target joins; no people/private calendar event title; PublicClosure does not contain reason/operator/id/version."
+    },
+    {
+      "apiBindingKey": "route.workplace.management.experience-policy-impact.data.binding.01",
+      "projectionPolicyKey": "route.workplace.management.experience-policy-impact.data.full-management.projection.v1",
+      "responseSchemaKey": "route.workplace.management.experience-policy-impact.data.response.v1",
+      "actualOwnerDto": "WorkplaceExperienceReportDtos.PolicyImpact",
+      "officialOpenApiSchemaSha256": null,
+      "status": "ROOT_OFFICIAL_EXPORT_AND_PROJECTION_DERIVATION_REQUIRED",
+      "projectionObligation": "Own requester/current authorized site for member requests; admin scoped target joins; no people/private calendar event title; PublicClosure does not contain reason/operator/id/version."
+    },
+    {
+      "apiBindingKey": "route.workplace.management.facility-closures.data.binding.01",
+      "projectionPolicyKey": "route.workplace.management.facility-closures.data.full-management.projection.v1",
+      "responseSchemaKey": "route.workplace.management.facility-closures.data.response.v1",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.ClosurePage",
+      "officialOpenApiSchemaSha256": null,
+      "status": "ROOT_OFFICIAL_EXPORT_AND_PROJECTION_DERIVATION_REQUIRED",
+      "projectionObligation": "Own requester/current authorized site for member requests; admin scoped target joins; no people/private calendar event title; PublicClosure does not contain reason/operator/id/version."
+    },
+    {
+      "apiBindingKey": "route.workplace.management.facility-closure-detail.data.binding.01",
+      "projectionPolicyKey": "route.workplace.management.facility-closure-detail.data.full-management.projection.v1",
+      "responseSchemaKey": "route.workplace.management.facility-closure-detail.data.response.v1",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.Closure",
+      "officialOpenApiSchemaSha256": null,
+      "status": "ROOT_OFFICIAL_EXPORT_AND_PROJECTION_DERIVATION_REQUIRED",
+      "projectionObligation": "Own requester/current authorized site for member requests; admin scoped target joins; no people/private calendar event title; PublicClosure does not contain reason/operator/id/version."
+    },
+    {
+      "apiBindingKey": "route.workplace.management.facility-requests.data.binding.01",
+      "projectionPolicyKey": "route.workplace.management.facility-requests.data.full-management.projection.v1",
+      "responseSchemaKey": "route.workplace.management.facility-requests.data.response.v1",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.RequestPage",
+      "officialOpenApiSchemaSha256": null,
+      "status": "ROOT_OFFICIAL_EXPORT_AND_PROJECTION_DERIVATION_REQUIRED",
+      "projectionObligation": "Own requester/current authorized site for member requests; admin scoped target joins; no people/private calendar event title; PublicClosure does not contain reason/operator/id/version."
+    },
+    {
+      "apiBindingKey": "route.workplace.work.facility-own-requests.data.binding.01",
+      "projectionPolicyKey": "route.workplace.work.facility-own-requests.data.full-work.projection.v1",
+      "responseSchemaKey": "route.workplace.work.facility-own-requests.data.response.v1",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.RequestPage",
+      "officialOpenApiSchemaSha256": null,
+      "status": "ROOT_OFFICIAL_EXPORT_AND_PROJECTION_DERIVATION_REQUIRED",
+      "projectionObligation": "Own requester/current authorized site for member requests; admin scoped target joins; no people/private calendar event title; PublicClosure does not contain reason/operator/id/version."
+    },
+    {
+      "apiBindingKey": "route.workplace.work.facility-own-request-detail.data.binding.01",
+      "projectionPolicyKey": "route.workplace.work.facility-own-request-detail.data.full-work.projection.v1",
+      "responseSchemaKey": "route.workplace.work.facility-own-request-detail.data.response.v1",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.FacilityRequest",
+      "officialOpenApiSchemaSha256": null,
+      "status": "ROOT_OFFICIAL_EXPORT_AND_PROJECTION_DERIVATION_REQUIRED",
+      "projectionObligation": "Own requester/current authorized site for member requests; admin scoped target joins; no people/private calendar event title; PublicClosure does not contain reason/operator/id/version."
+    },
+    {
+      "apiBindingKey": "route.workplace.work.facility-booking-availability.data.binding.01",
+      "projectionPolicyKey": "route.workplace.work.facility-booking-availability.data.full-work.projection.v1",
+      "responseSchemaKey": "route.workplace.work.facility-booking-availability.data.response.v1",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.BookingAvailability",
+      "officialOpenApiSchemaSha256": null,
+      "status": "ROOT_OFFICIAL_EXPORT_AND_PROJECTION_DERIVATION_REQUIRED",
+      "projectionObligation": "Own requester/current authorized site for member requests; admin scoped target joins; no people/private calendar event title; PublicClosure does not contain reason/operator/id/version."
+    },
+    {
+      "apiBindingKey": "route.workplace.management.facility-room-booking-impact.data.binding.01",
+      "projectionPolicyKey": "route.workplace.management.facility-room-booking-impact.data.full-management.projection.v1",
+      "responseSchemaKey": "route.workplace.management.facility-room-booking-impact.data.response.v1",
+      "actualOwnerDto": "WorkplaceExperienceFacilitiesDtos.RoomBookingImpact",
+      "officialOpenApiSchemaSha256": null,
+      "status": "ROOT_OFFICIAL_EXPORT_AND_PROJECTION_DERIVATION_REQUIRED",
+      "projectionObligation": "Own requester/current authorized site for member requests; admin scoped target joins; no people/private calendar event title; PublicClosure does not contain reason/operator/id/version."
+    }
+  ],
+  "mergeObligations": [
+    "All 11 GET endpoints are DATA under existing registered UI pages; all four mutations are ACTION. There are zero new PAGE routes and every uiRouteId/uiRoutePattern is null. Existing immutable PAGE definitions are preserved.",
+    "This NEW file contains exact 15 endpoint bindings/current-schema route candidates and a bounded explicit owner-scope blocker; it does not require postponing independent Approval v9.",
+    "ACTIVE values inside candidates match existing source schema but do not activate them. The review envelope is blocked; scopeResolver=null templates are not validator-ready source records.",
+    "Actual admin mapping is ADMIN.WORKPLACE VIEW/CREATE/UPDATE, entitlement false, responsibility NOT_REQUIRED (no required responsibility code), risk LOW for reads and MEDIUM for mutations. Native SITE_QUERY siteId + delegated CATALOG_VIEW/CATALOG_MANAGE/POLICY_MANAGE is specified per endpoint; authoritative PDP has no actual evaluator/resolver for it.",
+    "ProductAuthorizationAuthoritySupport.policyScopes() supports SELF/SUPPORT_SESSION/APP_RESOURCE_SET prefixes and labels arbitrary strings TARGET_POPULATION. Do not invent a native-site resolver string, RS_WORKPLACE, grants or global APP_CONFIG_ADMIN responsibility as a substitute for real site authority.",
+    "Member uses existing SELF personal entry and APP.WORKPLACE VIEW/CREATE. New own-request/current-site/resource-site predicates must retain actual native SQL scope before authoritative PDP registration.",
+    "PlatformWorkplaceProductPepRegistry still validates v4 three old keys/authority types. New DATA CAPABILITY admin reads require exact owner PEP schema/closure/authority validation extension; this input does not pretend the extension already exists.",
+    "Conditional ROOM closure create/cancel also requires ADMIN.ROOMS:UPDATE; room-impact requires ADMIN.ROOMS:VIEW. Retain conditional native owner validation; do not collapse it into Workplace permission alone.",
+    "Root official platform/gateway OpenAPI supplies actual DTO component evidence/hashes and derives read projections. No schema/hash or native-site predicate registration evidence is fabricated.",
+    "Root merges separately owned collaboration/Approval inputs only when validator-ready; do not edit immutable v1-v8 or generated registry/projections/matrix/readiness/fixtures/grants from this lane."
+  ],
+  "sourceFiles": [
+    "dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceExperienceReportController.java",
+    "dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceExperienceFacilitiesController.java",
+    "dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceExperienceFacilitiesAdminController.java",
+    "dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceDelegatedAdminRoutePolicy.java",
+    "dwp-platform-server/src/main/java/com/dwp/services/platform/security/PlatformSecurityFilter.java",
+    "dwp-platform-server/src/main/java/com/dwp/services/platform/security/PlatformWorkplaceProductPepRegistry.java",
+    "dwp-platform-server/src/main/java/com/dwp/services/platform/security/PlatformWorkplaceProductPepFilter.java"
+  ],
+  "registeredUiSubviewBindings": {
+    "workplace.work.home": "/workplace/home?view=requests",
+    "workplace.management.overview": "/workplace/admin/overview?view=insights",
+    "workplace.management.operations": "/workplace/admin/operations?view=facilities"
+  },
+  "pageRedefinitionCount": 0,
+  "readEndpointRouteKind": "DATA_UNDER_EXISTING_REGISTERED_UI_PAGE",
+  "nativeCapabilityMappingDecision": {
+    "resourceKeyAndHttpActions": "actual current source controller + filter mapping",
+    "memberCreate": "existing workplace.space.create: APP.WORKPLACE:CREATE, entitlement true, SELF, responsibility NOT_REQUIRED, risk MEDIUM; route-key amendment only",
+    "adminTemplates": "ADMIN.WORKPLACE:VIEW/CREATE/UPDATE, entitlement false, responsibility NOT_REQUIRED/requiredResponsibilityCode null, risk LOW reads and MEDIUM mutations; only scopeResolver deliberately blocked/null",
+    "riskTierMeaning": "Source-contract candidate risk enum mapping; does not claim additional step-up/activation policy is implemented."
+  },
+  "readyEndpointBindings": [
+    {
+      "routeContractKey": "route.workplace.management.experience-overview.data",
+      "routeKind": "DATA",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.experience-overview.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/workplace/experience-report",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.experience-overview.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/workplace/experience-report",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.management.experience-booking-detail.data",
+      "routeKind": "DATA",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.experience-booking-detail.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/workplace/experience-report/bookings/{bookingId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.experience-booking-detail.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/workplace/experience-report/bookings/{bookingId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.management.experience-future-booking-impact.data",
+      "routeKind": "DATA",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.experience-future-booking-impact.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/workplace/resources/{resourceId}/future-booking-impact",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.experience-future-booking-impact.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/workplace/resources/{resourceId}/future-booking-impact",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.management.experience-policy-impact.data",
+      "routeKind": "DATA",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.experience-policy-impact.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/workplace/policy-impact-preview",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.experience-policy-impact.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/workplace/policy-impact-preview",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-closures.data",
+      "routeKind": "DATA",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-closures.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/workplace/experience/facilities/closures",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-closures.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/workplace/experience/facilities/closures",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-closure-detail.data",
+      "routeKind": "DATA",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-closure-detail.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/workplace/experience/facilities/closures/{closureId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-closure-detail.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/workplace/experience/facilities/closures/{closureId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-closure-create.action",
+      "routeKind": "ACTION",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-closure-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/admin/workplace/experience/facilities/resources/{resourceId}/closures",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-closure-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/workplace/experience/facilities/resources/{resourceId}/closures",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-closure-cancel.action",
+      "routeKind": "ACTION",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-closure-cancel.action.binding.01",
+          "method": "PUT",
+          "path": "/api/platform/v1/admin/workplace/experience/facilities/closures/{closureId}/cancel",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-closure-cancel.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/admin/workplace/experience/facilities/closures/{closureId}/cancel",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-requests.data",
+      "routeKind": "DATA",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-requests.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/workplace/experience/facilities/requests",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-requests.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/workplace/experience/facilities/requests",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-request-status.action",
+      "routeKind": "ACTION",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-request-status.action.binding.01",
+          "method": "PUT",
+          "path": "/api/platform/v1/admin/workplace/experience/facilities/requests/{requestId}/status",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-request-status.action.binding.01",
+          "method": "PUT",
+          "path": "/v1/admin/workplace/experience/facilities/requests/{requestId}/status",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.work.facility-request-create.action",
+      "routeKind": "ACTION",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.facility-request-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/workplace/experience/facilities/resources/{resourceId}/requests",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.facility-request-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/workplace/experience/facilities/resources/{resourceId}/requests",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.work.facility-own-requests.data",
+      "routeKind": "DATA",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.facility-own-requests.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/workplace/experience/facilities/requests",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.facility-own-requests.data.binding.01",
+          "method": "GET",
+          "path": "/v1/workplace/experience/facilities/requests",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.work.facility-own-request-detail.data",
+      "routeKind": "DATA",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.facility-own-request-detail.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/workplace/experience/facilities/requests/{requestId}",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.facility-own-request-detail.data.binding.01",
+          "method": "GET",
+          "path": "/v1/workplace/experience/facilities/requests/{requestId}",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.work.facility-booking-availability.data",
+      "routeKind": "DATA",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.facility-booking-availability.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/workplace/experience/facilities/resources/{resourceId}/booking-availability",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.facility-booking-availability.data.binding.01",
+          "method": "GET",
+          "path": "/v1/workplace/experience/facilities/resources/{resourceId}/booking-availability",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    },
+    {
+      "routeContractKey": "route.workplace.management.facility-room-booking-impact.data",
+      "routeKind": "DATA",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-room-booking-impact.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/workplace/experience/facilities/resources/{resourceId}/room-booking-impact",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.facility-room-booking-impact.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/workplace/experience/facilities/resources/{resourceId}/room-booking-impact",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ]
+    }
+  ],
+  "approvalV9Isolation": {
+    "status": "NO_APPROVAL_CHANGE_OR_GLOBAL_MUTATION_IN_THIS_INPUT",
+    "decision": "Approval v9 can proceed independently. Do not insert blocked Workplace capability templates or unregistered predicate/projection/PEP candidates into an executable authoritative bundle. These exact 15 endpoint bindings remain concrete root merge input until supported Workplace scope/PEP registration is reviewed.",
+    "nativeRuntimeGuards": "Implemented native permissions/delegated site/member own-site SQL remain authoritative for current owner runtime; no new grants, RS_WORKPLACE or global APP_CONFIG_ADMIN requirement are manufactured."
+  }
+}

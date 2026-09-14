@@ -47,6 +47,18 @@ APPROVAL_PILOT_PEP_OUTPUT = (
     / "dwp-approval-server/src/main/resources/product-authorization/"
     / "approval-pilot-pep-v2.generated.json"
 )
+APPROVAL_WORK_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
+    "approval-pilot-pep-v7.generated.json"
+)
+APPROVAL_DOCUMENT_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
+    "approval-pilot-pep-v8.generated.json"
+)
+APPROVAL_EXTENSION_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
+    "approval-pilot-pep-v9.generated.json"
+)
+APPROVAL_RELEASE10_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
+    "approval-pilot-pep-v10.generated.json"
+)
 PLATFORM_APPROVALS_PEP_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
@@ -62,7 +74,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6)
+BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -108,6 +120,14 @@ EXPECTED_RELEASE_COUNTS = {
         "predicatePolicies": 33, "routes": 160, "PAGE": 66, "DATA": 27, "ACTION": 67},
     6: {"capabilities": 119, "accessPolicies": 22, "entitlementExpressions": 16,
         "predicatePolicies": 34, "routes": 250, "PAGE": 79, "DATA": 45, "ACTION": 126},
+    7: {"capabilities": 119, "accessPolicies": 22, "entitlementExpressions": 16,
+        "predicatePolicies": 35, "routes": 258, "PAGE": 79, "DATA": 50, "ACTION": 129},
+    8: {"capabilities": 123, "accessPolicies": 22, "entitlementExpressions": 16,
+        "predicatePolicies": 38, "routes": 275, "PAGE": 79, "DATA": 58, "ACTION": 138},
+    9: {"capabilities": 127, "accessPolicies": 22, "entitlementExpressions": 16,
+        "predicatePolicies": 41, "routes": 302, "PAGE": 79, "DATA": 70, "ACTION": 153},
+    10: {"capabilities": 132, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 44, "routes": 318, "PAGE": 79, "DATA": 78, "ACTION": 161},
 }
 IMMUTABLE_RELEASE_CHECKSUMS = {
     1: "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
@@ -115,8 +135,225 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     3: "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
     4: "a9cd08260fd9a11dd7c612f2db6f03bb312f1e7843a2eb10b4082660da151137",
     5: "c69816a06349fcbd45a0d946debfbce1d67e09b3ed87a8b056ec8a43f852109f",
+    6: "7cf8602aa2da5f7a0464b23cfd84a8f381e2d3eb85333ed8a8e483865b2b0abe",
+    7: "fe9721ef01164c64e03f8798f89765bdf35e55993cf98ad1f6f9c3611dd8d61a",
+    8: "9449a516a2dbd96106e71963cbda764b80d83f0f61fa861d110d85517adac942",
+    9: "02b19c4119e560b63d4054ec317fe7e4d694e402a5af03960c63b20db4b41ab7",
+    10: "1f97638c95a192f0ec7f01053c3965f79b7a3ee4eb9781ea56e3cf8eccc6889b",
+}
+APPROVAL_DOCUMENT_V8_SCHEMAS = {
+    "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
+        "104ee05c1735728ba812d7cb15b3ffd09910fb2e0ef0981c9463f19d1a67eb91"),
+    "route.approvals.work.task-document-tools.data": ("ApprovalDocumentTools",
+        "104ee05c1735728ba812d7cb15b3ffd09910fb2e0ef0981c9463f19d1a67eb91"),
+    "route.approvals.work.request-comments.data": ("ApprovalDocumentComments",
+        "d657efaebafbe054c93df2a04095059388a0566c4a95fa8ec05753193b9e8922"),
+    "route.approvals.work.task-comments.data": ("ApprovalDocumentComments",
+        "d657efaebafbe054c93df2a04095059388a0566c4a95fa8ec05753193b9e8922"),
+    "route.approvals.admin.document-policy.data": ("ApprovalDocumentPolicy",
+        "e517f31c85c577a1ac61745dce9c165eec9b7c827912ae4cd7a868b2393f0f86"),
+    "route.approvals.admin.document-hold.data": ("ApprovalDocumentHold",
+        "316249dbd4512224e0891bc255ca4232c9e0f47e428f130acda812103b491ece"),
+    "route.approvals.work.form-field-candidates.data": ("ApprovalFormUserCandidates",
+        "dac88c0850351501e32155d1608441572a85b30107d96848dc4e9ee9094a5861"),
+    "route.approvals.admin.form-field-candidates.data": ("ApprovalFormUserCandidates",
+        "dac88c0850351501e32155d1608441572a85b30107d96848dc4e9ee9094a5861"),
+}
+APPROVAL_EXTENSION_V9_PROJECTIONS = {
+    "route.approvals.admin.attachment-policy.data": {
+        "profileKey": "full-management",
+        "apiBindingKey": "route.approvals.admin.attachment-policy.data.binding.01",
+        "projectionPolicyKey": "route.approvals.admin.attachment-policy.data.full-management.projection.v1",
+        "responseSchemaKey": "ApprovalAttachmentPolicy",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "2cb1a0df8b68b16f49f6ae27ac9858c31d11ce278d295934a8b8521a76bd7c8d",
+        "additionalProperties": False
+    },
+    "route.approvals.admin.form-publish-review.data": {
+        "profileKey": "full-management",
+        "apiBindingKey": "route.approvals.admin.form-publish-review.data.binding.01",
+        "projectionPolicyKey": "route.approvals.admin.form-publish-review.data.full-management.projection.v1",
+        "responseSchemaKey": "ApprovalFormLifecycleReview",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "cf84f33d56d1affbf78db19e557f13b2e3fc533961d37d5850b2dab8d10b84c2",
+        "additionalProperties": False
+    },
+    "route.approvals.admin.form-version-detail.data": {
+        "profileKey": "full-management",
+        "apiBindingKey": "route.approvals.admin.form-version-detail.data.binding.01",
+        "projectionPolicyKey": "route.approvals.admin.form-version-detail.data.full-management.projection.v1",
+        "responseSchemaKey": "ApprovalFormLifecycleVersion",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "fab88e34e8445ed5f9face5688f89661e527e5d34c2963dc930557c9db1a3cdf",
+        "additionalProperties": False
+    },
+    "route.approvals.admin.form-version-diff.data": {
+        "profileKey": "full-management",
+        "apiBindingKey": "route.approvals.admin.form-version-diff.data.binding.01",
+        "projectionPolicyKey": "route.approvals.admin.form-version-diff.data.full-management.projection.v1",
+        "responseSchemaKey": "ApprovalFormLifecycleDiff",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "0701251b9a276bba2791aa4fdcbb8767680ac95d35aaaa2164e4e30cec181fbf",
+        "additionalProperties": False
+    },
+    "route.approvals.admin.form-version-history.data": {
+        "profileKey": "full-management",
+        "apiBindingKey": "route.approvals.admin.form-version-history.data.binding.01",
+        "projectionPolicyKey": "route.approvals.admin.form-version-history.data.full-management.projection.v1",
+        "responseSchemaKey": "ApprovalFormLifecycleHistory",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "6f066bce11bab60d5d7d8db4c51aae0dc3789e06bd7af2ab8682bf78cd7739c2",
+        "additionalProperties": False
+    },
+    "route.approvals.admin.form-working-draft.data": {
+        "profileKey": "full-management",
+        "apiBindingKey": "route.approvals.admin.form-working-draft.data.binding.01",
+        "projectionPolicyKey": "route.approvals.admin.form-working-draft.data.full-management.projection.v1",
+        "responseSchemaKey": "ApprovalFormLifecycleWorkspace",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "472ca94cc33d0bc2a85ca8f8ac6689a9801e3c3916b1d1d33c3d3ec21046d5c5",
+        "additionalProperties": False
+    },
+    "route.approvals.admin.policy-impact.data": {
+        "profileKey": "full-management",
+        "apiBindingKey": "route.approvals.admin.policy-impact.data.binding.01",
+        "projectionPolicyKey": "route.approvals.admin.policy-impact.data.full-management.projection.v1",
+        "responseSchemaKey": "ApprovalPolicyImpactResult",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "652af4b87f0d35380d22136bfb37c7381241defb1175433561bc32368a4363e0",
+        "additionalProperties": False
+    },
+    "route.approvals.work.attachment-download-content.data": {
+        "profileKey": "full-work",
+        "apiBindingKey": "route.approvals.work.attachment-download-content.data.binding.01",
+        "projectionPolicyKey": "route.approvals.work.attachment-download-content.data.full-work.projection.v1",
+        "responseSchemaKey": "ApprovalAttachmentDownloadBytesV1"
+    },
+    "route.approvals.work.attachment-upload.data": {
+        "profileKey": "full-work",
+        "apiBindingKey": "route.approvals.work.attachment-upload.data.binding.01",
+        "projectionPolicyKey": "route.approvals.work.attachment-upload.data.full-work.projection.v1",
+        "responseSchemaKey": "ApprovalAttachmentUpload",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "0385b3eadafb5bb57c215262f4a4297a3ee33a572f1f2cc203d20c4eeb7dd20c",
+        "additionalProperties": False
+    },
+    "route.approvals.work.information-command-receipt.data": {
+        "profileKey": "full-work",
+        "apiBindingKey": "route.approvals.work.information-command-receipt.data.binding.01",
+        "projectionPolicyKey": "route.approvals.work.information-command-receipt.data.full-work.projection.v1",
+        "responseSchemaKey": "ApprovalInformationCommandReceipt",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "eff26ae76e19c6dd359e3c7941af868ed8df1aa61f84fa141a6e7701a3164458",
+        "additionalProperties": False
+    },
+    "route.approvals.work.request-attachments.data": {
+        "profileKey": "full-work",
+        "apiBindingKey": "route.approvals.work.request-attachments.data.binding.01",
+        "projectionPolicyKey": "route.approvals.work.request-attachments.data.full-work.projection.v1",
+        "responseSchemaKey": "ApprovalAttachmentAttachments",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "46026087765a71b0ad5ddab65dd73d048f4ffe96862cbde6688f5b3859e9dcc4",
+        "additionalProperties": False
+    },
+    "route.approvals.work.task-attachments.data": {
+        "profileKey": "full-work",
+        "apiBindingKey": "route.approvals.work.task-attachments.data.binding.01",
+        "projectionPolicyKey": "route.approvals.work.task-attachments.data.full-work.projection.v1",
+        "responseSchemaKey": "ApprovalAttachmentAttachments",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "46026087765a71b0ad5ddab65dd73d048f4ffe96862cbde6688f5b3859e9dcc4",
+        "additionalProperties": False
+    }
 }
 PLATFORM_CANARY_PRODUCTS = {"communications", "services"}
+APPROVAL_RELEASE10_PROJECTIONS = {'route.approvals.admin.retention-claim.data': {'additionalProperties': False,
+                                                'apiBindingKey': 'route.approvals.admin.retention-claim.data.binding.01',
+                                                'openApiSchemaSha256': '5c106536ba24f7054be87e382798275cafc1e81e6e9637549097d1316fb05719',
+                                                'profileKey': 'full-management',
+                                                'projectionPolicyKey': 'route.approvals.admin.retention-claim.data.full-management.projection.v1',
+                                                'responseSchemaKey': 'ApprovalRetentionClaim',
+                                                'schemaVersion': 1},
+ 'route.approvals.admin.retention-policy.data': {'additionalProperties': False,
+                                                 'apiBindingKey': 'route.approvals.admin.retention-policy.data.binding.01',
+                                                 'openApiSchemaSha256': 'd3ad46a0ef742210a3bba4b9a1482ab79dd7e7afc227b86571dc8dfbd44705e3',
+                                                 'profileKey': 'full-management',
+                                                 'projectionPolicyKey': 'route.approvals.admin.retention-policy.data.full-management.projection.v1',
+                                                 'responseSchemaKey': 'ApprovalRetentionPolicy',
+                                                 'schemaVersion': 1},
+ 'route.approvals.admin.retention-record.data': {'additionalProperties': False,
+                                                 'apiBindingKey': 'route.approvals.admin.retention-record.data.binding.01',
+                                                 'openApiSchemaSha256': 'bd37568321e12a5bcdcc3d7e65ff2de8579ffabebad91a8b4851656b264f327b',
+                                                 'profileKey': 'full-management',
+                                                 'projectionPolicyKey': 'route.approvals.admin.retention-record.data.full-management.projection.v1',
+                                                 'responseSchemaKey': 'ApprovalRetentionRecord',
+                                                 'schemaVersion': 1},
+ 'route.approvals.admin.workflow-planning-simulation.data': {'additionalProperties': False,
+                                                             'apiBindingKey': 'route.approvals.admin.workflow-planning-simulation.data.binding.01',
+                                                             'openApiSchemaSha256': 'e42aa72885d0cf219bfcd037689a35c93d198009ca8524af48030f341ee5f070',
+                                                             'profileKey': 'full-management',
+                                                             'projectionPolicyKey': 'route.approvals.admin.workflow-planning-simulation.data.full-management.projection.v1',
+                                                             'responseSchemaKey': 'ApprovalWorkflowPlanningResult',
+                                                             'schemaVersion': 1},
+ 'route.approvals.work.signature-audit.data': {'additionalProperties': False,
+                                               'apiBindingKey': 'route.approvals.work.signature-audit.data.binding.01',
+                                               'openApiSchemaSha256': '928789cc010f28497c7b7ab76139325b77f2b13afe7a11890536c6bb7380037c',
+                                               'profileKey': 'full-work',
+                                               'projectionPolicyKey': 'route.approvals.work.signature-audit.data.full-work.projection.v1',
+                                               'responseSchemaKey': 'ApprovalSignatureAudit',
+                                               'schemaVersion': 1},
+ 'route.approvals.work.signature-command-receipt.data': {'additionalProperties': False,
+                                                         'apiBindingKey': 'route.approvals.work.signature-command-receipt.data.binding.01',
+                                                         'openApiSchemaSha256': '90ca054ab5d043930c07e62b263630e9165e90f692f26cee352c7ee232de5012',
+                                                         'profileKey': 'approval.signature.command-receipt.v1',
+                                                         'projectionPolicyKey': 'route.approvals.work.signature-command-receipt.data.approval.signature.command-receipt.v1.projection.v1',
+                                                         'responseSchemaKey': 'ApprovalSignatureCommandReceiptMetadata',
+                                                         'schemaVersion': 1},
+ 'route.approvals.work.signature-context.data': {'additionalProperties': False,
+                                                 'apiBindingKey': 'route.approvals.work.signature-context.data.binding.01',
+                                                 'openApiSchemaSha256': '1fc3f80e18997f235440d0125fe039a0c1b6ccfb52897b0ff614356df213f5bd',
+                                                 'profileKey': 'full-work',
+                                                 'projectionPolicyKey': 'route.approvals.work.signature-context.data.full-work.projection.v1',
+                                                 'responseSchemaKey': 'ApprovalSignatureContext',
+                                                 'schemaVersion': 1},
+ 'route.approvals.work.signature-request.data': {'additionalProperties': False,
+                                                 'apiBindingKey': 'route.approvals.work.signature-request.data.binding.01',
+                                                 'openApiSchemaSha256': '41ea1a14b49147ef04a54649f82637cef45220879768d3b8ff84ddfc8fdf4489',
+                                                 'profileKey': 'full-work',
+                                                 'projectionPolicyKey': 'route.approvals.work.signature-request.data.full-work.projection.v1',
+                                                 'responseSchemaKey': 'ApprovalSignatureCeremony',
+                                                 'schemaVersion': 1}}
+
+APPROVAL_WORK_V7_SCHEMAS = {
+    "route.approvals.work.draft-command-reconciliation.data": ("DraftReconciliation",
+        "5f077c0c323ef1821cbc5f3afdfd120899ef576d57099973a4f3883cb3a120cd"),
+    "route.approvals.work.request-draft-revision.data": ("DraftRevisionDetail",
+        "953f4fa55851c3e2ee3b4cafb406ab0a01fd96556d8cbc545f326949d8f9822a"),
+    "route.approvals.work.request-draft-revisions.data": ("PageDraftRevision",
+        "bccf9505e49ba2d0ad81b3ab7263751a511529764dd87e6e2e7161fe167f6ce6"),
+    "route.approvals.work.requests-search.data": ("PageRequestSummary",
+        "6d9c0c9fd273bee297f97d44f91b7147f3f966bc0c090c6712b2ebe62aaba46a"),
+    "route.approvals.work.tasks-search.data": ("PageTaskSummary",
+        "27ab4bbfb93395f73d300d67ad423f7cf5f4eb04a6b9025ab665711b6334b54a"),
+}
+APPROVAL_WORK_V7_BINDINGS = {
+    "route.approvals.work.tasks-search.data": ("GET", "/v1/tasks/search",
+        "approvals.work.task.read", ("predicate.approval-task-readable.v1",)),
+    "route.approvals.work.requests-search.data": ("GET", "/v1/requests/search",
+        "approvals.work.request.read", ("predicate.approval.own-request.v1",)),
+    "route.approvals.work.request-draft-revisions.data": ("GET", "/v1/requests/{requestId}/draft/revisions",
+        "approvals.work.request.read", ("predicate.approval.own-request.v1",)),
+    "route.approvals.work.request-draft-revision.data": ("GET", "/v1/requests/{requestId}/draft/revisions/{revision}",
+        "approvals.work.request.read", ("predicate.approval.own-request.v1",)),
+    "route.approvals.work.draft-command-reconciliation.data": ("GET", "/v1/draft-commands/{idempotencyKey}",
+        "approvals.work.request.read", ("predicate.approval.own-draft-receipt.v1",)),
+    "route.approvals.work.request-draft-recover.action": ("POST", "/v1/requests/{requestId}/draft/recover",
+        "approvals.work.request.update", ("predicate.approval.own-request.v1","predicate.approval.object-version.v1",)),
+    "route.approvals.work.request-draft-delete.action": ("POST", "/v1/requests/{requestId}/draft/delete",
+        "approvals.work.request.update", ("predicate.approval.own-request.v1","predicate.approval.object-version.v1",)),
+    "route.approvals.work.request-draft-restore.action": ("POST", "/v1/requests/{requestId}/draft/restore",
+        "approvals.work.request.update", ("predicate.approval.own-request.v1","predicate.approval.object-version.v1",)),
+}
 PLATFORM_TELEMETRY_SURFACE_DIMENSIONS = {
     "approvals.admin": {
         "scopeKinds": ["RESOURCE_SET"],
@@ -806,6 +1043,8 @@ def _validate_release_snapshot(snapshot: dict[str, Any]) -> None:
                 f"v{version}: immutable release checksum drift")
 
     _validate_approval_projection_schema_metadata(snapshot)
+    if version >= 7:
+        _validate_approval_work_v7(snapshot)
 
     endpoints = unique(
         snapshot.get("authorityEndpoints", []), "endpointKey", "authorityEndpoints"
@@ -888,10 +1127,45 @@ def _validate_release_snapshot(snapshot: dict[str, Any]) -> None:
             )
 
 
+def _validate_approval_work_v7(snapshot: dict[str, Any]) -> None:
+    routes = unique(snapshot["routes"], "routeContractKey", "v7 routes")
+    for key, (method, path, capability, predicate_keys) in APPROVAL_WORK_V7_BINDINGS.items():
+        route = routes.get(key)
+        require(route is not None, f"{key}: v7 exact route is absent")
+        require(len(route["gatewayApiBindings"]) == len(route["servicePepBindings"]) == 1,
+                f"{key}: v7 requires one exact binding pair")
+        public = route["gatewayApiBindings"][0]
+        service = route["servicePepBindings"][0]
+        expected_key = f"{key}.binding.01"
+        require(public == {"bindingKey": expected_key, "method": method,
+                           "path": "/api/approvals" + path, "pathParameterConstraints": {}}
+                and service == {"bindingKey": expected_key, "serviceKey": "approval",
+                                "method": method, "path": path, "pathParameterConstraints": {}},
+                f"{key}: v7 exact binding drift")
+        require(route["routeKind"] == ("DATA" if method == "GET" else "ACTION")
+                and len(route["accessProfiles"]) == 1, f"{key}: v7 route/profile drift")
+        profile = route["accessProfiles"][0]
+        require(profile["profileKey"] == "full-work"
+                and profile["precedence"] == 300
+                and profile["activeAccessModes"] == ["NORMAL", "ELEVATED"]
+                and profile["requiredAccess"] == {
+                    "type": "CAPABILITY", "capabilityContractKey": capability}
+                and profile["predicatePolicyKeys"] == list(predicate_keys)
+                and profile["targetBindingKinds"] == (
+                    ["OBJECT"] if key == "route.approvals.work.tasks-search.data"
+                    else ["SELF", "OBJECT"])
+                and profile["readOnly"] == (method == "GET"),
+                f"{key}: v7 exact authority drift")
+
+
 def _validate_approval_projection_schema_metadata(
     snapshot: dict[str, Any]
 ) -> None:
     seen_schemas: set[str] = set()
+    seen_work_routes: set[str] = set()
+    seen_document_routes: set[str] = set()
+    seen_extension_routes: set[str] = set()
+    seen_release10_routes: set[str] = set()
     for route in snapshot["routes"]:
         subject = route["subject"]
         approval_route = (
@@ -907,7 +1181,45 @@ def _validate_approval_projection_schema_metadata(
             )
             for projection in profile.get("responseProjectionBindings", []):
                 fields = set(projection)
-                if target_profile:
+                work_schema = APPROVAL_WORK_V7_SCHEMAS.get(route["routeContractKey"])
+                document_schema = APPROVAL_DOCUMENT_V8_SCHEMAS.get(route["routeContractKey"])
+                extension = APPROVAL_EXTENSION_V9_PROJECTIONS.get(route["routeContractKey"])
+                release10 = APPROVAL_RELEASE10_PROJECTIONS.get(route["routeContractKey"])
+                if snapshot["version"] == 10 and release10 is not None:
+                    key = route["routeContractKey"]
+                    require(profile_key == release10["profileKey"] and projection == {
+                        field: value for field, value in release10.items() if field != "profileKey"
+                    }, f"{key}: invalid release10 projection metadata")
+                    seen_release10_routes.add(key)
+                elif snapshot["version"] >= 9 and extension is not None:
+                    key = route["routeContractKey"]
+                    expected_projection = {field: value for field, value in extension.items()
+                                           if field != "profileKey"}
+                    require(profile_key == extension["profileKey"]
+                            and projection == expected_projection,
+                            f"{key}: invalid v9 extension projection metadata")
+                    seen_extension_routes.add(key)
+                elif snapshot["version"] >= 7 and work_schema is not None:
+                    key = route["routeContractKey"]
+                    require(profile_key == "full-work" and projection == {
+                        "apiBindingKey": f"{key}.binding.01",
+                        "projectionPolicyKey": f"{key}.full-work.projection.v1",
+                        "responseSchemaKey": work_schema[0], "schemaVersion": 1,
+                        "openApiSchemaSha256": work_schema[1], "additionalProperties": False,
+                    }, f"{key}: invalid v7 work projection schema metadata")
+                    seen_work_routes.add(key)
+                elif snapshot["version"] >= 8 and document_schema is not None:
+                    key = route["routeContractKey"]
+                    expected_profile = ("full-work" if subject["surfaceKey"] == "approvals.work"
+                                        else "full-management")
+                    require(profile_key == expected_profile and projection == {
+                        "apiBindingKey": f"{key}.binding.01",
+                        "projectionPolicyKey": f"{key}.{expected_profile}.projection.v1",
+                        "responseSchemaKey": document_schema[0], "schemaVersion": 1,
+                        "openApiSchemaSha256": document_schema[1], "additionalProperties": False,
+                    }, f"{key}: invalid v8 document/source projection schema metadata")
+                    seen_document_routes.add(key)
+                elif target_profile:
                     schema_key = projection.get("responseSchemaKey")
                     require(
                         fields == PROJECTION_BASE_FIELDS | PROJECTION_METADATA_FIELDS
@@ -937,6 +1249,18 @@ def _validate_approval_projection_schema_metadata(
         seen_schemas == expected,
         f"v{snapshot['version']}: Approval projection schema coverage drift",
     )
+    require(seen_work_routes == (set(APPROVAL_WORK_V7_SCHEMAS)
+                                if snapshot["version"] >= 7 else set()),
+            "Approval v7 work projection schema coverage drift")
+    require(seen_document_routes == (set(APPROVAL_DOCUMENT_V8_SCHEMAS)
+                                    if snapshot["version"] >= 8 else set()),
+            "Approval v8 document/source projection schema coverage drift")
+    require(seen_extension_routes == (set(APPROVAL_EXTENSION_V9_PROJECTIONS)
+                                     if snapshot["version"] >= 9 else set()),
+            "Approval v9 extension projection schema coverage drift")
+    require(seen_release10_routes == (set(APPROVAL_RELEASE10_PROJECTIONS)
+                                     if snapshot["version"] == 10 else set()),
+            "Approval release10 projection schema coverage drift")
 
 
 def _validate_revision(item: dict[str, Any], key: str) -> None:
@@ -1675,6 +1999,13 @@ def build_approvals_pep(
         "routes": routes,
         "projectionChecksumAlgorithm": "SHA-256",
     }
+    if version == 7:
+        route_keys = {route["routeContractKey"] for route in routes}
+        for section in ("capabilities", "accessPolicies", "predicatePolicies"):
+            for descriptor in projection[section]:
+                descriptor["routeContractKeys"] = sorted(
+                    set(descriptor["routeContractKeys"]) & route_keys
+                )
     actual = {
         "routes": projection["projectedRouteContractCount"],
         "bindings": projection["bindingPairCount"],
@@ -1890,6 +2221,10 @@ def verify_no_out_of_lineage_artifacts() -> None:
         *VERSIONED_CONTRACT_OUTPUTS.values(),
         *VERSIONED_AUTH_SEED_OUTPUTS.values(),
         APPROVAL_PILOT_PEP_OUTPUT,
+        APPROVAL_WORK_PEP_OUTPUT,
+        APPROVAL_DOCUMENT_PEP_OUTPUT,
+        APPROVAL_EXTENSION_PEP_OUTPUT,
+        APPROVAL_RELEASE10_PEP_OUTPUT,
         PLATFORM_APPROVALS_PEP_OUTPUT,
         PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT,
         HCM_PEOPLE_PEP_OUTPUT,
@@ -1933,6 +2268,44 @@ def main() -> int:
                 "entitlementExpressions": 1,
                 "predicatePolicies": 6,
             },
+        )
+        approval_work_pep = build_approvals_pep(
+            snapshots[6], "approval", "approval-pilot-pep-v7",
+            {
+                "routes": 47, "bindings": 55,
+                "routeKinds": {"ACTION": 23, "DATA": 9, "PAGE": 15},
+                "capabilities": 24, "accessPolicies": 1,
+                "entitlementExpressions": 1, "predicatePolicies": 7,
+            },
+            version=7,
+        )
+        approval_document_pep = build_approvals_pep(
+            snapshots[7], "approval", "approval-pilot-pep-v8",
+            {
+                "routes": 64, "bindings": 72,
+                "routeKinds": {"ACTION": 32, "DATA": 17, "PAGE": 15},
+                "capabilities": 28, "accessPolicies": 1,
+                "entitlementExpressions": 1, "predicatePolicies": 10,
+            },
+            version=8,
+        )
+        approval_extension_pep = build_approvals_pep(
+            snapshots[8], "approval", "approval-pilot-pep-v9",
+            {
+                "routes": 91, "bindings": 99,
+                "routeKinds": {"ACTION": 47, "DATA": 29, "PAGE": 15},
+                "capabilities": 32, "accessPolicies": 1,
+                "entitlementExpressions": 1, "predicatePolicies": 13,
+            }, version=9,
+        )
+        approval_release10_pep = build_approvals_pep(
+            snapshots[9], "approval", "approval-pilot-pep-v10",
+            {
+                "routes": 107, "bindings": 115,
+                "routeKinds": {"ACTION": 55, "DATA": 37, "PAGE": 15},
+                "capabilities": 37, "accessPolicies": 1,
+                "entitlementExpressions": 1, "predicatePolicies": 16,
+            }, version=10,
         )
         platform_approvals_pep = build_approvals_pep(
             snapshots[1],
@@ -2009,6 +2382,18 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                APPROVAL_WORK_PEP_OUTPUT,
+                render(approval_work_pep),
+                args.check,
+            ),
+            write_or_check(
+                APPROVAL_DOCUMENT_PEP_OUTPUT,
+                render(approval_document_pep),
+                args.check,
+            ),
+            write_or_check(APPROVAL_EXTENSION_PEP_OUTPUT, render(approval_extension_pep), args.check),
+            write_or_check(APPROVAL_RELEASE10_PEP_OUTPUT, render(approval_release10_pep), args.check),
+            write_or_check(
                 PLATFORM_APPROVALS_PEP_OUTPUT,
                 render(platform_approvals_pep),
                 args.check,
@@ -2041,6 +2426,10 @@ def main() -> int:
         verify_no_out_of_lineage_artifacts()
         verify_platform_canary_pep(platform_canary_pep)
         verify_approvals_pep(APPROVAL_PILOT_PEP_OUTPUT, approval_pilot_pep)
+        verify_approvals_pep(APPROVAL_WORK_PEP_OUTPUT, approval_work_pep)
+        verify_approvals_pep(APPROVAL_DOCUMENT_PEP_OUTPUT, approval_document_pep)
+        verify_approvals_pep(APPROVAL_EXTENSION_PEP_OUTPUT, approval_extension_pep)
+        verify_approvals_pep(APPROVAL_RELEASE10_PEP_OUTPUT, approval_release10_pep)
         verify_approvals_pep(PLATFORM_APPROVALS_PEP_OUTPUT, platform_approvals_pep)
         verify_platform_telemetry_dimensions(platform_telemetry_dimensions)
         verify_approvals_pep(HCM_PEOPLE_PEP_OUTPUT, hcm_people_pep)

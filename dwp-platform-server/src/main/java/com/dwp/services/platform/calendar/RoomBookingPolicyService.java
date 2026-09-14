@@ -40,6 +40,7 @@ class RoomBookingPolicyService {
             CalendarRepository.PolicyRow policy,
             CalendarDtos.CreateEventRequest request) {
         validate(tenantId, resource, policy(policy), null, booking(request));
+        validateLockedCapacity(tenantId, resource, request.attendees());
     }
 
     void validateLockedUpdate(
@@ -49,6 +50,20 @@ class RoomBookingPolicyService {
             UUID excludingEventId,
             CalendarDtos.UpdateEventRequest request) {
         validate(tenantId, resource, policy(policy), excludingEventId, booking(request));
+        validateLockedCapacity(tenantId, resource, request.attendees());
+    }
+
+    private void validateLockedCapacity(Long tenantId, CalendarRepository.ResourceRow resource,
+                                        List<CalendarDtos.AttendeeInput> attendees) {
+        if (resource == null || resource.type() != CalendarTypes.ResourceType.ROOM) return;
+        // The native attendee owner persists one row per trimmed, case-insensitive email.
+        // Invitations are counted without inferring organizer presence or actual attendance.
+        long attendeeCount = attendees.stream()
+                .map(attendee -> attendee.email().trim().toLowerCase(java.util.Locale.ROOT))
+                .distinct().count();
+        if (attendeeCount > repository.lockedRoomCapacity(tenantId, resource.resourceId())) {
+            throw invalid("The number of invited attendees exceeds the meeting room capacity.");
+        }
     }
 
     CalendarDtos.RoomBookingEligibility evaluateAvailability(

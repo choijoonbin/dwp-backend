@@ -210,6 +210,33 @@ class WorkplaceBookingRepository {
                 result -> null);
     }
 
+    boolean overlapsFacilityClosure(Long tenantId, UUID resourceId, OffsetDateTime from, OffsetDateTime to) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM wp_experience_facility_closures
+                  WHERE tenant_id = ? AND resource_id = ? AND closure_status = 'ACTIVE'
+                    AND starts_at < ? AND ends_at > ?)
+                """, Boolean.class, tenantId, resourceId, to, from));
+    }
+
+    List<WorkplaceExperienceFacilitiesDtos.PublicClosure> facilityClosures(
+            Long tenantId, UUID floorId, OffsetDateTime from, OffsetDateTime to) {
+        return jdbc.query("""
+                SELECT c.resource_id, c.starts_at, c.ends_at FROM wp_experience_facility_closures c
+                JOIN wp_resources r ON r.tenant_id = c.tenant_id AND r.resource_id = c.resource_id
+                WHERE c.tenant_id = ? AND r.floor_id = ? AND c.closure_status = 'ACTIVE'
+                  AND c.starts_at < ? AND c.ends_at > ? ORDER BY c.starts_at, c.closure_id
+                """, (rs, ignored) -> new WorkplaceExperienceFacilitiesDtos.PublicClosure(
+                rs.getObject("resource_id", UUID.class), rs.getObject("starts_at", OffsetDateTime.class),
+                rs.getObject("ends_at", OffsetDateTime.class), "UNAVAILABLE"), tenantId, floorId, to, from);
+    }
+
+    boolean resourceHasConflict(Long tenantId, UUID resourceId, OffsetDateTime from, OffsetDateTime to) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                SELECT EXISTS(SELECT 1 FROM wp_bookings WHERE tenant_id = ? AND resource_id = ?
+                  AND booking_status IN ('RESERVED','CHECKED_IN') AND starts_at < ? AND ends_at > ?)
+                """, Boolean.class, tenantId, resourceId, to, from));
+    }
+
     boolean tryLifecycleLock() {
         Boolean acquired = jdbc.queryForObject(
                 "SELECT pg_try_advisory_xact_lock(hashtext('workplace-booking-lifecycle'))",

@@ -40,7 +40,7 @@ final class MeetingAdminOperationsExportService {
         this.clock = clock;
     }
 
-    VideoMeetingService.AdminOperationsExport export(
+    MeetingAdminOperationsExport export(
             String requestedTimeZone, String correlationId) {
         var subject = MeetingWorkspacePolicy.require("ADMIN.MEETINGS", "VIEW");
         var policy = meetings.ensurePolicy(subject.tenantId(), subject.userId());
@@ -64,7 +64,7 @@ final class MeetingAdminOperationsExportService {
         String filename = "dwp-meeting-operations-"
                 + observedAt.withOffsetSameInstant(ZoneOffset.UTC).format(FILENAME_TIME)
                 + ".csv";
-        return new VideoMeetingService.AdminOperationsExport(
+        return new MeetingAdminOperationsExport(
                 filename, csv.getBytes(StandardCharsets.UTF_8));
     }
 
@@ -72,7 +72,7 @@ final class MeetingAdminOperationsExportService {
             OffsetDateTime observedAt,
             ZoneId timeZone,
             OffsetDateTime dayStart,
-            VideoMeetingRepository.AdminOverviewData aggregate,
+            VideoMeetingQueryModels.AdminOverviewData aggregate,
             MeetingMediaProvider.Capability capability,
             boolean participantChatAllowed) {
         String header = String.join(",", List.of(

@@ -1,5 +1,7 @@
 package com.dwp.services.meeting.videomeeting.provider;
 
+import com.dwp.core.constant.HeaderConstants;
+import com.dwp.core.http.OutboundHttpHeaders;
 import com.dwp.services.meeting.videomeeting.domain.MeetingInvitationDeliveryException;
 import com.dwp.services.meeting.videomeeting.domain.MeetingInvitationDeliveryModels.Claim;
 import com.dwp.services.meeting.videomeeting.domain.MeetingInvitationDeliveryProperties;
@@ -7,6 +9,7 @@ import com.dwp.services.meeting.videomeeting.domain.MeetingInvitationNotificatio
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.http.HttpHeaders;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -21,17 +24,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 
 /** Sends immutable, per-recipient direct intents to the Notification owner. */
 final class GovernedHttpMeetingInvitationNotificationGateway
         implements MeetingInvitationNotificationGateway {
 
     private static final String PATH = "/internal/v1/intents/direct";
-    private static final String SOURCE_SERVICE = "dwp-meeting-server";
+    private static final String TOKEN_HEADER = "X-DWP-Service-Token";
+    private static final String SERVICE_IDENTITY_HEADER = "X-DWP-Source-Service";
+    private static final String SERVICE_IDENTITY = "dwp-meeting-server";
     private static final String ACTOR_REFERENCE = "urn:dwp:meetings";
     private static final String LOCALE = "ko-KR";
 
@@ -80,16 +81,21 @@ final class GovernedHttpMeetingInvitationNotificationGateway
         } catch (IOException invalidLocalContract) {
             throw failure("NOTIFICATION_REQUEST_INVALID", false);
         }
-        HttpRequest request = HttpRequest.newBuilder(endpoint)
+        HttpHeaders observability = new HttpHeaders();
+        OutboundHttpHeaders.propagateObservability(observability);
+        observability.remove(HeaderConstants.X_CORRELATION_ID);
+        HttpRequest.Builder requestBuilder = HttpRequest.newBuilder(endpoint)
                 .timeout(requestTimeout)
                 .header("Accept", "application/json")
                 .header("Content-Type", "application/json")
-                .header("X-DWP-Service-Token", token)
+                .header(TOKEN_HEADER, token)
                 .header("X-DWP-Tenant-ID", Long.toString(claim.event().tenantId()))
-                .header("X-DWP-Source-Service", SOURCE_SERVICE)
+                .header(SERVICE_IDENTITY_HEADER, SERVICE_IDENTITY)
                 .header("X-Correlation-ID", "meeting-invitation:" + claim.sourceEventId())
-                .POST(HttpRequest.BodyPublishers.ofByteArray(body))
-                .build();
+                .POST(HttpRequest.BodyPublishers.ofByteArray(body));
+        observability.forEach((name, values) ->
+                values.forEach(value -> requestBuilder.header(name, value)));
+        HttpRequest request = requestBuilder.build();
         HttpResponse<InputStream> response;
         try {
             response = client.send(request, HttpResponse.BodyHandlers.ofInputStream());
@@ -112,7 +118,8 @@ final class GovernedHttpMeetingInvitationNotificationGateway
         }
         byte[] responseBody;
         try {
-            responseBody = readBeforeDeadline(response, responseDeadline);
+            responseBody = BoundedHttpResponseReader.readBeforeDeadline(
+                    response, maximumResponseBytes, responseDeadline);
         } catch (IOException invalidOrInterruptedBody) {
             boolean boundedRejection = invalidOrInterruptedBody.getMessage() != null
                     && (invalidOrInterruptedBody.getMessage().contains("configured limit")
@@ -139,39 +146,6 @@ final class GovernedHttpMeetingInvitationNotificationGateway
         return new Acceptance(
                 result.intentId(), result.notificationId(), result.recipientCount(),
                 result.duplicate(), result.highestChangeVersion());
-    }
-
-    private byte[] readBeforeDeadline(
-            HttpResponse<InputStream> response, long responseDeadline) throws IOException {
-        long remaining = responseDeadline - System.nanoTime();
-        if (remaining <= 0) {
-            close(response.body());
-            throw new IOException("Notification response body deadline exceeded.");
-        }
-        FutureTask<byte[]> read = new FutureTask<>(
-                () -> BoundedHttpResponseReader.read(response, maximumResponseBytes));
-        Thread reader = Thread.ofVirtual()
-                .name("meeting-invitation-notification-response")
-                .unstarted(read);
-        reader.start();
-        try {
-            return read.get(remaining, TimeUnit.NANOSECONDS);
-        } catch (TimeoutException timeout) {
-            read.cancel(true);
-            close(response.body());
-            throw new IOException(
-                    "Notification response body deadline exceeded.", timeout);
-        } catch (InterruptedException interrupted) {
-            read.cancel(true);
-            close(response.body());
-            Thread.currentThread().interrupt();
-            throw new IOException("Notification response body read was interrupted.", interrupted);
-        } catch (ExecutionException failedRead) {
-            Throwable cause = failedRead.getCause();
-            if (cause instanceof IOException ioException) throw ioException;
-            if (cause instanceof RuntimeException runtimeException) throw runtimeException;
-            throw new IOException("Notification response body read failed.", cause);
-        }
     }
 
     private boolean valid(Envelope envelope, int status) {

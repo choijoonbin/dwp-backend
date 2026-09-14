@@ -10,6 +10,51 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class PilotAuthorizationFixtureAdapterTest {
 
+    @Test
+    void loadsFinalV10CatalogWithoutChangingTheFixedCaseAuthority() throws Exception {
+        try (var input = getClass().getClassLoader().getResourceAsStream(
+                "product-authorization/pilot-fixtures.v1.generated.json")) {
+            assertThat(input).isNotNull();
+            var fixture = new com.fasterxml.jackson.databind.ObjectMapper().readTree(input);
+            assertThat(fixture.path("fixtureChecksum").asText())
+                    .isEqualTo("1bebaa31b30a6d7c41ad7a11c5b732973c5ffa823d6f4681a376b4271957a1c4");
+            assertThat(fixture.path("registryLineage").path("latestAliasVersion").asInt()).isEqualTo(10);
+            assertThat(fixture.path("registryLineage").path("versions").size()).isEqualTo(10);
+            assertThat(fixture.path("registryLineage").path("versions").get(9).path("sha256").asText())
+                    .isEqualTo("1f97638c95a192f0ec7f01053c3965f79b7a3ee4eb9781ea56e3cf8eccc6889b");
+            assertThat(fixture.path("registryLineage").path("versions").get(8).path("sha256").asText())
+                    .isEqualTo("02b19c4119e560b63d4054ec317fe7e4d694e402a5af03960c63b20db4b41ab7");
+            assertThat(fixture.path("registryLineage").path("versions").get(7).path("sha256").asText())
+                    .isEqualTo("9449a516a2dbd96106e71963cbda764b80d83f0f61fa861d110d85517adac942");
+            assertThat(fixture.path("registryLineage").path("versions").get(6).path("sha256").asText())
+                    .isEqualTo("fe9721ef01164c64e03f8798f89765bdf35e55993cf98ad1f6f9c3611dd8d61a");
+        }
+        assertThat(adapter.project("PS-A003").registryReference().version()).isEqualTo(2);
+        assertThat(adapter.project("PS-H001").registryReference().version()).isEqualTo(3);
+    }
+
+    @Test
+    void rejectsChangedNegativeCaseContentEvenWithARecomputedCatalogChecksum() throws Exception {
+        var mapper = org.mockito.Mockito.spy(new com.fasterxml.jackson.databind.ObjectMapper());
+        com.fasterxml.jackson.databind.node.ObjectNode changed;
+        try (var input = getClass().getClassLoader().getResourceAsStream(
+                "product-authorization/pilot-fixtures.v1.generated.json")) {
+            changed = (com.fasterxml.jackson.databind.node.ObjectNode) mapper.readTree(input);
+        }
+        var negative = (com.fasterxml.jackson.databind.node.ObjectNode) changed.path("negativeCases").get(0);
+        negative.put("input", negative.path("input").asText() + ":changedContent");
+        changed.remove("fixtureChecksum");
+        var hash = PilotAuthorizationFixtureAdapter.class.getDeclaredMethod(
+                "sha256", com.fasterxml.jackson.databind.JsonNode.class);
+        hash.setAccessible(true);
+        changed.put("fixtureChecksum", (String) hash.invoke(adapter, changed));
+        org.mockito.Mockito.doReturn(changed).when(mapper)
+                .readTree(org.mockito.ArgumentMatchers.any(java.io.InputStream.class));
+        assertThatThrownBy(() -> new PilotAuthorizationFixtureAdapter(mapper))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("Unexpected pilot fixture checksum");
+    }
+
     private final PilotAuthorizationFixtureAdapter adapter =
             new PilotAuthorizationFixtureAdapter();
 

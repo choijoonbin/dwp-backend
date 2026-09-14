@@ -1,0 +1,328 @@
+{
+  "schemaVersion": 1,
+  "kind": "ROOT_SYNC_INPUT_ONLY",
+  "status": "OWNER_SOURCE_IMPLEMENTED_GLOBAL_REGISTRY_SYNC_PENDING",
+  "patches": [
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.management",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "GET",
+      "servicePath": "/v1/admin/workplace/experience-report",
+      "publicPath": "/api/platform/v1/admin/workplace/experience-report",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "permission": "VIEW",
+      "requiresProductEntitlement": false,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "siteBinding": "tenant+siteId query; optional floorId must be in site",
+      "sourceController": "WorkplaceExperienceReportController",
+      "readOnly": true
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.management",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "GET",
+      "servicePath": "/v1/admin/workplace/experience-report/bookings/{bookingId}",
+      "publicPath": "/api/platform/v1/admin/workplace/experience-report/bookings/{bookingId}",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "permission": "VIEW",
+      "requiresProductEntitlement": false,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "siteBinding": "tenant+siteId query+bookingId SQL joins resolve current actual resource/floor/site",
+      "sourceController": "WorkplaceExperienceReportController",
+      "readOnly": true
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.management",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "GET",
+      "servicePath": "/v1/admin/workplace/resources/{resourceId}/future-booking-impact",
+      "publicPath": "/api/platform/v1/admin/workplace/resources/{resourceId}/future-booking-impact",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "permission": "VIEW",
+      "requiresProductEntitlement": false,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "siteBinding": "tenant+siteId query+resourceId SQL; ROOM requires separate Rooms owner and currently returns unavailable",
+      "sourceController": "WorkplaceExperienceReportController",
+      "readOnly": true
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.management",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "GET",
+      "servicePath": "/v1/admin/workplace/policy-impact-preview",
+      "publicPath": "/api/platform/v1/admin/workplace/policy-impact-preview",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "permission": "VIEW",
+      "requiresProductEntitlement": false,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "SITE_QUERY / POLICY_MANAGE",
+      "siteBinding": "tenant+siteId query; optional floorId; effective native resource policy, no write",
+      "sourceController": "WorkplaceExperienceReportController",
+      "readOnly": true
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.management",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "GET",
+      "servicePath": "/v1/admin/workplace/experience/facilities/closures",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/closures",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "permission": "VIEW",
+      "requiresProductEntitlement": false,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "siteBinding": "siteId query + optional floorId/resourceId + scoped interval SQL",
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "readOnly": true
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.management",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "GET",
+      "servicePath": "/v1/admin/workplace/experience/facilities/closures/{closureId}",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/closures/{closureId}",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "permission": "VIEW",
+      "requiresProductEntitlement": false,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "siteBinding": "siteId query + closureId SQL resolves native resource FK",
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "readOnly": true
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.management",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "POST",
+      "servicePath": "/v1/admin/workplace/experience/facilities/resources/{resourceId}/closures",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/resources/{resourceId}/closures",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "permission": "CREATE",
+      "requiresProductEntitlement": false,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "SITE_QUERY / CATALOG_MANAGE",
+      "siteBinding": "siteId query + resourceId locked native target; body version=current resource version",
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "readOnly": false,
+      "additionalOwnerPermission": "ADMIN.ROOMS:UPDATE for ROOM targets; enforced by native canonical mapping before closure mutation"
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.management",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "PUT",
+      "servicePath": "/v1/admin/workplace/experience/facilities/closures/{closureId}/cancel",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/closures/{closureId}/cancel",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "permission": "UPDATE",
+      "requiresProductEntitlement": false,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "SITE_QUERY / CATALOG_MANAGE",
+      "siteBinding": "siteId query + closureId native target, resource lock; body closure version",
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "readOnly": false,
+      "additionalOwnerPermission": "ADMIN.ROOMS:UPDATE for ROOM targets; enforced by native canonical mapping before closure mutation"
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.management",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "GET",
+      "servicePath": "/v1/admin/workplace/experience/facilities/requests",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/requests",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "permission": "VIEW",
+      "requiresProductEntitlement": false,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "siteBinding": "siteId query + optional floorId/status + scoped native resource FK",
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "readOnly": true
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.management",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "PUT",
+      "servicePath": "/v1/admin/workplace/experience/facilities/requests/{requestId}/status",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/requests/{requestId}/status",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "permission": "UPDATE",
+      "requiresProductEntitlement": false,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "SITE_QUERY / CATALOG_MANAGE",
+      "siteBinding": "siteId query + requestId native resource FK + locked request version",
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "readOnly": false
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.work",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "POST",
+      "servicePath": "/v1/workplace/experience/facilities/resources/{resourceId}/requests",
+      "publicPath": "/api/platform/v1/workplace/experience/facilities/resources/{resourceId}/requests",
+      "resourceKey": "APP.WORKPLACE",
+      "permission": "CREATE",
+      "requiresProductEntitlement": true,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "CURRENT_MEMBER_SITE_ACCESS",
+      "siteBinding": "actual native tenant/resource→site; current user/site VIEW; actor-owned idempotency",
+      "sourceController": "WorkplaceExperienceFacilitiesController",
+      "readOnly": false
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.work",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "GET",
+      "servicePath": "/v1/workplace/experience/facilities/requests",
+      "publicPath": "/api/platform/v1/workplace/experience/facilities/requests",
+      "resourceKey": "APP.WORKPLACE",
+      "permission": "VIEW",
+      "requiresProductEntitlement": true,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "CURRENT_MEMBER_SITE_ACCESS",
+      "siteBinding": "SQL tenant+requesterUserId+current authorized site IDs; all other actors excluded before serialization",
+      "sourceController": "WorkplaceExperienceFacilitiesController",
+      "readOnly": true
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.work",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "GET",
+      "servicePath": "/v1/workplace/experience/facilities/requests/{requestId}",
+      "publicPath": "/api/platform/v1/workplace/experience/facilities/requests/{requestId}",
+      "resourceKey": "APP.WORKPLACE",
+      "permission": "VIEW",
+      "requiresProductEntitlement": true,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "CURRENT_MEMBER_SITE_ACCESS",
+      "siteBinding": "SQL tenant+requesterUserId+requestId+current authorized site IDs",
+      "sourceController": "WorkplaceExperienceFacilitiesController",
+      "readOnly": true
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.work",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "GET",
+      "servicePath": "/v1/workplace/experience/facilities/resources/{resourceId}/booking-availability",
+      "publicPath": "/api/platform/v1/workplace/experience/facilities/resources/{resourceId}/booking-availability",
+      "resourceKey": "APP.WORKPLACE",
+      "permission": "VIEW",
+      "requiresProductEntitlement": true,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "CURRENT_MEMBER_SITE_ACCESS",
+      "siteBinding": "actual tenant/resource→site; current user/site VIEW then BOOK, same resource lock/closure/policy/conflict preflight",
+      "sourceController": "WorkplaceExperienceFacilitiesController",
+      "readOnly": true
+    },
+    {
+      "sourceWorkspace": "workplace",
+      "surfaceKey": "workplace.management",
+      "ownerService": "dwp-platform-server",
+      "serviceKey": "platform",
+      "method": "GET",
+      "servicePath": "/v1/admin/workplace/experience/facilities/resources/{resourceId}/room-booking-impact",
+      "publicPath": "/api/platform/v1/admin/workplace/experience/facilities/resources/{resourceId}/room-booking-impact",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "permission": "VIEW",
+      "extraOwnerPermission": "ADMIN.ROOMS:VIEW; enforced before Calendar source query",
+      "requiresProductEntitlement": false,
+      "trustedIdentity": [
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
+      ],
+      "delegatedScope": "SITE_QUERY / CATALOG_VIEW",
+      "siteBinding": "tenant+siteId query+canonical wp resource→same-tenant calendar_resource_id native FK; scoped actual occurrence query",
+      "sourceController": "WorkplaceExperienceFacilitiesAdminController",
+      "readOnly": true
+    }
+  ],
+  "preserve": [
+    "generated global product authorization bundles/projections",
+    "registry/matrix/readiness/grants/fixtures",
+    "unrelated Approval v9 work"
+  ],
+  "semantics": [
+    "Administration does not require personal APP.WORKPLACE access; native ADMIN owner permissions plus delegated site policy apply.",
+    "Proposed product-registry route additions are not self-activated or claimed pilot-ready here.",
+    "Facility closure/report data and native source-scope are owner-service predicates; service token/trusted identity boundary remain existing PlatformSecurityFilter.",
+    "ROOM is a separate Calendar/Rooms authority; do not treat Workplace administration alone as Rooms authority."
+  ],
+  "sourceFiles": [
+    "dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceExperienceReportController.java",
+    "dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceExperienceFacilitiesController.java",
+    "dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceExperienceFacilitiesAdminController.java",
+    "dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceDelegatedAdminRoutePolicy.java",
+    "dwp-platform-server/src/main/java/com/dwp/services/platform/security/PlatformSecurityFilter.java"
+  ]
+}

@@ -21,8 +21,8 @@ final class WorkplaceBookingAccessGuard {
             String verifiedGroupRefs,
             WorkplaceBookingRepository.BookingRow booking) {
         try {
-            governance.requireViewAccess(
-                    tenantId, userId, verifiedGroupRefs, siteId(tenantId, booking));
+            var floor = location(tenantId, booking);
+            governance.requireViewAccess(tenantId, userId, verifiedGroupRefs, floor.siteId(), floor.floorId());
             return true;
         } catch (BaseException exception) {
             if (exception.getErrorCode() == ErrorCode.FORBIDDEN) return false;
@@ -35,17 +35,16 @@ final class WorkplaceBookingAccessGuard {
             Long userId,
             String verifiedGroupRefs,
             WorkplaceBookingRepository.BookingRow booking) {
-        governance.requireBookAccess(
-                tenantId, userId, verifiedGroupRefs, siteId(tenantId, booking));
+        var floor = location(tenantId, booking);
+        governance.requireBookAccess(tenantId, userId, verifiedGroupRefs, floor.siteId(), floor.floorId());
     }
 
-    private java.util.UUID siteId(
+    private WorkplaceCatalogRepository.FloorRow location(
             Long tenantId, WorkplaceBookingRepository.BookingRow booking) {
         WorkplaceCatalogRepository.ResourceRow resource = catalog
                 .resource(tenantId, booking.resourceId(), false)
                 .orElseThrow(() -> new BaseException(ErrorCode.FORBIDDEN));
         return catalog.floor(tenantId, resource.floorId(), false)
-                .map(WorkplaceCatalogRepository.FloorRow::siteId)
                 .orElseThrow(() -> new BaseException(ErrorCode.FORBIDDEN));
     }
 }

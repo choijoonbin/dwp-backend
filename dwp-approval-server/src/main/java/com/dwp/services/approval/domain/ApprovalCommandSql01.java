@@ -46,6 +46,7 @@ final class ApprovalCommandSql01 {
            AND requester_user_id = :userId
            AND management_resource_set_key = :managementScope
            AND status = 'DRAFT'
+           AND deleted_at IS NULL
            AND version = :expectedVersion
         """;
 
@@ -66,6 +67,7 @@ final class ApprovalCommandSql01 {
                updated_by = :userId
          WHERE tenant_id = :tenantId AND request_id = :requestId
            AND requester_user_id = :userId AND status = 'DRAFT'
+           AND deleted_at IS NULL
            AND version = :expectedVersion
         """;
 
@@ -106,6 +108,13 @@ final class ApprovalCommandSql01 {
     static final String IN_UPDATE_APR_TASKS = """
         UPDATE apr_tasks
            SET status = 'CANCELLED', completed_at = CURRENT_TIMESTAMP,
+               decision_actor_user_id = NULL,
+               decision_actor_person_public_id = NULL,
+               decision_reason = NULL,
+               decision_payload_revision = NULL,
+               decision_payload_sha256 = NULL,
+               decision_invalidated_at = NULL,
+               decision_invalidation_reason = NULL,
                version = version + 1, updated_at = CURRENT_TIMESTAMP
          WHERE tenant_id = :tenantId AND request_id = :requestId
            AND status IN ('PENDING', 'CLAIMED', 'INFO_REQUESTED')
@@ -121,7 +130,10 @@ final class ApprovalCommandSql01 {
 
     static final String RESPOND_TO_INFORMATION_REQUEST_UPDATE_APR_REQUESTS = """
         UPDATE apr_requests
-           SET status = 'IN_REVIEW', version = version + 1,
+           SET status = 'IN_REVIEW',
+               summary = CASE WHEN :summaryChanged
+                              THEN :requestSummary ELSE summary END,
+               version = version + 1,
                updated_at = CURRENT_TIMESTAMP, updated_by = :userId
          WHERE tenant_id = :tenantId AND request_id = :requestId
            AND requester_user_id = :userId
@@ -131,7 +143,8 @@ final class ApprovalCommandSql01 {
     static final String RESPOND_TO_INFORMATION_REQUEST_UPDATE_APR_REQUEST_PAYLOADS = """
         UPDATE apr_request_payloads
            SET payload = CAST(:payload AS jsonb),
-               payload_sha256 = encode(sha256(convert_to(:payload, 'UTF8')), 'hex'),
+               payload_sha256 = CASE WHEN payload = CAST(:payload AS jsonb) THEN payload_sha256
+                                     ELSE encode(sha256(convert_to(:payload, 'UTF8')), 'hex') END,
                schema_version = schema_version + 1,
                updated_at = CURRENT_TIMESTAMP
          WHERE tenant_id = :tenantId AND request_id = :requestId
@@ -140,7 +153,14 @@ final class ApprovalCommandSql01 {
     static final String RESPOND_TO_INFORMATION_REQUEST_UPDATE_APR_TASKS = """
         UPDATE apr_tasks
            SET status = CASE WHEN assignee_user_id IS NULL THEN 'PENDING' ELSE 'CLAIMED' END,
-               decision_reason = NULL, version = version + 1,
+               decision_actor_user_id = NULL,
+               decision_actor_person_public_id = NULL,
+               decision_reason = NULL,
+               decision_payload_revision = NULL,
+               decision_payload_sha256 = NULL,
+               decision_invalidated_at = NULL,
+               decision_invalidation_reason = NULL,
+               completed_at = NULL, version = version + 1,
                updated_at = CURRENT_TIMESTAMP
          WHERE tenant_id = :tenantId AND request_id = :requestId
            AND status = 'INFO_REQUESTED'
@@ -151,6 +171,7 @@ final class ApprovalCommandSql01 {
            SET assignee_user_id = :userId,
                assignee_person_public_id = :personPublicId,
                delegated_from_user_id = :delegatedFromUserId,
+               delegated_authority_role_code = :delegatedAuthorityRoleCode,
                status = 'CLAIMED', claimed_at = CURRENT_TIMESTAMP,
                version = version + 1, updated_at = CURRENT_TIMESTAMP
          WHERE tenant_id = :tenantId AND task_id = :taskId
@@ -159,19 +180,40 @@ final class ApprovalCommandSql01 {
         """;
 
     static final String DECIDE_UPDATE_APR_TASKS = """
-        UPDATE apr_tasks
+        UPDATE apr_tasks task
            SET assignee_user_id = COALESCE(assignee_user_id, :userId),
                decision_actor_user_id = :userId,
                decision_actor_person_public_id = :personPublicId,
                delegated_from_user_id = COALESCE(
                    delegated_from_user_id, :delegatedFromUserId),
+               delegated_authority_role_code = COALESCE(
+                   delegated_authority_role_code, :delegatedAuthorityRoleCode),
                status = :taskStatus, decision_reason = :reason,
+               decision_payload_revision = :payloadRevision,
+               decision_payload_sha256 = :payloadSha256,
+               decision_invalidated_at = NULL,
+               decision_invalidation_reason = NULL,
                completed_at = CASE WHEN :taskStatus = 'INFO_REQUESTED'
                                    THEN NULL ELSE CURRENT_TIMESTAMP END,
                version = version + 1, updated_at = CURRENT_TIMESTAMP
          WHERE tenant_id = :tenantId AND task_id = :taskId
            AND status IN ('PENDING', 'CLAIMED')
            AND version = :expectedVersion
+           AND (COALESCE(task.delegated_from_user_id, :delegatedFromUserId) IS NULL
+                OR EXISTS (SELECT 1 FROM apr_delegations delegation
+                    JOIN apr_requests request ON request.tenant_id = task.tenant_id
+                        AND request.request_id = task.request_id AND request.deleted_at IS NULL
+                    JOIN apr_workflow_versions workflow ON workflow.tenant_id = request.tenant_id
+                        AND workflow.workflow_version_id = request.workflow_version_id
+                    WHERE delegation.tenant_id = task.tenant_id
+                        AND delegation.delegator_user_id = COALESCE(task.delegated_from_user_id, :delegatedFromUserId)
+                        AND delegation.delegate_user_id = :userId AND delegation.lifecycle_state = 'ACTIVE'
+                        AND delegation.starts_at <= clock_timestamp() AND delegation.ends_at > clock_timestamp()
+                        AND (delegation.scope_type = 'ALL' OR (delegation.scope_type = 'WORKFLOW'
+                            AND delegation.workflow_id = workflow.workflow_id))
+                        AND (COALESCE(task.delegated_authority_role_code, :delegatedAuthorityRoleCode) IS NULL
+                            OR jsonb_exists(delegation.delegated_role_codes,
+                                COALESCE(task.delegated_authority_role_code, :delegatedAuthorityRoleCode)))))
         """;
 
     static final String IN_UPDATE_APR_STEPS_2 = """

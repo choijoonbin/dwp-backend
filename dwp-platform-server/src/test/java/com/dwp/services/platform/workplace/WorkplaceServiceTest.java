@@ -84,6 +84,9 @@ class WorkplaceServiceTest {
         lenient().when(runtimeGovernance.viewableSiteIds(
                         anyLong(), anyLong(), nullable(String.class), anySet()))
                 .thenAnswer(invocation -> invocation.getArgument(3));
+        lenient().when(runtimeGovernance.viewableFloorIds(
+                        anyLong(), anyLong(), nullable(String.class), org.mockito.ArgumentMatchers.anyMap()))
+                .thenAnswer(invocation -> invocation.<java.util.Map<java.util.UUID, java.util.UUID>>getArgument(3).keySet());
     }
 
     @Test
@@ -312,10 +315,10 @@ class WorkplaceServiceTest {
         when(catalog.floor(1L, deniedFloorId, false))
                 .thenReturn(Optional.of(floor(deniedSiteId, deniedFloorId)));
         doNothing().when(runtimeGovernance)
-                .requireViewAccess(1L, 9L, "group-a", allowedSiteId);
+                .requireViewAccess(1L, 9L, "group-a", allowedSiteId, allowedFloorId);
         doThrow(new BaseException(ErrorCode.FORBIDDEN))
                 .when(runtimeGovernance)
-                .requireViewAccess(1L, 9L, "group-a", deniedSiteId);
+                .requireViewAccess(1L, 9L, "group-a", deniedSiteId, deniedFloorId);
 
         List<WorkplaceDtos.Booking> result = service.myBookings(
                 1L, 9L, from, to, "ko-KR", "group-a");
@@ -339,7 +342,7 @@ class WorkplaceServiceTest {
         when(catalog.floor(1L, floorId, false)).thenReturn(Optional.of(floor(siteId, floorId)));
         doThrow(new BaseException(ErrorCode.FORBIDDEN))
                 .when(runtimeGovernance)
-                .requireBookAccess(1L, 9L, "group-a", siteId);
+                .requireBookAccess(1L, 9L, "group-a", siteId, floorId);
         WorkplaceDtos.VersionRequest version = new WorkplaceDtos.VersionRequest(0L);
 
         assertThatThrownBy(() -> service.checkIn(
@@ -486,12 +489,12 @@ class WorkplaceServiceTest {
         when(catalog.floor(1L, floorId, false)).thenReturn(Optional.of(floor));
         doThrow(new BaseException(ErrorCode.FORBIDDEN))
                 .when(runtimeGovernance)
-                .requireViewAccess(1L, 9L, "group-a", siteId);
+                .requireViewAccess(1L, 9L, "group-a", siteId, floorId);
 
         assertThatThrownBy(() -> service.floorBackground(1L, 9L, "group-a", floorId))
                 .isInstanceOf(RuntimeException.class);
 
-        verify(runtimeGovernance).requireViewAccess(1L, 9L, "group-a", siteId);
+        verify(runtimeGovernance).requireViewAccess(1L, 9L, "group-a", siteId, floorId);
         verify(mediaStorage, never()).load(any(), any());
     }
 

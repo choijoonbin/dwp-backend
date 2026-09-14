@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.domain.PageRequest;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.UUID;
 
 @Service
@@ -82,6 +83,22 @@ public class IdentitySubjectLookupService {
                 .toList();
     }
 
+    @Transactional(readOnly = true)
+    public RoleEligibility roleEligibility(Long tenantId, String roleCode) {
+        String normalized = roleCode == null ? "" : roleCode.strip().toUpperCase(Locale.ROOT);
+        if (!normalized.matches("[A-Z][A-Z0-9_]{1,79}")) {
+            throw new BaseException(ErrorCode.NOT_FOUND);
+        }
+        var role = roles.findByTenantIdAndCode(tenantId, normalized)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        long eligibleUserCount = "ACTIVE".equals(role.getStatus())
+                ? roleMembers.countEffectiveActiveUsers(tenantId, role.getRoleId())
+                : 0L;
+        return new RoleEligibility(
+                tenantId, normalized, role.getStatus(), eligibleUserCount,
+                "ACTIVE".equals(role.getStatus()) && eligibleUserCount > 0);
+    }
+
     public record Subject(
             Long tenantId,
             Long userId,
@@ -109,6 +126,13 @@ public class IdentitySubjectLookupService {
             List<String> roles,
             List<UUID> groupRefs,
             List<String> permissionKeys) { }
+
+    public record RoleEligibility(
+            Long tenantId,
+            String roleCode,
+            String lifecycleState,
+            long eligibleUserCount,
+            boolean eligible) { }
 
     private List<String> roleCodes(Long tenantId, Long userId) {
         List<Long> roleIds = roleMembers.findRoleIds(tenantId, userId);

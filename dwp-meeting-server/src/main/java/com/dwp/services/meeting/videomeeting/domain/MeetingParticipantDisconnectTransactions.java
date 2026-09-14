@@ -3,7 +3,7 @@ package com.dwp.services.meeting.videomeeting.domain;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.meeting.security.MeetingRequestContext;
-import com.dwp.services.meeting.videomeeting.api.MeetingParticipantDisconnectController.DisconnectCommand;
+import com.dwp.services.meeting.videomeeting.api.MeetingParticipantDisconnectDtos.DisconnectCommand;
 import com.dwp.services.meeting.videomeeting.audit.VideoMeetingAuditRecorder;
 import com.dwp.services.meeting.videomeeting.domain.MeetingParticipantDisconnectRepository.Command;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.ParticipantRole;

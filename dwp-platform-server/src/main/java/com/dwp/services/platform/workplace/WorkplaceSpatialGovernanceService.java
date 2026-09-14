@@ -132,6 +132,35 @@ public class WorkplaceSpatialGovernanceService extends WorkplaceSpatialGovernanc
     }
 
     @Transactional(readOnly = true)
+    public SiteAccessDecision previewSiteAccess(Long tenantId, Long userId, String groups, UUID siteId,
+            AccessPermission permission) {
+        var decision = accessPolicy.evaluateSiteAccess(tenantId, userId, groups, siteId, permission);
+        return new SiteAccessDecision(decision.siteId(), decision.userId(), decision.requestedPermission(),
+                decision.allowed(), decision.decision(), decision.matchedRuleIds(), decision.evaluatedAt(),
+                null, repository.accessRuleFloorOptions(tenantId, siteId));
+    }
+
+    @Transactional(readOnly = true)
+    public SiteAccessDecision evaluateFloorAccess(Long tenantId, Long userId, String groups, UUID siteId,
+            UUID floorId, AccessPermission permission) {
+        return accessPolicy.evaluateFloorAccess(tenantId, userId, groups, siteId, floorId, permission);
+    }
+
+    @Transactional(readOnly = true)
+    public Map<UUID, SiteAccessDecision> evaluateFloorAccesses(Long tenantId, Long userId, String groups,
+            Map<UUID, UUID> sitesByFloor, AccessPermission permission) {
+        return accessPolicy.evaluateFloorAccesses(tenantId, userId, groups, sitesByFloor, permission);
+    }
+
+    @Transactional(readOnly = true)
+    public SiteAccessDecision previewAccess(Long tenantId, Long userId, String groups, UUID siteId,
+            UUID ruleId, SiteAccessRuleRequest request) {
+        return accessPolicy.previewAccess(tenantId, userId, groups, siteId, ruleId, request);
+    }
+
+    public void lockSiteAccessScope(Long tenantId, UUID siteId) { repository.lockSiteAccessScope(tenantId, siteId); }
+
+    @Transactional(readOnly = true)
     public Map<UUID, SiteAccessDecision> evaluateSiteAccesses(
             Long tenantId,
             Long userId,
@@ -382,6 +411,11 @@ public class WorkplaceSpatialGovernanceService extends WorkplaceSpatialGovernanc
             DelegatedAdminScopeRequest request) {
         return accessPolicy.saveDelegatedScope(
                 tenantId, actorId, delegationId, correlationId, request);
+    }
+
+    @Transactional(readOnly = true)
+    public void validateDelegationReview(Long tenantId, UUID delegationId, DelegatedAdminScopeRequest request) {
+        accessPolicy.validateDelegationReview(tenantId, request, delegationId);
     }
 
     @Transactional(readOnly = true)

@@ -2,6 +2,8 @@ package com.dwp.services.approval.domain;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.approval.attachment.binding.ApprovalAttachmentLifecycleBinding;
+import com.dwp.services.approval.documentretention.ApprovalRetentionLiveGuard;
 import com.dwp.services.approval.security.ApprovalDecisionRevisionContext;
 import com.dwp.services.approval.security.ApprovalManagementScopeContext;
 import com.dwp.services.approval.security.ApprovalRequestContext;
@@ -42,7 +44,9 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
         Map<String, Object> payload = requestPayload(request.summary(), request.payload());
         WorkflowRuntime workflow = workflow(
                 actor.tenantId(), request.workflowId(), request.formId(), payload, false);
-        validateRequestPayload(workflow.formSchema(), payload, false);
+        payload = payloadSupport.isTypedFormSchema(workflow.formSchema())
+                ? formNormalization.create(actor, requestId, workflow.formVersionId(), workflow.formSchema(), payload)
+                : normalizeRequestPayload(workflow.formSchema(), payload, false);
         String payloadJson = payloadSupport.json(payload);
         MapSqlParameterSource params = new MapSqlParameterSource()
                 .addValue("requestId", requestId)
@@ -63,6 +67,7 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
         jdbc.update(ApprovalCommandSql01.CREATE_DRAFT_INSERT_APR_REQUESTS, params);
         jdbc.update(ApprovalCommandSql01.APR_REQUESTS_INSERT_APR_REQUEST_PAYLOADS, params);
         appendPayloadRevision(actor, requestId, "DRAFT_CREATED", correlationId, "Draft created");
+        attachmentLifecycleBinding().initializeCreated(requestId, 0);
         appendEvent(actor, requestId, "REQUEST_DRAFTED", "Draft created", correlationId, Map.of());
         return requestId;
     }
@@ -72,12 +77,24 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
             UUID requestId,
             ApprovalDtos.UpdateDraftRequest request,
             String correlationId) {
+        updateDraft(actor, requestId, request, correlationId, null);
+    }
+
+    void updateDraft(ApprovalRequestContext.Actor actor, UUID requestId, ApprovalDtos.UpdateDraftRequest request,
+            String correlationId, ApprovalAttachmentLifecycleBinding.Pin recoveryPin) {
         String priority = normalizedPriority(request.priority());
         Map<String, Object> payload = requestPayload(request.summary(), request.payload());
-        WorkflowRuntime workflow = workflow(
-                actor.tenantId(), request.workflowId(), request.formId(), payload, false);
-        validateRequestPayload(workflow.formSchema(), payload, false);
+        var pin = formNormalization.pinTypedDraft(actor, requestId, request.expectedVersion(), request.formId());
+        WorkflowRuntime workflow = pin == null ? workflow(actor.tenantId(), request.workflowId(), request.formId(), payload, false)
+                : ApprovalWorkflowPinnedDraftRuntime.require(jdbc, actor, requestId, request.expectedVersion(), request.workflowId(), pin,
+                        runtime -> new WorkflowRuntime(runtime.workflowVersionId(), runtime.formVersionId(), runtime.dataClassification(),
+                                runtime.managementResourceSetKey(), runtime.formSchema()),
+                        (definition, sla) -> payloadSupport.runtimeSteps(definition, sla));
+        payload = normalizeRequestPayload(actor, requestId, workflow.formSchema(), payload, false, request.expectedVersion());
         String payloadJson = payloadSupport.json(payload);
+        var attachments = attachmentLifecycleBinding();
+        var attachmentPin = recoveryPin == null
+                ? attachments.prepare(requestId, request.expectedVersion(), ApprovalAttachmentLifecycleBinding.Intent.UPDATE_DRAFT) : recoveryPin;
         MapSqlParameterSource params = workActorParams(
                 actor, workflow.managementResourceSetKey())
                 .addValue("requestId", requestId)
@@ -94,6 +111,7 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
         requireUpdated(updated);
         jdbc.update(ApprovalCommandSql01.UPDATE_DRAFT_UPDATE_APR_REQUEST_PAYLOADS, params);
         appendPayloadRevision(actor, requestId, "DRAFT_UPDATED", correlationId, "Draft updated");
+        attachments.seal(attachmentPin, attachments.target(requestId));
         appendEvent(actor, requestId, "REQUEST_DRAFT_UPDATED", "Draft updated", correlationId,
                 Map.of("workflowId", request.workflowId().toString()));
     }
@@ -103,6 +121,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
             UUID requestId,
             long expectedVersion,
             String correlationId) {
+        if (quorumWorkflow(actor.tenantId(), requestId) != null) throw new BaseException(
+                ErrorCode.INVALID_STATE, "Tagged workflows require the durable quorum submit path.");
         RequestRuntime request = ownedRequest(actor, requestId);
         if (!"DRAFT".equals(request.status())) throw new BaseException(ErrorCode.INVALID_STATE);
         if (request.title() == null || request.title().isBlank()) {
@@ -110,14 +130,19 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
                     ErrorCode.INVALID_INPUT_VALUE,
                     "Approval title is required before submission.");
         }
-        validateRequestPayload(request.formSchema(), request.payload(), true);
+        Map<String, Object> normalizedPayload = normalizeRequestPayload(actor, requestId, request.formSchema(), request.payload(), true, expectedVersion);
+        if (payloadSupport.isTypedFormSchema(request.formSchema())
+                && !ApprovalFormSchemaV2Canonical.freeze(request.payload()).equals(normalizedPayload)) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "Stored typed payload is not bound to its normalized revision.");
+        }
         if ("CONDITIONAL".equals(request.bindingType())
-                && !matchesRouteCondition(request.bindingCondition(), request.payload())) {
+                && !matchesRouteCondition(request.bindingCondition(), request.payload(), request.formSchema())) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
                     "The selected approval route does not match this request.");
         }
         List<ApprovalCommandRepository.RuntimeStep> steps = request.steps();
+        attachmentLifecycleBinding().requireSealedForSubmit(requestId, expectedVersion);
         ApprovalCommandRepository.RuntimeStep firstStep = steps.get(0);
         UUID firstStepId = UUID.randomUUID();
         UUID firstTaskId = UUID.randomUUID();
@@ -169,6 +194,48 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
                         "stepCount", steps.size()));
     }
 
+    public ApprovalWorkflowQuorumDefinition prepareQuorumSubmit(ApprovalRequestContext.Actor actor, UUID requestId) {
+        Long version = jdbc.queryForObject("SELECT version FROM apr_requests WHERE tenant_id=:tenantId "
+                + "AND request_id=:requestId AND requester_user_id=:userId", identityParams(actor).addValue("requestId", requestId), Long.class);
+        if (version == null) throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+        return prepareQuorumSubmit(actor, requestId, version);
+    }
+
+    public ApprovalWorkflowQuorumDefinition prepareQuorumSubmit(ApprovalRequestContext.Actor actor, UUID requestId, long expectedVersion) {
+        var definition = quorumWorkflow(actor.tenantId(), requestId);
+        if (definition == null) throw new BaseException(ErrorCode.INVALID_STATE);
+        RequestRuntime request = ownedRequest(actor, requestId);
+        if (!"DRAFT".equals(request.status())) throw new BaseException(ErrorCode.INVALID_STATE);
+        if (request.title() == null || request.title().isBlank()) throw new BaseException(
+                ErrorCode.INVALID_INPUT_VALUE, "Approval title is required before submission.");
+        var normalized = normalizeRequestPayload(actor, requestId, request.formSchema(), request.payload(), true, expectedVersion);
+        if (payloadSupport.isTypedFormSchema(request.formSchema())
+                && !ApprovalFormSchemaV2Canonical.freeze(request.payload()).equals(normalized)) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "Stored typed payload is not bound to its normalized revision.");
+        }
+        if ("CONDITIONAL".equals(request.bindingType())
+                && !matchesRouteCondition(request.bindingCondition(), request.payload(), request.formSchema())) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "The selected approval route does not match this request.");
+        }
+        if (request.slaMinutes() != definition.slaMinutes()) throw new BaseException(ErrorCode.INVALID_STATE);
+        attachmentLifecycleBinding().requireSealedForSubmit(requestId, expectedVersion);
+        return definition;
+    }
+
+    public void submitQuorum(ApprovalRequestContext.Actor actor, UUID requestId, long expectedVersion,
+            String correlationId, ApprovalWorkflowQuorumRuntime runtime) {
+        var definition = prepareQuorumSubmit(actor, requestId, expectedVersion);
+        var request = ownedRequest(actor, requestId);
+        var params = workActorParams(actor, request.managementResourceSetKey()).addValue("requestId", requestId)
+                .addValue("expectedVersion", expectedVersion).addValue("slaMinutes", definition.slaMinutes())
+                .addValue("correlationId", correlationId);
+        requireUpdated(jdbc.update(ApprovalCommandSql01.SUBMIT_UPDATE_APR_REQUESTS, params));
+        var pins = runtime.canonicalPins(actor.tenantId(), requestId, definition);
+        runtime.start(actor.tenantId(), requestId, pins, definition);
+        appendEvent(actor, requestId, "REQUEST_SUBMITTED", "Request submitted", correlationId,
+                Map.of("workflowContract", ApprovalWorkflowQuorum.CONTRACT, "definitionSha256", definition.sha256()));
+    }
+
     public void withdraw(
             ApprovalRequestContext.Actor actor,
             UUID requestId,
@@ -193,42 +260,174 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
             ApprovalDtos.InformationResponseRequest request,
             String correlationId) {
         InformationRuntime current = informationRuntime(actor, requestId);
-        Map<String, Object> amendedPayload = new LinkedHashMap<>(current.payload());
+        boolean typedForm = payloadSupport.isTypedFormSchema(current.formSchema());
+        if (typedForm) validateTypedInformationPatch(request.payload());
+        else validateInformationPatch(request.payload());
+        Map<String, Object> amendedPayload = informationPayloadBase(current.formSchema(), current.payload());
         if (request.payload() != null) amendedPayload.putAll(request.payload());
-        validateRequestPayload(current.formSchema(), amendedPayload, true);
+        if (request.payload() != null && request.payload().containsKey("summary")) {
+            Object summaryValue = amendedPayload.get("summary");
+            if (!(summaryValue instanceof String summary)
+                    || summary.strip().isEmpty()
+                    || summary.strip().length() > 2000) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "The amended approval summary must contain at most 2000 characters.");
+            }
+            amendedPayload.put("summary", summary.strip());
+        }
+        amendedPayload = normalizeRequestPayload(actor, requestId, current.formSchema(), amendedPayload, true, request.expectedVersion());
+        if ("CONDITIONAL".equals(current.bindingType())
+                && !matchesRouteCondition(current.bindingCondition(), amendedPayload, current.formSchema())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "The amended request no longer matches its governed approval route.");
+        }
         List<String> amendedFields = new java.util.ArrayList<>();
-        for (String key : amendedPayload.keySet()) {
-            if (!java.util.Objects.equals(current.payload().get(key), amendedPayload.get(key))) {
-                amendedFields.add(key);
+        if (request.payload() != null || typedForm) {
+            Map<String, Object> previousValues = typedForm
+                    ? ApprovalFormSchemaV2Canonical.freeze(current.payload()) : current.payload();
+            Map<String, Object> resultingValues = typedForm
+                    ? ApprovalFormSchemaV2Canonical.freeze(amendedPayload) : amendedPayload;
+            Set<String> changedKeys = new HashSet<>();
+            if (typedForm) {
+                changedKeys.addAll(current.payload().keySet());
+                changedKeys.addAll(amendedPayload.keySet());
+            } else changedKeys.addAll(request.payload().keySet());
+            for (String key : changedKeys) {
+                if (!java.util.Objects.equals(
+                        previousValues.get(key), resultingValues.get(key))) {
+                    amendedFields.add(key);
+                }
             }
         }
         amendedFields.sort(String::compareTo);
+        var attachments = attachmentLifecycleBinding();
+        var attachmentPin = attachments.prepare(requestId, request.expectedVersion(), ApprovalAttachmentLifecycleBinding.Intent.INFO_RESPONSE);
+        boolean materialChange = !amendedFields.isEmpty() || attachmentPin.materialChange();
         String amendedPayloadJson = payloadSupport.json(amendedPayload);
         MapSqlParameterSource params = workActorParams(
                 actor, current.managementResourceSetKey())
                 .addValue("requestId", requestId)
                 .addValue("expectedVersion", request.expectedVersion())
                 .addValue("message", request.message().trim())
+                .addValue("summaryChanged", amendedFields.contains("summary"))
+                .addValue("requestSummary", amendedFields.contains("summary")
+                        ? amendedPayload.get("summary") : null)
                 .addValue("payload", amendedPayloadJson);
-        int updated = jdbc.update(ApprovalCommandSql01.RESPOND_TO_INFORMATION_REQUEST_UPDATE_APR_REQUESTS, params);
+        int updated = jdbc.update(
+                ApprovalCommandSql01.RESPOND_TO_INFORMATION_REQUEST_UPDATE_APR_REQUESTS,
+                params);
         requireUpdated(updated);
-        if (!amendedFields.isEmpty()) {
-            jdbc.update(ApprovalCommandSql01.RESPOND_TO_INFORMATION_REQUEST_UPDATE_APR_REQUEST_PAYLOADS, params);
+
+        PayloadEvidence previousEvidence = new PayloadEvidence(
+                current.payloadRevision(), current.payloadSha256());
+        PayloadEvidence resultingEvidence = previousEvidence;
+        UUID restartedTaskId = null;
+        int supersededDecisions = 0;
+        if (materialChange) {
+            int payloadUpdated = jdbc.update(
+                    ApprovalCommandSql01.RESPOND_TO_INFORMATION_REQUEST_UPDATE_APR_REQUEST_PAYLOADS,
+                    params);
+            requireUpdated(payloadUpdated);
             appendPayloadRevision(
                     actor,
                     requestId,
                     "INFORMATION_RESPONDED",
                     correlationId,
                     request.message().trim());
+            resultingEvidence = currentPayloadEvidence(actor.tenantId(), requestId);
+            supersededDecisions = jdbc.update(
+                    ApprovalCommandInformationSql.SUPERSEDE_DECISIONS,
+                    params);
+            if (supersededDecisions == 0) {
+                throw new BaseException(
+                        ErrorCode.INVALID_STATE,
+                        "No information-request decision exists to supersede.");
+            }
+            jdbc.update(ApprovalCommandInformationSql.CANCEL_OPEN_TASKS, params);
+            restartedTaskId = restartAfterMaterialAmendment(
+                    actor, requestId, current, correlationId);
+        } else {
+            int resumed = jdbc.update(
+                    ApprovalCommandSql01.RESPOND_TO_INFORMATION_REQUEST_UPDATE_APR_TASKS,
+                    params);
+            if (resumed != 1) throw new BaseException(ErrorCode.INVALID_STATE);
         }
-        int resumed = jdbc.update(ApprovalCommandSql01.RESPOND_TO_INFORMATION_REQUEST_UPDATE_APR_TASKS, params);
-        if (resumed == 0) throw new BaseException(ErrorCode.INVALID_STATE);
-        appendEvent(actor, requestId, "INFORMATION_RESPONDED", request.message().trim(), correlationId,
-                Map.of(
-                        "responseLength", request.message().trim().length(),
-                        "amendedFields", amendedFields));
+
+        attachments.seal(attachmentPin, attachments.target(requestId));
+        Map<String, Object> eventEvidence = new LinkedHashMap<>();
+        eventEvidence.put("responseLength", request.message().trim().length());
+        eventEvidence.put("amendedFields", amendedFields);
+        eventEvidence.put("materialChange", materialChange);
+        eventEvidence.put("previousPayloadRevision", previousEvidence.revision());
+        eventEvidence.put("previousPayloadSha256", previousEvidence.sha256());
+        eventEvidence.put("payloadRevision", resultingEvidence.revision());
+        eventEvidence.put("payloadSha256", resultingEvidence.sha256());
+        eventEvidence.put("supersededDecisionCount", supersededDecisions);
+        if (restartedTaskId != null) {
+            eventEvidence.put("restartedTaskId", restartedTaskId.toString());
+        }
+        appendEvent(actor, requestId, "INFORMATION_RESPONDED",
+                request.message().trim(), correlationId, eventEvidence);
         appendIntegration(actor, requestId, "approval.request.information.responded", correlationId,
-                Map.of("requestId", requestId.toString()));
+                Map.of(
+                        "requestId", requestId.toString(),
+                        "materialChange", materialChange,
+                        "payloadRevision", resultingEvidence.revision(),
+                        "payloadSha256", resultingEvidence.sha256()));
+    }
+
+    private UUID restartAfterMaterialAmendment(
+            ApprovalRequestContext.Actor actor,
+            UUID requestId,
+            InformationRuntime current,
+            String correlationId) {
+        int cumulativeMinutes = 0;
+        for (int index = 0; index < current.steps().size(); index++) {
+            ApprovalCommandRepository.RuntimeStep step = current.steps().get(index);
+            cumulativeMinutes = Math.addExact(cumulativeMinutes, step.slaMinutes());
+            int stepUpdated = jdbc.update(
+                    ApprovalCommandInformationSql.RESTART_STEPS,
+                    workActorParams(actor, current.managementResourceSetKey())
+                            .addValue("requestId", requestId)
+                            .addValue("sequenceNumber", index + 1)
+                            .addValue("candidateRole", step.candidateRole())
+                            .addValue("cumulativeMinutes", cumulativeMinutes));
+            requireUpdated(stepUpdated);
+        }
+        NextStep firstStep = jdbc.query(
+                ApprovalCommandInformationSql.RESTART_FIRST_STEP,
+                new MapSqlParameterSource()
+                        .addValue("tenantId", actor.tenantId())
+                        .addValue("requestId", requestId),
+                result -> result.next()
+                        ? new NextStep(
+                                result.getObject("step_id", UUID.class),
+                                result.getString("step_key"),
+                                result.getString("step_name"),
+                                result.getString("candidate_role"),
+                                result.getTimestamp("due_at").toInstant())
+                        : null);
+        if (firstStep == null) throw new BaseException(ErrorCode.INVALID_STATE);
+        UUID taskId = UUID.randomUUID();
+        int inserted = jdbc.update(
+                ApprovalCommandSql01.ACTIVATE_NEXT_STEP_INSERT_APR_TASKS,
+                workActorParams(actor, current.managementResourceSetKey())
+                        .addValue("requestId", requestId)
+                        .addValue("stepId", firstStep.stepId())
+                        .addValue("taskId", taskId)
+                        .addValue("candidateRole", firstStep.candidateRole())
+                        .addValue("dueAt", Timestamp.from(firstStep.dueAt())));
+        requireUpdated(inserted);
+        appendEvent(actor, requestId, "APPROVAL_FLOW_RESTARTED",
+                firstStep.stepName(), correlationId,
+                Map.of(
+                        "stepKey", firstStep.stepKey(),
+                        "taskId", taskId.toString(),
+                        "candidateRole", firstStep.candidateRole(),
+                        "reason", "MATERIAL_INFORMATION_RESPONSE"));
+        return taskId;
     }
 
     public void claim(
@@ -236,6 +435,7 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
             ApprovalQueryRepository.TaskAccess task,
             long expectedVersion,
             String correlationId) {
+        new ApprovalRetentionLiveGuard(jdbc).writeRequest(actor.tenantId(), task.summary().requestId());
         if (task.assigneeUserId() != null && !task.assigneeUserId().equals(actor.userId())
                 && !task.delegatedAccess()) {
             throw new BaseException(ErrorCode.FORBIDDEN);
@@ -248,6 +448,7 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
                 actor, task.managementResourceSetKey())
                 .addValue("personPublicId", actor.personPublicId())
                 .addValue("delegatedFromUserId", task.delegatedFromUserId())
+                .addValue("delegatedAuthorityRoleCode", task.delegatedAuthorityRoleCode())
                 .addValue("taskId", task.summary().taskId())
                 .addValue("expectedVersion", expectedVersion));
         requireUpdated(updated);
@@ -263,6 +464,9 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
             ApprovalQueryRepository.TaskAccess task,
             ApprovalDtos.DecisionRequest decision,
             String correlationId) {
+        new ApprovalRetentionLiveGuard(jdbc).writeRequest(actor.tenantId(), task.summary().requestId());
+        if (quorumWorkflow(actor.tenantId(), task.summary().requestId()) != null) throw new BaseException(
+                ErrorCode.INVALID_STATE, "Tagged workflows require a versioned durable quorum vote.");
         PolicyRuntime selfApprovalPolicy = policy(
                 actor.tenantId(), "BLOCK_SELF_APPROVAL",
                 task.managementResourceSetKey());
@@ -327,6 +531,9 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
                     "The approval decision is not supported.");
         }
 
+        PayloadEvidence payloadEvidence = currentPayloadEvidence(
+                actor.tenantId(), task.summary().requestId());
+
         MapSqlParameterSource params = workActorParams(
                 actor, task.managementResourceSetKey())
                 .addValue("taskId", task.summary().taskId())
@@ -336,6 +543,9 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
                 .addValue("requestStatus", requestStatus)
                 .addValue("personPublicId", actor.personPublicId())
                 .addValue("delegatedFromUserId", task.delegatedFromUserId())
+                .addValue("delegatedAuthorityRoleCode", task.delegatedAuthorityRoleCode())
+                .addValue("payloadRevision", payloadEvidence.revision())
+                .addValue("payloadSha256", payloadEvidence.sha256())
                 .addValue("reason", normalizeComment(decision.comment()));
         int updated = jdbc.update(ApprovalCommandSql01.DECIDE_UPDATE_APR_TASKS, params);
         requireUpdated(updated);
@@ -364,6 +574,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
         decisionEvidence.put("delegated", task.delegatedAccess());
         decisionEvidence.put("stepName", task.summary().stepName());
         decisionEvidence.put("stepSequence", task.summary().stepSequence());
+        decisionEvidence.put("payloadRevision", payloadEvidence.revision());
+        decisionEvidence.put("payloadSha256", payloadEvidence.sha256());
         if (task.delegatedFromUserId() != null) {
             decisionEvidence.put("delegatedFromUserId", task.delegatedFromUserId());
         }
@@ -380,7 +592,9 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
                         "taskId", task.summary().taskId().toString(),
                         "recipientUserId", task.requesterUserId(),
                         "requestTitle", task.summary().title(),
-                        "decision", normalized));
+                        "decision", normalized,
+                        "payloadRevision", payloadEvidence.revision(),
+                        "payloadSha256", payloadEvidence.sha256()));
         return new ApprovalCommandRepository.DecisionResult(normalized, requestStatus);
     }
 

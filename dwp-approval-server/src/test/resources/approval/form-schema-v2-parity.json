@@ -1,0 +1,71 @@
+{
+  "contract": {
+    "schemaVersion": 2,
+    "decimalPrecision": 28,
+    "decimalScale": 8,
+    "rounding": "HALF_UP",
+    "maxAstDepth": 8,
+    "maxAstNodesPerTree": 128,
+    "maxRows": 50,
+    "missingComparisonOperand": false,
+    "missingCalculationOperand": null,
+    "textLength": "UNICODE_CODE_POINTS",
+    "textTransportMaxUtf16Length": 10000,
+    "computedInput": "REJECT_IF_DIFFERENT",
+    "hiddenInput": "REMOVE_BEFORE_PERSIST",
+    "numberStringFormat": "PLAIN_DECIMAL_NO_EXPONENT",
+    "numericPayloadStorage": "PLAIN_DECIMAL_STRING",
+    "numericJsonTransport": "SAFE_INTEGERS_ONLY",
+    "maxSafeInteger": "9007199254740991",
+    "hash": "SHA256_UTF8_COMPACT_SORTED_OBJECT_KEYS_PRESERVE_ARRAY_ORDER"
+  },
+  "schemaSha256": "0326a781da96bba19de66643543402efd3258b56e90e6ad81c9f57b38a046b7f",
+  "schema": {
+    "schemaContract": "DWP_APPROVAL_FORM_TYPED_V2",
+    "schemaVersion": 2,
+    "fields": [
+      {"key": "category", "labelKo": "분류", "labelEn": "Category", "type": "SELECT", "required": true, "options": ["STANDARD", "OTHER"]},
+      {"key": "details", "labelKo": "추가 내용", "labelEn": "Additional details", "type": "TEXTAREA", "required": true, "visibleWhen": {"op": "EQ", "field": "category", "value": "OTHER"}},
+      {"key": "items", "labelKo": "항목", "labelEn": "Items", "type": "REPEATING_GROUP", "required": true, "minRows": 1, "maxRows": 3, "fields": [
+        {"key": "quantity", "labelKo": "수량", "labelEn": "Quantity", "type": "NUMBER", "required": true, "min": "0.00000001", "max": "1000"},
+        {"key": "price", "labelKo": "단가", "labelEn": "Price", "type": "NUMBER", "required": true, "min": "0", "max": "1000000"},
+        {"key": "lineTotal", "labelKo": "소계", "labelEn": "Line total", "type": "CALCULATED_NUMBER", "required": true, "calculation": {"op": "MULTIPLY", "args": [{"op": "FIELD", "field": "quantity"}, {"op": "FIELD", "field": "price"}]}}
+      ]},
+      {"key": "total", "labelKo": "합계", "labelEn": "Total", "type": "CALCULATED_NUMBER", "required": true, "calculation": {"op": "SUM", "group": "items", "field": "lineTotal"}},
+      {"key": "justification", "labelKo": "고액 사유", "labelEn": "Amount justification", "type": "TEXT", "required": false, "requiredWhen": {"op": "GTE", "field": "total", "value": "100"}}
+    ]
+  },
+  "cases": [
+    {
+      "name": "complete-standard-strips-hidden-input",
+      "submitting": true,
+      "input": {"category": "STANDARD", "details": "Hidden stale input must not survive", "items": [{"quantity": "2", "price": "10.25"}, {"quantity": 3, "price": 5}]},
+      "expectedPayload": {"category": "STANDARD", "items": [{"quantity": "2", "price": "10.25", "lineTotal": "20.5"}, {"quantity": "3", "price": "5", "lineTotal": "15"}], "total": "35.5"},
+      "expectedVisible": ["category", "items", "items[0].quantity", "items[0].price", "items[0].lineTotal", "items[1].quantity", "items[1].price", "items[1].lineTotal", "total", "justification"],
+      "expectedRequired": ["category", "items", "items[0].quantity", "items[0].price", "items[0].lineTotal", "items[1].quantity", "items[1].price", "items[1].lineTotal", "total"]
+    },
+    {
+      "name": "partial-draft-keeps-missing-calculation-missing",
+      "submitting": false,
+      "input": {"category": "OTHER", "items": [{"quantity": 2}]},
+      "expectedPayload": {"category": "OTHER", "items": [{"quantity": "2"}]},
+      "expectedVisible": ["category", "details", "items", "items[0].quantity", "items[0].price", "items[0].lineTotal", "total", "justification"],
+      "expectedRequired": ["category", "details", "items", "items[0].quantity", "items[0].price", "items[0].lineTotal", "total"]
+    },
+    {
+      "name": "conditional-required-complete",
+      "submitting": true,
+      "input": {"category": "OTHER", "details": "Exception requested", "items": [{"quantity": 2, "price": 50}], "justification": "Approved budget"},
+      "expectedPayload": {"category": "OTHER", "details": "Exception requested", "items": [{"quantity": "2", "price": "50", "lineTotal": "100"}], "total": "100", "justification": "Approved budget"},
+      "expectedVisible": ["category", "details", "items", "items[0].quantity", "items[0].price", "items[0].lineTotal", "total", "justification"],
+      "expectedRequired": ["category", "details", "items", "items[0].quantity", "items[0].price", "items[0].lineTotal", "total", "justification"]
+    }
+  ],
+  "invalidCases": [
+    {"name": "submit-missing-visible-required", "submitting": true, "input": {"category": "OTHER", "items": [{"quantity": 2, "price": 10}]}},
+    {"name": "submit-missing-conditionally-required", "submitting": true, "input": {"category": "STANDARD", "items": [{"quantity": 2, "price": 50}]}},
+    {"name": "computed-input-tampering", "submitting": false, "input": {"category": "STANDARD", "items": [{"quantity": 2, "price": 10, "lineTotal": 999}]}},
+    {"name": "unknown-row-field", "submitting": false, "input": {"items": [{"quantity": 2, "tenantId": "OTHER_TENANT"}]}},
+    {"name": "row-limit-even-on-draft", "submitting": false, "input": {"items": [{}, {}, {}, {}]}}
+  ]
+}

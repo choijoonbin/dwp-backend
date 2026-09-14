@@ -35,11 +35,20 @@ public final class WorkplaceDtos {
             SiteType type,
             String address,
             String timeZone,
-            int totalFloorCount,
+            Integer totalFloorCount,
             long configuredFloorCount,
             long resourceCount,
             SiteState state,
-            long version) {
+            long version,
+            String countsScope,
+            List<UUID> allowedFloorIds) {
+        public Site(UUID siteId, UUID campusId, String code, String name, String nameKo,
+                    String nameEn, SiteType type, String address, String timeZone,
+                    int totalFloorCount, long configuredFloorCount, long resourceCount,
+                    SiteState state, long version) {
+            this(siteId, campusId, code, name, nameKo, nameEn, type, address, timeZone,
+                    totalFloorCount, configuredFloorCount, resourceCount, state, version, "SITE", null);
+        }
     }
 
     @Schema(name = "WorkplaceFloor")
@@ -127,7 +136,13 @@ public final class WorkplaceDtos {
             List<Resource> resources,
             List<Occupancy> occupancy,
             Policy policy,
-            OffsetDateTime generatedAt) {
+            OffsetDateTime generatedAt,
+            List<WorkplaceExperienceFacilitiesDtos.PublicClosure> closures) {
+        public ExploreResponse(List<Site> sites, List<Floor> floors, Floor selectedFloor,
+                               List<Resource> resources, List<Occupancy> occupancy,
+                               Policy policy, OffsetDateTime generatedAt) {
+            this(sites, floors, selectedFloor, resources, occupancy, policy, generatedAt, List.of());
+        }
     }
 
     @Schema(name = "WorkplaceBooking")

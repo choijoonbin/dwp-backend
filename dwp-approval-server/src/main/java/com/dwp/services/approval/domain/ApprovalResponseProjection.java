@@ -129,6 +129,7 @@ public final class ApprovalResponseProjection {
                     new ApprovalProjectionDtos.FullManagementSignatureV1(
                             value.providerId(), value.providerKey(), value.displayName(),
                             value.providerType(), value.lifecycleState(),
+                            value.capabilities(),
                             value.credentialConfigured(), value.lastHealthCheckedAt(),
                             value.version())).toList();
         }

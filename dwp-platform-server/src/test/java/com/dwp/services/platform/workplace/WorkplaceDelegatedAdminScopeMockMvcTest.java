@@ -39,9 +39,12 @@ class WorkplaceDelegatedAdminScopeMockMvcTest {
                         UUID.randomUUID(), DelegateType.USER, 7L, null,
                         DelegatedScopeType.SITE, allowedSiteId, null,
                         Set.of(DelegatedPermission.CATALOG_VIEW), null, null)));
-        when(service.sites(1L, null)).thenReturn(List.of(
-                site(allowedSiteId, "VISIBLE"), site(hiddenSiteId, "HIDDEN")));
-        AdminWorkplaceController controller = new AdminWorkplaceController(service, guard);
+        when(repository.resolveTarget(1L, WorkplaceDelegatedAdminTargetType.SITE, allowedSiteId))
+                .thenReturn(java.util.Optional.of(new WorkplaceDelegatedAdminScopeRepository.CanonicalTarget(allowedSiteId, null, true)));
+        WorkplaceScopedCatalogAdminService scoped = mock(WorkplaceScopedCatalogAdminService.class);
+        when(scoped.sites(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.isNull(), org.mockito.ArgumentMatchers.anyList()))
+                .thenReturn(List.of(site(allowedSiteId, "VISIBLE")));
+        AdminWorkplaceController controller = new AdminWorkplaceController(service, guard, scoped);
         MockMvc mvc = standaloneSetup(controller)
                 .addInterceptors(new WorkplaceDelegatedAdminScopeInterceptor(guard))
                 .build();
@@ -71,9 +74,10 @@ class WorkplaceDelegatedAdminScopeMockMvcTest {
                         UUID.randomUUID(), DelegateType.USER, 7L, null,
                         DelegatedScopeType.SITE, allowedSiteId, null,
                         Set.of(DelegatedPermission.POLICY_MANAGE), null, null)));
-        when(service.campuses(1L, Set.of(allowedSiteId))).thenReturn(List.of());
+        WorkplaceScopedSpatialGovernanceService scoped = mock(WorkplaceScopedSpatialGovernanceService.class);
+        when(scoped.campuses(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.any())).thenReturn(List.of());
         WorkplaceSpatialGovernanceAdminController controller =
-                new WorkplaceSpatialGovernanceAdminController(service, guard);
+                new WorkplaceSpatialGovernanceAdminController(service, guard, scoped);
         MockMvc mvc = standaloneSetup(controller)
                 .addInterceptors(new WorkplaceDelegatedAdminScopeInterceptor(guard))
                 .build();
@@ -85,7 +89,7 @@ class WorkplaceDelegatedAdminScopeMockMvcTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.length()").value(0));
 
-        verify(service).campuses(1L, Set.of(allowedSiteId));
+        verify(scoped).campuses(org.mockito.ArgumentMatchers.eq(1L), org.mockito.ArgumentMatchers.any());
     }
 
     private WorkplaceDtos.Site site(UUID siteId, String code) {

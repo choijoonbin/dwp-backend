@@ -2,7 +2,8 @@ package com.dwp.services.meeting.videomeeting.domain;
 
 import com.dwp.services.meeting.videomeeting.api.VideoMeetingDtos.HistoryPublicationFilter;
 import com.dwp.services.meeting.videomeeting.api.VideoMeetingDtos.HistoryRetentionFilter;
-import com.dwp.services.meeting.videomeeting.domain.VideoMeetingModels.MeetingCard;
+import com.dwp.services.meeting.videomeeting.domain.VideoMeetingQueryModels.HistoryItem;
+import com.dwp.services.meeting.videomeeting.domain.VideoMeetingQueryModels.PagedHistory;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
@@ -126,18 +127,9 @@ final class MeetingHistoryProjectionRepository {
                      WHERE meeting.tenant_id = :tenantId
                        AND meeting.lifecycle_state IN ('ENDED', 'CANCELLED')
                        AND
-                """ + VideoMeetingRepository.ACCESS_PREDICATE + favoritePredicate + """
+                """ + MeetingAccessSql.ACCESS_PREDICATE + favoritePredicate + """
                 )
                 """;
     }
 
-    record HistoryItem(
-            MeetingCard card,
-            String publicationState,
-            String retentionState,
-            OffsetDateTime retentionUntil) {
-    }
-
-    record PagedHistory(List<HistoryItem> items, long total) {
-    }
 }

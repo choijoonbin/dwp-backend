@@ -676,11 +676,11 @@ public class CalendarService {
         repository.lockResource(tenantId, resourceId);
         for (BookingWindow occurrence : bookingWindows(
                 startsAt, endsAt, timeZone, recurrence, recurrenceInterval, recurrenceUntil)) {
-            if (repository.resourceConflict(
+            if (repository.facilityClosureConflict(tenantId, resourceId, occurrence.startsAt(), occurrence.endsAt()) || repository.resourceConflict(
                     tenantId, resourceId, occurrence.startsAt(), occurrence.endsAt(),
                     excludingEventId)) {
                 throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
-                        "The resource is already booked for this time.");
+                        "The resource is unavailable for this reservation period.");
             }
         }
         return resource;

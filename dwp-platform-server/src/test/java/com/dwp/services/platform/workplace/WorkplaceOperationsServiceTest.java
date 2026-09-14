@@ -336,7 +336,7 @@ class WorkplaceOperationsServiceTest {
         OffsetDateTime from = OffsetDateTime.now().minusDays(30);
         OffsetDateTime to = OffsetDateTime.now().plusDays(30);
         when(operations.adminBookings(
-                1L, from, to, BookingStatus.RESERVED, null, null, false, 1, 50))
+                1L, from, to, null, null, BookingStatus.RESERVED, null, null, false, 1, 50))
                 .thenReturn(new WorkplaceOperationsRepository.AdminBookingPageRows(
                         List.of(), 101));
 

@@ -21,6 +21,19 @@ import static com.dwp.services.platform.workplace.WorkplaceTypes.ResourceType;
 @Repository
 class WorkplaceOperationsRepository {
 
+    private static final String ADMIN_BOOKING_FROM = """
+              FROM wp_bookings booking
+              JOIN wp_resources resource
+                ON resource.tenant_id = booking.tenant_id
+               AND resource.resource_id = booking.resource_id
+              JOIN wp_floors floor
+                ON floor.tenant_id = resource.tenant_id
+               AND floor.floor_id = resource.floor_id
+              JOIN wp_sites site
+                ON site.tenant_id = floor.tenant_id
+               AND site.site_id = floor.site_id
+            """;
+
     private static final String ADMIN_BOOKING_SELECT = """
             SELECT booking.booking_id, booking.resource_id,
                    CASE WHEN :korean THEN resource.name_ko ELSE resource.name_en END
@@ -38,17 +51,7 @@ class WorkplaceOperationsRepository {
                    booking.legal_hold, booking.personal_data_expires_at,
                    booking.anonymized_at, booking.version,
                    booking.created_at, booking.updated_at
-              FROM wp_bookings booking
-              JOIN wp_resources resource
-                ON resource.tenant_id = booking.tenant_id
-               AND resource.resource_id = booking.resource_id
-              JOIN wp_floors floor
-                ON floor.tenant_id = resource.tenant_id
-               AND floor.floor_id = resource.floor_id
-              JOIN wp_sites site
-                ON site.tenant_id = floor.tenant_id
-               AND site.site_id = floor.site_id
-            """;
+            """ + ADMIN_BOOKING_FROM;
 
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper mapper;
@@ -156,6 +159,8 @@ class WorkplaceOperationsRepository {
             Long tenantId,
             OffsetDateTime from,
             OffsetDateTime to,
+            UUID siteId,
+            UUID floorId,
             BookingStatus status,
             UUID resourceId,
             Long userId,
@@ -171,6 +176,14 @@ class WorkplaceOperationsRepository {
                 .addValue("from", from)
                 .addValue("to", to)
                 .addValue("korean", korean);
+        if (siteId != null) {
+            predicate.append(" AND site.site_id = :siteId");
+            parameters.addValue("siteId", siteId);
+        }
+        if (floorId != null) {
+            predicate.append(" AND floor.floor_id = :floorId");
+            parameters.addValue("floorId", floorId);
+        }
         if (status != null) {
             predicate.append(" AND booking.booking_status = :status");
             parameters.addValue("status", status.name());
@@ -184,7 +197,7 @@ class WorkplaceOperationsRepository {
             parameters.addValue("userId", userId);
         }
         Long total = jdbc.queryForObject(
-                "SELECT COUNT(*) FROM wp_bookings booking" + predicate,
+                "SELECT COUNT(*) " + ADMIN_BOOKING_FROM + predicate,
                 parameters, Long.class);
         parameters.addValue("size", size).addValue("offset", (long) page * size);
         List<AdminBookingRow> content = jdbc.query(

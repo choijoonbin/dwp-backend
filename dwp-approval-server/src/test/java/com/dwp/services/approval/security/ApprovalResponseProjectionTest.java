@@ -273,7 +273,7 @@ class ApprovalResponseProjectionTest {
     }
 
     @Test
-    void fullManagementSignatureReadStillMasksCredentialCapabilities() {
+    void fullManagementSignatureReadExposesOnlySanitizedCapabilities() {
         useProfile(
                 "route.approvals.admin.signatures.page", "full-management",
                 "route.approvals.admin.signatures.page.full-management.projection.v1",
@@ -282,9 +282,13 @@ class ApprovalResponseProjectionTest {
         JsonNode result = json.valueToTree(projection.signatures(List.of(signature())));
         assertFields(result.get(0), Set.of(
                 "providerId", "providerKey", "displayName", "providerType",
-                "lifecycleState", "credentialConfigured", "lastHealthCheckedAt", "version"));
-        assertThat(result.toString()).doesNotContain("capabilities", "credentialReference",
-                "secret-ref");
+                "lifecycleState", "capabilities", "credentialConfigured",
+                "lastHealthCheckedAt", "version"));
+        assertFields(result.get(0).get("capabilities"), Set.of(
+                "internalAttestation", "auditEvidence", "verifiedIdentity",
+                "remoteSigningSupported", "readiness"));
+        assertThat(result.toString()).contains("EXTERNAL_VERIFICATION_REQUIRED")
+                .doesNotContain("credentialReference", "secret-ref");
     }
 
     private void useProfile(
@@ -378,7 +382,9 @@ class ApprovalResponseProjectionTest {
         ApprovalDtos.IntegrationDeliverySummary delivery =
                 new ApprovalDtos.IntegrationDeliverySummary(
                         UUID.randomUUID(), UUID.randomUUID(), UUID.randomUUID(), "REQUEST_CREATED",
-                        "FAILED", 3, 1, NOW, null, "failure-secret", NOW, NOW, 8L);
+                        "FAILED", 3, 1, NOW, null, "failure-secret", NOW, NOW, 8L,
+                        new ApprovalDtos.RetryEligibility(
+                                false, "SEPARATION_OF_DUTIES", 8L, NOW));
         return new ApprovalDtos.OperationsResponse(
                 NOW, List.of(new ApprovalDtos.OperationSignal(
                 "outbox", "ATTENTION", "전달", "Delivery", "secret-ko", "secret-en", 1)),
@@ -388,6 +394,9 @@ class ApprovalResponseProjectionTest {
     private ApprovalDtos.SignatureProviderSummary signature() {
         return new ApprovalDtos.SignatureProviderSummary(
                 UUID.randomUUID(), "DOCUSIGN", "DocuSign", "REMOTE", "ACTIVE",
-                Map.of("credentialReference", "secret-ref"), true, NOW, 2L);
+                new ApprovalDtos.SignatureCapabilities(
+                        false, false, false, true,
+                        "EXTERNAL_VERIFICATION_REQUIRED"),
+                true, NOW, 2L);
     }
 }

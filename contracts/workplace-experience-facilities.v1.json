@@ -1,0 +1,259 @@
+{
+  "schemaVersion": 1,
+  "owner": "dwp-platform-server",
+  "publicPrefix": "/api/platform",
+  "adminPrefix": "/v1/admin/workplace/experience/facilities",
+  "memberPrefix": "/v1/workplace/experience/facilities",
+  "admin": {
+    "GET /closures": {
+      "query": {
+        "siteId": "required UUID",
+        "floorId": "optional UUID",
+        "resourceId": "optional UUID",
+        "from": "required OffsetDateTime",
+        "to": "required OffsetDateTime exclusive; positive <=366days",
+        "includeCancelled": "defaultfalse",
+        "page": "default0",
+        "size": "default20;1..100"
+      },
+      "response": "ClosurePage"
+    },
+    "GET /closures/{closureId}": {
+      "query": {
+        "siteId": "required UUID"
+      },
+      "response": "Closure"
+    },
+    "POST /resources/{resourceId}/closures": {
+      "query": {
+        "siteId": "required UUID"
+      },
+      "header": {
+        "Idempotency-Key": "required opaque ASCII key1..160; keep same key after unknown result"
+      },
+      "body": "CreateClosure;version is current resource.version;confirmed=true",
+      "response": "Closure",
+      "additionalPermission": "ADMIN.ROOMS:UPDATE only for ROOM target"
+    },
+    "PUT /closures/{closureId}/cancel": {
+      "query": {
+        "siteId": "required UUID"
+      },
+      "body": "CancelClosure;version is closure.version;confirmed=true",
+      "response": "Closure",
+      "additionalPermission": "ADMIN.ROOMS:UPDATE only for ROOM target"
+    },
+    "GET /requests": {
+      "query": {
+        "siteId": "required UUID",
+        "floorId": "optional UUID",
+        "status": "optional RequestStatus",
+        "page": "default0",
+        "size": "default20;1..100"
+      },
+      "response": "RequestPage"
+    },
+    "PUT /requests/{requestId}/status": {
+      "query": {
+        "siteId": "required UUID"
+      },
+      "body": "ChangeRequestStatus;version is request.version;confirmed=true",
+      "response": "FacilityRequest"
+    },
+    "GET /resources/{resourceId}/room-booking-impact": {
+      "query": {
+        "siteId": "required UUID",
+        "from": "required OffsetDateTime",
+        "to": "required OffsetDateTime exclusive;positive <=366days",
+        "page": "default0",
+        "size": "default20;1..100"
+      },
+      "response": "RoomBookingImpact",
+      "additionalPermission": "ADMIN.ROOMS:VIEW"
+    }
+  },
+  "member": {
+    "POST /resources/{resourceId}/requests": {
+      "header": {
+        "Idempotency-Key": "required opaque ASCII key1..160; reuse identical request on unknown outcome"
+      },
+      "body": "CreateRequest",
+      "response": "FacilityRequest"
+    },
+    "GET /requests": {
+      "query": {
+        "page": "default0",
+        "size": "default20;1..100"
+      },
+      "response": "RequestPage; own rows only and currently authorized sites only"
+    },
+    "GET /requests/{requestId}": {
+      "response": "FacilityRequest; own + current authorized site"
+    },
+    "GET /resources/{resourceId}/booking-availability": {
+      "query": {
+        "from": "required OffsetDateTime",
+        "to": "required OffsetDateTime"
+      },
+      "response": "BookingAvailability; read-only preflight; no success guarantee"
+    }
+  },
+  "types": {
+    "CreateClosure": {
+      "startsAt": "OffsetDateTime",
+      "endsAt": "OffsetDateTime",
+      "version": "Long",
+      "reason": "String",
+      "confirmed": "boolean"
+    },
+    "CancelClosure": {
+      "version": "Long",
+      "reason": "String",
+      "confirmed": "boolean"
+    },
+    "Closure": {
+      "closureId": "UUID",
+      "resourceId": "UUID",
+      "siteId": "UUID",
+      "floorId": "UUID",
+      "resourceName": "String",
+      "timeZone": "String",
+      "startsAt": "OffsetDateTime",
+      "endsAt": "OffsetDateTime",
+      "status": "ClosureStatus",
+      "reason": "String",
+      "cancellationReason": "String|null",
+      "resourceVersionAtCreate": "long",
+      "version": "long",
+      "createdAt": "OffsetDateTime",
+      "updatedAt": "OffsetDateTime",
+      "affectedBookingsPath": "String"
+    },
+    "PublicClosure": {
+      "resourceId": "UUID",
+      "startsAt": "OffsetDateTime",
+      "endsAt": "OffsetDateTime",
+      "availability": "String"
+    },
+    "ClosurePage": {
+      "content": "Closure[]",
+      "page": "int",
+      "size": "int",
+      "totalElements": "long",
+      "totalPages": "int",
+      "generatedAt": "OffsetDateTime"
+    },
+    "CreateRequest": {
+      "category": "Category",
+      "description": "String"
+    },
+    "ChangeRequestStatus": {
+      "status": "RequestStatus",
+      "version": "Long",
+      "reason": "String",
+      "confirmed": "boolean"
+    },
+    "FacilityRequest": {
+      "requestId": "UUID",
+      "resourceId": "UUID",
+      "siteId": "UUID",
+      "floorId": "UUID",
+      "resourceName": "String",
+      "category": "Category",
+      "description": "String",
+      "status": "RequestStatus",
+      "statusReason": "String|null",
+      "version": "long",
+      "createdAt": "OffsetDateTime",
+      "updatedAt": "OffsetDateTime",
+      "owner": "String"
+    },
+    "RequestPage": {
+      "content": "FacilityRequest[]",
+      "page": "int",
+      "size": "int",
+      "totalElements": "long",
+      "totalPages": "int",
+      "generatedAt": "OffsetDateTime"
+    },
+    "BookingAvailability": {
+      "resourceId": "UUID",
+      "siteId": "UUID",
+      "startsAt": "OffsetDateTime",
+      "endsAt": "OffsetDateTime",
+      "available": "boolean",
+      "reason": "String|null",
+      "closures": "PublicClosure[]",
+      "generatedAt": "OffsetDateTime",
+      "owner": "String",
+      "guaranteesBooking": "boolean"
+    },
+    "RoomAffectedBooking": {
+      "bookingId": "UUID",
+      "eventId": "UUID",
+      "calendarResourceId": "UUID",
+      "startsAt": "OffsetDateTime actual occurrence start",
+      "endsAt": "OffsetDateTime actual occurrence end",
+      "status": "PENDING|CONFIRMED",
+      "version": "long",
+      "owner": "ROOMS"
+    },
+    "RoomBookingImpact": {
+      "resourceId": "UUID canonical wp resource",
+      "calendarResourceId": "UUID same-tenant native mapped cal resource",
+      "siteId": "UUID",
+      "startsAt": "OffsetDateTime requested start",
+      "endsAt": "OffsetDateTime requested end",
+      "content": "RoomAffectedBooking[]",
+      "page": "int",
+      "size": "int",
+      "totalElements": "long occurrence count",
+      "totalPages": "int",
+      "generatedAt": "OffsetDateTime PostgreSQL transaction_timestamp",
+      "source": "POSTGRESQL_CALENDAR",
+      "availability": "AVAILABLE",
+      "owner": "ROOMS",
+      "existingBookingsMutated": "false"
+    }
+  },
+  "enums": {
+    "ClosureStatus": [
+      "ACTIVE",
+      "CANCELLED"
+    ],
+    "Category": [
+      "REPAIR",
+      "CLEANING",
+      "ACCESS",
+      "OTHER"
+    ],
+    "RequestStatus": [
+      "OPEN",
+      "IN_PROGRESS",
+      "RESOLVED",
+      "CANCELLED"
+    ]
+  },
+  "authority": "Trusted PlatformSecurityFilter + ADMIN.WORKPLACE:VIEW/CREATE/UPDATE by method, current delegated site CATALOG_VIEW/CATALOG_MANAGE. Member APP.WORKPLACE:VIEW/CREATE and current native site VIEW, preflight site BOOK. Personal product entitlement not added to administration. SQL tenant/site/resource and ownuser predicates apply.",
+  "exploreExtension": "WorkplaceExploreResponse.closures: PublicClosure[] scoped to selected authorized floor and search interval; only resource/time/UNAVAILABLE, no operator reason or requester identity. Do not change global resource lifecycle state for a bounded closure.",
+  "truth": {
+    "closure": "Actual native interval availability; no automatic cancellation/replacement/notification; existing reservations are preserved and affected list comes from actual owner future-booking-impact endpoint.",
+    "booking": "Native wp_bookings INSERT/move trigger and validateBookable take exactly the closure write resource advisory transaction lock, then reject overlapping ACTIVE closure; not UI-only.",
+    "rooms": "Mapped ROOM closures additionally require ADMIN.ROOMS:UPDATE; unmapped rooms400. Actual Calendar reservation/create/relocate/evaluate and database guards use Calendar then canonical Workplace lock and check actual iterative recurring occurrences. Existing reservations are preserved. Native scoped room-booking-impact requires ADMIN.ROOMS:VIEW and contains no event title or people. Calendar remains reservation owner.",
+    "request": "Native workplace resource FK and ownuser ownership; no fake Services integration, SLA, vendor dispatch, sensors or external facility health.",
+    "recovery": "create replay idempotent under same tenant/actor key + fingerprint. cancellation/status version conflicts409; unknown outcome re-read original closure/request; no generic undo claim.",
+    "transitions": "OPEN→IN_PROGRESS|RESOLVED|CANCELLED; IN_PROGRESS→RESOLVED|CANCELLED; RESOLVED|CANCELLED→OPEN with explicit reason/version/confirmation.",
+    "zeroGrace": "V248 permits immutable booking snapshot autoReleaseMinutes0..240 matching actual DTO and policy DB; lifecycle zero grace remains server-time-based. Existing workplace.booking.no_show underscore audit action tokens are allowed by V248; audit and sweep remain transactional.",
+    "retention": "V251: scheduled bounded native physical purge uses current tenant bookingRetentionDays; terminal requests require updatedAt+days elapsed; closures require max(endsAt,updatedAt)+days elapsed. Active requests, current/future closures, overlapping legal-held booking intervals, central legal hold/case/activity-bound evidence and SENDING audit messages are preserved. Audit reasons remain intact before eligibility; after physical purge original description/reason snapshots are removed with explicit FACILITY_PERSONAL_DATA_REDACTED metadata, actor/correlation cleared, native audit outbox sanitized, ingested original central audit rows removed. No fabricated historical impact JSON and no external deletion/SLO promise. Actual eligible and persisted purged counts are in governed PrivacySummary."
+  },
+  "retentionJob": {
+    "class": "WorkplaceExperienceFacilitiesMaintenance",
+    "enabledProperty": "dwp.platform.workplace.privacy-maintenance.enabled",
+    "defaultEnabled": true,
+    "cronProperty": "dwp.platform.workplace.privacy-maintenance.cron",
+    "defaultCron": "0 23 3 * * *",
+    "batchSizeProperty": "dwp.platform.workplace.privacy-maintenance.batch-size",
+    "defaultBatchSize": 500,
+    "acceptedBatchSize": "1..5000 per record kind per transaction"
+  }
+}

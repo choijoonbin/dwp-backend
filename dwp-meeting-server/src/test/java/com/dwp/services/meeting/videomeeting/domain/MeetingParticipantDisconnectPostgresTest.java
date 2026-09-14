@@ -1,7 +1,7 @@
 package com.dwp.services.meeting.videomeeting.domain;
 
 import com.dwp.core.exception.BaseException;
-import com.dwp.services.meeting.videomeeting.api.MeetingParticipantDisconnectController.DisconnectCommand;
+import com.dwp.services.meeting.videomeeting.api.MeetingParticipantDisconnectDtos.DisconnectCommand;
 import com.dwp.services.meeting.videomeeting.domain.MeetingParticipantDisconnectRepository.Command;
 import com.dwp.services.meeting.videomeeting.provider.MeetingMediaProvider;
 import org.junit.jupiter.api.BeforeEach;

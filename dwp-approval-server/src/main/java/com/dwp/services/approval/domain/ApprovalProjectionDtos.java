@@ -180,7 +180,7 @@ public final class ApprovalProjectionDtos {
             long version) {
     }
 
-    /** Full-management remains read-only and must never expose credential capabilities. */
+    /** Full-management exposes only sanitized behavior flags, never credential material. */
     @Schema(name = "ApprovalFullManagementSignatureV1",
             additionalProperties = Schema.AdditionalPropertiesValue.FALSE)
     public record FullManagementSignatureV1(
@@ -189,6 +189,7 @@ public final class ApprovalProjectionDtos {
             String displayName,
             String providerType,
             String lifecycleState,
+            ApprovalDtos.SignatureCapabilities capabilities,
             boolean credentialConfigured,
             Instant lastHealthCheckedAt,
             long version) {

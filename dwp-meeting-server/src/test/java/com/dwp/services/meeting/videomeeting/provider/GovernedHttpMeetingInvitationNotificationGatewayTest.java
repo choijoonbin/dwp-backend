@@ -6,7 +6,11 @@ import com.dwp.services.meeting.videomeeting.domain.MeetingInvitationDeliveryMod
 import com.dwp.services.meeting.videomeeting.domain.MeetingInvitationDeliveryProperties;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -19,6 +23,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class GovernedHttpMeetingInvitationNotificationGatewayTest {
 
     private final ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+
+    @AfterEach
+    void clearRequestContext() {
+        RequestContextHolder.resetRequestAttributes();
+    }
 
     @Test
     void sendsExactIdentityHeadersAndImmutablePerRecipientContract() throws Exception {
@@ -58,6 +67,50 @@ class GovernedHttpMeetingInvitationNotificationGatewayTest {
         assertThat(body.path("variables").size()).isOne();
         assertThat(body.toString()).doesNotContain(
                 "title", "agenda", "email", "joinCode", "token");
+    }
+
+    @Test
+    void propagatesChildTraceWithoutBorrowingCallerCredentialsOrCorrelation() {
+        MockHttpServletRequest inbound = new MockHttpServletRequest("POST", "/v1/meetings");
+        String parent = "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01";
+        inbound.addHeader("traceparent", parent);
+        inbound.addHeader("tracestate", "vendor=value");
+        inbound.addHeader("X-Correlation-ID", "caller-correlation");
+        inbound.addHeader("X-DWP-Service-Token", "caller-service-token");
+        inbound.addHeader("X-DWP-Tenant-ID", "999");
+        inbound.addHeader("X-DWP-Source-Service", "caller-service");
+        for (String header : new String[]{
+                "Authorization", "X-DWP-User-ID", "X-DWP-Roles", "X-DWP-Group-Refs",
+                "X-DWP-Permissions", "X-DWP-Service-Identity", "X-DWP-Product-Surface-Token"}) {
+            inbound.addHeader(header, "caller-credential");
+        }
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(inbound));
+        CapturingHttpClient client = new CapturingHttpClient();
+        client.respond(201, "application/json", response(false, 1, NOTIFICATION_ID)
+                .getBytes(StandardCharsets.UTF_8));
+        Claim claim = claim("MEETING_SCHEDULED");
+
+        adapter(client).deliver(claim);
+
+        assertThat(client.request().headers().allValues("X-Correlation-ID"))
+                .containsExactly("meeting-invitation:" + claim.sourceEventId());
+        assertThat(client.request().headers().allValues("X-DWP-Service-Token"))
+                .containsExactly("meeting-notification-service-token");
+        assertThat(client.request().headers().allValues("X-DWP-Tenant-ID"))
+                .containsExactly("42");
+        assertThat(client.request().headers().allValues("X-DWP-Source-Service"))
+                .containsExactly("dwp-meeting-server");
+        assertThat(client.request().headers().firstValue("traceparent"))
+                .hasValueSatisfying(value -> assertThat(value)
+                        .matches("^00-4bf92f3577b34da6a3ce929d0e0e4736-[0-9a-f]{16}-01$")
+                        .isNotEqualTo(parent));
+        assertThat(client.request().headers().allValues("tracestate"))
+                .containsExactly("vendor=value");
+        assertThat(client.request().headers().map().keySet())
+                .allSatisfy(name -> assertThat(name.toLowerCase(java.util.Locale.ROOT))
+                        .isIn("accept", "content-type", "x-correlation-id",
+                                "x-dwp-service-token", "x-dwp-tenant-id",
+                                "x-dwp-source-service", "traceparent", "tracestate"));
     }
 
     @Test

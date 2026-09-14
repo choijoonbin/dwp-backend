@@ -12,7 +12,6 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import java.util.List;
 import java.util.UUID;
 
-import static com.dwp.services.platform.workplace.WorkplaceDelegatedAdminScopeRepository.SiteTargetType;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
@@ -34,7 +33,7 @@ class WorkplaceDelegatedAdminScopeRepositoryTest {
                 new WorkplaceDelegatedAdminScopeRepository(jdbc);
 
         assertThat(repository.resolveSite(
-                1L, SiteTargetType.POLICY_OVERRIDE, UUID.randomUUID())).isEmpty();
+                1L, WorkplaceDelegatedAdminTargetType.POLICY_OVERRIDE, UUID.randomUUID())).isEmpty();
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(jdbc).query(

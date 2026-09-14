@@ -206,7 +206,7 @@ final class WorkplaceCatalogAdminService {
         WorkplaceCatalogRepository.FloorRow floor = catalog.floor(tenantId, floorId, false)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         runtimeGovernance.requireViewAccess(
-                tenantId, userId, verifiedGroupRefs, floor.siteId());
+                tenantId, userId, verifiedGroupRefs, floor.siteId(), floor.floorId());
         if (floor.backgroundAssetKey() == null || floor.backgroundContentType() == null
                 || floor.backgroundSizeBytes() == null || floor.backgroundSha256() == null) {
             throw new BaseException(ErrorCode.NOT_FOUND);

@@ -93,7 +93,7 @@ abstract class WorkplaceSpatialGovernanceSupport {
     protected SiteAccessRule accessRule(AccessRuleRow row) {
         return new SiteAccessRule(row.accessRuleId(), row.siteId(), row.subjectType(),
                 row.subjectUserId(), row.subjectGroupRef(), row.permission(), row.effect(),
-                row.validFrom(), row.validUntil(), row.state(), row.version());
+                row.validFrom(), row.validUntil(), row.state(), row.version(), row.floorId());
     }
 
     protected PolicyOverride policyOverride(PolicyOverrideRow row) {
@@ -129,7 +129,7 @@ abstract class WorkplaceSpatialGovernanceSupport {
         return new DelegatedAdminScope(row.delegationId(), row.delegateType(),
                 row.delegateUserId(), row.delegateGroupRef(), row.scopeType(), row.siteId(),
                 row.managedGroupRef(), row.permissions(), row.validFrom(), row.validUntil(),
-                row.state(), row.version());
+                row.state(), row.version(), row.floorIds());
     }
 
     protected Map<String, Object> revisionSummary(FloorPlanRevisionRow row) {

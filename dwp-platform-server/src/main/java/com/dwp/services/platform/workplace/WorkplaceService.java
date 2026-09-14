@@ -84,10 +84,15 @@ public class WorkplaceService {
         Set<UUID> activeSiteIds = siteRows.stream()
                 .map(WorkplaceCatalogRepository.SiteRow::siteId)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        List<WorkplaceCatalogRepository.FloorRow> floorRows = catalog.floors(tenantId, null, ko).stream()
+        List<WorkplaceCatalogRepository.FloorRow> candidateFloors = catalog.floors(tenantId, null, ko).stream()
                 .filter(value -> value.state() == FloorState.ACTIVE)
                 .filter(value -> activeSiteIds.contains(value.siteId()))
                 .toList();
+        Set<UUID> viewableFloors = runtimeGovernance.viewableFloorIds(tenantId, userId, verifiedGroupRefs,
+                candidateFloors.stream().collect(java.util.stream.Collectors.toMap(
+                        WorkplaceCatalogRepository.FloorRow::floorId, WorkplaceCatalogRepository.FloorRow::siteId)));
+        List<WorkplaceCatalogRepository.FloorRow> floorRows = candidateFloors.stream()
+                .filter(value -> viewableFloors.contains(value.floorId())).toList();
         WorkplaceCatalogRepository.FloorRow selected = selectFloor(floorRows, floorId);
         WorkplaceCatalogRepository.PolicyRow basePolicy = catalog.policy(tenantId);
         WorkplaceCatalogRepository.PolicyRow policy = selected == null
@@ -116,7 +121,8 @@ public class WorkplaceService {
         return new WorkplaceDtos.ExploreResponse(
                 siteRows.stream().map(this::site).toList(),
                 floorRows.stream().map(this::floor).toList(), floor(selected),
-                resources, occupancy, policy(policy), OffsetDateTime.now());
+                resources, occupancy, policy(policy), OffsetDateTime.now(),
+                bookings.facilityClosures(tenantId, selected.floorId(), from, to));
     }
 
     @Transactional(readOnly = true)

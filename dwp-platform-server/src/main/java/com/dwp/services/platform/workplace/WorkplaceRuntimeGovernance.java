@@ -42,7 +42,28 @@ class WorkplaceRuntimeGovernance {
 
     void requireBookAccess(
             Long tenantId, Long userId, String verifiedGroupRefs, UUID siteId) {
+        governance.lockSiteAccessScope(tenantId, siteId);
         requireAccess(tenantId, userId, verifiedGroupRefs, siteId, AccessPermission.BOOK);
+    }
+
+    void requireViewAccess(Long tenantId, Long userId, String groups, UUID siteId, UUID floorId) {
+        requireFloorAccess(tenantId, userId, groups, siteId, floorId, AccessPermission.VIEW);
+    }
+
+    void requireBookAccess(Long tenantId, Long userId, String groups, UUID siteId, UUID floorId) {
+        governance.lockSiteAccessScope(tenantId, siteId);
+        requireFloorAccess(tenantId, userId, groups, siteId, floorId, AccessPermission.BOOK);
+    }
+
+    Set<UUID> viewableFloorIds(Long tenantId, Long userId, String groups, java.util.Map<UUID, UUID> sitesByFloor) {
+        return governance.evaluateFloorAccesses(tenantId, userId, groups, sitesByFloor, AccessPermission.VIEW)
+                .entrySet().stream().filter(entry -> entry.getValue().allowed()).map(java.util.Map.Entry::getKey)
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private void requireFloorAccess(Long tenantId, Long userId, String groups, UUID siteId, UUID floorId, AccessPermission permission) {
+        var decision = governance.evaluateFloorAccess(tenantId, userId, groups, siteId, floorId, permission);
+        if (!decision.allowed()) throw new BaseException(ErrorCode.FORBIDDEN, "This Workplace floor is not available to the current member.");
     }
 
     WorkplaceCatalogRepository.PolicyRow effectivePolicy(

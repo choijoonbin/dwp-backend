@@ -42,7 +42,6 @@ public class ProductAuthorizationContractValidator {
     private static final Pattern CONTEXT_PATTERN =
             Pattern.compile("^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$");
     private static final Pattern CHECKSUM_PATTERN = Pattern.compile("^[0-9a-f]{64}$");
-    private static final Pattern ARTIFACT_PATTERN = Pattern.compile("^[a-z0-9.-]+\\.json$");
     private static final Map<String, String> APPROVAL_FIELD_MASK_SCHEMA_PROFILES = Map.of(
             "ApprovalOversightAdminPulseV1", "legacy-oversight",
             "ApprovalOversightWorkflowV1", "legacy-oversight",
@@ -98,58 +97,19 @@ public class ProductAuthorizationContractValidator {
         try {
             ProductAuthorizationContractDtos.SeedIndex index = objectMapper.treeToValue(
                     document, ProductAuthorizationContractDtos.SeedIndex.class);
-            validateSeedIndex(index);
+            ProductAuthorizationReleaseLineage.validateSeedIndex(index);
             return index;
         } catch (JsonProcessingException exception) {
             throw new IllegalArgumentException("Registry seed index DTO contract is invalid.", exception);
         }
     }
 
-    private void validateSeedIndex(ProductAuthorizationContractDtos.SeedIndex index) {
-        require(index.schemaVersion() == 1, "Unsupported registry seed index schemaVersion.");
-        require("product-surfaces".equals(index.bundleKey()), "Unexpected registry seed index bundleKey.");
-        require("SHA-256".equals(index.indexChecksumAlgorithm()), "Only SHA-256 index checksums are supported.");
-        require(index.latestVersion() == 6, "Registry latest version must be 6.");
-        require(CHECKSUM_PATTERN.matcher(index.latestChecksum()).matches(), "Invalid latest registry checksum.");
-        require(ARTIFACT_PATTERN.matcher(index.latestArtifact()).matches(), "Invalid latest registry artifact.");
-        require(ARTIFACT_PATTERN.matcher(index.latestAuthSeedArtifact()).matches(),
-                "Invalid latest auth seed artifact.");
-        require(index.versions() != null && !index.versions().isEmpty(), "Registry index versions are required.");
-        require(index.versions().size() == 6,
-                "Registry index must contain only versions 1 through 6.");
-
-        long expectedVersion = 1;
-        Set<String> checksums = new HashSet<>();
-        for (ProductAuthorizationContractDtos.SeedIndexEntry entry : index.versions()) {
-            require(entry.version() == expectedVersion++, "Registry index versions must be contiguous and ordered.");
-            require("DRAFT".equals(entry.bundleStatus()),
-                    "Generated registry seed index may import DRAFT snapshots only.");
-            require(CHECKSUM_PATTERN.matcher(entry.checksum()).matches() && checksums.add(entry.checksum()),
-                    "Registry index checksums must be valid and unique.");
-            require(ARTIFACT_PATTERN.matcher(entry.artifact()).matches(), "Invalid registry artifact name.");
-            require(ARTIFACT_PATTERN.matcher(entry.authSeedArtifact()).matches(),
-                    "Invalid auth seed artifact name.");
-            require(entry.counts() != null && entry.counts().keySet().equals(Set.of(
-                            "capabilities", "accessPolicies", "entitlementExpressions",
-                            "predicatePolicies", "routes"))
-                            && entry.counts().values().stream().allMatch(value -> value != null && value > 0),
-                    "Registry index descriptor counts are invalid.");
-        }
-        ProductAuthorizationContractDtos.SeedIndexEntry latest =
-                index.versions().get(index.versions().size() - 1);
-        require(latest.version() == index.latestVersion()
-                        && latest.checksum().equals(index.latestChecksum())
-                        && latest.artifact().equals(index.latestArtifact())
-                        && latest.authSeedArtifact().equals(index.latestAuthSeedArtifact()),
-                "Registry latest pointer does not match the final immutable snapshot.");
-    }
-
     public void validate(ProductAuthorizationContractDtos.BundleContract contract) {
         require(contract != null, "Registry contract is required.");
         require(contract.schemaVersion() == 1, "Unsupported registry schemaVersion.");
         require("product-surfaces".equals(contract.bundleKey()), "Unexpected registry bundleKey.");
-        require(Set.of(1L, 2L, 3L, 4L, 5L, 6L).contains(contract.version()),
-                "Registry version must be one of the immutable lineage versions 1 through 6.");
+        require(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(contract.version()),
+                "Registry descriptor version must be one of the closed versions 1 through 10.");
         require(Set.of("DRAFT", "APPROVED", "ACTIVE", "RETIRED").contains(contract.bundleStatus()),
                 "Invalid bundle status.");
         require("SHA-256".equals(contract.checksumAlgorithm()), "Only SHA-256 is supported.");
@@ -194,6 +154,8 @@ public class ProductAuthorizationContractValidator {
                 route, capabilities, policies, predicates,
                 capabilityRoutes, policyRoutes, predicateRoutes, contract.version()));
         validateApprovalProjectionSchemaCoverage(contract);
+        ProductAuthorizationExtensionProjectionSchema.validateCoverage(contract);
+        ProductAuthorizationRelease10ProjectionSchema.validateCoverage(contract);
         validateAuthorityEndpoints(contract);
         ProductAuthorizationGateTopologyValidator.validateBundle(contract);
 
@@ -219,7 +181,7 @@ public class ProductAuthorizationContractValidator {
         predicates.forEach((key, value) -> require(
                 sorted(value.routeContractKeys()).equals(sorted(predicateRoutes.get(key))),
                 key + ": predicate route reverse index drift."));
-
+        ProductAuthorizationReleaseLineage.validateBundle(contract);
     }
 
     public String checksum(JsonNode document) {
@@ -571,7 +533,25 @@ public class ProductAuthorizationContractValidator {
                         && Set.of("auditor", "legacy-oversight").contains(profile.profileKey());
                 for (ProductAuthorizationContractDtos.ResponseProjectionBinding projection
                         : projections) {
-                    if (approvalFieldMaskProfile) {
+                    if (bundleVersion >= 7 && ProductAuthorizationReleaseLineage
+                            .isWorkDataRoute(route.routeContractKey())) {
+                        require(ProductAuthorizationReleaseLineage.matchesWorkProjection(
+                                        route.routeContractKey(), profile.profileKey(), projection),
+                                profileRef + ": invalid v7 work projection schema metadata.");
+                    } else if (bundleVersion >= 8 && ProductAuthorizationDocumentProjectionSchema
+                            .isDocumentDataRoute(route.routeContractKey())) {
+                        require(ProductAuthorizationDocumentProjectionSchema.matches(
+                                        route.routeContractKey(), profile.profileKey(), projection),
+                                profileRef + ": invalid v8 document/source projection schema metadata.");
+                    } else if (Set.of(9L, 10L).contains(bundleVersion) && ProductAuthorizationExtensionProjectionSchema
+                            .isExtensionDataRoute(route.routeContractKey())) {
+                        require(ProductAuthorizationExtensionProjectionSchema.matches(route, profile.profileKey(), projection),
+                                profileRef + ": invalid exact v9 extension projection schema metadata.");
+                    } else if (bundleVersion == 10 && ProductAuthorizationRelease10ProjectionSchema
+                            .isRelease10DataRoute(route.routeContractKey())) {
+                        require(ProductAuthorizationRelease10ProjectionSchema.matches(route, profile.profileKey(), projection),
+                                profileRef + ": invalid exact release10 projection schema metadata.");
+                    } else if (approvalFieldMaskProfile) {
                         require(profile.profileKey().equals(
                                         APPROVAL_FIELD_MASK_SCHEMA_PROFILES.get(
                                                 projection.responseSchemaKey()))

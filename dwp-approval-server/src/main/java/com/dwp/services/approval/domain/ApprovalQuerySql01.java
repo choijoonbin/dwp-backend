@@ -13,7 +13,9 @@ final class ApprovalQuerySql01 {
                step.step_key, step.step_name, step.sequence_number AS step_sequence,
                request.requester_user_id, request.requester_name,
                request.requester_org_name, task.assignee_user_id,
-               task.candidate_role, task.status, request.priority,
+               task.candidate_role, task.delegated_from_user_id,
+               task.delegated_authority_role_code,
+               task.status, request.priority,
                request.data_classification, task.risk_score,
                request.management_resource_set_key,
                request.submitted_at, task.due_at, task.version
@@ -153,7 +155,9 @@ final class ApprovalQuerySql01 {
         """;
 
     static final String DELEGATION_SOURCE_SELECT_APR_TASKS = """
-        SELECT delegation.delegator_user_id
+        SELECT delegation.delegator_user_id,
+               CASE WHEN task.assignee_user_id = delegation.delegator_user_id
+                    THEN NULL ELSE task.candidate_role END AS authority_role_code
           FROM apr_tasks task
           JOIN apr_requests request
             ON request.tenant_id = task.tenant_id
@@ -310,7 +314,8 @@ final class ApprovalQuerySql01 {
 
     static final String REQUEST_DETAIL_SELECT_APR_REQUESTS = """
         SELECT workflow_version.workflow_id, form_version.form_id,
-               form_version.schema_payload::text AS form_schema
+               form_version.schema_payload::text AS form_schema,
+               form_version.form_version_id, form_version.schema_sha256
           FROM apr_requests approval_request
           JOIN apr_workflow_versions workflow_version
             ON workflow_version.tenant_id = approval_request.tenant_id
@@ -464,6 +469,17 @@ final class ApprovalQuerySql01 {
            AND (:workCatalog = TRUE
                 OR management_resource_set_key = :managementScope)
            AND (:publishedOnly = FALSE OR lifecycle_state = 'PUBLISHED')
+           AND (:workCatalog = FALSE OR EXISTS (
+               SELECT 1
+                 FROM apr_workflow_versions current_version
+                WHERE current_version.tenant_id = apr_workflow_definitions.tenant_id
+                  AND current_version.workflow_id = apr_workflow_definitions.workflow_id
+                  AND current_version.version_number = apr_workflow_definitions.current_version
+                  AND current_version.lifecycle_state = 'PUBLISHED'
+                  AND (current_version.effective_from IS NULL
+                       OR current_version.effective_from <= CURRENT_TIMESTAMP)
+                  AND (current_version.effective_to IS NULL
+                       OR current_version.effective_to > CURRENT_TIMESTAMP)))
          ORDER BY CASE lifecycle_state WHEN 'PUBLISHED' THEN 0 WHEN 'DRAFT' THEN 1 ELSE 2 END,
                   category, name_en
         """;
@@ -487,6 +503,13 @@ final class ApprovalQuerySql01 {
            AND definition.workflow_id = :workflowId
            AND (:workCatalog = TRUE OR
                 definition.management_resource_set_key = :managementScope)
+           AND (:workCatalog = FALSE OR (
+               definition.lifecycle_state = 'PUBLISHED'
+               AND version.lifecycle_state = 'PUBLISHED'
+               AND (version.effective_from IS NULL
+                    OR version.effective_from <= CURRENT_TIMESTAMP)
+               AND (version.effective_to IS NULL
+                    OR version.effective_to > CURRENT_TIMESTAMP)))
         """;
 
     static final String PUBLISHED_TEMPLATE_SELECT_APR_FORM_WORKFLOW_BINDINGS = """
@@ -498,13 +521,33 @@ final class ApprovalQuerySql01 {
           JOIN apr_workflow_definitions workflow
             ON workflow.tenant_id = binding.tenant_id
            AND workflow.workflow_id = binding.workflow_id
+          JOIN apr_workflow_versions workflow_version
+            ON workflow_version.tenant_id = workflow.tenant_id
+           AND workflow_version.workflow_id = workflow.workflow_id
+           AND workflow_version.version_number = workflow.current_version
+          JOIN apr_form_versions form_version
+            ON form_version.tenant_id = form.tenant_id
+           AND form_version.form_id = form.form_id
+           AND form_version.version_number = form.current_version
+          JOIN apr_form_categories category
+            ON category.tenant_id = form.tenant_id
+           AND category.category_id = form.category_id
          WHERE binding.tenant_id = :tenantId
            AND binding.workflow_id = :workflowId
            AND (:workCatalog = TRUE OR
                 form.management_resource_set_key = :managementScope)
            AND binding.lifecycle_state = 'ACTIVE'
            AND form.lifecycle_state = 'PUBLISHED'
+           AND form_version.lifecycle_state = 'PUBLISHED'
+           AND category.lifecycle_state = 'ACTIVE'
            AND workflow.lifecycle_state = 'PUBLISHED'
+           AND workflow_version.lifecycle_state = 'PUBLISHED'
+           AND workflow.management_resource_set_key = form.management_resource_set_key
+           AND category.management_resource_set_key = form.management_resource_set_key
+           AND (workflow_version.effective_from IS NULL
+                OR workflow_version.effective_from <= CURRENT_TIMESTAMP)
+           AND (workflow_version.effective_to IS NULL
+                OR workflow_version.effective_to > CURRENT_TIMESTAMP)
            AND (binding.effective_from IS NULL
                 OR binding.effective_from <= CURRENT_TIMESTAMP)
            AND (binding.effective_to IS NULL
@@ -523,6 +566,17 @@ final class ApprovalQuerySql01 {
           JOIN apr_workflow_definitions workflow
             ON workflow.tenant_id = binding.tenant_id
            AND workflow.workflow_id = binding.workflow_id
+          JOIN apr_workflow_versions workflow_version
+            ON workflow_version.tenant_id = workflow.tenant_id
+           AND workflow_version.workflow_id = workflow.workflow_id
+           AND workflow_version.version_number = workflow.current_version
+          JOIN apr_form_versions form_version
+            ON form_version.tenant_id = form.tenant_id
+           AND form_version.form_id = form.form_id
+           AND form_version.version_number = form.current_version
+          JOIN apr_form_categories category
+            ON category.tenant_id = form.tenant_id
+           AND category.category_id = form.category_id
          WHERE binding.tenant_id = :tenantId
            AND binding.form_id = :formId
            AND (:workCatalog = TRUE OR (
@@ -531,7 +585,16 @@ final class ApprovalQuerySql01 {
            AND binding.binding_type = 'DEFAULT'
            AND binding.lifecycle_state = 'ACTIVE'
            AND form.lifecycle_state = 'PUBLISHED'
+           AND form_version.lifecycle_state = 'PUBLISHED'
+           AND category.lifecycle_state = 'ACTIVE'
            AND workflow.lifecycle_state = 'PUBLISHED'
+           AND workflow_version.lifecycle_state = 'PUBLISHED'
+           AND workflow.management_resource_set_key = form.management_resource_set_key
+           AND category.management_resource_set_key = form.management_resource_set_key
+           AND (workflow_version.effective_from IS NULL
+                OR workflow_version.effective_from <= CURRENT_TIMESTAMP)
+           AND (workflow_version.effective_to IS NULL
+                OR workflow_version.effective_to > CURRENT_TIMESTAMP)
            AND (binding.effective_from IS NULL OR binding.effective_from <= CURRENT_TIMESTAMP)
            AND (binding.effective_to IS NULL OR binding.effective_to > CURRENT_TIMESTAMP)
          LIMIT 1
@@ -596,17 +659,29 @@ final class ApprovalQuerySql01 {
                 form.management_resource_set_key = :managementScope)
            AND (:publishedOnly = FALSE OR (
                form.lifecycle_state = 'PUBLISHED'
+               AND version.lifecycle_state = 'PUBLISHED'
                AND category.lifecycle_state = 'ACTIVE'
                AND EXISTS (
                    SELECT 1 FROM apr_form_workflow_bindings active_binding
                    JOIN apr_workflow_definitions active_workflow
                      ON active_workflow.tenant_id = active_binding.tenant_id
                     AND active_workflow.workflow_id = active_binding.workflow_id
+                   JOIN apr_workflow_versions active_workflow_version
+                     ON active_workflow_version.tenant_id = active_workflow.tenant_id
+                    AND active_workflow_version.workflow_id = active_workflow.workflow_id
+                    AND active_workflow_version.version_number = active_workflow.current_version
                   WHERE active_binding.tenant_id = form.tenant_id
                     AND active_binding.form_id = form.form_id
                     AND active_binding.binding_type = 'DEFAULT'
                     AND active_binding.lifecycle_state = 'ACTIVE'
                     AND active_workflow.lifecycle_state = 'PUBLISHED'
+                    AND active_workflow_version.lifecycle_state = 'PUBLISHED'
+                    AND active_workflow.management_resource_set_key =
+                        form.management_resource_set_key
+                    AND (active_workflow_version.effective_from IS NULL
+                         OR active_workflow_version.effective_from <= CURRENT_TIMESTAMP)
+                    AND (active_workflow_version.effective_to IS NULL
+                         OR active_workflow_version.effective_to > CURRENT_TIMESTAMP)
                     AND (active_binding.effective_from IS NULL
                          OR active_binding.effective_from <= CURRENT_TIMESTAMP)
                     AND (active_binding.effective_to IS NULL

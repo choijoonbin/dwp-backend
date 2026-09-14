@@ -5,8 +5,7 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.approval.security.ApprovalDecisionRevisionContext;
 import com.dwp.services.approval.security.ApprovalManagementScopeContext;
 import com.dwp.services.approval.security.ApprovalRequestContext;
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
+import com.dwp.services.approval.documentretention.ApprovalRetentionLiveGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -36,13 +35,13 @@ public class ApprovalQueryRepository {
     private static final String COMPLETED_BY_ACTOR_ACCESS = ApprovalQuerySql01.JSONB_EXISTS_SQL_STATEMENT;
 
     private final NamedParameterJdbcTemplate jdbc;
-    private final ObjectMapper objectMapper;
+    private final ApprovalGovernanceQuerySupport governance;
 
     public ApprovalQueryRepository(
             NamedParameterJdbcTemplate jdbc,
             ObjectMapper objectMapper) {
         this.jdbc = jdbc;
-        this.objectMapper = objectMapper;
+        this.governance = new ApprovalGovernanceQuerySupport(jdbc, objectMapper);
     }
 
     public void ensureTenant(long tenantId) {
@@ -85,8 +84,8 @@ public class ApprovalQueryRepository {
                 result.getInt("overdue"),
                 result.getInt("needs_information"),
                 result.getInt("in_flight"),
-                round(result.getDouble("average_cycle")),
-                round(result.getDouble("sla_compliance"))));
+                ApprovalQueryRowMapper.round(result.getDouble("average_cycle")),
+                ApprovalQueryRowMapper.round(result.getDouble("sla_compliance"))));
     }
 
     public boolean isBlockingPolicyActive(long tenantId, String policyKey) {
@@ -123,16 +122,18 @@ public class ApprovalQueryRepository {
                 ? "task.completed_at DESC NULLS LAST, task.created_at DESC"
                 : "CASE WHEN task.due_at < CURRENT_TIMESTAMP THEN 0 ELSE 1 END, "
                         + "task.risk_score DESC, task.due_at, task.created_at DESC";
-        String taskQuery = TASK_SELECT + ApprovalQuerySql01.TASKS_SQL_STATEMENT + accessClause + ApprovalQuerySql01.TASKS_SQL_STATEMENT_2 + statusClause + ApprovalQuerySql01.TASKS_SQL_STATEMENT_3.formatted(orderClause);
+        String taskQuery = TASK_SELECT + ApprovalQuerySql01.TASKS_SQL_STATEMENT + accessClause + ApprovalQuerySql01.TASKS_SQL_STATEMENT_2 + statusClause + ")";
+        var parameters=actorParams(actor).addValue("limit",Math.max(1,Math.min(limit,200)));new ApprovalRetentionLiveGuard(jdbc).lockQuery(actor.tenantId(),taskQuery,parameters);
         return jdbc.query(
-                taskQuery,
-                actorParams(actor).addValue("limit", Math.max(1, Math.min(limit, 200))),
+                taskQuery+" AND request.request_id IN(:retentionRequests) AND "+ApprovalRetentionLiveGuard.LIVE+" ORDER BY "+orderClause+" LIMIT :limit",
+                parameters,
                 (result, rowNumber) -> taskSummary(result));
     }
 
     public TaskAccess taskDetail(
             ApprovalRequestContext.Actor actor,
             UUID taskId) {
+        new ApprovalRetentionLiveGuard(jdbc).task(actor.tenantId(),taskId);
         List<TaskAccess> matches = jdbc.query(
                 TASK_SELECT + ApprovalQuerySql01.TASK_DETAIL_SQL_STATEMENT + DIRECT_TASK_ACCESS + " OR " + DELEGATED_TASK_ACCESS
                         + " OR " + COMPLETED_BY_ACTOR_ACCESS + ApprovalQuerySql01.TASK_DETAIL_SQL_STATEMENT_2,
@@ -144,42 +145,64 @@ public class ApprovalQueryRepository {
                         result.getString("candidate_role"),
                         result.getString("management_resource_set_key"),
                         false,
-                        null));
+                        nullableLong(result, "delegated_from_user_id"),
+                        result.getString("delegated_authority_role_code")));
         if (matches.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
         TaskAccess match = matches.get(0);
-        Long delegatedFrom = delegationSource(actor, taskId);
+        DelegationSource delegation = delegationSource(actor, taskId);
+        Long delegatedFromUserId = match.delegatedFromUserId();
+        String delegatedAuthorityRoleCode = match.delegatedAuthorityRoleCode();
+        if (delegation != null) {
+            delegatedFromUserId = delegation.delegatorUserId();
+            delegatedAuthorityRoleCode = delegation.authorityRoleCode();
+        }
         return new TaskAccess(
                 match.summary(), match.requesterUserId(), match.assigneeUserId(),
                 match.candidateRole(), match.managementResourceSetKey(),
-                delegatedFrom != null, delegatedFrom);
+                delegation != null,
+                delegatedFromUserId,
+                delegatedAuthorityRoleCode);
     }
 
-    private Long delegationSource(ApprovalRequestContext.Actor actor, UUID taskId) {
+    private DelegationSource delegationSource(
+            ApprovalRequestContext.Actor actor,
+            UUID taskId) {
         return jdbc.query(ApprovalQuerySql01.DELEGATION_SOURCE_SELECT_APR_TASKS, actorParams(actor).addValue("taskId", taskId),
-                result -> result.next() ? result.getLong(1) : null);
+                result -> result.next()
+                        ? new DelegationSource(
+                                result.getLong("delegator_user_id"),
+                                result.getString("authority_role_code"))
+                        : null);
     }
 
     public Map<String, Object> requestPayload(long tenantId, UUID requestId) {
+        new ApprovalRetentionLiveGuard(jdbc).request(tenantId,requestId);
         List<String> payloads = jdbc.query(
                 ApprovalQuerySql01.REQUEST_PAYLOAD_SELECT_APR_REQUEST_PAYLOADS,
                 new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("requestId", requestId),
                 (result, rowNumber) -> result.getString(1));
-        return payloads.isEmpty() ? Map.of() : json(payloads.get(0));
+        return payloads.isEmpty() ? Map.of() : governance.json(payloads.get(0));
+    }
+
+    public Map<String, Object> decisionPayload(long tenantId, UUID taskId) {
+        return governance.decisionPayload(tenantId, taskId);
     }
 
     public Map<String, Object> requestFormSchema(long tenantId, UUID requestId) {
+        new ApprovalRetentionLiveGuard(jdbc).request(tenantId,requestId);
         List<String> schemas = jdbc.query(
                 ApprovalQuerySql01.REQUEST_FORM_SCHEMA_SELECT_APR_REQUESTS,
                 new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
                         .addValue("requestId", requestId),
                 (result, rowNumber) -> result.getString(1));
-        return schemas.isEmpty() ? Map.of() : json(schemas.get(0));
+        return schemas.isEmpty() ? Map.of() : governance.json(schemas.get(0));
     }
 
     public List<ApprovalDtos.TimelineEvent> timeline(long tenantId, UUID requestId) {
+        new ApprovalRetentionLiveGuard(jdbc).request(tenantId,requestId);
         return jdbc.query(ApprovalQuerySql01.TIMELINE_SELECT_APR_REQUEST_EVENTS,
                 new MapSqlParameterSource()
                         .addValue("tenantId", tenantId)
@@ -191,7 +214,7 @@ public class ApprovalQueryRepository {
                         result.getString("actor_id"),
                         result.getString("actor_display_name"),
                         result.getString("step_name"),
-                        nullableInteger(result, "step_sequence"),
+                        ApprovalQueryRowMapper.nullableInteger(result, "step_sequence"),
                         result.getBoolean("delegated"),
                         result.getString("outcome"),
                         result.getString("message"),
@@ -209,15 +232,19 @@ public class ApprovalQueryRepository {
             case "NEEDS_INFO" -> "request.status = 'NEEDS_INFO'";
             default -> "request.status IN ('SUBMITTED', 'IN_REVIEW', 'NEEDS_INFO')";
         };
-        return jdbc.query(ApprovalQuerySql01.REQUESTS_SELECT_APR_REQUEST_EVENTS + statusClause + ApprovalQuerySql01.COUNT_SQL_STATEMENT,
-                actorParams(actor).addValue("limit", Math.max(1, Math.min(limit, 200))),
+        var parameters=actorParams(actor).addValue("limit",Math.max(1,Math.min(limit,200)));new ApprovalRetentionLiveGuard(jdbc).lockQuery(actor.tenantId(),ApprovalQuerySql01.REQUESTS_SELECT_APR_REQUEST_EVENTS+statusClause+") AND request.deleted_at IS NULL",parameters);
+        return jdbc.query(ApprovalQuerySql01.REQUESTS_SELECT_APR_REQUEST_EVENTS + statusClause
+                        + " AND request.deleted_at IS NULL AND request.request_id IN(:retentionRequests) AND "+ApprovalRetentionLiveGuard.LIVE + ApprovalQuerySql01.COUNT_SQL_STATEMENT,
+                parameters,
                 (result, rowNumber) -> requestSummary(result));
     }
 
     public ApprovalDtos.RequestSummary request(
             ApprovalRequestContext.Actor actor,
             UUID requestId) {
-        List<ApprovalDtos.RequestSummary> matches = jdbc.query(ApprovalQuerySql01.REQUEST_SELECT_APR_REQUEST_EVENTS, actorParams(actor).addValue("requestId", requestId),
+        new ApprovalRetentionLiveGuard(jdbc).request(actor.tenantId(),requestId);
+        List<ApprovalDtos.RequestSummary> matches = jdbc.query(ApprovalQuerySql01.REQUEST_SELECT_APR_REQUEST_EVENTS
+                        + " AND request.deleted_at IS NULL", actorParams(actor).addValue("requestId", requestId),
                 (result, rowNumber) -> requestSummary(result));
         if (matches.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
         return matches.get(0);
@@ -226,12 +253,11 @@ public class ApprovalQueryRepository {
     public ApprovalDtos.RequestDetail requestDetail(
             ApprovalRequestContext.Actor actor,
             UUID requestId) {
+        new ApprovalRetentionLiveGuard(jdbc).request(actor.tenantId(),requestId);
         ApprovalDtos.RequestSummary request = request(actor, requestId);
-        RequestAssetIds assets = jdbc.queryForObject(ApprovalQuerySql01.REQUEST_DETAIL_SELECT_APR_REQUESTS, actorParams(actor).addValue("requestId", requestId),
-                (result, rowNumber) -> new RequestAssetIds(
-                        result.getObject("workflow_id", UUID.class),
-                        result.getObject("form_id", UUID.class),
-                        json(result.getString("form_schema"))));
+        ApprovalQueryRowMapper.RequestAssetIds assets = jdbc.queryForObject(ApprovalQuerySql01.REQUEST_DETAIL_SELECT_APR_REQUESTS,
+                actorParams(actor).addValue("requestId", requestId),
+                (result, rowNumber) -> ApprovalQueryRowMapper.requestAssets(result, governance::json));
         if (assets == null) throw new BaseException(ErrorCode.NOT_FOUND);
         return new ApprovalDtos.RequestDetail(
                 request,
@@ -239,7 +265,7 @@ public class ApprovalQueryRepository {
                 assets.formId(),
                 requestPayload(actor.tenantId(), requestId),
                 assets.formSchema(),
-                timeline(actor.tenantId(), requestId));
+                timeline(actor.tenantId(), requestId), assets.formVersionId(), assets.formSchemaSha256());
     }
 
     public List<ApprovalDtos.StageMetric> flow(ApprovalRequestContext.Actor actor) {
@@ -344,7 +370,7 @@ public class ApprovalQueryRepository {
                                 result.getString("owner_group_ref"),
                                 result.getLong("version"),
                                 instant(result, "updated_at")),
-                        json(result.getString("definition")),
+                        governance.json(result.getString("definition")),
                         result.getString("definition_sha256")));
         if (matches.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
         return matches.get(0);
@@ -433,9 +459,9 @@ public class ApprovalQueryRepository {
                         .addValue("formId", formId),
                 (result, rowNumber) -> new ApprovalDtos.FormDetail(
                         formSummary(result),
-                        json(result.getString("schema_payload")),
+                        governance.json(result.getString("schema_payload")),
                         result.getString("schema_sha256"),
-                        formRoutes(tenantId, formId, workCatalog)));
+                        formRoutes(tenantId, formId, workCatalog), result.getObject("form_version_id", UUID.class)));
         if (matches.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND);
         return matches.get(0);
     }
@@ -473,13 +499,13 @@ public class ApprovalQueryRepository {
                         result.getString("enforcement_mode"),
                         result.getString("severity"),
                         result.getString("lifecycle_state"),
-                        json(result.getString("rule_payload")),
+                        governance.json(result.getString("rule_payload")),
                         result.getLong("version"),
                         result.getObject("pending_by") != null,
                         result.getString("pending_enforcement_mode"),
                         result.getString("pending_severity"),
                         result.getString("pending_lifecycle_state"),
-                        json(result.getString("pending_rule_payload")),
+                        governance.json(result.getString("pending_rule_payload")),
                         result.getString("pending_change_reason"),
                         result.getObject("pending_by", Long.class),
                         instant(result, "pending_at")));
@@ -498,7 +524,7 @@ public class ApprovalQueryRepository {
                         result.getString("enforcement_mode"),
                         result.getString("severity"),
                         result.getString("lifecycle_state"),
-                        json(result.getString("rule_payload")),
+                        governance.json(result.getString("rule_payload")),
                         result.getString("change_reason"),
                         result.getObject("submitted_by", Long.class),
                         instant(result, "submitted_at"),
@@ -508,17 +534,26 @@ public class ApprovalQueryRepository {
     }
 
     public List<ApprovalDtos.SignatureProviderSummary> signatureProviders(long tenantId) {
-        return jdbc.query(ApprovalQuerySql02.SIGNATURE_PROVIDERS_SELECT_APR_SIGNATURE_PROVIDERS, managementParams(tenantId),
-                (result, rowNumber) -> new ApprovalDtos.SignatureProviderSummary(
-                        result.getObject("provider_id", UUID.class),
-                        result.getString("provider_key"),
-                        result.getString("display_name"),
-                        result.getString("provider_type"),
-                        result.getString("lifecycle_state"),
-                        json(result.getString("capability_metadata")),
-                        result.getBoolean("credential_configured"),
-                        instant(result, "last_health_checked_at"),
-                        result.getLong("version")));
+        return governance.signatureProviders(tenantId, managementResourceSetKey());
+    }
+
+    public List<String> workflowCandidateRoles(long tenantId, UUID workflowId) {
+        return governance.workflowCandidateRoles(
+                tenantId, workflowId, managementResourceSetKey());
+    }
+
+    public List<String> requestCandidateRoles(
+            long tenantId,
+            UUID requestId,
+            String managementResourceSetKey) {
+        return governance.requestCandidateRoles(
+                tenantId, requestId, managementResourceSetKey);
+    }
+
+    public List<String> requestCandidateRoles(
+            ApprovalRequestContext.Actor actor,
+            UUID requestId) {
+        return governance.ownedRequestCandidateRoles(actor, requestId);
     }
 
     public List<ApprovalDtos.DelegationSummary> delegations(ApprovalRequestContext.Actor actor) {
@@ -552,26 +587,10 @@ public class ApprovalQueryRepository {
     }
 
     public List<ApprovalDtos.IntegrationDeliverySummary> integrationDeliveries(
-            long tenantId,
+            ApprovalRequestContext.Actor actor,
             int limit) {
-        return jdbc.query(ApprovalQuerySql02.INTEGRATION_DELIVERIES_SELECT_APR_INTEGRATION_OUTBOX, new MapSqlParameterSource()
-                        .addValue("tenantId", tenantId)
-                        .addValue("managementScope", managementResourceSetKey(), Types.VARCHAR)
-                        .addValue("limit", Math.max(1, Math.min(limit, 100))),
-                (result, rowNumber) -> new ApprovalDtos.IntegrationDeliverySummary(
-                        result.getObject("outbox_id", UUID.class),
-                        result.getObject("event_id", UUID.class),
-                        result.getObject("request_id", UUID.class),
-                        result.getString("event_type"),
-                        result.getString("status"),
-                        result.getInt("attempt_count"),
-                        result.getInt("manual_retry_count"),
-                        instant(result, "available_at"),
-                        instant(result, "published_at"),
-                        result.getString("last_error"),
-                        instant(result, "created_at"),
-                        instant(result, "last_retried_at"),
-                        result.getLong("version")));
+        return governance.integrationDeliveries(
+                actor, managementResourceSetKey(), limit);
     }
 
     public int activeDelegationCount(long tenantId) {
@@ -619,71 +638,15 @@ public class ApprovalQueryRepository {
     }
 
     private ApprovalDtos.TaskSummary taskSummary(ResultSet result) throws SQLException {
-        return new ApprovalDtos.TaskSummary(
-                result.getObject("task_id", UUID.class),
-                result.getObject("request_id", UUID.class),
-                result.getString("request_number"),
-                result.getString("title"),
-                result.getString("summary"),
-                result.getString("workflow_name_ko"),
-                result.getString("workflow_name_en"),
-                result.getString("step_key"),
-                result.getString("step_name"),
-                result.getInt("step_sequence"),
-                result.getString("requester_name"),
-                result.getString("requester_org_name"),
-                result.getString("status"),
-                result.getString("priority"),
-                result.getString("data_classification"),
-                result.getInt("risk_score"),
-                instant(result, "submitted_at"),
-                instant(result, "due_at"),
-                result.getLong("version"));
+        return ApprovalQueryRowMapper.taskSummary(result);
     }
 
     private ApprovalDtos.RequestSummary requestSummary(ResultSet result) throws SQLException {
-        return new ApprovalDtos.RequestSummary(
-                result.getObject("request_id", UUID.class),
-                result.getString("request_number"),
-                result.getString("title"),
-                result.getString("summary"),
-                result.getString("workflow_name_ko"),
-                result.getString("workflow_name_en"),
-                result.getString("current_step_key"),
-                result.getString("current_step_name"),
-                nullableInteger(result, "current_step_sequence"),
-                result.getInt("total_steps"),
-                result.getString("status"),
-                result.getString("priority"),
-                result.getString("data_classification"),
-                result.getString("latest_information_request"),
-                instant(result, "submitted_at"),
-                instant(result, "due_at"),
-                instant(result, "completed_at"),
-                result.getLong("version"));
+        return ApprovalQueryRowMapper.requestSummary(result);
     }
 
     private ApprovalDtos.FormSummary formSummary(ResultSet result) throws SQLException {
-        return new ApprovalDtos.FormSummary(
-                result.getObject("form_id", UUID.class),
-                result.getString("form_key"),
-                result.getObject("category_id", UUID.class),
-                result.getString("category_key"),
-                result.getString("category_name_ko"),
-                result.getString("category_name_en"),
-                result.getString("name_ko"),
-                result.getString("name_en"),
-                result.getString("description_ko"),
-                result.getString("description_en"),
-                result.getString("owner_group_ref"),
-                result.getString("form_kind"),
-                result.getString("lifecycle_state"),
-                result.getInt("current_version"),
-                result.getInt("field_count"),
-                result.getInt("route_count"),
-                result.getLong("usage_count"),
-                result.getLong("version"),
-                instant(result, "updated_at"));
+        return ApprovalQueryRowMapper.formSummary(result);
     }
 
     private Instant instant(ResultSet result, String column) throws SQLException {
@@ -696,25 +659,6 @@ public class ApprovalQueryRepository {
         return result.wasNull() ? null : value;
     }
 
-    private Integer nullableInteger(ResultSet result, String column) throws SQLException {
-        int value = result.getInt(column);
-        return result.wasNull() ? null : value;
-    }
-
-    private double round(double value) {
-        return Math.round(value * 10.0) / 10.0;
-    }
-
-    private Map<String, Object> json(String value) {
-        try {
-            return value == null
-                    ? Map.of()
-                    : objectMapper.readValue(value, new TypeReference<>() { });
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("Stored approval JSON is invalid.", exception);
-        }
-    }
-
     public record TaskAccess(
             ApprovalDtos.TaskSummary summary,
             long requesterUserId,
@@ -722,7 +666,20 @@ public class ApprovalQueryRepository {
             String candidateRole,
             String managementResourceSetKey,
             boolean delegatedAccess,
-            Long delegatedFromUserId) {
+            Long delegatedFromUserId,
+            String delegatedAuthorityRoleCode) {
+
+        public TaskAccess(
+                ApprovalDtos.TaskSummary summary,
+                long requesterUserId,
+                Long assigneeUserId,
+                String candidateRole,
+                String managementResourceSetKey,
+                boolean delegatedAccess,
+                Long delegatedFromUserId) {
+            this(summary, requesterUserId, assigneeUserId, candidateRole,
+                    managementResourceSetKey, delegatedAccess, delegatedFromUserId, null);
+        }
 
         public TaskAccess(
                 ApprovalDtos.TaskSummary summary,
@@ -732,13 +689,11 @@ public class ApprovalQueryRepository {
                 boolean delegatedAccess,
                 Long delegatedFromUserId) {
             this(summary, requesterUserId, assigneeUserId, candidateRole,
-                    "RS_APPROVALS", delegatedAccess, delegatedFromUserId);
+                    "RS_APPROVALS", delegatedAccess, delegatedFromUserId, null);
         }
     }
 
-    private record RequestAssetIds(
-            UUID workflowId,
-            UUID formId,
-            Map<String, Object> formSchema) {
+    private record DelegationSource(long delegatorUserId, String authorityRoleCode) {
     }
+
 }

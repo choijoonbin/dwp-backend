@@ -15,14 +15,18 @@ final class ApprovalLegacyDelegationGuard {
             ApprovalRequestContext.Actor actor,
             ApprovalQueryRepository.TaskAccess task,
             ApprovalIdentityDirectory identities) {
-        if (!task.delegatedAccess() || task.delegatedFromUserId() == null) return;
+        if (task.delegatedFromUserId() == null) return;
         ApprovalIdentityDirectory.Subject delegator = identities.require(
                 actor.tenantId(), task.delegatedFromUserId());
-        boolean roleBasedAuthority = task.assigneeUserId() == null;
+        String authorityRoleCode = task.delegatedAuthorityRoleCode() != null
+                ? task.delegatedAuthorityRoleCode()
+                : task.delegatedAccess() && task.assigneeUserId() == null
+                        ? task.candidateRole()
+                        : null;
+        boolean roleBasedAuthority = authorityRoleCode != null;
         if (!delegator.active()
                 || (roleBasedAuthority
-                && task.candidateRole() != null
-                && !delegator.hasRole(task.candidateRole()))) {
+                && !delegator.hasRole(authorityRoleCode))) {
             throw new BaseException(
                     ErrorCode.FORBIDDEN,
                     "The original approver no longer holds the delegated authority.");

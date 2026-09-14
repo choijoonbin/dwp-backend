@@ -1,7 +1,7 @@
 package com.dwp.services.meeting.videomeeting.domain;
 
-import com.dwp.services.meeting.videomeeting.api.MeetingParticipantDisconnectController.DisconnectCommand;
-import com.dwp.services.meeting.videomeeting.api.MeetingParticipantDisconnectController.DisconnectResponse;
+import com.dwp.services.meeting.videomeeting.api.MeetingParticipantDisconnectDtos.DisconnectCommand;
+import com.dwp.services.meeting.videomeeting.api.MeetingParticipantDisconnectDtos.DisconnectResponse;
 import com.dwp.services.meeting.videomeeting.domain.MeetingParticipantDisconnectRepository.Command;
 import com.dwp.services.meeting.videomeeting.provider.MeetingMediaProvider;
 import org.springframework.scheduling.annotation.Scheduled;

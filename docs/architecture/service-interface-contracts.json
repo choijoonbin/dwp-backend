@@ -30,7 +30,10 @@
         "TRACE_STATE_HEADER"
       ],
       "forbiddenMarkers": [
-        "X-DWP-Service-Token"
+        "X-DWP-Service-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -56,7 +59,10 @@
         "TRACE_STATE_HEADER"
       ],
       "forbiddenMarkers": [
-        "/api/"
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -84,7 +90,10 @@
         "X-Forwarded-For",
         "Authorization",
         "actorPrincipal(",
-        "actorDisplayName("
+        "actorDisplayName(",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -110,7 +119,10 @@
         "TRACE_STATE_HEADER"
       ],
       "forbiddenMarkers": [
-        "/api/"
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -136,7 +148,10 @@
         "TRACE_STATE_HEADER"
       ],
       "forbiddenMarkers": [
-        "/api/"
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -162,7 +177,10 @@
         "TRACE_STATE_HEADER"
       ],
       "forbiddenMarkers": [
-        "/api/"
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -188,7 +206,10 @@
         "TRACE_STATE_HEADER"
       ],
       "forbiddenMarkers": [
-        "/api/"
+        "/api/",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -219,7 +240,10 @@
       "forbiddenMarkers": [
         "/api/",
         "X-DWP-Service-Token",
-        "X-DWP-Identity-Sync-Token"
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -247,7 +271,10 @@
       "forbiddenMarkers": [
         "/api/",
         "X-DWP-Service-Token",
-        "X-DWP-Identity-Sync-Token"
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -275,7 +302,10 @@
       "forbiddenMarkers": [
         "/api/",
         "X-DWP-Service-Token",
-        "X-DWP-Provisioning-Token"
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -303,7 +333,10 @@
       "forbiddenMarkers": [
         "/api/",
         "X-DWP-Service-Token",
-        "X-DWP-Provisioning-Token"
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -354,7 +387,15 @@
         "X-DWP-Provisioning-Token",
         "X-DWP-Identity-Sync-Token",
         "X-DWP-Approval-Recovery-Token",
-        "@Retry"
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Approval-Workflow-Runtime-Token",
+        "@Retry",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Workflow-Planning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -382,7 +423,12 @@
       "forbiddenMarkers": [
         "/api/",
         "X-DWP-Service-Token",
-        "X-DWP-Provisioning-Token"
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -410,7 +456,130 @@
       ],
       "forbiddenMarkers": [
         "/api/",
-        "X-DWP-Service-Token"
+        "X-DWP-Service-Token",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "approval-auth-form-user-directory",
+      "classification": "approval-form-tenant-person-source",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-approval-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-approval-server/src/main/java/com/dwp/services/approval/integration/AuthApprovalFormUserDirectory.java",
+      "purpose": "Resolve minimal active tenant person identifiers for an exact published approval form and field using a current independently authorized source decision.",
+      "auth": "Dedicated approval-form-user transport token and service identity plus a short-lived operation/body/context-bound RS256 source proof; source VIEW is independent of request CREATE.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/auth/v1/approval-form-user-directory/",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Service-Identity",
+        "ApprovalFormUserProofIssuer",
+        "@CircuitBreaker",
+        "@Bulkhead",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "@Retry",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "approval-auth-form-reference-directory",
+      "classification": "approval-form-mutation-reference-validation",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-approval-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-approval-server/src/main/java/com/dwp/services/approval/integration/AuthApprovalFormReferenceDirectory.java",
+      "purpose": "Validate supplied tenant person references for a server-bound approval mutation and immutable form version without borrowing a candidate DATA decision.",
+      "auth": "Dedicated approval-form-user token and service identity with a distinct ACTION mutation reference proof binding the exact target, version, payload, command key, form and current source authority.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/auth/v1/approval-form-user-directory/resolve",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Service-Identity",
+        "ApprovalFormReferenceProofIssuer",
+        "@CircuitBreaker",
+        "@Bulkhead",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "@Retry",
+        "source-authority/resolve",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "approval-auth-workflow-runtime-authority",
+      "classification": "approval-workflow-runtime-current-source",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-approval-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-approval-server/src/main/java/com/dwp/services/approval/workflowauthority/WorkflowRuntimeAuthorityClient.java",
+      "purpose": "Resolve current Auth-owned candidate, voter and information-admission evidence for sealed immutable Approval runtime targets.",
+      "auth": "Dedicated short-lived RS256 transport proof with disjoint purpose and keys, exact sealed owner body, and a verified Auth attestation; no ambient or borrowed credentials.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/approval-workflow/runtime-authority",
+        "X-DWP-Approval-Workflow-Runtime-Token",
+        "X-DWP-Service-Identity",
+        "dwp-approval-server",
+        "WorkflowRuntimeProofIssuer.Exchange",
+        "WorkflowRuntimeAttestationVerifier",
+        "WorkflowRuntimeResponseBody",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        "connectTimeout(Duration.ofSeconds(3))",
+        ".timeout(Duration.ofSeconds(5))",
+        "pending.get(5,TimeUnit.SECONDS)",
+        "pending.cancel(true)",
+        "body.cancel()"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "Authorization",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Workflow-Planning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -437,7 +606,10 @@
       "forbiddenMarkers": [
         "/api/",
         "X-DWP-Service-Token",
-        "X-DWP-Provisioning-Token"
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -466,7 +638,10 @@
       "forbiddenMarkers": [
         "/api/",
         "X-DWP-Service-Token",
-        "X-DWP-Provisioning-Token"
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -494,7 +669,135 @@
       "forbiddenMarkers": [
         "/api/",
         "X-DWP-Service-Token",
-        "X-DWP-Provisioning-Token"
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "meeting-notification-invitation-intent",
+      "classification": "meeting-invitation-notification-delivery",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-meeting-server",
+      "targetServices": [
+        "dwp-notification-server"
+      ],
+      "path": "dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/GovernedHttpMeetingInvitationNotificationGateway.java",
+      "purpose": "Deliver immutable per-recipient Meeting invitation and preparation-material events through the Notification owner direct-intent contract. Only verified single-recipient materialization completes the source outbox claim; delivery failures remain contained in that outbox.",
+      "auth": "Uses the distinct Notification producer credential bound to dwp-meeting-server by the owner producer-token map, never the Gateway token. The source event supplies tenant and recipient identity; inbound user credentials are not propagated.",
+      "retryMode": "outbox-owned",
+      "failureMode": "fail-contained",
+      "ownerToken": {
+        "profile": "notification-producer",
+        "method": "POST",
+        "path": "/internal/v1/intents/direct",
+        "header": "X-DWP-Service-Token",
+        "identityHeader": "X-DWP-Source-Service",
+        "identity": "dwp-meeting-server",
+        "securitySource": "dwp-notification-server/src/main/java/com/dwp/services/notification/security/NotificationSecurityFilter.java",
+        "endpointSource": "dwp-notification-server/src/main/java/com/dwp/services/notification/api/NotificationProducerController.java"
+      },
+      "requiredMarkers": [
+        "/internal/v1/intents/direct",
+        "X-DWP-Service-Token",
+        "X-DWP-Source-Service",
+        "dwp-meeting-server",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        ".timeout(requestTimeout)",
+        "BoundedHttpResponseReader.readBeforeDeadline",
+        "STRICT_DUPLICATE_DETECTION",
+        "FAIL_ON_UNKNOWN_PROPERTIES",
+        "FAIL_ON_TRAILING_TOKENS",
+        "ACCEPT_FLOAT_AS_INT",
+        "X-DWP-Tenant-ID",
+        "NOTIFICATION_NOT_MATERIALIZED",
+        "jsonContentType(response)",
+        "valid(envelope, status)"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "@Retry",
+        "Authorization",
+        "Cookie",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Approval-Workflow-Runtime-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Meeting-Followup-Authority-Token",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Service-Identity",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Workflow-Planning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "meeting-auth-followup-current-authority",
+      "classification": "meeting-followup-current-authority-evaluation",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-meeting-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/GovernedProductSurfaceMeetingFollowupCurrentAuthority.java",
+      "purpose": "Evaluate current Auth authority for the exact tenant, actor, Meeting/report/candidate source and READ, CREATE or REASSIGN action. Registration does not activate Work source conversion or replace local Meeting membership, candidate ACL, retention, version and target eligibility gates.",
+      "auth": "Uses the dedicated Meeting follow-up authority token and dwp-meeting-server service identity accepted only on the exact Auth POST endpoint. Fresh response evidence must match the request source/action and remain valid for at most 90 seconds.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "ownerToken": {
+        "profile": "meeting-followup-authority",
+        "method": "POST",
+        "path": "/internal/auth/v1/meeting-followup-authority/evaluate",
+        "header": "X-DWP-Meeting-Followup-Authority-Token",
+        "identityHeader": "X-DWP-Service-Identity",
+        "identity": "dwp-meeting-server",
+        "securitySource": "dwp-auth-server/src/main/java/com/dwp/services/auth/config/ProductSurfaceInternalSecurityConfig.java",
+        "endpointSource": "dwp-auth-server/src/main/java/com/dwp/services/auth/controller/MeetingFollowupAuthorityController.java"
+      },
+      "requiredMarkers": [
+        "/internal/auth/v1/meeting-followup-authority/evaluate",
+        "X-DWP-Meeting-Followup-Authority-Token",
+        "X-DWP-Service-Identity",
+        "dwp-meeting-server",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        ".timeout(requestTimeout)",
+        "BoundedHttpResponseReader.readBeforeDeadline",
+        "STRICT_DUPLICATE_DETECTION",
+        "FAIL_ON_UNKNOWN_PROPERTIES",
+        "FAIL_ON_TRAILING_TOKENS",
+        "ACCEPT_FLOAT_AS_INT",
+        "response == null",
+        "response.matches(request)",
+        "now.plusSeconds(90)",
+        "jsonContentType(result)",
+        "AUTHORITY_UNVERIFIED"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "@Retry",
+        "Authorization",
+        "Cookie",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Approval-Workflow-Runtime-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Service-Token",
+        "X-DWP-Source-Service",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Workflow-Planning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -519,7 +822,10 @@
         "BoundedHttpResponseReader.read"
       ],
       "forbiddenMarkers": [
-        "X-DWP-Service-Token"
+        "X-DWP-Service-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -544,7 +850,10 @@
         "BoundedHttpResponseReader.read"
       ],
       "forbiddenMarkers": [
-        "X-DWP-Service-Token"
+        "X-DWP-Service-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -569,7 +878,10 @@
         "BoundedHttpResponseReader.read"
       ],
       "forbiddenMarkers": [
-        "X-DWP-Service-Token"
+        "X-DWP-Service-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -594,7 +906,10 @@
         "BoundedHttpResponseReader.read"
       ],
       "forbiddenMarkers": [
-        "X-DWP-Service-Token"
+        "X-DWP-Service-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -625,7 +940,10 @@
         "SERVICE_PEOPLE_URL",
         "SERVICE_PROVIDER_URL",
         "SERVICE_APPROVAL_URL",
-        "X-DWP-Service-Token"
+        "X-DWP-Service-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -655,7 +973,10 @@
         "SERVICE_PEOPLE_URL",
         "SERVICE_PROVIDER_URL",
         "SERVICE_APPROVAL_URL",
-        "X-DWP-Service-Token"
+        "X-DWP-Service-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     },
     {
@@ -686,7 +1007,313 @@
         "SERVICE_PEOPLE_URL",
         "SERVICE_PROVIDER_URL",
         "SERVICE_APPROVAL_URL",
-        "X-DWP-Service-Token"
+        "X-DWP-Service-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "approval-auth-policy-impact-authority",
+      "classification": "approval-policy-impact-current-source",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-approval-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-approval-server/src/main/java/com/dwp/services/approval/policyimpactsource/AuthApprovalPolicyImpactAuthorityClient.java",
+      "purpose": "Resolve three independently current same-resource-set management grants for the exact installed policy impact DATA decision and sealed policy head.",
+      "auth": "Dedicated short-lived RS256 transport and owner proofs with disjoint keys and purposes, exact private request bytes, and an independently verified Auth attestation.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/auth/v1/approval-policy-impact-authority/evaluate",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Service-Identity",
+        "dwp-approval-server",
+        "PolicyImpactSourceProofIssuer.Exchange",
+        "PolicyImpactSourceAttestationVerifier",
+        "PolicyImpactSourceResponseBody",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        "connectTimeout(Duration.ofSeconds(3))",
+        ".timeout(Duration.ofSeconds(5))",
+        "pending.get(5, TimeUnit.SECONDS)",
+        "pending.cancel(true)",
+        "body.cancel()"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Approval-Workflow-Runtime-Token",
+        "Authorization",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Workflow-Planning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "approval-auth-information-command-replay",
+      "classification": "approval-information-command-current-replay-source",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-approval-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-approval-server/src/main/java/com/dwp/services/approval/informationreplay/InformationReplayAuthorityClient.java",
+      "purpose": "Verify current original actor and source authority for a completed information-command receipt without executing or repairing the command.",
+      "auth": "Dedicated bounded RS256 transport and owner proofs with disjoint keys and purposes, exact private request bytes, and an independently verified Auth replay attestation.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/approval-workflow/information-command-replay",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Service-Identity",
+        "dwp-approval-server",
+        "InformationReplayProofIssuer.Exchange",
+        "InformationReplayAttestationVerifier",
+        "InformationReplayResponseBody",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        "connectTimeout(Duration.ofSeconds(3))",
+        ".timeout(Duration.ofSeconds(5))",
+        "pending.get(5,TimeUnit.SECONDS)",
+        "pending.cancel(true)",
+        "body.cancel()"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Approval-Workflow-Runtime-Token",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "Authorization",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Approval-Workflow-Planning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "approval-auth-workflow-admin-planning",
+      "classification": "approval-workflow-admin-planning-current-source",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-approval-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-approval-server/src/main/java/com/dwp/services/approval/workflowplanning/WorkflowPlanningAuthorityClient.java",
+      "purpose": "Resolve an immutable workflow source and requester-free aggregate role-pool preview through the dedicated Auth planning contract; never claim runtime task eligibility.",
+      "auth": "Dedicated short-lived RS256 transport and owner proofs with disjoint planning keys and purposes, exact private request bytes, and an independently verified Auth attestation.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/approval-workflow/admin-planning",
+        "X-DWP-Approval-Workflow-Planning-Token",
+        "X-DWP-Service-Identity",
+        "dwp-approval-server",
+        "WorkflowPlanningProofIssuer.Exchange",
+        "WorkflowPlanningAttestationVerifier",
+        "WorkflowPlanningResponseBody",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        "connectTimeout(Duration.ofSeconds(3))",
+        ".timeout(Duration.ofSeconds(5))",
+        "pending.get(5,TimeUnit.SECONDS)",
+        "pending.cancel(true)",
+        "body.cancel()"
+      ],
+      "forbiddenMarkers": [
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Approval-Workflow-Runtime-Token",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Product-Surface-Token",
+        "Authorization",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "approval-signature-current-authority",
+      "classification": "approval-signature-current-source",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-approval-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-approval-server/src/main/java/com/dwp/services/approval/signatures/ApprovalSignatureAuthorityClient.java",
+      "purpose": "Resolve current Auth-owned self-attestation authority for an exact sealed artifact and command; registration does not activate a release or replace native actor, object, body, HIGH and CAS checks.",
+      "auth": "Dedicated disjoint short-lived signed transport, immutable exact POST bytes and independently verified current owner response; no ambient identity, borrowed credentials or generic token exemption.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        ".timeout(Duration.ofSeconds(5))",
+        "/internal/auth/v1/approval-signature-authority/evaluate",
+        "ApprovalSignatureResponseBody",
+        "ApprovalSignatureSourceExchange.Exchange",
+        "HttpClient.Redirect.NEVER",
+        "OutboundHttpHeaders.propagateObservability",
+        "SignedJWT.parse(assertion)",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Service-Identity",
+        "body.cancel()",
+        "connectTimeout(Duration.ofSeconds(3))",
+        "dwp-approval-server",
+        "pending.cancel(true)",
+        "pending.get(5,"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "@Retry",
+        "Authorization",
+        "Cookie",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "X-DWP-Approval-Workflow-Planning-Token",
+        "X-DWP-Approval-Workflow-Runtime-Token",
+        "X-DWP-Identity-Plane",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Resource-Roles",
+        "X-DWP-Roles",
+        "X-DWP-Service-Token",
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "notification-approval-sla-current-authority",
+      "classification": "notification-approval-sla-current-source",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-notification-server",
+      "targetServices": [
+        "dwp-approval-server"
+      ],
+      "path": "dwp-notification-server/src/main/java/com/dwp/services/notification/integration/ApprovalSlaRecipientAuthorityClient.java",
+      "purpose": "Revalidate an immutable Approval quorum SLA recipient plan through the owner current-source contract before Notification materialization; registration does not activate System SLA or grant read or voter authority.",
+      "auth": "Dedicated disjoint short-lived signed transport, immutable exact POST bytes and independently verified current owner response; no ambient identity, borrowed credentials or generic token exemption.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        ".timeout(Duration.ofSeconds(5))",
+        "/internal/approval/v1/quorum-sla/recipient-authority/evaluate",
+        "ApprovalSlaAuthorityResponseBody",
+        "ApprovalSlaRecipientAuthority",
+        "ApprovalSlaTransportProof.Exchange",
+        "HttpClient.Redirect.NEVER",
+        "OutboundHttpHeaders.propagateObservability",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Service-Identity",
+        "body.cancel()",
+        "connectTimeout(Duration.ofSeconds(3))",
+        "dwp-notification-server",
+        "pending.cancel(true)",
+        "pending.get(5,"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "@Retry",
+        "Authorization",
+        "Cookie",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Approval-Workflow-Planning-Token",
+        "X-DWP-Approval-Workflow-Runtime-Token",
+        "X-DWP-Identity-Plane",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Resource-Roles",
+        "X-DWP-Roles",
+        "X-DWP-Service-Token",
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "approval-system-sla-current-authority",
+      "classification": "approval-system-sla-current-source",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-approval-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-approval-server/src/main/java/com/dwp/services/approval/systemslaauthority/AuthApprovalSystemSlaAuthorityClient.java",
+      "purpose": "Revalidate an owner-sealed current quorum SLA audience through the dedicated Auth source contract; registration does not activate System SLA or confer voter, directory or document authority.",
+      "auth": "Dedicated disjoint short-lived source and transport signatures, immutable exact POST bytes and independently verified current Auth attestation; no ambient identity, borrowed purposes or generic exemption.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        ".timeout(Duration.ofSeconds(5))",
+        "/internal/auth/v1/approval-system-sla-authority/evaluate",
+        "SystemSlaSourceAttestationVerifier",
+        "SystemSlaSourceProofIssuer.Exchange",
+        "SystemSlaSourceResponseBody",
+        "HttpClient.Redirect.NEVER",
+        "OutboundHttpHeaders.propagateObservability",
+        "X-DWP-Approval-System-Sla-Token",
+        "X-DWP-Service-Identity",
+        "body.cancel()",
+        "connectTimeout(Duration.ofSeconds(3))",
+        "dwp-approval-server",
+        "pending.cancel(true)",
+        "pending.get(5,"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "@Retry",
+        "Authorization",
+        "Cookie",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Approval-Workflow-Runtime-Token",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Workflow-Planning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Identity-Plane",
+        "X-DWP-Resource-Roles",
+        "X-DWP-Roles",
+        "X-DWP-Service-Token",
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID"
       ]
     }
   ],

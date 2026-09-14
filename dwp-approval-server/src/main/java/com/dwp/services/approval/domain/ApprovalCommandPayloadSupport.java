@@ -45,6 +45,7 @@ final class ApprovalCommandPayloadSupport {
             List<ApprovalDtos.WorkflowStepInput> steps) {
         normalized(category, Set.of("FINANCE", "PEOPLE", "PROCUREMENT", "ACCESS", "GENERAL"));
         normalized(classification, Set.of("INTERNAL", "CONFIDENTIAL", "RESTRICTED"));
+        if (steps == null || steps.isEmpty() || steps.size() > 20) throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
         Set<String> keys = new HashSet<>();
         long totalStepSla = 0;
         for (ApprovalDtos.WorkflowStepInput step : steps) {
@@ -67,6 +68,12 @@ final class ApprovalCommandPayloadSupport {
     List<ApprovalCommandRepository.RuntimeStep> runtimeSteps(
             String definition,
             int workflowSlaMinutes) {
+        ApprovalWorkflowQuorumDefinition typed = quorumDefinition(definition);
+        if (typed != null) {
+            if (typed.slaMinutes() != workflowSlaMinutes) throw new BaseException(ErrorCode.INVALID_STATE);
+            return typed.topologicalStages().stream().map(stage -> new ApprovalCommandRepository.RuntimeStep(
+                    stage.key(), stage.name(), stage.quorum().mode().name(), stage.candidateRole(), stage.slaMinutes())).toList();
+        }
         try {
             Map<String, Object> payload = objectMapper.readValue(
                     definition, new TypeReference<Map<String, Object>>() { });
@@ -103,6 +110,9 @@ final class ApprovalCommandPayloadSupport {
     }
 
     void validateFormFields(List<ApprovalDtos.FormFieldInput> fields) {
+        if (fields == null || fields.isEmpty() || fields.size() > 50) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Legacy forms require 1 to 50 fields.");
+        }
         Set<String> keys = new HashSet<>();
         for (ApprovalDtos.FormFieldInput field : fields) {
             String type = normalized(
@@ -139,6 +149,31 @@ final class ApprovalCommandPayloadSupport {
                         "optimisticConcurrency", true));
     }
 
+    ApprovalWorkflowQuorumDefinition quorumDefinition(String definition) {
+        Map<String, Object> value = object(definition, "Stored approval workflow is invalid.");
+        if (!value.containsKey("schemaContract")) return null;
+        if (!ApprovalWorkflowQuorum.CONTRACT.equals(value.get("schemaContract"))) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "Unknown stored workflow contract.");
+        }
+        return ApprovalWorkflowQuorumDefinition.compile(definition);
+    }
+
+    String workflowDefinitionJson(String category, String classification, int slaMinutes,
+            List<ApprovalDtos.WorkflowStepInput> steps, Map<String, Object> typedDefinition) {
+        if (typedDefinition == null) {
+            validateWorkflowInput(category, classification, slaMinutes, steps);
+            return json(workflowDefinition(steps));
+        }
+        normalized(category, Set.of("FINANCE", "PEOPLE", "PROCUREMENT", "ACCESS", "GENERAL"));
+        normalized(classification, Set.of("INTERNAL", "CONFIDENTIAL", "RESTRICTED"));
+        if (steps != null && !steps.isEmpty()) throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                "Choose a legacy workflow or a typed quorum definition, not both.");
+        var compiled = ApprovalWorkflowQuorumDefinition.compile(typedDefinition);
+        if (compiled.slaMinutes() != slaMinutes) throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                "Workflow SLA must equal the sealed typed definition SLA.");
+        return compiled.canonicalJson();
+    }
+
     Map<String, Object> defaultFormSchema() {
         return Map.of(
                 "schemaVersion", 1,
@@ -155,6 +190,44 @@ final class ApprovalCommandPayloadSupport {
         return Map.of(
                 "schemaVersion", 1,
                 "fields", fields.stream().map(this::formFieldSchema).toList());
+    }
+
+    String formSchemaJson(List<ApprovalDtos.FormFieldInput> fields, Map<String, Object> typedSchema) {
+        if (typedSchema != null) {
+            if (fields != null && !fields.isEmpty()) {
+                throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Choose either legacy fields or a typed schema.");
+            }
+            ApprovalFormSchemaV2 compiled = new ApprovalFormSchemaV2Compiler().compile(typedSchema);
+            requireTypedSummary(compiled);
+            return compiled.canonicalJson();
+        }
+        validateFormFields(fields);
+        return json(formSchema(fields));
+    }
+
+    boolean isTypedFormSchema(Map<String, Object> definition) {
+        if (!definition.containsKey("schemaContract")) return false;
+        if (!ApprovalFormSchemaV2.CONTRACT.equals(definition.get("schemaContract"))) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "Unknown stored approval schema contract.");
+        }
+        return true;
+    }
+
+    boolean isTypedFormSchema(String schema) {
+        return isTypedFormSchema(object(schema, "Stored approval form schema is invalid."));
+    }
+
+    void validateStoredFormSchema(String schema) {
+        Map<String, Object> definition = object(schema, "Stored approval form schema is invalid.");
+        if (isTypedFormSchema(definition)) requireTypedSummary(new ApprovalFormSchemaV2Compiler().compile(definition));
+    }
+
+    private void requireTypedSummary(ApprovalFormSchemaV2 schema) {
+        ApprovalFormSchemaV2.Field summary = schema.scope.fields().get("summary");
+        if (summary == null || !Set.of("TEXT", "TEXTAREA").contains(summary.type()) || summary.visibleWhen() != null) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "Typed request forms require an always-visible summary text field.");
+        }
     }
 
     private Map<String, Object> formFieldSchema(ApprovalDtos.FormFieldInput field) {

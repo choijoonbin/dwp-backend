@@ -9,6 +9,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.validation.BindException;
 import org.springframework.validation.ObjectError;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
@@ -18,6 +19,32 @@ import java.util.Map;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class GlobalExceptionHandlerTest {
+
+    @Test
+    void unsupportedMethodReturns405WithOnlyDeclaredAllowMethods() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(new StaticMessageSource());
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-Correlation-ID", "unsupported-method-test");
+        var response = handler.handleHttpRequestMethodNotSupported(
+                new HttpRequestMethodNotSupportedException("GET", java.util.List.of("POST")),
+                request, Locale.ENGLISH);
+        assertThat(response.getStatusCode().value()).isEqualTo(405);
+        assertThat(response.getHeaders().getAllow()).containsExactly(HttpMethod.POST);
+        assertThat(response.getBody()).isNotNull();
+        assertThat(response.getBody().getSuccess()).isFalse();
+        assertThat(response.getBody().getCorrelationId()).isEqualTo("unsupported-method-test");
+        assertThat(response.getBody().getMessage()).isEqualTo("The request method is not supported.");
+    }
+
+    @Test
+    void unsupportedMethodWithoutDeclaredMethodsDoesNotInventAllowHeader() {
+        GlobalExceptionHandler handler = new GlobalExceptionHandler(new StaticMessageSource());
+        var response = handler.handleHttpRequestMethodNotSupported(
+                new HttpRequestMethodNotSupportedException("GET"),
+                new MockHttpServletRequest(), Locale.ENGLISH);
+        assertThat(response.getStatusCode().value()).isEqualTo(405);
+        assertThat(response.getHeaders().getAllow()).isEmpty();
+    }
 
     @Test
     void missingQueryParameterRemainsAClientValidationError() {

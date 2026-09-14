@@ -1,6 +1,49 @@
 {
   "components": {
     "schemas": {
+      "AccessRuleChangeRequest": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/SiteAccessRuleRequest"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposed"
+        ],
+        "type": "object"
+      },
+      "AccessRuleFloorOption": {
+        "properties": {
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "DRAFT",
+              "ACTIVE",
+              "CLOSED"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AccountSummary": {
         "properties": {
           "accountId": {
@@ -1636,6 +1679,33 @@
         },
         "type": "object"
       },
+      "ApiResponseBookingAvailability": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/BookingAvailability"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseBookingSummary": {
         "properties": {
           "correlationId": {
@@ -1933,6 +2003,60 @@
         },
         "type": "object"
       },
+      "ApiResponseClosure": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Closure"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseClosurePage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ClosurePage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseCodeSet": {
         "properties": {
           "correlationId": {
@@ -1940,6 +2064,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/CodeSet"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCollaborationOverview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CollaborationOverview"
           },
           "errorCode": {
             "type": "string"
@@ -2156,6 +2307,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/Connector"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseConnectorStatus": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConnectorStatus"
           },
           "errorCode": {
             "type": "string"
@@ -2581,6 +2759,33 @@
         },
         "type": "object"
       },
+      "ApiResponseFacilityRequest": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FacilityRequest"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseFeedResponse": {
         "properties": {
           "correlationId": {
@@ -2723,6 +2928,87 @@
           },
           "data": {
             "$ref": "#/components/schemas/FolderSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseFutureBookingImpact": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FutureBookingImpact"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseGovernanceChangeReview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/GovernanceChangeReview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseGovernanceOverview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/GovernanceOverview"
           },
           "errorCode": {
             "type": "string"
@@ -4687,6 +4973,33 @@
         },
         "type": "object"
       },
+      "ApiResponseMutationResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/MutationResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseOrganizationResponse": {
         "properties": {
           "correlationId": {
@@ -5065,6 +5378,33 @@
         },
         "type": "object"
       },
+      "ApiResponsePolicyImpact": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PolicyImpact"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponsePolicyRevision": {
         "properties": {
           "correlationId": {
@@ -5389,6 +5729,60 @@
         },
         "type": "object"
       },
+      "ApiResponseRequestPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RequestPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseResourcePhoto": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ResourcePhoto"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseResourceSummary": {
         "properties": {
           "correlationId": {
@@ -5504,6 +5898,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/RoomAvailabilityResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseRoomBookingImpact": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RoomBookingImpact"
           },
           "errorCode": {
             "type": "string"
@@ -5747,6 +6168,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/SharedInboxSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSharingPolicy": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SharingPolicy"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSharingPreference": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SharingPreference"
           },
           "errorCode": {
             "type": "string"
@@ -6224,6 +6699,33 @@
         },
         "type": "object"
       },
+      "ApiResponseWorkPlan": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkPlan"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseWorkQueue": {
         "properties": {
           "correlationId": {
@@ -6393,6 +6895,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/WorkplaceDelegatedAdminScope"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseWorkplaceExperienceBookingDetail": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkplaceExperienceBookingDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseWorkplaceExperienceReport": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkplaceExperienceReport"
           },
           "errorCode": {
             "type": "string"
@@ -7684,6 +8240,49 @@
         ],
         "type": "object"
       },
+      "BookingAvailability": {
+        "properties": {
+          "available": {
+            "type": "boolean"
+          },
+          "closures": {
+            "items": {
+              "$ref": "#/components/schemas/PublicClosure"
+            },
+            "type": "array"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "guaranteesBooking": {
+            "type": "boolean"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "BookingDecisionRequest": {
         "properties": {
           "decision": {
@@ -7704,6 +8303,52 @@
         "required": [
           "decision",
           "version"
+        ],
+        "type": "object"
+      },
+      "BookingPage": {
+        "properties": {
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/WorkplaceExperienceBookingDetail"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "totalPages": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "BookingPolicyChangeRequest": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/PolicyRequest"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposed"
         ],
         "type": "object"
       },
@@ -8294,6 +8939,28 @@
         ],
         "type": "object"
       },
+      "CancelClosure": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
       "CaseActivity": {
         "properties": {
           "activityId": {
@@ -8817,6 +9484,146 @@
         },
         "type": "object"
       },
+      "ChangeRequestStatus": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "OPEN",
+              "IN_PROGRESS",
+              "RESOLVED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "status",
+          "version"
+        ],
+        "type": "object"
+      },
+      "Closure": {
+        "properties": {
+          "affectedBookingsPath": {
+            "type": "string"
+          },
+          "cancellationReason": {
+            "type": "string"
+          },
+          "closureId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceName": {
+            "type": "string"
+          },
+          "resourceVersionAtCreate": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACTIVE",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ClosurePage": {
+        "properties": {
+          "allowedFloorIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/Closure"
+            },
+            "type": "array"
+          },
+          "countsScope": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "totalPages": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "CodeBinding": {
         "properties": {
           "consumerService": {
@@ -8950,6 +9757,42 @@
           "sortOrder": {
             "format": "int32",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CollaborationOverview": {
+        "properties": {
+          "actualPresence": {
+            "$ref": "#/components/schemas/ConnectorStatus"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ownPlans": {
+            "items": {
+              "$ref": "#/components/schemas/WorkPlan"
+            },
+            "type": "array"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/SharingPolicy"
+          },
+          "preference": {
+            "$ref": "#/components/schemas/SharingPreference"
+          },
+          "shareableGroups": {
+            "items": {
+              "$ref": "#/components/schemas/ShareableGroup"
+            },
+            "type": "array"
+          },
+          "sharedPlans": {
+            "items": {
+              "$ref": "#/components/schemas/SharedWorkPlan"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -9252,6 +10095,30 @@
               "CONFIDENTIAL"
             ],
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Comparison": {
+        "properties": {
+          "noShowChangePercentagePoints": {
+            "format": "double",
+            "type": "number"
+          },
+          "previous": {
+            "$ref": "#/components/schemas/Summary"
+          },
+          "previousFrom": {
+            "format": "date",
+            "type": "string"
+          },
+          "previousTo": {
+            "format": "date",
+            "type": "string"
+          },
+          "utilizationChangePercentagePoints": {
+            "format": "double",
+            "type": "number"
           }
         },
         "type": "object"
@@ -9754,6 +10621,78 @@
         },
         "type": "object"
       },
+      "ConnectorRequest": {
+        "properties": {
+          "configurationReference": {
+            "pattern": "[A-Za-z0-9._:/-]{1,160}",
+            "type": "string"
+          },
+          "confirmed": {
+            "type": "boolean"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "provider": {
+            "minLength": 1,
+            "pattern": "[A-Za-z0-9._-]{1,80}",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "provider",
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "ConnectorStatus": {
+        "properties": {
+          "configurationReference": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "CALENDAR",
+              "ACTUAL_PRESENCE",
+              "SIGNAGE",
+              "VISITOR",
+              "VEHICLE"
+            ],
+            "type": "string"
+          },
+          "lastVerifiedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "NOT_CONFIGURED",
+              "DISABLED",
+              "CONFIGURED_UNVERIFIED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "Contact": {
         "properties": {
           "contactId": {
@@ -10175,6 +11114,38 @@
           "sourceEntries",
           "sourceLocale",
           "targetLocale"
+        ],
+        "type": "object"
+      },
+      "CreateClosure": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "endsAt",
+          "reason",
+          "startsAt",
+          "version"
         ],
         "type": "object"
       },
@@ -10694,6 +11665,42 @@
         ],
         "type": "object"
       },
+      "CurrentCounts": {
+        "properties": {
+          "activeSites": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "assignedResources": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bookingsThisWeek": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "checkedInToday": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "configuredFloors": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/WorkplacePolicy"
+          },
+          "reservableResources": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "utilizationPercent": {
+            "format": "double",
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
       "CustodyCandidate": {
         "properties": {
           "displayName": {
@@ -10735,6 +11742,39 @@
           "userId": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DailyTrend": {
+        "properties": {
+          "bookedMinutes": {
+            "format": "double",
+            "type": "number"
+          },
+          "bookingCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "denominatorResourceMinutes": {
+            "format": "double",
+            "type": "number"
+          },
+          "noShowCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "noShowPercent": {
+            "format": "double",
+            "type": "number"
+          },
+          "utilizationPercent": {
+            "format": "double",
+            "type": "number"
           }
         },
         "type": "object"
@@ -10859,6 +11899,15 @@
             "minimum": 1,
             "type": "integer"
           },
+          "floorIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 2147483647,
+            "minItems": 1,
+            "type": "array"
+          },
           "managedGroupRef": {
             "format": "uuid",
             "type": "string"
@@ -10916,6 +11965,25 @@
           "permissions",
           "scopeType",
           "state"
+        ],
+        "type": "object"
+      },
+      "DelegationChangeRequest": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/DelegatedAdminScopeRequest"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposed"
         ],
         "type": "object"
       },
@@ -11229,6 +12297,13 @@
           "delegationId": {
             "format": "uuid",
             "type": "string"
+          },
+          "floorIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
           },
           "permissions": {
             "items": {
@@ -12031,6 +13106,104 @@
         },
         "type": "object"
       },
+      "ExternalSource": {
+        "properties": {
+          "availability": {
+            "enum": [
+              "AVAILABLE",
+              "EMPTY",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "configurationStatus": {
+            "type": "string"
+          },
+          "integrationPath": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "lastVerifiedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "provider": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FacilityRequest": {
+        "properties": {
+          "category": {
+            "enum": [
+              "REPAIR",
+              "CLEANING",
+              "ACCESS",
+              "OTHER"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "requestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceName": {
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "OPEN",
+              "IN_PROGRESS",
+              "RESOLVED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "statusReason": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "FeedResponse": {
         "properties": {
           "actionableItems": {
@@ -12425,6 +13598,25 @@
         ],
         "type": "object"
       },
+      "FloorSummary": {
+        "properties": {
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "floorName": {
+            "type": "string"
+          },
+          "resourceCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/Summary"
+          }
+        },
+        "type": "object"
+      },
       "FolderCreateRequest": {
         "properties": {
           "accountId": {
@@ -12557,6 +13749,112 @@
           "displayName",
           "version"
         ],
+        "type": "object"
+      },
+      "FutureBookingImpact": {
+        "properties": {
+          "affectedBookings": {
+            "$ref": "#/components/schemas/BookingPage"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          },
+          "mutatesBookings": {
+            "type": "boolean"
+          },
+          "notificationScheduled": {
+            "type": "boolean"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "replacementScheduled": {
+            "type": "boolean"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceName": {
+            "type": "string"
+          },
+          "resourceState": {
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "GovernanceChangeReview": {
+        "properties": {
+          "current": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "currentActorAccess": {
+            "$ref": "#/components/schemas/SiteAccessDecision"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "knownImpact": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "proposedActorAccess": {
+            "$ref": "#/components/schemas/SiteAccessDecision"
+          },
+          "targetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "GovernanceOverview": {
+        "properties": {
+          "connectors": {
+            "items": {
+              "$ref": "#/components/schemas/ConnectorStatus"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "policy": {
+            "$ref": "#/components/schemas/SharingPolicy"
+          },
+          "privacy": {
+            "$ref": "#/components/schemas/PrivacySummary"
+          }
+        },
         "type": "object"
       },
       "GovernedHomeZone": {
@@ -12717,6 +14015,46 @@
           "idempotencyKey",
           "subject"
         ],
+        "type": "object"
+      },
+      "HeatmapCell": {
+        "properties": {
+          "bookedMinutes": {
+            "format": "double",
+            "type": "number"
+          },
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "dayOfWeek": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "denominatorResourceMinutes": {
+            "format": "double",
+            "type": "number"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "hour": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "offset": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "utilizationPercent": {
+            "format": "double",
+            "type": "number"
+          }
+        },
         "type": "object"
       },
       "HomeAppPlacement": {
@@ -14067,6 +15405,47 @@
         },
         "type": "object"
       },
+      "Metadata": {
+        "properties": {
+          "availability": {
+            "enum": [
+              "AVAILABLE",
+              "EMPTY",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "denominatorBasis": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "historicalRosterAvailable": {
+            "type": "boolean"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "recurringOccurrencesIncluded": {
+            "type": "boolean"
+          },
+          "sourceUpdatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "MutationResult": {
+        "properties": {
+          "removed": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "OrganizationResponse": {
         "properties": {
           "accounts": {
@@ -15365,6 +16744,72 @@
         },
         "type": "object"
       },
+      "PolicyChanges": {
+        "properties": {
+          "autoReleaseMinutes": {
+            "format": "int32",
+            "maximum": 240,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maximumBookingMinutes": {
+            "format": "int32",
+            "maximum": 10080,
+            "minimum": 15,
+            "type": "integer"
+          },
+          "minimumBookingMinutes": {
+            "format": "int32",
+            "maximum": 1440,
+            "minimum": 15,
+            "type": "integer"
+          },
+          "requireCheckIn": {
+            "type": "boolean"
+          },
+          "workingDayEnd": {
+            "type": "string"
+          },
+          "workingDayStart": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyDailyImpact": {
+        "properties": {
+          "affectedBookings": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "date": {
+            "format": "date",
+            "type": "string"
+          },
+          "reviewedBookings": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyEffect": {
+        "properties": {
+          "booking": {
+            "$ref": "#/components/schemas/WorkplaceExperienceBookingDetail"
+          },
+          "knownEffects": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "PolicyFieldSource": {
         "properties": {
           "policyOverrideId": {
@@ -15391,6 +16836,103 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "PolicyImpact": {
+        "properties": {
+          "affectedBookings": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "allowedFloorIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyEffect"
+            },
+            "type": "array"
+          },
+          "countsScope": {
+            "type": "string"
+          },
+          "dailyImpact": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyDailyImpact"
+            },
+            "type": "array"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "from": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          },
+          "mutatesExistingBookings": {
+            "type": "boolean"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/PolicyChanges"
+          },
+          "reviewedBookings": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "to": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "totalPages": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyOverrideChangeRequest": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/PolicyOverrideRequest"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "proposed"
+        ],
         "type": "object"
       },
       "PolicyOverrideRequest": {
@@ -15789,6 +17331,43 @@
         },
         "type": "object"
       },
+      "PrivacySummary": {
+        "properties": {
+          "anonymizedBookingCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "bookingRetentionDays": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expiredEligibleBookingCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "facilityClosureEligibleRetentionCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "facilityClosuresPurgedCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "facilityRequestEligibleRetentionCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "facilityRequestsPurgedCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "legalHoldCount": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ProductSurfaceTelemetryEventRequest": {
         "additionalProperties": false,
         "properties": {
@@ -16115,6 +17694,26 @@
           "tenantId": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PublicClosure": {
+        "properties": {
+          "availability": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
           }
         },
         "type": "object"
@@ -16767,6 +18366,47 @@
         },
         "type": "object"
       },
+      "RequestPage": {
+        "properties": {
+          "allowedFloorIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/FacilityRequest"
+            },
+            "type": "array"
+          },
+          "countsScope": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "totalPages": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "RequestSummary": {
         "properties": {
           "assignedGroup": {
@@ -16860,6 +18500,35 @@
           "startsAt": {
             "format": "date-time",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ResourcePhoto": {
+        "properties": {
+          "altText": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sha256": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "url": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -17337,6 +19006,41 @@
         ],
         "type": "object"
       },
+      "RoomAffectedBooking": {
+        "properties": {
+          "bookingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "calendarResourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "RoomAvailabilityResponse": {
         "properties": {
           "bookingEligibility": {
@@ -17404,6 +19108,69 @@
           },
           "resourceVersion": {
             "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RoomBookingImpact": {
+        "properties": {
+          "availability": {
+            "type": "string"
+          },
+          "calendarResourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "content": {
+            "items": {
+              "$ref": "#/components/schemas/RoomAffectedBooking"
+            },
+            "type": "array"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "existingBookingsMutated": {
+            "type": "boolean"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "source": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "totalPages": {
+            "format": "int32",
             "type": "integer"
           }
         },
@@ -18373,6 +20140,18 @@
         },
         "type": "object"
       },
+      "ShareableGroup": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "groupRef": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "SharedInboxMember": {
         "properties": {
           "displayName": {
@@ -18497,16 +20276,181 @@
         ],
         "type": "object"
       },
+      "SharedWorkPlan": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "OFFICE",
+              "REMOTE",
+              "OFF"
+            ],
+            "type": "string"
+          },
+          "planDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "planId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "visibility": {
+            "enum": [
+              "PRIVATE",
+              "SITE",
+              "FLOOR",
+              "RESOURCE"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SharingPolicy": {
+        "properties": {
+          "maximumVisibility": {
+            "enum": [
+              "PRIVATE",
+              "SITE",
+              "FLOOR",
+              "RESOURCE"
+            ],
+            "type": "string"
+          },
+          "sharingEnabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SharingPolicyRequest": {
+        "properties": {
+          "confirmed": {
+            "type": "boolean"
+          },
+          "maximumVisibility": {
+            "enum": [
+              "PRIVATE",
+              "SITE",
+              "FLOOR",
+              "RESOURCE"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sharingEnabled": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "maximumVisibility",
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "SharingPreference": {
+        "properties": {
+          "optIn": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "visibility": {
+            "enum": [
+              "PRIVATE",
+              "SITE",
+              "FLOOR",
+              "RESOURCE"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SharingPreferenceRequest": {
+        "properties": {
+          "optIn": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "visibility": {
+            "enum": [
+              "PRIVATE",
+              "SITE",
+              "FLOOR",
+              "RESOURCE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "version",
+          "visibility"
+        ],
+        "type": "object"
+      },
       "SiteAccessDecision": {
         "properties": {
           "allowed": {
             "type": "boolean"
+          },
+          "availableFloors": {
+            "items": {
+              "$ref": "#/components/schemas/AccessRuleFloorOption"
+            },
+            "type": "array"
           },
           "decision": {
             "type": "string"
           },
           "evaluatedAt": {
             "format": "date-time",
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
             "type": "string"
           },
           "matchedRuleIds": {
@@ -18542,6 +20486,10 @@
               "ALLOW",
               "DENY"
             ],
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
             "type": "string"
           },
           "permission": {
@@ -18754,6 +20702,51 @@
           "userId": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Summary": {
+        "properties": {
+          "bookedMinutes": {
+            "format": "double",
+            "type": "number"
+          },
+          "bookingCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cancelledCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "denominatorResourceMinutes": {
+            "format": "double",
+            "type": "number"
+          },
+          "noShowCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "noShowEligibleCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "noShowPercent": {
+            "format": "double",
+            "type": "number"
+          },
+          "peakUtilizationPercent": {
+            "format": "double",
+            "type": "number"
+          },
+          "unresolvedPastBookings": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "utilizationPercent": {
+            "format": "double",
+            "type": "number"
           }
         },
         "type": "object"
@@ -20689,6 +22682,108 @@
         },
         "type": "object"
       },
+      "WorkPlan": {
+        "properties": {
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "groupRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "OFFICE",
+              "REMOTE",
+              "OFF"
+            ],
+            "type": "string"
+          },
+          "planDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "planId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "visibility": {
+            "enum": [
+              "PRIVATE",
+              "SITE",
+              "FLOOR",
+              "RESOURCE"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "WorkPlanRequest": {
+        "properties": {
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "groupRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "mode": {
+            "enum": [
+              "OFFICE",
+              "REMOTE",
+              "OFF"
+            ],
+            "type": "string"
+          },
+          "planDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "visibility": {
+            "enum": [
+              "PRIVATE",
+              "SITE",
+              "FLOOR",
+              "RESOURCE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "mode",
+          "planDate",
+          "visibility"
+        ],
+        "type": "object"
+      },
       "WorkQueue": {
         "properties": {
           "generatedAt": {
@@ -20787,6 +22882,10 @@
             "format": "date-time",
             "type": "string"
           },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "floorName": {
             "type": "string"
           },
@@ -20825,6 +22924,10 @@
               "PHONE_BOOTH",
               "EQUIPMENT"
             ],
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
             "type": "string"
           },
           "siteName": {
@@ -21099,6 +23202,13 @@
             "format": "uuid",
             "type": "string"
           },
+          "floorIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
           "managedGroupRef": {
             "format": "uuid",
             "type": "string"
@@ -21150,8 +23260,181 @@
         },
         "type": "object"
       },
+      "WorkplaceExperienceBookingDetail": {
+        "properties": {
+          "bookingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "checkedInAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "detailHref": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "exceptionReasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "floorName": {
+            "type": "string"
+          },
+          "legalHold": {
+            "type": "boolean"
+          },
+          "releasedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceName": {
+            "type": "string"
+          },
+          "resourceType": {
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WorkplaceExperienceReport": {
+        "properties": {
+          "comparison": {
+            "$ref": "#/components/schemas/Comparison"
+          },
+          "current": {
+            "$ref": "#/components/schemas/CurrentCounts"
+          },
+          "dailyTrend": {
+            "items": {
+              "$ref": "#/components/schemas/DailyTrend"
+            },
+            "type": "array"
+          },
+          "definitions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "exceptions": {
+            "$ref": "#/components/schemas/BookingPage"
+          },
+          "externalSources": {
+            "items": {
+              "$ref": "#/components/schemas/ExternalSource"
+            },
+            "type": "array"
+          },
+          "floors": {
+            "items": {
+              "$ref": "#/components/schemas/FloorSummary"
+            },
+            "type": "array"
+          },
+          "hourlyHeatmap": {
+            "items": {
+              "$ref": "#/components/schemas/HeatmapCell"
+            },
+            "type": "array"
+          },
+          "metadata": {
+            "$ref": "#/components/schemas/Metadata"
+          },
+          "scope": {
+            "$ref": "#/components/schemas/WorkplaceExperienceScope"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/Summary"
+          }
+        },
+        "type": "object"
+      },
+      "WorkplaceExperienceScope": {
+        "properties": {
+          "allowedFloorIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "countsScope": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "from": {
+            "format": "date",
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "siteName": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "to": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "WorkplaceExploreResponse": {
         "properties": {
+          "closures": {
+            "items": {
+              "$ref": "#/components/schemas/PublicClosure"
+            },
+            "type": "array"
+          },
           "floors": {
             "items": {
               "$ref": "#/components/schemas/WorkplaceFloor"
@@ -21845,6 +24128,13 @@
           "address": {
             "type": "string"
           },
+          "allowedFloorIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
           "campusId": {
             "format": "uuid",
             "type": "string"
@@ -21855,6 +24145,9 @@
           "configuredFloorCount": {
             "format": "int64",
             "type": "integer"
+          },
+          "countsScope": {
+            "type": "string"
           },
           "name": {
             "type": "string"
@@ -21915,6 +24208,10 @@
               "ALLOW",
               "DENY"
             ],
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
             "type": "string"
           },
           "permission": {
@@ -22770,7 +25067,7 @@
     },
     "/v1/admin/api-history/overview": {
       "get": {
-        "operationId": "overview_6",
+        "operationId": "overview_8",
         "parameters": [
           {
             "in": "query",
@@ -22850,7 +25147,7 @@
     },
     "/v1/admin/app-access-requests": {
       "get": {
-        "operationId": "requests_4",
+        "operationId": "requests_5",
         "parameters": [
           {
             "in": "header",
@@ -23875,7 +26172,7 @@
     },
     "/v1/admin/audit-control/overview": {
       "get": {
-        "operationId": "overview_5",
+        "operationId": "overview_7",
         "parameters": [
           {
             "in": "query",
@@ -23912,7 +26209,7 @@
     },
     "/v1/admin/audit-control/policy": {
       "get": {
-        "operationId": "policy_1",
+        "operationId": "policy_2",
         "parameters": [],
         "responses": {
           "200": {
@@ -24798,7 +27095,7 @@
     },
     "/v1/admin/calendar/overview": {
       "get": {
-        "operationId": "overview_4",
+        "operationId": "overview_6",
         "parameters": [
           {
             "in": "header",
@@ -24828,7 +27125,7 @@
     },
     "/v1/admin/calendar/policy": {
       "get": {
-        "operationId": "policy",
+        "operationId": "policy_1",
         "parameters": [],
         "responses": {
           "200": {
@@ -24992,7 +27289,7 @@
     },
     "/v1/admin/catalog": {
       "get": {
-        "operationId": "overview_3",
+        "operationId": "overview_5",
         "parameters": [
           {
             "in": "query",
@@ -26289,7 +28586,7 @@
     },
     "/v1/admin/integrations/productivity/overview": {
       "get": {
-        "operationId": "overview_2",
+        "operationId": "overview_4",
         "parameters": [],
         "responses": {
           "200": {
@@ -26900,7 +29197,7 @@
     },
     "/v1/admin/mail/overview": {
       "get": {
-        "operationId": "overview_1",
+        "operationId": "overview_3",
         "parameters": [],
         "responses": {
           "200": {
@@ -27513,7 +29810,7 @@
     },
     "/v1/admin/preference-exceptions": {
       "get": {
-        "operationId": "requests_3",
+        "operationId": "requests_4",
         "parameters": [
           {
             "in": "query",
@@ -29341,7 +31638,7 @@
     },
     "/v1/admin/services/requests": {
       "get": {
-        "operationId": "requests_2",
+        "operationId": "requests_3",
         "parameters": [
           {
             "in": "query",
@@ -29866,6 +32163,24 @@
           },
           {
             "in": "query",
+            "name": "siteId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "floorId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "status",
             "required": false,
             "schema": {
@@ -30047,6 +32362,1618 @@
         },
         "tags": [
           "workplace-operations-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience-report": {
+      "get": {
+        "operationId": "report",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "floorId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceExperienceReport"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-report-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience-report/bookings/{bookingId}": {
+      "get": {
+        "operationId": "booking",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "bookingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceExperienceBookingDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-report-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/booking-policy/changes": {
+      "post": {
+        "operationId": "changeBookingPolicy",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingPolicyChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplacePolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/booking-policy/review": {
+      "post": {
+        "operationId": "reviewBookingPolicy",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookingPolicyChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseGovernanceChangeReview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/connectors/{kind}": {
+      "put": {
+        "operationId": "configureConnector",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "CALENDAR",
+                "ACTUAL_PRESENCE",
+                "SIGNAGE",
+                "VISITOR",
+                "VEHICLE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ConnectorRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConnectorStatus"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/delegations/changes": {
+      "post": {
+        "operationId": "changeDelegation_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegationChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceDelegatedAdminScope"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/delegations/review": {
+      "post": {
+        "operationId": "reviewDelegation_1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegationChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseGovernanceChangeReview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/delegations/{delegationId}/changes": {
+      "post": {
+        "operationId": "changeDelegation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "delegationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegationChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceDelegatedAdminScope"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/delegations/{delegationId}/review": {
+      "post": {
+        "operationId": "reviewDelegation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "delegationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegationChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseGovernanceChangeReview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/overview": {
+      "get": {
+        "operationId": "overview_2",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseGovernanceOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/policy": {
+      "get": {
+        "operationId": "policy",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSharingPolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      },
+      "put": {
+        "operationId": "savePolicy",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharingPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSharingPolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/policy-overrides/changes": {
+      "post": {
+        "operationId": "changePolicyOverride",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scopeType",
+            "required": true,
+            "schema": {
+              "enum": [
+                "TENANT",
+                "CAMPUS",
+                "SITE",
+                "FLOOR",
+                "ZONE",
+                "RESOURCE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyOverrideChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplacePolicyOverride"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/policy-overrides/review": {
+      "post": {
+        "operationId": "reviewPolicyOverride_1",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "scopeType",
+            "required": true,
+            "schema": {
+              "enum": [
+                "TENANT",
+                "CAMPUS",
+                "SITE",
+                "FLOOR",
+                "ZONE",
+                "RESOURCE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyOverrideChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseGovernanceChangeReview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/policy-overrides/{overrideId}/changes": {
+      "post": {
+        "operationId": "changePolicyOverride_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "overrideId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeType",
+            "required": true,
+            "schema": {
+              "enum": [
+                "TENANT",
+                "CAMPUS",
+                "SITE",
+                "FLOOR",
+                "ZONE",
+                "RESOURCE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyOverrideChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplacePolicyOverride"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/policy-overrides/{overrideId}/review": {
+      "post": {
+        "operationId": "reviewPolicyOverride",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "overrideId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeType",
+            "required": true,
+            "schema": {
+              "enum": [
+                "TENANT",
+                "CAMPUS",
+                "SITE",
+                "FLOOR",
+                "ZONE",
+                "RESOURCE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PolicyOverrideChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseGovernanceChangeReview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/resources/{resourceId}/photo": {
+      "delete": {
+        "operationId": "deletePhoto",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMutationResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      },
+      "get": {
+        "operationId": "photo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      },
+      "post": {
+        "operationId": "uploadPhoto",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reason",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "altText",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "properties": {
+                  "file": {
+                    "format": "binary",
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "file"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseResourcePhoto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/resources/{resourceId}/photo/metadata": {
+      "get": {
+        "operationId": "photoMetadata_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseResourcePhoto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/sites/{siteId}/access-rules/changes": {
+      "post": {
+        "operationId": "changeRule_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessRuleChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceSiteAccessRule"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/sites/{siteId}/access-rules/review": {
+      "post": {
+        "operationId": "reviewRule_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessRuleChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseGovernanceChangeReview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/sites/{siteId}/access-rules/{ruleId}/changes": {
+      "post": {
+        "operationId": "changeRule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ruleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessRuleChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkplaceSiteAccessRule"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/collaboration/sites/{siteId}/access-rules/{ruleId}/review": {
+      "post": {
+        "operationId": "reviewRule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "ruleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccessRuleChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseGovernanceChangeReview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/facilities/closures": {
+      "get": {
+        "operationId": "closures",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "floorId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "resourceId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "includeCancelled",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseClosurePage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-facilities-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/facilities/closures/{closureId}": {
+      "get": {
+        "operationId": "closure",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "closureId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseClosure"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-facilities-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/facilities/closures/{closureId}/cancel": {
+      "put": {
+        "operationId": "cancelClosure",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "closureId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CancelClosure"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseClosure"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-facilities-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/facilities/requests": {
+      "get": {
+        "operationId": "requests_2",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "floorId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "enum": [
+                "OPEN",
+                "IN_PROGRESS",
+                "RESOLVED",
+                "CANCELLED"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRequestPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-facilities-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/facilities/requests/{requestId}/status": {
+      "put": {
+        "operationId": "status",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeRequestStatus"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFacilityRequest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-facilities-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/facilities/resources/{resourceId}/closures": {
+      "post": {
+        "operationId": "createClosure",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateClosure"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseClosure"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-facilities-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/experience/facilities/resources/{resourceId}/room-booking-impact": {
+      "get": {
+        "operationId": "roomImpact",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRoomBookingImpact"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-facilities-admin-controller"
         ]
       }
     },
@@ -31869,6 +35796,213 @@
         ]
       }
     },
+    "/v1/admin/workplace/policy-impact-preview": {
+      "get": {
+        "operationId": "policyImpact",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "floorId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "requireCheckIn",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          },
+          {
+            "in": "query",
+            "name": "autoReleaseMinutes",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimumBookingMinutes",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "maximumBookingMinutes",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workingDayStart",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "workingDayEnd",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePolicyImpact"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-report-controller"
+        ]
+      }
+    },
+    "/v1/admin/workplace/resources/{resourceId}/future-booking-impact": {
+      "get": {
+        "operationId": "futureImpact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFutureBookingImpact"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-report-controller"
+        ]
+      }
+    },
     "/v1/admin/workplace/sites": {
       "get": {
         "operationId": "getWorkplaceSites",
@@ -32210,7 +36344,7 @@
     },
     "/v1/calendar/availability": {
       "get": {
-        "operationId": "availability",
+        "operationId": "availability_1",
         "parameters": [
           {
             "in": "header",
@@ -36159,7 +40293,7 @@
     },
     "/v1/home/overview": {
       "get": {
-        "operationId": "overview",
+        "operationId": "overview_1",
         "parameters": [
           {
             "in": "header",
@@ -38036,7 +42170,7 @@
     },
     "/v1/personal-preferences/managed-policy": {
       "get": {
-        "operationId": "policy_2",
+        "operationId": "policy_3",
         "parameters": [],
         "responses": {
           "200": {
@@ -39221,6 +43355,462 @@
         },
         "tags": [
           "workplace-operations-controller"
+        ]
+      }
+    },
+    "/v1/workplace/experience/collaboration/overview": {
+      "get": {
+        "operationId": "overview",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "groupRef",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCollaborationOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/workplace/experience/collaboration/resources/{resourceId}/photo": {
+      "get": {
+        "operationId": "photo_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/workplace/experience/collaboration/resources/{resourceId}/photo/metadata": {
+      "get": {
+        "operationId": "photoMetadata",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseResourcePhoto"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/workplace/experience/collaboration/sharing-preference": {
+      "delete": {
+        "operationId": "revokePreference",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSharingPreference"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-controller"
+        ]
+      },
+      "put": {
+        "operationId": "savePreference",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharingPreferenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSharingPreference"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/workplace/experience/collaboration/work-plans": {
+      "post": {
+        "operationId": "savePlan",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/WorkPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkPlan"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/workplace/experience/collaboration/work-plans/{planId}": {
+      "delete": {
+        "operationId": "deletePlan",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "planId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMutationResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-collaboration-controller"
+        ]
+      }
+    },
+    "/v1/workplace/experience/facilities/requests": {
+      "get": {
+        "operationId": "ownRequests",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRequestPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-facilities-controller"
+        ]
+      }
+    },
+    "/v1/workplace/experience/facilities/requests/{requestId}": {
+      "get": {
+        "operationId": "ownRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFacilityRequest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-facilities-controller"
+        ]
+      }
+    },
+    "/v1/workplace/experience/facilities/resources/{resourceId}/booking-availability": {
+      "get": {
+        "operationId": "availability",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "from",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "to",
+            "required": true,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseBookingAvailability"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-facilities-controller"
+        ]
+      }
+    },
+    "/v1/workplace/experience/facilities/resources/{resourceId}/requests": {
+      "post": {
+        "operationId": "createRequest",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFacilityRequest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workplace-experience-facilities-controller"
         ]
       }
     },

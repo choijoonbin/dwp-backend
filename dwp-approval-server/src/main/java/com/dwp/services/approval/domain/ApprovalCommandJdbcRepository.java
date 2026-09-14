@@ -2,6 +2,7 @@ package com.dwp.services.approval.domain;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.approval.attachment.binding.ApprovalAttachmentLifecycleBinding;
 import com.dwp.services.approval.security.ApprovalDecisionRevisionContext;
 import com.dwp.services.approval.security.ApprovalManagementScopeContext;
 import com.dwp.services.approval.security.ApprovalRequestContext;
@@ -22,15 +23,15 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-
-
 abstract class ApprovalCommandJdbcRepository {
     protected static final String ROOT_MANAGEMENT_SCOPE = "RS_APPROVALS";
-
     protected final NamedParameterJdbcTemplate jdbc;
     protected final ApprovalCommandPayloadSupport payloadSupport;
     protected final ApprovalDelegationCommandSupport delegationCommands;
-
+    protected final ApprovalCommandFormNormalization formNormalization;
+    private ApprovalAttachmentLifecycleBinding attachmentBinding;
+    @org.springframework.beans.factory.annotation.Autowired void bindAttachmentLifecycleBinding(ApprovalAttachmentLifecycleBinding binding) { attachmentBinding = java.util.Objects.requireNonNull(binding); }
+    protected ApprovalAttachmentLifecycleBinding attachmentLifecycleBinding() { if (attachmentBinding == null) throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE, "Attachment binding is unavailable."); return attachmentBinding; }
 
     ApprovalCommandJdbcRepository(
             NamedParameterJdbcTemplate jdbc,
@@ -38,6 +39,7 @@ abstract class ApprovalCommandJdbcRepository {
         this.jdbc = jdbc;
         this.payloadSupport = new ApprovalCommandPayloadSupport(objectMapper);
         this.delegationCommands = new ApprovalDelegationCommandSupport(jdbc, payloadSupport);
+        this.formNormalization = new ApprovalCommandFormNormalization(jdbc, objectMapper);
     }
 
     void validatePolicyRule(String policyKey, Map<String, Object> rule) {
@@ -74,14 +76,14 @@ abstract class ApprovalCommandJdbcRepository {
     }
 
     protected int boundedInteger(Object value, int minimum, int maximum) {
-        if (!(value instanceof Number number)) {
+        if (!(value instanceof Integer || value instanceof Long)) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
         }
-        int parsed = number.intValue();
+        long parsed = ((Number) value).longValue();
         if (parsed < minimum || parsed > maximum) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
         }
-        return parsed;
+        return (int) parsed;
     }
 
     protected PolicyRuntime policy(
@@ -109,6 +111,20 @@ abstract class ApprovalCommandJdbcRepository {
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("workflowId", workflowId)
                 .addValue("expectedVersion", expectedVersion);
+        jdbc.query("""
+                SELECT version.definition::text, workflow.sla_minutes
+                  FROM apr_workflow_definitions workflow JOIN apr_workflow_versions version
+                    ON version.tenant_id=workflow.tenant_id AND version.workflow_id=workflow.workflow_id
+                   AND version.version_number=workflow.current_version
+                 WHERE workflow.tenant_id=:tenantId AND workflow.workflow_id=:workflowId
+                   AND workflow.management_resource_set_key=:managementScope
+                 FOR UPDATE OF workflow, version
+                """, params, result -> {
+            if (!result.next()) requireUpdated(0);
+            var typed = payloadSupport.quorumDefinition(result.getString(1));
+            if (typed != null && typed.slaMinutes() != result.getInt(2)) throw new BaseException(ErrorCode.INVALID_STATE);
+            return null;
+        });
         int updated = jdbc.update(ApprovalCommandSql02.PUBLISH_WORKFLOW_UPDATE_APR_WORKFLOW_DEFINITIONS, params);
         requireUpdated(updated);
         jdbc.update(ApprovalCommandSql02.COALESCE_UPDATE_APR_WORKFLOW_VERSIONS, params);
@@ -129,7 +145,7 @@ abstract class ApprovalCommandJdbcRepository {
                     if (requireRouteMatch
                             && "CONDITIONAL".equals(result.getString("binding_type"))
                             && !matchesRouteCondition(
-                                    result.getString("binding_condition"), requestPayload)) {
+                                    result.getString("binding_condition"), requestPayload, result.getString("form_schema"))) {
                         throw new BaseException(
                                 ErrorCode.INVALID_STATE,
                                 "The selected approval route does not match this request.");
@@ -146,6 +162,15 @@ abstract class ApprovalCommandJdbcRepository {
     boolean matchesRouteCondition(
             String storedCondition,
             Map<String, Object> requestPayload) {
+        return matchesRouteCondition(storedCondition, requestPayload, null);
+    }
+
+    boolean matchesRouteCondition(
+            String storedCondition,
+            Map<String, Object> requestPayload,
+            String immutableFormSchema) {
+        Boolean typed = ApprovalWorkflowTypedRouteCondition.match(immutableFormSchema, storedCondition, requestPayload);
+        if (typed != null) return typed;
         try {
             Map<String, Object> condition = payloadSupport.object(
                     storedCondition, "The approval route condition is invalid.");
@@ -210,18 +235,54 @@ abstract class ApprovalCommandJdbcRepository {
         });
     }
 
+    public ApprovalWorkflowQuorumDefinition quorumWorkflow(long tenantId, UUID requestId) {
+        return jdbc.query("""
+                SELECT workflow.definition::text
+                  FROM apr_requests request JOIN apr_workflow_versions workflow
+                    ON workflow.tenant_id=request.tenant_id AND workflow.workflow_version_id=request.workflow_version_id
+                 WHERE request.tenant_id=:tenant AND request.request_id=:request
+                """, new MapSqlParameterSource().addValue("tenant", tenantId).addValue("request", requestId), result -> {
+            if (!result.next()) throw new BaseException(ErrorCode.NOT_FOUND);
+            return payloadSupport.quorumDefinition(result.getString(1));
+        });
+    }
+
     protected InformationRuntime informationRuntime(
             ApprovalRequestContext.Actor actor,
             UUID requestId) {
         return jdbc.query(ApprovalCommandSql02.INFORMATION_RUNTIME_SELECT_APR_REQUESTS,
                 identityParams(actor).addValue("requestId", requestId), result -> {
             if (!result.next()) throw new BaseException(ErrorCode.INVALID_STATE);
+            int slaMinutes = result.getInt("sla_minutes");
             return new InformationRuntime(
                     result.getString("form_schema"),
                     payloadSupport.object(result.getString("request_payload"),
                             "Stored approval request data is invalid."),
+                    result.getInt("payload_revision"),
+                    result.getString("payload_sha256").strip(),
+                    runtimeSteps(result.getString("workflow_definition"), slaMinutes),
+                    result.getString("binding_type"),
+                    result.getString("binding_condition"),
                     result.getString("management_resource_set_key"));
         });
+    }
+
+    protected PayloadEvidence currentPayloadEvidence(long tenantId, UUID requestId) {
+        return jdbc.query(
+                ApprovalCommandInformationSql.CURRENT_PAYLOAD_EVIDENCE,
+                new MapSqlParameterSource()
+                        .addValue("tenantId", tenantId)
+                        .addValue("requestId", requestId),
+                result -> {
+                    if (!result.next()) {
+                        throw new BaseException(
+                                ErrorCode.INVALID_STATE,
+                                "Approval payload evidence is unavailable.");
+                    }
+                    return new PayloadEvidence(
+                            result.getInt("schema_version"),
+                            result.getString("payload_sha256").strip());
+                });
     }
 
     protected String ownedRequestManagementScope(
@@ -365,6 +426,11 @@ abstract class ApprovalCommandJdbcRepository {
         try {
             Map<String, Object> definition = payloadSupport.object(
                     schema, "Stored approval form schema is invalid.");
+            if (payloadSupport.isTypedFormSchema(definition)) {
+                new ApprovalFormSchemaV2Evaluator().evaluate(
+                        new ApprovalFormSchemaV2Compiler().compile(definition), payload, requireRequiredFields);
+                return;
+            }
             Object rawFields = definition.get("fields");
             if (!(rawFields instanceof List<?> fields) || fields.isEmpty()) {
                 throw new BaseException(ErrorCode.INVALID_STATE);
@@ -398,6 +464,58 @@ abstract class ApprovalCommandJdbcRepository {
             }
         } catch (BaseException exception) {
             throw exception;
+        }
+    }
+
+    Map<String, Object> normalizeRequestPayload(String schema, Map<String, Object> payload, boolean submitting) {
+        if (payloadSupport.isTypedFormSchema(schema)) return formNormalization.pure(schema, payload, submitting);
+        validateRequestPayload(schema, payload, submitting);
+        return payload;
+    }
+    @org.springframework.beans.factory.annotation.Autowired
+    void bindFormReferenceNormalizer(ApprovalFormReferenceNormalizer normalizer) { formNormalization.bind(normalizer); }
+
+    Map<String, Object> normalizeRequestPayload(ApprovalRequestContext.Actor actor, UUID requestId, String schema,
+            Map<String, Object> payload, boolean submitting, long expectedVersion) {
+        return payloadSupport.isTypedFormSchema(schema) ? formNormalization.existing(actor, requestId, schema, payload, submitting,
+                expectedVersion, false) : normalizeRequestPayload(schema, payload, submitting);
+    }
+
+    Map<String, Object> informationPayloadBase(String schema, Map<String, Object> currentPayload) {
+        Map<String, Object> definition = payloadSupport.object(schema, "Stored approval form schema is invalid.");
+        if (!payloadSupport.isTypedFormSchema(definition)) return new LinkedHashMap<>(currentPayload);
+        return new ApprovalFormSchemaV2Evaluator().withoutComputedValues(
+                new ApprovalFormSchemaV2Compiler().compile(definition), currentPayload);
+    }
+
+    void validateInformationPatch(Map<String, Object> patch) {
+        if (patch == null || patch.isEmpty()) return;
+        for (Map.Entry<String, Object> entry : patch.entrySet()) {
+            String key = entry.getKey();
+            Object value = entry.getValue();
+            if (key == null || key.isBlank() || "createdFrom".equals(key)) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "Information responses cannot modify system-owned fields.");
+            }
+            if (!(value instanceof String) && !(value instanceof Number)) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "Information-response values must be non-null form scalars.");
+            }
+            if (value instanceof String text && text.length() > 10000) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "Information-response field value is too large: " + key);
+            }
+        }
+    }
+
+    void validateTypedInformationPatch(Map<String, Object> patch) {
+        if (patch == null) return;
+        if (patch.containsKey("createdFrom") || patch.values().stream().anyMatch(java.util.Objects::isNull)) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "Information responses cannot clear fields or change system-owned markers.");
         }
     }
 
@@ -546,7 +664,15 @@ abstract class ApprovalCommandJdbcRepository {
     protected record InformationRuntime(
             String formSchema,
             Map<String, Object> payload,
+            int payloadRevision,
+            String payloadSha256,
+            List<ApprovalCommandRepository.RuntimeStep> steps,
+            String bindingType,
+            String bindingCondition,
             String managementResourceSetKey) {
+    }
+
+    protected record PayloadEvidence(int revision, String sha256) {
     }
 
 

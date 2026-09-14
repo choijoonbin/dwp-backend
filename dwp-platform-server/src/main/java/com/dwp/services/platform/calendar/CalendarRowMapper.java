@@ -18,6 +18,13 @@ final class CalendarRowMapper {
 
     private final ObjectMapper objectMapper;
 
+    CalendarRepository.ResourceRow closureAvailability(CalendarRepository.ResourceRow value, java.util.Set<UUID> closed) {
+        return !closed.contains(value.resourceId()) ? value : new CalendarRepository.ResourceRow(
+                value.resourceId(), value.code(), value.name(), value.nameKo(), value.nameEn(), value.type(),
+                value.site(), value.floor(), value.capacity(), value.features(), value.timeZone(),
+                value.approvalRequired(), value.state(), false, value.version());
+    }
+
     CalendarRowMapper(ObjectMapper objectMapper) {
         this.objectMapper = objectMapper;
     }

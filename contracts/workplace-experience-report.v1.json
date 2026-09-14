@@ -1,0 +1,297 @@
+{
+  "schemaVersion": 1,
+  "owner": "dwp-platform-server",
+  "publicPrefix": "/api/platform",
+  "adminPrefix": "/v1/admin/workplace",
+  "authority": {
+    "permissions": [
+      "ADMIN.WORKPLACE:VIEW"
+    ],
+    "delegatedPermission": {
+      "reportDetailImpact": "CATALOG_VIEW",
+      "policyPreview": "POLICY_MANAGE"
+    },
+    "scope": "Query-level tenantId + siteId; optional floor must belong to site; booking/resource IDs also checked inside the same site. Shared trusted PlatformSecurityFilter and delegated interceptor apply. Administration does not require personal APP.WORKPLACE entitlement."
+  },
+  "admin": {
+    "GET /experience-report": {
+      "query": {
+        "siteId": "required UUID",
+        "floorId": "optional UUID",
+        "from": "required LocalDate inclusive",
+        "to": "required LocalDate exclusive; 1..93 local dates",
+        "page": "default0; exceptions only",
+        "size": "default20;1..100; exceptions only"
+      },
+      "response": "Report"
+    },
+    "GET /experience-report/bookings/{bookingId}": {
+      "query": {
+        "siteId": "required UUID"
+      },
+      "response": "BookingDetail"
+    },
+    "GET /resources/{resourceId}/future-booking-impact": {
+      "query": {
+        "siteId": "required UUID",
+        "from": "required OffsetDateTime",
+        "to": "required OffsetDateTime exclusive;positive range<=94 elapsed days",
+        "page": "default0",
+        "size": "default20;1..100"
+      },
+      "response": "FutureBookingImpact;ROOMS owner returns UNAVAILABLE + affectedBookings=null"
+    },
+    "GET /policy-impact-preview": {
+      "query": {
+        "siteId": "required UUID",
+        "floorId": "optional UUID",
+        "from": "required OffsetDateTime",
+        "to": "required OffsetDateTime exclusive;positive range<=94 elapsed days",
+        "requireCheckIn": "optional boolean",
+        "autoReleaseMinutes": "optional integer0..240",
+        "minimumBookingMinutes": "optional integer15..1440",
+        "maximumBookingMinutes": "optional integer>=effectiveMinimum,<=10080",
+        "workingDayStart": "optional LocalTimeHH:mm[:ss]",
+        "workingDayEnd": "optional LocalTime after effective start",
+        "page": "default0;affected effects only",
+        "size": "default20;1..100"
+      },
+      "response": "PolicyImpact"
+    }
+  },
+  "types": {
+    "Scope": {
+      "siteId": "UUID",
+      "floorId": "UUID|null",
+      "siteName": "String",
+      "timeZone": "String",
+      "from": "LocalDate",
+      "to": "LocalDate",
+      "startsAt": "OffsetDateTime",
+      "endsAt": "OffsetDateTime"
+    },
+    "Metadata": {
+      "generatedAt": "OffsetDateTime",
+      "sourceUpdatedAt": "OffsetDateTime|null",
+      "availability": "Availability",
+      "owner": "String",
+      "denominatorBasis": "String",
+      "historicalRosterAvailable": "boolean",
+      "recurringOccurrencesIncluded": "boolean"
+    },
+    "ExternalSource": {
+      "kind": "String",
+      "availability": "Availability",
+      "reason": "String",
+      "owner": "String",
+      "integrationPath": "String|null",
+      "configurationStatus": "String",
+      "provider": "String|null",
+      "lastVerifiedAt": "OffsetDateTime|null"
+    },
+    "CurrentCounts": {
+      "activeSites": "long",
+      "configuredFloors": "long",
+      "reservableResources": "long",
+      "assignedResources": "long",
+      "bookingsThisWeek": "long",
+      "checkedInToday": "long",
+      "utilizationPercent": "Double|null",
+      "policy": "WorkplaceDtos.Policy|null"
+    },
+    "Summary": {
+      "bookingCount": "long",
+      "cancelledCount": "long",
+      "bookedMinutes": "double",
+      "denominatorResourceMinutes": "double",
+      "utilizationPercent": "Double|null",
+      "noShowEligibleCount": "long",
+      "noShowCount": "long",
+      "noShowPercent": "Double|null",
+      "peakUtilizationPercent": "Double|null",
+      "unresolvedPastBookings": "long"
+    },
+    "FloorSummary": {
+      "floorId": "UUID",
+      "floorName": "String",
+      "resourceCount": "long",
+      "summary": "Summary"
+    },
+    "HeatmapCell": {
+      "date": "LocalDate",
+      "dayOfWeek": "int",
+      "hour": "int",
+      "offset": "String",
+      "startsAt": "OffsetDateTime",
+      "endsAt": "OffsetDateTime",
+      "bookedMinutes": "double",
+      "denominatorResourceMinutes": "double",
+      "utilizationPercent": "Double|null"
+    },
+    "DailyTrend": {
+      "date": "LocalDate",
+      "bookingCount": "long",
+      "bookedMinutes": "double",
+      "denominatorResourceMinutes": "double",
+      "utilizationPercent": "Double|null",
+      "noShowCount": "long",
+      "noShowPercent": "Double|null"
+    },
+    "Comparison": {
+      "previousFrom": "LocalDate",
+      "previousTo": "LocalDate",
+      "previous": "Summary",
+      "utilizationChangePercentagePoints": "Double|null",
+      "noShowChangePercentagePoints": "Double|null"
+    },
+    "BookingDetail": {
+      "bookingId": "UUID",
+      "resourceId": "UUID",
+      "siteId": "UUID",
+      "floorId": "UUID",
+      "resourceName": "String",
+      "resourceType": "String",
+      "floorName": "String",
+      "status": "String",
+      "startsAt": "OffsetDateTime",
+      "endsAt": "OffsetDateTime",
+      "checkedInAt": "OffsetDateTime|null",
+      "releasedAt": "OffsetDateTime|null",
+      "legalHold": "boolean",
+      "version": "long",
+      "updatedAt": "OffsetDateTime",
+      "detailHref": "String",
+      "exceptionReasons": "String[]"
+    },
+    "BookingPage": {
+      "content": "BookingDetail[]",
+      "page": "int",
+      "size": "int",
+      "totalElements": "long",
+      "totalPages": "int"
+    },
+    "Report": {
+      "scope": "Scope",
+      "metadata": "Metadata",
+      "current": "CurrentCounts",
+      "summary": "Summary",
+      "floors": "FloorSummary[]",
+      "hourlyHeatmap": "HeatmapCell[]",
+      "dailyTrend": "DailyTrend[]",
+      "comparison": "Comparison",
+      "exceptions": "BookingPage",
+      "externalSources": "ExternalSource[]",
+      "definitions": "String[]"
+    },
+    "FutureBookingImpact": {
+      "resourceId": "UUID",
+      "siteId": "UUID",
+      "resourceName": "String",
+      "owner": "String",
+      "resourceState": "String",
+      "from": "OffsetDateTime",
+      "to": "OffsetDateTime",
+      "metadata": "Metadata",
+      "affectedBookings": "BookingPage|null",
+      "mutatesBookings": "boolean",
+      "notificationScheduled": "boolean",
+      "replacementScheduled": "boolean"
+    },
+    "PolicyChanges": {
+      "requireCheckIn": "Boolean|null",
+      "autoReleaseMinutes": "Integer|null",
+      "minimumBookingMinutes": "Integer|null",
+      "maximumBookingMinutes": "Integer|null",
+      "workingDayStart": "LocalTime|null",
+      "workingDayEnd": "LocalTime|null"
+    },
+    "PolicyEffect": {
+      "booking": "BookingDetail",
+      "knownEffects": "String[]"
+    },
+    "PolicyImpact": {
+      "siteId": "UUID",
+      "floorId": "UUID|null",
+      "from": "OffsetDateTime",
+      "to": "OffsetDateTime",
+      "metadata": "Metadata",
+      "proposed": "PolicyChanges",
+      "reviewedBookings": "long",
+      "affectedBookings": "long",
+      "content": "PolicyEffect[]",
+      "page": "int",
+      "size": "int",
+      "totalPages": "int",
+      "mutatesExistingBookings": "boolean",
+      "limitations": "String[]",
+      "dailyImpact": "PolicyDailyImpact[]"
+    },
+    "WorkplaceDtos.Policy": {
+      "bookingWindowDays": "int",
+      "maximumActiveBookings": "int",
+      "minimumBookingMinutes": "int",
+      "maximumBookingMinutes": "int",
+      "maximumConsecutiveDays": "int",
+      "workingDayStart": "LocalTime",
+      "workingDayEnd": "LocalTime",
+      "allowRecurring": "boolean",
+      "requireCheckIn": "boolean",
+      "checkInLeadMinutes": "int",
+      "autoReleaseMinutes": "int",
+      "allowAssignedDeskLending": "boolean",
+      "showColleagueNames": "boolean",
+      "bookingRetentionDays": "int",
+      "version": "long"
+    },
+    "PolicyDailyImpact": {
+      "date": "LocalDate site time zone",
+      "timeZone": "String canonical site time zone",
+      "reviewedBookings": "long full scoped current/future RESERVED/CHECKED_IN cohort count before pagination",
+      "affectedBookings": "long reviewed records with nonempty actual knownEffects before pagination"
+    }
+  },
+  "enums": {
+    "Availability": [
+      "AVAILABLE",
+      "EMPTY",
+      "UNAVAILABLE"
+    ]
+  },
+  "serialization": {
+    "UUID": "string",
+    "LocalDate": "YYYY-MM-DD string",
+    "LocalTime": "HH:mm:ss string",
+    "OffsetDateTime": "ISO8601 string with offset",
+    "long/int/double/Double/Integer": "JSON number",
+    "boolean/Boolean": "JSON boolean",
+    "List": "JSON array",
+    "boxedNullableFields": "explicit null or omitted depending on configured Jackson inclusion; frontend must handle both",
+    "envelope": "ApiResponse {status:SUCCESS,success:true,data:<response>,timestamp:<local datetime>} or status:ERROR,errorCode,message"
+  },
+  "truth": {
+    "owner": "WORKPLACE non-ROOM only; no cross-domain inferred reservation ownership",
+    "sourceSnapshot": "readOnly REPEATABLE_READ; generatedAt=PostgreSQL transaction_timestamp; sourceUpdatedAt=MAX actual scoped source timestamps",
+    "denominator": "CURRENT_RESERVABLE_ROSTER_ELAPSED_MINUTES: current ACTIVEsite/ACTIVEfloor AVAILABLE RESERVABLE nonROOM resources multiplied by elapsed minutes. 24h theoretical reservation capacity; not historical or policy-open capacity",
+    "bookedMinutes": "per-resource union of noncancelled RESERVED/CHECKED_IN/COMPLETED/RELEASED intervals, clipped at releasedAt and range boundaries; NO_SHOW excluded",
+    "bookingCount": "non-cancelled records intersecting requested window, includes NO_SHOW; not generated recurring occurrences. Daily counts intersect day and must not be summed as unique cohort count",
+    "noShow": "requires check-in in immutable booking policy snapshot; starts within requested window, scheduled end<=generatedAt, terminal COMPLETED/RELEASED/NO_SHOW cohort; unresolved past bookings suppress ratio to null",
+    "empty": "EMPTY metadata and null ratios if no reservations; zero counts mean successful source query absence. UNAVAILABLE never rendered as measured zero",
+    "external": "ACTUAL_PRESENCE connector configuration is read from actual owned table; CONFIGURED_UNVERIFIED stays UNAVAILABLE until producer evidence. Facility work order not implemented; Rooms separate owner",
+    "comparison": "previous equal local-date count, current roster. Historical roster/retention completeness not promised",
+    "limits": "report/preview query maximum100000 records; exceeding returns400 asking smaller range rather than partial or fabricated totals",
+    "readOnly": "all4 endpoints have no booking/policy/notification/replacement side effects"
+  },
+  "designInputs": [
+    "output/workplace-design-ai-2026-09-08/design-results/c-group-v1-desktop-08-10-2026-09-14.png",
+    "output/workplace-design-ai-2026-09-08/design-results/c-group-v1-desktop-11-13-2026-09-14.png",
+    "output/workplace-design-ai-2026-09-08/design-results/c-group-v1-mobile-12-13-2026-09-14.png",
+    "output/workplace-design-ai-2026-09-08/design-results/c-group-v2-mobile-08-11-2026-09-14.png",
+    "prompts/00-common-design-contract.md",
+    "prompts/08-admin-overview.md",
+    "prompts/10-admin-policies-and-approvals.md",
+    "prompts/11-admin-operations-and-maintenance.md",
+    "prompts/12-admin-insights.md",
+    "prompts/C-v1-structural-revision-2026-09-14.md"
+  ],
+  "policyDailyImpactDefinition": "Complete local dates touching [from,to), each reviewed booking counted once on site-local date of max(booking.startsAt,from); explicit empty days; summed daily counts equal overall counts. Candidate comparison only, no causal predictions or expected adherence."
+}

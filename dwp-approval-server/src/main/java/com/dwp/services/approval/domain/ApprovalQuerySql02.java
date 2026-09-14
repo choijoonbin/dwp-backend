@@ -17,7 +17,7 @@ final class ApprovalQuerySql02 {
                COALESCE(route_count.value, 0)::INTEGER AS route_count,
                COALESCE(usage_count.value, 0)::BIGINT AS usage_count,
                form.version, form.updated_at,
-               version.schema_payload::text, version.schema_sha256
+               version.schema_payload::text, version.schema_sha256, version.form_version_id
           FROM apr_forms form
           JOIN apr_form_versions version
             ON version.tenant_id = form.tenant_id
@@ -46,6 +46,35 @@ final class ApprovalQuerySql02 {
            AND form.form_id = :formId
            AND (:workCatalog = TRUE OR
                 form.management_resource_set_key = :managementScope)
+           AND (:workCatalog = FALSE OR (
+               form.lifecycle_state = 'PUBLISHED'
+               AND version.lifecycle_state = 'PUBLISHED'
+               AND category.lifecycle_state = 'ACTIVE'
+               AND EXISTS (
+                   SELECT 1
+                     FROM apr_form_workflow_bindings active_binding
+                     JOIN apr_workflow_definitions active_workflow
+                       ON active_workflow.tenant_id = active_binding.tenant_id
+                      AND active_workflow.workflow_id = active_binding.workflow_id
+                     JOIN apr_workflow_versions active_version
+                       ON active_version.tenant_id = active_workflow.tenant_id
+                      AND active_version.workflow_id = active_workflow.workflow_id
+                      AND active_version.version_number = active_workflow.current_version
+                    WHERE active_binding.tenant_id = form.tenant_id
+                      AND active_binding.form_id = form.form_id
+                      AND active_binding.lifecycle_state = 'ACTIVE'
+                      AND active_workflow.lifecycle_state = 'PUBLISHED'
+                      AND active_version.lifecycle_state = 'PUBLISHED'
+                      AND active_workflow.management_resource_set_key =
+                          form.management_resource_set_key
+                      AND (active_binding.effective_from IS NULL
+                           OR active_binding.effective_from <= CURRENT_TIMESTAMP)
+                      AND (active_binding.effective_to IS NULL
+                           OR active_binding.effective_to > CURRENT_TIMESTAMP)
+                      AND (active_version.effective_from IS NULL
+                           OR active_version.effective_from <= CURRENT_TIMESTAMP)
+                      AND (active_version.effective_to IS NULL
+                           OR active_version.effective_to > CURRENT_TIMESTAMP))))
         """;
 
     static final String FORM_ROUTES_SELECT_APR_FORM_WORKFLOW_BINDINGS = """
@@ -57,23 +86,38 @@ final class ApprovalQuerySql02 {
           JOIN apr_workflow_definitions workflow
             ON workflow.tenant_id = binding.tenant_id
            AND workflow.workflow_id = binding.workflow_id
+          JOIN apr_workflow_versions version
+            ON version.tenant_id = workflow.tenant_id
+           AND version.workflow_id = workflow.workflow_id
+           AND version.version_number = workflow.current_version
+          JOIN apr_forms form
+            ON form.tenant_id = binding.tenant_id
+           AND form.form_id = binding.form_id
+          JOIN apr_form_categories category
+            ON category.tenant_id = form.tenant_id
+           AND category.category_id = form.category_id
          WHERE binding.tenant_id = :tenantId
            AND binding.form_id = :formId
            AND (:workCatalog = TRUE OR
                 workflow.management_resource_set_key = :managementScope)
-           AND EXISTS (
-               SELECT 1 FROM apr_forms form
-                WHERE form.tenant_id = binding.tenant_id
-                  AND form.form_id = binding.form_id
-                  AND (:workCatalog = TRUE OR
-                       form.management_resource_set_key = :managementScope))
+           AND (:workCatalog = TRUE OR
+                form.management_resource_set_key = :managementScope)
            AND binding.lifecycle_state = 'ACTIVE'
            AND (:workCatalog = FALSE OR (
-               workflow.lifecycle_state = 'PUBLISHED'
+               form.lifecycle_state = 'PUBLISHED'
+               AND category.lifecycle_state = 'ACTIVE'
+               AND workflow.lifecycle_state = 'PUBLISHED'
+               AND version.lifecycle_state = 'PUBLISHED'
+               AND workflow.management_resource_set_key = form.management_resource_set_key
+               AND category.management_resource_set_key = form.management_resource_set_key
                AND (binding.effective_from IS NULL
                     OR binding.effective_from <= CURRENT_TIMESTAMP)
                AND (binding.effective_to IS NULL
-                    OR binding.effective_to > CURRENT_TIMESTAMP)))
+                    OR binding.effective_to > CURRENT_TIMESTAMP)
+               AND (version.effective_from IS NULL
+                    OR version.effective_from <= CURRENT_TIMESTAMP)
+               AND (version.effective_to IS NULL
+                    OR version.effective_to > CURRENT_TIMESTAMP)))
          ORDER BY CASE binding.binding_type WHEN 'DEFAULT' THEN 0 ELSE 1 END,
                   binding.priority, workflow.name_en
         """;
@@ -121,6 +165,52 @@ final class ApprovalQuerySql02 {
                   display_name
         """;
 
+    static final String WORKFLOW_CANDIDATE_ROLES_SELECT_APR_WORKFLOW_VERSIONS = """
+        SELECT candidate.value ->> 'candidateRole' AS candidate_role
+          FROM apr_workflow_definitions workflow
+          JOIN apr_workflow_versions version
+            ON version.tenant_id = workflow.tenant_id
+           AND version.workflow_id = workflow.workflow_id
+           AND version.version_number = workflow.current_version
+          CROSS JOIN LATERAL jsonb_array_elements(
+              CASE WHEN jsonb_typeof(version.definition -> 'steps') = 'array'
+                   THEN version.definition -> 'steps' ELSE '[]'::jsonb END) candidate(value)
+         WHERE workflow.tenant_id = :tenantId
+           AND workflow.workflow_id = :workflowId
+           AND workflow.management_resource_set_key = :managementScope
+         ORDER BY candidate.value ->> 'candidateRole'
+        """;
+
+    static final String REQUEST_CANDIDATE_ROLES_SELECT_APR_REQUESTS = """
+        SELECT candidate.value ->> 'candidateRole' AS candidate_role
+          FROM apr_requests request
+          JOIN apr_workflow_versions version
+            ON version.tenant_id = request.tenant_id
+           AND version.workflow_version_id = request.workflow_version_id
+          CROSS JOIN LATERAL jsonb_array_elements(
+              CASE WHEN jsonb_typeof(version.definition -> 'steps') = 'array'
+                   THEN version.definition -> 'steps' ELSE '[]'::jsonb END) candidate(value)
+         WHERE request.tenant_id = :tenantId
+           AND request.request_id = :requestId
+           AND request.management_resource_set_key = :managementScope
+         ORDER BY candidate.value ->> 'candidateRole'
+        """;
+
+    static final String OWNED_REQUEST_CANDIDATE_ROLES_SELECT_APR_REQUESTS = """
+        SELECT candidate.value ->> 'candidateRole' AS candidate_role
+          FROM apr_requests request
+          JOIN apr_workflow_versions version
+            ON version.tenant_id = request.tenant_id
+           AND version.workflow_version_id = request.workflow_version_id
+          CROSS JOIN LATERAL jsonb_array_elements(
+              CASE WHEN jsonb_typeof(version.definition -> 'steps') = 'array'
+                   THEN version.definition -> 'steps' ELSE '[]'::jsonb END) candidate(value)
+         WHERE request.tenant_id = :tenantId
+           AND request.request_id = :requestId
+           AND request.requester_user_id = :userId
+         ORDER BY candidate.value ->> 'candidateRole'
+        """;
+
     static final String DELEGATIONS_SELECT_APR_DELEGATIONS = """
         SELECT delegation_id, delegator_user_id, delegate_user_id,
                delegate_person_public_id, delegate_display_name, delegate_email,
@@ -152,7 +242,13 @@ final class ApprovalQuerySql02 {
     static final String INTEGRATION_DELIVERIES_SELECT_APR_INTEGRATION_OUTBOX = """
         SELECT outbox_id, event_id, request_id, event_type, status,
                attempt_count, manual_retry_count, available_at,
-               published_at, last_error, created_at, last_retried_at, version
+               published_at, last_error, created_at, last_retried_at, version,
+               event_originator_user_id, assigned_auditor_user_id,
+               recovery_auditor_assignment_state,
+               recovery_auditor_resource_set_key,
+               recovery_auditor_assignment_revision,
+               recovery_auditor_assigned_at,
+               management_resource_set_key
          FROM apr_integration_outbox
          WHERE tenant_id = :tenantId
            AND management_resource_set_key = :managementScope

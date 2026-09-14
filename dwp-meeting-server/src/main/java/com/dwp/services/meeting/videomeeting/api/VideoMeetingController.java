@@ -1,6 +1,7 @@
 package com.dwp.services.meeting.videomeeting.api;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.meeting.videomeeting.domain.MeetingAdminOperationsExport;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingAdminIntelligenceReadinessService;
 import com.dwp.services.meeting.videomeeting.domain.VideoMeetingService;
 import jakarta.validation.Valid;
@@ -211,7 +212,7 @@ public class VideoMeetingController {
     public ResponseEntity<byte[]> adminOperationsExport(
             @RequestParam(defaultValue = "UTC") @Size(max = 80) String timeZone,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
-        VideoMeetingService.AdminOperationsExport export =
+        MeetingAdminOperationsExport export =
                 service.adminOperationsExport(timeZone, correlationId);
         byte[] content = export.content();
         return ResponseEntity.ok()

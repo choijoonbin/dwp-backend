@@ -78,7 +78,8 @@ class ApprovalRecoveryRetryRuntimeTruthTableTest {
         when(queries.adminPulse(42L)).thenReturn(new ApprovalDtos.AdminPulse(
                 0, 0, 0, 0, 0, List.of()));
         when(queries.breachedTasks(42L, 20)).thenReturn(List.of());
-        when(queries.integrationDeliveries(42L, 50)).thenReturn(List.of());
+        when(queries.integrationDeliveries(org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.eq(50))).thenReturn(List.of());
     }
 
     @AfterEach

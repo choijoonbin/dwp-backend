@@ -2,6 +2,9 @@ package com.dwp.services.platform.workplace;
 
 import com.dwp.core.common.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;
+
+import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.DelegatedPermission.*;
+import static com.dwp.services.platform.workplace.WorkplaceDelegatedAdminTargetType.*;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -28,12 +31,15 @@ import java.util.concurrent.TimeUnit;
 public class AdminWorkplaceController {
 
     private final WorkplaceService service;
+    private final WorkplaceScopedCatalogAdminService scopedCatalog;
     private final WorkplaceDelegatedAdminScopeGuard delegatedAdminScopeGuard;
 
     public AdminWorkplaceController(
             WorkplaceService service,
-            WorkplaceDelegatedAdminScopeGuard delegatedAdminScopeGuard) {
+            WorkplaceDelegatedAdminScopeGuard delegatedAdminScopeGuard,
+            WorkplaceScopedCatalogAdminService scopedCatalog) {
         this.service = service;
+        this.scopedCatalog = scopedCatalog;
         this.delegatedAdminScopeGuard = delegatedAdminScopeGuard;
     }
 
@@ -48,8 +54,8 @@ public class AdminWorkplaceController {
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             HttpServletRequest request) {
-        return ApiResponse.success(delegatedAdminScopeGuard.filterVisibleSites(
-                request, service.sites(tenantId, locale)));
+        return ApiResponse.success(scopedCatalog.sites(tenantId, locale,
+                delegatedAdminScopeGuard.visibleScopes(request, CATALOG_VIEW)));
     }
 
     @PostMapping("/sites")
@@ -70,17 +76,18 @@ public class AdminWorkplaceController {
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID siteId,
-            @Valid @RequestBody WorkplaceDtos.SiteRequest request) {
-        return ApiResponse.success(service.saveSite(
-                tenantId, actorId, siteId, locale, correlationId, request));
+            @Valid @RequestBody WorkplaceDtos.SiteRequest request, HttpServletRequest servletRequest) {
+        return ApiResponse.success(scopedCatalog.saveSite(
+                tenantId, actorId, siteId, locale, correlationId, request,
+                delegatedAdminScopeGuard.scope(servletRequest, siteId, CATALOG_MANAGE)));
     }
 
     @GetMapping("/floors")
     public ApiResponse<List<WorkplaceDtos.Floor>> getWorkplaceFloors(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
-            @RequestParam UUID siteId) {
-        return ApiResponse.success(service.floors(tenantId, siteId, locale));
+            @RequestParam UUID siteId, HttpServletRequest servletRequest) {
+        return ApiResponse.success(scopedCatalog.floors(tenantId, locale, delegatedAdminScopeGuard.scope(servletRequest, siteId, CATALOG_VIEW)));
     }
 
     @PostMapping("/sites/{siteId}/floors")
@@ -90,9 +97,10 @@ public class AdminWorkplaceController {
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID siteId,
-            @Valid @RequestBody WorkplaceDtos.FloorRequest request) {
-        return ApiResponse.success(service.saveFloor(
-                tenantId, actorId, siteId, null, locale, correlationId, request));
+            @Valid @RequestBody WorkplaceDtos.FloorRequest request, HttpServletRequest servletRequest) {
+        return ApiResponse.success(scopedCatalog.saveFloor(
+                tenantId, actorId, siteId, null, locale, correlationId, request,
+                delegatedAdminScopeGuard.scope(servletRequest, siteId, CATALOG_MANAGE)));
     }
 
     @PutMapping("/sites/{siteId}/floors/{floorId}")
@@ -103,9 +111,10 @@ public class AdminWorkplaceController {
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID siteId,
             @PathVariable UUID floorId,
-            @Valid @RequestBody WorkplaceDtos.FloorRequest request) {
-        return ApiResponse.success(service.saveFloor(
-                tenantId, actorId, siteId, floorId, locale, correlationId, request));
+            @Valid @RequestBody WorkplaceDtos.FloorRequest request, HttpServletRequest servletRequest) {
+        return ApiResponse.success(scopedCatalog.saveFloor(
+                tenantId, actorId, siteId, floorId, locale, correlationId, request,
+                delegatedAdminScopeGuard.scope(servletRequest, siteId, CATALOG_MANAGE)));
     }
 
     @PostMapping(path = "/floors/{floorId}/background", consumes = "multipart/form-data")
@@ -116,9 +125,10 @@ public class AdminWorkplaceController {
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID floorId,
             @RequestParam Long version,
-            @RequestPart("file") MultipartFile file) {
-        return ApiResponse.success(service.uploadFloorBackground(
-                tenantId, actorId, floorId, version, locale, correlationId, file));
+            @RequestPart("file") MultipartFile file, HttpServletRequest servletRequest) {
+        return ApiResponse.success(scopedCatalog.uploadFloorBackground(
+                tenantId, actorId, floorId, version, locale, correlationId, file,
+                delegatedAdminScopeGuard.scopeForTarget(servletRequest, FLOOR, floorId, CATALOG_MANAGE)));
     }
 
     @PostMapping(
@@ -132,17 +142,18 @@ public class AdminWorkplaceController {
             @PathVariable UUID revisionId,
             @RequestParam Long version,
             @RequestParam String changeSummary,
-            @RequestPart("file") MultipartFile file) {
-        return ApiResponse.success(service.uploadDraftFloorBackground(
-                tenantId, actorId, revisionId, version, changeSummary, correlationId, file));
+            @RequestPart("file") MultipartFile file, HttpServletRequest servletRequest) {
+        return ApiResponse.success(scopedCatalog.uploadDraftFloorBackground(
+                tenantId, actorId, revisionId, version, changeSummary, correlationId, file,
+                delegatedAdminScopeGuard.scopeForTarget(servletRequest, FLOOR_PLAN_REVISION, revisionId, FLOOR_PLAN_MANAGE)));
     }
 
     @GetMapping(path = "/governance/floor-plan-revisions/{revisionId}/background")
     public ResponseEntity<Resource> governedFloorPlanRevisionBackground(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
-            @PathVariable UUID revisionId) {
+            @PathVariable UUID revisionId, HttpServletRequest servletRequest) {
         WorkplaceService.FloorBackground content =
-                service.floorPlanRevisionBackground(tenantId, revisionId);
+                scopedCatalog.revisionBackground(tenantId, revisionId, delegatedAdminScopeGuard.scopeForTarget(servletRequest, FLOOR_PLAN_REVISION, revisionId, CATALOG_VIEW));
         return ResponseEntity.ok()
                 .contentType(MediaType.parseMediaType(content.contentType()))
                 .contentLength(content.sizeBytes())
@@ -155,8 +166,8 @@ public class AdminWorkplaceController {
     public ApiResponse<List<WorkplaceDtos.Resource>> getWorkplaceResources(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
-            @PathVariable UUID floorId) {
-        return ApiResponse.success(service.resources(tenantId, floorId, locale));
+            @PathVariable UUID floorId, HttpServletRequest servletRequest) {
+        return ApiResponse.success(scopedCatalog.resources(tenantId, floorId, locale, delegatedAdminScopeGuard.scopeForTarget(servletRequest, FLOOR, floorId, CATALOG_VIEW)));
     }
 
     @PostMapping("/floors/{floorId}/resources")
@@ -166,9 +177,10 @@ public class AdminWorkplaceController {
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID floorId,
-            @Valid @RequestBody WorkplaceDtos.ResourceRequest request) {
-        return ApiResponse.success(service.saveResource(
-                tenantId, actorId, floorId, null, locale, correlationId, request));
+            @Valid @RequestBody WorkplaceDtos.ResourceRequest request, HttpServletRequest servletRequest) {
+        return ApiResponse.success(scopedCatalog.saveResource(
+                tenantId, actorId, floorId, null, locale, correlationId, request,
+                delegatedAdminScopeGuard.scopeForTarget(servletRequest, FLOOR, floorId, CATALOG_MANAGE)));
     }
 
     @PutMapping("/floors/{floorId}/resources/{resourceId}")
@@ -179,9 +191,10 @@ public class AdminWorkplaceController {
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID floorId,
             @PathVariable UUID resourceId,
-            @Valid @RequestBody WorkplaceDtos.ResourceRequest request) {
-        return ApiResponse.success(service.saveResource(
-                tenantId, actorId, floorId, resourceId, locale, correlationId, request));
+            @Valid @RequestBody WorkplaceDtos.ResourceRequest request, HttpServletRequest servletRequest) {
+        return ApiResponse.success(scopedCatalog.saveResource(
+                tenantId, actorId, floorId, resourceId, locale, correlationId, request,
+                delegatedAdminScopeGuard.scopeForTarget(servletRequest, FLOOR, floorId, CATALOG_MANAGE)));
     }
 
     @PutMapping("/floors/{floorId}/layout")
@@ -191,9 +204,10 @@ public class AdminWorkplaceController {
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID floorId,
-            @Valid @RequestBody WorkplaceDtos.LayoutRequest request) {
-        return ApiResponse.success(service.updateLayout(
-                tenantId, actorId, floorId, locale, correlationId, request));
+            @Valid @RequestBody WorkplaceDtos.LayoutRequest request, HttpServletRequest servletRequest) {
+        return ApiResponse.success(scopedCatalog.updateLayout(
+                tenantId, actorId, floorId, locale, correlationId, request,
+                delegatedAdminScopeGuard.scopeForTarget(servletRequest, FLOOR, floorId, CATALOG_MANAGE)));
     }
 
     @GetMapping("/policy")

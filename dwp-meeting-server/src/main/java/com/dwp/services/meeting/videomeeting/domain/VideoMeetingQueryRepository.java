@@ -59,7 +59,7 @@ final class VideoMeetingQueryRepository {
                            ELSE 0 END), 0)::BIGINT AS meeting_minutes_today
                   FROM vm_meetings meeting
                  WHERE meeting.tenant_id = :tenantId AND
-                """ + VideoMeetingRepository.ACCESS_PREDICATE,
+                """ + MeetingAccessSql.ACCESS_PREDICATE,
                 parameters, resultSet -> {
                     if (!resultSet.next()) return new HomeMetrics(0, 0, 0, null, null);
                     Integer waiting = namedJdbc.queryForObject("""
@@ -84,7 +84,7 @@ final class VideoMeetingQueryRepository {
         return new HomeProjection(live, upcoming, recent, metrics);
     }
 
-    VideoMeetingRepository.PagedMeetings meetings(
+    VideoMeetingQueryModels.PagedMeetings meetings(
             long tenantId, long userId, int page, int pageSize) {
         MapSqlParameterSource parameters = pageParameters(tenantId, userId, page, pageSize);
         List<MeetingCard> items = namedJdbc.query("""
@@ -100,7 +100,7 @@ final class VideoMeetingQueryRepository {
                   FROM vm_meetings meeting
                  WHERE meeting.tenant_id = :tenantId
                    AND
-                """ + VideoMeetingRepository.ACCESS_PREDICATE + """
+                """ + MeetingAccessSql.ACCESS_PREDICATE + """
                  ORDER BY CASE meeting.lifecycle_state
                             WHEN 'LIVE' THEN 1 WHEN 'LOBBY' THEN 2
                             WHEN 'SCHEDULED' THEN 3 WHEN 'DRAFT' THEN 4
@@ -112,12 +112,12 @@ final class VideoMeetingQueryRepository {
         Long total = namedJdbc.queryForObject("""
                 SELECT COUNT(*) FROM vm_meetings meeting
                  WHERE meeting.tenant_id = :tenantId AND
-                """ + VideoMeetingRepository.ACCESS_PREDICATE,
+                """ + MeetingAccessSql.ACCESS_PREDICATE,
                 parameters, Long.class);
-        return new VideoMeetingRepository.PagedMeetings(items, total == null ? 0 : total);
+        return new VideoMeetingQueryModels.PagedMeetings(items, total == null ? 0 : total);
     }
 
-    VideoMeetingRepository.PagedMeetings history(
+    VideoMeetingQueryModels.PagedMeetings history(
             long tenantId, long userId, int page, int pageSize, boolean favoriteOnly) {
         MapSqlParameterSource parameters = pageParameters(tenantId, userId, page, pageSize);
         String favoritePredicate = favoriteOnly ? """
@@ -140,7 +140,7 @@ final class VideoMeetingQueryRepository {
                  WHERE meeting.tenant_id = :tenantId
                    AND meeting.lifecycle_state IN ('ENDED', 'CANCELLED')
                    AND
-                """ + VideoMeetingRepository.ACCESS_PREDICATE + favoritePredicate + """
+                """ + MeetingAccessSql.ACCESS_PREDICATE + favoritePredicate + """
                  ORDER BY COALESCE(meeting.ended_at, meeting.updated_at) DESC,
                           meeting.meeting_id DESC
                  LIMIT :limit OFFSET :offset
@@ -150,12 +150,12 @@ final class VideoMeetingQueryRepository {
                  WHERE meeting.tenant_id = :tenantId
                    AND meeting.lifecycle_state IN ('ENDED', 'CANCELLED')
                    AND
-                """ + VideoMeetingRepository.ACCESS_PREDICATE + favoritePredicate,
+                """ + MeetingAccessSql.ACCESS_PREDICATE + favoritePredicate,
                 parameters, Long.class);
-        return new VideoMeetingRepository.PagedMeetings(items, total == null ? 0 : total);
+        return new VideoMeetingQueryModels.PagedMeetings(items, total == null ? 0 : total);
     }
 
-    VideoMeetingRepository.AdminOverviewData adminOverview(
+    VideoMeetingQueryModels.AdminOverviewData adminOverview(
             long tenantId,
             OffsetDateTime dayStart,
             OffsetDateTime dayEnd,
@@ -178,13 +178,13 @@ final class VideoMeetingQueryRepository {
                   FROM vm_meetings
                  WHERE tenant_id = ?
                 """, resultSet -> resultSet.next()
-                        ? new VideoMeetingRepository.AdminOverviewData(
+                        ? new VideoMeetingQueryModels.AdminOverviewData(
                                 resultSet.getInt("live_meetings"),
                                 resultSet.getInt("scheduled_today"),
                                 resultSet.getInt("waiting_participants"),
                                 resultSet.getInt("meetings_last_seven_days"),
                                 resultSet.getInt("failed_join_attempts"))
-                        : new VideoMeetingRepository.AdminOverviewData(0, 0, 0, 0, 0),
+                        : new VideoMeetingQueryModels.AdminOverviewData(0, 0, 0, 0, 0),
                 dayStart, dayEnd, sevenDaysAgo, tenantId, tenantId,
                 sevenDaysAgo, tenantId);
     }
@@ -204,7 +204,7 @@ final class VideoMeetingQueryRepository {
                   FROM vm_meetings meeting
                  WHERE meeting.tenant_id = :tenantId
                    AND
-                """ + VideoMeetingRepository.ACCESS_PREDICATE + " AND " + conditionAndOrder,
+                """ + MeetingAccessSql.ACCESS_PREDICATE + " AND " + conditionAndOrder,
                 parameters, codec::meetingCard);
     }
 

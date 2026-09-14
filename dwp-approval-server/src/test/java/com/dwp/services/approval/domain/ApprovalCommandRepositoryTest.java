@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.core.namedparam.SqlParameterSource;
 
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -130,6 +131,28 @@ class ApprovalCommandRepositoryTest {
     }
 
     @Test
+    void acceptsOnlyTopLevelNonSystemScalarsInInformationResponses() {
+        repository.validateInformationPatch(Map.of(
+                "summary", "Clarified business justification",
+                "amount", 130000000));
+
+        assertThatThrownBy(() -> repository.validateInformationPatch(
+                Map.of("createdFrom", "DWP_APPROVALS")))
+                .isInstanceOf(BaseException.class);
+        assertThatThrownBy(() -> repository.validateInformationPatch(
+                Map.of("summary", Map.of("nested", "value"))))
+                .isInstanceOf(BaseException.class);
+        assertThatThrownBy(() -> repository.validateInformationPatch(
+                Map.of("summary", List.of("value"))))
+                .isInstanceOf(BaseException.class);
+
+        Map<String, Object> nullPatch = new HashMap<>();
+        nullPatch.put("summary", null);
+        assertThatThrownBy(() -> repository.validateInformationPatch(nullPatch))
+                .isInstanceOf(BaseException.class);
+    }
+
+    @Test
     void evaluatesConditionalRoutesWithAnExplicitFailClosedContract() {
         assertThat(repository.matchesRouteCondition(
                 """
@@ -178,10 +201,21 @@ class ApprovalCommandRepositoryTest {
     void requiresThePublisherToDifferFromTheLastFormEditor() {
         NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);
         when(jdbc.update(anyString(), any(SqlParameterSource.class))).thenReturn(1);
+        when(jdbc.query(org.mockito.ArgumentMatchers.contains("LEFT JOIN apr_form_workspaces"), any(SqlParameterSource.class),
+                org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.RowMapper<Boolean>>any()))
+                .thenReturn(List.of(false));
+        when(jdbc.query(anyString(), any(SqlParameterSource.class),
+                org.mockito.ArgumentMatchers.<org.springframework.jdbc.core.ResultSetExtractor<String>>any()))
+                .thenReturn(formSchema());
         ApprovalCommandRepository governed = new ApprovalCommandRepository(
                 jdbc, new ObjectMapper().findAndRegisterModules());
 
-        governed.publishForm(actor(), UUID.randomUUID(), 2L);
+        com.dwp.services.approval.security.ApprovalFormManagementScopeTestSupport.set("scope", "RS_APPROVALS");
+        try {
+            governed.publishForm(actor(), UUID.randomUUID(), 2L);
+        } finally {
+            com.dwp.services.approval.security.ApprovalFormManagementScopeTestSupport.clear();
+        }
 
         org.mockito.ArgumentCaptor<String> sql =
                 org.mockito.ArgumentCaptor.forClass(String.class);

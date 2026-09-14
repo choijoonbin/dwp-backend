@@ -30,14 +30,19 @@ record Evaluation(
             ProductSurfaceAuthorityDtos.Decision decision,
             String reasonCode,
             String policyRef,
+            String configuredAcr,
             ProductSurfaceAuthorityDtos.AccessSource accessSource,
             List<ProductSurfaceAuthorityDtos.EffectiveGrant> grants,
             List<ProductSurfaceAuthorityDtos.EffectiveScope> scopes,
+            boolean readOnly,
             OffsetDateTime validUntil,
             String appResourceKey) {
+        StepUpAssurancePolicy policy = StepUpAssurancePolicy.resolve(policyRef, configuredAcr);
+        if (policy == null) return denied(ProductSurfaceAuthorityDtos.Decision.AUTHORITY_UNAVAILABLE,
+                "STEP_UP_ASSURANCE_POLICY_UNAVAILABLE");
         return new Evaluation(decision, reasonCode, accessSource,
-                List.copyOf(grants), List.copyOf(scopes), null, true, false,
-                validUntil, policyRef, policyRef, appResourceKey);
+                List.copyOf(grants), List.copyOf(scopes), null, readOnly, false,
+                validUntil, policy.requiredAcr(), policy.policyId(), appResourceKey);
     }
 
     static Evaluation allowed(
@@ -80,5 +85,14 @@ record Evaluation(
         }
         return denied(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED,
                 "ROUTE_CAPABILITY_REQUIRED");
+    }
+
+    private record StepUpAssurancePolicy(String policyId, String requiredAcr) {
+        static StepUpAssurancePolicy resolve(String policyId, String configuredAcr) {
+            if (!("STEPUP-MGMT-HIGH-V1".equals(policyId) || "STEPUP-MGMT-CRITICAL-V1".equals(policyId))
+                    || configuredAcr == null || configuredAcr.isBlank()
+                    || configuredAcr.length() > 200 || !configuredAcr.equals(configuredAcr.trim())) return null;
+            return new StepUpAssurancePolicy(policyId, configuredAcr);
+        }
     }
 }

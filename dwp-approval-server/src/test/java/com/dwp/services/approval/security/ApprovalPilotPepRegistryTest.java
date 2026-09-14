@@ -10,6 +10,7 @@ import java.time.ZoneOffset;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class ApprovalPilotPepRegistryTest {
 
@@ -17,7 +18,8 @@ class ApprovalPilotPepRegistryTest {
 
     @Test
     void loadsTheW1aV2ProjectionAndExactBindingClosure() {
-        ApprovalPilotPepRegistry registry = new ApprovalPilotPepRegistry(objectMapper);
+        ApprovalPilotPepRegistry registry = new ApprovalPilotPepRegistry(
+                objectMapper, Clock.systemUTC(), true);
 
         assertThat(registry.bindingContracts()).hasSize(47);
         assertThat(registry.bindingContracts())
@@ -25,6 +27,116 @@ class ApprovalPilotPepRegistryTest {
                 .contains("route.approvals.work.home.page",
                         "route.approvals.admin.workflow-publish.action",
                         "route.approvals.admin.forms-workflow-reference.data");
+    }
+
+    @Test
+    void loadsClosedV7WithoutChangingAnyBaselineBindings() {
+        ApprovalPilotPepRegistry baseline = new ApprovalPilotPepRegistry(
+                objectMapper, Clock.systemUTC(), true);
+        ApprovalPilotPepRegistry active = new ApprovalPilotPepRegistry(objectMapper, Clock.systemUTC(), 7);
+
+        assertThat(active.bindingContracts()).hasSize(55)
+                .containsAll(baseline.bindingContracts());
+        assertThat(active.authorize(new ApprovalPilotPepRegistry.RequestEvidence(
+                "GET", "/v1/tasks/search", Set.of("ACTION.APPROVAL_TASK:VIEW"),
+                "", Set.of(), "route.approvals.work.tasks-search.data",
+                ApprovalPilotPepRegistry.ActiveAccessMode.NORMAL)).allowed()).isTrue();
+    }
+
+    @Test
+    void rejectsPinnedEnvelopeAndProjectionDriftEvenWithARecomputedChecksum() throws Exception {
+        for (boolean baselineOnly : new boolean[] {true, false}) {
+            String resource = baselineOnly ? ApprovalPilotPepRegistry.RESOURCE
+                    : ApprovalPilotPepRegistry.V7_RESOURCE;
+            try (var input = getClass().getClassLoader().getResourceAsStream(resource)) {
+                assertThat(input).isNotNull();
+                var original = (com.fasterxml.jackson.databind.node.ObjectNode)
+                        objectMapper.readTree(input);
+                ApprovalPepProjectionLineage.validateEnvelope(objectMapper, original, baselineOnly);
+                for (String field : Set.of("registryRef", "bindingPairCount", "routes")) {
+                    var changed = original.deepCopy();
+                    if (field.equals("registryRef")) {
+                        ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path(field))
+                                .put("sha256", "0".repeat(64));
+                    } else if (field.equals("bindingPairCount")) {
+                        changed.put(field, 1);
+                    } else {
+                        ((com.fasterxml.jackson.databind.node.ObjectNode) changed.path("routes").get(0))
+                                .put("routeContractKey", "route.approvals.work.injected.data");
+                    }
+                    changed.remove("projectionChecksum");
+                    changed.put("projectionChecksum",
+                            ApprovalPepProjectionLineage.sha256(objectMapper, changed));
+                    assertThatThrownBy(() -> ApprovalPepProjectionLineage.validateEnvelope(
+                            objectMapper, changed, baselineOnly))
+                            .isInstanceOf(IllegalStateException.class);
+                }
+            }
+        }
+    }
+
+    @Test
+    void bindsDraftMutationsToExactUpdateAuthorityAndOwnerVersionRechecks() {
+        ApprovalPilotPepRegistry registry = new ApprovalPilotPepRegistry(objectMapper);
+        for (String operation : Set.of("recover", "delete", "restore")) {
+            String route = "route.approvals.work.request-draft-" + operation + ".action";
+            String path = "/v1/requests/14d7b229-4752-4a50-8ac1-ecc129620649/draft/" + operation;
+            var decision = registry.authorize(evidence("POST", path,
+                    Set.of("ACTION.APPROVAL_REQUEST:UPDATE"), "", Set.of(), route));
+            assertThat(decision.allowed()).isTrue();
+            assertThat(decision.authorities()).singleElement().satisfies(authority -> {
+                assertThat(authority.capabilityContractKey())
+                        .isEqualTo("approvals.work.request.update");
+                assertThat(authority.predicatePolicyKeys()).containsExactlyInAnyOrder(
+                        "predicate.approval.own-request.v1",
+                        "predicate.approval.object-version.v1");
+            });
+            assertThat(registry.authorize(evidence("POST", path,
+                    Set.of("ACTION.APPROVAL_REQUEST:CREATE", "ACTION.APPROVAL_REQUEST:VIEW"),
+                    "", Set.of(), route)).allowed()).isFalse();
+            assertThat(registry.authorize(evidence("POST", path,
+                    Set.of("ACTION.APPROVAL_REQUEST:UPDATE"), "", Set.of(),
+                    "route.approvals.work.request-draft-update.action")).allowed()).isFalse();
+            assertThat(registry.authorize(evidence("PUT", path,
+                    Set.of("ACTION.APPROVAL_REQUEST:UPDATE"), "", Set.of(), route))
+                    .allowed()).isFalse();
+        }
+    }
+
+    @Test
+    void carriesOwnActorRevisionAndOwnReceiptRoutePredicatesWithoutCrossRouteAliases() {
+        ApprovalPilotPepRegistry registry = new ApprovalPilotPepRegistry(objectMapper);
+        String request = "/v1/requests/14d7b229-4752-4a50-8ac1-ecc129620649";
+        for (String[] binding : new String[][] {
+                {"request-draft-revisions", request + "/draft/revisions"},
+                {"request-draft-revision", request + "/draft/revisions/2"},
+                {"draft-command-reconciliation", "/v1/draft-commands/own-key:1"}}) {
+            var decision = registry.authorize(evidence("GET", binding[1],
+                    Set.of("ACTION.APPROVAL_REQUEST:VIEW"), "", Set.of(),
+                    "route.approvals.work." + binding[0] + ".data"));
+            assertThat(decision.allowed()).isTrue();
+            assertThat(decision.authorities()).singleElement().satisfies(authority -> {
+                assertThat(authority.readOnly()).isTrue();
+                assertThat(authority.predicatePolicyKeys()).containsExactly(
+                        binding[0].equals("draft-command-reconciliation")
+                                ? "predicate.approval.own-draft-receipt.v1"
+                                : "predicate.approval.own-request.v1");
+            });
+            assertThat(registry.authorize(evidence("GET", binding[1],
+                    Set.of("ACTION.APPROVAL_REQUEST:VIEW"), "", Set.of(),
+                    "route.approvals.work.request-detail.data")).allowed()).isFalse();
+        }
+    }
+
+    @Test
+    void literalSearchCannotBeAuthorizedAsAnOldGenericObjectRead() {
+        ApprovalPilotPepRegistry registry = new ApprovalPilotPepRegistry(objectMapper);
+        assertThat(registry.authorize(evidence("GET", "/v1/requests/search",
+                Set.of("ACTION.APPROVAL_REQUEST:VIEW"), "", Set.of(),
+                "route.approvals.work.request-detail.data")).allowed()).isFalse();
+        assertThat(registry.authorize(evidence("GET", "/v1/tasks/search",
+                Set.of("ACTION.APPROVAL_TASK:VIEW"), "", Set.of(),
+                "route.approvals.work.task-detail.data")).allowed()).isFalse();
     }
 
     @Test

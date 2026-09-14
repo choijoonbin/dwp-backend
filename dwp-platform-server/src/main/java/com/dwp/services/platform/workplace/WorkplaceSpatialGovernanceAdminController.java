@@ -17,6 +17,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.*;
+import static com.dwp.services.platform.workplace.WorkplaceDelegatedAdminTargetType.*;
+import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.DelegatedPermission.*;
 
 @RestController
 @RequestMapping("/v1/admin/workplace/governance")
@@ -29,20 +31,21 @@ public class WorkplaceSpatialGovernanceAdminController {
 
     private final WorkplaceSpatialGovernanceService service;
     private final WorkplaceDelegatedAdminScopeGuard delegatedScopeGuard;
+    private final WorkplaceScopedSpatialGovernanceService scoped;
 
     public WorkplaceSpatialGovernanceAdminController(
             WorkplaceSpatialGovernanceService service,
-            WorkplaceDelegatedAdminScopeGuard delegatedScopeGuard) {
+            WorkplaceDelegatedAdminScopeGuard delegatedScopeGuard, WorkplaceScopedSpatialGovernanceService scoped) {
         this.service = service;
         this.delegatedScopeGuard = delegatedScopeGuard;
+        this.scoped = scoped;
     }
 
     @GetMapping("/campuses")
     public ApiResponse<List<Campus>> campuses(
             @RequestHeader(TENANT) Long tenantId,
             HttpServletRequest servletRequest) {
-        return ApiResponse.success(service.campuses(
-                tenantId, delegatedScopeGuard.visibleSiteIds(servletRequest)));
+        return ApiResponse.success(scoped.campuses(tenantId, servletRequest));
     }
 
     @PostMapping("/campuses")
@@ -80,8 +83,9 @@ public class WorkplaceSpatialGovernanceAdminController {
     @GetMapping("/floors/{floorId}/zones")
     public ApiResponse<List<Zone>> zones(
             @RequestHeader(TENANT) Long tenantId,
-            @PathVariable UUID floorId) {
-        return ApiResponse.success(service.zones(tenantId, floorId));
+            @PathVariable UUID floorId,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, FLOOR, floorId, CATALOG_VIEW), CATALOG_VIEW, FLOOR, floorId, () -> service.zones(tenantId, floorId)));
     }
 
     @PostMapping("/floors/{floorId}/zones")
@@ -90,9 +94,10 @@ public class WorkplaceSpatialGovernanceAdminController {
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID floorId,
-            @Valid @RequestBody ZoneRequest request) {
-        return ApiResponse.success(service.saveZone(
-                tenantId, actorId, floorId, null, correlationId, request));
+            @Valid @RequestBody ZoneRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, FLOOR, floorId, CATALOG_MANAGE), CATALOG_MANAGE, FLOOR, floorId, () -> service.saveZone(
+                tenantId, actorId, floorId, null, correlationId, request)));
     }
 
     @PutMapping("/floors/{floorId}/zones/{zoneId}")
@@ -102,16 +107,18 @@ public class WorkplaceSpatialGovernanceAdminController {
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID floorId,
             @PathVariable UUID zoneId,
-            @Valid @RequestBody ZoneRequest request) {
-        return ApiResponse.success(service.saveZone(
-                tenantId, actorId, floorId, zoneId, correlationId, request));
+            @Valid @RequestBody ZoneRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, FLOOR, floorId, CATALOG_MANAGE), CATALOG_MANAGE, FLOOR, floorId, () -> service.saveZone(
+                tenantId, actorId, floorId, zoneId, correlationId, request)));
     }
 
     @GetMapping("/zones/{zoneId}/sections")
     public ApiResponse<List<Section>> sections(
             @RequestHeader(TENANT) Long tenantId,
-            @PathVariable UUID zoneId) {
-        return ApiResponse.success(service.sections(tenantId, zoneId));
+            @PathVariable UUID zoneId,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, ZONE, zoneId, CATALOG_VIEW), CATALOG_VIEW, ZONE, zoneId, () -> service.sections(tenantId, zoneId)));
     }
 
     @PostMapping("/zones/{zoneId}/sections")
@@ -120,9 +127,10 @@ public class WorkplaceSpatialGovernanceAdminController {
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID zoneId,
-            @Valid @RequestBody SectionRequest request) {
-        return ApiResponse.success(service.saveSection(
-                tenantId, actorId, zoneId, null, correlationId, request));
+            @Valid @RequestBody SectionRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, ZONE, zoneId, CATALOG_MANAGE), CATALOG_MANAGE, ZONE, zoneId, () -> service.saveSection(
+                tenantId, actorId, zoneId, null, correlationId, request)));
     }
 
     @PutMapping("/zones/{zoneId}/sections/{sectionId}")
@@ -132,16 +140,18 @@ public class WorkplaceSpatialGovernanceAdminController {
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID zoneId,
             @PathVariable UUID sectionId,
-            @Valid @RequestBody SectionRequest request) {
-        return ApiResponse.success(service.saveSection(
-                tenantId, actorId, zoneId, sectionId, correlationId, request));
+            @Valid @RequestBody SectionRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, ZONE, zoneId, CATALOG_MANAGE), CATALOG_MANAGE, ZONE, zoneId, () -> service.saveSection(
+                tenantId, actorId, zoneId, sectionId, correlationId, request)));
     }
 
     @GetMapping("/sites/{siteId}/access-rules")
     public ApiResponse<List<SiteAccessRule>> accessRules(
             @RequestHeader(TENANT) Long tenantId,
-            @PathVariable UUID siteId) {
-        return ApiResponse.success(service.accessRules(tenantId, siteId));
+            @PathVariable UUID siteId,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.accessRules(tenantId, siteId, delegatedScopeGuard.scope(servletRequest, siteId, ACCESS_MANAGE)));
     }
 
     @PostMapping("/sites/{siteId}/access-rules")
@@ -150,9 +160,10 @@ public class WorkplaceSpatialGovernanceAdminController {
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID siteId,
-            @Valid @RequestBody SiteAccessRuleRequest request) {
-        return ApiResponse.success(service.saveAccessRule(
-                tenantId, actorId, siteId, null, correlationId, request));
+            @Valid @RequestBody SiteAccessRuleRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.rule(tenantId, siteId, null, request, delegatedScopeGuard.scope(servletRequest, siteId, ACCESS_MANAGE), () -> service.saveAccessRule(
+                tenantId, actorId, siteId, null, correlationId, request)));
     }
 
     @PutMapping("/sites/{siteId}/access-rules/{ruleId}")
@@ -162,9 +173,10 @@ public class WorkplaceSpatialGovernanceAdminController {
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID siteId,
             @PathVariable UUID ruleId,
-            @Valid @RequestBody SiteAccessRuleRequest request) {
-        return ApiResponse.success(service.saveAccessRule(
-                tenantId, actorId, siteId, ruleId, correlationId, request));
+            @Valid @RequestBody SiteAccessRuleRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.rule(tenantId, siteId, ruleId, request, delegatedScopeGuard.scope(servletRequest, siteId, ACCESS_MANAGE), () -> service.saveAccessRule(
+                tenantId, actorId, siteId, ruleId, correlationId, request)));
     }
 
     @GetMapping("/sites/{siteId}/access-preview")
@@ -173,17 +185,19 @@ public class WorkplaceSpatialGovernanceAdminController {
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = GROUP_REFS, required = false) String groupRefs,
             @PathVariable UUID siteId,
-            @RequestParam AccessPermission permission) {
-        return ApiResponse.success(service.evaluateSiteAccess(
-                tenantId, actorId, groupRefs, siteId, permission));
+            @RequestParam AccessPermission permission,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.accessPreview(
+                tenantId, actorId, groupRefs, siteId, permission, delegatedScopeGuard.scope(servletRequest, siteId, ACCESS_MANAGE)));
     }
 
     @GetMapping("/policy-overrides")
     public ApiResponse<List<PolicyOverride>> policyOverrides(
             @RequestHeader(TENANT) Long tenantId,
             @RequestParam(required = false) PolicyScopeType scopeType,
-            @RequestParam(required = false) UUID scopeId) {
-        return ApiResponse.success(service.policyOverrides(tenantId, scopeType, scopeId));
+            @RequestParam(required = false) UUID scopeId,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.policy(tenantId, servletRequest, null, scopeType, scopeId, () -> service.policyOverrides(tenantId, scopeType, scopeId)));
     }
 
     @PostMapping("/policy-overrides")
@@ -193,9 +207,10 @@ public class WorkplaceSpatialGovernanceAdminController {
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @RequestParam(required = false) PolicyScopeType scopeType,
             @RequestParam(required = false) UUID scopeId,
-            @Valid @RequestBody PolicyOverrideRequest request) {
-        return ApiResponse.success(service.savePolicyOverride(
-                tenantId, actorId, null, correlationId, scopeType, scopeId, request));
+            @Valid @RequestBody PolicyOverrideRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.policy(tenantId, servletRequest, null, scopeType, scopeId, () -> service.savePolicyOverride(
+                tenantId, actorId, null, correlationId, scopeType, scopeId, request)));
     }
 
     @PutMapping("/policy-overrides/{overrideId}")
@@ -206,24 +221,27 @@ public class WorkplaceSpatialGovernanceAdminController {
             @PathVariable UUID overrideId,
             @RequestParam(required = false) PolicyScopeType scopeType,
             @RequestParam(required = false) UUID scopeId,
-            @Valid @RequestBody PolicyOverrideRequest request) {
-        return ApiResponse.success(service.savePolicyOverride(
-                tenantId, actorId, overrideId, correlationId, scopeType, scopeId, request));
+            @Valid @RequestBody PolicyOverrideRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.policy(tenantId, servletRequest, overrideId, scopeType, scopeId, () -> service.savePolicyOverride(
+                tenantId, actorId, overrideId, correlationId, scopeType, scopeId, request)));
     }
 
     @GetMapping("/policy-preview")
     public ApiResponse<EffectivePolicyPreview> policyPreview(
             @RequestHeader(TENANT) Long tenantId,
             @RequestParam PolicyScopeType scopeType,
-            @RequestParam(required = false) UUID scopeId) {
-        return ApiResponse.success(service.previewPolicy(tenantId, scopeType, scopeId));
+            @RequestParam(required = false) UUID scopeId,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.policy(tenantId, servletRequest, null, scopeType, scopeId, () -> service.previewPolicy(tenantId, scopeType, scopeId)));
     }
 
     @GetMapping("/floors/{floorId}/floor-plan-revisions")
     public ApiResponse<List<FloorPlanRevision>> floorPlanRevisions(
             @RequestHeader(TENANT) Long tenantId,
-            @PathVariable UUID floorId) {
-        return ApiResponse.success(service.floorPlanRevisions(tenantId, floorId));
+            @PathVariable UUID floorId,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, FLOOR, floorId, FLOOR_PLAN_MANAGE), FLOOR_PLAN_MANAGE, FLOOR, floorId, () -> service.floorPlanRevisions(tenantId, floorId)));
     }
 
     @PostMapping("/floors/{floorId}/floor-plan-revisions")
@@ -232,16 +250,18 @@ public class WorkplaceSpatialGovernanceAdminController {
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID floorId,
-            @Valid @RequestBody CreateFloorPlanRevisionRequest request) {
-        return ApiResponse.success(service.createFloorPlanRevision(
-                tenantId, actorId, floorId, correlationId, request));
+            @Valid @RequestBody CreateFloorPlanRevisionRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, FLOOR, floorId, FLOOR_PLAN_MANAGE), FLOOR_PLAN_MANAGE, FLOOR, floorId, () -> service.createFloorPlanRevision(
+                tenantId, actorId, floorId, correlationId, request)));
     }
 
     @GetMapping("/floor-plan-revisions/{revisionId}/snapshot")
     public ApiResponse<FloorPlanRevisionSnapshot> floorPlanRevisionSnapshot(
             @RequestHeader(TENANT) Long tenantId,
-            @PathVariable UUID revisionId) {
-        return ApiResponse.success(service.floorPlanRevisionSnapshot(tenantId, revisionId));
+            @PathVariable UUID revisionId,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, FLOOR_PLAN_REVISION, revisionId, FLOOR_PLAN_MANAGE), FLOOR_PLAN_MANAGE, FLOOR_PLAN_REVISION, revisionId, () -> service.floorPlanRevisionSnapshot(tenantId, revisionId)));
     }
 
     @PutMapping("/floor-plan-revisions/{revisionId}")
@@ -250,9 +270,10 @@ public class WorkplaceSpatialGovernanceAdminController {
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID revisionId,
-            @Valid @RequestBody FloorPlanSnapshotRequest request) {
-        return ApiResponse.success(service.updateFloorPlanRevision(
-                tenantId, actorId, revisionId, correlationId, request));
+            @Valid @RequestBody FloorPlanSnapshotRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, FLOOR_PLAN_REVISION, revisionId, FLOOR_PLAN_MANAGE), FLOOR_PLAN_MANAGE, FLOOR_PLAN_REVISION, revisionId, () -> service.updateFloorPlanRevision(
+                tenantId, actorId, revisionId, correlationId, request)));
     }
 
     @PostMapping("/floor-plan-revisions/{revisionId}/review")
@@ -261,9 +282,10 @@ public class WorkplaceSpatialGovernanceAdminController {
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID revisionId,
-            @Valid @RequestBody RevisionTransitionRequest request) {
-        return ApiResponse.success(service.submitFloorPlanReview(
-                tenantId, actorId, revisionId, correlationId, request));
+            @Valid @RequestBody RevisionTransitionRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, FLOOR_PLAN_REVISION, revisionId, FLOOR_PLAN_MANAGE), FLOOR_PLAN_MANAGE, FLOOR_PLAN_REVISION, revisionId, () -> service.submitFloorPlanReview(
+                tenantId, actorId, revisionId, correlationId, request)));
     }
 
     @PostMapping("/floor-plan-revisions/{revisionId}/publish")
@@ -272,9 +294,10 @@ public class WorkplaceSpatialGovernanceAdminController {
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID revisionId,
-            @Valid @RequestBody RevisionTransitionRequest request) {
-        return ApiResponse.success(service.publishFloorPlan(
-                tenantId, actorId, revisionId, correlationId, request));
+            @Valid @RequestBody RevisionTransitionRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, FLOOR_PLAN_REVISION, revisionId, FLOOR_PLAN_MANAGE), FLOOR_PLAN_MANAGE, FLOOR_PLAN_REVISION, revisionId, () -> service.publishFloorPlan(
+                tenantId, actorId, revisionId, correlationId, request)));
     }
 
     @PostMapping("/floor-plan-revisions/{revisionId}/restore")
@@ -283,16 +306,18 @@ public class WorkplaceSpatialGovernanceAdminController {
             @RequestHeader(USER) Long actorId,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID revisionId,
-            @Valid @RequestBody RevisionTransitionRequest request) {
-        return ApiResponse.success(service.restoreFloorPlanRevision(
-                tenantId, actorId, revisionId, correlationId, request));
+            @Valid @RequestBody RevisionTransitionRequest request,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, FLOOR_PLAN_REVISION, revisionId, FLOOR_PLAN_MANAGE), FLOOR_PLAN_MANAGE, FLOOR_PLAN_REVISION, revisionId, () -> service.restoreFloorPlanRevision(
+                tenantId, actorId, revisionId, correlationId, request)));
     }
 
     @GetMapping("/floors/{floorId}/projection")
     public ApiResponse<FloorPlanProjection> publishedProjection(
             @RequestHeader(TENANT) Long tenantId,
-            @PathVariable UUID floorId) {
-        return ApiResponse.success(service.publishedProjection(tenantId, floorId));
+            @PathVariable UUID floorId,
+            HttpServletRequest servletRequest) {
+        return ApiResponse.success(scoped.target(delegatedScopeGuard.scopeForTarget(servletRequest, FLOOR, floorId, FLOOR_PLAN_MANAGE), FLOOR_PLAN_MANAGE, FLOOR, floorId, () -> service.publishedProjection(tenantId, floorId)));
     }
 
     @GetMapping("/delegated-admin-scopes")

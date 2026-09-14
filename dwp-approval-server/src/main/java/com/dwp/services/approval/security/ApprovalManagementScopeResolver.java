@@ -30,6 +30,15 @@ public final class ApprovalManagementScopeResolver {
         }
         Set<String> wireRoles = roles(resourceRoles);
         Set<String> resolved = new LinkedHashSet<>();
+        boolean policyImpact = authorities.stream().anyMatch(authority ->
+                "route.approvals.admin.policy-impact.data".equals(authority.routeContractKey()));
+        if (policyImpact && (authorities.size() != 3 || authorities.stream().anyMatch(authority ->
+                !"route.approvals.admin.policy-impact.data".equals(authority.routeContractKey())) || !authorities.stream()
+                .map(ApprovalPilotPepRegistry.RouteAuthority::capabilityContractKey)
+                .collect(java.util.stream.Collectors.toSet())
+                .equals(Set.of("approvals.policy.read", "approvals.design.read", "approvals.operations.read")))) {
+            return null;
+        }
         for (ApprovalPilotPepRegistry.RouteAuthority authority : authorities) {
             if (!authority.routeContractKey().startsWith("route.approvals.admin.")) continue;
             String capability = authority.capabilityContractKey();
@@ -48,6 +57,7 @@ public final class ApprovalManagementScopeResolver {
             } catch (IllegalArgumentException exception) {
                 return null;
             }
+            Set<String> matched = new LinkedHashSet<>();
             for (String set : sets) {
                 if (authority.requiredResponsibilityCode() != null
                         && !wireRoles.contains(authority.requiredResponsibilityCode()
@@ -57,9 +67,11 @@ public final class ApprovalManagementScopeResolver {
                 if (ProductSurfaceScopeKey.resourceSet(
                         tenantId, actorId, PRODUCT_KEY, SURFACE_KEY, set)
                         .equals(opaqueScopeKey)) {
-                    resolved.add(set);
+                    matched.add(set);
                 }
             }
+            if (policyImpact && matched.size() != 1) return null;
+            resolved.addAll(matched);
         }
         return resolved.size() == 1 ? resolved.iterator().next() : null;
     }

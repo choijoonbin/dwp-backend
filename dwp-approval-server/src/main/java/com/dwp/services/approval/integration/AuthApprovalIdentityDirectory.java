@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClientResponseException;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 @Component
 public class AuthApprovalIdentityDirectory implements ApprovalIdentityDirectory {
@@ -87,6 +88,41 @@ public class AuthApprovalIdentityDirectory implements ApprovalIdentityDirectory 
                     .toList();
         } catch (RestClientException exception) {
             throw unavailable("Identity directory search is unavailable.", exception);
+        }
+    }
+
+    @Override
+    @Bulkhead(name = "authApprovalIdentityDirectory", type = Bulkhead.Type.SEMAPHORE)
+    @CircuitBreaker(name = "authApprovalIdentityDirectory")
+    @Retry(name = "idempotentInternal")
+    public RoleEligibility requireRole(long tenantId, String roleCode) {
+        configured();
+        String normalized = roleCode == null
+                ? ""
+                : roleCode.strip().toUpperCase(Locale.ROOT);
+        try {
+            RoleEligibility eligibility = auth.get()
+                    .uri("/internal/identity/v1/tenants/{tenantId}/roles/{roleCode}/eligibility",
+                            tenantId, normalized)
+                    .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
+                    .header(TOKEN_HEADER, token)
+                    .retrieve()
+                    .body(RoleEligibility.class);
+            if (eligibility == null || eligibility.tenantId() == null
+                    || eligibility.tenantId() != tenantId
+                    || !normalized.equals(eligibility.roleCode())) {
+                throw unavailable("Role eligibility returned invalid evidence.");
+            }
+            return eligibility;
+        } catch (RestClientResponseException exception) {
+            if (exception.getStatusCode() == HttpStatus.NOT_FOUND) {
+                throw new BaseException(
+                        ErrorCode.RESOURCE_NOT_AVAILABLE,
+                        "The approval candidate role is not active.");
+            }
+            throw unavailable("Role eligibility validation is unavailable.", exception);
+        } catch (RestClientException exception) {
+            throw unavailable("Role eligibility validation is unavailable.", exception);
         }
     }
 

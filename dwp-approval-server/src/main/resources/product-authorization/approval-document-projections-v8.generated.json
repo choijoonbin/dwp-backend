@@ -1,0 +1,589 @@
+{
+  "schemaVersion": 1,
+  "projectionKey": "approval-document-projections-v8",
+  "registryRef": {
+    "bundleKey": "product-surfaces",
+    "version": 8,
+    "sha256": "9449a516a2dbd96106e71963cbda764b80d83f0f61fa861d110d85517adac942"
+  },
+  "bindingCount": 8,
+  "bindings": [
+    {
+      "routeContractKey": "route.approvals.admin.document-hold.data",
+      "profileKey": "full-management",
+      "apiBindingKey": "route.approvals.admin.document-hold.data.binding.01",
+      "projectionPolicyKey": "route.approvals.admin.document-hold.data.full-management.projection.v1",
+      "responseSchemaKey": "ApprovalDocumentHold",
+      "schemaVersion": 1,
+      "openApiSchemaSha256": "316249dbd4512224e0891bc255ca4232c9e0f47e428f130acda812103b491ece",
+      "additionalProperties": false
+    },
+    {
+      "routeContractKey": "route.approvals.admin.document-policy.data",
+      "profileKey": "full-management",
+      "apiBindingKey": "route.approvals.admin.document-policy.data.binding.01",
+      "projectionPolicyKey": "route.approvals.admin.document-policy.data.full-management.projection.v1",
+      "responseSchemaKey": "ApprovalDocumentPolicy",
+      "schemaVersion": 1,
+      "openApiSchemaSha256": "e517f31c85c577a1ac61745dce9c165eec9b7c827912ae4cd7a868b2393f0f86",
+      "additionalProperties": false
+    },
+    {
+      "routeContractKey": "route.approvals.admin.form-field-candidates.data",
+      "profileKey": "full-management",
+      "apiBindingKey": "route.approvals.admin.form-field-candidates.data.binding.01",
+      "projectionPolicyKey": "route.approvals.admin.form-field-candidates.data.full-management.projection.v1",
+      "responseSchemaKey": "ApprovalFormUserCandidates",
+      "schemaVersion": 1,
+      "openApiSchemaSha256": "dac88c0850351501e32155d1608441572a85b30107d96848dc4e9ee9094a5861",
+      "additionalProperties": false
+    },
+    {
+      "routeContractKey": "route.approvals.work.form-field-candidates.data",
+      "profileKey": "full-work",
+      "apiBindingKey": "route.approvals.work.form-field-candidates.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.form-field-candidates.data.full-work.projection.v1",
+      "responseSchemaKey": "ApprovalFormUserCandidates",
+      "schemaVersion": 1,
+      "openApiSchemaSha256": "dac88c0850351501e32155d1608441572a85b30107d96848dc4e9ee9094a5861",
+      "additionalProperties": false
+    },
+    {
+      "routeContractKey": "route.approvals.work.request-comments.data",
+      "profileKey": "full-work",
+      "apiBindingKey": "route.approvals.work.request-comments.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.request-comments.data.full-work.projection.v1",
+      "responseSchemaKey": "ApprovalDocumentComments",
+      "schemaVersion": 1,
+      "openApiSchemaSha256": "d657efaebafbe054c93df2a04095059388a0566c4a95fa8ec05753193b9e8922",
+      "additionalProperties": false
+    },
+    {
+      "routeContractKey": "route.approvals.work.request-document-tools.data",
+      "profileKey": "full-work",
+      "apiBindingKey": "route.approvals.work.request-document-tools.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.request-document-tools.data.full-work.projection.v1",
+      "responseSchemaKey": "ApprovalDocumentTools",
+      "schemaVersion": 1,
+      "openApiSchemaSha256": "104ee05c1735728ba812d7cb15b3ffd09910fb2e0ef0981c9463f19d1a67eb91",
+      "additionalProperties": false
+    },
+    {
+      "routeContractKey": "route.approvals.work.task-comments.data",
+      "profileKey": "full-work",
+      "apiBindingKey": "route.approvals.work.task-comments.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.task-comments.data.full-work.projection.v1",
+      "responseSchemaKey": "ApprovalDocumentComments",
+      "schemaVersion": 1,
+      "openApiSchemaSha256": "d657efaebafbe054c93df2a04095059388a0566c4a95fa8ec05753193b9e8922",
+      "additionalProperties": false
+    },
+    {
+      "routeContractKey": "route.approvals.work.task-document-tools.data",
+      "profileKey": "full-work",
+      "apiBindingKey": "route.approvals.work.task-document-tools.data.binding.01",
+      "projectionPolicyKey": "route.approvals.work.task-document-tools.data.full-work.projection.v1",
+      "responseSchemaKey": "ApprovalDocumentTools",
+      "schemaVersion": 1,
+      "openApiSchemaSha256": "104ee05c1735728ba812d7cb15b3ffd09910fb2e0ef0981c9463f19d1a67eb91",
+      "additionalProperties": false
+    }
+  ],
+  "schemas": {
+    "ApprovalDocumentComment": {
+      "additionalProperties": false,
+      "properties": {
+        "authorUserId": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "commentId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "retainUntil": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "sequence": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "sourceTaskId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "text": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalDocumentComments": {
+      "additionalProperties": false,
+      "properties": {
+        "commentsVersion": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "evaluatedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "items": {
+          "items": {
+            "$ref": "#/components/schemas/ApprovalDocumentComment"
+          },
+          "type": "array"
+        },
+        "page": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "size": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "totalElements": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalDocumentFieldRule": {
+      "additionalProperties": false,
+      "properties": {
+        "children": {
+          "items": {
+            "$ref": "#/components/schemas/ApprovalDocumentFieldRule"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "type": "array"
+        },
+        "key": {
+          "minLength": 1,
+          "pattern": "[A-Za-z][A-Za-z0-9_]{0,79}",
+          "type": "string"
+        },
+        "maxLength": {
+          "format": "int32",
+          "maximum": 10000,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxRows": {
+          "format": "int32",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "type": {
+          "enum": [
+            "STRING",
+            "NUMBER",
+            "DECIMAL_STRING",
+            "BOOLEAN",
+            "STRING_LIST",
+            "OBJECT",
+            "OBJECT_LIST"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "children",
+        "key",
+        "type"
+      ],
+      "type": "object"
+    },
+    "ApprovalDocumentHold": {
+      "additionalProperties": false,
+      "properties": {
+        "active": {
+          "type": "boolean"
+        },
+        "journal": {
+          "items": {
+            "$ref": "#/components/schemas/ApprovalDocumentHoldEntry"
+          },
+          "type": "array"
+        },
+        "pending": {
+          "$ref": "#/components/schemas/ApprovalDocumentPendingHold"
+        },
+        "preservationPending": {
+          "type": "boolean"
+        },
+        "purgeEligible": {
+          "type": "boolean"
+        },
+        "purgeState": {
+          "type": "string"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "retainUntil": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "version": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalDocumentHoldEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "checkerUserId": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "entryId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "makerUserId": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "occurredAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "operation": {
+          "enum": [
+            "PLACE",
+            "RELEASE"
+          ],
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        },
+        "reviewComment": {
+          "type": "string"
+        },
+        "version": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalDocumentPendingHold": {
+      "additionalProperties": false,
+      "properties": {
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "makerUserId": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "operation": {
+          "enum": [
+            "PLACE",
+            "RELEASE"
+          ],
+          "type": "string"
+        },
+        "proposalId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalDocumentPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "pending": {
+          "$ref": "#/components/schemas/ApprovalDocumentPolicyRevision"
+        },
+        "policyId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "published": {
+          "$ref": "#/components/schemas/ApprovalDocumentPolicyRevision"
+        },
+        "resourceSetKey": {
+          "type": "string"
+        },
+        "version": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalDocumentPolicyRevision": {
+      "additionalProperties": false,
+      "properties": {
+        "createdAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "makerUserId": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "revision": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "rules": {
+          "$ref": "#/components/schemas/ApprovalDocumentRules"
+        },
+        "sha256": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalDocumentRules": {
+      "additionalProperties": false,
+      "properties": {
+        "allowArchiveExport": {
+          "type": "boolean"
+        },
+        "allowComments": {
+          "type": "boolean"
+        },
+        "allowJsonExport": {
+          "type": "boolean"
+        },
+        "allowPrint": {
+          "type": "boolean"
+        },
+        "allowedClassifications": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 3,
+          "minItems": 0,
+          "type": "array"
+        },
+        "evidenceRetentionDays": {
+          "format": "int32",
+          "maximum": 3650,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "fields": {
+          "items": {
+            "$ref": "#/components/schemas/ApprovalDocumentFieldRule"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "type": "array"
+        },
+        "includeComments": {
+          "type": "boolean"
+        },
+        "includeEvidence": {
+          "type": "boolean"
+        },
+        "maxBatchItems": {
+          "format": "int32",
+          "maximum": 50,
+          "minimum": 1,
+          "type": "integer"
+        },
+        "maxBytes": {
+          "format": "int32",
+          "maximum": 5242880,
+          "minimum": 1024,
+          "type": "integer"
+        },
+        "snapshotTtlSeconds": {
+          "format": "int32",
+          "maximum": 3600,
+          "minimum": 60,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "allowedClassifications",
+        "fields"
+      ],
+      "type": "object"
+    },
+    "ApprovalDocumentTool": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalDocumentTools": {
+      "additionalProperties": false,
+      "properties": {
+        "archiveExport": {
+          "$ref": "#/components/schemas/ApprovalDocumentTool"
+        },
+        "attachments": {
+          "$ref": "#/components/schemas/ApprovalDocumentTool"
+        },
+        "comment": {
+          "$ref": "#/components/schemas/ApprovalDocumentTool"
+        },
+        "commentsVersion": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "copyIdentifier": {
+          "$ref": "#/components/schemas/ApprovalDocumentTool"
+        },
+        "evaluatedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "history": {
+          "$ref": "#/components/schemas/ApprovalDocumentTool"
+        },
+        "holdVersion": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "jsonExport": {
+          "$ref": "#/components/schemas/ApprovalDocumentTool"
+        },
+        "legalHold": {
+          "type": "boolean"
+        },
+        "maxBatchItems": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "payloadRevision": {
+          "format": "int32",
+          "type": "integer"
+        },
+        "payloadSha256": {
+          "type": "string"
+        },
+        "policyId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "policyVersion": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "preservationPending": {
+          "type": "boolean"
+        },
+        "print": {
+          "$ref": "#/components/schemas/ApprovalDocumentTool"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "requestVersion": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "resourceSetKey": {
+          "type": "string"
+        },
+        "taskId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "taskVersion": {
+          "format": "int64",
+          "type": "integer"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalFormUserCandidate": {
+      "additionalProperties": false,
+      "properties": {
+        "displayName": {
+          "type": "string"
+        },
+        "personPublicId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalFormUserCandidates": {
+      "additionalProperties": false,
+      "properties": {
+        "decisionRevision": {
+          "type": "string"
+        },
+        "fieldPath": {
+          "type": "string"
+        },
+        "formVersionId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "mayBeTruncated": {
+          "type": "boolean"
+        },
+        "people": {
+          "items": {
+            "$ref": "#/components/schemas/ApprovalFormUserCandidate"
+          },
+          "type": "array"
+        },
+        "requestId": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "requestVersion": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "schemaSha256": {
+          "type": "string"
+        },
+        "validUntil": {
+          "format": "date-time",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    }
+  },
+  "schemaClosureSha256": "26dee9603cb2b12511e0f49a773d5e8511b59a78acb5ace3ce755716735ce535",
+  "checksumAlgorithm": "SHA-256",
+  "checksum": "8fd5bd6d861a3a45d7029ba485c9244c6b83902301cff89cddd767128b4f9327"
+}

@@ -1,7 +1,7 @@
 package com.dwp.services.meeting.videomeeting.domain;
 
 import com.dwp.services.meeting.videomeeting.api.MeetingMediaWebhookController;
-import com.dwp.services.meeting.videomeeting.api.MeetingParticipantDisconnectController.DisconnectCommand;
+import com.dwp.services.meeting.videomeeting.api.MeetingParticipantDisconnectDtos.DisconnectCommand;
 import com.dwp.services.meeting.videomeeting.provider.LiveKitMeetingMediaAdapter;
 import com.dwp.services.meeting.videomeeting.provider.LiveKitMeetingWebhookAdapter;
 import com.dwp.services.meeting.videomeeting.provider.MeetingMediaProperties;

@@ -70,13 +70,15 @@ public class WorkplaceOperationsController {
                     OffsetDateTime from,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
                     OffsetDateTime to,
+            @RequestParam(required = false) UUID siteId,
+            @RequestParam(required = false) UUID floorId,
             @RequestParam(required = false) BookingStatus status,
             @RequestParam(required = false) UUID resourceId,
             @RequestParam(required = false) Long userId,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
         return ApiResponse.success(service.adminBookings(
-                tenantId, from, to, status, resourceId, userId,
+                tenantId, from, to, siteId, floorId, status, resourceId, userId,
                 locale, page, size));
     }
 

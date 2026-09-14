@@ -797,6 +797,7 @@ class ApprovalSecurityFilterTest {
         request.addHeader(ApprovalSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
         request.addHeader(ApprovalSecurityFilter.USER_HEADER, "17");
         request.addHeader(ApprovalSecurityFilter.TENANT_HEADER, "42");
+        request.addHeader("X-DWP-Identity-Plane", "TENANT");
         request.addHeader(ApprovalSecurityFilter.ROLES_HEADER, roles);
         request.addHeader(ApprovalSecurityFilter.PERMISSIONS_HEADER, permissions);
         request.addHeader(ApprovalSecurityFilter.ROLLOUT_STATE_HEADER, "000");

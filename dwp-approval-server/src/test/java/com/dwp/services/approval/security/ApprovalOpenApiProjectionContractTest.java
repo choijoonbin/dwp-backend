@@ -96,7 +96,7 @@ class ApprovalOpenApiProjectionContractTest {
                 "credentialConfigured", "lastHealthCheckedAt", "version"));
         assertClosed(schemas, "ApprovalFullManagementSignatureV1", Set.of(
                 "providerId", "providerKey", "displayName", "providerType", "lifecycleState",
-                "credentialConfigured", "lastHealthCheckedAt", "version"));
+                "capabilities", "credentialConfigured", "lastHealthCheckedAt", "version"));
         assertClosed(schemas, "ApprovalAuditorOperationSignalV1",
                 Set.of("key", "state", "count"));
         assertClosed(schemas, "ApprovalAuditorIntegrationDeliveryV1", Set.of(
@@ -163,8 +163,43 @@ class ApprovalOpenApiProjectionContractTest {
         assertOneOf(api, "/v1/admin/signatures", Set.of(
                 "#/components/schemas/ApprovalFullSignatureListResponse",
                 "#/components/schemas/ApprovalOversightSignatureListResponse"));
-        assertThat(api.at("/components/schemas/ApprovalFullSignatureListResponse")
-                .toString()).doesNotContain("SignatureProviderSummary", "capabilities");
+        String fullSignatures = api.at(
+                "/components/schemas/ApprovalFullSignatureListResponse").toString();
+        assertThat(fullSignatures).doesNotContain("SignatureProviderSummary");
+        assertThat(api.at(
+                "/components/schemas/ApprovalFullManagementSignatureV1/properties/capabilities/$ref")
+                .asText()).isEqualTo("#/components/schemas/SignatureCapabilities");
+        assertThat(fullSignatures).doesNotContain(
+                "apiSecret", "clientSecret", "credentialRef", "capabilityMetadata");
+    }
+
+    @Test
+    void runtimeDecisionVocabulariesAreClosedInThePublicSchema() throws Exception {
+        JsonNode schemas = approvalApi().at("/components/schemas");
+        assertEnum(schemas, "ContentAccess", "state", Set.of("FULL", "REDACTED"));
+        assertEnum(schemas, "ContentAccess", "reason", Set.of(
+                "CURRENT_AUTHORITY_VERIFIED",
+                "LEGACY_CURRENT_AUTHORITY_VERIFIED",
+                "CURRENT_AUTHORITY_UNAVAILABLE",
+                "CURRENT_IDENTITY_INACTIVE",
+                "CURRENT_PERMISSION_REVOKED",
+                "TASK_NOT_AVAILABLE",
+                "DELEGATION_AUTHORITY_REVOKED",
+                "CURRENT_ROLE_REVOKED"));
+        assertEnum(schemas, "RetryEligibility", "reason", Set.of(
+                "ELIGIBLE",
+                "STATUS_NOT_RETRYABLE",
+                "AUDITOR_ASSIGNMENT_NOT_READY",
+                "SCOPE_EVIDENCE_MISMATCH",
+                "RECOVERY_EVIDENCE_INCOMPLETE",
+                "SEPARATION_OF_DUTIES"));
+        assertEnum(schemas, "SignatureCapabilities", "readiness", Set.of(
+                "READY",
+                "DISABLED",
+                "DEGRADED",
+                "CONFIGURATION_REQUIRED",
+                "NOT_VERIFIED",
+                "EXTERNAL_VERIFICATION_REQUIRED"));
     }
 
     private void assertHighCommand(JsonNode api, String path, boolean headerVersion) {
@@ -219,6 +254,19 @@ class ApprovalOpenApiProjectionContractTest {
         assertThat(StreamSupport.stream(values.spliterator(), false)
                 .map(value -> value.path("$ref").asText()).toList())
                 .containsExactlyInAnyOrderElementsOf(references);
+    }
+
+    private void assertEnum(
+            JsonNode schemas,
+            String schema,
+            String property,
+            Set<String> expected) {
+        assertThat(StreamSupport.stream(
+                        schemas.path(schema).path("properties").path(property)
+                                .path("enum").spliterator(), false)
+                .map(JsonNode::asText)
+                .collect(java.util.stream.Collectors.toSet()))
+                .containsExactlyInAnyOrderElementsOf(expected);
     }
 
     private Set<String> fieldSet(JsonNode object) {

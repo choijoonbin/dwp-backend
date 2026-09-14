@@ -2,6 +2,7 @@ package com.dwp.services.approval.domain;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.approval.forms.ApprovalFormLegacyCommandGuard;
 import com.dwp.services.approval.security.ApprovalDecisionRevisionContext;
 import com.dwp.services.approval.security.ApprovalManagementScopeContext;
 import com.dwp.services.approval.security.ApprovalRequestContext;
@@ -90,13 +91,12 @@ class ApprovalCommandManagementRepository extends ApprovalCommandLifecycleReposi
     public UUID createFormDraft(
             ApprovalRequestContext.Actor actor,
             ApprovalDtos.CreateFormDraftRequest request) {
-        payloadSupport.validateFormFields(request.fields());
+        String schema = payloadSupport.formSchemaJson(request.fields(), request.typedSchema());
         requireCategory(actor.tenantId(), request.categoryId());
         requireWorkflow(actor.tenantId(), request.defaultWorkflowId());
         String formKey = request.formKey().trim().toUpperCase(Locale.ROOT);
         UUID formId = UUID.randomUUID();
         UUID formVersionId = UUID.randomUUID();
-        String schema = payloadSupport.json(payloadSupport.formSchema(request.fields()));
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("formId", formId)
                 .addValue("formVersionId", formVersionId)
@@ -123,9 +123,14 @@ class ApprovalCommandManagementRepository extends ApprovalCommandLifecycleReposi
     public UUID createWorkflowDraft(
             ApprovalRequestContext.Actor actor,
             ApprovalDtos.CreateWorkflowDraftRequest request) {
+        return createWorkflowDraft(actor, request, null);
+    }
+
+    public UUID createWorkflowDraft(ApprovalRequestContext.Actor actor,
+            ApprovalDtos.CreateWorkflowDraftRequest request, Map<String, Object> typedDefinition) {
         String workflowKey = request.workflowKey().trim().toUpperCase(Locale.ROOT);
-        payloadSupport.validateWorkflowInput(
-                request.category(), request.dataClassification(), request.slaMinutes(), request.steps());
+        String definition = payloadSupport.workflowDefinitionJson(request.category(), request.dataClassification(),
+                request.slaMinutes(), request.steps(), typedDefinition);
         Integer existing = jdbc.queryForObject(ApprovalCommandSql01.CREATE_WORKFLOW_DRAFT_SELECT_APR_WORKFLOW_DEFINITIONS, actorParams(actor).addValue("workflowKey", workflowKey), Integer.class);
         if (existing != null && existing > 0) throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
 
@@ -138,7 +143,6 @@ class ApprovalCommandManagementRepository extends ApprovalCommandLifecycleReposi
         UUID workflowVersionId = UUID.randomUUID();
         UUID formId = UUID.randomUUID();
         UUID formVersionId = UUID.randomUUID();
-        String definition = payloadSupport.json(payloadSupport.workflowDefinition(request.steps()));
         String schema = payloadSupport.json(payloadSupport.defaultFormSchema());
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("workflowId", workflowId)
@@ -171,9 +175,13 @@ class ApprovalCommandManagementRepository extends ApprovalCommandLifecycleReposi
             ApprovalRequestContext.Actor actor,
             UUID workflowId,
             ApprovalDtos.UpdateWorkflowDraftRequest request) {
-        payloadSupport.validateWorkflowInput(
-                request.category(), request.dataClassification(), request.slaMinutes(), request.steps());
-        String definition = payloadSupport.json(payloadSupport.workflowDefinition(request.steps()));
+        updateWorkflowDraft(actor, workflowId, request, null);
+    }
+
+    public void updateWorkflowDraft(ApprovalRequestContext.Actor actor, UUID workflowId,
+            ApprovalDtos.UpdateWorkflowDraftRequest request, Map<String, Object> typedDefinition) {
+        String definition = payloadSupport.workflowDefinitionJson(request.category(), request.dataClassification(),
+                request.slaMinutes(), request.steps(), typedDefinition);
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("workflowId", workflowId)
                 .addValue("nameKo", request.nameKo().trim())
@@ -195,10 +203,10 @@ class ApprovalCommandManagementRepository extends ApprovalCommandLifecycleReposi
             ApprovalRequestContext.Actor actor,
             UUID formId,
             ApprovalDtos.UpdateFormDraftRequest request) {
-        payloadSupport.validateFormFields(request.fields());
+        ApprovalFormLegacyCommandGuard.requireUnmanaged(jdbc, actor, formId);
+        String schema = payloadSupport.formSchemaJson(request.fields(), request.typedSchema());
         requireCategory(actor.tenantId(), request.categoryId());
         requireWorkflow(actor.tenantId(), request.defaultWorkflowId());
-        String schema = payloadSupport.json(payloadSupport.formSchema(request.fields()));
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("formId", formId)
                 .addValue("categoryId", request.categoryId())
@@ -220,9 +228,23 @@ class ApprovalCommandManagementRepository extends ApprovalCommandLifecycleReposi
             ApprovalRequestContext.Actor actor,
             UUID formId,
             long expectedVersion) {
+        ApprovalFormLegacyCommandGuard.requireUnmanaged(jdbc, actor, formId);
         MapSqlParameterSource params = actorParams(actor)
                 .addValue("formId", formId)
                 .addValue("expectedVersion", expectedVersion);
+        String schema = jdbc.query("""
+                SELECT version.schema_payload::text
+                  FROM apr_forms form
+                  JOIN apr_form_versions version ON version.tenant_id = form.tenant_id
+                   AND version.form_id = form.form_id AND version.version_number = form.current_version
+                 WHERE form.tenant_id = :tenantId AND form.form_id = :formId
+                   AND form.management_resource_set_key = :managementScope
+                 FOR UPDATE OF form, version
+                """, params, result -> {
+                    if (!result.next()) throw new BaseException(ErrorCode.NOT_FOUND);
+                    return result.getString(1);
+                });
+        payloadSupport.validateStoredFormSchema(schema);
         int updated = jdbc.update(ApprovalCommandSql01.PUBLISH_FORM_UPDATE_APR_FORMS, params);
         requireUpdated(updated);
         jdbc.update(ApprovalCommandSql01.EXISTS_UPDATE_APR_FORM_VERSIONS, params);

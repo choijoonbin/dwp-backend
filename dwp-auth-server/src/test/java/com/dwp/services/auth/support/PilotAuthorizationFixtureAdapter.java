@@ -27,6 +27,8 @@ public final class PilotAuthorizationFixtureAdapter {
 
     private static final String RESOURCE =
             "product-authorization/pilot-fixtures.v1.generated.json";
+    private static final String CANONICAL_FIXTURE_CHECKSUM =
+            "1bebaa31b30a6d7c41ad7a11c5b732973c5ffa823d6f4681a376b4271957a1c4";
     public static final String EXPECTED_FIXTURE_CHECKSUM = readCanonicalFixtureChecksum();
     private static final List<String> CATALOG_NAMES = List.of(
             "scopes",
@@ -46,7 +48,9 @@ public final class PilotAuthorizationFixtureAdapter {
         try (InputStream input = PilotAuthorizationFixtureAdapter.class.getClassLoader()
                 .getResourceAsStream(RESOURCE)) {
             if (input == null) throw new IllegalStateException("Canonical fixture is unavailable.");
-            return new ObjectMapper().readTree(input).path("fixtureChecksum").asText();
+            String checksum = new ObjectMapper().readTree(input).path("fixtureChecksum").asText();
+            require(CANONICAL_FIXTURE_CHECKSUM.equals(checksum), "Unexpected canonical fixture checksum.");
+            return checksum;
         } catch (IOException exception) {
             throw new IllegalStateException("Canonical fixture checksum could not be read.", exception);
         }

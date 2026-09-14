@@ -72,7 +72,7 @@ class ProductAuthorizationAuthorityAdapterTest {
         when(repository.findActivePointer("product-surfaces")).thenReturn(Optional.of(
                 new ProductAuthorizationContractRepository.ActivePointer(
                         "product-surfaces", bundleId, contract.version(), "release", now)));
-        adapter = new ProductAuthorizationAuthorityAdapter(repository, evidenceService, CLOCK);
+        adapter = new ProductAuthorizationAuthorityAdapter(repository, evidenceService, CLOCK, "urn:dwp:acr:mfa");
     }
 
     @Test

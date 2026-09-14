@@ -13,6 +13,7 @@ import com.dwp.services.approval.integration.ApprovalIdentityDirectory;
 import com.dwp.services.approval.support.PilotAuthorizationFixtureAdapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.MethodSource;
 
@@ -46,6 +47,7 @@ class ApprovalPilotAcceptanceMatrixTest {
     private static final UUID TASK_ID = uuid(5);
     private static final UUID REQUEST_ID = uuid(6);
     private static final String RESOURCE_ROLE = "APP_CONFIG_ADMIN@RS_APPROVALS";
+    private static final RepositorySignature QUORUM_READ = commandMethod("quorumWorkflow", long.class, UUID.class);
 
     @AfterEach
     void clearContexts() {
@@ -84,9 +86,72 @@ class ApprovalPilotAcceptanceMatrixTest {
                 17L, 42L, null, scenario.roles(), scenario.permissions());
         harness.execute(scenario.mutation());
 
-        assertThat(mockingDetails(harness.commands).getInvocations())
+        assertRepositoryBoundary(scenario, harness.commands);
+    }
+
+    private static void assertRepositoryBoundary(Scenario scenario, ApprovalCommandRepository commands) {
+        var invocations = mockingDetails(commands).getInvocations();
+        // Only this exact SELECT method is a read; every other invocation must match a sealed mutation signature.
+        var mutations = invocations.stream().filter(call -> !QUORUM_READ.equals(signature(call.getMethod()))).toList();
+        assertThat(mutations)
                 .as("%s domain mutation count", scenario.testId())
                 .hasSize(scenario.expectedMutationCount());
+        assertThat(mutations).extracting(call -> signature(call.getMethod()))
+                .as("%s exact domain mutations", scenario.testId())
+                .containsExactlyInAnyOrderElementsOf(expectedMutations(scenario.mutation()));
+        var reads = invocations.stream().filter(call -> QUORUM_READ.equals(signature(call.getMethod()))).toList();
+        assertThat(reads).as("%s exact quorum SELECT count", scenario.testId()).hasSize(switch (scenario.mutation()) {
+            case TASK_DECIDE -> 1;
+            case OWN_ACTIONS -> 2;
+            default -> 0;
+        });
+        if (scenario.mutation() == TASK_DECIDE || scenario.mutation() == OWN_ACTIONS) verify(commands).quorumWorkflow(42L, REQUEST_ID);
+        if (scenario.mutation() == OWN_ACTIONS) verify(commands).quorumWorkflow(42L, uuid(7));
+    }
+
+    private static List<RepositorySignature> expectedMutations(Mutation mutation) {
+        Class<?> actor = ApprovalRequestContext.Actor.class;
+        return switch (mutation) {
+            case NONE, TASK_SELF_DENY -> List.of();
+            case DESIGN_DRAFT -> List.of(commandMethod("createWorkflowDraft", actor, ApprovalDtos.CreateWorkflowDraftRequest.class),
+                    commandMethod("createFormDraft", actor, ApprovalDtos.CreateFormDraftRequest.class));
+            case WORKFLOW_PUBLISH -> List.of(commandMethod("publishWorkflow", actor, UUID.class, long.class, String.class));
+            case RECOVERY -> List.of(commandMethod("retryIntegrationDelivery", actor, UUID.class, long.class));
+            case POLICY_DRAFT -> List.of(commandMethod("updatePolicy", actor, UUID.class, ApprovalDtos.UpdatePolicyRequest.class));
+            case POLICY_PUBLISH -> List.of(commandMethod("publishPolicy", actor, UUID.class, ApprovalDtos.PublishPolicyRequest.class));
+            case FORM_PUBLISH -> List.of(commandMethod("publishForm", actor, UUID.class, long.class));
+            case TASK_CLAIM -> List.of(commandMethod("claim", actor, ApprovalQueryRepository.TaskAccess.class, long.class, String.class));
+            case TASK_DECIDE -> List.of(commandMethod("decide", actor, ApprovalQueryRepository.TaskAccess.class, ApprovalDtos.DecisionRequest.class, String.class));
+            case OWN_ACTIONS -> List.of(commandMethod("createDraft", actor, ApprovalDtos.CreateRequest.class, String.class),
+                    commandMethod("updateDraft", actor, UUID.class, ApprovalDtos.UpdateDraftRequest.class, String.class),
+                    commandMethod("submit", actor, UUID.class, long.class, String.class),
+                    commandMethod("withdraw", actor, UUID.class, long.class, String.class),
+                    commandMethod("respondToInformationRequest", actor, UUID.class, ApprovalDtos.InformationResponseRequest.class, String.class),
+                    commandMethod("createDelegation", actor, ApprovalDtos.CreateDelegationRequest.class, ApprovalIdentityDirectory.Subject.class),
+                    commandMethod("revokeDelegation", actor, UUID.class, long.class));
+        };
+    }
+
+    private record RepositorySignature(String name, Class<?> result, List<Class<?>> parameters) { }
+
+    private static RepositorySignature signature(java.lang.reflect.Method method) {
+        return new RepositorySignature(method.getName(), method.getReturnType(), List.of(method.getParameterTypes()));
+    }
+
+    private static RepositorySignature commandMethod(String name, Class<?>... parameters) {
+        try { return signature(ApprovalCommandRepository.class.getMethod(name, parameters)); }
+        catch (NoSuchMethodException exception) { throw new AssertionError("An exact repository method changed: " + name, exception); }
+    }
+
+    @Test
+    void anAdditionalUnclassifiedWriteCannotHideBehindTheQuorumRead() {
+        var commands = mock(ApprovalCommandRepository.class);
+        commands.quorumWorkflow(42L, REQUEST_ID);
+        commands.decide(null, null, null, "matrix");
+        commands.updateFormCategory(null, null, null);
+        var scenario = scenarios().filter(value -> "PS-A016".equals(value.testId())).findFirst().orElseThrow();
+        assertThatThrownBy(() -> assertRepositoryBoundary(scenario, commands)).isInstanceOf(AssertionError.class)
+                .hasMessageContaining("domain mutation count");
     }
 
     private static Stream<Scenario> scenarios() {
@@ -311,6 +376,19 @@ class ApprovalPilotAcceptanceMatrixTest {
             when(queries.policies(42L)).thenReturn(List.of());
             when(queries.delegations(any(ApprovalRequestContext.Actor.class)))
                     .thenReturn(List.of());
+            when(queries.workflowCandidateRoles(42L, WORKFLOW_ID))
+                    .thenReturn(List.of("FINANCE_APPROVERS"));
+            when(queries.requestCandidateRoles(
+                    any(ApprovalRequestContext.Actor.class), any(UUID.class)))
+                    .thenReturn(List.of("FINANCE_APPROVERS"));
+            when(queries.requestCandidateRoles(
+                    eq(42L), any(UUID.class), eq("RS_APPROVALS")))
+                    .thenReturn(List.of("FINANCE_APPROVERS"));
+            when(identities.requireRole(42L, "FINANCE_APPROVERS")).thenReturn(
+                    new ApprovalIdentityDirectory.RoleEligibility(
+                            42L, "FINANCE_APPROVERS", "ACTIVE", 2L, true));
+            when(owner.completedContentAccess(any(), any()))
+                    .thenReturn(ApprovalOwnerPredicateEvaluator.ContentReadDecision.full());
         }
 
         private ApprovalPilotPepRegistry.Decision resolve(

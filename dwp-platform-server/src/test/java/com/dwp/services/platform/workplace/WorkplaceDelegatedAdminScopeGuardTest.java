@@ -16,7 +16,6 @@ import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.workplace.WorkplaceDelegatedAdminScopeRepository.DelegatedGrant;
-import static com.dwp.services.platform.workplace.WorkplaceDelegatedAdminScopeRepository.SiteTargetType;
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.DelegateType;
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.DelegatedPermission;
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.DelegatedScopeType;
@@ -58,7 +57,7 @@ class WorkplaceDelegatedAdminScopeGuardTest {
         when(repository.candidateGrants(1L, 7L, Set.of()))
                 .thenReturn(List.of(grant(siteId,
                         Set.of(DelegatedPermission.CATALOG_MANAGE), null, null)));
-        when(repository.resolveSite(1L, SiteTargetType.SITE, siteId))
+        when(repository.resolveSite(1L, WorkplaceDelegatedAdminTargetType.SITE, siteId))
                 .thenReturn(java.util.Optional.of(siteId));
 
         assertThatCode(() -> guard.authorize(request)).doesNotThrowAnyException();
@@ -76,7 +75,7 @@ class WorkplaceDelegatedAdminScopeGuardTest {
         when(repository.candidateGrants(1L, 7L, Set.of()))
                 .thenReturn(List.of(grant(siteId,
                         Set.of(DelegatedPermission.FLOOR_PLAN_MANAGE), null, null)));
-        when(repository.resolveSite(1L, SiteTargetType.FLOOR_PLAN_REVISION, revisionId))
+        when(repository.resolveSite(1L, WorkplaceDelegatedAdminTargetType.FLOOR_PLAN_REVISION, revisionId))
                 .thenReturn(java.util.Optional.of(siteId));
 
         assertThatCode(() -> guard.authorize(request)).doesNotThrowAnyException();
@@ -91,7 +90,7 @@ class WorkplaceDelegatedAdminScopeGuardTest {
         when(repository.candidateGrants(1L, 7L, Set.of()))
                 .thenReturn(List.of(grant(delegatedSiteId,
                         Set.of(DelegatedPermission.CATALOG_MANAGE), null, null)));
-        when(repository.resolveSite(1L, SiteTargetType.SITE, targetSiteId))
+        when(repository.resolveSite(1L, WorkplaceDelegatedAdminTargetType.SITE, targetSiteId))
                 .thenReturn(java.util.Optional.of(targetSiteId));
 
         assertForbidden(() -> guard.authorize(request));
@@ -109,9 +108,9 @@ class WorkplaceDelegatedAdminScopeGuardTest {
         when(repository.candidateGrants(1L, 7L, Set.of()))
                 .thenReturn(List.of(grant(siteId,
                         Set.of(DelegatedPermission.CATALOG_MANAGE), null, null)));
-        when(repository.resolveSite(1L, SiteTargetType.FLOOR, floorId))
+        when(repository.resolveSite(1L, WorkplaceDelegatedAdminTargetType.FLOOR, floorId))
                 .thenReturn(java.util.Optional.of(siteId));
-        when(repository.resolveSite(1L, SiteTargetType.RESOURCE, resourceId))
+        when(repository.resolveSite(1L, WorkplaceDelegatedAdminTargetType.RESOURCE, resourceId))
                 .thenReturn(java.util.Optional.of(anotherSiteId));
 
         assertForbidden(() -> guard.authorize(request));
@@ -122,7 +121,7 @@ class WorkplaceDelegatedAdminScopeGuardTest {
         UUID siteId = UUID.randomUUID();
         MockHttpServletRequest request = request(
                 "PUT", "/v1/admin/workplace/sites/" + siteId, "WORKPLACE_DELEGATE");
-        when(repository.resolveSite(1L, SiteTargetType.SITE, siteId))
+        when(repository.resolveSite(1L, WorkplaceDelegatedAdminTargetType.SITE, siteId))
                 .thenReturn(java.util.Optional.of(siteId));
         when(repository.candidateGrants(1L, 7L, Set.of()))
                 .thenReturn(List.of(grant(siteId,
@@ -223,9 +222,9 @@ class WorkplaceDelegatedAdminScopeGuardTest {
         when(repository.candidateGrants(1L, 7L, Set.of()))
                 .thenReturn(List.of(grant(siteId,
                         Set.of(DelegatedPermission.POLICY_MANAGE), null, null)));
-        when(repository.resolveSite(1L, SiteTargetType.SITE, siteId))
+        when(repository.resolveSite(1L, WorkplaceDelegatedAdminTargetType.SITE, siteId))
                 .thenReturn(java.util.Optional.of(siteId));
-        when(repository.resolveSite(1L, SiteTargetType.POLICY_OVERRIDE, overrideId))
+        when(repository.resolveSite(1L, WorkplaceDelegatedAdminTargetType.POLICY_OVERRIDE, overrideId))
                 .thenReturn(java.util.Optional.of(siteId));
 
         for (String method : List.of("GET", "POST")) {
@@ -270,12 +269,12 @@ class WorkplaceDelegatedAdminScopeGuardTest {
         when(repository.candidateGrants(1L, 7L, Set.of()))
                 .thenReturn(List.of(grant(siteId,
                         Set.of(DelegatedPermission.POLICY_MANAGE), null, null)));
-        Map<WorkplaceSpatialGovernanceDtos.PolicyScopeType, SiteTargetType> targets = Map.of(
-                WorkplaceSpatialGovernanceDtos.PolicyScopeType.SITE, SiteTargetType.SITE,
-                WorkplaceSpatialGovernanceDtos.PolicyScopeType.FLOOR, SiteTargetType.FLOOR,
-                WorkplaceSpatialGovernanceDtos.PolicyScopeType.ZONE, SiteTargetType.ZONE,
+        Map<WorkplaceSpatialGovernanceDtos.PolicyScopeType, WorkplaceDelegatedAdminTargetType> targets = Map.of(
+                WorkplaceSpatialGovernanceDtos.PolicyScopeType.SITE, WorkplaceDelegatedAdminTargetType.SITE,
+                WorkplaceSpatialGovernanceDtos.PolicyScopeType.FLOOR, WorkplaceDelegatedAdminTargetType.FLOOR,
+                WorkplaceSpatialGovernanceDtos.PolicyScopeType.ZONE, WorkplaceDelegatedAdminTargetType.ZONE,
                 WorkplaceSpatialGovernanceDtos.PolicyScopeType.RESOURCE,
-                SiteTargetType.RESOURCE);
+                WorkplaceDelegatedAdminTargetType.RESOURCE);
 
         targets.forEach((scopeType, targetType) -> {
             UUID targetId = UUID.randomUUID();
@@ -303,7 +302,7 @@ class WorkplaceDelegatedAdminScopeGuardTest {
         when(repository.candidateGrants(1L, 7L, Set.of()))
                 .thenReturn(List.of(grant(delegatedSiteId,
                         Set.of(DelegatedPermission.POLICY_MANAGE), null, null)));
-        when(repository.resolveSite(1L, SiteTargetType.SITE, targetSiteId))
+        when(repository.resolveSite(1L, WorkplaceDelegatedAdminTargetType.SITE, targetSiteId))
                 .thenReturn(java.util.Optional.of(targetSiteId));
 
         assertForbidden(() -> guard.authorize(request));
@@ -337,7 +336,7 @@ class WorkplaceDelegatedAdminScopeGuardTest {
                         UUID.randomUUID(), DelegateType.GROUP_REF, null, groupRef,
                         DelegatedScopeType.SITE, siteId, null,
                         Set.of(DelegatedPermission.CATALOG_VIEW), null, null)));
-        when(repository.resolveSite(1L, SiteTargetType.SITE, siteId))
+        when(repository.resolveSite(1L, WorkplaceDelegatedAdminTargetType.SITE, siteId))
                 .thenReturn(java.util.Optional.of(siteId));
 
         assertThatCode(() -> guard.authorize(request)).doesNotThrowAnyException();

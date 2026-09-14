@@ -55,11 +55,14 @@ final class WorkplaceAccessPolicyGovernanceService
             SiteAccessRuleRequest request) {
         requireSite(tenantId, siteId);
         validateAccessRule(request);
+        requireFloorScope(tenantId, siteId, request.floorId());
+        repository.lockSiteAccessScope(tenantId, siteId);
         requireCreateOrUpdateVersion(ruleId, request.version(), "access rule");
         AccessRuleRow before = null;
         if (ruleId != null) {
             before = requireAccessRule(tenantId, ruleId);
             if (!before.siteId().equals(siteId)) throw notFound();
+            if (!Objects.equals(before.floorId(), request.floorId())) throw invalid("An access rule scope is immutable. Create a new scoped rule instead.");
         }
         UUID targetId = ruleId == null ? UUID.randomUUID() : ruleId;
         try {
@@ -117,29 +120,83 @@ final class WorkplaceAccessPolicyGovernanceService
         return Map.copyOf(decisions);
     }
 
-    private SiteAccessDecision siteAccessDecision(
-            UUID siteId,
-            Long userId,
-            AccessPermission permission,
-            Set<UUID> groupRefs,
-            List<AccessRuleRow> active,
-            OffsetDateTime now) {
-        if (active.isEmpty()) {
-            return new SiteAccessDecision(siteId, userId, permission, false,
-                    "DENY_NOT_CONFIGURED", List.of(), now);
+    SiteAccessDecision evaluateFloorAccess(Long tenantId, Long userId, String groups, UUID siteId,
+            UUID floorId, AccessPermission permission) {
+        requireSite(tenantId, siteId);
+        requireFloorScope(tenantId, siteId, floorId);
+        OffsetDateTime now = OffsetDateTime.now();
+        return scopedDecision(siteId, floorId, userId, permission, verifiedGroupRefs(groups),
+                repository.activeAccessRules(tenantId, siteId, now), now);
+    }
+
+    Map<UUID, SiteAccessDecision> evaluateFloorAccesses(Long tenantId, Long userId, String groups,
+            Map<UUID, UUID> sitesByFloor, AccessPermission permission) {
+        if (sitesByFloor == null || sitesByFloor.isEmpty()) return Map.of();
+        OffsetDateTime now = OffsetDateTime.now();
+        Set<UUID> refs = verifiedGroupRefs(groups);
+        Map<UUID, List<AccessRuleRow>> bySite = repository.activeAccessRules(
+                tenantId, Set.copyOf(sitesByFloor.values()), now).stream().collect(Collectors.groupingBy(AccessRuleRow::siteId));
+        Map<UUID, SiteAccessDecision> result = new LinkedHashMap<>();
+        sitesByFloor.forEach((floorId, siteId) -> {
+            requireFloorScope(tenantId, siteId, floorId);
+            result.put(floorId, scopedDecision(siteId, floorId, userId, permission, refs,
+                    bySite.getOrDefault(siteId, List.of()), now));
+        });
+        return Map.copyOf(result);
+    }
+
+    SiteAccessDecision previewAccess(Long tenantId, Long userId, String groups, UUID siteId,
+            UUID ruleId, SiteAccessRuleRequest proposed) {
+        requireSite(tenantId, siteId);
+        requireFloorScope(tenantId, siteId, proposed.floorId());
+        validateAccessRule(proposed);
+        OffsetDateTime now = OffsetDateTime.now();
+        List<AccessRuleRow> rows = new java.util.ArrayList<>(repository.activeAccessRules(tenantId, siteId, now));
+        rows.removeIf(row -> Objects.equals(row.accessRuleId(), ruleId));
+        if (proposed.state() == RuleState.ACTIVE && (proposed.validFrom() == null || !proposed.validFrom().isAfter(now))
+                && (proposed.validUntil() == null || proposed.validUntil().isAfter(now))) {
+            rows.add(new AccessRuleRow(ruleId, siteId, proposed.subjectType(), proposed.subjectUserId(),
+                    proposed.subjectGroupRef(), proposed.permission(), proposed.effect(), proposed.validFrom(),
+                    proposed.validUntil(), proposed.state(), proposed.version() == null ? 0 : proposed.version(), proposed.floorId()));
         }
-        List<AccessRuleRow> matched = active.stream()
-                .filter(rule -> grants(rule.permission(), permission))
-                .filter(rule -> matches(rule, userId, groupRefs))
-                .toList();
-        List<UUID> matchedIds = matched.stream().map(AccessRuleRow::accessRuleId).toList();
-        if (matched.stream().anyMatch(rule -> rule.effect() == AccessEffect.DENY)) {
-            return new SiteAccessDecision(
-                    siteId, userId, permission, false, "DENY_EXPLICIT", matchedIds, now);
-        }
+        return scopedDecision(siteId, proposed.floorId(), userId, proposed.permission(), verifiedGroupRefs(groups), rows, now);
+    }
+
+    private void requireFloorScope(Long tenantId, UUID siteId, UUID floorId) {
+        if (floorId == null) return;
+        ScopePath scope = repository.scopePath(tenantId, PolicyScopeType.FLOOR, floorId).orElseThrow(this::notFound);
+        if (!Objects.equals(scope.siteId(), siteId)) throw notFound();
+    }
+
+    private SiteAccessDecision siteAccessDecision(UUID siteId, Long userId, AccessPermission permission,
+            Set<UUID> groupRefs, List<AccessRuleRow> active, OffsetDateTime now) {
+        return ruleDecision(siteId, null, userId, permission, groupRefs,
+                active.stream().filter(row -> row.floorId() == null).toList(), now);
+    }
+
+    private SiteAccessDecision scopedDecision(UUID siteId, UUID floorId, Long userId, AccessPermission permission,
+            Set<UUID> groupRefs, List<AccessRuleRow> active, OffsetDateTime now) {
+        SiteAccessDecision site = siteAccessDecision(siteId, userId, permission, groupRefs, active, now);
+        if (floorId == null) return site;
+        if (!site.allowed()) return new SiteAccessDecision(siteId, userId, permission, false,
+                site.decision(), site.matchedRuleIds(), now, floorId);
+        List<AccessRuleRow> floorRules = active.stream().filter(row -> Objects.equals(row.floorId(), floorId)).toList();
+        if (floorRules.isEmpty()) return new SiteAccessDecision(siteId, userId, permission, true,
+                "ALLOW_SITE_INHERITED", site.matchedRuleIds(), now, floorId);
+        return ruleDecision(siteId, floorId, userId, permission, groupRefs, floorRules, now);
+    }
+
+    private SiteAccessDecision ruleDecision(UUID siteId, UUID floorId, Long userId, AccessPermission permission,
+            Set<UUID> groupRefs, List<AccessRuleRow> rules, OffsetDateTime now) {
+        if (rules.isEmpty()) return new SiteAccessDecision(siteId, userId, permission, false,
+                "DENY_NOT_CONFIGURED", List.of(), now, floorId);
+        List<AccessRuleRow> matched = rules.stream().filter(rule -> grants(rule.permission(), permission))
+                .filter(rule -> matches(rule, userId, groupRefs)).toList();
+        List<UUID> ids = matched.stream().map(AccessRuleRow::accessRuleId).filter(Objects::nonNull).toList();
+        if (matched.stream().anyMatch(rule -> rule.effect() == AccessEffect.DENY)) return new SiteAccessDecision(
+                siteId, userId, permission, false, "DENY_EXPLICIT", ids, now, floorId);
         boolean allowed = matched.stream().anyMatch(rule -> rule.effect() == AccessEffect.ALLOW);
-        return new SiteAccessDecision(siteId, userId, permission, allowed,
-                allowed ? "ALLOW_EXPLICIT" : "DENY_NO_MATCH", matchedIds, now);
+        return new SiteAccessDecision(siteId, userId, permission, allowed, allowed ? "ALLOW_EXPLICIT" : "DENY_NO_MATCH", ids, now, floorId);
     }
 
     List<PolicyOverride> policyOverrides(
@@ -244,6 +301,7 @@ final class WorkplaceAccessPolicyGovernanceService
         requireCreateOrUpdateVersion(delegationId, request.version(), "delegated scope");
         DelegatedScopeRow before = delegationId == null
                 ? null : requireDelegatedScope(tenantId, delegationId);
+        if (before != null) requireImmutableDelegatedFloorScope(before, request);
         UUID targetId = delegationId == null ? UUID.randomUUID() : delegationId;
         try {
             if (delegationId == null) {
@@ -276,7 +334,7 @@ final class WorkplaceAccessPolicyGovernanceService
                         : groupRefs.contains(scope.delegateGroupRef()))
                 .map(scope -> new EffectiveDelegatedScope(
                         scope.delegationId(), scope.scopeType(), scope.scopeId(),
-                        scope.permissions(), scope.validUntil()))
+                        scope.permissions(), scope.validUntil(), scope.floorIds()))
                 .toList();
     }
 
@@ -323,7 +381,34 @@ final class WorkplaceAccessPolicyGovernanceService
         if (request.permissions().size() != Set.copyOf(request.permissions()).size()) {
             throw invalid("Delegated permissions must be unique.");
         }
+        canonicalDelegatedFloors(tenantId, request.siteId(), request.floorIds());
         validatePeriod(request.validFrom(), request.validUntil());
+    }
+
+    void validateDelegationReview(Long tenantId, DelegatedAdminScopeRequest request, UUID delegationId) {
+        validateDelegatedScope(tenantId, request);
+        if (delegationId != null) requireImmutableDelegatedFloorScope(requireDelegatedScope(tenantId, delegationId), request);
+    }
+
+    private void canonicalDelegatedFloors(Long tenantId, UUID siteId, List<UUID> floors) {
+        if (floors == null) return;
+        if (floors.isEmpty() || floors.stream().anyMatch(Objects::isNull) || Set.copyOf(floors).size() != floors.size())
+            throw invalid("A restricted delegation requires unique nonempty floor identifiers.");
+        for (UUID floor : floors) {
+            ScopePath path = repository.scopePath(tenantId, PolicyScopeType.FLOOR, floor).orElseThrow(this::notFound);
+            if (!Objects.equals(path.siteId(), siteId)) throw invalid("Every delegated floor must belong to the selected tenant and site.");
+        }
+    }
+
+    private void requireImmutableDelegatedFloorScope(DelegatedScopeRow before, DelegatedAdminScopeRequest request) {
+        if ((before.floorIds() == null) != (request.floorIds() == null))
+            throw invalid("A delegation cannot change between whole-site and restricted scope. Revoke and create a new delegation.");
+        if (before.floorIds() == null) return; // Preserve legacy unrestricted SITE update behavior.
+        if (before.delegateType() != request.delegateType() || !Objects.equals(before.delegateUserId(), request.delegateUserId())
+                || !Objects.equals(before.delegateGroupRef(), request.delegateGroupRef()) || before.scopeType() != request.scopeType()
+                || !Objects.equals(before.siteId(), request.siteId()) || !Objects.equals(before.managedGroupRef(), request.managedGroupRef())
+                || !Set.copyOf(before.floorIds()).equals(Set.copyOf(request.floorIds())))
+            throw invalid("A restricted delegation subject, site and floor scope are immutable. Revoke and create a new delegation.");
     }
 
     private void validatePeriod(OffsetDateTime from, OffsetDateTime until) {

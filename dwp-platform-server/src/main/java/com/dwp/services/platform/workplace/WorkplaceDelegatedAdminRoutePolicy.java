@@ -11,7 +11,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import static com.dwp.services.platform.workplace.WorkplaceDelegatedAdminScopeRepository.SiteTargetType;
 import static com.dwp.services.platform.workplace.WorkplaceSpatialGovernanceDtos.DelegatedPermission;
 
 final class WorkplaceDelegatedAdminRoutePolicy {
@@ -23,10 +22,11 @@ final class WorkplaceDelegatedAdminRoutePolicy {
         POLICY_SCOPE_QUERY,
         TARGET_AND_POLICY_SCOPE_QUERY,
         TARGET_SITE,
+        SITE_CONTEXT,
         ANY_DELEGATED_SCOPE
     }
 
-    record Target(String variable, SiteTargetType type) {
+    record Target(String variable, WorkplaceDelegatedAdminTargetType type) {
     }
 
     record Match(
@@ -76,6 +76,59 @@ final class WorkplaceDelegatedAdminRoutePolicy {
     private static List<Rule> rules() {
         List<Rule> rules = new ArrayList<>();
 
+        siteQuery(rules, HttpMethod.GET, "/v1/admin/workplace/experience/facilities/closures",
+                DelegatedPermission.CATALOG_VIEW);
+        siteQuery(rules, HttpMethod.GET, "/v1/admin/workplace/experience/facilities/closures/{closureId}",
+                DelegatedPermission.CATALOG_VIEW);
+        siteQuery(rules, HttpMethod.GET, "/v1/admin/workplace/experience/facilities/resources/{resourceId}/room-booking-impact",
+                DelegatedPermission.CATALOG_VIEW);
+        siteQuery(rules, HttpMethod.POST, "/v1/admin/workplace/experience/facilities/resources/{resourceId}/closures",
+                DelegatedPermission.CATALOG_MANAGE);
+        siteQuery(rules, HttpMethod.PUT, "/v1/admin/workplace/experience/facilities/closures/{closureId}/cancel",
+                DelegatedPermission.CATALOG_MANAGE);
+        siteQuery(rules, HttpMethod.GET, "/v1/admin/workplace/experience/facilities/requests",
+                DelegatedPermission.CATALOG_VIEW);
+        siteQuery(rules, HttpMethod.PUT, "/v1/admin/workplace/experience/facilities/requests/{requestId}/status",
+                DelegatedPermission.CATALOG_MANAGE);
+        String collaboration = "/v1/admin/workplace/experience/collaboration";
+        for (String read : List.of("/overview", "/policy")) global(rules, HttpMethod.GET, collaboration + read);
+        global(rules, HttpMethod.PUT, collaboration + "/policy");
+        global(rules, HttpMethod.PUT, collaboration + "/connectors/{kind}");
+        for (String action : List.of("review", "changes")) {
+            context(rules, HttpMethod.POST, collaboration + "/sites/{siteId}/access-rules/" + action,
+                    DelegatedPermission.ACCESS_MANAGE, site("siteId"));
+            target(rules, HttpMethod.POST, collaboration + "/sites/{siteId}/access-rules/{ruleId}/" + action,
+                    DelegatedPermission.ACCESS_MANAGE, site("siteId"), target("ruleId", WorkplaceDelegatedAdminTargetType.ACCESS_RULE));
+            global(rules, HttpMethod.POST, collaboration + "/delegations/" + action);
+            global(rules, HttpMethod.POST, collaboration + "/delegations/{delegationId}/" + action);
+        }
+        for (String action : List.of("review", "changes")) {
+            global(rules, HttpMethod.POST, collaboration + "/booking-policy/" + action);
+            policyScopeQuery(rules, HttpMethod.POST, collaboration + "/policy-overrides/" + action,
+                    DelegatedPermission.POLICY_MANAGE);
+            targetAndPolicyScopeQuery(rules, HttpMethod.POST, collaboration + "/policy-overrides/{overrideId}/" + action,
+                    DelegatedPermission.POLICY_MANAGE, target("overrideId", WorkplaceDelegatedAdminTargetType.POLICY_OVERRIDE));
+        }
+        target(rules, HttpMethod.GET, collaboration + "/resources/{resourceId}/photo/metadata",
+                DelegatedPermission.CATALOG_VIEW, target("resourceId", WorkplaceDelegatedAdminTargetType.RESOURCE));
+        target(rules, HttpMethod.GET, collaboration + "/resources/{resourceId}/photo",
+                DelegatedPermission.CATALOG_VIEW, target("resourceId", WorkplaceDelegatedAdminTargetType.RESOURCE));
+        for (HttpMethod method : List.of(HttpMethod.POST, HttpMethod.DELETE)) {
+            target(rules, method, collaboration + "/resources/{resourceId}/photo",
+                    DelegatedPermission.CATALOG_MANAGE, target("resourceId", WorkplaceDelegatedAdminTargetType.RESOURCE));
+        }
+
+        siteQuery(rules, HttpMethod.GET, "/v1/admin/workplace/experience-report",
+                DelegatedPermission.CATALOG_VIEW);
+        siteQuery(rules, HttpMethod.GET,
+                "/v1/admin/workplace/experience-report/bookings/{bookingId}",
+                DelegatedPermission.CATALOG_VIEW);
+        siteQuery(rules, HttpMethod.GET,
+                "/v1/admin/workplace/resources/{resourceId}/future-booking-impact",
+                DelegatedPermission.CATALOG_VIEW);
+        siteQuery(rules, HttpMethod.GET, "/v1/admin/workplace/policy-impact-preview",
+                DelegatedPermission.POLICY_MANAGE);
+
         global(rules, HttpMethod.GET, "/v1/admin/workplace/overview");
         siteList(rules, HttpMethod.GET, "/v1/admin/workplace/sites",
                 DelegatedPermission.CATALOG_VIEW);
@@ -98,7 +151,7 @@ final class WorkplaceDelegatedAdminRoutePolicy {
         target(rules, HttpMethod.PUT,
                 "/v1/admin/workplace/floors/{floorId}/resources/{resourceId}",
                 DelegatedPermission.CATALOG_MANAGE,
-                floor("floorId"), target("resourceId", SiteTargetType.RESOURCE));
+                floor("floorId"), target("resourceId", WorkplaceDelegatedAdminTargetType.RESOURCE));
         target(rules, HttpMethod.PUT, "/v1/admin/workplace/floors/{floorId}/layout",
                 DelegatedPermission.CATALOG_MANAGE, floor("floorId"));
         global(rules, HttpMethod.GET, "/v1/admin/workplace/policy");
@@ -127,29 +180,29 @@ final class WorkplaceDelegatedAdminRoutePolicy {
         target(rules, HttpMethod.PUT,
                 "/v1/admin/workplace/governance/floors/{floorId}/zones/{zoneId}",
                 DelegatedPermission.CATALOG_MANAGE,
-                floor("floorId"), target("zoneId", SiteTargetType.ZONE));
+                floor("floorId"), target("zoneId", WorkplaceDelegatedAdminTargetType.ZONE));
         target(rules, HttpMethod.GET,
                 "/v1/admin/workplace/governance/zones/{zoneId}/sections",
-                DelegatedPermission.CATALOG_VIEW, target("zoneId", SiteTargetType.ZONE));
+                DelegatedPermission.CATALOG_VIEW, target("zoneId", WorkplaceDelegatedAdminTargetType.ZONE));
         target(rules, HttpMethod.POST,
                 "/v1/admin/workplace/governance/zones/{zoneId}/sections",
-                DelegatedPermission.CATALOG_MANAGE, target("zoneId", SiteTargetType.ZONE));
+                DelegatedPermission.CATALOG_MANAGE, target("zoneId", WorkplaceDelegatedAdminTargetType.ZONE));
         target(rules, HttpMethod.PUT,
                 "/v1/admin/workplace/governance/zones/{zoneId}/sections/{sectionId}",
                 DelegatedPermission.CATALOG_MANAGE,
-                target("zoneId", SiteTargetType.ZONE),
-                target("sectionId", SiteTargetType.SECTION));
-        target(rules, HttpMethod.GET,
+                target("zoneId", WorkplaceDelegatedAdminTargetType.ZONE),
+                target("sectionId", WorkplaceDelegatedAdminTargetType.SECTION));
+        context(rules, HttpMethod.GET,
                 "/v1/admin/workplace/governance/sites/{siteId}/access-rules",
                 DelegatedPermission.ACCESS_MANAGE, site("siteId"));
-        target(rules, HttpMethod.POST,
+        context(rules, HttpMethod.POST,
                 "/v1/admin/workplace/governance/sites/{siteId}/access-rules",
                 DelegatedPermission.ACCESS_MANAGE, site("siteId"));
         target(rules, HttpMethod.PUT,
                 "/v1/admin/workplace/governance/sites/{siteId}/access-rules/{ruleId}",
                 DelegatedPermission.ACCESS_MANAGE,
-                site("siteId"), target("ruleId", SiteTargetType.ACCESS_RULE));
-        target(rules, HttpMethod.GET,
+                site("siteId"), target("ruleId", WorkplaceDelegatedAdminTargetType.ACCESS_RULE));
+        context(rules, HttpMethod.GET,
                 "/v1/admin/workplace/governance/sites/{siteId}/access-preview",
                 DelegatedPermission.ACCESS_MANAGE, site("siteId"));
         policyScopeQuery(rules, HttpMethod.GET,
@@ -161,7 +214,7 @@ final class WorkplaceDelegatedAdminRoutePolicy {
         targetAndPolicyScopeQuery(rules, HttpMethod.PUT,
                 "/v1/admin/workplace/governance/policy-overrides/{overrideId}",
                 DelegatedPermission.POLICY_MANAGE,
-                target("overrideId", SiteTargetType.POLICY_OVERRIDE));
+                target("overrideId", WorkplaceDelegatedAdminTargetType.POLICY_OVERRIDE));
         policyScopeQuery(rules, HttpMethod.GET,
                 "/v1/admin/workplace/governance/policy-preview",
                 DelegatedPermission.POLICY_MANAGE);
@@ -174,23 +227,23 @@ final class WorkplaceDelegatedAdminRoutePolicy {
         target(rules, HttpMethod.GET,
                 "/v1/admin/workplace/governance/floor-plan-revisions/{revisionId}/snapshot",
                 DelegatedPermission.FLOOR_PLAN_MANAGE,
-                target("revisionId", SiteTargetType.FLOOR_PLAN_REVISION));
+                target("revisionId", WorkplaceDelegatedAdminTargetType.FLOOR_PLAN_REVISION));
         target(rules, HttpMethod.PUT,
                 "/v1/admin/workplace/governance/floor-plan-revisions/{revisionId}",
                 DelegatedPermission.FLOOR_PLAN_MANAGE,
-                target("revisionId", SiteTargetType.FLOOR_PLAN_REVISION));
+                target("revisionId", WorkplaceDelegatedAdminTargetType.FLOOR_PLAN_REVISION));
         for (HttpMethod method : List.of(HttpMethod.GET, HttpMethod.POST)) {
             target(rules, method,
                     "/v1/admin/workplace/governance/floor-plan-revisions/{revisionId}/background",
                     DelegatedPermission.FLOOR_PLAN_MANAGE,
-                    target("revisionId", SiteTargetType.FLOOR_PLAN_REVISION));
+                    target("revisionId", WorkplaceDelegatedAdminTargetType.FLOOR_PLAN_REVISION));
         }
         for (String transition : List.of("review", "publish", "restore")) {
             target(rules, HttpMethod.POST,
                     "/v1/admin/workplace/governance/floor-plan-revisions/{revisionId}/"
                             + transition,
                     DelegatedPermission.FLOOR_PLAN_MANAGE,
-                    target("revisionId", SiteTargetType.FLOOR_PLAN_REVISION));
+                    target("revisionId", WorkplaceDelegatedAdminTargetType.FLOOR_PLAN_REVISION));
         }
         target(rules, HttpMethod.GET,
                 "/v1/admin/workplace/governance/floors/{floorId}/projection",
@@ -209,15 +262,20 @@ final class WorkplaceDelegatedAdminRoutePolicy {
     }
 
     private static Target site(String variable) {
-        return target(variable, SiteTargetType.SITE);
+        return target(variable, WorkplaceDelegatedAdminTargetType.SITE);
     }
 
     private static Target floor(String variable) {
-        return target(variable, SiteTargetType.FLOOR);
+        return target(variable, WorkplaceDelegatedAdminTargetType.FLOOR);
     }
 
-    private static Target target(String variable, SiteTargetType type) {
+    private static Target target(String variable, WorkplaceDelegatedAdminTargetType type) {
         return new Target(variable, type);
+    }
+
+    private static void context(List<Rule> rules, HttpMethod method, String path,
+            DelegatedPermission permission, Target... targets) {
+        rules.add(rule(method, path, permission, ScopeMode.SITE_CONTEXT, targets));
     }
 
     private static void global(List<Rule> rules, HttpMethod method, String path) {

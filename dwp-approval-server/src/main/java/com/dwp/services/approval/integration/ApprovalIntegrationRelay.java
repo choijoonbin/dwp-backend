@@ -39,12 +39,10 @@ public class ApprovalIntegrationRelay {
         for (ApprovalIntegrationOutboxRepository.PendingEvent event
                 : repository.claim(batchSize, workerId)) {
             try {
-                publisher.publish(event);
-                repository.markPublished(event.outboxId(), workerId);
+                repository.publishCurrent(event, workerId, publisher::publish);
             } catch (RuntimeException exception) {
                 repository.markFailed(
-                        event.outboxId(), workerId, event.attemptCount(),
-                        maximumAttempts, exception.getMessage());
+                        event, workerId, maximumAttempts, exception.getMessage());
                 log.warn(
                         "Approval event delivery failed for {} on attempt {}",
                         event.eventId(), event.attemptCount());

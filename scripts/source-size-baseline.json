@@ -1,5 +1,4 @@
 {
-  "dwp-approval-server/src/main/java/com/dwp/services/approval/domain/ApprovalQueryRepository.java": 744,
   "dwp-auth-server/src/main/java/com/dwp/services/auth/service/AccessGovernanceService.java": 721,
   "dwp-auth-server/src/main/java/com/dwp/services/auth/service/AppGovernanceService.java": 844,
   "dwp-auth-server/src/main/java/com/dwp/services/auth/service/PrivilegedAccessService.java": 931,

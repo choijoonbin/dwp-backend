@@ -52,6 +52,9 @@ final class ApprovalCommandSql02 {
           JOIN apr_forms form
             ON form.tenant_id = binding.tenant_id
            AND form.form_id = binding.form_id
+          JOIN apr_form_categories category
+            ON category.tenant_id = form.tenant_id
+           AND category.category_id = form.category_id
           JOIN apr_form_versions form_version
             ON form_version.tenant_id = form.tenant_id
            AND form_version.form_id = form.form_id
@@ -59,6 +62,7 @@ final class ApprovalCommandSql02 {
          WHERE definition.tenant_id = :tenantId
            AND definition.workflow_id = :workflowId
            AND definition.management_resource_set_key = form.management_resource_set_key
+           AND category.management_resource_set_key = form.management_resource_set_key
            AND definition.lifecycle_state = 'PUBLISHED'
            AND version.lifecycle_state = 'PUBLISHED'
            AND (version.effective_from IS NULL
@@ -67,6 +71,8 @@ final class ApprovalCommandSql02 {
                 OR version.effective_to > CURRENT_TIMESTAMP)
            AND form.lifecycle_state = 'PUBLISHED'
            AND form_version.lifecycle_state = 'PUBLISHED'
+           AND category.lifecycle_state = 'ACTIVE'
+         FOR SHARE OF definition, version, binding, form, category, form_version
         """;
 
     static final String OWNED_REQUEST_SELECT_APR_REQUESTS = """
@@ -87,6 +93,12 @@ final class ApprovalCommandSql02 {
           JOIN apr_form_versions form_version
             ON form_version.tenant_id = request.tenant_id
            AND form_version.form_version_id = request.form_version_id
+          JOIN apr_forms form
+            ON form.tenant_id = form_version.tenant_id
+           AND form.form_id = form_version.form_id
+          JOIN apr_form_categories category
+            ON category.tenant_id = form.tenant_id
+           AND category.category_id = form.category_id
           JOIN apr_request_payloads payload
             ON payload.tenant_id = request.tenant_id
            AND payload.request_id = request.request_id
@@ -102,16 +114,58 @@ final class ApprovalCommandSql02 {
          WHERE request.tenant_id = :tenantId
            AND request.request_id = :requestId
            AND request.requester_user_id = :userId
+           AND request.deleted_at IS NULL
+           AND workflow.lifecycle_state = 'PUBLISHED'
+           AND workflow_version.lifecycle_state = 'PUBLISHED'
+           AND (workflow_version.effective_from IS NULL
+                OR workflow_version.effective_from <= CURRENT_TIMESTAMP)
+           AND (workflow_version.effective_to IS NULL
+                OR workflow_version.effective_to > CURRENT_TIMESTAMP)
+           AND form.lifecycle_state IN ('DRAFT', 'PUBLISHED')
+           AND form_version.lifecycle_state = 'PUBLISHED'
+           AND category.lifecycle_state = 'ACTIVE'
+           AND workflow.management_resource_set_key = request.management_resource_set_key
+           AND form.management_resource_set_key = request.management_resource_set_key
+           AND category.management_resource_set_key = request.management_resource_set_key
+         FOR UPDATE OF request, payload
+         FOR SHARE OF workflow_version, workflow, form_version, form, category, binding
         """;
 
     static final String INFORMATION_RUNTIME_SELECT_APR_REQUESTS = """
         SELECT form_version.schema_payload::text AS form_schema,
                request.management_resource_set_key,
-               payload.payload::text AS request_payload
+               payload.payload::text AS request_payload,
+               payload.schema_version AS payload_revision,
+               payload.payload_sha256,
+               workflow.sla_minutes,
+               workflow_version.definition::text AS workflow_definition,
+               binding.binding_type,
+               binding.condition_payload::text AS binding_condition
           FROM apr_requests request
+          JOIN apr_workflow_versions workflow_version
+            ON workflow_version.tenant_id = request.tenant_id
+           AND workflow_version.workflow_version_id = request.workflow_version_id
+          JOIN apr_workflow_definitions workflow
+            ON workflow.tenant_id = workflow_version.tenant_id
+           AND workflow.workflow_id = workflow_version.workflow_id
           JOIN apr_form_versions form_version
             ON form_version.tenant_id = request.tenant_id
            AND form_version.form_version_id = request.form_version_id
+          JOIN apr_forms form
+            ON form.tenant_id = form_version.tenant_id
+           AND form.form_id = form_version.form_id
+          JOIN apr_form_categories category
+            ON category.tenant_id = form.tenant_id
+           AND category.category_id = form.category_id
+          JOIN apr_form_workflow_bindings binding
+            ON binding.tenant_id = request.tenant_id
+           AND binding.form_id = form.form_id
+           AND binding.workflow_id = workflow.workflow_id
+           AND binding.lifecycle_state = 'ACTIVE'
+           AND (binding.effective_from IS NULL
+                OR binding.effective_from <= CURRENT_TIMESTAMP)
+           AND (binding.effective_to IS NULL
+                OR binding.effective_to > CURRENT_TIMESTAMP)
           JOIN apr_request_payloads payload
             ON payload.tenant_id = request.tenant_id
            AND payload.request_id = request.request_id
@@ -119,6 +173,20 @@ final class ApprovalCommandSql02 {
            AND request.request_id = :requestId
            AND request.requester_user_id = :userId
            AND request.status = 'NEEDS_INFO'
+           AND workflow.lifecycle_state = 'PUBLISHED'
+           AND workflow_version.lifecycle_state = 'PUBLISHED'
+           AND (workflow_version.effective_from IS NULL
+                OR workflow_version.effective_from <= CURRENT_TIMESTAMP)
+           AND (workflow_version.effective_to IS NULL
+                OR workflow_version.effective_to > CURRENT_TIMESTAMP)
+           AND form.lifecycle_state IN ('DRAFT', 'PUBLISHED')
+           AND form_version.lifecycle_state = 'PUBLISHED'
+           AND category.lifecycle_state = 'ACTIVE'
+           AND workflow.management_resource_set_key = request.management_resource_set_key
+           AND form.management_resource_set_key = request.management_resource_set_key
+           AND category.management_resource_set_key = request.management_resource_set_key
+         FOR UPDATE OF request, payload
+         FOR SHARE OF workflow_version, workflow, form_version, form, category, binding
         """;
 
     static final String OWNED_REQUEST_MANAGEMENT_SCOPE_SELECT_APR_REQUESTS = """

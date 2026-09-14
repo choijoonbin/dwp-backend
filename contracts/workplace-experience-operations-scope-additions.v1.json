@@ -1,0 +1,41 @@
+{
+  "version": "v1",
+  "purpose": "Add canonical location identity and native query scope to existing global administrator booking search",
+  "servicePath": "/v1/admin/workplace/bookings",
+  "publicPath": "/api/platform/v1/admin/workplace/bookings",
+  "httpMethod": "GET",
+  "authorization": {
+    "resourceKey": "ADMIN.WORKPLACE",
+    "permission": "VIEW",
+    "delegatedScopeMode": "GLOBAL_ONLY",
+    "unchanged": true,
+    "productEntitlementRequired": false
+  },
+  "queryAdditions": {
+    "siteId": {
+      "required": false,
+      "type": "UUID",
+      "validation": "same-tenant canonical wp_sites, otherwise404"
+    },
+    "floorId": {
+      "required": false,
+      "type": "UUID",
+      "validation": "requires siteId and same-tenant canonical wp_floors belonging to siteId, otherwise404"
+    }
+  },
+  "responseAdditions": {
+    "schema": "WorkplaceAdminBooking",
+    "siteId": {
+      "type": "UUID",
+      "nullable": false,
+      "source": "same-tenant wp_resources→wp_floors→wp_sites JOIN"
+    },
+    "floorId": {
+      "type": "UUID",
+      "nullable": false,
+      "source": "same-tenant wp_resources→wp_floors JOIN"
+    }
+  },
+  "privacy": "Count and content use identical canonical tenant JOIN and scope WHERE before pagination. No roles,grants,PEP bundles,entitlements or write permission changes.",
+  "backwardCompatibility": "Omitting both scope parameters retains existing global-admin tenant-wide search; existing legacy Java service overload preserved. Optional frontend identity fields during rollout must disable exact report-detail action when absent."
+}

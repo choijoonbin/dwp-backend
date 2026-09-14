@@ -19,11 +19,19 @@ class RoleMemberRepositoryQueryContractTest {
                 .filter(Query::nativeQuery)
                 .toList();
 
-        assertThat(nativeQueries).hasSize(2);
+        assertThat(nativeQueries).hasSize(4);
         nativeQueries.stream()
                 .map(Query::value)
                 .forEach(query -> assertThat(query)
                         .doesNotContainPattern("(?i)\\b(?:FROM|JOIN)\\s+[a-z0-9_.]+\\s+grant\\b")
                         .doesNotContainPattern("(?i)\\bgrant\\."));
+        assertThat(nativeQueries)
+                .extracting(Query::value)
+                .anySatisfy(query -> assertThat(query)
+                        .contains("FROM com_role_members member")
+                        .contains("FROM com_group_role_assignments assignment")
+                        .contains("FROM com_active_privileged_grants active_grant")
+                        .contains("user_account.status = 'ACTIVE'")
+                        .contains("user_account.identity_plane = 'TENANT'"));
     }
 }

@@ -46,4 +46,11 @@ public class WorkforceIdentitySyncController {
             @RequestParam(defaultValue = "10") int limit) {
         return subjects.search(tenantId, query, activeOnly, limit);
     }
+
+    @GetMapping("/tenants/{tenantId}/roles/{roleCode}/eligibility")
+    public IdentitySubjectLookupService.RoleEligibility roleEligibility(
+            @PathVariable Long tenantId,
+            @PathVariable String roleCode) {
+        return subjects.roleEligibility(tenantId, roleCode);
+    }
 }

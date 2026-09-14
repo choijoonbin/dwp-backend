@@ -245,6 +245,22 @@ SELECT 1, seed.request_id, seed.payload,
    AND request.request_id = seed.request_id
 ON CONFLICT (tenant_id, request_id) DO NOTHING;
 
+INSERT INTO apr_request_payload_versions (
+    payload_version_id, tenant_id, request_id, revision_number,
+    payload, payload_sha256, change_type, changed_by, change_reason,
+    correlation_id, created_at)
+SELECT md5('skax-approval-payload-version:v1:' || payload.request_id)::uuid,
+       payload.tenant_id, payload.request_id, payload.schema_version,
+       payload.payload, payload.payload_sha256, 'BASELINE', request.updated_by,
+       'Local approval fixture baseline', 'local-seed:' || payload.request_id,
+       payload.updated_at
+  FROM apr_request_payloads payload
+  JOIN apr_requests request
+    ON request.tenant_id = payload.tenant_id
+   AND request.request_id = payload.request_id
+ WHERE request.reference_seed_key LIKE 'seed:skax-approval:v1:%'
+ON CONFLICT (tenant_id, request_id, revision_number) DO NOTHING;
+
 WITH expanded_steps AS (
     SELECT seed.*,
            step.value AS step_definition,
@@ -363,7 +379,9 @@ WITH step_context AS (
 INSERT INTO apr_tasks (
     task_id, tenant_id, request_id, step_id,
     assignee_user_id, assignee_person_public_id, candidate_role,
-    status, risk_score, decision_reason, claimed_at, due_at, completed_at,
+    status, risk_score, decision_reason,
+    decision_payload_revision, decision_payload_sha256,
+    claimed_at, due_at, completed_at,
     version, created_at, updated_at)
 SELECT md5('skax-approval-task:v1:' || context.request_id || ':' || context.sequence_number)::uuid,
        1, context.request_id, context.step_id,
@@ -400,6 +418,24 @@ SELECT md5('skax-approval-task:v1:' || context.request_id || ':' || context.sequ
            ELSE NULL
        END,
        CASE
+           WHEN (context.scenario_key = 'ACTIVE'
+                    AND context.sequence_number < context.current_sequence)
+                OR context.scenario_key = 'NEEDS_INFO'
+                OR (context.scenario_key = 'ARCHIVE'
+                    AND context.request_status IN ('APPROVED', 'REJECTED'))
+               THEN payload.schema_version
+           ELSE NULL
+       END,
+       CASE
+           WHEN (context.scenario_key = 'ACTIVE'
+                    AND context.sequence_number < context.current_sequence)
+                OR context.scenario_key = 'NEEDS_INFO'
+                OR (context.scenario_key = 'ARCHIVE'
+                    AND context.request_status IN ('APPROVED', 'REJECTED'))
+               THEN payload.payload_sha256
+           ELSE NULL
+       END,
+       CASE
            WHEN context.scenario_key = 'ACTIVE'
                 AND context.sequence_number = context.current_sequence
                 AND MOD(context.member_order, 3) <> 0 THEN NULL
@@ -428,6 +464,9 @@ SELECT md5('skax-approval-task:v1:' || context.request_id || ':' || context.sequ
     ON assignee.member_order = 1 + MOD(
         context.member_order - 1 + context.assignee_offset,
         (SELECT COUNT(*)::INTEGER FROM seed_skax_members))
+  JOIN apr_request_payloads payload
+    ON payload.tenant_id = 1
+   AND payload.request_id = context.request_id
 ON CONFLICT (task_id) DO NOTHING;
 
 INSERT INTO apr_request_events (

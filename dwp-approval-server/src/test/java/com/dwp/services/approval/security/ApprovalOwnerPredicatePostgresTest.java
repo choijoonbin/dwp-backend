@@ -121,6 +121,49 @@ class ApprovalOwnerPredicatePostgresTest {
                                 .isEqualTo(ErrorCode.RESOURCE_NOT_AVAILABLE));
     }
 
+    @Test
+    void rejectsAClaimedDelegatedReadAfterTheDelegatorsRoleIsRevoked() {
+        jdbc.getJdbcTemplate().update("""
+                UPDATE apr_tasks
+                   SET status = 'CLAIMED', assignee_user_id = 200,
+                       delegated_from_user_id = 100,
+                       delegated_authority_role_code = 'APPROVER'
+                 WHERE tenant_id = 42 AND task_id = ?
+                """, TASK_ID);
+        when(identities.require(42, 100)).thenReturn(delegator(List.of()));
+        ApprovalQueryRepository.TaskAccess claimed = taskAccess(
+                "CLAIMED", 200L, false, 100L, "APPROVER");
+
+        assertThatThrownBy(() -> evaluator.requireReadableTask(actor(), claimed))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.RESOURCE_NOT_AVAILABLE));
+    }
+
+    @Test
+    void completedContentRequiresCurrentPermissionAndCandidateRole() {
+        ApprovalQueryRepository.TaskAccess completed = taskAccess(
+                "APPROVED", 200L, false, null);
+        when(identities.require(42, 200)).thenReturn(subject(
+                200L, List.of("APPROVER"), List.of()));
+
+        assertThat(evaluator.completedContentAccess(actor(), completed))
+                .isEqualTo(new ApprovalOwnerPredicateEvaluator.ContentReadDecision(
+                        false, "CURRENT_PERMISSION_REVOKED"));
+
+        when(identities.require(42, 200)).thenReturn(subject(
+                200L, List.of(), List.of("ACTION.APPROVAL_TASK:VIEW")));
+        assertThat(evaluator.completedContentAccess(actor(), completed))
+                .isEqualTo(new ApprovalOwnerPredicateEvaluator.ContentReadDecision(
+                        false, "CURRENT_ROLE_REVOKED"));
+
+        when(identities.require(42, 200)).thenReturn(subject(
+                200L, List.of("APPROVER"), List.of("ACTION.APPROVAL_TASK:VIEW")));
+        assertThat(evaluator.completedContentAccess(actor(), completed))
+                .isEqualTo(new ApprovalOwnerPredicateEvaluator.ContentReadDecision(
+                        true, "CURRENT_AUTHORITY_VERIFIED"));
+    }
+
     private ApprovalRequestContext.Actor actor() {
         return new ApprovalRequestContext.Actor(200L, 42L, null, "Delegate", Set.of(), Set.of());
     }
@@ -131,13 +174,40 @@ class ApprovalOwnerPredicatePostgresTest {
                 "ACTIVE", roles);
     }
 
+    private ApprovalIdentityDirectory.Subject subject(
+            long userId,
+            List<String> roles,
+            List<String> permissions) {
+        return new ApprovalIdentityDirectory.Subject(
+                42L, userId, null, null, "User", "user@example.test", null,
+                "ACTIVE", roles, permissions);
+    }
+
     private ApprovalQueryRepository.TaskAccess staleExpected(boolean delegated) {
+        return taskAccess("PENDING", null, delegated, delegated ? 999L : null);
+    }
+
+    private ApprovalQueryRepository.TaskAccess taskAccess(
+            String status,
+            Long assigneeUserId,
+            boolean delegated,
+            Long delegatedFromUserId) {
+        return taskAccess(status, assigneeUserId, delegated, delegatedFromUserId, null);
+    }
+
+    private ApprovalQueryRepository.TaskAccess taskAccess(
+            String status,
+            Long assigneeUserId,
+            boolean delegated,
+            Long delegatedFromUserId,
+            String delegatedAuthorityRoleCode) {
         ApprovalDtos.TaskSummary summary = new ApprovalDtos.TaskSummary(
                 TASK_ID, REQUEST_ID, "APR-1", "Title", "Summary", "Workflow", "Workflow",
-                "review", "Review", 1, "Requester", "Org", "PENDING", "NORMAL",
+                "review", "Review", 1, "Requester", "Org", status, "NORMAL",
                 "INTERNAL", 0, Instant.now(), Instant.now().plusSeconds(3600), 1);
         return new ApprovalQueryRepository.TaskAccess(
-                summary, 300, null, "APPROVER", delegated, delegated ? 999L : null);
+                summary, 300, assigneeUserId, "APPROVER", "RS_APPROVALS",
+                delegated, delegatedFromUserId, delegatedAuthorityRoleCode);
     }
 
     private void createSchema() {
@@ -169,6 +239,8 @@ class ApprovalOwnerPredicatePostgresTest {
                     tenant_id BIGINT NOT NULL, task_id UUID NOT NULL, request_id UUID NOT NULL,
                     version BIGINT NOT NULL, status VARCHAR(20) NOT NULL,
                     assignee_user_id BIGINT, candidate_role VARCHAR(100),
+                    delegated_from_user_id BIGINT,
+                    delegated_authority_role_code VARCHAR(80),
                     PRIMARY KEY (tenant_id, task_id))
                 """);
         jdbc.getJdbcTemplate().execute("""
@@ -193,9 +265,12 @@ class ApprovalOwnerPredicatePostgresTest {
         jdbc.getJdbcTemplate().update(
                 "INSERT INTO apr_requests VALUES (42, ?, 300, ?)",
                 REQUEST_ID, WORKFLOW_VERSION_ID);
-        jdbc.getJdbcTemplate().update(
-                "INSERT INTO apr_tasks VALUES (42, ?, ?, 1, 'PENDING', NULL, 'APPROVER')",
-                TASK_ID, REQUEST_ID);
+        jdbc.getJdbcTemplate().update("""
+                INSERT INTO apr_tasks (
+                    tenant_id, task_id, request_id, version, status,
+                    assignee_user_id, candidate_role, delegated_from_user_id)
+                VALUES (42, ?, ?, 1, 'PENDING', NULL, 'APPROVER', NULL)
+                """, TASK_ID, REQUEST_ID);
         jdbc.getJdbcTemplate().update("""
                 INSERT INTO apr_delegations (
                     delegation_id, tenant_id, delegator_user_id, delegate_user_id,

@@ -12,6 +12,7 @@ import org.springframework.validation.BindException;
 import org.springframework.validation.FieldError;
 import org.springframework.validation.ObjectError;
 import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.MissingRequestHeaderException;
@@ -221,6 +222,23 @@ public class GlobalExceptionHandler {
                                 "The request Content-Type is not supported.",
                                 locale),
                         correlationId(request)));
+    }
+
+    @ExceptionHandler(HttpRequestMethodNotSupportedException.class)
+    public ResponseEntity<ApiResponse<Object>> handleHttpRequestMethodNotSupported(
+            HttpRequestMethodNotSupportedException exception,
+            HttpServletRequest request,
+            Locale locale) {
+        var response = ResponseEntity.status(HttpStatus.METHOD_NOT_ALLOWED);
+        var supported = exception.getSupportedHttpMethods();
+        if (supported != null && !supported.isEmpty()) {
+            response.allow(supported.toArray(org.springframework.http.HttpMethod[]::new));
+        }
+        return response.body(ApiResponse.error(
+                ErrorCode.INVALID_INPUT_VALUE,
+                message("request.unsupported-method", null,
+                        "The request method is not supported.", locale),
+                correlationId(request)));
     }
 
     /**

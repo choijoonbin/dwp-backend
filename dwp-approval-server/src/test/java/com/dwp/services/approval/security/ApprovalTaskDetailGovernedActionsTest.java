@@ -61,11 +61,16 @@ class ApprovalTaskDetailGovernedActionsTest {
         when(queries.requestPayload(42L, requestId)).thenReturn(Map.of());
         when(queries.requestFormSchema(42L, requestId)).thenReturn(Map.of());
         when(queries.timeline(42L, requestId)).thenReturn(List.of());
+        ApprovalIdentityDirectory identities = mock(ApprovalIdentityDirectory.class);
+        when(identities.require(42L, 23L)).thenReturn(
+                new ApprovalIdentityDirectory.Subject(
+                        42L, 23L, null, null, "Delegator", "delegate@example.test",
+                        null, "ACTIVE", List.of("FINANCE_APPROVERS")));
         ApprovalService service = new ApprovalService(
                 queries,
                 mock(ApprovalCommandRepository.class),
                 mock(AuditOutboxRecorder.class),
-                mock(ApprovalIdentityDirectory.class));
+                identities);
 
         ApprovalDtos.TaskDetail detail = service.task(taskId);
 

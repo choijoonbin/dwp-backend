@@ -17,17 +17,6 @@
       ]
     },
     {
-      "id": "meeting-query-repository-helper",
-      "owner": "meeting-domain",
-      "reason": "The manually constructed query helper returns owner-nested paging records and uses the owner's shared access predicate.",
-      "reviewBy": "2026-12-15",
-      "runtimeComponentCycle": false,
-      "members": [
-        "com.dwp.services.meeting.videomeeting.domain.VideoMeetingQueryRepository",
-        "com.dwp.services.meeting.videomeeting.domain.VideoMeetingRepository"
-      ]
-    },
-    {
       "id": "people-hr-repository-split",
       "owner": "people-hr",
       "reason": "Manually constructed HR persistence helpers use records owned by the public repository facade.",

@@ -111,6 +111,8 @@ class ApprovalServiceTest {
                         pending, 99L, 23L, "FINANCE_APPROVERS", true, 23L));
         when(queries.requestPayload(42L, requestId)).thenReturn(Map.of());
         when(queries.timeline(42L, requestId)).thenReturn(List.of());
+        when(identities.require(42L, 23L))
+                .thenReturn(subject(23L, List.of("FINANCE_APPROVERS")));
 
         ApprovalDtos.TaskDetail detail = service.task(taskId);
 
@@ -156,12 +158,95 @@ class ApprovalServiceTest {
     }
 
     @Test
+    void rejectsAClaimedDelegatedReadAfterTheOriginalApproverLosesTheRole() {
+        UUID taskId = UUID.randomUUID();
+        ApprovalDtos.TaskSummary pending = summary(taskId, UUID.randomUUID(), "CLAIMED");
+        ApprovalQueryRepository.TaskAccess access = new ApprovalQueryRepository.TaskAccess(
+                pending, 99L, 17L, "FINANCE_APPROVERS", "RS_APPROVALS",
+                false, 23L, "FINANCE_APPROVERS");
+        when(queries.taskDetail(ApprovalRequestContext.require(), taskId)).thenReturn(access);
+        when(identities.require(42L, 23L)).thenReturn(subject(23L, List.of()));
+
+        assertThatThrownBy(() -> service.task(taskId))
+                .isInstanceOf(com.dwp.core.exception.BaseException.class)
+                .hasMessageContaining("no longer holds");
+        verify(queries, never()).requestPayload(42L, pending.requestId());
+    }
+
+    @Test
+    void redactsSupersededContentWhenCurrentOwnerAuthorityIsRevoked() {
+        UUID taskId = UUID.randomUUID();
+        UUID requestId = UUID.randomUUID();
+        ApprovalDtos.TaskSummary completed = summary(taskId, requestId, "SUPERSEDED");
+        ApprovalQueryRepository.TaskAccess access = new ApprovalQueryRepository.TaskAccess(
+                completed, 99L, 17L, "FINANCE_APPROVERS", false, null);
+        ApprovalOwnerPredicateEvaluator owner = mock(ApprovalOwnerPredicateEvaluator.class);
+        ApprovalService governed = new ApprovalService(
+                queries, commands, audit, identities,
+                mock(ApprovalHighRiskCommandGuard.class), owner);
+        when(queries.taskDetail(ApprovalRequestContext.require(), taskId)).thenReturn(access);
+        when(owner.completedContentAccess(ApprovalRequestContext.require(), access))
+                .thenReturn(new ApprovalOwnerPredicateEvaluator.ContentReadDecision(
+                        false, "CURRENT_PERMISSION_REVOKED"));
+
+        ApprovalDtos.TaskDetail detail = governed.task(taskId);
+
+        assertThat(detail.contentAccess().state()).isEqualTo("REDACTED");
+        assertThat(detail.contentAccess().reason()).isEqualTo("CURRENT_PERMISSION_REVOKED");
+        assertThat(detail.task().title()).isEqualTo("Restricted approval");
+        assertThat(detail.task().summary()).isEmpty();
+        assertThat(detail.payload()).isEmpty();
+        assertThat(detail.formSchema()).isEmpty();
+        assertThat(detail.timeline()).isEmpty();
+        assertThat(detail.canClaim()).isFalse();
+        assertThat(detail.canDecide()).isFalse();
+        verify(queries, never()).requestPayload(42L, requestId);
+        verify(queries, never()).decisionPayload(42L, taskId);
+        verify(queries, never()).requestFormSchema(42L, requestId);
+        verify(queries, never()).timeline(42L, requestId);
+    }
+
+    @Test
+    void rejectsWorkflowPublicationWhenACandidateRoleIsInactive() {
+        UUID workflowId = UUID.randomUUID();
+        when(queries.workflowCandidateRoles(42L, workflowId))
+                .thenReturn(List.of("FINANCE_APPROVERS"));
+        when(identities.requireRole(42L, "FINANCE_APPROVERS"))
+                .thenReturn(new ApprovalIdentityDirectory.RoleEligibility(
+                        42L, "FINANCE_APPROVERS", "INACTIVE", 3, true));
+
+        assertThatThrownBy(() -> service.publishWorkflow(
+                workflowId, 2L, "inactive-role"))
+                .isInstanceOf(com.dwp.core.exception.BaseException.class)
+                .hasMessageContaining("inactive or has no eligible approver");
+        verify(commands, never()).publishWorkflow(
+                ApprovalRequestContext.require(), workflowId, 2L, "inactive-role");
+    }
+
+    @Test
+    void rejectsSubmissionWhenACandidateRoleHasNoEligibleUsers() {
+        UUID requestId = UUID.randomUUID();
+        when(queries.requestCandidateRoles(ApprovalRequestContext.require(), requestId))
+                .thenReturn(List.of("FINANCE_APPROVERS"));
+        when(identities.requireRole(42L, "FINANCE_APPROVERS"))
+                .thenReturn(new ApprovalIdentityDirectory.RoleEligibility(
+                        42L, "FINANCE_APPROVERS", "ACTIVE", 0, false));
+
+        assertThatThrownBy(() -> service.submit(requestId, 1L, "unstaffed-role"))
+                .isInstanceOf(com.dwp.core.exception.BaseException.class)
+                .hasMessageContaining("inactive or has no eligible approver");
+        verify(commands, never()).submit(
+                ApprovalRequestContext.require(), requestId, 1L, "unstaffed-role");
+    }
+
+    @Test
     void retriesAnIsolatedIntegrationDeliveryWithExtendedAuditEvidence() {
         UUID outboxId = UUID.randomUUID();
         when(queries.adminPulse(42L)).thenReturn(new ApprovalDtos.AdminPulse(
                 1, 0, 2, 0, 1, List.of()));
         when(queries.breachedTasks(42L, 20)).thenReturn(List.of());
-        when(queries.integrationDeliveries(42L, 50)).thenReturn(List.of());
+        when(queries.integrationDeliveries(ApprovalRequestContext.require(), 50))
+                .thenReturn(List.of());
 
         ApprovalDtos.OperationsResponse response = service.retryIntegrationDelivery(
                 outboxId, "approval-retry-correlation");
@@ -197,7 +282,8 @@ class ApprovalServiceTest {
         when(queries.adminPulse(42L)).thenReturn(new ApprovalDtos.AdminPulse(
                 0, 0, 0, 0, 0, List.of()));
         when(queries.breachedTasks(42L, 20)).thenReturn(List.of());
-        when(queries.integrationDeliveries(42L, 50)).thenReturn(List.of());
+        when(queries.integrationDeliveries(ApprovalRequestContext.require(), 50))
+                .thenReturn(List.of());
 
         governed.retryIntegrationDelivery(
                 outboxId, expectedVersion, "retry-correlation", headers);

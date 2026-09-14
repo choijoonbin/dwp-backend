@@ -445,7 +445,9 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String requiredPermission = switch (request.getMethod()) {
             case "GET", "HEAD" -> "VIEW";
-            case "POST" -> path.endsWith("/bookings") ? "CREATE" : "UPDATE";
+            case "POST" -> path.endsWith("/bookings")
+                    || (path.startsWith("/v1/workplace/experience/facilities/") && path.endsWith("/requests"))
+                    ? "CREATE" : "UPDATE";
             case "PUT", "PATCH", "DELETE" -> "UPDATE";
             default -> "VIEW";
         };
@@ -471,7 +473,9 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String requiredPermission = switch (request.getMethod()) {
             case "GET", "HEAD" -> "VIEW";
-            case "POST" -> path.endsWith("/bookings") ? "CREATE" : "UPDATE";
+            case "POST" -> path.endsWith("/bookings")
+                    || (path.startsWith("/v1/workplace/experience/facilities/resources/")
+                    && path.endsWith("/requests")) ? "CREATE" : "UPDATE";
             case "PUT", "PATCH", "DELETE" -> "UPDATE";
             default -> "VIEW";
         };
@@ -494,13 +498,16 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     }
 
     private boolean isSensitiveWorkplaceOperation(String path) {
-        return path.endsWith("/policy")
+        return (path.startsWith("/v1/admin/workplace/experience/collaboration/connectors/"))
+                || path.endsWith("/policy")
                 || path.endsWith("/force-cancel")
                 || path.endsWith("/legal-hold");
     }
 
     private boolean isWorkplaceGovernanceTransition(String path) {
-        return path.endsWith("/review")
+        return (path.startsWith("/v1/admin/workplace/experience/collaboration/")
+                && (path.endsWith("/changes") || path.endsWith("/review")))
+                || path.endsWith("/review")
                 || path.endsWith("/publish")
                 || path.endsWith("/restore");
     }

@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "status": "PASS_EXACT44_NATIVE_SOURCE_CLOSURE_NOT_PDP_ACTIVATION",
+  "createdAtUtc": "2026-09-14T06:00:59.706652+00:00",
+  "reviewFile": "contracts/workplace-experience-collaboration-v9.source-append.review.json",
+  "reviewFileSha256": "1b502ada84de541034a9398f730d2cb92b7c03eb392c49079a10930489d3efac",
+  "exactOperations": 44,
+  "uniquePathTemplates": 40,
+  "DATA": 25,
+  "ACTION": 19,
+  "PAGE": 0,
+  "readOnlyPostReviews": 7,
+  "actualControllerSetMatched": true,
+  "sourceSchemaFieldNamesOnly": true,
+  "currentSourceSha256": "fb90fe5179d2eff7328291813dd302d01d7c8b1623065a7fa3dc0db47081ad00",
+  "canonicalOperationListSha256": "ca3c4a9c67cfb3c31fdbf26f1cd5bf19cc04dfdc8015b56476c8a0b2596674c2",
+  "standaloneContracts": [
+    {
+      "path": "contracts/workplace-experience-collaboration-authorization.v1.json",
+      "sha256": "ce298939ef56a8d54caa6171a0e60e259b42c43e3e97bfbf850f9498e9bbf7a6"
+    },
+    {
+      "path": "contracts/workplace-experience-collaboration.v1.json",
+      "sha256": "0a72762439eb2e5b93f4e36b289572f161e676fa0593d288962f8174e670d772"
+    },
+    {
+      "path": "contracts/workplace-experience-authorization-additions.v1.json",
+      "sha256": "ef04154361a91bf034eb155fa90d3f915b1606193f244f6dd44f52c137fed0eb"
+    }
+  ],
+  "activation": "Blocked native resolver/evidence/PEP/projection extension; Approval v9 may exclude Workplace44",
+  "freeze": "Only new review/proof and earlier bounded VIEW metadata correction; no production/global/test/locale edits"
+}

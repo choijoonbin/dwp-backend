@@ -94,4 +94,89 @@ public interface RoleMemberRepository extends JpaRepository<RoleMember, Long> {
     List<RoleMember> findByTenantIdAndUserIdIn(Long tenantId, Collection<Long> userIds);
 
     long countByTenantIdAndRoleId(Long tenantId, Long roleId);
+
+    @Query(value = """
+            SELECT COUNT(DISTINCT authority.user_id)
+              FROM (
+                  SELECT member.user_id
+                    FROM com_role_members member
+                   WHERE member.tenant_id = :tenantId
+                     AND member.role_id = :roleId
+                  UNION
+                  SELECT membership.user_id
+                    FROM com_group_role_assignments assignment
+                    JOIN com_group_members membership
+                      ON membership.tenant_id = assignment.tenant_id
+                     AND membership.group_id = assignment.group_id
+                    JOIN com_groups access_group
+                      ON access_group.tenant_id = membership.tenant_id
+                     AND access_group.group_id = membership.group_id
+                   WHERE assignment.tenant_id = :tenantId
+                     AND assignment.role_id = :roleId
+                     AND access_group.status = 'ACTIVE'
+                     AND assignment.lifecycle_state = 'ACTIVE'
+                     AND assignment.assignment_type = 'ACTIVE'
+                     AND assignment.scope_type = 'TENANT'
+                     AND (assignment.valid_from IS NULL
+                          OR assignment.valid_from <= CURRENT_TIMESTAMP)
+                     AND (assignment.valid_to IS NULL
+                          OR assignment.valid_to > CURRENT_TIMESTAMP)
+                  UNION
+                  SELECT active_grant.user_id
+                    FROM com_active_privileged_grants active_grant
+                   WHERE active_grant.tenant_id = :tenantId
+                     AND active_grant.role_id = :roleId
+                     AND active_grant.scope_type = 'TENANT'
+                     AND active_grant.revoked_at IS NULL
+                     AND active_grant.activated_at <= CURRENT_TIMESTAMP
+                     AND active_grant.expires_at > CURRENT_TIMESTAMP
+              ) authority
+              JOIN com_users user_account
+                ON user_account.tenant_id = :tenantId
+               AND user_account.user_id = authority.user_id
+               AND user_account.status = 'ACTIVE'
+               AND user_account.identity_plane = 'TENANT'
+            """, nativeQuery = true)
+    long countEffectiveActiveUsers(
+            @Param("tenantId") Long tenantId,
+            @Param("roleId") Long roleId);
+
+    @Query(value = """
+            SELECT DISTINCT authority.user_id
+              FROM (
+                  SELECT member.user_id
+                    FROM com_role_members member
+                   WHERE member.tenant_id = :tenantId AND member.role_id = :roleId
+                  UNION
+                  SELECT membership.user_id
+                    FROM com_group_role_assignments assignment
+                    JOIN com_group_members membership
+                      ON membership.tenant_id = assignment.tenant_id
+                     AND membership.group_id = assignment.group_id
+                    JOIN com_groups access_group
+                      ON access_group.tenant_id = membership.tenant_id
+                     AND access_group.group_id = membership.group_id
+                   WHERE assignment.tenant_id = :tenantId AND assignment.role_id = :roleId
+                     AND access_group.status = 'ACTIVE'
+                     AND assignment.lifecycle_state = 'ACTIVE'
+                     AND assignment.assignment_type = 'ACTIVE'
+                     AND assignment.scope_type = 'TENANT'
+                     AND (assignment.valid_from IS NULL OR assignment.valid_from <= CURRENT_TIMESTAMP)
+                     AND (assignment.valid_to IS NULL OR assignment.valid_to > CURRENT_TIMESTAMP)
+                  UNION
+                  SELECT active_grant.user_id
+                    FROM com_active_privileged_grants active_grant
+                   WHERE active_grant.tenant_id = :tenantId AND active_grant.role_id = :roleId
+                     AND active_grant.scope_type = 'TENANT' AND active_grant.revoked_at IS NULL
+                     AND active_grant.activated_at <= CURRENT_TIMESTAMP
+                     AND active_grant.expires_at > CURRENT_TIMESTAMP
+              ) authority
+              JOIN com_users user_account
+                ON user_account.tenant_id = :tenantId AND user_account.user_id = authority.user_id
+               AND user_account.status = 'ACTIVE' AND user_account.identity_plane = 'TENANT'
+             ORDER BY authority.user_id LIMIT 1001
+            """, nativeQuery = true)
+    List<Long> enumerateEffectiveActiveUsers(
+            @Param("tenantId") Long tenantId,
+            @Param("roleId") Long roleId);
 }

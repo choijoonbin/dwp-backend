@@ -69,6 +69,54 @@ class WorkplaceCatalogRepository {
                 """, (result, ignored) -> site(result), korean, tenantId, siteId).stream().findFirst();
     }
 
+    /** Counts and content share the canonical allowed-floor predicate before projection. */
+    Optional<SiteRow> scopedSite(Long tenantId, UUID siteId, boolean korean, java.util.Collection<UUID> floors) {
+        if (floors == null) return site(tenantId, siteId, korean);
+        if (floors.isEmpty()) throw new IllegalArgumentException("An authorized floor scope cannot be empty.");
+        var named = new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(jdbc);
+        return named.query("""
+                SELECT site.*, CASE WHEN :korean THEN site.name_ko ELSE site.name_en END AS display_name,
+                  (SELECT COUNT(*) FROM wp_floors floor WHERE floor.tenant_id = site.tenant_id
+                    AND floor.site_id = site.site_id AND floor.floor_id IN (:floors)
+                    AND floor.lifecycle_state <> 'CLOSED') AS configured_floor_count,
+                  (SELECT COUNT(*) FROM wp_resources resource JOIN wp_floors floor
+                    ON floor.tenant_id = resource.tenant_id AND floor.floor_id = resource.floor_id
+                    WHERE resource.tenant_id = site.tenant_id AND floor.site_id = site.site_id
+                    AND floor.floor_id IN (:floors) AND resource.lifecycle_state <> 'RETIRED') AS resource_count
+                FROM wp_sites site WHERE site.tenant_id = :tenantId AND site.site_id = :siteId
+                """, new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
+                .addValue("tenantId", tenantId).addValue("siteId", siteId)
+                .addValue("korean", korean).addValue("floors", floors),
+                (result, ignored) -> site(result)).stream().findFirst();
+    }
+
+    List<FloorRow> scopedFloors(Long tenantId, UUID siteId, boolean korean, java.util.Collection<UUID> floors) {
+        if (floors == null) return floors(tenantId, siteId, korean);
+        if (floors.isEmpty()) throw new IllegalArgumentException("An authorized floor scope cannot be empty.");
+        var named = new org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate(jdbc);
+        return named.query("""
+                SELECT floor.*, site.name_ko AS site_name_ko, site.name_en AS site_name_en,
+                  CASE WHEN :korean THEN site.name_ko ELSE site.name_en END AS site_display_name,
+                  CASE WHEN :korean THEN floor.name_ko ELSE floor.name_en END AS display_name,
+                  (SELECT COUNT(*) FROM wp_resources resource WHERE resource.tenant_id = floor.tenant_id
+                    AND resource.floor_id = floor.floor_id AND resource.lifecycle_state <> 'RETIRED') AS resource_count
+                FROM wp_floors floor JOIN wp_sites site
+                  ON site.tenant_id = floor.tenant_id AND site.site_id = floor.site_id
+                WHERE floor.tenant_id = :tenantId AND floor.site_id = :siteId
+                  AND floor.floor_id IN (:floors) ORDER BY floor.floor_number, floor.floor_id
+                """, new org.springframework.jdbc.core.namedparam.MapSqlParameterSource()
+                .addValue("tenantId", tenantId).addValue("siteId", siteId)
+                .addValue("korean", korean).addValue("floors", floors),
+                (result, ignored) -> floor(result));
+    }
+
+    UUID revisionFloor(Long tenantId, UUID revisionId) {
+        return jdbc.query("SELECT floor_id FROM wp_floor_plan_revisions WHERE tenant_id = ? AND floor_plan_revision_id = ?",
+                (rs, ignored) -> rs.getObject("floor_id", UUID.class), tenantId, revisionId)
+                .stream().findFirst().orElseThrow(() -> new com.dwp.core.exception.BaseException(
+                        com.dwp.core.common.ErrorCode.NOT_FOUND));
+    }
+
     List<FloorRow> floors(Long tenantId, UUID siteId, boolean korean) {
         return jdbc.query("""
                 SELECT floor.*, site.name_ko AS site_name_ko, site.name_en AS site_name_en,
