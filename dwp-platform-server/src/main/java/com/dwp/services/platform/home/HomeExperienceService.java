@@ -14,8 +14,6 @@ import org.springframework.core.io.Resource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
@@ -51,6 +49,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
     private final HomeViewCompatibilityBridge compatibilityBridge;
     private final HomeExperiencePresentationPolicy presentationPolicy;
     private final HomeModeV4ActivationGate modeV4ActivationGate;
+    private final HomeBackgroundAssetLifecycle backgroundAssets;
 
     @Value("${dwp.platform.home.flow-enabled:false}")
     private boolean homeFlowEnabled;
@@ -93,6 +92,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
         this.compatibilityBridge = compatibilityBridge;
         this.presentationPolicy = presentationPolicy;
         this.modeV4ActivationGate = modeV4ActivationGate;
+        this.backgroundAssets = new HomeBackgroundAssetLifecycle(assetStorage);
     }
 
     @Transactional(readOnly = true)
@@ -175,10 +175,11 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
                         "home/backgrounds",
                         background.extension(),
                         background.content());
-                synchronizedCleanup = scheduleNewAssetRollbackCleanup(tenantId, replacementKey);
+                synchronizedCleanup = backgroundAssets.scheduleRollbackCleanup(
+                        tenantId, replacementKey);
                 presentationPolicy.applyBackground(experience, replacementKey, background);
             } else if (resetBackground) {
-                clearBackground(experience);
+                backgroundAssets.clear(experience);
             }
             HomeExperience saved = repository.saveAndFlush(experience);
             appendRevision(tenantId, actorId, correlationId, "EXPERIENCE_PUBLISHED", saved);
@@ -194,7 +195,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
             return response(saved);
         } catch (RuntimeException exception) {
             if (replacementKey != null && !synchronizedCleanup) {
-                deleteQuietly(tenantId, replacementKey);
+                backgroundAssets.deleteQuietly(tenantId, replacementKey);
             }
             throw exception;
         }
@@ -315,7 +316,8 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
         ensureBaseline(tenantId, actorId, correlationId, experience);
         String storageKey = assetStorage.store(
                 tenantId, "home/backgrounds", background.extension(), background.content());
-        boolean synchronizedCleanup = scheduleNewAssetRollbackCleanup(tenantId, storageKey);
+        boolean synchronizedCleanup = backgroundAssets.scheduleRollbackCleanup(
+                tenantId, storageKey);
 
         try {
             presentationPolicy.applyBackground(experience, storageKey, background);
@@ -332,7 +334,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
                     snapshot(saved));
             return response(saved);
         } catch (RuntimeException exception) {
-            if (!synchronizedCleanup) deleteQuietly(tenantId, storageKey);
+            if (!synchronizedCleanup) backgroundAssets.deleteQuietly(tenantId, storageKey);
             throw exception;
         }
     }
@@ -349,7 +351,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
         Object before = snapshot(experience);
         ensureBaseline(tenantId, actorId, correlationId, experience);
 
-        clearBackground(experience);
+        backgroundAssets.clear(experience);
         HomeExperience saved = repository.saveAndFlush(experience);
         appendRevision(tenantId, actorId, correlationId, "ASSET_RESET", saved);
         auditService.success(
@@ -554,42 +556,6 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
     private HomeExperienceDtos.HomeCompositionPolicy persistableCompositionPolicy(
             HomeExperienceDtos.HomeCompositionPolicy canonical) {
         return responseCompositionPolicy(canonical);
-    }
-
-    private void clearBackground(HomeExperience experience) {
-        experience.setBackgroundAssetKey(null);
-        experience.setBackgroundOriginalName(null);
-        experience.setBackgroundContentType(null);
-        experience.setBackgroundSizeBytes(null);
-        experience.setBackgroundSha256(null);
-        experience.setBackgroundWidth(null);
-        experience.setBackgroundHeight(null);
-    }
-
-    private void deleteQuietly(Long tenantId, String storageKey) {
-        if (storageKey == null) return;
-        try {
-            assetStorage.delete(tenantId, storageKey);
-        } catch (RuntimeException exception) {
-            log.warn(
-                    "Home asset cleanup failed for tenant {} and key {}",
-                    tenantId,
-                    storageKey,
-                    exception);
-        }
-    }
-
-    private boolean scheduleNewAssetRollbackCleanup(Long tenantId, String replacementKey) {
-        if (!TransactionSynchronizationManager.isSynchronizationActive()) return false;
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override
-            public void afterCompletion(int status) {
-                if (status != STATUS_COMMITTED) {
-                    deleteQuietly(tenantId, replacementKey);
-                }
-            }
-        });
-        return true;
     }
 
     private void ensureBaseline(

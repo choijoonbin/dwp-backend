@@ -11,6 +11,5 @@
   "dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityRepository.java": 950,
   "dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityService.java": 734,
   "dwp-platform-server/src/main/java/com/dwp/services/platform/reference/ReferenceDataService.java": 731,
-  "dwp-platform-server/src/main/java/com/dwp/services/platform/workspace/WorkspaceService.java": 736,
   "dwp-provider-server/src/main/java/com/dwp/services/provider/ProviderDtos.java": 788
 }
