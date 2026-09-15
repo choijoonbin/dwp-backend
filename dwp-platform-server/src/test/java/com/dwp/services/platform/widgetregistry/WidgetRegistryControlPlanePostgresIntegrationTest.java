@@ -196,6 +196,63 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
     }
 
     @Test
+    void failedCertificationEvidenceDisablesLegacyShadowDiscovery() throws Exception {
+        UUID seedId = UUID.fromString("31000000-0000-0000-0000-000000000003");
+        var seed = definitions.getVersion(seedId);
+        assertShadowCatalogAvailable(1L, requiredAuthorities());
+
+        definitions.recordEvidence(41002L, UUID.randomUUID(), "legacy-failure", seedId,
+                new WidgetRegistryDtos.EvidenceCreateRequest(
+                        "SECURITY", "FAIL", seed.manifestHash(), "evidence:security-failure",
+                        sha("security-failure"), null, null,
+                        "TEST", "Security evidence failed", seed.version()));
+
+        assertThat(definitions.getVersion(seedId).certificationStatus()).isEqualTo("FAIL");
+        assertCatalogDenied(seedId);
+    }
+
+    @Test
+    void expiredLegacyCertificationFailsClosed() throws Exception {
+        UUID seedId = UUID.fromString("31000000-0000-0000-0000-000000000003");
+        jdbc.update("UPDATE plt_widget_definition_versions SET certification_status = 'EXPIRED' WHERE version_id = ?",
+                seedId);
+        assertCatalogDenied(seedId);
+    }
+
+    @Test
+    void copiedAndAlteredLegacyAttestationsCannotCreateAnEighthShadowException() throws Exception {
+        UUID original = UUID.fromString("31000000-0000-0000-0000-000000000003");
+        UUID copy = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO plt_widget_definition_versions (
+                    version_id, definition_id, semantic_version, manifest, manifest_hash,
+                    renderer_key, workflow_state, release_state, safety_state, immutable,
+                    attestation, certification_status)
+                SELECT ?, definition_id, '2.0.0', manifest, ?, renderer_key, workflow_state,
+                       release_state, safety_state, immutable, attestation, certification_status
+                  FROM plt_widget_definition_versions WHERE version_id = ?
+                """, copy, sha("altered-manifest"), original);
+        jdbc.update("""
+                UPDATE plt_widget_release_channels SET current_version_id = ?
+                 WHERE definition_id = '30000000-0000-0000-0000-000000000003'
+                   AND channel = 'STABLE'
+                """, copy);
+
+        assertCatalogDenied(copy);
+    }
+
+    private void assertCatalogDenied(UUID versionId) throws Exception {
+        var response = catalog.effective(1L, "workspace-home", requiredAuthorities(), "", "");
+        assertThat(response.contexts().getFirst().items())
+                .filteredOn(item -> versionId.equals(item.resolvedVersionId()))
+                .singleElement().satisfies(item -> {
+                    assertThat(item.effectiveState()).isEqualTo(WidgetRegistryDtos.EffectiveCatalogState.DENY);
+                    assertThat(item.reasonCodes()).doesNotContain(WidgetRegistryDtos.EffectiveCatalogReason.AVAILABLE);
+                    assertThat(item.placementCapabilities().canAdd()).isFalse();
+                });
+    }
+
+    @Test
     void lifecyclePolicySafetyRollbackConcurrencyAndAuditRemainFailClosed() throws Exception {
         long author = 41001L;
         long reviewer = 41002L;

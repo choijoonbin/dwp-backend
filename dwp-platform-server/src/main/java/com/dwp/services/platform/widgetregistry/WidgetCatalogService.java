@@ -29,31 +29,45 @@ public class WidgetCatalogService {
             new BaselineWidget(
                     "core.workspace.command-rail",
                     "a3a1fd5ffff9d7f6014ec3007a16ebea10dbf8ce3ae19e02fd2bd001fee0eb97",
-                    "home.command-rail"),
+                    "home.command-rail",
+                    "30000000-0000-0000-0000-000000000001",
+                    "31000000-0000-0000-0000-000000000001"),
             new BaselineWidget(
                     "core.workspace.daily-brief",
                     "9b7f48b7ea4ef429120db330a4972c3315ad682759fa86e49c212c42bdd02406",
-                    "home.daily-brief"),
+                    "home.daily-brief",
+                    "30000000-0000-0000-0000-000000000002",
+                    "31000000-0000-0000-0000-000000000002"),
             new BaselineWidget(
                     "core.work.focus",
                     "36d1b02326e4725a235749e173dfdf50a0423ef30f42d7ccab97946ba826d893",
-                    "home.focus"),
+                    "home.focus",
+                    "30000000-0000-0000-0000-000000000003",
+                    "31000000-0000-0000-0000-000000000003"),
             new BaselineWidget(
                     "core.calendar.schedule",
                     "7f3e090997a213e9d3e6f8184e1458e57382c5f31db79f00fbf678d36f884f5d",
-                    "home.schedule"),
+                    "home.schedule",
+                    "30000000-0000-0000-0000-000000000004",
+                    "31000000-0000-0000-0000-000000000004"),
             new BaselineWidget(
                     "core.activity.activity",
                     "fbab61015ec3b20c2faf9810b1758aebbd7517029baa64cb6b99190815836ca1",
-                    "home.activity"),
+                    "home.activity",
+                    "30000000-0000-0000-0000-000000000005",
+                    "31000000-0000-0000-0000-000000000005"),
             new BaselineWidget(
                     "core.work.focus-balance",
                     "10388bcc9f1bf02f761790b157d7b1d10b574e362d3db81a198cb45ade05c899",
-                    "home.focus-balance"),
+                    "home.focus-balance",
+                    "30000000-0000-0000-0000-000000000006",
+                    "31000000-0000-0000-0000-000000000006"),
             new BaselineWidget(
                     "core.calendar.meeting-load",
                     "17b5fee8b514793d8244ce6ac744979a5ad7a3805817612521fc2c77a7e6add2",
-                    "home.meeting-load"));
+                    "home.meeting-load",
+                    "30000000-0000-0000-0000-000000000007",
+                    "31000000-0000-0000-0000-000000000007"));
     private final WidgetRegistryLedger ledger;
     private final WidgetDefinitionRepository definitions;
     private final WidgetDefinitionVersionRepository versions;
@@ -245,7 +259,13 @@ public class WidgetCatalogService {
             }
             boolean legacyShadowDiscovery = "SHADOW".equals(registryState.getMigrationMode())
                     && !registryState.isRuntimeActivationReady()
-                    && "LEGACY_UNVERIFIED".equals(version.getAttestation().path("source").asText());
+                    && "NOT_RUN".equals(version.getCertificationStatus())
+                    && "LEGACY_UNVERIFIED".equals(version.getAttestation().path("source").asText())
+                    && NATIVE_BASELINE.stream().anyMatch(baseline -> baseline.matches(definition, version))
+                    && bindings.findByRendererKeyAndBindingState(version.getRendererKey(), "ACTIVE")
+                            .filter(binding -> "NATIVE".equals(binding.getKind()))
+                            .filter(binding -> version.getManifestHash().equals(binding.getBindingRevision()))
+                            .isPresent();
             if (!legacyShadowDiscovery
                     && (!"PASS".equals(version.getCertificationStatus())
                     || !definitionService.hasCurrentCertificationEvidence(version))) {
@@ -354,5 +374,16 @@ public class WidgetCatalogService {
     }
 
     private record BaselineWidget(
-            String definitionKey, String manifestHash, String rendererKey) {}
+            String definitionKey, String manifestHash, String rendererKey,
+            String definitionId, String versionId) {
+        boolean matches(WidgetDefinition definition, WidgetDefinitionVersion version) {
+            return definitionId.equals(definition.getDefinitionId().toString())
+                    && versionId.equals(version.getVersionId().toString())
+                    && definitionKey.equals(definition.getDefinitionKey())
+                    && definition.getDefinitionId().equals(version.getDefinitionId())
+                    && "1.0.0".equals(version.getSemanticVersion())
+                    && manifestHash.equals(version.getManifestHash())
+                    && rendererKey.equals(version.getRendererKey());
+        }
+    }
 }
