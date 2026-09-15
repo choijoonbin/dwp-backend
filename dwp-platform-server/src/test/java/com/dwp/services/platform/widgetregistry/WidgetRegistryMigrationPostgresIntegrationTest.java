@@ -1,0 +1,248 @@
+package com.dwp.services.platform.widgetregistry;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.dwp.services.platform.provisioning.PlatformTenantProvisioningDtos;
+import com.dwp.services.platform.provisioning.PlatformTenantProvisioningService;
+import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryManifestContract;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
+import java.util.UUID;
+import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.BeforeAll;
+import org.junit.jupiter.api.Test;
+import org.postgresql.ds.PGSimpleDataSource;
+import org.springframework.dao.DataAccessException;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+@Testcontainers(disabledWithoutDocker = true)
+class WidgetRegistryMigrationPostgresIntegrationTest {
+    private static final Path FIXTURE =
+            Path.of("../contracts/widget-registry/native-widget-manifests.v1.json");
+    private static final Path SEED = Path.of(
+            "src/main/resources/db/migration/V257__seed_native_home_widget_registry.sql");
+
+    @Container
+    private static final PostgreSQLContainer<?> POSTGRES =
+            new PostgreSQLContainer<>("postgres:16-alpine");
+
+    private static JdbcTemplate jdbc;
+    private static ObjectMapper objectMapper;
+
+    @BeforeAll
+    static void migrate() {
+        PGSimpleDataSource source = new PGSimpleDataSource();
+        source.setURL(POSTGRES.getJdbcUrl());
+        source.setUser(POSTGRES.getUsername());
+        source.setPassword(POSTGRES.getPassword());
+        Flyway flyway = Flyway.configure()
+                .dataSource(source)
+                .locations("filesystem:src/main/resources/db/migration")
+                .cleanDisabled(false)
+                .load();
+        flyway.clean();
+        flyway.migrate();
+        assertThat(flyway.migrate().migrationsExecuted).isZero();
+        jdbc = new JdbcTemplate(source);
+        objectMapper = new ObjectMapper().findAndRegisterModules();
+    }
+
+    @Test
+    void seedsFiveGoldenAndTwoDocumentedNativeExtensionsWithoutCertification() throws Exception {
+        JsonNode fixture = objectMapper.readTree(Files.readString(FIXTURE));
+        assertThat(fixture.path("sourceGoldenFixture").path("exactFixtureCount").asInt()).isEqualTo(5);
+        assertThat(fixture.path("sourceGoldenFixture").path("extensionCount").asInt()).isEqualTo(2);
+        assertThat(fixture.path("fixtures")).hasSize(7);
+
+        for (JsonNode expected : fixture.path("fixtures")) {
+            JsonNode manifest = expected.path("manifest");
+            String definitionKey = manifest.path("definitionKey").asText();
+            String rendererKey = manifest.path("renderer").path("rendererKey").asText();
+            String expectedHash = expected.path("expectedSha256").asText();
+            assertThat(WidgetRegistryManifestContract.validate(manifest).manifestHash())
+                    .as(definitionKey)
+                    .isEqualTo(expectedHash);
+            assertThat(jdbc.queryForMap("""
+                    SELECT d.legacy_widget_key, v.manifest_hash, v.certification_status,
+                           v.attestation ->> 'source' AS attestation_source,
+                           b.kind, b.binding_state, b.renderer_key
+                      FROM plt_widget_definitions d
+                      JOIN plt_widget_definition_versions v ON v.definition_id = d.definition_id
+                      JOIN plt_widget_renderer_bindings b ON b.renderer_key = v.renderer_key
+                     WHERE d.definition_key = ?
+                    """, definitionKey))
+                    .containsEntry("legacy_widget_key", expected.path("legacyWidgetKey").asText())
+                    .containsEntry("manifest_hash", expectedHash)
+                    .containsEntry("certification_status", "NOT_RUN")
+                    .containsEntry("attestation_source", "LEGACY_UNVERIFIED")
+                    .containsEntry("kind", "NATIVE")
+                    .containsEntry("binding_state", "ACTIVE")
+                    .containsEntry("renderer_key", rendererKey);
+        }
+
+        assertThat(count("plt_widget_definitions")).isEqualTo(7);
+        assertThat(count("plt_widget_definition_versions")).isEqualTo(7);
+        assertThat(count("plt_widget_renderer_bindings")).isEqualTo(7);
+        assertThat(count("plt_widget_release_channels")).isEqualTo(7);
+        assertThat(count("plt_widget_evidence")).isEqualTo(7);
+        long activeTenants = jdbc.queryForObject(
+                "SELECT count(*) FROM sys_service_tenants WHERE lifecycle_state <> 'RETIRED'",
+                Long.class);
+        assertThat(count("adm_tenant_widget_policy_heads")).isEqualTo(activeTenants * 7);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM adm_tenant_widget_policy_revisions
+                 WHERE audience_selector = '{"schemaVersion":1,"mode":"ALL_ENTITLED","roleCodes":[],"groupRefs":[]}'::jsonb
+                """, Long.class)).isEqualTo(activeTenants * 7);
+        assertThat(jdbc.queryForMap("""
+                SELECT migration_mode, runtime_activation_ready, registry_revision
+                  FROM plt_widget_registry_state WHERE environment = 'GLOBAL'
+                """))
+                .containsEntry("migration_mode", "SHADOW")
+                .containsEntry("runtime_activation_ready", false)
+                .containsEntry("registry_revision", 8L);
+    }
+
+    @Test
+    void seedScriptIsIdempotentAndCannotRewriteCustomizedRows() throws Exception {
+        List<Long> before = stateVector();
+        jdbc.execute(Files.readString(SEED));
+        assertThat(stateVector()).containsExactlyElementsOf(before);
+    }
+
+    @Test
+    void postMigrationTenantProvisioningSeedsTheSameSevenPoliciesIdempotently() {
+        long tenantId = 92570L;
+        var request = new PlatformTenantProvisioningDtos.ProvisionTenantRequest(
+                UUID.fromString("92570000-0000-0000-0000-000000000001"), tenantId,
+                "wave-three-new", "Wave Three New Tenant", "local", "POOL", "ko",
+                List.of("core.workspace"));
+        var provisioning = new PlatformTenantProvisioningService(
+                jdbc, Path.of(System.getProperty("java.io.tmpdir"), "dwp-wave3-provisioning").toString(),
+                objectMapper);
+
+        provisioning.provision(request);
+        provisioning.provision(request);
+
+        assertThat(jdbc.queryForList("""
+                SELECT d.legacy_widget_key
+                  FROM adm_tenant_widget_policy_heads h
+                  JOIN plt_widget_definitions d ON d.definition_id = h.definition_id
+                 WHERE h.tenant_id = ?
+                 ORDER BY d.legacy_widget_key
+                """, String.class, tenantId)).containsExactly(
+                        "activity", "command-rail", "daily-brief", "focus",
+                        "focus-balance", "meeting-load", "schedule");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*)
+                  FROM adm_tenant_widget_policy_revisions r
+                 WHERE r.tenant_id = ? AND r.revision_number = 1
+                   AND r.policy_state = 'PUBLISHED' AND r.enabled
+                """, Integer.class, tenantId)).isEqualTo(7);
+        assertThat(jdbc.queryForObject("""
+                SELECT required_widget
+                  FROM adm_tenant_widget_policy_revisions r
+                  JOIN plt_widget_definitions d ON d.definition_id = r.definition_id
+                 WHERE r.tenant_id = ? AND d.legacy_widget_key = 'command-rail'
+                """, Boolean.class, tenantId)).isTrue();
+    }
+
+    @Test
+    void databaseRejectsRemoteCodeInvalidKeysAndInvalidSemanticVersions() {
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO plt_widget_renderer_bindings (
+                    renderer_binding_id, renderer_key, kind, owner_product_key,
+                    source_app_resource_key, minimum_host_api_version,
+                    maximum_host_api_version, binding_state, binding_revision)
+                VALUES (?, 'https://evil.invalid/widget.js', 'NATIVE', 'evil', 'APP.WORK',
+                        1, 1, 'ACTIVE', ?)
+                """, UUID.randomUUID(), "a".repeat(64)))
+                .isInstanceOf(DataAccessException.class);
+
+        UUID definitionId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO plt_widget_definitions (
+                    definition_id, definition_key, owner_product_key, owner_team_key,
+                    risk_tier, data_classification, definition_state)
+                VALUES (?, 'a-b.c1', 'core.work', 'home', 'LOW', 'INTERNAL', 'ACTIVE')
+                """, definitionId);
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO plt_widget_definitions (
+                    definition_id, definition_key, owner_product_key, owner_team_key,
+                    risk_tier, data_classification, definition_state)
+                VALUES (?, 'Bad..Key', 'core.work', 'home', 'LOW', 'INTERNAL', 'ACTIVE')
+                """, UUID.randomUUID())).isInstanceOf(DataAccessException.class);
+
+        insertVersion(definitionId, "1.2.3-alpha.1+build.5", "b".repeat(64));
+        for (String invalid : List.of("01.2.3", "1.02.3", "1.2.03", "1.2.3-01", "1.2.3-alpha..1")) {
+            assertThatThrownBy(() -> insertVersion(definitionId, invalid,
+                    Integer.toHexString(invalid.hashCode()).replace("-", "0").repeat(64).substring(0, 64)))
+                    .as(invalid)
+                    .isInstanceOf(DataAccessException.class);
+        }
+    }
+
+    @Test
+    void databaseRejectsOpenEndedAudienceSelectors() {
+        assertThatThrownBy(() -> jdbc.update("""
+                UPDATE adm_tenant_widget_policy_revisions
+                   SET audience_selector = '{"schemaVersion":1,"mode":"ALL_ENTITLED","roleCodes":[],"groupRefs":[],"query":"*"}'::jsonb
+                 WHERE policy_revision_id = (
+                    SELECT policy_revision_id FROM adm_tenant_widget_policy_revisions LIMIT 1)
+                """)).isInstanceOf(DataAccessException.class);
+    }
+
+    @Test
+    void immutableContentEvidenceLedgerReceiptsAndActivationInterlockAreDatabaseEnforced() {
+        UUID seededVersion = UUID.fromString("31000000-0000-0000-0000-000000000001");
+        assertThatThrownBy(() -> jdbc.update("""
+                UPDATE plt_widget_definition_versions SET manifest = '{"changed":true}'::jsonb
+                 WHERE version_id = ?
+                """, seededVersion)).isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> jdbc.update("""
+                UPDATE plt_widget_evidence SET evidence_status = 'FAIL'
+                 WHERE evidence_id = '34000000-0000-0000-0000-000000000001'
+                """)).isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> jdbc.update("""
+                DELETE FROM plt_widget_registry_events
+                 WHERE event_id = '35000000-0000-0000-0000-000000000001'
+                """)).isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> jdbc.update("""
+                UPDATE plt_widget_registry_state
+                   SET migration_mode = 'AUTHORITATIVE', runtime_activation_ready = TRUE
+                 WHERE environment = 'GLOBAL'
+                """)).isInstanceOf(DataAccessException.class);
+    }
+
+    private static void insertVersion(UUID definitionId, String semanticVersion, String hash) {
+        jdbc.update("""
+                INSERT INTO plt_widget_definition_versions (
+                    version_id, definition_id, semantic_version, manifest, manifest_hash,
+                    renderer_key, workflow_state, release_state, safety_state, immutable,
+                    attestation, certification_status)
+                VALUES (?, ?, ?, '{}'::jsonb, ?, 'home.focus', 'DRAFT', 'UNPUBLISHED',
+                        'CLEAR', FALSE, '{}'::jsonb, 'NOT_RUN')
+                """, UUID.randomUUID(), definitionId, semanticVersion, hash);
+    }
+
+    private static long count(String table) {
+        return jdbc.queryForObject("SELECT count(*) FROM " + table, Long.class);
+    }
+
+    private static List<Long> stateVector() {
+        return List.of(
+                count("plt_widget_definitions"), count("plt_widget_definition_versions"),
+                count("plt_widget_renderer_bindings"), count("plt_widget_release_channels"),
+                count("plt_widget_evidence"), count("adm_tenant_widget_policy_revisions"),
+                count("adm_tenant_widget_policy_heads"), count("plt_widget_registry_events"),
+                jdbc.queryForObject("SELECT sum(version) FROM plt_widget_definitions", Long.class),
+                jdbc.queryForObject("SELECT sum(version) FROM plt_widget_renderer_bindings", Long.class),
+                jdbc.queryForObject("SELECT sum(version) FROM plt_widget_release_channels", Long.class));
+    }
+}

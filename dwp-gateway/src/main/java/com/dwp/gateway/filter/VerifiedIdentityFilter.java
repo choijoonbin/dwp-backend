@@ -37,6 +37,7 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
     public static final String IDENTITY_PLANE_HEADER = "X-DWP-Identity-Plane";
     public static final String LEGACY_ROLE_FALLBACK_HEADER =
             "X-DWP-Legacy-Role-Fallback-Allowed";
+    public static final String CONTROL_PLANE_HEADER = "X-DWP-Control-Plane";
 
     private final SessionVerifier sessionVerifier;
     private final GatewayDenialAuditSink denialAudit;
@@ -69,6 +70,7 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                     headers.remove(AUTH_SESSION_ID_HEADER);
                     headers.remove(IDENTITY_PLANE_HEADER);
                     headers.remove(LEGACY_ROLE_FALLBACK_HEADER);
+                    headers.remove(CONTROL_PLANE_HEADER);
                 })
                 .build();
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitizedRequest).build();

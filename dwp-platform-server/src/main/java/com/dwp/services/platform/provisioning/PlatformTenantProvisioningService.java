@@ -113,6 +113,7 @@ public class PlatformTenantProvisioningService {
         seedGovernedAgents(request.tenantId(), request.entitlementKeys());
         seedNavigation(request.tenantId(), request.defaultLocale(), request.entitlementKeys());
         seedWorkspaceApps(request.tenantId());
+        seedNativeWidgetPolicies(request.tenantId());
         PlatformCalendarTenantSeeder.seed(jdbc, request.tenantId(), request.displayName());
         return new PlatformTenantProvisioningDtos.ProvisionTenantResponse(
                 request.providerTenantId(), request.tenantId(), "PROVISIONING", 1,
@@ -143,6 +144,7 @@ public class PlatformTenantProvisioningService {
         seedGovernedAgents(tenant.tenantId(), request.entitlementKeys());
         seedNavigation(tenant.tenantId(), "en", request.entitlementKeys());
         seedWorkspaceApps(tenant.tenantId());
+        seedNativeWidgetPolicies(tenant.tenantId());
         Set<String> desired = applications(request.entitlementKeys()).stream()
                 .map(AppSeed::navigationKey)
                 .collect(Collectors.toSet());
@@ -475,6 +477,41 @@ public class PlatformTenantProvisioningService {
                     app.requiredPermissionCode(), app.badgeSourceKey(),
                     app.health(), app.sortOrder());
         }
+    }
+
+    private void seedNativeWidgetPolicies(Long tenantId) {
+        jdbc.update("""
+                INSERT INTO adm_tenant_widget_policy_revisions (
+                    policy_revision_id, tenant_id, definition_id, revision_number,
+                    policy_state, enabled, selector_type, channel, version_id,
+                    supported_surface_keys, audience_selector, required_widget,
+                    locked_configuration, sharing_policy, impact_revision,
+                    reason_code, reason_text, created_by)
+                SELECT md5('native-widget-policy:' || ? || ':' || definition_id)::uuid,
+                       ?, definition_id, 1, 'PUBLISHED', TRUE, 'CHANNEL', 'STABLE', NULL,
+                       '["workspace-home"]'::jsonb, '{"schemaVersion":1,"mode":"ALL_ENTITLED","roleCodes":[],"groupRefs":[]}'::jsonb,
+                       legacy_widget_key = 'command-rail', '{}'::jsonb, 'PRIVATE', NULL,
+                       'LEGACY_BASELINE', 'Wave 3 native widget baseline', 1
+                  FROM plt_widget_definitions
+                 WHERE legacy_widget_key IN (
+                    'command-rail', 'daily-brief', 'focus', 'schedule', 'activity',
+                    'focus-balance', 'meeting-load')
+                ON CONFLICT (tenant_id, definition_id, revision_number) DO NOTHING
+                """, tenantId, tenantId);
+        jdbc.update("""
+                INSERT INTO adm_tenant_widget_policy_heads (
+                    policy_head_id, tenant_id, definition_id, current_revision_id,
+                    version, updated_by)
+                SELECT md5('native-widget-policy-head:' || ? || ':' || definition_id)::uuid,
+                       ?, definition_id,
+                       md5('native-widget-policy:' || ? || ':' || definition_id)::uuid,
+                       0, 1
+                  FROM plt_widget_definitions
+                 WHERE legacy_widget_key IN (
+                    'command-rail', 'daily-brief', 'focus', 'schedule', 'activity',
+                    'focus-balance', 'meeting-load')
+                ON CONFLICT (tenant_id, definition_id) DO NOTHING
+                """, tenantId, tenantId, tenantId);
     }
 
     private List<WorkspaceAppSeed> workspaceApplications() {

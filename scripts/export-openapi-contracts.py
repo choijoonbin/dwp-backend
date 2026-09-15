@@ -124,9 +124,26 @@ def prefixed(prefix: str) -> Callable[[str], str | None]:
     return transform
 
 
+PROVIDER_WIDGET_REGISTRY_PREFIXES = (
+    "/v1/admin/widget-definitions",
+    "/v1/admin/widget-definition-versions",
+    "/v1/admin/widget-runtime-controls",
+    "/v1/admin/widget-registry",
+)
+
+
+def platform_path(path: str) -> str | None:
+    if path.startswith("/internal/") or not (path.startswith("/v1/") or path == "/v1"):
+        return None
+    if any(path == prefix or path.startswith(f"{prefix}/")
+           for prefix in PROVIDER_WIDGET_REGISTRY_PREFIXES):
+        return f"/api/provider{path}"
+    return f"/api/platform{path}"
+
+
 SERVICES = (
     ServiceContract("auth", 8001, auth_path),
-    ServiceContract("platform", 8002, prefixed("/api/platform")),
+    ServiceContract("platform", 8002, platform_path),
     ServiceContract("people", 8003, prefixed("/api/people")),
     ServiceContract("provider", 8004, prefixed("/api/provider")),
     ServiceContract("approval", 8005, prefixed("/api/approvals")),

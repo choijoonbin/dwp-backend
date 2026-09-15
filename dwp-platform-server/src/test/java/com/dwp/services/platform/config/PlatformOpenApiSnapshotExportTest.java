@@ -79,6 +79,12 @@ class PlatformOpenApiSnapshotExportTest {
                 Process process = export.start();
                 assertThat(process.waitFor(60, TimeUnit.SECONDS)).isTrue();
                 assertThat(process.exitValue()).isZero();
+                ProcessBuilder check = new ProcessBuilder("python3", "scripts/export-openapi-contracts.py",
+                        "--check", "--service", "platform").directory(root.toFile()).inheritIO();
+                check.environment().put("DWP_OPENAPI_PLATFORM_URL", url);
+                Process checkProcess = check.start();
+                assertThat(checkProcess.waitFor(60, TimeUnit.SECONDS)).isTrue();
+                assertThat(checkProcess.exitValue()).isZero();
             }
         }
         for (var snapshot : otherSnapshots.entrySet()) {

@@ -157,6 +157,27 @@ spring:
                   args:
                     name: peopleServer
                     fallbackUri: forward:/_gateway/fallback
+            # Provider governance UI uses the Provider URL namespace while Platform remains the
+            # single Widget Registry authority. This route is intentionally narrower and ordered
+            # before the generic provider-server route; no runtime/provider data route is exposed.
+            - id: widget-registry-provider-admin
+              uri: ${SERVICE_PLATFORM_URL:http://localhost:8002}
+              predicates:
+                - Path=/api/provider/v1/admin/widget-definitions/**,/api/provider/v1/admin/widget-definition-versions/**,/api/provider/v1/admin/widget-runtime-controls/**,/api/provider/v1/admin/widget-registry/**
+              filters:
+                - StripPrefix=2
+                # VerifiedIdentityFilter strips any browser-supplied copy first. This trusted
+                # route marker lets Platform keep provider and tenant admin planes disjoint.
+                - SetRequestHeader=X-DWP-Control-Plane, WIDGET_REGISTRY_PROVIDER
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 20
+                    redis-rate-limiter.burstCapacity: 40
+                    key-resolver: "#{@enterpriseKeyResolver}"
+                - name: CircuitBreaker
+                  args:
+                    name: widgetRegistryControlPlane
+                    fallbackUri: forward:/_gateway/fallback
             - id: provider-server
               uri: ${SERVICE_PROVIDER_URL:http://localhost:8004}
               predicates:

@@ -37060,6 +37060,60 @@
         },
         "type": "object"
       },
+      "platform_ApiResponseDefinitionPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_DefinitionPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseDefinitionResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_DefinitionResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponseDeleteHomeViewResponse": {
         "properties": {
           "correlationId": {
@@ -37121,6 +37175,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_Diff"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseEffectiveCatalogResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_EffectiveCatalogResponse"
           },
           "errorCode": {
             "type": "string"
@@ -37283,6 +37364,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_EventSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseEvidencePage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_EvidencePage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseEvidenceResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_EvidenceResponse"
           },
           "errorCode": {
             "type": "string"
@@ -37823,6 +37958,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_ImpactAnalysis"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseImpactResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_ImpactResponse"
           },
           "errorCode": {
             "type": "string"
@@ -40111,6 +40273,33 @@
         },
         "type": "object"
       },
+      "platform_ApiResponseReadinessResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_ReadinessResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponseRecommendationFeedbackResponse": {
         "properties": {
           "correlationId": {
@@ -40219,6 +40408,33 @@
         },
         "type": "object"
       },
+      "platform_ApiResponseRegistryEventPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_RegistryEventPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponseRelation": {
         "properties": {
           "correlationId": {
@@ -40226,6 +40442,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_Relation"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseReleaseChannelResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_ReleaseChannelResponse"
           },
           "errorCode": {
             "type": "string"
@@ -40577,6 +40820,87 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_RuntimeCodeSet"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseRuntimeControlPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_RuntimeControlPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseRuntimeControlResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_RuntimeControlResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseRuntimeEnableApprovalResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_RuntimeEnableApprovalResponse"
           },
           "errorCode": {
             "type": "string"
@@ -40975,6 +41299,87 @@
         },
         "type": "object"
       },
+      "platform_ApiResponseTenantPolicyResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_TenantPolicyResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseTenantPolicyRevisionPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_TenantPolicyRevisionPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseTenantPolicyRevisionResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_TenantPolicyRevisionResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponseThreadDetail": {
         "properties": {
           "correlationId": {
@@ -41036,6 +41441,87 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_TraceDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseValidationResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_ValidationResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseVersionPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_VersionPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseVersionResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_VersionResponse"
           },
           "errorCode": {
             "type": "string"
@@ -42395,6 +42881,42 @@
         },
         "type": "object"
       },
+      "platform_AudienceSelectorV1": {
+        "properties": {
+          "groupRefs": {
+            "items": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mode": {
+            "pattern": "ALL_ENTITLED|ANY_OF|ALL_OF",
+            "type": "string"
+          },
+          "roleCodes": {
+            "items": {
+              "pattern": "[A-Z][A-Z0-9_.-]{0,63}",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "maximum": 1,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "groupRefs",
+          "mode",
+          "roleCodes",
+          "schemaVersion"
+        ],
+        "type": "object"
+      },
       "platform_AuditCase": {
         "properties": {
           "caseId": {
@@ -43705,6 +44227,29 @@
         },
         "type": "object"
       },
+      "platform_CatalogCapabilities": {
+        "properties": {
+          "brokerRead": {
+            "type": "boolean"
+          },
+          "instanceV6Write": {
+            "type": "boolean"
+          },
+          "legacyPlacementWrite": {
+            "type": "boolean"
+          },
+          "libraryRead": {
+            "type": "boolean"
+          },
+          "presetCreate": {
+            "type": "boolean"
+          },
+          "presetShare": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "platform_CatalogDefinitionRequest": {
         "properties": {
           "categoryKey": {
@@ -43950,6 +44495,94 @@
           "reason",
           "status",
           "version"
+        ],
+        "type": "object"
+      },
+      "platform_ChannelRollbackRequest": {
+        "properties": {
+          "expectedCurrentVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "restoreVersionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedCurrentVersionId",
+          "expectedImpactRevision",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText",
+          "restoreVersionId"
+        ],
+        "type": "object"
+      },
+      "platform_ChannelTransitionRequest": {
+        "properties": {
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "manifestHash": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "validationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedImpactRevision",
+          "expectedVersion",
+          "manifestHash",
+          "reasonCode",
+          "reasonText",
+          "validationRunId",
+          "versionId"
         ],
         "type": "object"
       },
@@ -46185,6 +46818,194 @@
         ],
         "type": "object"
       },
+      "platform_DefinitionCreateRequest": {
+        "properties": {
+          "dataClassification": {
+            "minLength": 1,
+            "pattern": "PUBLIC|INTERNAL|CONFIDENTIAL|RESTRICTED",
+            "type": "string"
+          },
+          "definitionKey": {
+            "maxLength": 160,
+            "minLength": 0,
+            "pattern": "[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "legacyWidgetKey": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "ownerProductKey": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "ownerTeamKey": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "riskTier": {
+            "minLength": 1,
+            "pattern": "LOW|MEDIUM|HIGH",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataClassification",
+          "definitionKey",
+          "expectedVersion",
+          "ownerProductKey",
+          "ownerTeamKey",
+          "reasonCode",
+          "reasonText",
+          "riskTier"
+        ],
+        "type": "object"
+      },
+      "platform_DefinitionPage": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/platform_DefinitionResponse"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "readRevision": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_DefinitionResponse": {
+        "properties": {
+          "allowedTransitions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "dataClassification": {
+            "enum": [
+              "PUBLIC",
+              "INTERNAL",
+              "CONFIDENTIAL",
+              "RESTRICTED"
+            ],
+            "type": "string"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "definitionKey": {
+            "type": "string"
+          },
+          "definitionState": {
+            "enum": [
+              "ACTIVE",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "legacyWidgetKey": {
+            "type": "string"
+          },
+          "ownerProductKey": {
+            "type": "string"
+          },
+          "ownerTeamKey": {
+            "type": "string"
+          },
+          "riskTier": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_DefinitionRetireRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "impactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "replacementDefinitionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "impactRevision",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
       "platform_DelegatedAdminScopeRequest": {
         "properties": {
           "delegateGroupRef": {
@@ -46302,6 +47123,41 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "platform_DeprecateRequest": {
+        "properties": {
+          "deprecationEndsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "replacementVersionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deprecationEndsAt",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText",
+          "replacementVersionId"
+        ],
         "type": "object"
       },
       "platform_DeviceLayoutOverlay": {
@@ -46598,6 +47454,39 @@
         ],
         "type": "object"
       },
+      "platform_EffectiveCatalogResponse": {
+        "properties": {
+          "bindingCatalogRevision": {
+            "type": "string"
+          },
+          "catalogRevision": {
+            "type": "string"
+          },
+          "contexts": {
+            "items": {
+              "$ref": "#/components/schemas/platform_PlacementContext"
+            },
+            "type": "array"
+          },
+          "hostContext": {
+            "$ref": "#/components/schemas/platform_HostContext"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "policyRevision": {
+            "type": "string"
+          },
+          "safetyRevision": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "platform_EffectiveDelegatedScope": {
         "properties": {
           "delegationId": {
@@ -46638,6 +47527,60 @@
           },
           "validUntil": {
             "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_EffectiveItem": {
+        "properties": {
+          "addedInstanceCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "definitionKey": {
+            "type": "string"
+          },
+          "effectiveState": {
+            "enum": [
+              "AVAILABLE",
+              "ALREADY_ADDED",
+              "DEPRECATED",
+              "DENY"
+            ],
+            "type": "string"
+          },
+          "legacyWidgetKey": {
+            "type": "string"
+          },
+          "placementCapabilities": {
+            "$ref": "#/components/schemas/platform_PlacementCapabilities"
+          },
+          "reasonCodes": {
+            "items": {
+              "enum": [
+                "NOT_AVAILABLE",
+                "DISABLED_BY_ORGANIZATION",
+                "APP_ACCESS_REQUIRED",
+                "INCOMPATIBLE",
+                "TEMPORARILY_UNAVAILABLE",
+                "DEPRECATED",
+                "AVAILABLE",
+                "ALREADY_ADDED"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "resolvedVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "semanticVersion": {
             "type": "string"
           }
         },
@@ -47288,6 +48231,155 @@
               "PRIVATE",
               "CONFIDENTIAL"
             ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_EvidenceCreateRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "PASS|FAIL",
+            "type": "string"
+          },
+          "evidenceRef": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "evidenceSha256": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "evidenceType": {
+            "minLength": 1,
+            "pattern": "MANIFEST|SECURITY|PRIVACY|A11Y|PERFORMANCE|LOCALIZATION",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "manifestHash": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reviewNote": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "evidenceRef",
+          "evidenceSha256",
+          "evidenceType",
+          "expectedVersion",
+          "manifestHash",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
+      "platform_EvidencePage": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/platform_EvidenceResponse"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "readRevision": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_EvidenceResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "evidenceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "evidenceRef": {
+            "type": "string"
+          },
+          "evidenceSha256": {
+            "type": "string"
+          },
+          "evidenceType": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "manifestHash": {
+            "type": "string"
+          },
+          "reviewedBy": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "EXPIRED",
+              "WAIVED"
+            ],
+            "type": "string"
+          },
+          "trackingTicketRef": {
+            "type": "string"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "waivedEvidenceId": {
+            "format": "uuid",
             "type": "string"
           }
         },
@@ -49238,6 +50330,45 @@
         ],
         "type": "object"
       },
+      "platform_HostContext": {
+        "properties": {
+          "activeViewRef": {
+            "type": "string"
+          },
+          "compositionSchemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "decisionRevision": {
+            "type": "string"
+          },
+          "homeExperienceVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "hostCapabilityVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "hostConfigurationRevision": {
+            "type": "string"
+          },
+          "layoutRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "layoutSource": {
+            "type": "string"
+          },
+          "resolvedHostMode": {
+            "type": "string"
+          },
+          "surfaceKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ImpactAnalysis": {
         "properties": {
           "blocked": {
@@ -49307,6 +50438,48 @@
               "type": "string"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ImpactResponse": {
+        "properties": {
+          "activeChannelCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "affectedTenantCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "calculatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "impactRevision": {
+            "type": "string"
+          },
+          "instanceReferenceCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "operationAllowed": {
+            "type": "boolean"
+          },
+          "tenantPolicyReferenceCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
           }
         },
         "type": "object"
@@ -50984,6 +52157,40 @@
         },
         "type": "object"
       },
+      "platform_PlacementCapabilities": {
+        "properties": {
+          "canAdd": {
+            "type": "boolean"
+          },
+          "canHide": {
+            "type": "boolean"
+          },
+          "canMove": {
+            "type": "boolean"
+          },
+          "canResize": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "platform_PlacementContext": {
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/platform_CatalogCapabilities"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/platform_EffectiveItem"
+            },
+            "type": "array"
+          },
+          "placementContext": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_Policy": {
         "properties": {
           "allowExternalAttendees": {
@@ -51968,6 +53175,62 @@
         },
         "type": "object"
       },
+      "platform_PublishRequest": {
+        "properties": {
+          "channel": {
+            "minLength": 1,
+            "pattern": "STABLE|PREVIEW",
+            "type": "string"
+          },
+          "evidenceIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "manifestHash": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "validationRunId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "evidenceIds",
+          "expectedImpactRevision",
+          "expectedVersion",
+          "manifestHash",
+          "reasonCode",
+          "reasonText",
+          "validationRunId"
+        ],
+        "type": "object"
+      },
       "platform_ReactionRequest": {
         "properties": {
           "reaction": {
@@ -52057,6 +53320,47 @@
           },
           "unread": {
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ReadinessResponse": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "controlPlaneReady": {
+            "type": "boolean"
+          },
+          "migrationMode": {
+            "enum": [
+              "STATIC",
+              "SHADOW",
+              "AUTHORITATIVE"
+            ],
+            "type": "string"
+          },
+          "policyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "registryRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "runtimeActivationReady": {
+            "type": "boolean"
+          },
+          "safetyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -52356,6 +53660,84 @@
         },
         "type": "object"
       },
+      "platform_RegistryEventPage": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/platform_RegistryEventResponse"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "readRevision": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_RegistryEventResponse": {
+        "properties": {
+          "actorRef": {
+            "type": "string"
+          },
+          "after": {
+            "$ref": "#/components/schemas/platform_JsonNode"
+          },
+          "aggregateId": {
+            "type": "string"
+          },
+          "aggregateType": {
+            "type": "string"
+          },
+          "before": {
+            "$ref": "#/components/schemas/platform_JsonNode"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "evidenceRefs": {
+            "$ref": "#/components/schemas/platform_JsonNode"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "registryRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "platform_Relation": {
         "properties": {
           "criticality": {
@@ -52404,6 +53786,40 @@
         "required": [
           "version"
         ],
+        "type": "object"
+      },
+      "platform_ReleaseChannelResponse": {
+        "properties": {
+          "allowedTransitions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "currentVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "previousVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "platform_ReleaseWindow": {
@@ -53121,6 +54537,50 @@
         },
         "type": "object"
       },
+      "platform_ReviewDecisionRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVE|REJECT",
+            "type": "string"
+          },
+          "evidenceIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "validationRunId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "evidenceIds",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText",
+          "validationRunId"
+        ],
+        "type": "object"
+      },
       "platform_Revision": {
         "properties": {
           "baselineRevisionId": {
@@ -53685,6 +55145,269 @@
         },
         "type": "object"
       },
+      "platform_RuntimeControlPage": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/platform_RuntimeControlResponse"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "readRevision": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_RuntimeControlResponse": {
+        "properties": {
+          "controlId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "controlRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "providerProductKey": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "DISABLED",
+              "ENABLED"
+            ],
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_RuntimeDisableRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "internalIncidentRef": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          },
+          "providerProductKey": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "publicReasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scope": {
+            "minLength": 1,
+            "pattern": "CATALOG_MUTATIONS|CATALOG_DISCOVERY|RUNTIME_RENDER|RUNTIME_ACTION",
+            "type": "string"
+          },
+          "targetId": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "targetType": {
+            "minLength": 1,
+            "pattern": "GLOBAL|PROVIDER|TENANT|DEFINITION|VERSION",
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "internalIncidentRef",
+          "publicReasonCode",
+          "reasonCode",
+          "reasonText",
+          "scope",
+          "targetType"
+        ],
+        "type": "object"
+      },
+      "platform_RuntimeEnableApprovalRequest": {
+        "properties": {
+          "controlRevision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "evidenceRefs": {
+            "items": {
+              "maxLength": 128,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "controlRevision",
+          "evidenceRefs",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
+      "platform_RuntimeEnableApprovalResponse": {
+        "properties": {
+          "approvalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "approvedBy": {
+            "type": "string"
+          },
+          "consumedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "controlId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "controlRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "evidenceRefs": {
+            "$ref": "#/components/schemas/platform_JsonNode"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_RuntimeEnableRequest": {
+        "properties": {
+          "controlRevision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "enableApprovalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "controlRevision",
+          "enableApprovalId",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
       "platform_RuntimeNode": {
         "properties": {
           "children": {
@@ -53815,6 +55538,57 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "platform_SafetyTransitionRequest": {
+        "properties": {
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "internalIncidentRef": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          },
+          "publicReasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "replacementVersionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedImpactRevision",
+          "expectedVersion",
+          "internalIncidentRef",
+          "publicReasonCode",
+          "reasonCode",
+          "reasonText"
+        ],
         "type": "object"
       },
       "platform_SaveConnectorRequest": {
@@ -55176,6 +56950,37 @@
         },
         "type": "object"
       },
+      "platform_TenantPolicyPublishRequest": {
+        "properties": {
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedImpactRevision",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
       "platform_TenantPolicyRequest": {
         "properties": {
           "aiAssistanceEnabled": {
@@ -55213,6 +57018,270 @@
         },
         "required": [
           "version"
+        ],
+        "type": "object"
+      },
+      "platform_TenantPolicyResponse": {
+        "properties": {
+          "allowedTransitions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "current": {
+            "$ref": "#/components/schemas/platform_TenantPolicyRevisionResponse"
+          },
+          "currentRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_TenantPolicyRevisionPage": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/platform_TenantPolicyRevisionResponse"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "readRevision": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_TenantPolicyRevisionRequest": {
+        "properties": {
+          "audienceSelector": {
+            "$ref": "#/components/schemas/platform_AudienceSelectorV1"
+          },
+          "channel": {
+            "pattern": "STABLE|PREVIEW",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "lockedConfiguration": {
+            "$ref": "#/components/schemas/platform_JsonNode"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "selector": {
+            "minLength": 1,
+            "pattern": "CHANNEL|PINNED",
+            "type": "string"
+          },
+          "sharingPolicy": {
+            "minLength": 1,
+            "pattern": "PRIVATE|TENANT|DISABLED",
+            "type": "string"
+          },
+          "supportedSurfaceKeys": {
+            "items": {
+              "pattern": "[a-z][a-z0-9-]{1,79}",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "audienceSelector",
+          "expectedVersion",
+          "lockedConfiguration",
+          "reasonCode",
+          "reasonText",
+          "selector",
+          "sharingPolicy",
+          "supportedSurfaceKeys"
+        ],
+        "type": "object"
+      },
+      "platform_TenantPolicyRevisionResponse": {
+        "properties": {
+          "audienceSelector": {
+            "$ref": "#/components/schemas/platform_JsonNode"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "impactRevision": {
+            "type": "string"
+          },
+          "lockedConfiguration": {
+            "$ref": "#/components/schemas/platform_JsonNode"
+          },
+          "policyRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyState": {
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "SUPERSEDED",
+              "REVOKED"
+            ],
+            "type": "string"
+          },
+          "predecessorRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "revisionNumber": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "sharingPolicy": {
+            "type": "string"
+          },
+          "supportedSurfaceKeys": {
+            "$ref": "#/components/schemas/platform_JsonNode"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_TenantPolicyRevokeRequest": {
+        "properties": {
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedImpactRevision",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
+      "platform_TenantPolicyRollbackRequest": {
+        "properties": {
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "restoreRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedImpactRevision",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText",
+          "restoreRevisionId"
         ],
         "type": "object"
       },
@@ -55466,38 +57535,26 @@
       },
       "platform_TransitionRequest": {
         "properties": {
-          "assignedTo": {
-            "maxLength": 160,
-            "minLength": 0,
-            "type": "string"
-          },
-          "note": {
-            "maxLength": 2000,
-            "minLength": 0,
-            "type": "string"
-          },
-          "targetStatus": {
-            "enum": [
-              "DRAFT",
-              "SUBMITTED",
-              "TRIAGED",
-              "IN_PROGRESS",
-              "AWAITING_REQUESTER",
-              "RESOLVED",
-              "CLOSED",
-              "CANCELLED"
-            ],
-            "type": "string"
-          },
-          "version": {
+          "expectedVersion": {
             "format": "int64",
             "minimum": 0,
             "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
           }
         },
         "required": [
-          "targetStatus",
-          "version"
+          "expectedVersion",
+          "reasonCode",
+          "reasonText"
         ],
         "type": "object"
       },
@@ -56137,6 +58194,48 @@
         ],
         "type": "object"
       },
+      "platform_ValidateRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "manifestHash": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "manifestHash",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
+      "platform_ValidationError": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "jsonPointer": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ValidationIssue": {
         "properties": {
           "code": {
@@ -56184,6 +58283,110 @@
         },
         "type": "object"
       },
+      "platform_ValidationResponse": {
+        "properties": {
+          "bindingCatalogRevision": {
+            "type": "string"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/platform_ValidationError"
+            },
+            "type": "array"
+          },
+          "manifestHash": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL"
+            ],
+            "type": "string"
+          },
+          "validatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_VersionCreateRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/platform_JsonNode"
+          },
+          "predecessorVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "semanticVersion": {
+            "minLength": 1,
+            "pattern": "(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "manifest",
+          "reasonCode",
+          "reasonText",
+          "semanticVersion"
+        ],
+        "type": "object"
+      },
+      "platform_VersionPage": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/platform_VersionResponse"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "readRevision": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "platform_VersionRequest": {
         "properties": {
           "version": {
@@ -56194,6 +58397,134 @@
         },
         "required": [
           "version"
+        ],
+        "type": "object"
+      },
+      "platform_VersionResponse": {
+        "properties": {
+          "allowedTransitions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "attestation": {
+            "$ref": "#/components/schemas/platform_JsonNode"
+          },
+          "bindingCatalogRevision": {
+            "type": "string"
+          },
+          "certificationStatus": {
+            "enum": [
+              "NOT_RUN",
+              "PASS",
+              "FAIL",
+              "EXPIRED",
+              "WAIVED"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/platform_JsonNode"
+          },
+          "manifestHash": {
+            "type": "string"
+          },
+          "predecessorVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "releaseState": {
+            "enum": [
+              "UNPUBLISHED",
+              "PUBLISHED",
+              "BLOCKED",
+              "DEPRECATED"
+            ],
+            "type": "string"
+          },
+          "replacementVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "safetyState": {
+            "enum": [
+              "CLEAR",
+              "QUARANTINED",
+              "REVOKED"
+            ],
+            "type": "string"
+          },
+          "semanticVersion": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workflowState": {
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "SUBMITTED",
+              "APPROVED",
+              "REJECTED"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_VersionUpdateRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/platform_JsonNode"
+          },
+          "predecessorVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "manifest",
+          "reasonCode",
+          "reasonText"
         ],
         "type": "object"
       },
@@ -94042,7 +96373,7 @@
     },
     "/api/platform/v1/admin/announcements": {
       "get": {
-        "operationId": "platform_list_9",
+        "operationId": "platform_list_10",
         "parameters": [
           {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
@@ -94074,7 +96405,7 @@
         ]
       },
       "post": {
-        "operationId": "platform_create_14",
+        "operationId": "platform_create_16",
         "parameters": [
           {
             "in": "header",
@@ -94144,7 +96475,7 @@
     },
     "/api/platform/v1/admin/announcements/{announcementId}": {
       "put": {
-        "operationId": "platform_update_10",
+        "operationId": "platform_update_12",
         "parameters": [
           {
             "in": "header",
@@ -94302,7 +96633,7 @@
     },
     "/api/platform/v1/admin/announcements/{announcementId}/publish": {
       "post": {
-        "operationId": "platform_publish_4",
+        "operationId": "platform_publish_6",
         "parameters": [
           {
             "in": "header",
@@ -94381,7 +96712,7 @@
     },
     "/api/platform/v1/admin/api-history/events": {
       "get": {
-        "operationId": "platform_events_4",
+        "operationId": "platform_events_5",
         "parameters": [
           {
             "in": "query",
@@ -94743,7 +97074,7 @@
     },
     "/api/platform/v1/admin/app-access-requests/{requestId}/revocation": {
       "post": {
-        "operationId": "platform_revoke_1",
+        "operationId": "platform_revoke_3",
         "parameters": [
           {
             "in": "header",
@@ -95268,7 +97599,7 @@
     },
     "/api/platform/v1/admin/audit-control/events": {
       "get": {
-        "operationId": "platform_events_3",
+        "operationId": "platform_events_4",
         "parameters": [
           {
             "in": "query",
@@ -95997,7 +98328,7 @@
     },
     "/api/platform/v1/admin/audit-events": {
       "get": {
-        "operationId": "platform_list_15",
+        "operationId": "platform_list_17",
         "parameters": [
           {
             "in": "query",
@@ -96920,7 +99251,7 @@
     },
     "/api/platform/v1/admin/catalog/impact": {
       "get": {
-        "operationId": "platform_impact",
+        "operationId": "platform_impact_2",
         "parameters": [
           {
             "in": "query",
@@ -96999,7 +99330,7 @@
     },
     "/api/platform/v1/admin/catalog/relations/{relationId}/retire": {
       "post": {
-        "operationId": "platform_retire_2",
+        "operationId": "platform_retire_3",
         "parameters": [
           {
             "in": "header",
@@ -97048,7 +99379,7 @@
     },
     "/api/platform/v1/admin/dwaion/agents": {
       "get": {
-        "operationId": "platform_list_8",
+        "operationId": "platform_list_9",
         "parameters": [
           {
             "in": "query",
@@ -97121,7 +99452,7 @@
         ]
       },
       "post": {
-        "operationId": "platform_create_13",
+        "operationId": "platform_create_15",
         "parameters": [
           {
             "in": "header",
@@ -97572,7 +99903,7 @@
     },
     "/api/platform/v1/admin/home-experience": {
       "get": {
-        "operationId": "platform_get_5",
+        "operationId": "platform_get_6",
         "parameters": [],
         "responses": {
           "200": {
@@ -97591,7 +99922,7 @@
         ]
       },
       "put": {
-        "operationId": "platform_update_9",
+        "operationId": "platform_update_11",
         "parameters": [
           {
             "in": "header",
@@ -97829,7 +100160,7 @@
     },
     "/api/platform/v1/admin/home-experience/publish": {
       "post": {
-        "operationId": "platform_publish_3",
+        "operationId": "platform_publish_5",
         "parameters": [
           {
             "in": "header",
@@ -97883,7 +100214,7 @@
     },
     "/api/platform/v1/admin/home-experience/revisions": {
       "get": {
-        "operationId": "platform_history_1",
+        "operationId": "platform_history_2",
         "parameters": [
           {
             "in": "query",
@@ -97916,7 +100247,7 @@
     },
     "/api/platform/v1/admin/home-experience/revisions/{revisionId}/rollback": {
       "post": {
-        "operationId": "platform_rollback_1",
+        "operationId": "platform_rollback_3",
         "parameters": [
           {
             "in": "header",
@@ -97985,7 +100316,7 @@
         ]
       },
       "post": {
-        "operationId": "platform_create_12",
+        "operationId": "platform_create_14",
         "parameters": [
           {
             "in": "header",
@@ -98025,7 +100356,7 @@
     },
     "/api/platform/v1/admin/integrations/productivity/connectors/{connectorId}": {
       "put": {
-        "operationId": "platform_update_8",
+        "operationId": "platform_update_10",
         "parameters": [
           {
             "in": "header",
@@ -98618,7 +100949,7 @@
     },
     "/api/platform/v1/admin/localization/revisions/{revisionId}/publish": {
       "post": {
-        "operationId": "platform_publish_2",
+        "operationId": "platform_publish_4",
         "parameters": [
           {
             "in": "header",
@@ -98716,7 +101047,7 @@
     },
     "/api/platform/v1/admin/localization/revisions/{revisionId}/submit": {
       "post": {
-        "operationId": "platform_submit_1",
+        "operationId": "platform_submit_2",
         "parameters": [
           {
             "in": "header",
@@ -98924,7 +101255,7 @@
     },
     "/api/platform/v1/admin/navigation": {
       "get": {
-        "operationId": "platform_list_7",
+        "operationId": "platform_list_8",
         "parameters": [],
         "responses": {
           "200": {
@@ -98943,7 +101274,7 @@
         ]
       },
       "post": {
-        "operationId": "platform_create_11",
+        "operationId": "platform_create_13",
         "parameters": [
           {
             "in": "header",
@@ -99182,7 +101513,7 @@
     },
     "/api/platform/v1/admin/navigation/studio/drafts/{revisionId}/publish": {
       "post": {
-        "operationId": "platform_publish_1",
+        "operationId": "platform_publish_3",
         "parameters": [
           {
             "in": "header",
@@ -99280,7 +101611,7 @@
     },
     "/api/platform/v1/admin/navigation/{itemId}": {
       "put": {
-        "operationId": "platform_update_7",
+        "operationId": "platform_update_9",
         "parameters": [
           {
             "in": "header",
@@ -99378,7 +101709,7 @@
     },
     "/api/platform/v1/admin/navigation/{itemId}/retire": {
       "post": {
-        "operationId": "platform_retire_1",
+        "operationId": "platform_retire_2",
         "parameters": [
           {
             "in": "header",
@@ -99507,7 +101838,7 @@
     },
     "/api/platform/v1/admin/reference-sets": {
       "get": {
-        "operationId": "platform_list_6",
+        "operationId": "platform_list_7",
         "parameters": [
           {
             "in": "query",
@@ -99568,7 +101899,7 @@
         ]
       },
       "post": {
-        "operationId": "platform_create_10",
+        "operationId": "platform_create_12",
         "parameters": [
           {
             "in": "header",
@@ -99636,7 +101967,7 @@
         ]
       },
       "patch": {
-        "operationId": "platform_update_11",
+        "operationId": "platform_update_13",
         "parameters": [
           {
             "in": "header",
@@ -99998,7 +102329,7 @@
     },
     "/api/platform/v1/admin/reference-sets/{setKey}/retire": {
       "post": {
-        "operationId": "platform_retire",
+        "operationId": "platform_retire_1",
         "parameters": [
           {
             "in": "header",
@@ -100046,7 +102377,7 @@
     },
     "/api/platform/v1/admin/registry-entries": {
       "get": {
-        "operationId": "platform_list_5",
+        "operationId": "platform_list_6",
         "parameters": [
           {
             "in": "query",
@@ -100124,7 +102455,7 @@
         ]
       },
       "post": {
-        "operationId": "platform_create_9",
+        "operationId": "platform_create_11",
         "parameters": [
           {
             "in": "header",
@@ -101502,7 +103833,7 @@
     },
     "/api/platform/v1/admin/tenant-branding": {
       "get": {
-        "operationId": "platform_get_4",
+        "operationId": "platform_get_5",
         "parameters": [],
         "responses": {
           "200": {
@@ -101521,7 +103852,7 @@
         ]
       },
       "put": {
-        "operationId": "platform_update_6",
+        "operationId": "platform_update_8",
         "parameters": [
           {
             "in": "header",
@@ -101679,7 +104010,7 @@
     },
     "/api/platform/v1/admin/tenant-branding/revisions": {
       "get": {
-        "operationId": "platform_history",
+        "operationId": "platform_history_1",
         "parameters": [
           {
             "in": "query",
@@ -101712,7 +104043,7 @@
     },
     "/api/platform/v1/admin/tenant-branding/revisions/{revisionId}/rollback": {
       "post": {
-        "operationId": "platform_rollback",
+        "operationId": "platform_rollback_2",
         "parameters": [
           {
             "in": "header",
@@ -101762,7 +104093,7 @@
     },
     "/api/platform/v1/admin/tenant-experience-preview": {
       "get": {
-        "operationId": "platform_get_13",
+        "operationId": "platform_get_16",
         "parameters": [],
         "responses": {
           "200": {
@@ -101770,6 +104101,583 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/platform_ApiResponseTenantExperiencePreviewResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/widget-catalog": {
+      "get": {
+        "operationId": "platform_catalog_2",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "surfaceKey",
+            "required": false,
+            "schema": {
+              "default": "workspace-home",
+              "pattern": "[a-z][a-z0-9-]{1,79}",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEffectiveCatalogResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/widget-catalog/{definitionId}/explain": {
+      "get": {
+        "operationId": "platform_explain",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "surfaceKey",
+            "required": false,
+            "schema": {
+              "default": "workspace-home",
+              "pattern": "[a-z][a-z0-9-]{1,79}",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEffectiveCatalogResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/widget-policies/{definitionId}": {
+      "get": {
+        "operationId": "platform_get_14",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseTenantPolicyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/widget-policies/{definitionId}/history": {
+      "get": {
+        "operationId": "platform_history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseTenantPolicyRevisionPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/widget-policies/{definitionId}/revisions": {
+      "post": {
+        "operationId": "platform_create_9",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_TenantPolicyRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseTenantPolicyRevisionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/widget-policies/{definitionId}/revisions/{revisionId}": {
+      "put": {
+        "operationId": "platform_update_6",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_TenantPolicyRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseTenantPolicyRevisionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/widget-policies/{definitionId}/revisions/{revisionId}/impact": {
+      "get": {
+        "operationId": "platform_impact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseImpactResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/widget-policies/{definitionId}/revisions/{revisionId}/publish": {
+      "post": {
+        "operationId": "platform_publish_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_TenantPolicyPublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseTenantPolicyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/widget-policies/{definitionId}/revoke": {
+      "post": {
+        "operationId": "platform_revoke_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_TenantPolicyRevokeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseTenantPolicyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/widget-policies/{definitionId}/revoke-impact": {
+      "get": {
+        "operationId": "platform_revokeImpact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseImpactResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/widget-policies/{definitionId}/rollback": {
+      "post": {
+        "operationId": "platform_rollback",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_TenantPolicyRollbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseTenantPolicyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/widget-policies/{definitionId}/rollback-impact": {
+      "get": {
+        "operationId": "platform_rollbackImpact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "restoreRevisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseImpactResponse"
                 }
               }
             },
@@ -106005,7 +108913,7 @@
     },
     "/api/platform/v1/announcements": {
       "get": {
-        "operationId": "platform_list_14",
+        "operationId": "platform_list_15",
         "parameters": [],
         "responses": {
           "200": {
@@ -107172,7 +110080,7 @@
     },
     "/api/platform/v1/catalog/code-sets/{codeSetKey}": {
       "get": {
-        "operationId": "platform_get_12",
+        "operationId": "platform_get_13",
         "parameters": [
           {
             "in": "path",
@@ -107222,7 +110130,7 @@
     },
     "/api/platform/v1/catalog/registry-entries": {
       "get": {
-        "operationId": "platform_list_13",
+        "operationId": "platform_list_14",
         "parameters": [
           {
             "in": "query",
@@ -107809,7 +110717,7 @@
     },
     "/api/platform/v1/home-composer/proposals/{proposalId}": {
       "get": {
-        "operationId": "platform_get_11",
+        "operationId": "platform_get_12",
         "parameters": [
           {
             "in": "path",
@@ -108096,7 +111004,7 @@
     },
     "/api/platform/v1/home-experience": {
       "get": {
-        "operationId": "platform_get_10",
+        "operationId": "platform_get_11",
         "parameters": [],
         "responses": {
           "200": {
@@ -111983,7 +114891,7 @@
     },
     "/api/platform/v1/navigation": {
       "get": {
-        "operationId": "platform_list_12",
+        "operationId": "platform_list_13",
         "parameters": [
           {
             "in": "query",
@@ -112066,7 +114974,7 @@
     },
     "/api/platform/v1/personal-preferences": {
       "get": {
-        "operationId": "platform_get_6",
+        "operationId": "platform_get_7",
         "parameters": [],
         "responses": {
           "200": {
@@ -112294,7 +115202,7 @@
     },
     "/api/platform/v1/reference-data/{setKey}": {
       "get": {
-        "operationId": "platform_get_9",
+        "operationId": "platform_get_10",
         "parameters": [
           {
             "in": "path",
@@ -113236,7 +116144,7 @@
     },
     "/api/platform/v1/tenant-branding": {
       "get": {
-        "operationId": "platform_get_8",
+        "operationId": "platform_get_9",
         "parameters": [],
         "responses": {
           "200": {
@@ -113266,6 +116174,58 @@
                 "schema": {
                   "format": "binary",
                   "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/widget-catalog/effective": {
+      "get": {
+        "operationId": "platform_effective",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "surfaceKey",
+            "required": false,
+            "schema": {
+              "default": "workspace-home",
+              "pattern": "[a-z][a-z0-9-]{1,79}",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEffectiveCatalogResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/widget-catalog/readiness": {
+      "get": {
+        "operationId": "platform_readiness",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseReadinessResponse"
                 }
               }
             },
@@ -114397,7 +117357,7 @@
     },
     "/api/platform/v1/workspace/activity": {
       "get": {
-        "operationId": "platform_list_11",
+        "operationId": "platform_list_12",
         "parameters": [
           {
             "in": "header",
@@ -114610,7 +117570,7 @@
     "/api/platform/v1/workspace/activity/events/{id}/evidence": {
       "get": {
         "description": "Rechecks current source ACL. Audit hash and checkpoint require ADMIN.AUDIT_VIEW:VIEW; other viewers receive RESTRICTED without audit data.",
-        "operationId": "platform_evidence",
+        "operationId": "platform_evidence_2",
         "parameters": [
           {
             "in": "path",
@@ -115560,7 +118520,7 @@
     },
     "/api/platform/v1/workspace/work-hub/assignments/{assignmentId}": {
       "get": {
-        "operationId": "platform_get_7",
+        "operationId": "platform_get_8",
         "parameters": [
           {
             "in": "path",
@@ -116048,7 +119008,7 @@
     },
     "/api/platform/v1/workspace/work-hub/calendar-links": {
       "get": {
-        "operationId": "platform_list_10",
+        "operationId": "platform_list_11",
         "parameters": [
           {
             "in": "query",
@@ -119645,6 +122605,1652 @@
         },
         "tags": [
           "provider"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definition-versions/{versionId}": {
+      "get": {
+        "operationId": "platform_get_4",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      },
+      "put": {
+        "operationId": "platform_update_7",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_VersionUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definition-versions/{versionId}/block": {
+      "post": {
+        "operationId": "platform_block",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_SafetyTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definition-versions/{versionId}/decision": {
+      "post": {
+        "operationId": "platform_decision",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_ReviewDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definition-versions/{versionId}/deprecate": {
+      "post": {
+        "operationId": "platform_deprecate",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_DeprecateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definition-versions/{versionId}/evidence": {
+      "get": {
+        "operationId": "platform_evidence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEvidencePage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "operationId": "platform_evidence_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_EvidenceCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEvidenceResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definition-versions/{versionId}/evidence/{evidenceId}": {
+      "get": {
+        "operationId": "platform_evidence_3",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "evidenceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEvidenceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definition-versions/{versionId}/impact": {
+      "get": {
+        "operationId": "platform_impact_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "operation",
+            "required": true,
+            "schema": {
+              "pattern": "PUBLISH|BLOCK|QUARANTINE|REVOKE|PROMOTE|ROLLBACK",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseImpactResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definition-versions/{versionId}/publish": {
+      "post": {
+        "operationId": "platform_publish_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_PublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definition-versions/{versionId}/quarantine": {
+      "post": {
+        "operationId": "platform_quarantine",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_SafetyTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definition-versions/{versionId}/revoke": {
+      "post": {
+        "operationId": "platform_revoke_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_SafetyTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definition-versions/{versionId}/rework": {
+      "post": {
+        "operationId": "platform_rework",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definition-versions/{versionId}/submit": {
+      "post": {
+        "operationId": "platform_submit_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definition-versions/{versionId}/validate": {
+      "post": {
+        "operationId": "platform_validate",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_ValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseValidationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definitions": {
+      "get": {
+        "operationId": "platform_list_5",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "definitionState",
+            "required": false,
+            "schema": {
+              "pattern": "ACTIVE|RETIRED",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseDefinitionPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "operationId": "platform_create_10",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_DefinitionCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseDefinitionResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definitions/{definitionId}": {
+      "get": {
+        "operationId": "platform_get_15",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseDefinitionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definitions/{definitionId}/channels/{channel}": {
+      "get": {
+        "operationId": "platform_channel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "pattern": "STABLE|PREVIEW",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseReleaseChannelResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definitions/{definitionId}/channels/{channel}/impact": {
+      "get": {
+        "operationId": "platform_channelImpact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "pattern": "STABLE|PREVIEW",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "operation",
+            "required": true,
+            "schema": {
+              "pattern": "PROMOTE|ROLLBACK",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "targetVersionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseImpactResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definitions/{definitionId}/channels/{channel}/promote": {
+      "post": {
+        "operationId": "platform_promote",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "pattern": "STABLE|PREVIEW",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_ChannelTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseReleaseChannelResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definitions/{definitionId}/channels/{channel}/rollback": {
+      "post": {
+        "operationId": "platform_rollback_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "pattern": "STABLE|PREVIEW",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_ChannelRollbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseReleaseChannelResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definitions/{definitionId}/retire": {
+      "post": {
+        "operationId": "platform_retire",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_DefinitionRetireRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseDefinitionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definitions/{definitionId}/retirement-impact": {
+      "get": {
+        "operationId": "platform_retirementImpact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "replacementDefinitionId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseImpactResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-definitions/{definitionId}/versions": {
+      "get": {
+        "operationId": "platform_versions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseVersionPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      },
+      "post": {
+        "operationId": "platform_createVersion",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_VersionCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-registry/events": {
+      "get": {
+        "operationId": "platform_events_3",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseRegistryEventPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-registry/readiness": {
+      "get": {
+        "operationId": "platform_readiness_1",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseReadinessResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-runtime-controls": {
+      "get": {
+        "operationId": "platform_list_16",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseRuntimeControlPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-runtime-controls/disable": {
+      "post": {
+        "operationId": "platform_disable",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_RuntimeDisableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseRuntimeControlResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-runtime-controls/{controlId}/enable": {
+      "post": {
+        "operationId": "platform_enable",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "controlId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_RuntimeEnableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseRuntimeControlResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/widget-runtime-controls/{controlId}/enable-approvals": {
+      "post": {
+        "operationId": "platform_approve",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "controlId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_RuntimeEnableApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseRuntimeEnableApprovalResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "platform"
         ]
       }
     },

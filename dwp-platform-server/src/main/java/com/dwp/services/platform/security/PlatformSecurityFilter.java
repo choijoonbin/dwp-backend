@@ -53,6 +53,7 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     static final String ROLLOUT_COHORT_HEADER = PlatformSecurityHeaders.ROLLOUT_COHORT;
     static final String ROLLOUT_REVISION_HEADER = PlatformSecurityHeaders.ROLLOUT_REVISION;
     static final String ROLLOUT_STATE_HEADER = PlatformSecurityHeaders.ROLLOUT_STATE;
+    static final String CONTROL_PLANE_HEADER = "X-DWP-Control-Plane";
     private static final Set<String> ADMIN_ROLES = Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN");
     private static final String SUPPORT_EXPERIENCE_PREVIEW_PATH =
             "/v1/admin/tenant-experience-preview";
@@ -159,6 +160,16 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             return;
         }
         String path = request.getRequestURI();
+        boolean providerWidgetRegistryPath = providerWidgetRegistryPath(path);
+        boolean providerWidgetRegistryAccess = providerWidgetRegistryPath
+                && "WIDGET_REGISTRY_PROVIDER".equals(request.getHeader(CONTROL_PLANE_HEADER))
+                && "PROVIDER".equals(request.getHeader("X-DWP-Identity-Plane"))
+                && RolePlaneBoundary.isProviderIdentity(parseValues(request.getHeader(ROLES_HEADER)));
+        if (providerWidgetRegistryPath && !providerWidgetRegistryAccess) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Provider Widget Registry identity and trusted route are required.");
+            return;
+        }
         List<String> resolvedCanaryRoutes = List.of();
         List<String> resolvedApprovalRoutes = List.of();
         boolean approvalStateChanging = false;
@@ -359,7 +370,8 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                     "An application-scoped access responsibility is required.");
             return;
         }
-        if (!supportAccess && !auditAdminPath && !savedViewCustodyPath
+        if (!supportAccess && !providerWidgetRegistryAccess
+                && !auditAdminPath && !savedViewCustodyPath
                 && !scopedAppAccess && !delegatedCommunicationsAccess && !delegatedServicesAccess
                 && !delegatedCalendarAccess && !delegatedRoomsAccess
                 && !delegatedWorkplaceAccess && !delegatedMailAccess
@@ -390,6 +402,15 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             PlatformApprovalsAuthorizationContext.clear();
             PlatformCanaryAuthorizationContext.clear();
         }
+    }
+
+    private static boolean providerWidgetRegistryPath(String path) {
+        return path.equals("/v1/admin/widget-definitions")
+                || path.startsWith("/v1/admin/widget-definitions/")
+                || path.startsWith("/v1/admin/widget-definition-versions/")
+                || path.equals("/v1/admin/widget-runtime-controls")
+                || path.startsWith("/v1/admin/widget-runtime-controls/")
+                || path.startsWith("/v1/admin/widget-registry/");
     }
 
     private boolean hasScopedAppAccess(HttpServletRequest request) {
