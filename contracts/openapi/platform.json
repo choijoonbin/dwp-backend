@@ -2462,6 +2462,60 @@
         },
         "type": "object"
       },
+      "ApiResponseDefinitionPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DefinitionPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseDefinitionResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DefinitionResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseDeleteHomeViewResponse": {
         "properties": {
           "correlationId": {
@@ -2523,6 +2577,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/Diff"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseEffectiveCatalogResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EffectiveCatalogResponse"
           },
           "errorCode": {
             "type": "string"
@@ -2685,6 +2766,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/EventSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseEvidencePage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EvidencePage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseEvidenceResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/EvidenceResponse"
           },
           "errorCode": {
             "type": "string"
@@ -3225,6 +3360,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/ImpactAnalysis"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseImpactResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ImpactResponse"
           },
           "errorCode": {
             "type": "string"
@@ -5540,6 +5702,33 @@
         },
         "type": "object"
       },
+      "ApiResponseReadinessResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReadinessResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseRecommendationFeedbackResponse": {
         "properties": {
           "correlationId": {
@@ -5648,6 +5837,33 @@
         },
         "type": "object"
       },
+      "ApiResponseRegistryEventPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RegistryEventPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseRelation": {
         "properties": {
           "correlationId": {
@@ -5655,6 +5871,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/Relation"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseReleaseChannelResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReleaseChannelResponse"
           },
           "errorCode": {
             "type": "string"
@@ -6006,6 +6249,87 @@
           },
           "data": {
             "$ref": "#/components/schemas/RuntimeCodeSet"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseRuntimeControlPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RuntimeControlPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseRuntimeControlResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RuntimeControlResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseRuntimeEnableApprovalResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RuntimeEnableApprovalResponse"
           },
           "errorCode": {
             "type": "string"
@@ -6404,6 +6728,87 @@
         },
         "type": "object"
       },
+      "ApiResponseTenantPolicyResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TenantPolicyResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTenantPolicyRevisionPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TenantPolicyRevisionPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTenantPolicyRevisionResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TenantPolicyRevisionResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseThreadDetail": {
         "properties": {
           "correlationId": {
@@ -6465,6 +6870,87 @@
           },
           "data": {
             "$ref": "#/components/schemas/TraceDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseValidationResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ValidationResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseVersionPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/VersionPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseVersionResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/VersionResponse"
           },
           "errorCode": {
             "type": "string"
@@ -7822,6 +8308,42 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "AudienceSelectorV1": {
+        "properties": {
+          "groupRefs": {
+            "items": {
+              "maxLength": 128,
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "mode": {
+            "pattern": "ALL_ENTITLED|ANY_OF|ALL_OF",
+            "type": "string"
+          },
+          "roleCodes": {
+            "items": {
+              "pattern": "[A-Z][A-Z0-9_.-]{0,63}",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "maximum": 1,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "groupRefs",
+          "mode",
+          "roleCodes",
+          "schemaVersion"
+        ],
         "type": "object"
       },
       "AuditCase": {
@@ -9251,6 +9773,29 @@
         },
         "type": "object"
       },
+      "CatalogCapabilities": {
+        "properties": {
+          "brokerRead": {
+            "type": "boolean"
+          },
+          "instanceV6Write": {
+            "type": "boolean"
+          },
+          "legacyPlacementWrite": {
+            "type": "boolean"
+          },
+          "libraryRead": {
+            "type": "boolean"
+          },
+          "presetCreate": {
+            "type": "boolean"
+          },
+          "presetShare": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "CatalogDefinitionRequest": {
         "properties": {
           "categoryKey": {
@@ -9513,6 +10058,94 @@
           "reason",
           "status",
           "version"
+        ],
+        "type": "object"
+      },
+      "ChannelRollbackRequest": {
+        "properties": {
+          "expectedCurrentVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "restoreVersionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedCurrentVersionId",
+          "expectedImpactRevision",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText",
+          "restoreVersionId"
+        ],
+        "type": "object"
+      },
+      "ChannelTransitionRequest": {
+        "properties": {
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "manifestHash": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "validationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedImpactRevision",
+          "expectedVersion",
+          "manifestHash",
+          "reasonCode",
+          "reasonText",
+          "validationRunId",
+          "versionId"
         ],
         "type": "object"
       },
@@ -11885,6 +12518,194 @@
         ],
         "type": "object"
       },
+      "DefinitionCreateRequest": {
+        "properties": {
+          "dataClassification": {
+            "minLength": 1,
+            "pattern": "PUBLIC|INTERNAL|CONFIDENTIAL|RESTRICTED",
+            "type": "string"
+          },
+          "definitionKey": {
+            "maxLength": 160,
+            "minLength": 0,
+            "pattern": "[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "legacyWidgetKey": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "ownerProductKey": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "ownerTeamKey": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "riskTier": {
+            "minLength": 1,
+            "pattern": "LOW|MEDIUM|HIGH",
+            "type": "string"
+          }
+        },
+        "required": [
+          "dataClassification",
+          "definitionKey",
+          "expectedVersion",
+          "ownerProductKey",
+          "ownerTeamKey",
+          "reasonCode",
+          "reasonText",
+          "riskTier"
+        ],
+        "type": "object"
+      },
+      "DefinitionPage": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/DefinitionResponse"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "readRevision": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DefinitionResponse": {
+        "properties": {
+          "allowedTransitions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "dataClassification": {
+            "enum": [
+              "PUBLIC",
+              "INTERNAL",
+              "CONFIDENTIAL",
+              "RESTRICTED"
+            ],
+            "type": "string"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "definitionKey": {
+            "type": "string"
+          },
+          "definitionState": {
+            "enum": [
+              "ACTIVE",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "legacyWidgetKey": {
+            "type": "string"
+          },
+          "ownerProductKey": {
+            "type": "string"
+          },
+          "ownerTeamKey": {
+            "type": "string"
+          },
+          "riskTier": {
+            "enum": [
+              "LOW",
+              "MEDIUM",
+              "HIGH"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DefinitionRetireRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "impactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "replacementDefinitionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "impactRevision",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
       "DelegatedAdminScopeRequest": {
         "properties": {
           "delegateGroupRef": {
@@ -12002,6 +12823,41 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "DeprecateRequest": {
+        "properties": {
+          "deprecationEndsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "replacementVersionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "deprecationEndsAt",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText",
+          "replacementVersionId"
+        ],
         "type": "object"
       },
       "DeviceLayoutOverlay": {
@@ -12298,6 +13154,39 @@
         ],
         "type": "object"
       },
+      "EffectiveCatalogResponse": {
+        "properties": {
+          "bindingCatalogRevision": {
+            "type": "string"
+          },
+          "catalogRevision": {
+            "type": "string"
+          },
+          "contexts": {
+            "items": {
+              "$ref": "#/components/schemas/PlacementContext"
+            },
+            "type": "array"
+          },
+          "hostContext": {
+            "$ref": "#/components/schemas/HostContext"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "policyRevision": {
+            "type": "string"
+          },
+          "safetyRevision": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "EffectiveDelegatedScope": {
         "properties": {
           "delegationId": {
@@ -12338,6 +13227,60 @@
           },
           "validUntil": {
             "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EffectiveItem": {
+        "properties": {
+          "addedInstanceCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "definitionKey": {
+            "type": "string"
+          },
+          "effectiveState": {
+            "enum": [
+              "AVAILABLE",
+              "ALREADY_ADDED",
+              "DEPRECATED",
+              "DENY"
+            ],
+            "type": "string"
+          },
+          "legacyWidgetKey": {
+            "type": "string"
+          },
+          "placementCapabilities": {
+            "$ref": "#/components/schemas/PlacementCapabilities"
+          },
+          "reasonCodes": {
+            "items": {
+              "enum": [
+                "NOT_AVAILABLE",
+                "DISABLED_BY_ORGANIZATION",
+                "APP_ACCESS_REQUIRED",
+                "INCOMPATIBLE",
+                "TEMPORARILY_UNAVAILABLE",
+                "DEPRECATED",
+                "AVAILABLE",
+                "ALREADY_ADDED"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "resolvedVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "semanticVersion": {
             "type": "string"
           }
         },
@@ -12988,6 +13931,155 @@
               "PRIVATE",
               "CONFIDENTIAL"
             ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EvidenceCreateRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "PASS|FAIL",
+            "type": "string"
+          },
+          "evidenceRef": {
+            "maxLength": 256,
+            "minLength": 0,
+            "type": "string"
+          },
+          "evidenceSha256": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "evidenceType": {
+            "minLength": 1,
+            "pattern": "MANIFEST|SECURITY|PRIVACY|A11Y|PERFORMANCE|LOCALIZATION",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "manifestHash": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reviewNote": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "evidenceRef",
+          "evidenceSha256",
+          "evidenceType",
+          "expectedVersion",
+          "manifestHash",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
+      "EvidencePage": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceResponse"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "readRevision": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "EvidenceResponse": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "evidenceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "evidenceRef": {
+            "type": "string"
+          },
+          "evidenceSha256": {
+            "type": "string"
+          },
+          "evidenceType": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "manifestHash": {
+            "type": "string"
+          },
+          "reviewedBy": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL",
+              "EXPIRED",
+              "WAIVED"
+            ],
+            "type": "string"
+          },
+          "trackingTicketRef": {
+            "type": "string"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "waivedEvidenceId": {
+            "format": "uuid",
             "type": "string"
           }
         },
@@ -14938,6 +16030,45 @@
         ],
         "type": "object"
       },
+      "HostContext": {
+        "properties": {
+          "activeViewRef": {
+            "type": "string"
+          },
+          "compositionSchemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "decisionRevision": {
+            "type": "string"
+          },
+          "homeExperienceVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "hostCapabilityVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "hostConfigurationRevision": {
+            "type": "string"
+          },
+          "layoutRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "layoutSource": {
+            "type": "string"
+          },
+          "resolvedHostMode": {
+            "type": "string"
+          },
+          "surfaceKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ImpactAnalysis": {
         "properties": {
           "blocked": {
@@ -15007,6 +16138,48 @@
               "type": "string"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ImpactResponse": {
+        "properties": {
+          "activeChannelCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "affectedTenantCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "calculatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "impactRevision": {
+            "type": "string"
+          },
+          "instanceReferenceCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "operationAllowed": {
+            "type": "boolean"
+          },
+          "tenantPolicyReferenceCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
           }
         },
         "type": "object"
@@ -16693,6 +17866,40 @@
         },
         "type": "object"
       },
+      "PlacementCapabilities": {
+        "properties": {
+          "canAdd": {
+            "type": "boolean"
+          },
+          "canHide": {
+            "type": "boolean"
+          },
+          "canMove": {
+            "type": "boolean"
+          },
+          "canResize": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "PlacementContext": {
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/CatalogCapabilities"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EffectiveItem"
+            },
+            "type": "array"
+          },
+          "placementContext": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Policy": {
         "properties": {
           "allowExternalAttendees": {
@@ -17757,6 +18964,62 @@
         },
         "type": "object"
       },
+      "PublishRequest": {
+        "properties": {
+          "channel": {
+            "minLength": 1,
+            "pattern": "STABLE|PREVIEW",
+            "type": "string"
+          },
+          "evidenceIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "manifestHash": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "validationRunId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "channel",
+          "evidenceIds",
+          "expectedImpactRevision",
+          "expectedVersion",
+          "manifestHash",
+          "reasonCode",
+          "reasonText",
+          "validationRunId"
+        ],
+        "type": "object"
+      },
       "ReactionRequest": {
         "properties": {
           "reaction": {
@@ -17846,6 +19109,47 @@
           },
           "unread": {
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "ReadinessResponse": {
+        "properties": {
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "controlPlaneReady": {
+            "type": "boolean"
+          },
+          "migrationMode": {
+            "enum": [
+              "STATIC",
+              "SHADOW",
+              "AUTHORITATIVE"
+            ],
+            "type": "string"
+          },
+          "policyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "registryRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "runtimeActivationReady": {
+            "type": "boolean"
+          },
+          "safetyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -18182,6 +19486,84 @@
         },
         "type": "object"
       },
+      "RegistryEventPage": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RegistryEventResponse"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "readRevision": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RegistryEventResponse": {
+        "properties": {
+          "actorRef": {
+            "type": "string"
+          },
+          "after": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "aggregateId": {
+            "type": "string"
+          },
+          "aggregateType": {
+            "type": "string"
+          },
+          "before": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "evidenceRefs": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "registryRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "Relation": {
         "properties": {
           "criticality": {
@@ -18230,6 +19612,40 @@
         "required": [
           "version"
         ],
+        "type": "object"
+      },
+      "ReleaseChannelResponse": {
+        "properties": {
+          "allowedTransitions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "currentVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "previousVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "ReleaseWindow": {
@@ -18964,6 +20380,50 @@
         },
         "type": "object"
       },
+      "ReviewDecisionRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVE|REJECT",
+            "type": "string"
+          },
+          "evidenceIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "validationRunId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "evidenceIds",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText",
+          "validationRunId"
+        ],
+        "type": "object"
+      },
       "Revision": {
         "properties": {
           "baselineRevisionId": {
@@ -19528,6 +20988,269 @@
         },
         "type": "object"
       },
+      "RuntimeControlPage": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/RuntimeControlResponse"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "readRevision": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RuntimeControlResponse": {
+        "properties": {
+          "controlId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "controlRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "providerProductKey": {
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "DISABLED",
+              "ENABLED"
+            ],
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          },
+          "targetType": {
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "RuntimeDisableRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "internalIncidentRef": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          },
+          "providerProductKey": {
+            "maxLength": 120,
+            "minLength": 0,
+            "type": "string"
+          },
+          "publicReasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scope": {
+            "minLength": 1,
+            "pattern": "CATALOG_MUTATIONS|CATALOG_DISCOVERY|RUNTIME_RENDER|RUNTIME_ACTION",
+            "type": "string"
+          },
+          "targetId": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "targetType": {
+            "minLength": 1,
+            "pattern": "GLOBAL|PROVIDER|TENANT|DEFINITION|VERSION",
+            "type": "string"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "internalIncidentRef",
+          "publicReasonCode",
+          "reasonCode",
+          "reasonText",
+          "scope",
+          "targetType"
+        ],
+        "type": "object"
+      },
+      "RuntimeEnableApprovalRequest": {
+        "properties": {
+          "controlRevision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "evidenceRefs": {
+            "items": {
+              "maxLength": 128,
+              "minLength": 0,
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 1,
+            "type": "array"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "controlRevision",
+          "evidenceRefs",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
+      "RuntimeEnableApprovalResponse": {
+        "properties": {
+          "approvalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "approvedBy": {
+            "type": "string"
+          },
+          "consumedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "controlId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "controlRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "evidenceRefs": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RuntimeEnableRequest": {
+        "properties": {
+          "controlRevision": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "enableApprovalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "controlRevision",
+          "enableApprovalId",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
       "RuntimeNode": {
         "properties": {
           "children": {
@@ -19658,6 +21381,57 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "SafetyTransitionRequest": {
+        "properties": {
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "internalIncidentRef": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string"
+          },
+          "publicReasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "replacementVersionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedImpactRevision",
+          "expectedVersion",
+          "internalIncidentRef",
+          "publicReasonCode",
+          "reasonCode",
+          "reasonText"
+        ],
         "type": "object"
       },
       "SaveConnectorRequest": {
@@ -21019,6 +22793,37 @@
         },
         "type": "object"
       },
+      "TenantPolicyPublishRequest": {
+        "properties": {
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedImpactRevision",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
       "TenantPolicyRequest": {
         "properties": {
           "aiAssistanceEnabled": {
@@ -21056,6 +22861,270 @@
         },
         "required": [
           "version"
+        ],
+        "type": "object"
+      },
+      "TenantPolicyResponse": {
+        "properties": {
+          "allowedTransitions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "current": {
+            "$ref": "#/components/schemas/TenantPolicyRevisionResponse"
+          },
+          "currentRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TenantPolicyRevisionPage": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TenantPolicyRevisionResponse"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "readRevision": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TenantPolicyRevisionRequest": {
+        "properties": {
+          "audienceSelector": {
+            "$ref": "#/components/schemas/AudienceSelectorV1"
+          },
+          "channel": {
+            "pattern": "STABLE|PREVIEW",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "lockedConfiguration": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "selector": {
+            "minLength": 1,
+            "pattern": "CHANNEL|PINNED",
+            "type": "string"
+          },
+          "sharingPolicy": {
+            "minLength": 1,
+            "pattern": "PRIVATE|TENANT|DISABLED",
+            "type": "string"
+          },
+          "supportedSurfaceKeys": {
+            "items": {
+              "pattern": "[a-z][a-z0-9-]{1,79}",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 1,
+            "type": "array"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "audienceSelector",
+          "expectedVersion",
+          "lockedConfiguration",
+          "reasonCode",
+          "reasonText",
+          "selector",
+          "sharingPolicy",
+          "supportedSurfaceKeys"
+        ],
+        "type": "object"
+      },
+      "TenantPolicyRevisionResponse": {
+        "properties": {
+          "audienceSelector": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "channel": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "impactRevision": {
+            "type": "string"
+          },
+          "lockedConfiguration": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "policyRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyState": {
+            "enum": [
+              "DRAFT",
+              "PUBLISHED",
+              "SUPERSEDED",
+              "REVOKED"
+            ],
+            "type": "string"
+          },
+          "predecessorRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "revisionNumber": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "selector": {
+            "type": "string"
+          },
+          "sharingPolicy": {
+            "type": "string"
+          },
+          "supportedSurfaceKeys": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TenantPolicyRevokeRequest": {
+        "properties": {
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedImpactRevision",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
+      "TenantPolicyRollbackRequest": {
+        "properties": {
+          "expectedImpactRevision": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "restoreRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedImpactRevision",
+          "expectedVersion",
+          "reasonCode",
+          "reasonText",
+          "restoreRevisionId"
         ],
         "type": "object"
       },
@@ -21309,38 +23378,26 @@
       },
       "TransitionRequest": {
         "properties": {
-          "assignedTo": {
-            "maxLength": 160,
-            "minLength": 0,
-            "type": "string"
-          },
-          "note": {
-            "maxLength": 2000,
-            "minLength": 0,
-            "type": "string"
-          },
-          "targetStatus": {
-            "enum": [
-              "DRAFT",
-              "SUBMITTED",
-              "TRIAGED",
-              "IN_PROGRESS",
-              "AWAITING_REQUESTER",
-              "RESOLVED",
-              "CLOSED",
-              "CANCELLED"
-            ],
-            "type": "string"
-          },
-          "version": {
+          "expectedVersion": {
             "format": "int64",
             "minimum": 0,
             "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
           }
         },
         "required": [
-          "targetStatus",
-          "version"
+          "expectedVersion",
+          "reasonCode",
+          "reasonText"
         ],
         "type": "object"
       },
@@ -21993,6 +24050,48 @@
         ],
         "type": "object"
       },
+      "ValidateRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "manifestHash": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "manifestHash",
+          "reasonCode",
+          "reasonText"
+        ],
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "jsonPointer": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ValidationIssue": {
         "properties": {
           "code": {
@@ -22040,6 +24139,110 @@
         },
         "type": "object"
       },
+      "ValidationResponse": {
+        "properties": {
+          "bindingCatalogRevision": {
+            "type": "string"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array"
+          },
+          "manifestHash": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PASS",
+              "FAIL"
+            ],
+            "type": "string"
+          },
+          "validatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "VersionCreateRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "predecessorVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "semanticVersion": {
+            "minLength": 1,
+            "pattern": "(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:-((?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*)(?:\\.(?:0|[1-9][0-9]*|[0-9]*[A-Za-z-][0-9A-Za-z-]*))*))?(?:\\+([0-9A-Za-z-]+(?:\\.[0-9A-Za-z-]+)*))?",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "manifest",
+          "reasonCode",
+          "reasonText",
+          "semanticVersion"
+        ],
+        "type": "object"
+      },
+      "VersionPage": {
+        "properties": {
+          "hasNext": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/VersionResponse"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "readRevision": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "totalElements": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "VersionRequest": {
         "properties": {
           "version": {
@@ -22050,6 +24253,134 @@
         },
         "required": [
           "version"
+        ],
+        "type": "object"
+      },
+      "VersionResponse": {
+        "properties": {
+          "allowedTransitions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "attestation": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "bindingCatalogRevision": {
+            "type": "string"
+          },
+          "certificationStatus": {
+            "enum": [
+              "NOT_RUN",
+              "PASS",
+              "FAIL",
+              "EXPIRED",
+              "WAIVED"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "definitionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "manifestHash": {
+            "type": "string"
+          },
+          "predecessorVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "releaseState": {
+            "enum": [
+              "UNPUBLISHED",
+              "PUBLISHED",
+              "BLOCKED",
+              "DEPRECATED"
+            ],
+            "type": "string"
+          },
+          "replacementVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "safetyState": {
+            "enum": [
+              "CLEAR",
+              "QUARANTINED",
+              "REVOKED"
+            ],
+            "type": "string"
+          },
+          "semanticVersion": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validationRunId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "versionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workflowState": {
+            "enum": [
+              "DRAFT",
+              "VALIDATED",
+              "SUBMITTED",
+              "APPROVED",
+              "REJECTED"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "VersionUpdateRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "predecessorVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "manifest",
+          "reasonCode",
+          "reasonText"
         ],
         "type": "object"
       },
@@ -24535,7 +26866,7 @@
     },
     "/internal/provider/v1/code-catalog/code-sets": {
       "get": {
-        "operationId": "catalog_2",
+        "operationId": "catalog_3",
         "responses": {
           "200": {
             "content": {
@@ -24555,7 +26886,7 @@
     },
     "/internal/provider/v1/code-catalog/code-sets/{codeSetKey}": {
       "get": {
-        "operationId": "get_14",
+        "operationId": "get_17",
         "parameters": [
           {
             "in": "path",
@@ -24777,7 +27108,7 @@
     },
     "/v1/admin/announcements": {
       "get": {
-        "operationId": "list_9",
+        "operationId": "list_10",
         "parameters": [],
         "responses": {
           "200": {
@@ -24796,7 +27127,7 @@
         ]
       },
       "post": {
-        "operationId": "create_14",
+        "operationId": "create_16",
         "parameters": [
           {
             "in": "header",
@@ -24836,7 +27167,7 @@
     },
     "/v1/admin/announcements/{announcementId}": {
       "put": {
-        "operationId": "update_10",
+        "operationId": "update_12",
         "parameters": [
           {
             "in": "header",
@@ -24934,7 +27265,7 @@
     },
     "/v1/admin/announcements/{announcementId}/publish": {
       "post": {
-        "operationId": "publish_4",
+        "operationId": "publish_6",
         "parameters": [
           {
             "in": "header",
@@ -24983,7 +27314,7 @@
     },
     "/v1/admin/api-history/events": {
       "get": {
-        "operationId": "events_4",
+        "operationId": "events_5",
         "parameters": [
           {
             "in": "query",
@@ -25345,7 +27676,7 @@
     },
     "/v1/admin/app-access-requests/{requestId}/revocation": {
       "post": {
-        "operationId": "revoke_1",
+        "operationId": "revoke_3",
         "parameters": [
           {
             "in": "header",
@@ -25870,7 +28201,7 @@
     },
     "/v1/admin/audit-control/events": {
       "get": {
-        "operationId": "events_3",
+        "operationId": "events_4",
         "parameters": [
           {
             "in": "query",
@@ -26599,7 +28930,7 @@
     },
     "/v1/admin/audit-events": {
       "get": {
-        "operationId": "list_15",
+        "operationId": "list_17",
         "parameters": [
           {
             "in": "query",
@@ -27522,7 +29853,7 @@
     },
     "/v1/admin/catalog/impact": {
       "get": {
-        "operationId": "impact",
+        "operationId": "impact_2",
         "parameters": [
           {
             "in": "query",
@@ -27601,7 +29932,7 @@
     },
     "/v1/admin/catalog/relations/{relationId}/retire": {
       "post": {
-        "operationId": "retire_2",
+        "operationId": "retire_3",
         "parameters": [
           {
             "in": "header",
@@ -27650,7 +29981,7 @@
     },
     "/v1/admin/dwaion/agents": {
       "get": {
-        "operationId": "list_8",
+        "operationId": "list_9",
         "parameters": [
           {
             "in": "query",
@@ -27711,7 +30042,7 @@
         ]
       },
       "post": {
-        "operationId": "create_13",
+        "operationId": "create_15",
         "parameters": [
           {
             "in": "header",
@@ -28000,7 +30331,7 @@
     },
     "/v1/admin/home-experience": {
       "get": {
-        "operationId": "get_5",
+        "operationId": "get_6",
         "parameters": [],
         "responses": {
           "200": {
@@ -28019,7 +30350,7 @@
         ]
       },
       "put": {
-        "operationId": "update_9",
+        "operationId": "update_11",
         "parameters": [
           {
             "in": "header",
@@ -28257,7 +30588,7 @@
     },
     "/v1/admin/home-experience/publish": {
       "post": {
-        "operationId": "publish_3",
+        "operationId": "publish_5",
         "parameters": [
           {
             "in": "header",
@@ -28311,7 +30642,7 @@
     },
     "/v1/admin/home-experience/revisions": {
       "get": {
-        "operationId": "history_1",
+        "operationId": "history_2",
         "parameters": [
           {
             "in": "query",
@@ -28344,7 +30675,7 @@
     },
     "/v1/admin/home-experience/revisions/{revisionId}/rollback": {
       "post": {
-        "operationId": "rollback_1",
+        "operationId": "rollback_3",
         "parameters": [
           {
             "in": "header",
@@ -28413,7 +30744,7 @@
         ]
       },
       "post": {
-        "operationId": "create_12",
+        "operationId": "create_14",
         "parameters": [
           {
             "in": "header",
@@ -28453,7 +30784,7 @@
     },
     "/v1/admin/integrations/productivity/connectors/{connectorId}": {
       "put": {
-        "operationId": "update_8",
+        "operationId": "update_10",
         "parameters": [
           {
             "in": "header",
@@ -29046,7 +31377,7 @@
     },
     "/v1/admin/localization/revisions/{revisionId}/publish": {
       "post": {
-        "operationId": "publish_2",
+        "operationId": "publish_4",
         "parameters": [
           {
             "in": "header",
@@ -29144,7 +31475,7 @@
     },
     "/v1/admin/localization/revisions/{revisionId}/submit": {
       "post": {
-        "operationId": "submit_1",
+        "operationId": "submit_2",
         "parameters": [
           {
             "in": "header",
@@ -29352,7 +31683,7 @@
     },
     "/v1/admin/navigation": {
       "get": {
-        "operationId": "list_7",
+        "operationId": "list_8",
         "parameters": [],
         "responses": {
           "200": {
@@ -29371,7 +31702,7 @@
         ]
       },
       "post": {
-        "operationId": "create_11",
+        "operationId": "create_13",
         "parameters": [
           {
             "in": "header",
@@ -29610,7 +31941,7 @@
     },
     "/v1/admin/navigation/studio/drafts/{revisionId}/publish": {
       "post": {
-        "operationId": "publish_1",
+        "operationId": "publish_3",
         "parameters": [
           {
             "in": "header",
@@ -29708,7 +32039,7 @@
     },
     "/v1/admin/navigation/{itemId}": {
       "put": {
-        "operationId": "update_7",
+        "operationId": "update_9",
         "parameters": [
           {
             "in": "header",
@@ -29806,7 +32137,7 @@
     },
     "/v1/admin/navigation/{itemId}/retire": {
       "post": {
-        "operationId": "retire_1",
+        "operationId": "retire_2",
         "parameters": [
           {
             "in": "header",
@@ -29935,7 +32266,7 @@
     },
     "/v1/admin/reference-sets": {
       "get": {
-        "operationId": "list_6",
+        "operationId": "list_7",
         "parameters": [
           {
             "in": "query",
@@ -29996,7 +32327,7 @@
         ]
       },
       "post": {
-        "operationId": "create_10",
+        "operationId": "create_12",
         "parameters": [
           {
             "in": "header",
@@ -30064,7 +32395,7 @@
         ]
       },
       "patch": {
-        "operationId": "update_11",
+        "operationId": "update_13",
         "parameters": [
           {
             "in": "header",
@@ -30426,7 +32757,7 @@
     },
     "/v1/admin/reference-sets/{setKey}/retire": {
       "post": {
-        "operationId": "retire",
+        "operationId": "retire_1",
         "parameters": [
           {
             "in": "header",
@@ -30474,7 +32805,7 @@
     },
     "/v1/admin/registry-entries": {
       "get": {
-        "operationId": "list_5",
+        "operationId": "list_6",
         "parameters": [
           {
             "in": "query",
@@ -30552,7 +32883,7 @@
         ]
       },
       "post": {
-        "operationId": "create_9",
+        "operationId": "create_11",
         "parameters": [
           {
             "in": "header",
@@ -31803,7 +34134,7 @@
     },
     "/v1/admin/tenant-branding": {
       "get": {
-        "operationId": "get_4",
+        "operationId": "get_5",
         "parameters": [],
         "responses": {
           "200": {
@@ -31822,7 +34153,7 @@
         ]
       },
       "put": {
-        "operationId": "update_6",
+        "operationId": "update_8",
         "parameters": [
           {
             "in": "header",
@@ -31980,7 +34311,7 @@
     },
     "/v1/admin/tenant-branding/revisions": {
       "get": {
-        "operationId": "history",
+        "operationId": "history_1",
         "parameters": [
           {
             "in": "query",
@@ -32013,7 +34344,7 @@
     },
     "/v1/admin/tenant-branding/revisions/{revisionId}/rollback": {
       "post": {
-        "operationId": "rollback",
+        "operationId": "rollback_2",
         "parameters": [
           {
             "in": "header",
@@ -32063,7 +34394,7 @@
     },
     "/v1/admin/tenant-experience-preview": {
       "get": {
-        "operationId": "get_13",
+        "operationId": "get_16",
         "parameters": [],
         "responses": {
           "200": {
@@ -32079,6 +34410,2229 @@
         },
         "tags": [
           "tenant-experience-preview-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-catalog": {
+      "get": {
+        "operationId": "catalog_2",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "surfaceKey",
+            "required": false,
+            "schema": {
+              "default": "workspace-home",
+              "pattern": "[a-z][a-z0-9-]{1,79}",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEffectiveCatalogResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-catalog-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-catalog/{definitionId}/explain": {
+      "get": {
+        "operationId": "explain",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "surfaceKey",
+            "required": false,
+            "schema": {
+              "default": "workspace-home",
+              "pattern": "[a-z][a-z0-9-]{1,79}",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEffectiveCatalogResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-catalog-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definition-versions/{versionId}": {
+      "get": {
+        "operationId": "get_4",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      },
+      "put": {
+        "operationId": "update_7",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definition-versions/{versionId}/block": {
+      "post": {
+        "operationId": "block",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SafetyTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definition-versions/{versionId}/decision": {
+      "post": {
+        "operationId": "decision",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definition-versions/{versionId}/deprecate": {
+      "post": {
+        "operationId": "deprecate",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeprecateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definition-versions/{versionId}/evidence": {
+      "get": {
+        "operationId": "evidence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEvidencePage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      },
+      "post": {
+        "operationId": "evidence_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEvidenceResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definition-versions/{versionId}/evidence/{evidenceId}": {
+      "get": {
+        "operationId": "evidence_3",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "evidenceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEvidenceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definition-versions/{versionId}/impact": {
+      "get": {
+        "operationId": "impact_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "operation",
+            "required": true,
+            "schema": {
+              "pattern": "PUBLISH|BLOCK|QUARANTINE|REVOKE|PROMOTE|ROLLBACK",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseImpactResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definition-versions/{versionId}/publish": {
+      "post": {
+        "operationId": "publish_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definition-versions/{versionId}/quarantine": {
+      "post": {
+        "operationId": "quarantine",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SafetyTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definition-versions/{versionId}/revoke": {
+      "post": {
+        "operationId": "revoke_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SafetyTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definition-versions/{versionId}/rework": {
+      "post": {
+        "operationId": "rework",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definition-versions/{versionId}/submit": {
+      "post": {
+        "operationId": "submit_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definition-versions/{versionId}/validate": {
+      "post": {
+        "operationId": "validate",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "versionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ValidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseValidationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-version-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definitions": {
+      "get": {
+        "operationId": "list_5",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "definitionState",
+            "required": false,
+            "schema": {
+              "pattern": "ACTIVE|RETIRED",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDefinitionPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-definition-controller"
+        ]
+      },
+      "post": {
+        "operationId": "create_10",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefinitionCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDefinitionResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "admin-widget-definition-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definitions/{definitionId}": {
+      "get": {
+        "operationId": "get_15",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDefinitionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-definition-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definitions/{definitionId}/channels/{channel}": {
+      "get": {
+        "operationId": "channel",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "pattern": "STABLE|PREVIEW",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReleaseChannelResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-definition-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definitions/{definitionId}/channels/{channel}/impact": {
+      "get": {
+        "operationId": "channelImpact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "pattern": "STABLE|PREVIEW",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "operation",
+            "required": true,
+            "schema": {
+              "pattern": "PROMOTE|ROLLBACK",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "targetVersionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseImpactResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-definition-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definitions/{definitionId}/channels/{channel}/promote": {
+      "post": {
+        "operationId": "promote",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "pattern": "STABLE|PREVIEW",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelTransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReleaseChannelResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-definition-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definitions/{definitionId}/channels/{channel}/rollback": {
+      "post": {
+        "operationId": "rollback_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "channel",
+            "required": true,
+            "schema": {
+              "pattern": "STABLE|PREVIEW",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChannelRollbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReleaseChannelResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-definition-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definitions/{definitionId}/retire": {
+      "post": {
+        "operationId": "retire",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DefinitionRetireRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDefinitionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-definition-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definitions/{definitionId}/retirement-impact": {
+      "get": {
+        "operationId": "retirementImpact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "replacementDefinitionId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseImpactResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-definition-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-definitions/{definitionId}/versions": {
+      "get": {
+        "operationId": "versions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVersionPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-definition-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createVersion",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVersionResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "admin-widget-definition-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-policies/{definitionId}": {
+      "get": {
+        "operationId": "get_14",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-tenant-widget-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-policies/{definitionId}/history": {
+      "get": {
+        "operationId": "history",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicyRevisionPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-tenant-widget-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-policies/{definitionId}/revisions": {
+      "post": {
+        "operationId": "create_9",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantPolicyRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicyRevisionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-tenant-widget-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-policies/{definitionId}/revisions/{revisionId}": {
+      "put": {
+        "operationId": "update_6",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantPolicyRevisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicyRevisionResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-tenant-widget-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-policies/{definitionId}/revisions/{revisionId}/impact": {
+      "get": {
+        "operationId": "impact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseImpactResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-tenant-widget-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-policies/{definitionId}/revisions/{revisionId}/publish": {
+      "post": {
+        "operationId": "publish_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantPolicyPublishRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-tenant-widget-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-policies/{definitionId}/revoke": {
+      "post": {
+        "operationId": "revoke_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantPolicyRevokeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-tenant-widget-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-policies/{definitionId}/revoke-impact": {
+      "get": {
+        "operationId": "revokeImpact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseImpactResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-tenant-widget-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-policies/{definitionId}/rollback": {
+      "post": {
+        "operationId": "rollback",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantPolicyRollbackRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicyResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-tenant-widget-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-policies/{definitionId}/rollback-impact": {
+      "get": {
+        "operationId": "rollbackImpact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "definitionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "restoreRevisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseImpactResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-tenant-widget-policy-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-registry/events": {
+      "get": {
+        "operationId": "events_3",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRegistryEventPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-catalog-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-registry/readiness": {
+      "get": {
+        "operationId": "readiness_1",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReadinessResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-catalog-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-runtime-controls": {
+      "get": {
+        "operationId": "list_16",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRuntimeControlPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-runtime-control-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-runtime-controls/disable": {
+      "post": {
+        "operationId": "disable",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeDisableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRuntimeControlResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "admin-widget-runtime-control-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-runtime-controls/{controlId}/enable": {
+      "post": {
+        "operationId": "enable",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "controlId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeEnableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRuntimeControlResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-widget-runtime-control-controller"
+        ]
+      }
+    },
+    "/v1/admin/widget-runtime-controls/{controlId}/enable-approvals": {
+      "post": {
+        "operationId": "approve",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "controlId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RuntimeEnableApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRuntimeEnableApprovalResponse"
+                }
+              }
+            },
+            "description": "Created"
+          }
+        },
+        "tags": [
+          "admin-widget-runtime-control-controller"
         ]
       }
     },
@@ -36306,7 +40860,7 @@
     },
     "/v1/announcements": {
       "get": {
-        "operationId": "list_14",
+        "operationId": "list_15",
         "parameters": [],
         "responses": {
           "200": {
@@ -37419,7 +41973,7 @@
     },
     "/v1/catalog/code-sets/{codeSetKey}": {
       "get": {
-        "operationId": "get_12",
+        "operationId": "get_13",
         "parameters": [
           {
             "in": "path",
@@ -37457,7 +42011,7 @@
     },
     "/v1/catalog/registry-entries": {
       "get": {
-        "operationId": "list_13",
+        "operationId": "list_14",
         "parameters": [
           {
             "in": "query",
@@ -37900,7 +42454,7 @@
     },
     "/v1/home-composer/proposals/{proposalId}": {
       "get": {
-        "operationId": "get_11",
+        "operationId": "get_12",
         "parameters": [
           {
             "in": "path",
@@ -38187,7 +42741,7 @@
     },
     "/v1/home-experience": {
       "get": {
-        "operationId": "get_10",
+        "operationId": "get_11",
         "parameters": [],
         "responses": {
           "200": {
@@ -41977,7 +46531,7 @@
     },
     "/v1/navigation": {
       "get": {
-        "operationId": "list_12",
+        "operationId": "list_13",
         "parameters": [
           {
             "in": "query",
@@ -42061,7 +46615,7 @@
     },
     "/v1/personal-preferences": {
       "get": {
-        "operationId": "get_6",
+        "operationId": "get_7",
         "parameters": [],
         "responses": {
           "200": {
@@ -42289,7 +46843,7 @@
     },
     "/v1/reference-data/{setKey}": {
       "get": {
-        "operationId": "get_9",
+        "operationId": "get_10",
         "parameters": [
           {
             "in": "path",
@@ -43045,7 +47599,7 @@
     },
     "/v1/tenant-branding": {
       "get": {
-        "operationId": "get_8",
+        "operationId": "get_9",
         "parameters": [],
         "responses": {
           "200": {
@@ -43083,6 +47637,58 @@
         },
         "tags": [
           "tenant-branding-controller"
+        ]
+      }
+    },
+    "/v1/widget-catalog/effective": {
+      "get": {
+        "operationId": "effective",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "surfaceKey",
+            "required": false,
+            "schema": {
+              "default": "workspace-home",
+              "pattern": "[a-z][a-z0-9-]{1,79}",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseEffectiveCatalogResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "widget-catalog-controller"
+        ]
+      }
+    },
+    "/v1/widget-catalog/readiness": {
+      "get": {
+        "operationId": "readiness",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReadinessResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "widget-catalog-controller"
         ]
       }
     },
@@ -44152,7 +48758,7 @@
     },
     "/v1/workspace/activity": {
       "get": {
-        "operationId": "list_11",
+        "operationId": "list_12",
         "parameters": [
           {
             "in": "header",
@@ -44365,7 +48971,7 @@
     "/v1/workspace/activity/events/{id}/evidence": {
       "get": {
         "description": "Rechecks current source ACL. Audit hash and checkpoint require ADMIN.AUDIT_VIEW:VIEW; other viewers receive RESTRICTED without audit data.",
-        "operationId": "evidence",
+        "operationId": "evidence_2",
         "parameters": [
           {
             "in": "path",
@@ -45315,7 +49921,7 @@
     },
     "/v1/workspace/work-hub/assignments/{assignmentId}": {
       "get": {
-        "operationId": "get_7",
+        "operationId": "get_8",
         "parameters": [
           {
             "in": "path",
@@ -45803,7 +50409,7 @@
     },
     "/v1/workspace/work-hub/calendar-links": {
       "get": {
-        "operationId": "list_10",
+        "operationId": "list_11",
         "parameters": [
           {
             "in": "query",

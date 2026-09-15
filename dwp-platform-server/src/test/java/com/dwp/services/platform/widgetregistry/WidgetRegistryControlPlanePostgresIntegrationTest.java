@@ -1,0 +1,492 @@
+package com.dwp.services.platform.widgetregistry;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
+import com.dwp.services.platform.home.HomeExperienceDtos;
+import com.dwp.services.platform.home.HomeExperienceService;
+import com.dwp.services.platform.provisioning.PlatformTenantProvisioningDtos;
+import com.dwp.services.platform.provisioning.PlatformTenantProvisioningService;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
+import org.springframework.boot.test.autoconfigure.orm.jpa.DataJpaTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+
+@DataJpaTest
+@AutoConfigureTestDatabase(replace = AutoConfigureTestDatabase.Replace.NONE)
+@Testcontainers(disabledWithoutDocker = true)
+@Import({
+        WidgetRegistryControlPlanePostgresIntegrationTest.JacksonConfiguration.class,
+        WidgetRegistryResponseMapper.class,
+        WidgetRegistryCommandReceiptService.class,
+        WidgetRegistryLedger.class,
+        WidgetRegistryImpactService.class,
+        WidgetRegistryMutationGuard.class,
+        WidgetRegistryDefinitionService.class,
+        WidgetRegistryReleaseService.class,
+        TenantWidgetPolicyService.class,
+        WidgetRuntimeControlService.class,
+        WidgetRegistryAuditService.class,
+        WidgetCatalogService.class
+})
+class WidgetRegistryControlPlanePostgresIntegrationTest {
+    private static final Path FIXTURE =
+            Path.of("../contracts/widget-registry/native-widget-manifests.v1.json");
+
+    @Container
+    private static final PostgreSQLContainer<?> POSTGRES =
+            new PostgreSQLContainer<>("postgres:16-alpine");
+
+    @DynamicPropertySource
+    static void database(DynamicPropertyRegistry registry) {
+        registry.add("spring.datasource.url", POSTGRES::getJdbcUrl);
+        registry.add("spring.datasource.username", POSTGRES::getUsername);
+        registry.add("spring.datasource.password", POSTGRES::getPassword);
+        registry.add("spring.jpa.hibernate.ddl-auto", () -> "validate");
+        registry.add("spring.flyway.locations",
+                () -> "filesystem:src/main/resources/db/migration");
+    }
+
+    @Autowired private WidgetRegistryDefinitionService definitions;
+    @Autowired private WidgetRegistryReleaseService releases;
+    @Autowired private TenantWidgetPolicyService policies;
+    @Autowired private WidgetRuntimeControlService controls;
+    @Autowired private WidgetRegistryAuditService audit;
+    @Autowired private WidgetCatalogService catalog;
+    @Autowired private WidgetRegistryLedger ledger;
+    @Autowired private ObjectMapper objectMapper;
+    @Autowired private JdbcTemplate jdbc;
+
+    @Test
+    void concurrentDuplicateCommandProducesOneDefinitionEventAndReceipt() throws Exception {
+        UUID commandId = UUID.randomUUID();
+        String key = "core.work.concurrent-" + commandId.toString().substring(0, 8);
+        var request = new WidgetRegistryDtos.DefinitionCreateRequest(
+                key, null, "core.work", "dwp-home", "LOW", "INTERNAL",
+                "TEST", "concurrent idempotency", 0L);
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                start.await(10, TimeUnit.SECONDS);
+                return definitions.create(42001L, commandId, "concurrent", request);
+            });
+            var second = executor.submit(() -> {
+                start.await(10, TimeUnit.SECONDS);
+                return definitions.create(42001L, commandId, "concurrent", request);
+            });
+            start.countDown();
+
+            var firstResponse = first.get(30, TimeUnit.SECONDS);
+            var secondResponse = second.get(30, TimeUnit.SECONDS);
+            assertThat(secondResponse).isEqualTo(firstResponse);
+        }
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM plt_widget_command_receipts
+                 WHERE actor_id = 42001 AND command_id = ?
+                """, Integer.class, commandId)).isEqualTo(1);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM plt_widget_registry_events
+                 WHERE event_type = 'WIDGET_DEFINITION_CREATED'
+                   AND aggregate_id = ?
+                """, Integer.class,
+                jdbc.queryForObject("""
+                        SELECT definition_id::text FROM plt_widget_definitions
+                         WHERE definition_key = ?
+                        """, String.class, key))).isEqualTo(1);
+    }
+
+    @Test
+    void migratedAndNewTenantPoliciesMatchAndRemainShadowDiscoverable() throws Exception {
+        Long migratedTenantId = jdbc.queryForObject("""
+                SELECT min(tenant_id) FROM sys_service_tenants
+                 WHERE lifecycle_state <> 'RETIRED'
+                """, Long.class);
+        assertThat(migratedTenantId).isNotNull();
+        long newTenantId = 92571L;
+        var provisioning = new PlatformTenantProvisioningService(
+                jdbc, Path.of(System.getProperty("java.io.tmpdir"), "dwp-wave3-catalog-test").toString(),
+                objectMapper);
+        provisioning.provision(new PlatformTenantProvisioningDtos.ProvisionTenantRequest(
+                UUID.fromString("92571000-0000-0000-0000-000000000001"), newTenantId,
+                "wave-three-catalog", "Wave Three Catalog Tenant", "local", "POOL", "ko",
+                List.of("core.workspace")));
+
+        assertThat(policyProjection(newTenantId)).isEqualTo(policyProjection(migratedTenantId));
+        String authorities = requiredAuthorities();
+        assertShadowCatalogAvailable(migratedTenantId, authorities);
+        assertShadowCatalogAvailable(newTenantId, authorities);
+    }
+
+    @Test
+    void lifecyclePolicySafetyRollbackConcurrencyAndAuditRemainFailClosed() throws Exception {
+        long author = 41001L;
+        long reviewer = 41002L;
+        long releaser = 41003L;
+        JsonNode manifest = focusManifest("core.work.wave3-contract-test");
+
+        var definition = definitions.create(author, UUID.randomUUID(), "wave3-definition",
+                new WidgetRegistryDtos.DefinitionCreateRequest(
+                        "core.work.wave3-contract-test", null, "core.work", "dwp-home",
+                        "HIGH", "CONFIDENTIAL", "TEST", "integration lifecycle", 0L));
+        var draft = definitions.createVersion(author, UUID.randomUUID(), "wave3-version",
+                definition.definitionId(), new WidgetRegistryDtos.VersionCreateRequest(
+                        "1.0.0+integration.1", manifest, null,
+                        "TEST", "create version", definition.version()));
+
+        assertThatThrownBy(() -> definitions.validate(author, UUID.randomUUID(), null,
+                draft.versionId(), new WidgetRegistryDtos.ValidateRequest(
+                        "0".repeat(64), "TEST", "wrong hash", draft.version())))
+                .isInstanceOfSatisfying(BaseException.class,
+                        failure -> assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+
+        var validation = definitions.validate(author, UUID.randomUUID(), null, draft.versionId(),
+                new WidgetRegistryDtos.ValidateRequest(
+                        draft.manifestHash(), "TEST", "validate", draft.version()));
+        List<UUID> evidenceIds = new ArrayList<>();
+        for (String type : List.of(
+                "MANIFEST", "SECURITY", "PRIVACY", "A11Y", "PERFORMANCE", "LOCALIZATION")) {
+            var current = definitions.getVersion(draft.versionId());
+            var evidence = definitions.recordEvidence(reviewer, UUID.randomUUID(), null,
+                    draft.versionId(), new WidgetRegistryDtos.EvidenceCreateRequest(
+                            type, "PASS", draft.manifestHash(), "evidence:" + type.toLowerCase(),
+                            sha(type), OffsetDateTime.now(ZoneOffset.UTC).plusDays(30), null,
+                            "TEST", "certification evidence", current.version()));
+            evidenceIds.add(evidence.evidenceId());
+        }
+
+        var current = definitions.getVersion(draft.versionId());
+        var submitted = definitions.submit(author, UUID.randomUUID(), null, draft.versionId(),
+                new WidgetRegistryDtos.TransitionRequest(
+                        "TEST", "submit", current.version()));
+        assertThatThrownBy(() -> definitions.decide(author, UUID.randomUUID(), null,
+                draft.versionId(), new WidgetRegistryDtos.ReviewDecisionRequest(
+                        "APPROVE", validation.validationRunId(), evidenceIds,
+                        "TEST", "self approval", submitted.version())))
+                .isInstanceOfSatisfying(BaseException.class,
+                        failure -> assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.SOD_CONFLICT));
+        var approved = definitions.decide(reviewer, UUID.randomUUID(), null, draft.versionId(),
+                new WidgetRegistryDtos.ReviewDecisionRequest(
+                        "APPROVE", validation.validationRunId(), evidenceIds,
+                        "TEST", "approve", submitted.version()));
+        assertThat(approved.certificationStatus()).isEqualTo("PASS");
+
+        var publishImpact = releases.impact(draft.versionId(), "PUBLISH");
+        var publishRequest = new WidgetRegistryDtos.PublishRequest(
+                "STABLE", validation.validationRunId(), draft.manifestHash(), evidenceIds,
+                publishImpact.impactRevision(), "TEST", "publish", approved.version());
+        jdbc.update("""
+                UPDATE plt_widget_renderer_bindings SET binding_state = 'DISABLED'
+                 WHERE renderer_key = 'home.focus'
+                """);
+        assertThatThrownBy(() -> releases.publish(
+                releaser, UUID.randomUUID(), null, draft.versionId(), publishRequest))
+                .isInstanceOfSatisfying(BaseException.class,
+                        failure -> assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        jdbc.update("""
+                UPDATE plt_widget_renderer_bindings SET binding_state = 'ACTIVE'
+                 WHERE renderer_key = 'home.focus'
+                """);
+        assertThatThrownBy(() -> releases.publish(
+                reviewer, UUID.randomUUID(), null, draft.versionId(), publishRequest))
+                .isInstanceOfSatisfying(BaseException.class,
+                        failure -> assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.SOD_CONFLICT));
+        var published = releases.publish(releaser, UUID.randomUUID(), null, draft.versionId(),
+                publishRequest);
+        assertThat(published.releaseState()).isEqualTo("PUBLISHED");
+        assertThat(published.allowedTransitions())
+                .contains("BLOCK", "DEPRECATE", "QUARANTINE", "REVOKE");
+
+        CertifiedVersion next = certifyVersion(
+                definition.definitionId(), definition.definitionKey(), "1.1.0+integration.1",
+                draft.versionId(), author, reviewer);
+        var nextPublishImpact = releases.impact(next.version().versionId(), "PUBLISH");
+        var nextPublished = releases.publish(releaser, UUID.randomUUID(), null,
+                next.version().versionId(), new WidgetRegistryDtos.PublishRequest(
+                        "STABLE", next.validationRunId(), next.version().manifestHash(), next.evidenceIds(),
+                        nextPublishImpact.impactRevision(), "TEST", "publish replacement",
+                        next.version().version()));
+        assertThat(releases.channel(definition.definitionId(), "STABLE").currentVersionId())
+                .isEqualTo(nextPublished.versionId());
+
+        var rollbackChannelImpact = releases.channelImpact(
+                definition.definitionId(), "STABLE", "ROLLBACK", published.versionId());
+        var channelBeforeRollback = releases.channel(definition.definitionId(), "STABLE");
+        var rolledBackChannel = releases.rollback(releaser, UUID.randomUUID(), null,
+                definition.definitionId(), "STABLE", new WidgetRegistryDtos.ChannelRollbackRequest(
+                        published.versionId(), nextPublished.versionId(),
+                        rollbackChannelImpact.impactRevision(), "TEST", "rollback release channel",
+                        channelBeforeRollback.version()));
+        assertThat(rolledBackChannel.currentVersionId()).isEqualTo(published.versionId());
+        assertThat(rolledBackChannel.previousVersionId()).isEqualTo(nextPublished.versionId());
+
+        assertThatThrownBy(() -> releases.deprecate(releaser, UUID.randomUUID(), null,
+                nextPublished.versionId(), new WidgetRegistryDtos.DeprecateRequest(
+                        nextPublished.versionId(), OffsetDateTime.now(ZoneOffset.UTC).plusDays(30),
+                        "TEST", "self replacement", nextPublished.version())))
+                .isInstanceOfSatisfying(BaseException.class,
+                        failure -> assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        var deprecated = releases.deprecate(releaser, UUID.randomUUID(), null,
+                nextPublished.versionId(), new WidgetRegistryDtos.DeprecateRequest(
+                        published.versionId(), OffsetDateTime.now(ZoneOffset.UTC).plusDays(30),
+                        "TEST", "deprecate replacement", nextPublished.version()));
+        assertThat(deprecated.releaseState()).isEqualTo("DEPRECATED");
+        assertThat(deprecated.replacementVersionId()).isEqualTo(published.versionId());
+
+        var absent = policies.get(1L, definition.definitionId());
+        var policyDraft = policies.createRevision(1L, author, UUID.randomUUID(), null,
+                definition.definitionId(), policyRequest(true, absent.version()));
+        var policyImpact = policies.impact(1L, definition.definitionId(), policyDraft.policyRevisionId());
+        var policy = policies.publish(1L, releaser, UUID.randomUUID(), null,
+                definition.definitionId(), policyDraft.policyRevisionId(),
+                new WidgetRegistryDtos.TenantPolicyPublishRequest(
+                        absent.version(), policyImpact.impactRevision(), "TEST", "publish policy"));
+        assertThat(policy.current().policyState()).isEqualTo("PUBLISHED");
+
+        var disabledDraft = policies.createRevision(1L, author, UUID.randomUUID(), null,
+                definition.definitionId(), policyRequest(false, policy.version()));
+        var disabledImpact = policies.impact(
+                1L, definition.definitionId(), disabledDraft.policyRevisionId());
+        var disabled = policies.publish(1L, releaser, UUID.randomUUID(), null,
+                definition.definitionId(), disabledDraft.policyRevisionId(),
+                new WidgetRegistryDtos.TenantPolicyPublishRequest(
+                        policy.version(), disabledImpact.impactRevision(), "TEST", "disable policy"));
+        var rollbackImpact = policies.rollbackImpact(
+                1L, definition.definitionId(), policyDraft.policyRevisionId());
+        var rolledBack = policies.rollback(1L, releaser, UUID.randomUUID(), null,
+                definition.definitionId(), new WidgetRegistryDtos.TenantPolicyRollbackRequest(
+                        policyDraft.policyRevisionId(), rollbackImpact.impactRevision(),
+                        disabled.version(), "TEST", "rollback policy"));
+        assertThat(rolledBack.current().enabled()).isTrue();
+        assertThat(rolledBack.current().policyRevisionId())
+                .isNotEqualTo(policyDraft.policyRevisionId());
+
+        long registryBeforeBlock = ledger.state().getRegistryRevision();
+        var blockImpact = releases.impact(nextPublished.versionId(), "BLOCK");
+        UUID blockCommand = UUID.randomUUID();
+        var blockRequest = new WidgetRegistryDtos.SafetyTransitionRequest(
+                "SECURITY_POLICY", "INC-2026-0915", null, null,
+                blockImpact.impactRevision(), "TEST", "block release", deprecated.version());
+        var blocked = releases.block(releaser, blockCommand, null, nextPublished.versionId(), blockRequest);
+        assertThat(blocked.releaseState()).isEqualTo("BLOCKED");
+        assertThat(releases.block(releaser, blockCommand, null, nextPublished.versionId(), blockRequest))
+                .isEqualTo(blocked);
+        assertThat(ledger.state().getRegistryRevision()).isEqualTo(registryBeforeBlock + 1);
+        assertThatThrownBy(() -> releases.block(releaser, UUID.randomUUID(), null,
+                nextPublished.versionId(), new WidgetRegistryDtos.SafetyTransitionRequest(
+                        "SECURITY_POLICY", "INC-OTHER", null, null,
+                        blockImpact.impactRevision(), "TEST", "repeat block", blocked.version())))
+                .isInstanceOf(BaseException.class);
+
+        var quarantineImpact = releases.impact(nextPublished.versionId(), "QUARANTINE");
+        var quarantined = releases.quarantine(releaser, UUID.randomUUID(), null,
+                nextPublished.versionId(), new WidgetRegistryDtos.SafetyTransitionRequest(
+                        "SECURITY_POLICY", "INC-2026-0915", null, null,
+                        quarantineImpact.impactRevision(), "TEST", "quarantine release",
+                        blocked.version()));
+        assertThat(quarantined.safetyState()).isEqualTo("QUARANTINED");
+        var revokeImpact = releases.impact(nextPublished.versionId(), "REVOKE");
+        var revoked = releases.revoke(releaser, UUID.randomUUID(), null,
+                nextPublished.versionId(), new WidgetRegistryDtos.SafetyTransitionRequest(
+                        "SECURITY_POLICY", "INC-2026-0915", null, null,
+                        revokeImpact.impactRevision(), "TEST", "revoke release",
+                        quarantined.version()));
+        assertThat(revoked.safetyState()).isEqualTo("REVOKED");
+        assertThat(revoked.allowedTransitions()).isEmpty();
+
+        var disable = controls.disable(releaser, UUID.randomUUID(), null,
+                new WidgetRegistryDtos.RuntimeDisableRequest(
+                        "RUNTIME_RENDER", "TENANT", "1", 1L, null, null,
+                        "INCIDENT", "INC-2026-0915", "TEST", "disable tenant runtime", 0L));
+        assertThatThrownBy(() -> controls.approveEnable(releaser, UUID.randomUUID(), null,
+                disable.controlId(), new WidgetRegistryDtos.RuntimeEnableApprovalRequest(
+                        disable.controlRevision(), List.of("incident-reviewed"),
+                        "TEST", "self approval", disable.version())))
+                .isInstanceOfSatisfying(BaseException.class,
+                        failure -> assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.SOD_CONFLICT));
+        var approval = controls.approveEnable(reviewer, UUID.randomUUID(), null,
+                disable.controlId(), new WidgetRegistryDtos.RuntimeEnableApprovalRequest(
+                        disable.controlRevision(), List.of("incident-reviewed"),
+                        "TEST", "approve enable", disable.version()));
+        var enabled = controls.enable(author, UUID.randomUUID(), null, disable.controlId(),
+                new WidgetRegistryDtos.RuntimeEnableRequest(
+                        approval.approvalId(), disable.controlRevision(),
+                        "TEST", "enable", disable.version()));
+        assertThat(enabled.state()).isEqualTo("ENABLED");
+        assertThatThrownBy(() -> controls.enable(50000L, UUID.randomUUID(), null,
+                disable.controlId(), new WidgetRegistryDtos.RuntimeEnableRequest(
+                        approval.approvalId(), disable.controlRevision(),
+                        "TEST", "reuse approval", enabled.version())))
+                .isInstanceOf(BaseException.class);
+
+        assertThat(audit.list(0, 100).items())
+                .extracting(WidgetRegistryDtos.RegistryEventResponse::eventType)
+                .contains("WIDGET_DEFINITION_CREATED", "WIDGET_VERSION_PUBLISHED",
+                        "WIDGET_CHANNEL_ROLLED_BACK", "WIDGET_VERSION_DEPRECATED",
+                        "TENANT_WIDGET_POLICY_ROLLED_BACK", "WIDGET_VERSION_BLOCKED",
+                        "WIDGET_VERSION_QUARANTINED", "WIDGET_VERSION_REVOKED",
+                        "WIDGET_RUNTIME_DISABLED", "WIDGET_RUNTIME_ENABLED");
+    }
+
+    private CertifiedVersion certifyVersion(
+            UUID definitionId,
+            String definitionKey,
+            String semanticVersion,
+            UUID predecessorVersionId,
+            long author,
+            long reviewer) throws Exception {
+        var definition = definitions.get(definitionId);
+        JsonNode replacementManifest = focusManifest(definitionKey);
+        ((com.fasterxml.jackson.databind.node.ObjectNode) replacementManifest.path("operations"))
+                .put("freshnessSeconds", 31);
+        var draft = definitions.createVersion(author, UUID.randomUUID(), null, definitionId,
+                new WidgetRegistryDtos.VersionCreateRequest(
+                        semanticVersion, replacementManifest, predecessorVersionId,
+                        "TEST", "create replacement version", definition.version()));
+        var validation = definitions.validate(author, UUID.randomUUID(), null, draft.versionId(),
+                new WidgetRegistryDtos.ValidateRequest(
+                        draft.manifestHash(), "TEST", "validate replacement", draft.version()));
+        List<UUID> evidenceIds = new ArrayList<>();
+        for (String type : List.of(
+                "MANIFEST", "SECURITY", "PRIVACY", "A11Y", "PERFORMANCE", "LOCALIZATION")) {
+            var current = definitions.getVersion(draft.versionId());
+            var evidence = definitions.recordEvidence(reviewer, UUID.randomUUID(), null,
+                    draft.versionId(), new WidgetRegistryDtos.EvidenceCreateRequest(
+                            type, "PASS", draft.manifestHash(), "replacement-evidence:" + type.toLowerCase(),
+                            sha("replacement:" + type), OffsetDateTime.now(ZoneOffset.UTC).plusDays(30),
+                            null, "TEST", "replacement certification evidence", current.version()));
+            evidenceIds.add(evidence.evidenceId());
+        }
+        var current = definitions.getVersion(draft.versionId());
+        var submitted = definitions.submit(author, UUID.randomUUID(), null, draft.versionId(),
+                new WidgetRegistryDtos.TransitionRequest(
+                        "TEST", "submit replacement", current.version()));
+        var approved = definitions.decide(reviewer, UUID.randomUUID(), null, draft.versionId(),
+                new WidgetRegistryDtos.ReviewDecisionRequest(
+                        "APPROVE", validation.validationRunId(), evidenceIds,
+                        "TEST", "approve replacement", submitted.version()));
+        return new CertifiedVersion(approved, validation.validationRunId(), List.copyOf(evidenceIds));
+    }
+
+    private record CertifiedVersion(
+            WidgetRegistryDtos.VersionResponse version,
+            UUID validationRunId,
+            List<UUID> evidenceIds) {}
+
+    private WidgetRegistryDtos.TenantPolicyRevisionRequest policyRequest(
+            boolean enabled, long expectedVersion) {
+        return new WidgetRegistryDtos.TenantPolicyRevisionRequest(
+                enabled, "CHANNEL", "STABLE", null, List.of("workspace-home"),
+                allEntitledAudience(), false,
+                objectMapper.createObjectNode(), "PRIVATE", "TEST", "tenant policy",
+                expectedVersion);
+    }
+
+    private JsonNode allEntitledAudience() {
+        var audience = objectMapper.createObjectNode()
+                .put("schemaVersion", 1)
+                .put("mode", "ALL_ENTITLED");
+        audience.putArray("roleCodes");
+        audience.putArray("groupRefs");
+        return audience;
+    }
+
+    private String policyProjection(long tenantId) {
+        return jdbc.queryForObject("""
+                SELECT jsonb_agg(jsonb_build_object(
+                           'legacyWidgetKey', d.legacy_widget_key,
+                           'enabled', r.enabled,
+                           'selector', r.selector_type,
+                           'channel', r.channel,
+                           'surfaces', r.supported_surface_keys,
+                           'audience', r.audience_selector,
+                           'required', r.required_widget,
+                           'sharingPolicy', r.sharing_policy)
+                       ORDER BY d.legacy_widget_key)::text
+                  FROM adm_tenant_widget_policy_heads h
+                  JOIN adm_tenant_widget_policy_revisions r
+                    ON r.policy_revision_id = h.current_revision_id
+                  JOIN plt_widget_definitions d ON d.definition_id = h.definition_id
+                 WHERE h.tenant_id = ?
+                """, String.class, tenantId);
+    }
+
+    private String requiredAuthorities() throws Exception {
+        JsonNode fixture = objectMapper.readTree(Files.readString(FIXTURE));
+        Set<String> authorities = new LinkedHashSet<>();
+        fixture.path("fixtures").forEach(item -> item.path("manifest")
+                .path("requiredAuthorities").forEach(value -> authorities.add(value.asText())));
+        return String.join(",", authorities);
+    }
+
+    private void assertShadowCatalogAvailable(long tenantId, String authorities) {
+        var response = catalog.effective(tenantId, "workspace-home", authorities, "", "");
+        assertThat(response.mode()).isEqualTo("SHADOW");
+        assertThat(response.contexts()).hasSize(1);
+        assertThat(response.contexts().getFirst().items()).hasSize(7).allSatisfy(item -> {
+            assertThat(item.effectiveState())
+                    .isEqualTo(WidgetRegistryDtos.EffectiveCatalogState.AVAILABLE);
+            assertThat(item.reasonCodes())
+                    .containsExactly(WidgetRegistryDtos.EffectiveCatalogReason.AVAILABLE);
+            assertThat(item.placementCapabilities().canAdd()).isFalse();
+        });
+    }
+
+    private JsonNode focusManifest(String definitionKey) throws Exception {
+        JsonNode fixture = objectMapper.readTree(Files.readString(FIXTURE));
+        JsonNode manifest = fixture.path("fixtures").get(2).path("manifest").deepCopy();
+        ((com.fasterxml.jackson.databind.node.ObjectNode) manifest)
+                .put("definitionKey", definitionKey);
+        return manifest;
+    }
+
+    private static String sha(String value) {
+        return WidgetRegistryCommandReceiptService.fingerprintText(value);
+    }
+
+    @TestConfiguration
+    static class JacksonConfiguration {
+        @Bean
+        ObjectMapper objectMapper() {
+            return new ObjectMapper().findAndRegisterModules();
+        }
+
+        @Bean
+        HomeExperienceService homeExperienceService() {
+            HomeExperienceService service = org.mockito.Mockito.mock(HomeExperienceService.class);
+            HomeExperienceDtos.HomeExperienceResponse response =
+                    org.mockito.Mockito.mock(HomeExperienceDtos.HomeExperienceResponse.class);
+            org.mockito.Mockito.when(response.effectiveExperienceVariant()).thenReturn("CLASSIC");
+            org.mockito.Mockito.when(response.homePreferenceStore()).thenReturn("LEGACY");
+            org.mockito.Mockito.when(response.version()).thenReturn(1L);
+            org.mockito.Mockito.when(service.get(org.mockito.ArgumentMatchers.anyLong()))
+                    .thenReturn(response);
+            return service;
+        }
+    }
+}

@@ -12,6 +12,29 @@ EXPORTER = runpy.run_path(str(ROOT / "scripts" / "export-openapi-contracts.py"))
 
 
 class ExportOpenApiContractsTest(unittest.TestCase):
+    def test_widget_registry_provider_control_plane_has_one_public_identity_plane(self) -> None:
+        platform_path = EXPORTER["platform_path"]
+        self.assertEqual(
+            platform_path("/v1/admin/widget-definitions"),
+            "/api/provider/v1/admin/widget-definitions",
+        )
+        self.assertEqual(
+            platform_path("/v1/admin/widget-definition-versions/123/publish"),
+            "/api/provider/v1/admin/widget-definition-versions/123/publish",
+        )
+        self.assertEqual(
+            platform_path("/v1/admin/widget-registry/readiness"),
+            "/api/provider/v1/admin/widget-registry/readiness",
+        )
+        self.assertEqual(
+            platform_path("/v1/admin/widget-catalog"),
+            "/api/platform/v1/admin/widget-catalog",
+        )
+        self.assertEqual(
+            platform_path("/v1/admin/widget-policies/123"),
+            "/api/platform/v1/admin/widget-policies/123",
+        )
+
     def test_approval_and_gateway_snapshots_publish_exact_signature_contract(self) -> None:
         owner = json.loads(
             (ROOT / "contracts/openapi/approval.json").read_text(encoding="utf-8")
