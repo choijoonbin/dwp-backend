@@ -62,7 +62,8 @@ class WidgetCatalogDeprecationTest {
         when(versions.findById(versionId)).thenReturn(Optional.of(version));
         WidgetRendererBindingRepository bindings = mock(WidgetRendererBindingRepository.class);
         WidgetRendererBinding binding = WidgetRendererBinding.builder().rendererKey("home.focus")
-                .kind("NATIVE").bindingRevision(version.getManifestHash()).build();
+                .kind("NATIVE").ownerProductKey("core.work").sourceAppResourceKey("APP.WORK")
+                .bindingRevision(version.getManifestHash()).build();
         when(bindings.findByRendererKeyAndBindingState("home.focus", "ACTIVE")).thenReturn(Optional.of(binding));
         when(bindings.findByBindingStateOrderByRendererKey("ACTIVE")).thenReturn(List.of(binding));
         UUID revisionId = UUID.randomUUID();

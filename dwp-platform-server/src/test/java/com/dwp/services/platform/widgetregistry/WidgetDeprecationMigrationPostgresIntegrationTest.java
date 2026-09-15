@@ -35,7 +35,7 @@ class WidgetDeprecationMigrationPostgresIntegrationTest {
         jdbc.update("UPDATE plt_widget_definition_versions SET release_state = 'DEPRECATED' WHERE version_id = ?",
                 legacy);
         Flyway latest = Flyway.configure().dataSource(source)
-                .locations("filesystem:src/main/resources/db/migration").load();
+                .locations("filesystem:src/main/resources/db/migration").target("259").load();
         assertThat(latest.migrate().migrationsExecuted).isEqualTo(1);
         assertThat(latest.migrate().migrationsExecuted).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM plt_widget_definition_versions", Integer.class))

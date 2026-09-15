@@ -1,5 +1,5 @@
 {
-  "fixtureVersion": 2,
+  "fixtureVersion": 3,
   "canonicalization": {
     "algorithm": "RFC8785-JCS",
     "encoding": "UTF-8",
@@ -10,7 +10,7 @@
   "fixtures": [
     {
       "legacyWidgetKey": "command-rail",
-      "expectedSha256": "a3a1fd5ffff9d7f6014ec3007a16ebea10dbf8ce3ae19e02fd2bd001fee0eb97",
+      "expectedSha256": "36de53926e21ef11e61c78f6325fdf35b37998fe42403e0df0e70d71e3f4df13",
       "manifest": {
         "schemaVersion": 1,
         "definitionKey": "core.workspace.command-rail",
@@ -32,9 +32,9 @@
         "placement": {
           "supportedContexts": [
             "CLASSIC_PERSONAL",
-            "FLOW_GOVERNED"
+            "FLOW_PERSONAL"
           ],
-          "policyClass": "GOVERNED",
+          "policyClass": "PERSONAL",
           "canHide": true,
           "defaultSize": "large",
           "allowedSizes": [
@@ -64,7 +64,9 @@
           "retention": "NONE",
           "recipientContextBinding": true
         }
-      }
+      },
+      "semanticVersion": "1.0.1",
+      "provenance": "Wave3 canonical correction v1.0.1 aligned with existing static Home semantics; supersedes v1.0.0; ADM-009 command-rail golden resealed to the corrected content"
     },
     {
       "legacyWidgetKey": "daily-brief",
@@ -139,7 +141,8 @@
           "retention": "NONE",
           "recipientContextBinding": true
         }
-      }
+      },
+      "semanticVersion": "1.0.0"
     },
     {
       "legacyWidgetKey": "focus",
@@ -219,7 +222,8 @@
           "retention": "NONE",
           "recipientContextBinding": true
         }
-      }
+      },
+      "semanticVersion": "1.0.0"
     },
     {
       "legacyWidgetKey": "schedule",
@@ -296,7 +300,8 @@
           "retention": "NONE",
           "recipientContextBinding": true
         }
-      }
+      },
+      "semanticVersion": "1.0.0"
     },
     {
       "legacyWidgetKey": "activity",
@@ -373,17 +378,18 @@
           "retention": "NONE",
           "recipientContextBinding": true
         }
-      }
+      },
+      "semanticVersion": "1.0.0"
     },
     {
       "legacyWidgetKey": "focus-balance",
-      "expectedSha256": "10388bcc9f1bf02f761790b157d7b1d10b574e362d3db81a198cb45ade05c899",
+      "expectedSha256": "5f4c5990a0b1b417832c93074f92a00cbb8c9e4f4e49240073120c485a8c9436",
       "manifest": {
         "schemaVersion": 1,
         "definitionKey": "core.work.focus-balance",
         "owner": {
-          "productKey": "core.work",
-          "sourceAppResourceKey": "APP.WORK"
+          "productKey": "core.calendar",
+          "sourceAppResourceKey": "APP.CALENDAR"
         },
         "renderer": {
           "kind": "NATIVE",
@@ -394,7 +400,7 @@
           "workspace-home"
         ],
         "requiredAuthorities": [
-          "APP.WORK:VIEW"
+          "APP.CALENDAR:VIEW"
         ],
         "placement": {
           "supportedContexts": [
@@ -417,11 +423,11 @@
         },
         "configurationContract": null,
         "dataCapabilities": [
-          "WORK.ITEMS.LIST"
+          "CALENDAR.EVENTS.LIST"
         ],
         "actionCapabilities": [],
         "sharing": {
-          "presetEligible": true
+          "presetEligible": false
         },
         "operations": {
           "freshnessSeconds": 30,
@@ -433,11 +439,12 @@
           "recipientContextBinding": true
         }
       },
-      "provenance": "Wave1 HomeLayoutPolicy first-party extension; absent from ADM-009 five-widget golden fixture"
+      "provenance": "Wave3 canonical correction v1.0.1 aligned with existing static Home semantics; supersedes v1.0.0; ADM-009 command-rail golden resealed to the corrected content",
+      "semanticVersion": "1.0.1"
     },
     {
       "legacyWidgetKey": "meeting-load",
-      "expectedSha256": "17b5fee8b514793d8244ce6ac744979a5ad7a3805817612521fc2c77a7e6add2",
+      "expectedSha256": "90d31f29e1dbc8e26a49475174aca5ecd76d557f3b7d39975f58ff1f047bb6c3",
       "manifest": {
         "schemaVersion": 1,
         "definitionKey": "core.calendar.meeting-load",
@@ -481,7 +488,7 @@
         ],
         "actionCapabilities": [],
         "sharing": {
-          "presetEligible": true
+          "presetEligible": false
         },
         "operations": {
           "freshnessSeconds": 30,
@@ -493,7 +500,8 @@
           "recipientContextBinding": true
         }
       },
-      "provenance": "Wave1 HomeLayoutPolicy first-party extension; absent from ADM-009 five-widget golden fixture"
+      "provenance": "Wave3 canonical correction v1.0.1 aligned with existing static Home semantics; supersedes v1.0.0; ADM-009 command-rail golden resealed to the corrected content",
+      "semanticVersion": "1.0.1"
     }
   ],
   "sourceGoldenFixture": {

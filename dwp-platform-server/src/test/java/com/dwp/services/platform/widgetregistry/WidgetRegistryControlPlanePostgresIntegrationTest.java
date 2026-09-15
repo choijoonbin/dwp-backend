@@ -11,6 +11,7 @@ import com.dwp.services.platform.provisioning.PlatformTenantProvisioningDtos;
 import com.dwp.services.platform.provisioning.PlatformTenantProvisioningService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.persistence.EntityManager;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.OffsetDateTime;
@@ -62,6 +63,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 class WidgetRegistryControlPlanePostgresIntegrationTest {
     private static final Path FIXTURE =
             Path.of("../contracts/widget-registry/native-widget-manifests.v1.json");
+    private static final String EXPECTED_BINDING_CATALOG_REVISION =
+            "656986e3056f42073ff5af2b6501d798d33ee2fabc615c8d602bd7f0edc20939";
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
@@ -86,6 +89,7 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
     @Autowired private WidgetRegistryLedger ledger;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private JdbcTemplate jdbc;
+    @Autowired private EntityManager entityManager;
 
     @AfterEach
     void clearRequestContext() {
@@ -239,6 +243,43 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
                 """, copy);
 
         assertCatalogDenied(copy);
+    }
+
+    @Test
+    void correctedLegacyShadowExceptionRequiresCanonicalOwnershipAndSupersedesOldVersion() throws Exception {
+        UUID corrected = UUID.fromString("31000000-0000-0000-0000-000000000106");
+        assertShadowCatalogAvailable(1L, requiredAuthorities());
+
+        jdbc.update("""
+                UPDATE plt_widget_renderer_bindings
+                   SET source_app_resource_key = 'APP.WORK'
+                 WHERE renderer_key = 'home.focus-balance'
+                """);
+        entityManager.clear();
+        assertCatalogDenied(corrected);
+
+        jdbc.update("""
+                UPDATE plt_widget_renderer_bindings
+                   SET source_app_resource_key = 'APP.CALENDAR'
+                 WHERE renderer_key = 'home.focus-balance'
+                """);
+        jdbc.update("""
+                UPDATE plt_widget_definitions
+                   SET owner_product_key = 'core.work'
+                 WHERE definition_id = '30000000-0000-0000-0000-000000000006'
+                """);
+        entityManager.clear();
+        assertCatalogDenied(corrected);
+
+        jdbc.update("""
+                UPDATE plt_widget_release_channels
+                   SET current_version_id = '31000000-0000-0000-0000-000000000006',
+                       previous_version_id = '31000000-0000-0000-0000-000000000106'
+                 WHERE definition_id = '30000000-0000-0000-0000-000000000006'
+                   AND channel = 'STABLE'
+                """);
+        entityManager.clear();
+        assertCatalogDenied(UUID.fromString("31000000-0000-0000-0000-000000000006"));
     }
 
     private void assertCatalogDenied(UUID versionId) throws Exception {
@@ -636,6 +677,7 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
     private void assertShadowCatalogAvailable(long tenantId, String authorities) {
         var response = catalog.effective(tenantId, "workspace-home", authorities, "", "");
         assertThat(response.mode()).isEqualTo("SHADOW");
+        assertThat(response.bindingCatalogRevision()).isEqualTo(EXPECTED_BINDING_CATALOG_REVISION);
         assertThat(response.contexts()).hasSize(1);
         assertThat(response.contexts().getFirst().items()).hasSize(7).allSatisfy(item -> {
             assertThat(item.effectiveState())

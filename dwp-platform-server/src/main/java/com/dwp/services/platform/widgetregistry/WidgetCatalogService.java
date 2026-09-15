@@ -30,46 +30,67 @@ public class WidgetCatalogService {
     private static final List<BaselineWidget> NATIVE_BASELINE = List.of(
             new BaselineWidget(
                     "core.workspace.command-rail",
-                    "a3a1fd5ffff9d7f6014ec3007a16ebea10dbf8ce3ae19e02fd2bd001fee0eb97",
+                    "1.0.1",
+                    "36de53926e21ef11e61c78f6325fdf35b37998fe42403e0df0e70d71e3f4df13",
                     "home.command-rail",
+                    "core.workspace",
+                    "APP.WORK",
                     "30000000-0000-0000-0000-000000000001",
-                    "31000000-0000-0000-0000-000000000001"),
+                    "31000000-0000-0000-0000-000000000101"),
             new BaselineWidget(
                     "core.workspace.daily-brief",
+                    "1.0.0",
                     "9b7f48b7ea4ef429120db330a4972c3315ad682759fa86e49c212c42bdd02406",
                     "home.daily-brief",
+                    "core.workspace",
+                    "APP.WORK",
                     "30000000-0000-0000-0000-000000000002",
                     "31000000-0000-0000-0000-000000000002"),
             new BaselineWidget(
                     "core.work.focus",
+                    "1.0.0",
                     "36d1b02326e4725a235749e173dfdf50a0423ef30f42d7ccab97946ba826d893",
                     "home.focus",
+                    "core.work",
+                    "APP.WORK",
                     "30000000-0000-0000-0000-000000000003",
                     "31000000-0000-0000-0000-000000000003"),
             new BaselineWidget(
                     "core.calendar.schedule",
+                    "1.0.0",
                     "7f3e090997a213e9d3e6f8184e1458e57382c5f31db79f00fbf678d36f884f5d",
                     "home.schedule",
+                    "core.calendar",
+                    "APP.CALENDAR",
                     "30000000-0000-0000-0000-000000000004",
                     "31000000-0000-0000-0000-000000000004"),
             new BaselineWidget(
                     "core.activity.activity",
+                    "1.0.0",
                     "fbab61015ec3b20c2faf9810b1758aebbd7517029baa64cb6b99190815836ca1",
                     "home.activity",
+                    "core.activity",
+                    "APP.ACTIVITY",
                     "30000000-0000-0000-0000-000000000005",
                     "31000000-0000-0000-0000-000000000005"),
             new BaselineWidget(
                     "core.work.focus-balance",
-                    "10388bcc9f1bf02f761790b157d7b1d10b574e362d3db81a198cb45ade05c899",
+                    "1.0.1",
+                    "5f4c5990a0b1b417832c93074f92a00cbb8c9e4f4e49240073120c485a8c9436",
                     "home.focus-balance",
+                    "core.calendar",
+                    "APP.CALENDAR",
                     "30000000-0000-0000-0000-000000000006",
-                    "31000000-0000-0000-0000-000000000006"),
+                    "31000000-0000-0000-0000-000000000106"),
             new BaselineWidget(
                     "core.calendar.meeting-load",
-                    "17b5fee8b514793d8244ce6ac744979a5ad7a3805817612521fc2c77a7e6add2",
+                    "1.0.1",
+                    "90d31f29e1dbc8e26a49475174aca5ecd76d557f3b7d39975f58ff1f047bb6c3",
                     "home.meeting-load",
+                    "core.calendar",
+                    "APP.CALENDAR",
                     "30000000-0000-0000-0000-000000000007",
-                    "31000000-0000-0000-0000-000000000007"));
+                    "31000000-0000-0000-0000-000000000107"));
     private final WidgetRegistryLedger ledger;
     private final WidgetDefinitionRepository definitions;
     private final WidgetDefinitionVersionRepository versions;
@@ -129,10 +150,11 @@ public class WidgetCatalogService {
         for (BaselineWidget baseline : NATIVE_BASELINE) {
             WidgetDefinition definition = definitions.findByDefinitionKey(baseline.definitionKey())
                     .filter(value -> "ACTIVE".equals(value.getDefinitionState()))
+                    .filter(value -> baseline.ownerProductKey().equals(value.getOwnerProductKey()))
                     .orElse(null);
             if (definition == null) return List.of();
             WidgetDefinitionVersion version = versions.findByDefinitionIdAndSemanticVersion(
-                            definition.getDefinitionId(), "1.0.0")
+                            definition.getDefinitionId(), baseline.semanticVersion())
                     .filter(value -> baseline.manifestHash().equals(value.getManifestHash()))
                     .filter(value -> baseline.rendererKey().equals(value.getRendererKey()))
                     .filter(value -> "PUBLISHED".equals(value.getReleaseState()))
@@ -141,8 +163,7 @@ public class WidgetCatalogService {
             if (version == null
                     || bindings.findByRendererKeyAndBindingState(
                                     baseline.rendererKey(), "ACTIVE")
-                            .filter(binding -> baseline.manifestHash().equals(
-                                    binding.getBindingRevision()))
+                            .filter(baseline::matchesBinding)
                             .isEmpty()
                     || channels.findByDefinitionIdAndChannel(
                                     definition.getDefinitionId(), "STABLE")
@@ -272,8 +293,9 @@ public class WidgetCatalogService {
                     && "LEGACY_UNVERIFIED".equals(version.getAttestation().path("source").asText())
                     && NATIVE_BASELINE.stream().anyMatch(baseline -> baseline.matches(definition, version))
                     && bindings.findByRendererKeyAndBindingState(version.getRendererKey(), "ACTIVE")
-                            .filter(binding -> "NATIVE".equals(binding.getKind()))
-                            .filter(binding -> version.getManifestHash().equals(binding.getBindingRevision()))
+                            .filter(binding -> NATIVE_BASELINE.stream().anyMatch(baseline ->
+                                    baseline.matches(definition, version)
+                                            && baseline.matchesBinding(binding)))
                             .isPresent();
             if (!legacyShadowDiscovery
                     && (!"PASS".equals(version.getCertificationStatus())
@@ -383,16 +405,26 @@ public class WidgetCatalogService {
     }
 
     private record BaselineWidget(
-            String definitionKey, String manifestHash, String rendererKey,
+            String definitionKey, String semanticVersion, String manifestHash, String rendererKey,
+            String ownerProductKey, String sourceAppResourceKey,
             String definitionId, String versionId) {
         boolean matches(WidgetDefinition definition, WidgetDefinitionVersion version) {
             return definitionId.equals(definition.getDefinitionId().toString())
                     && versionId.equals(version.getVersionId().toString())
                     && definitionKey.equals(definition.getDefinitionKey())
+                    && ownerProductKey.equals(definition.getOwnerProductKey())
                     && definition.getDefinitionId().equals(version.getDefinitionId())
-                    && "1.0.0".equals(version.getSemanticVersion())
+                    && semanticVersion.equals(version.getSemanticVersion())
                     && manifestHash.equals(version.getManifestHash())
                     && rendererKey.equals(version.getRendererKey());
+        }
+
+        boolean matchesBinding(WidgetRendererBinding binding) {
+            return "NATIVE".equals(binding.getKind())
+                    && rendererKey.equals(binding.getRendererKey())
+                    && ownerProductKey.equals(binding.getOwnerProductKey())
+                    && sourceAppResourceKey.equals(binding.getSourceAppResourceKey())
+                    && manifestHash.equals(binding.getBindingRevision());
         }
     }
 }

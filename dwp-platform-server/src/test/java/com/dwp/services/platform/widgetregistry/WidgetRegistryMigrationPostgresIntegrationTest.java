@@ -28,6 +28,8 @@ class WidgetRegistryMigrationPostgresIntegrationTest {
             Path.of("../contracts/widget-registry/native-widget-manifests.v1.json");
     private static final Path SEED = Path.of(
             "src/main/resources/db/migration/V257__seed_native_home_widget_registry.sql");
+    private static final Path CANONICAL_CORRECTION = Path.of(
+            "src/main/resources/db/migration/V260__correct_native_home_widget_manifest_parity.sql");
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
@@ -55,7 +57,7 @@ class WidgetRegistryMigrationPostgresIntegrationTest {
     }
 
     @Test
-    void seedsFiveGoldenAndTwoDocumentedNativeExtensionsWithoutCertification() throws Exception {
+    void seedsFiveGoldenAndTwoDocumentedNativeExtensionsWithForwardCorrections() throws Exception {
         JsonNode fixture = objectMapper.readTree(Files.readString(FIXTURE));
         assertThat(fixture.path("sourceGoldenFixture").path("exactFixtureCount").asInt()).isEqualTo(5);
         assertThat(fixture.path("sourceGoldenFixture").path("extensionCount").asInt()).isEqualTo(2);
@@ -64,34 +66,48 @@ class WidgetRegistryMigrationPostgresIntegrationTest {
         for (JsonNode expected : fixture.path("fixtures")) {
             JsonNode manifest = expected.path("manifest");
             String definitionKey = manifest.path("definitionKey").asText();
+            String semanticVersion = expected.path("semanticVersion").asText();
             String rendererKey = manifest.path("renderer").path("rendererKey").asText();
             String expectedHash = expected.path("expectedSha256").asText();
             assertThat(WidgetRegistryManifestContract.validate(manifest).manifestHash())
                     .as(definitionKey)
                     .isEqualTo(expectedHash);
-            assertThat(jdbc.queryForMap("""
-                    SELECT d.legacy_widget_key, v.manifest_hash, v.certification_status,
+            var persisted = jdbc.queryForMap("""
+                    SELECT d.legacy_widget_key, d.owner_product_key AS definition_owner,
+                           v.semantic_version, v.manifest_hash, v.certification_status,
+                           v.manifest::text AS manifest_json,
                            v.attestation ->> 'source' AS attestation_source,
-                           b.kind, b.binding_state, b.renderer_key
+                           b.kind, b.binding_state, b.renderer_key,
+                           b.owner_product_key AS binding_owner,
+                           b.source_app_resource_key AS binding_source
                       FROM plt_widget_definitions d
                       JOIN plt_widget_definition_versions v ON v.definition_id = d.definition_id
                       JOIN plt_widget_renderer_bindings b ON b.renderer_key = v.renderer_key
-                     WHERE d.definition_key = ?
-                    """, definitionKey))
+                     WHERE d.definition_key = ? AND v.semantic_version = ?
+                    """, definitionKey, semanticVersion);
+            assertThat(persisted)
                     .containsEntry("legacy_widget_key", expected.path("legacyWidgetKey").asText())
+                    .containsEntry("definition_owner", manifest.path("owner").path("productKey").asText())
+                    .containsEntry("semantic_version", semanticVersion)
                     .containsEntry("manifest_hash", expectedHash)
                     .containsEntry("certification_status", "NOT_RUN")
                     .containsEntry("attestation_source", "LEGACY_UNVERIFIED")
                     .containsEntry("kind", "NATIVE")
                     .containsEntry("binding_state", "ACTIVE")
-                    .containsEntry("renderer_key", rendererKey);
+                    .containsEntry("renderer_key", rendererKey)
+                    .containsEntry("binding_owner", manifest.path("owner").path("productKey").asText())
+                    .containsEntry("binding_source",
+                            manifest.path("owner").path("sourceAppResourceKey").asText());
+            assertThat(objectMapper.readTree((String) persisted.get("manifest_json")))
+                    .as(definitionKey + " persisted manifest")
+                    .isEqualTo(manifest);
         }
 
         assertThat(count("plt_widget_definitions")).isEqualTo(7);
-        assertThat(count("plt_widget_definition_versions")).isEqualTo(7);
+        assertThat(count("plt_widget_definition_versions")).isEqualTo(10);
         assertThat(count("plt_widget_renderer_bindings")).isEqualTo(7);
         assertThat(count("plt_widget_release_channels")).isEqualTo(7);
-        assertThat(count("plt_widget_evidence")).isEqualTo(7);
+        assertThat(count("plt_widget_evidence")).isEqualTo(10);
         long activeTenants = jdbc.queryForObject(
                 "SELECT count(*) FROM sys_service_tenants WHERE lifecycle_state <> 'RETIRED'",
                 Long.class);
@@ -106,14 +122,55 @@ class WidgetRegistryMigrationPostgresIntegrationTest {
                 """))
                 .containsEntry("migration_mode", "SHADOW")
                 .containsEntry("runtime_activation_ready", false)
-                .containsEntry("registry_revision", 8L);
+                .containsEntry("registry_revision", 11L);
+
+        assertThat(jdbc.queryForList("""
+                SELECT d.legacy_widget_key, v.semantic_version
+                  FROM plt_widget_release_channels c
+                  JOIN plt_widget_definitions d ON d.definition_id = c.definition_id
+                  JOIN plt_widget_definition_versions v ON v.version_id = c.current_version_id
+                 WHERE d.legacy_widget_key IN ('command-rail', 'focus-balance', 'meeting-load')
+                 ORDER BY d.legacy_widget_key
+                """))
+                .hasSize(3)
+                .allSatisfy(row -> assertThat(row).containsEntry("semantic_version", "1.0.1"));
+
+        assertThat(jdbc.queryForList("""
+                SELECT semantic_version, release_state, replacement_version_id::text AS replacement
+                  FROM plt_widget_definition_versions
+                 WHERE version_id IN (
+                    '31000000-0000-0000-0000-000000000001',
+                    '31000000-0000-0000-0000-000000000006',
+                    '31000000-0000-0000-0000-000000000007')
+                 ORDER BY version_id
+                """))
+                .hasSize(3)
+                .allSatisfy(row -> {
+                    assertThat(row).containsEntry("semantic_version", "1.0.0")
+                            .containsEntry("release_state", "BLOCKED");
+                    assertThat(row.get("replacement")).as("replacement version").isNotNull();
+                });
     }
 
     @Test
     void seedScriptIsIdempotentAndCannotRewriteCustomizedRows() throws Exception {
         List<Long> before = stateVector();
         jdbc.execute(Files.readString(SEED));
+        jdbc.execute(Files.readString(CANONICAL_CORRECTION));
         assertThat(stateVector()).containsExactlyElementsOf(before);
+    }
+
+    @Test
+    void correctionRerunRejectsAPartialOrTamperedFinalState() throws Exception {
+        jdbc.update("""
+                UPDATE plt_widget_renderer_bindings
+                   SET source_app_resource_key = 'APP.WORK'
+                 WHERE renderer_key = 'home.focus-balance'
+                """);
+
+        assertThatThrownBy(() -> jdbc.execute(Files.readString(CANONICAL_CORRECTION)))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("Wave 3 native manifest correction precondition mismatch");
     }
 
     @Test
