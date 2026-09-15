@@ -73,6 +73,17 @@ public class WidgetRegistryCommandReceiptService {
             String targetKey,
             String fingerprint,
             Object response) {
+        store(actorId, commandId, operation, targetKey, fingerprint, response, null);
+    }
+
+    public void store(
+            Long actorId,
+            UUID commandId,
+            String operation,
+            String targetKey,
+            String fingerprint,
+            Object response,
+            Object internalAuditRequest) {
         JsonNode payload = objectMapper.valueToTree(response);
         try {
             receipts.saveAndFlush(WidgetCommandReceipt.builder()
@@ -84,6 +95,8 @@ public class WidgetRegistryCommandReceiptService {
                     .requestFingerprint(fingerprint)
                     .responseType(response.getClass().getName())
                     .responsePayload(payload)
+                    .requestAuditPayload(internalAuditRequest == null
+                            ? null : objectMapper.valueToTree(internalAuditRequest))
                     .build());
         } catch (DataIntegrityViolationException exception) {
             Object replayed = replay(

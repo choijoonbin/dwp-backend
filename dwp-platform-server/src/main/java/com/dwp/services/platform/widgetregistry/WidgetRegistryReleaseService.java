@@ -263,6 +263,7 @@ public class WidgetRegistryReleaseService {
             Long actorId, UUID commandId, String correlationId, UUID versionId,
             WidgetRegistryDtos.SafetyTransitionRequest request, String operation,
             String releaseState, String safetyState, String eventType) {
+        validateSafetyRequest(request);
         String fingerprint = receipts.fingerprint(request);
         var replay = receipts.replay(actorId, commandId, operation, versionId.toString(), fingerprint,
                 WidgetRegistryDtos.VersionResponse.class);
@@ -295,11 +296,56 @@ public class WidgetRegistryReleaseService {
         value.setUpdatedBy(actorId);
         definitions.saveVersion(value);
         var response = mapper.version(value);
+        var auditEvidence = new SafetyTransitionAuditEvidence(
+                response,
+                request.publicReasonCode(),
+                request.internalIncidentRef(),
+                request.expiresAt(),
+                request.reasonCode(),
+                request.reasonText(),
+                request.replacementVersionId());
         ledger.append(null, "VERSION", versionId.toString(), eventType, commandId, actorId,
-                correlationId, null, response, List.of(), WidgetRegistryLedger.RevisionAxis.SAFETY);
-        receipts.store(actorId, commandId, operation, versionId.toString(), fingerprint, response);
+                correlationId, null, auditEvidence, List.of(),
+                WidgetRegistryLedger.RevisionAxis.SAFETY);
+        receipts.store(
+                actorId,
+                commandId,
+                operation,
+                versionId.toString(),
+                fingerprint,
+                response,
+                auditEvidence);
         return response;
     }
+
+    private static void validateSafetyRequest(
+            WidgetRegistryDtos.SafetyTransitionRequest request) {
+        requireAuditText(request.publicReasonCode(), 64, "publicReasonCode");
+        requireAuditText(request.internalIncidentRef(), 128, "internalIncidentRef");
+        requireAuditText(request.reasonCode(), 64, "reasonCode");
+        requireAuditText(request.reasonText(), 500, "reasonText");
+        if (request.expiresAt() != null
+                && !request.expiresAt().isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
+            throw invalid("Safety transition expiry must be in the future.");
+        }
+    }
+
+    private static void requireAuditText(String value, int maximumLength, String field) {
+        if (value == null || value.isBlank() || value.length() > maximumLength) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    field + " is required and exceeds no more than " + maximumLength + " characters.");
+        }
+    }
+
+    private record SafetyTransitionAuditEvidence(
+            WidgetRegistryDtos.VersionResponse version,
+            String publicReasonCode,
+            String internalIncidentRef,
+            OffsetDateTime expiresAt,
+            String reasonCode,
+            String reasonText,
+            UUID replacementVersionId) {}
 
     private void requireReleaseCandidate(UUID definitionId, WidgetDefinitionVersion candidate) {
         if (!definitionId.equals(candidate.getDefinitionId())

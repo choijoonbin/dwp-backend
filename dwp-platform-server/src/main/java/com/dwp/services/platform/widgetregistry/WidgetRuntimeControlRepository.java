@@ -1,6 +1,7 @@
 package com.dwp.services.platform.widgetregistry;
 
 import jakarta.persistence.LockModeType;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -11,7 +12,23 @@ import org.springframework.data.repository.query.Param;
 
 interface WidgetRuntimeControlRepository extends JpaRepository<WidgetRuntimeControl, UUID> {
     List<WidgetRuntimeControl> findAllByOrderByCreatedAtDesc();
-    List<WidgetRuntimeControl> findByControlState(String controlState);
+
+    @Query("""
+            select c from WidgetRuntimeControl c
+             where c.controlState = 'DISABLED'
+               and (c.expiresAt is null or c.expiresAt > :now)
+            """)
+    List<WidgetRuntimeControl> findActiveDisabled(@Param("now") OffsetDateTime now);
+
+    @Lock(LockModeType.PESSIMISTIC_WRITE)
+    @Query("""
+            select c from WidgetRuntimeControl c
+             where c.controlState = 'DISABLED'
+               and c.expiresAt is not null
+               and c.expiresAt <= :now
+             order by c.createdAt
+            """)
+    List<WidgetRuntimeControl> findElapsedDisabled(@Param("now") OffsetDateTime now);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select c from WidgetRuntimeControl c where c.controlId = :id")

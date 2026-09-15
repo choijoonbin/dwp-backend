@@ -2,19 +2,30 @@ package com.dwp.services.platform.widgetregistry;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import java.time.Clock;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
 public class WidgetRegistryMutationGuard {
     private final WidgetRuntimeControlRepository controls;
+    private final Clock clock;
 
+    @Autowired
     public WidgetRegistryMutationGuard(WidgetRuntimeControlRepository controls) {
+        this(controls, Clock.systemUTC());
+    }
+
+    WidgetRegistryMutationGuard(WidgetRuntimeControlRepository controls, Clock clock) {
         this.controls = controls;
+        this.clock = clock;
     }
 
     public void requireAllowed(Long tenantId, String providerProductKey, UUID definitionId, UUID versionId) {
-        boolean disabled = controls.findByControlState("DISABLED").stream()
+        boolean disabled = controls.findActiveDisabled(now()).stream()
                 .filter(control -> "CATALOG_MUTATIONS".equals(control.getControlScope()))
                 .anyMatch(control -> matches(control, tenantId, providerProductKey, definitionId, versionId));
         if (disabled) {
@@ -26,7 +37,7 @@ public class WidgetRegistryMutationGuard {
 
     boolean runtimeDenied(
             String scope, Long tenantId, String providerProductKey, UUID definitionId, UUID versionId) {
-        return controls.findByControlState("DISABLED").stream()
+        return controls.findActiveDisabled(now()).stream()
                 .filter(control -> scope.equals(control.getControlScope()))
                 .anyMatch(control -> matches(control, tenantId, providerProductKey, definitionId, versionId));
     }
@@ -47,5 +58,9 @@ public class WidgetRegistryMutationGuard {
             case "VERSION" -> versionId != null && versionId.toString().equals(control.getTargetId());
             default -> true;
         };
+    }
+
+    private OffsetDateTime now() {
+        return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
     }
 }

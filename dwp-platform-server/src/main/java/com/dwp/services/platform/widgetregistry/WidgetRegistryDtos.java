@@ -367,7 +367,7 @@ public final class WidgetRegistryDtos {
             String scope,
             String targetType,
             String targetId,
-            @Schema(allowableValues = {"DISABLED", "ENABLED"}) String state,
+            @Schema(allowableValues = {"DISABLED", "ENABLED", "EXPIRED"}) String state,
             long controlRevision,
             String reasonCode,
             OffsetDateTime expiresAt,

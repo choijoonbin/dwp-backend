@@ -83,6 +83,26 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
     @Autowired private JdbcTemplate jdbc;
 
     @Test
+    void readinessReflectsPersistedNativeBaselineInsteadOfAConstant() {
+        var ready = catalog.readiness();
+        assertThat(ready.controlPlaneReady()).isTrue();
+        assertThat(ready.runtimeActivationReady()).isFalse();
+        assertThat(ready.migrationMode()).isEqualTo("SHADOW");
+
+        jdbc.update("""
+                UPDATE plt_widget_renderer_bindings SET binding_state = 'DISABLED'
+                 WHERE renderer_key = 'home.command-rail'
+                """);
+        assertThat(catalog.readiness().controlPlaneReady()).isFalse();
+
+        jdbc.update("""
+                UPDATE plt_widget_renderer_bindings SET binding_state = 'ACTIVE'
+                 WHERE renderer_key = 'home.command-rail'
+                """);
+        assertThat(catalog.readiness().controlPlaneReady()).isTrue();
+    }
+
+    @Test
     void concurrentDuplicateCommandProducesOneDefinitionEventAndReceipt() throws Exception {
         UUID commandId = UUID.randomUUID();
         String key = "core.work.concurrent-" + commandId.toString().substring(0, 8);
@@ -289,14 +309,35 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
         long registryBeforeBlock = ledger.state().getRegistryRevision();
         var blockImpact = releases.impact(nextPublished.versionId(), "BLOCK");
         UUID blockCommand = UUID.randomUUID();
+        OffsetDateTime safetyExpiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusHours(2);
         var blockRequest = new WidgetRegistryDtos.SafetyTransitionRequest(
-                "SECURITY_POLICY", "INC-2026-0915", null, null,
+                "SECURITY_POLICY", "INC-2026-0915", null, safetyExpiresAt,
                 blockImpact.impactRevision(), "TEST", "block release", deprecated.version());
         var blocked = releases.block(releaser, blockCommand, null, nextPublished.versionId(), blockRequest);
         assertThat(blocked.releaseState()).isEqualTo("BLOCKED");
         assertThat(releases.block(releaser, blockCommand, null, nextPublished.versionId(), blockRequest))
                 .isEqualTo(blocked);
         assertThat(ledger.state().getRegistryRevision()).isEqualTo(registryBeforeBlock + 1);
+        assertThat(jdbc.queryForObject("""
+                SELECT request_audit_payload ->> 'internalIncidentRef'
+                  FROM plt_widget_command_receipts
+                 WHERE actor_id = ? AND command_id = ?
+                """, String.class, releaser, blockCommand)).isEqualTo("INC-2026-0915");
+        assertThat(jdbc.queryForObject("""
+                SELECT after_snapshot ->> 'internalIncidentRef'
+                  FROM plt_widget_registry_events
+                 WHERE command_id = ?
+                """, String.class, blockCommand)).isEqualTo("INC-2026-0915");
+        assertThat(jdbc.queryForObject("""
+                SELECT request_audit_payload ->> 'reasonText'
+                  FROM plt_widget_command_receipts
+                 WHERE actor_id = ? AND command_id = ?
+                """, String.class, releaser, blockCommand)).isEqualTo("block release");
+        assertThat(jdbc.queryForObject("""
+                SELECT request_audit_payload ->> 'expiresAt'
+                  FROM plt_widget_command_receipts
+                 WHERE actor_id = ? AND command_id = ?
+                """, String.class, releaser, blockCommand)).isNotBlank();
         assertThatThrownBy(() -> releases.block(releaser, UUID.randomUUID(), null,
                 nextPublished.versionId(), new WidgetRegistryDtos.SafetyTransitionRequest(
                         "SECURITY_POLICY", "INC-OTHER", null, null,
@@ -343,6 +384,31 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
                         approval.approvalId(), disable.controlRevision(),
                         "TEST", "reuse approval", enabled.version())))
                 .isInstanceOf(BaseException.class);
+
+        UUID expiredControlId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO plt_widget_runtime_controls(
+                    control_id, provider_product_key, control_scope, target_type, target_id,
+                    control_state, control_revision, reason_code, reason_text, incident_ref,
+                    expires_at, created_by)
+                VALUES (?, 'core.calendar', 'CATALOG_MUTATIONS', 'PROVIDER', 'core.calendar',
+                    'DISABLED', 1, 'TEST', 'expired test control', 'INC-EXPIRED',
+                    '2020-01-01T00:00:00Z', ?)
+                """, expiredControlId, releaser);
+        var replacementControl = controls.disable(releaser, UUID.randomUUID(), null,
+                new WidgetRegistryDtos.RuntimeDisableRequest(
+                        "CATALOG_MUTATIONS", "PROVIDER", "core.calendar", null,
+                        "core.calendar", OffsetDateTime.now(ZoneOffset.UTC).plusHours(1),
+                        "INCIDENT", "INC-REPLACEMENT", "TEST", "replace expired control", 0L));
+        assertThat(replacementControl.state()).isEqualTo("DISABLED");
+        assertThat(jdbc.queryForObject("""
+                SELECT control_state FROM plt_widget_runtime_controls WHERE control_id = ?
+                """, String.class, expiredControlId)).isEqualTo("EXPIRED");
+
+        String memberCatalogJson = objectMapper.writeValueAsString(
+                catalog.effective(1L, "workspace-home", requiredAuthorities(), "", ""));
+        assertThat(memberCatalogJson)
+                .doesNotContain("INC-2026-0915", "internalIncidentRef", "reasonText");
 
         assertThat(audit.list(0, 100).items())
                 .extracting(WidgetRegistryDtos.RegistryEventResponse::eventType)

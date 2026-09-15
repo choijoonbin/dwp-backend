@@ -40,6 +40,9 @@ public class WidgetCommandReceipt {
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "response_payload", nullable = false, columnDefinition = "jsonb")
     private JsonNode responsePayload;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "request_audit_payload", columnDefinition = "jsonb")
+    private JsonNode requestAuditPayload;
     @Builder.Default
     @Column(name = "created_at", nullable = false, updatable = false)
     private OffsetDateTime createdAt = OffsetDateTime.now(ZoneOffset.UTC);

@@ -25,6 +25,35 @@ public class WidgetCatalogService {
             "WIDGET_REGISTRY_CONTROL_PLANE",
             "WIDGET_REGISTRY_SHADOW_EVALUATION",
             "TENANT_WIDGET_POLICY");
+    private static final List<BaselineWidget> NATIVE_BASELINE = List.of(
+            new BaselineWidget(
+                    "core.workspace.command-rail",
+                    "a3a1fd5ffff9d7f6014ec3007a16ebea10dbf8ce3ae19e02fd2bd001fee0eb97",
+                    "home.command-rail"),
+            new BaselineWidget(
+                    "core.workspace.daily-brief",
+                    "9b7f48b7ea4ef429120db330a4972c3315ad682759fa86e49c212c42bdd02406",
+                    "home.daily-brief"),
+            new BaselineWidget(
+                    "core.work.focus",
+                    "36d1b02326e4725a235749e173dfdf50a0423ef30f42d7ccab97946ba826d893",
+                    "home.focus"),
+            new BaselineWidget(
+                    "core.calendar.schedule",
+                    "7f3e090997a213e9d3e6f8184e1458e57382c5f31db79f00fbf678d36f884f5d",
+                    "home.schedule"),
+            new BaselineWidget(
+                    "core.activity.activity",
+                    "fbab61015ec3b20c2faf9810b1758aebbd7517029baa64cb6b99190815836ca1",
+                    "home.activity"),
+            new BaselineWidget(
+                    "core.work.focus-balance",
+                    "10388bcc9f1bf02f761790b157d7b1d10b574e362d3db81a198cb45ade05c899",
+                    "home.focus-balance"),
+            new BaselineWidget(
+                    "core.calendar.meeting-load",
+                    "17b5fee8b514793d8244ce6ac744979a5ad7a3805817612521fc2c77a7e6add2",
+                    "home.meeting-load"));
     private final WidgetRegistryLedger ledger;
     private final WidgetDefinitionRepository definitions;
     private final WidgetDefinitionVersionRepository versions;
@@ -62,9 +91,53 @@ public class WidgetCatalogService {
     @Transactional(readOnly = true)
     public WidgetRegistryDtos.ReadinessResponse readiness() {
         WidgetRegistryState state = ledger.state();
+        List<WidgetDefinitionVersion> baselineVersions = resolveBaseline();
+        boolean controlPlaneReady = baselineVersions.size() == NATIVE_BASELINE.size();
+        boolean runtimeActivationReady = controlPlaneReady
+                && state.isRuntimeActivationReady()
+                && "AUTHORITATIVE".equals(state.getMigrationMode())
+                && baselineVersions.stream().allMatch(version ->
+                        "PASS".equals(version.getCertificationStatus())
+                                && definitionService.hasCurrentCertificationEvidence(version));
         return new WidgetRegistryDtos.ReadinessResponse(
-                1, state.getMigrationMode(), true, false, CAPABILITIES,
+                1,
+                state.getMigrationMode(),
+                controlPlaneReady,
+                runtimeActivationReady,
+                CAPABILITIES,
                 state.getRegistryRevision(), state.getPolicyRevision(), state.getSafetyRevision());
+    }
+
+    private List<WidgetDefinitionVersion> resolveBaseline() {
+        List<WidgetDefinitionVersion> resolved = new ArrayList<>();
+        for (BaselineWidget baseline : NATIVE_BASELINE) {
+            WidgetDefinition definition = definitions.findByDefinitionKey(baseline.definitionKey())
+                    .filter(value -> "ACTIVE".equals(value.getDefinitionState()))
+                    .orElse(null);
+            if (definition == null) return List.of();
+            WidgetDefinitionVersion version = versions.findByDefinitionIdAndSemanticVersion(
+                            definition.getDefinitionId(), "1.0.0")
+                    .filter(value -> baseline.manifestHash().equals(value.getManifestHash()))
+                    .filter(value -> baseline.rendererKey().equals(value.getRendererKey()))
+                    .filter(value -> "PUBLISHED".equals(value.getReleaseState()))
+                    .filter(value -> "CLEAR".equals(value.getSafetyState()))
+                    .orElse(null);
+            if (version == null
+                    || bindings.findByRendererKeyAndBindingState(
+                                    baseline.rendererKey(), "ACTIVE")
+                            .filter(binding -> baseline.manifestHash().equals(
+                                    binding.getBindingRevision()))
+                            .isEmpty()
+                    || channels.findByDefinitionIdAndChannel(
+                                    definition.getDefinitionId(), "STABLE")
+                            .filter(channel -> version.getVersionId().equals(
+                                    channel.getCurrentVersionId()))
+                            .isEmpty()) {
+                return List.of();
+            }
+            resolved.add(version);
+        }
+        return List.copyOf(resolved);
     }
 
     @Transactional(readOnly = true)
@@ -279,4 +352,7 @@ public class WidgetCatalogService {
                     .collect(Collectors.toUnmodifiableSet());
         }
     }
+
+    private record BaselineWidget(
+            String definitionKey, String manifestHash, String rendererKey) {}
 }

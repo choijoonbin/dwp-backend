@@ -3,11 +3,13 @@ package com.dwp.services.platform.widgetregistry;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
@@ -21,7 +23,9 @@ public class WidgetRuntimeControlService {
     private final WidgetRegistryCommandReceiptService receipts;
     private final WidgetRegistryLedger ledger;
     private final ObjectMapper objectMapper;
+    private final Clock clock;
 
+    @Autowired
     public WidgetRuntimeControlService(
             WidgetRuntimeControlRepository controls,
             WidgetRuntimeEnableApprovalRepository approvals,
@@ -29,16 +33,29 @@ public class WidgetRuntimeControlService {
             WidgetRegistryCommandReceiptService receipts,
             WidgetRegistryLedger ledger,
             ObjectMapper objectMapper) {
+        this(controls, approvals, mapper, receipts, ledger, objectMapper, Clock.systemUTC());
+    }
+
+    WidgetRuntimeControlService(
+            WidgetRuntimeControlRepository controls,
+            WidgetRuntimeEnableApprovalRepository approvals,
+            WidgetRegistryResponseMapper mapper,
+            WidgetRegistryCommandReceiptService receipts,
+            WidgetRegistryLedger ledger,
+            ObjectMapper objectMapper,
+            Clock clock) {
         this.controls = controls;
         this.approvals = approvals;
         this.mapper = mapper;
         this.receipts = receipts;
         this.ledger = ledger;
         this.objectMapper = objectMapper;
+        this.clock = clock;
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public WidgetRegistryDtos.RuntimeControlPage list(int page, int size) {
+        expireElapsed(now());
         List<WidgetRegistryDtos.RuntimeControlResponse> all = controls
                 .findAllByOrderByCreatedAtDesc().stream().map(mapper::control).toList();
         int safePage = Math.max(0, page);
@@ -61,8 +78,15 @@ public class WidgetRuntimeControlService {
         var replay = receipts.replay(actorId, commandId, "DISABLE_RUNTIME_CONTROL", target,
                 fingerprint, WidgetRegistryDtos.RuntimeControlResponse.class);
         if (replay != null) return replay;
+        OffsetDateTime now = now();
+        expireElapsed(now);
         if (request.expectedVersion() != 0) throw conflict();
         validateTarget(request);
+        if (request.expiresAt() != null && !request.expiresAt().isAfter(now)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Runtime control expiry must be in the future.");
+        }
         WidgetRuntimeControl control = WidgetRuntimeControl.builder()
                 .controlId(UUID.randomUUID()).tenantId(request.tenantId())
                 .providerProductKey(request.providerProductKey()).controlScope(request.scope())
@@ -96,13 +120,14 @@ public class WidgetRuntimeControlService {
         var replay = receipts.replay(actorId, commandId, "APPROVE_RUNTIME_ENABLE", target,
                 fingerprint, WidgetRegistryDtos.RuntimeEnableApprovalResponse.class);
         if (replay != null) return replay;
+        expireElapsed(now());
         WidgetRuntimeControl control = lock(controlId, request.expectedVersion());
         if (!"DISABLED".equals(control.getControlState())
                 || !request.controlRevision().equals(control.getControlRevision())
                 || actorId.equals(control.getCreatedBy())) {
             throw new BaseException(ErrorCode.SOD_CONFLICT, "Enable approval must bind the disabled control and an independent reviewer.");
         }
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        OffsetDateTime now = now();
         WidgetRuntimeEnableApproval approval = approvals.save(WidgetRuntimeEnableApproval.builder()
                 .approvalId(UUID.randomUUID()).controlId(controlId)
                 .controlRevision(control.getControlRevision()).approvalState("ACTIVE")
@@ -128,10 +153,11 @@ public class WidgetRuntimeControlService {
         var replay = receipts.replay(actorId, commandId, "ENABLE_RUNTIME_CONTROL", target,
                 fingerprint, WidgetRegistryDtos.RuntimeControlResponse.class);
         if (replay != null) return replay;
+        expireElapsed(now());
         WidgetRuntimeControl control = lock(controlId, request.expectedVersion());
         WidgetRuntimeEnableApproval approval = approvals.lockById(request.enableApprovalId())
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        OffsetDateTime now = now();
         if (!"DISABLED".equals(control.getControlState())
                 || !request.controlRevision().equals(control.getControlRevision())
                 || !controlId.equals(approval.getControlId())
@@ -196,6 +222,32 @@ public class WidgetRuntimeControlService {
 
     private static String target(WidgetRegistryDtos.RuntimeDisableRequest request) {
         return request.scope() + ":" + request.targetType() + ":" + Objects.toString(request.targetId(), "GLOBAL");
+    }
+
+    private void expireElapsed(OffsetDateTime now) {
+        for (WidgetRuntimeControl control : controls.findElapsedDisabled(now)) {
+            var before = mapper.control(control);
+            control.setControlState("EXPIRED");
+            control.setControlRevision(control.getControlRevision() + 1);
+            controls.saveAndFlush(control);
+            var after = mapper.control(control);
+            ledger.append(
+                    control.getTenantId(),
+                    "RUNTIME_CONTROL",
+                    control.getControlId().toString(),
+                    "WIDGET_RUNTIME_CONTROL_EXPIRED",
+                    null,
+                    1L,
+                    "widget-runtime-expiry",
+                    before,
+                    after,
+                    List.of(),
+                    WidgetRegistryLedger.RevisionAxis.SAFETY);
+        }
+    }
+
+    private OffsetDateTime now() {
+        return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
     }
 
     private static BaseException conflict() {
