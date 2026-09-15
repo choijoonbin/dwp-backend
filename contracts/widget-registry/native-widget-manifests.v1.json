@@ -439,7 +439,7 @@
           "recipientContextBinding": true
         }
       },
-      "provenance": "Wave3 canonical correction v1.0.1 aligned with existing static Home semantics; supersedes v1.0.0; ADM-009 command-rail golden resealed to the corrected content",
+      "provenance": "Wave3 canonical correction v1.0.1 restores the V221 calendar owner/source and the static Home authority, data capability, and preset policy; supersedes v1.0.0; first-party extension outside the ADM-009 five-widget golden fixture",
       "semanticVersion": "1.0.1"
     },
     {
@@ -500,7 +500,7 @@
           "recipientContextBinding": true
         }
       },
-      "provenance": "Wave3 canonical correction v1.0.1 aligned with existing static Home semantics; supersedes v1.0.0; ADM-009 command-rail golden resealed to the corrected content",
+      "provenance": "Wave3 canonical correction v1.0.1 restores the static Home preset policy; supersedes v1.0.0; V221 calendar first-party extension outside the ADM-009 five-widget golden fixture",
       "semanticVersion": "1.0.1"
     }
   ],
