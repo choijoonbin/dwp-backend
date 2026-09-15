@@ -51,6 +51,7 @@ public final class ProviderRequestContext {
                         "CHANGE_APPROVE",
                         "BREAK_GLASS_SUPPORT",
                         "AUDIT_READ"),
+                Set.of("core.workspace", "core.work", "core.calendar", "core.activity"),
                 UUID.fromString("00000000-0000-0000-0000-000000000001")));
     }
 
@@ -83,6 +84,7 @@ public final class ProviderRequestContext {
             String displayName,
             Set<String> roles,
             Set<String> permissions,
+            Set<String> ownerProductKeys,
             UUID authSessionId) {
 
         public Actor(
@@ -92,17 +94,36 @@ public final class ProviderRequestContext {
                 String displayName,
                 Set<String> roles,
                 Set<String> permissions) {
-            this(operatorId, userId, authTenantId, displayName, roles, permissions, null);
+            this(operatorId, userId, authTenantId, displayName, roles, permissions, Set.of(), null);
+        }
+
+        public Actor(
+                Long operatorId,
+                Long userId,
+                Long authTenantId,
+                String displayName,
+                Set<String> roles,
+                Set<String> permissions,
+                UUID authSessionId) {
+            this(operatorId, userId, authTenantId, displayName, roles, permissions, Set.of(), authSessionId);
         }
 
         public Actor {
             roles = Set.copyOf(roles);
             permissions = Set.copyOf(permissions);
+            ownerProductKeys = Set.copyOf(ownerProductKeys);
         }
 
         public Actor withAuthSessionId(UUID value) {
             return new Actor(
-                    operatorId, userId, authTenantId, displayName, roles, permissions, value);
+                    operatorId,
+                    userId,
+                    authTenantId,
+                    displayName,
+                    roles,
+                    permissions,
+                    ownerProductKeys,
+                    value);
         }
     }
 

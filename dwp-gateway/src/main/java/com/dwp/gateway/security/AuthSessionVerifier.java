@@ -191,6 +191,14 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.equals("/api/platform/v1/home/overview")) {
             return "APP.WORK,APP.ACTIVITY,APP.CALENDAR,APP.COMMUNICATIONS";
         }
+        if (path.equals("/api/platform/v1/widget-catalog")) {
+            return "APP.";
+        }
+        if (path.equals("/api/platform/v1/admin/widget-catalog")
+                || path.startsWith("/api/platform/v1/admin/widget-catalog/")
+                || path.startsWith("/api/platform/v1/admin/widget-policies/")) {
+            return "ADMIN.HOME_WIDGET_POLICY";
+        }
         if (path.equals("/api/platform/v1/home-templates")
                 || path.startsWith("/api/platform/v1/home-templates/")) {
             return "ADMIN.HOME_TEMPLATE";

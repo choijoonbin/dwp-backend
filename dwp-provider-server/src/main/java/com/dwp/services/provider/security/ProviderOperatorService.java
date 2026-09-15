@@ -54,8 +54,24 @@ public class ProviderOperatorService {
             if (row.permissionCode() != null) permissions.add(row.permissionCode());
         });
         OperatorRow first = rows.get(0);
+        Set<String> ownerProductKeys = new LinkedHashSet<>(jdbc.queryForList("""
+                SELECT owner_product_key
+                  FROM prv_operator_widget_owner_scopes
+                 WHERE provider_operator_id = ?
+                   AND lifecycle_state = 'ACTIVE'
+                   AND (valid_from IS NULL OR valid_from <= CURRENT_TIMESTAMP)
+                   AND (valid_to IS NULL OR valid_to > CURRENT_TIMESTAMP)
+                 ORDER BY owner_product_key
+                """, String.class, first.operatorId()));
         return Optional.of(new ProviderRequestContext.Actor(
-                first.operatorId(), authUserId, authTenantId, first.displayName(), roles, permissions));
+                first.operatorId(),
+                authUserId,
+                authTenantId,
+                first.displayName(),
+                roles,
+                permissions,
+                ownerProductKeys,
+                null));
     }
 
     private OperatorRow row(ResultSet result, int ignored) throws SQLException {

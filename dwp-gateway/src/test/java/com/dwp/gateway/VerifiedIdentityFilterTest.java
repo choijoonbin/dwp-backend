@@ -50,6 +50,7 @@ class VerifiedIdentityFilterTest {
                         "spoofed-session-family")
                 .header(VerifiedIdentityFilter.IDENTITY_PLANE_HEADER, "PROVIDER")
                 .header(VerifiedIdentityFilter.CONTROL_PLANE_HEADER, "spoofed")
+                .header(VerifiedIdentityFilter.WIDGET_OWNER_SCOPE_HEADER, "core.work")
                 .header(VerifiedIdentityFilter.LEGACY_ROLE_FALLBACK_HEADER, "false")
                 .build());
         AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
@@ -87,6 +88,8 @@ class VerifiedIdentityFilterTest {
                 VerifiedIdentityFilter.IDENTITY_PLANE_HEADER)).isEqualTo("TENANT");
         assertThat(forwarded.get().getHeaders().containsKey(
                 VerifiedIdentityFilter.CONTROL_PLANE_HEADER)).isFalse();
+        assertThat(forwarded.get().getHeaders().containsKey(
+                VerifiedIdentityFilter.WIDGET_OWNER_SCOPE_HEADER)).isFalse();
     }
 
     @Test

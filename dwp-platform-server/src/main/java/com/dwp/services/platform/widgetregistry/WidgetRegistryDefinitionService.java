@@ -34,6 +34,7 @@ public class WidgetRegistryDefinitionService {
     private final ObjectMapper objectMapper;
     private final WidgetRegistryMutationGuard mutationGuard;
     private final WidgetRegistryImpactService impacts;
+    private final WidgetRegistryOwnerScopeGuard ownerScope;
 
     public WidgetRegistryDefinitionService(
             WidgetDefinitionRepository definitions,
@@ -45,7 +46,8 @@ public class WidgetRegistryDefinitionService {
             WidgetRegistryLedger ledger,
             ObjectMapper objectMapper,
             WidgetRegistryMutationGuard mutationGuard,
-            WidgetRegistryImpactService impacts) {
+            WidgetRegistryImpactService impacts,
+            WidgetRegistryOwnerScopeGuard ownerScope) {
         this.definitions = definitions;
         this.versions = versions;
         this.bindings = bindings;
@@ -56,6 +58,7 @@ public class WidgetRegistryDefinitionService {
         this.objectMapper = objectMapper;
         this.mutationGuard = mutationGuard;
         this.impacts = impacts;
+        this.ownerScope = ownerScope;
     }
 
     @Transactional(readOnly = true)
@@ -63,9 +66,15 @@ public class WidgetRegistryDefinitionService {
         var pageable = PageRequest.of(
                 Math.max(0, page), Math.min(100, Math.max(1, size)),
                 Sort.by("definitionKey").ascending());
-        var result = state == null
-                ? definitions.findAll(pageable)
-                : definitions.findByDefinitionState(state, pageable);
+        var providerOwners = ownerScope.currentProviderOwners();
+        var result = providerOwners.isPresent()
+                ? state == null
+                        ? definitions.findByOwnerProductKeyIn(providerOwners.get(), pageable)
+                        : definitions.findByDefinitionStateAndOwnerProductKeyIn(
+                                state, providerOwners.get(), pageable)
+                : state == null
+                        ? definitions.findAll(pageable)
+                        : definitions.findByDefinitionState(state, pageable);
         String revision = Long.toString(ledger.state().getRegistryRevision());
         return new WidgetRegistryDtos.DefinitionPage(
                 result.stream().map(mapper::definition).toList(), result.getNumber(),
@@ -98,6 +107,7 @@ public class WidgetRegistryDefinitionService {
                 fingerprint, WidgetRegistryDtos.DefinitionResponse.class);
         if (replay != null) return replay;
         WidgetDefinition definition = definitions.lockById(definitionId).orElseThrow(notFound());
+        ownerScope.requireOwner(definition.getOwnerProductKey());
         mutationGuard.requireAllowed(null, definition.getOwnerProductKey(), definitionId, null);
         requireVersion(definition, request.expectedVersion());
         WidgetRegistryDtos.ImpactResponse impact = impacts.calculate(
@@ -148,6 +158,7 @@ public class WidgetRegistryDefinitionService {
                 actorId, commandId, "CREATE_DEFINITION", request.definitionKey(), fingerprint,
                 WidgetRegistryDtos.DefinitionResponse.class);
         if (replay != null) return replay;
+        ownerScope.requireOwner(request.ownerProductKey());
         mutationGuard.requireAllowed(null, request.ownerProductKey(), null, null);
         if (request.expectedVersion() != 0 || definitions.findByDefinitionKey(request.definitionKey()).isPresent()) {
             throw conflict();
@@ -209,6 +220,7 @@ public class WidgetRegistryDefinitionService {
         if (replay != null) return replay;
         WidgetDefinition definition = definitions.lockById(definitionId)
                 .orElseThrow(notFound());
+        ownerScope.requireOwner(definition.getOwnerProductKey());
         mutationGuard.requireAllowed(null, definition.getOwnerProductKey(), definitionId, null);
         requireVersion(definition, request.expectedVersion());
         if (!"ACTIVE".equals(definition.getDefinitionState())) throw invalidState("Definition is retired.");
@@ -434,20 +446,26 @@ public class WidgetRegistryDefinitionService {
 
     @Transactional(readOnly = true)
     public WidgetRegistryDtos.EvidenceResponse evidence(UUID versionId, UUID evidenceId) {
+        requireVersion(versionId);
         return evidence.findByEvidenceIdAndVersionId(evidenceId, versionId)
                 .map(mapper::evidence).orElseThrow(notFound());
     }
 
     WidgetDefinition requireDefinition(UUID id) {
-        return definitions.findById(id).orElseThrow(notFound());
+        WidgetDefinition value = definitions.findById(id).orElseThrow(notFound());
+        ownerScope.requireOwner(value.getOwnerProductKey());
+        return value;
     }
 
     WidgetDefinitionVersion requireVersion(UUID id) {
-        return versions.findById(id).orElseThrow(notFound());
+        WidgetDefinitionVersion value = versions.findById(id).orElseThrow(notFound());
+        ownerScope.requireVersion(value);
+        return value;
     }
 
     WidgetDefinitionVersion lockVersion(UUID id, Long expectedVersion) {
         WidgetDefinitionVersion value = versions.lockById(id).orElseThrow(notFound());
+        ownerScope.requireVersion(value);
         requireVersion(value, expectedVersion);
         return value;
     }

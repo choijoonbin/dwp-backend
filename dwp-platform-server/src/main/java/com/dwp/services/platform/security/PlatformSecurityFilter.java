@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -54,6 +55,8 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     static final String ROLLOUT_REVISION_HEADER = PlatformSecurityHeaders.ROLLOUT_REVISION;
     static final String ROLLOUT_STATE_HEADER = PlatformSecurityHeaders.ROLLOUT_STATE;
     static final String CONTROL_PLANE_HEADER = "X-DWP-Control-Plane";
+    static final String WIDGET_OWNER_SCOPE_HEADER =
+            "X-DWP-Widget-Owner-Product-Keys";
     private static final Set<String> ADMIN_ROLES = Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN");
     private static final String SUPPORT_EXPERIENCE_PREVIEW_PATH =
             "/v1/admin/tenant-experience-preview";
@@ -164,7 +167,8 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         boolean providerWidgetRegistryAccess = providerWidgetRegistryPath
                 && "WIDGET_REGISTRY_PROVIDER".equals(request.getHeader(CONTROL_PLANE_HEADER))
                 && "PROVIDER".equals(request.getHeader("X-DWP-Identity-Plane"))
-                && RolePlaneBoundary.isProviderIdentity(parseValues(request.getHeader(ROLES_HEADER)));
+                && RolePlaneBoundary.isProviderIdentity(parseValues(request.getHeader(ROLES_HEADER)))
+                && validProviderOwnerScope(request);
         if (providerWidgetRegistryPath && !providerWidgetRegistryAccess) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "Provider Widget Registry identity and trusted route are required.");
@@ -411,6 +415,17 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 || path.equals("/v1/admin/widget-runtime-controls")
                 || path.startsWith("/v1/admin/widget-runtime-controls/")
                 || path.startsWith("/v1/admin/widget-registry/");
+    }
+
+    private boolean validProviderOwnerScope(HttpServletRequest request) {
+        var values = request.getHeaders(WIDGET_OWNER_SCOPE_HEADER);
+        List<String> headers = values == null ? List.of() : Collections.list(values);
+        if (headers.size() != 1 || headers.getFirst().length() > 3_872) return false;
+        Set<String> owners = parseValues(headers.getFirst());
+        return !owners.isEmpty()
+                && owners.size() <= 32
+                && owners.stream().allMatch(owner -> owner.length() <= 120
+                        && owner.matches("^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"));
     }
 
     private boolean hasScopedAppAccess(HttpServletRequest request) {

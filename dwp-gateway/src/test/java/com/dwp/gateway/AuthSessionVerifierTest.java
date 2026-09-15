@@ -1099,6 +1099,72 @@ class AuthSessionVerifierTest {
                 "c175742b-070e-4223-a49a-b9878d280a7c");
     }
 
+    @Test
+    void requestsAppAuthoritiesForTheMemberWidgetCatalog() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "identityPlane":"TENANT","roles":["WORKSPACE_MEMBER"],
+                            "permissions":[
+                              {"resourceKey":"APP.WORK","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"APP.CALENDAR","permissionCode":"VIEW","effect":"ALLOW"}
+                            ]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/widget-catalog?surface=workspace-home")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery()).isEqualTo("permissionPrefix=APP.");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly(
+                "APP.CALENDAR:VIEW", "APP.WORK:VIEW");
+    }
+
+    @Test
+    void requestsTenantWidgetPolicyAuthoritiesForEveryAdminRoute() {
+        for (String path : java.util.List.of(
+                "/api/platform/v1/admin/widget-catalog",
+                "/api/platform/v1/admin/widget-catalog/00000000-0000-0000-0000-000000000001/explain",
+                "/api/platform/v1/admin/widget-policies/00000000-0000-0000-0000-000000000001")) {
+            AtomicReference<ClientRequest> captured = new AtomicReference<>();
+            WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+                captured.set(request);
+                return Mono.just(ClientResponse.create(HttpStatus.OK)
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .body("""
+                                {"success":true,"data":{"userId":7,"tenantId":1,
+                                "identityPlane":"TENANT","roles":["TENANT_ADMIN"],
+                                "permissions":[
+                                  {"resourceKey":"ADMIN.HOME_WIDGET_POLICY","permissionCode":"MANAGE","effect":"ALLOW"},
+                                  {"resourceKey":"ADMIN.HOME_WIDGET_POLICY","permissionCode":"VIEW","effect":"ALLOW"}
+                                ]}}
+                                """)
+                        .build());
+            });
+            AuthSessionVerifier verifier = new AuthSessionVerifier(
+                    builder, "http://auth.test", Duration.ofSeconds(1));
+
+            VerifiedIdentity identity = verifier.verify(
+                    MockServerHttpRequest.get(path).build()).block();
+
+            assertThat(captured.get().url().getQuery())
+                    .isEqualTo("permissionPrefix=ADMIN.HOME_WIDGET_POLICY");
+            assertThat(identity).isNotNull();
+            assertThat(identity.permissions()).containsExactly(
+                    "ADMIN.HOME_WIDGET_POLICY:MANAGE",
+                    "ADMIN.HOME_WIDGET_POLICY:VIEW");
+        }
+    }
+
     private AuthSessionVerifier verifierReturningTenant(String tenantId) {
         String body = """
                 {"success":true,"data":{"userId":7,"tenantId":%s,"identityPlane":"TENANT","roles":["EMPLOYEE"]}}

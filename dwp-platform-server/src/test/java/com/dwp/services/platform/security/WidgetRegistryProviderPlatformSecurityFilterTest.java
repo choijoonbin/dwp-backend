@@ -17,6 +17,9 @@ class WidgetRegistryProviderPlatformSecurityFilterTest {
     void isolatesProviderWidgetRegistryBehindTrustedProviderRouteMarker() throws Exception {
         MockHttpServletRequest provider = request(
                 "PROVIDER_ADMIN", "PROVIDER", "WIDGET_REGISTRY_PROVIDER");
+        provider.addHeader(
+                PlatformSecurityFilter.WIDGET_OWNER_SCOPE_HEADER,
+                "core.calendar,core.work");
         MockHttpServletResponse providerResponse = new MockHttpServletResponse();
 
         filter.doFilter(provider, providerResponse, new MockFilterChain());
@@ -26,6 +29,7 @@ class WidgetRegistryProviderPlatformSecurityFilterTest {
         for (MockHttpServletRequest denied : List.of(
                 request("TENANT_ADMIN", "TENANT", "WIDGET_REGISTRY_PROVIDER"),
                 request("PROVIDER_ADMIN", "PROVIDER", null),
+                request("PROVIDER_ADMIN", "PROVIDER", "WIDGET_REGISTRY_PROVIDER"),
                 request("TENANT_ADMIN", "TENANT", null))) {
             MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
             filter.doFilter(denied, deniedResponse, new MockFilterChain());

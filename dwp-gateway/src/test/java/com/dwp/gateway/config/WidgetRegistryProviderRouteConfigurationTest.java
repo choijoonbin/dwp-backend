@@ -9,32 +9,27 @@ import org.springframework.core.io.ClassPathResource;
 
 class WidgetRegistryProviderRouteConfigurationTest {
     @Test
-    void routesOnlyProviderControlPlaneApisToPlatformWithATrustedMarker() {
+    void routesProviderWidgetRegistryThroughTheProviderSecurityBoundary() {
         YamlPropertiesFactoryBean loader = new YamlPropertiesFactoryBean();
         loader.setResources(new ClassPathResource("application.yml"));
         Properties properties = loader.getObject();
 
         assertThat(properties).isNotNull();
-        var prefixes = properties.entrySet().stream()
+        var directPlatformRoutes = properties.entrySet().stream()
                 .filter(entry -> entry.getKey().toString().endsWith(".id"))
                 .filter(entry -> "widget-registry-provider-admin".equals(entry.getValue()))
+                .toList();
+        assertThat(directPlatformRoutes).isEmpty();
+
+        var providerPrefixes = properties.entrySet().stream()
+                .filter(entry -> entry.getKey().toString().endsWith(".id"))
+                .filter(entry -> "provider-server".equals(entry.getValue()))
                 .map(entry -> entry.getKey().toString().replaceFirst("\\.id$", ""))
                 .toList();
-        assertThat(prefixes).hasSize(1);
-        String prefix = prefixes.get(0);
-
-        assertThat(properties.getProperty(prefix + ".predicates[0]")).isEqualTo(
-                "Path=/api/provider/v1/admin/widget-definitions/**,"
-                        + "/api/provider/v1/admin/widget-definition-versions/**,"
-                        + "/api/provider/v1/admin/widget-runtime-controls/**,"
-                        + "/api/provider/v1/admin/widget-registry/**");
-        assertThat(properties.entrySet().stream()
-                .filter(entry -> entry.getKey().toString().startsWith(prefix + ".filters"))
-                .map(entry -> entry.getValue().toString()))
-                .contains("StripPrefix=2",
-                        "SetRequestHeader=X-DWP-Control-Plane, WIDGET_REGISTRY_PROVIDER")
-                .noneMatch(value -> value.contains("widget-catalog")
-                        || value.contains("widget-policies")
-                        || value.contains("widget-data"));
+        assertThat(providerPrefixes).hasSize(1);
+        assertThat(properties.getProperty(providerPrefixes.getFirst() + ".predicates[0]"))
+                .isEqualTo("Path=/api/provider/**");
+        assertThat(properties.getProperty(providerPrefixes.getFirst() + ".filters[0]"))
+                .isEqualTo("StripPrefix=2");
     }
 }

@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.jdbc.AutoConfigureTestDatabase;
@@ -31,8 +32,11 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -47,6 +51,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
         WidgetRegistryLedger.class,
         WidgetRegistryImpactService.class,
         WidgetRegistryMutationGuard.class,
+        WidgetRegistryOwnerScopeGuard.class,
         WidgetRegistryDefinitionService.class,
         WidgetRegistryReleaseService.class,
         TenantWidgetPolicyService.class,
@@ -81,6 +86,33 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
     @Autowired private WidgetRegistryLedger ledger;
     @Autowired private ObjectMapper objectMapper;
     @Autowired private JdbcTemplate jdbc;
+
+    @AfterEach
+    void clearRequestContext() {
+        RequestContextHolder.resetRequestAttributes();
+    }
+
+    @Test
+    void providerServiceReadsAreFilteredAndCrossOwnerDetailFailsClosed() {
+        MockHttpServletRequest request = new MockHttpServletRequest();
+        request.addHeader("X-DWP-Identity-Plane", "PROVIDER");
+        request.addHeader("X-DWP-Control-Plane", "WIDGET_REGISTRY_PROVIDER");
+        request.addHeader(WidgetRegistryOwnerScopeGuard.OWNER_SCOPE_HEADER, "core.work");
+        RequestContextHolder.setRequestAttributes(new ServletRequestAttributes(request));
+
+        var page = definitions.list(0, 100, null);
+        assertThat(page.items()).isNotEmpty()
+                .allSatisfy(item -> assertThat(item.ownerProductKey()).isEqualTo("core.work"));
+        UUID anotherOwner = jdbc.queryForObject("""
+                SELECT definition_id FROM plt_widget_definitions
+                 WHERE owner_product_key <> 'core.work'
+                 ORDER BY definition_key LIMIT 1
+                """, UUID.class);
+
+        assertThatThrownBy(() -> definitions.get(anotherOwner))
+                .isInstanceOfSatisfying(BaseException.class,
+                        failure -> assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
 
     @Test
     void readinessReflectsPersistedNativeBaselineInsteadOfAConstant() {

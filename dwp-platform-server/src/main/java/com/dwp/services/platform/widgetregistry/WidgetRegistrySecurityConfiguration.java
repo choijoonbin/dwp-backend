@@ -10,9 +10,13 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 @Configuration
 class WidgetRegistrySecurityConfiguration implements WebMvcConfigurer {
     private final WidgetRegistryAccessGuard access;
+    private final WidgetRegistryOwnerScopeGuard ownerScope;
 
-    WidgetRegistrySecurityConfiguration(WidgetRegistryAccessGuard access) {
+    WidgetRegistrySecurityConfiguration(
+            WidgetRegistryAccessGuard access,
+            WidgetRegistryOwnerScopeGuard ownerScope) {
         this.access = access;
+        this.ownerScope = ownerScope;
     }
 
     @Override
@@ -22,6 +26,9 @@ class WidgetRegistrySecurityConfiguration implements WebMvcConfigurer {
             public boolean preHandle(
                     HttpServletRequest request, HttpServletResponse response, Object handler) {
                 access.authorize(request);
+                if ("/v1/admin/widget-registry/events".equals(request.getRequestURI())) {
+                    ownerScope.requireAllKnownOwners();
+                }
                 return true;
             }
         }).addPathPatterns(

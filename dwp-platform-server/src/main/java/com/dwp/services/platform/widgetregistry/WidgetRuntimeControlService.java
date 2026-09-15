@@ -24,6 +24,7 @@ public class WidgetRuntimeControlService {
     private final WidgetRegistryLedger ledger;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final WidgetRegistryOwnerScopeGuard ownerScope;
 
     @Autowired
     public WidgetRuntimeControlService(
@@ -32,8 +33,17 @@ public class WidgetRuntimeControlService {
             WidgetRegistryResponseMapper mapper,
             WidgetRegistryCommandReceiptService receipts,
             WidgetRegistryLedger ledger,
-            ObjectMapper objectMapper) {
-        this(controls, approvals, mapper, receipts, ledger, objectMapper, Clock.systemUTC());
+            ObjectMapper objectMapper,
+            WidgetRegistryOwnerScopeGuard ownerScope) {
+        this(
+                controls,
+                approvals,
+                mapper,
+                receipts,
+                ledger,
+                objectMapper,
+                ownerScope,
+                Clock.systemUTC());
     }
 
     WidgetRuntimeControlService(
@@ -43,6 +53,7 @@ public class WidgetRuntimeControlService {
             WidgetRegistryCommandReceiptService receipts,
             WidgetRegistryLedger ledger,
             ObjectMapper objectMapper,
+            WidgetRegistryOwnerScopeGuard ownerScope,
             Clock clock) {
         this.controls = controls;
         this.approvals = approvals;
@@ -51,13 +62,17 @@ public class WidgetRuntimeControlService {
         this.ledger = ledger;
         this.objectMapper = objectMapper;
         this.clock = clock;
+        this.ownerScope = ownerScope;
     }
 
     @Transactional
     public WidgetRegistryDtos.RuntimeControlPage list(int page, int size) {
         expireElapsed(now());
         List<WidgetRegistryDtos.RuntimeControlResponse> all = controls
-                .findAllByOrderByCreatedAtDesc().stream().map(mapper::control).toList();
+                .findAllByOrderByCreatedAtDesc().stream()
+                .filter(ownerScope::allowsControl)
+                .map(mapper::control)
+                .toList();
         int safePage = Math.max(0, page);
         int safeSize = Math.min(100, Math.max(1, size));
         int from = Math.min(all.size(), safePage * safeSize);
@@ -82,6 +97,7 @@ public class WidgetRuntimeControlService {
         expireElapsed(now);
         if (request.expectedVersion() != 0) throw conflict();
         validateTarget(request);
+        ownerScope.requireDisableTarget(request);
         if (request.expiresAt() != null && !request.expiresAt().isAfter(now)) {
             throw new BaseException(
                     ErrorCode.INVALID_INPUT_VALUE,
@@ -122,6 +138,7 @@ public class WidgetRuntimeControlService {
         if (replay != null) return replay;
         expireElapsed(now());
         WidgetRuntimeControl control = lock(controlId, request.expectedVersion());
+        ownerScope.requireControl(control);
         if (!"DISABLED".equals(control.getControlState())
                 || !request.controlRevision().equals(control.getControlRevision())
                 || actorId.equals(control.getCreatedBy())) {
@@ -155,6 +172,7 @@ public class WidgetRuntimeControlService {
         if (replay != null) return replay;
         expireElapsed(now());
         WidgetRuntimeControl control = lock(controlId, request.expectedVersion());
+        ownerScope.requireControl(control);
         WidgetRuntimeEnableApproval approval = approvals.lockById(request.enableApprovalId())
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         OffsetDateTime now = now();
@@ -225,7 +243,8 @@ public class WidgetRuntimeControlService {
     }
 
     private void expireElapsed(OffsetDateTime now) {
-        for (WidgetRuntimeControl control : controls.findElapsedDisabled(now)) {
+        for (WidgetRuntimeControl control : controls.findElapsedDisabled(now).stream()
+                .filter(ownerScope::allowsControl).toList()) {
             var before = mapper.control(control);
             control.setControlState("EXPIRED");
             control.setControlRevision(control.getControlRevision() + 1);
