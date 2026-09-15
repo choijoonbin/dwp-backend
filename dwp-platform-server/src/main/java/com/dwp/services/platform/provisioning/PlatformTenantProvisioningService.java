@@ -419,16 +419,30 @@ public class PlatformTenantProvisioningService {
         jdbc.update("""
                 UPDATE adm_workspace_apps
                    SET lifecycle_state = 'RETIRED',
+                       health_state = 'CONFIGURATION_REQUIRED',
                        version = version + 1,
                        updated_at = CURRENT_TIMESTAMP
                  WHERE tenant_id = ?
                    AND (app_key = 'ref-app-collaboration'
-                        OR resource_key IN (
+                        OR upper(trim(resource_key)) IN (
                             'APP.MAIL_CALENDAR', 'APP.COLLABORATION',
                             'APP.ROOMS', 'APP.HRIS'))
-                   AND lifecycle_state <> 'RETIRED'
+                   AND (lifecycle_state <> 'RETIRED'
+                        OR health_state <> 'CONFIGURATION_REQUIRED')
                 """, tenantId);
         for (WorkspaceAppSeed app : workspaceApplications()) {
+            jdbc.update("""
+                    UPDATE adm_workspace_apps
+                       SET lifecycle_state = 'RETIRED',
+                           health_state = 'CONFIGURATION_REQUIRED',
+                           version = version + 1,
+                           updated_at = CURRENT_TIMESTAMP
+                     WHERE tenant_id = ?
+                       AND upper(trim(resource_key)) = ?
+                       AND app_key <> ?
+                       AND (lifecycle_state <> 'RETIRED'
+                            OR health_state <> 'CONFIGURATION_REQUIRED')
+                    """, tenantId, app.resourceKey(), app.appKey());
             jdbc.update("""
                     INSERT INTO adm_workspace_apps (
                         tenant_id, app_key, name_ko, name_en,

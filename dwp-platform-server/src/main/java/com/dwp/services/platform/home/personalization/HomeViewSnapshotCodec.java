@@ -16,7 +16,7 @@ import java.util.Map;
 public class HomeViewSnapshotCodec {
     public static final int SNAPSHOT_VERSION = 1;
     private static final int MAX_LEGACY_LAYOUT_BYTES = 96 * 1024;
-    // 96 KiB layout + up to 30 bounded 4 KiB widget configs + two overlays.
+    // 96 KiB layout + up to 30 bounded 4 KiB widget configs + four overlays.
     public static final int MAX_SNAPSHOT_BYTES = 384 * 1024;
 
     private final ObjectMapper objectMapper;
@@ -40,8 +40,8 @@ public class HomeViewSnapshotCodec {
                 value.getWidgetKey(),
                 widgetConfigurationPolicy.decode(value.getConfigurationPayload())));
         Map<String, HomeViewDtos.DeviceLayoutOverlay> deviceSnapshot = new LinkedHashMap<>();
-        deviceLayouts.forEach(value -> deviceSnapshot.put(
-                value.getDeviceClass(), overlay(value.getOverlayPayload())));
+        deviceLayouts.forEach(value -> putCanonicalDeviceLayout(
+                deviceSnapshot, value.getDeviceClass(), overlay(value.getOverlayPayload())));
         return new HomeViewDtos.HomeViewSnapshot(
                 SNAPSHOT_VERSION,
                 false,
@@ -69,6 +69,7 @@ public class HomeViewSnapshotCodec {
             if (stored != null && stored.isObject() && stored.has("snapshotVersion")) {
                 HomeViewDtos.HomeViewSnapshot snapshot = objectMapper.treeToValue(
                         stored, HomeViewDtos.HomeViewSnapshot.class);
+                snapshot = canonicalizeDeviceLayouts(snapshot);
                 validate(snapshot);
                 return new DecodedSnapshot(snapshot, false);
             }
@@ -133,11 +134,46 @@ public class HomeViewSnapshotCodec {
                 || snapshot.widgetConfigurations() == null
                 || snapshot.widgetConfigurations().size() > 30
                 || snapshot.deviceLayouts() == null
-                || snapshot.deviceLayouts().size() > 2) {
+                || snapshot.deviceLayouts().size() > HomeDeviceClasses.CANONICAL.size()) {
             throw new BaseException(
                     ErrorCode.INTERNAL_SERVER_ERROR,
                     "The stored home view snapshot envelope is invalid.");
         }
+    }
+
+    private HomeViewDtos.HomeViewSnapshot canonicalizeDeviceLayouts(
+            HomeViewDtos.HomeViewSnapshot snapshot) {
+        if (snapshot == null || snapshot.deviceLayouts() == null) return snapshot;
+        Map<String, HomeViewDtos.DeviceLayoutOverlay> canonical = new LinkedHashMap<>();
+        snapshot.deviceLayouts().forEach((deviceClass, value) ->
+                putCanonicalDeviceLayout(canonical, deviceClass, value));
+        return new HomeViewDtos.HomeViewSnapshot(
+                snapshot.snapshotVersion(),
+                snapshot.legacyLayoutOnly(),
+                snapshot.view(),
+                snapshot.widgetConfigurations(),
+                Map.copyOf(canonical));
+    }
+
+    private void putCanonicalDeviceLayout(
+            Map<String, HomeViewDtos.DeviceLayoutOverlay> target,
+            String deviceClass,
+            HomeViewDtos.DeviceLayoutOverlay value) {
+        String canonical;
+        try {
+            canonical = HomeDeviceClasses.canonical(deviceClass);
+        } catch (BaseException exception) {
+            throw invalidStoredDeviceLayouts();
+        }
+        if (value == null || target.putIfAbsent(canonical, value) != null) {
+            throw invalidStoredDeviceLayouts();
+        }
+    }
+
+    private BaseException invalidStoredDeviceLayouts() {
+        return new BaseException(
+                ErrorCode.INTERNAL_SERVER_ERROR,
+                "The stored home view snapshot contains invalid device layouts.");
     }
 
     public record DecodedSnapshot(

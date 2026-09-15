@@ -48,6 +48,25 @@ public class HomeCompositionPolicyRegistry {
                 defaults.modeLayouts());
     }
 
+    /**
+     * Projection used while pre-Wave1 clients or servers may still be active.
+     * It carries the normalized governed state without exposing v4-only mode descriptors.
+     */
+    public HomeExperienceDtos.HomeCompositionPolicy legacyV3Projection(
+            HomeExperienceDtos.HomeCompositionPolicy policy) {
+        HomeExperienceDtos.HomeCompositionPolicy normalized = normalize(policy);
+        return new HomeExperienceDtos.HomeCompositionPolicy(
+                3,
+                normalized.experienceVariant(),
+                normalized.personalCustomizationEnabled(),
+                normalized.governedZones(),
+                null);
+    }
+
+    public HomeExperienceDtos.HomeCompositionPolicy legacyV3DefaultPolicy() {
+        return legacyV3Projection(defaultPolicy());
+    }
+
     public HomeExperienceDtos.HomeCompositionPolicy normalize(
             HomeExperienceDtos.HomeCompositionPolicy requested) {
         if (requested == null

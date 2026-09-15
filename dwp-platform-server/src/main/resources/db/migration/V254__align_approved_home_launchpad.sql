@@ -102,12 +102,12 @@ WITH repaired AS (
                                       ordinality
                                  FROM (
                                      SELECT placement_value, ordinality,
-                                            CASE upper(placement_value ->> 'resourceKey')
+                                            CASE upper(trim(placement_value ->> 'resourceKey'))
                                               WHEN 'APP.MAIL_CALENDAR' THEN 'APP.MAIL'
                                               WHEN 'APP.COLLABORATION' THEN 'APP.MESSAGING'
                                               WHEN 'APP.ROOMS' THEN 'APP.WORKPLACE'
                                               WHEN 'APP.HRIS' THEN 'APP.HCM'
-                                              ELSE upper(placement_value ->> 'resourceKey')
+                                              ELSE upper(trim(placement_value ->> 'resourceKey'))
                                             END AS canonical_resource_key
                                        FROM jsonb_array_elements(COALESCE(
                                             experience.launchpad_configuration -> 'placements', '[]'::jsonb))
@@ -207,6 +207,40 @@ WHERE (adm_workspace_apps.name_ko, adm_workspace_apps.name_en,
        EXCLUDED.required_permission_code, EXCLUDED.badge_source_key,
        EXCLUDED.health_state, EXCLUDED.sort_order, 'ACTIVE');
 
+-- A tenant may already contain a differently named catalog row for one of the
+-- approved resources. Keep that historical row for audit/reference, but retire
+-- it so each canonical resource has exactly one active launch winner.
+UPDATE adm_workspace_apps existing
+   SET lifecycle_state = 'RETIRED',
+       health_state = 'CONFIGURATION_REQUIRED',
+       version = existing.version + 1,
+       updated_at = CURRENT_TIMESTAMP,
+       updated_by = 1
+  FROM (VALUES
+    ('dwp-work','APP.WORK'),
+    ('dwp-ask','APP.ASK'),
+    ('dwp-activity','APP.ACTIVITY'),
+    ('dwp-approvals','APP.APPROVALS'),
+    ('dwp-notifications','APP.NOTIFICATIONS'),
+    ('dwp-communications','APP.COMMUNICATIONS'),
+    ('dwp-calendar','APP.CALENDAR'),
+    ('ref-app-mail','APP.MAIL'),
+    ('dwp-spaces','APP.SPACES'),
+    ('dwp-rooms','APP.WORKPLACE'),
+    ('dwp-messaging','APP.MESSAGING'),
+    ('dwp-meetings','APP.MEETINGS'),
+    ('ref-app-service','APP.EMPLOYEE_SERVICES'),
+    ('ref-app-people','APP.HCM'),
+    ('ref-app-knowledge','APP.KNOWLEDGE'),
+    ('ref-app-erp','APP.BUSINESS_ERP'),
+    ('ref-app-legacy','APP.LEGACY_OPERATIONS'),
+    ('dwp-admin','APP.ADMINISTRATION')
+  ) AS approved(app_key, resource_key)
+ WHERE upper(trim(existing.resource_key)) = approved.resource_key
+   AND existing.app_key <> approved.app_key
+   AND (existing.lifecycle_state <> 'RETIRED'
+        OR existing.health_state <> 'CONFIGURATION_REQUIRED');
+
 UPDATE adm_workspace_apps
    SET lifecycle_state = 'RETIRED',
        health_state = 'CONFIGURATION_REQUIRED',
@@ -214,7 +248,8 @@ UPDATE adm_workspace_apps
        updated_at = CURRENT_TIMESTAMP,
        updated_by = 1
  WHERE (app_key = 'ref-app-collaboration'
-    OR resource_key IN ('APP.COLLABORATION', 'APP.MAIL_CALENDAR', 'APP.ROOMS', 'APP.HRIS'))
+    OR upper(trim(resource_key)) IN (
+        'APP.COLLABORATION', 'APP.MAIL_CALENDAR', 'APP.ROOMS', 'APP.HRIS'))
    AND (lifecycle_state <> 'RETIRED' OR health_state <> 'CONFIGURATION_REQUIRED');
 
 COMMENT ON COLUMN adm_home_experiences.launchpad_configuration IS

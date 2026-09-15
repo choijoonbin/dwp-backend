@@ -283,6 +283,124 @@ class HomeViewServiceTest {
     }
 
     @Test
+    void legacyNoModeCreateListAndUpdateStayInTheEffectiveFlowNamespace() {
+        UUID createCommand = UUID.randomUUID();
+        UUID updateCommand = UUID.randomUUID();
+        HomePreferenceDtos.HomeLayoutPayload initial = layout(List.of());
+        HomePreferenceDtos.HomeLayoutPayload changed = layout(List.of(
+                new HomePreferenceDtos.WidgetPreference(
+                        "focus", true, "medium", "tall")));
+        java.util.concurrent.atomic.AtomicReference<HomeView> persisted =
+                new java.util.concurrent.atomic.AtomicReference<>();
+        when(compositionPolicy.effectiveExperienceVariant(7L)).thenReturn("FLOW_V1");
+        when(viewRepository.countByTenantIdAndUserIdAndSurfaceKeyAndModeKey(
+                7L, 11L, "workspace-home", "FLOW_V1")).thenReturn(0L);
+        when(preferenceService.normalizeForSurface("workspace-home", initial))
+                .thenReturn(initial);
+        when(preferenceService.normalizeForSurface("workspace-home", changed))
+                .thenReturn(changed);
+        when(viewRepository.saveAndFlush(any(HomeView.class))).thenAnswer(invocation -> {
+            HomeView value = invocation.getArgument(0);
+            persisted.set(value);
+            return value;
+        });
+        when(viewRepository.findByViewIdAndTenantIdAndUserId(any(), eq(7L), eq(11L)))
+                .thenAnswer(ignored -> Optional.ofNullable(persisted.get()));
+        when(viewRepository.findOwnedForUpdate(any(), eq(7L), eq(11L)))
+                .thenAnswer(ignored -> Optional.ofNullable(persisted.get()));
+        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
+                7L, 11L, "workspace-home", "FLOW_V1"))
+                .thenAnswer(ignored -> persisted.get() == null
+                        ? List.of() : List.of(persisted.get()));
+        when(revisionRepository.findTopByViewIdOrderByRevisionNumberDesc(any()))
+                .thenReturn(Optional.empty());
+        when(revisionRepository.saveAndFlush(any(HomeViewRevision.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        HomeViewDtos.HomeViewResponse created = service.create(
+                7L, 11L, createCommand, "legacy-flow-create",
+                new HomeViewDtos.CreateHomeViewRequest(
+                        "personal", "Flow personal", true, initial));
+        HomeViewDtos.HomeViewResponse listed =
+                service.list(7L, 11L, "workspace-home").getFirst();
+        HomeViewDtos.HomeViewResponse updated = service.update(
+                7L, 11L, created.viewId(), updateCommand, "legacy-flow-update",
+                new HomeViewDtos.UpdateHomeViewRequest("Changed Flow", changed, 0L));
+
+        assertThat(created.modeKey()).isEqualTo("FLOW_V1");
+        assertThat(listed.modeKey()).isEqualTo("FLOW_V1");
+        assertThat(updated.modeKey()).isEqualTo("FLOW_V1");
+        assertThat(updated.name()).isEqualTo("Changed Flow");
+        verify(scopeLock, org.mockito.Mockito.times(2))
+                .lock(7L, 11L, "workspace-home", "FLOW_V1");
+        verify(scopeLock, never()).lock(7L, 11L, "workspace-home", "CLASSIC");
+    }
+
+    @Test
+    void legacyNoModeCreateReplaysAcrossAnEffectiveModeChange() {
+        UUID commandId = UUID.randomUUID();
+        HomePreferenceDtos.HomeLayoutPayload initial = layout(List.of());
+        HomeViewDtos.CreateHomeViewRequest request = new HomeViewDtos.CreateHomeViewRequest(
+                "personal", "Flow personal", true, initial);
+        java.util.concurrent.atomic.AtomicReference<String> effectiveMode =
+                new java.util.concurrent.atomic.AtomicReference<>("FLOW_V1");
+        when(compositionPolicy.effectiveExperienceVariant(7L))
+                .thenAnswer(ignored -> effectiveMode.get());
+        when(viewRepository.countByTenantIdAndUserIdAndSurfaceKeyAndModeKey(
+                7L, 11L, "workspace-home", "FLOW_V1")).thenReturn(0L);
+        when(preferenceService.normalizeForSurface("workspace-home", initial))
+                .thenReturn(initial);
+        when(viewRepository.saveAndFlush(any(HomeView.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+        when(revisionRepository.findTopByViewIdOrderByRevisionNumberDesc(any()))
+                .thenReturn(Optional.empty());
+        when(revisionRepository.saveAndFlush(any(HomeViewRevision.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        HomeViewDtos.HomeViewResponse created = service.create(
+                7L, 11L, commandId, "legacy-flow-create", request);
+
+        org.mockito.ArgumentCaptor<String> target =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+        org.mockito.ArgumentCaptor<String> fingerprint =
+                org.mockito.ArgumentCaptor.forClass(String.class);
+        verify(commandReceipts).record(
+                eq(7L), eq(11L), eq(commandId), eq("CREATE_VIEW"),
+                target.capture(), fingerprint.capture(), eq(created));
+        assertThat(target.getValue()).isEqualTo("workspace-home:EFFECTIVE:personal");
+        when(commandReceipts.replay(
+                7L, 11L, commandId, "CREATE_VIEW", target.getValue(),
+                fingerprint.getValue(), HomeViewDtos.HomeViewResponse.class))
+                .thenReturn(created);
+        effectiveMode.set("CLASSIC");
+
+        HomeViewDtos.HomeViewResponse replayed = service.create(
+                7L, 11L, commandId, "retry-after-mode-change", request);
+
+        assertThat(replayed).isEqualTo(created);
+        verify(compositionPolicy).effectiveExperienceVariant(7L);
+        verify(viewRepository).saveAndFlush(any(HomeView.class));
+    }
+
+    @Test
+    void legacyNoModeNonWorkspaceSurfaceRemainsInTheClassicNamespace() {
+        HomeView hcm = HomeView.builder()
+                .viewId(UUID.randomUUID()).tenantId(7L).userId(11L)
+                .surfaceKey("hcm-home").modeKey("CLASSIC")
+                .viewKey("default").name("HCM home").defaultView(true)
+                .schemaVersion(5).layoutPayload(objectMapper.valueToTree(layout(List.of())))
+                .version(0L).build();
+        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
+                7L, 11L, "hcm-home", "CLASSIC")).thenReturn(List.of(hcm));
+        when(widgetConfigurations.findByViewIdAndTenantIdAndUserIdOrderByWidgetKey(
+                hcm.getViewId(), 7L, 11L)).thenReturn(List.of());
+
+        assertThat(service.list(7L, 11L, "hcm-home").getFirst().modeKey())
+                .isEqualTo("CLASSIC");
+        verify(compositionPolicy, never()).effectiveExperienceVariant(7L);
+    }
+
+    @Test
     void staleFlowUpdateFailsBeforeMutationAndUsesOnlyTheFlowLock() {
         UUID viewId = UUID.randomUUID();
         HomePreferenceDtos.HomeLayoutPayload layout = layout(List.of());
@@ -639,11 +757,17 @@ class HomeViewServiceTest {
                 .surfaceKey("workspace-home").viewKey("default").name("Changed")
                 .defaultView(true).customized(true).schemaVersion(5)
                 .layoutPayload(objectMapper.valueToTree(currentLayout)).version(0L).build();
+        HomeViewDtos.DeviceLayoutOverlay overlay = new HomeViewDtos.DeviceLayoutOverlay(
+                List.of("focus"), Map.of(), "compact");
         HomeViewDtos.HomeViewSnapshot storedSnapshot = new HomeViewDtos.HomeViewSnapshot(
                 1, false,
                 new HomeViewDtos.HomeViewSnapshotView(
                         "Reset home", false, 5, revisionLayout),
-                Map.of(), Map.of());
+                Map.of(), Map.of(
+                        "DESKTOP_WIDE", overlay,
+                        "DESKTOP", overlay,
+                        "MOBILE", overlay,
+                        "MOBILE_COMPACT", overlay));
         HomeViewRevision source = HomeViewRevision.builder()
                 .revisionId(revisionId).viewId(viewId).tenantId(7L).userId(11L)
                 .revisionNumber(1L).schemaVersion(5)
@@ -661,8 +785,15 @@ class HomeViewServiceTest {
                 .thenReturn(revisionLayout);
         when(widgetConfigurations.findByViewIdAndTenantIdAndUserIdOrderByWidgetKey(
                 viewId, 7L, 11L)).thenReturn(List.of());
+        java.util.concurrent.atomic.AtomicReference<List<HomeDeviceLayout>> restoredDevices =
+                new java.util.concurrent.atomic.AtomicReference<>(List.of());
         when(deviceLayouts.findByViewIdAndTenantIdAndUserIdOrderByDeviceClass(
-                viewId, 7L, 11L)).thenReturn(List.of());
+                viewId, 7L, 11L)).thenAnswer(ignored -> restoredDevices.get());
+        when(deviceLayouts.saveAllAndFlush(any())).thenAnswer(invocation -> {
+            List<HomeDeviceLayout> saved = List.copyOf(invocation.getArgument(0));
+            restoredDevices.set(saved);
+            return saved;
+        });
         when(viewRepository.saveAndFlush(view)).thenReturn(view);
         when(revisionRepository.findTopByViewIdOrderByRevisionNumberDesc(viewId))
                 .thenReturn(Optional.of(source));
@@ -678,6 +809,20 @@ class HomeViewServiceTest {
         assertThat(restored.layout().widgets().getLast())
                 .isEqualTo(new HomePreferenceDtos.WidgetPreference(
                         "command-rail", false, "full", "standard"));
+        assertThat(restoredDevices.get()).extracting(HomeDeviceLayout::getDeviceClass)
+                .containsExactlyInAnyOrder(
+                        "DESKTOP_WIDE", "DESKTOP_STANDARD",
+                        "MOBILE_STANDARD", "MOBILE_COMPACT");
+        org.mockito.ArgumentCaptor<HomeViewRevision> restoredRevision =
+                org.mockito.ArgumentCaptor.forClass(HomeViewRevision.class);
+        verify(revisionRepository).saveAndFlush(restoredRevision.capture());
+        assertThat(new HomeViewSnapshotCodec(
+                objectMapper, new HomeWidgetConfigurationPolicy(objectMapper))
+                .decode(restoredRevision.getValue().getSnapshot(), 5)
+                .snapshot().deviceLayouts().keySet())
+                .containsExactlyInAnyOrder(
+                        "DESKTOP_WIDE", "DESKTOP_STANDARD",
+                        "MOBILE_STANDARD", "MOBILE_COMPACT");
         verify(compatibilityBridge).mirrorDefaultView(view);
     }
 

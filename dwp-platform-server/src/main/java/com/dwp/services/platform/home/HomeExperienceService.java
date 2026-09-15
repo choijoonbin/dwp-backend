@@ -36,6 +36,10 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
             "BACKGROUND_ASSET",
             "LAUNCHPAD",
             "COMPOSITION");
+    private static final List<String> HOME_CONTRACT_CAPABILITIES = List.of(
+            "HOME_COMPOSITION_V4",
+            "MODE_SCOPED_HOME_VIEWS",
+            "FOUR_DEVICE_LAYOUTS");
     private final HomeExperienceRepository repository;
     private final TenantMediaStorage assetStorage;
     private final HomeBackgroundValidator validator;
@@ -46,6 +50,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
     private final HomeCompositionPolicyRegistry compositionPolicyRegistry;
     private final HomeViewCompatibilityBridge compatibilityBridge;
     private final HomeExperiencePresentationPolicy presentationPolicy;
+    private final HomeModeV4ActivationGate modeV4ActivationGate;
 
     @Value("${dwp.platform.home.flow-enabled:false}")
     private boolean homeFlowEnabled;
@@ -75,7 +80,8 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
             HomeLaunchpadPolicy launchpadPolicy,
             HomeCompositionPolicyRegistry compositionPolicyRegistry,
             HomeViewCompatibilityBridge compatibilityBridge,
-            HomeExperiencePresentationPolicy presentationPolicy) {
+            HomeExperiencePresentationPolicy presentationPolicy,
+            HomeModeV4ActivationGate modeV4ActivationGate) {
         this.repository = repository;
         this.assetStorage = assetStorage;
         this.validator = validator;
@@ -86,6 +92,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
         this.compositionPolicyRegistry = compositionPolicyRegistry;
         this.compatibilityBridge = compatibilityBridge;
         this.presentationPolicy = presentationPolicy;
+        this.modeV4ActivationGate = modeV4ActivationGate;
     }
 
     @Transactional(readOnly = true)
@@ -227,14 +234,21 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
             Long actorId,
             String correlationId,
             HomeExperienceDtos.UpdateHomeCompositionPolicyRequest request) {
+        HomeExperienceDtos.HomeCompositionPolicy normalized =
+                compositionPolicyRegistry.normalize(request.policy());
+        if (!modeV4ActivationGate.active()
+                && request.policy().schemaVersion() == HomeCompositionPolicyRegistry.SCHEMA_VERSION) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Home Composition v4 activation requires a fully compatible fleet.");
+        }
         HomeExperience experience = findOrCreate(tenantId, request.version());
         requireVersion(experience, request.version());
         Object before = snapshot(experience);
         ensureBaseline(tenantId, actorId, correlationId, experience);
 
-        HomeExperienceDtos.HomeCompositionPolicy normalized =
-                compositionPolicyRegistry.normalize(request.policy());
-        experience.setCompositionPolicy(objectMapper.valueToTree(normalized));
+        experience.setCompositionPolicy(objectMapper.valueToTree(
+                persistableCompositionPolicy(normalized)));
         HomeExperience saved = repository.saveAndFlush(experience);
         appendRevision(tenantId, actorId, correlationId, "SETTINGS_PUBLISHED", saved);
         auditService.success(
@@ -261,10 +275,21 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
 
     @Override
     @Transactional(readOnly = true)
+    public String effectiveExperienceVariant(Long tenantId) {
+        HomeExperienceDtos.HomeCompositionPolicy policy = repository.findById(tenantId)
+                .map(HomeExperience::getCompositionPolicy)
+                .map(this::compositionPolicy)
+                .orElseGet(compositionPolicyRegistry::defaultPolicy);
+        return compositionPolicyRegistry.effectiveVariant(policy, homeFlowEnabled);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public boolean flowPersonalizationEnabled(Long tenantId) {
         // The rollout gates remain shared, while Flow writes stay in their own mode-scoped View.
         // The preserved Classic View and legacy preference are the lossless rollback target.
-        if (!homeFlowEnabled || !advancedPersonalizationEnabled || !viewsDualWriteEnabled) {
+        if (!modeV4ActivationGate.active() || !homeFlowEnabled
+                || !advancedPersonalizationEnabled || !viewsDualWriteEnabled) {
             return false;
         }
         HomeExperienceDtos.HomeCompositionPolicy policy = repository.findById(tenantId)
@@ -395,7 +420,8 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
                     .launchpadConfiguration(
                             objectMapper.valueToTree(launchpadPolicy.defaultConfiguration()))
                     .compositionPolicy(
-                            objectMapper.valueToTree(compositionPolicyRegistry.defaultPolicy()))
+                            objectMapper.valueToTree(persistableCompositionPolicy(
+                                    compositionPolicyRegistry.defaultPolicy())))
                     .build();
         });
     }
@@ -412,8 +438,10 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
         String url = experience.getBackgroundAssetKey() == null
                 ? null
                 : BACKGROUND_URL + "?v=" + version;
-        HomeExperienceDtos.HomeCompositionPolicy compositionPolicy =
+        HomeExperienceDtos.HomeCompositionPolicy canonicalCompositionPolicy =
                 compositionPolicy(experience.getCompositionPolicy());
+        HomeExperienceDtos.HomeCompositionPolicy responseCompositionPolicy =
+                responseCompositionPolicy(canonicalCompositionPolicy);
         return new HomeExperienceDtos.HomeExperienceResponse(
                 experience.getHeadline(),
                 experience.getSubheadline(),
@@ -433,11 +461,13 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
                 experience.getBackgroundWidth(),
                 experience.getBackgroundHeight(),
                 launchpadConfiguration(experience.getLaunchpadConfiguration()),
-                compositionPolicy,
-                compositionPolicyRegistry.effectiveVariant(compositionPolicy, homeFlowEnabled),
-                personalizationAvailable(compositionPolicy),
-                composerAvailable(compositionPolicy),
-                homePreferenceStore(experience.getTenantId(), compositionPolicy),
+                responseCompositionPolicy,
+                compositionPolicyRegistry.effectiveVariant(
+                        canonicalCompositionPolicy, homeFlowEnabled),
+                personalizationAvailable(canonicalCompositionPolicy),
+                composerAvailable(canonicalCompositionPolicy),
+                homePreferenceStore(experience.getTenantId(), canonicalCompositionPolicy),
+                homeContractCapabilities(),
                 version,
                 experience.getUpdatedAt() == null
                         ? null
@@ -447,8 +477,10 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
     }
 
     private HomeExperienceDtos.HomeExperienceResponse defaultResponse(Long tenantId) {
-        HomeExperienceDtos.HomeCompositionPolicy compositionPolicy =
+        HomeExperienceDtos.HomeCompositionPolicy canonicalCompositionPolicy =
                 compositionPolicyRegistry.defaultPolicy();
+        HomeExperienceDtos.HomeCompositionPolicy responseCompositionPolicy =
+                responseCompositionPolicy(canonicalCompositionPolicy);
         return new HomeExperienceDtos.HomeExperienceResponse(
                 null,
                 null,
@@ -468,11 +500,13 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
                 null,
                 null,
                 launchpadPolicy.defaultConfiguration(),
-                compositionPolicy,
-                compositionPolicyRegistry.effectiveVariant(compositionPolicy, homeFlowEnabled),
-                personalizationAvailable(compositionPolicy),
-                composerAvailable(compositionPolicy),
-                homePreferenceStore(tenantId, compositionPolicy),
+                responseCompositionPolicy,
+                compositionPolicyRegistry.effectiveVariant(
+                        canonicalCompositionPolicy, homeFlowEnabled),
+                personalizationAvailable(canonicalCompositionPolicy),
+                composerAvailable(canonicalCompositionPolicy),
+                homePreferenceStore(tenantId, canonicalCompositionPolicy),
+                homeContractCapabilities(),
                 0L,
                 null,
                 null);
@@ -481,7 +515,8 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
     private String homePreferenceStore(
             Long tenantId,
             HomeExperienceDtos.HomeCompositionPolicy compositionPolicy) {
-        return advancedPersonalizationEnabled
+        return modeV4ActivationGate.active()
+                && advancedPersonalizationEnabled
                 && viewsReadEnabled
                 && viewsDualWriteEnabled
                 && viewsShadowCompareEnabled
@@ -494,13 +529,31 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
     private boolean composerAvailable(
             HomeExperienceDtos.HomeCompositionPolicy compositionPolicy) {
         return personalizationAvailable(compositionPolicy)
-                && composerEnabled;
+                && composerEnabled
+                && modeV4ActivationGate.active();
     }
 
     private boolean personalizationAvailable(
             HomeExperienceDtos.HomeCompositionPolicy compositionPolicy) {
-        return advancedPersonalizationEnabled
+        return modeV4ActivationGate.active()
+                && advancedPersonalizationEnabled
                 && Boolean.TRUE.equals(compositionPolicy.personalCustomizationEnabled());
+    }
+
+    private List<String> homeContractCapabilities() {
+        return modeV4ActivationGate.active() ? HOME_CONTRACT_CAPABILITIES : List.of();
+    }
+
+    private HomeExperienceDtos.HomeCompositionPolicy responseCompositionPolicy(
+            HomeExperienceDtos.HomeCompositionPolicy canonical) {
+        return modeV4ActivationGate.active()
+                ? canonical
+                : compositionPolicyRegistry.legacyV3Projection(canonical);
+    }
+
+    private HomeExperienceDtos.HomeCompositionPolicy persistableCompositionPolicy(
+            HomeExperienceDtos.HomeCompositionPolicy canonical) {
+        return responseCompositionPolicy(canonical);
     }
 
     private void clearBackground(HomeExperience experience) {
@@ -600,7 +653,8 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
                         launchpadConfiguration(value.get("launchpadConfiguration"))));
         experience.setCompositionPolicy(
                 objectMapper.valueToTree(
-                        compositionPolicy(value.get("compositionPolicy"))));
+                        persistableCompositionPolicy(
+                                compositionPolicy(value.get("compositionPolicy")))));
         experience.setBackgroundAssetKey(assetKey);
         experience.setBackgroundOriginalName(text(value, "backgroundOriginalName"));
         experience.setBackgroundContentType(text(value, "backgroundContentType"));

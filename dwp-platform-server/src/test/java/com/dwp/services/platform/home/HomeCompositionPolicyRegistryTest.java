@@ -2,6 +2,7 @@ package com.dwp.services.platform.home;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -89,6 +90,20 @@ class HomeCompositionPolicyRegistryTest {
         assertThat(result.schemaVersion()).isEqualTo(4);
         assertThat(result.experienceVariant()).isEqualTo("CLASSIC");
         assertThat(result.modeLayouts().keySet()).containsExactly("CLASSIC", "FLOW_V1");
+    }
+
+    @Test
+    void legacyProjectionRetainsNormalizedPolicyWithoutV4Descriptors() {
+        HomeExperienceDtos.HomeCompositionPolicy result = registry.legacyV3Projection(
+                new HomeExperienceDtos.HomeCompositionPolicy(
+                        3, "FLOW_V1", false, List.of()));
+
+        assertThat(result.schemaVersion()).isEqualTo(3);
+        assertThat(result.experienceVariant()).isEqualTo("FLOW_V1");
+        assertThat(result.personalCustomizationEnabled()).isFalse();
+        assertThat(result.modeLayouts()).isNull();
+        assertThat(result.governedZones()).hasSize(1);
+        assertThat(new ObjectMapper().valueToTree(result).has("modeLayouts")).isFalse();
     }
 
     @Test

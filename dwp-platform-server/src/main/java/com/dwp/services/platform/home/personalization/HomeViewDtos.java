@@ -28,7 +28,7 @@ public final class HomeViewDtos {
             @NotNull @Valid HomePreferenceDtos.HomeLayoutPayload layout) {
 
         public CreateHomeViewRequest {
-            modeKey = HomeModeKeys.canonical(modeKey);
+            if (modeKey != null) modeKey = HomeModeKeys.canonical(modeKey);
         }
 
         public CreateHomeViewRequest(

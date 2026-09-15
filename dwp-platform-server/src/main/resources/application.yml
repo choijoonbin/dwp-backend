@@ -89,6 +89,8 @@ dwp:
     widget-registry-enabled: ${DWP_WIDGET_REGISTRY_ENABLED:false}
     home:
       flow-enabled: ${DWP_HOME_FLOW_ENABLED:false}
+      # Activate only after all pre-Wave1 pods are drained; see the rollout contract.
+      mode-v4-activation-enabled: ${DWP_HOME_MODE_V4_ACTIVATION_ENABLED:false}
       personalization-v2-enabled: ${DWP_HOME_PERSONALIZATION_V2_ENABLED:false}
       composer-enabled: ${DWP_HOME_COMPOSER_ENABLED:false}
       views-dual-write-enabled: ${DWP_HOME_VIEWS_DUAL_WRITE_ENABLED:false}

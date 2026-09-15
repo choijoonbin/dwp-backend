@@ -47,10 +47,12 @@ class HomeExperienceServiceTest {
     private HomeViewCompatibilityBridge compatibilityBridge;
 
     private HomeExperienceService service;
+    private HomeModeV4ActivationGate modeV4ActivationGate;
 
     @BeforeEach
     void setUp() {
         ObjectMapper objectMapper = new ObjectMapper();
+        modeV4ActivationGate = new HomeModeV4ActivationGate(true);
         service = new HomeExperienceService(
                 repository,
                 storage,
@@ -61,7 +63,8 @@ class HomeExperienceServiceTest {
                 new HomeLaunchpadPolicy(),
                 new HomeCompositionPolicyRegistry(),
                 compatibilityBridge,
-                new HomeExperiencePresentationPolicy(objectMapper));
+                new HomeExperiencePresentationPolicy(objectMapper),
+                modeV4ActivationGate);
         lenient().when(compatibilityBridge.readCutoverReady(any())).thenReturn(true);
     }
 
@@ -80,6 +83,9 @@ class HomeExperienceServiceTest {
         assertThat(result.contentAlignment()).isEqualTo("LEFT");
         assertThat(result.overlayOpacity()).isEqualTo(18);
         assertThat(result.compositionPolicy().personalCustomizationEnabled()).isTrue();
+        assertThat(result.compositionPolicy().schemaVersion()).isEqualTo(3);
+        assertThat(result.compositionPolicy().modeLayouts()).isNull();
+        assertThat(result.homeContractCapabilities()).isEmpty();
         assertThat(result.compositionPolicy().governedZones())
                 .extracting(HomeExperienceDtos.GovernedHomeZone::zoneKey)
                 .containsExactly("announcements");
@@ -126,13 +132,17 @@ class HomeExperienceServiceTest {
         ReflectionTestUtils.setField(service, "viewsReadEnabled", true);
         ReflectionTestUtils.setField(service, "viewsDualWriteEnabled", true);
         ReflectionTestUtils.setField(service, "viewsShadowCompareEnabled", true);
+        modeV4ActivationGate.markContinuityReady();
 
         HomeExperienceDtos.HomeExperienceResponse enabled = service.get(7L);
 
         assertThat(enabled.effectiveExperienceVariant()).isEqualTo("FLOW_V1");
+        assertThat(enabled.compositionPolicy().schemaVersion()).isEqualTo(4);
         assertThat(enabled.advancedPersonalizationEnabled()).isTrue();
         assertThat(enabled.composerEnabled()).isTrue();
         assertThat(enabled.homePreferenceStore()).isEqualTo("VIEWS");
+        assertThat(enabled.homeContractCapabilities()).containsExactly(
+                "HOME_COMPOSITION_V4", "MODE_SCOPED_HOME_VIEWS", "FOUR_DEVICE_LAYOUTS");
         assertThat(service.flowPersonalizationEnabled(7L)).isTrue();
 
         ReflectionTestUtils.setField(service, "viewsDualWriteEnabled", false);
@@ -165,6 +175,7 @@ class HomeExperienceServiceTest {
         ReflectionTestUtils.setField(service, "viewsReadEnabled", true);
         ReflectionTestUtils.setField(service, "viewsDualWriteEnabled", true);
         ReflectionTestUtils.setField(service, "viewsShadowCompareEnabled", true);
+        modeV4ActivationGate.markContinuityReady();
 
         HomeExperienceDtos.HomeExperienceResponse result = service.get(7L);
 
@@ -208,6 +219,30 @@ class HomeExperienceServiceTest {
                 eq("corr-1"),
                 anyMap(),
                 anyMap());
+    }
+
+    @Test
+    void newTenantWritesPersistTheV3ProjectionUntilFleetActivation() {
+        when(repository.findById(7L)).thenReturn(Optional.empty());
+        when(repository.saveAndFlush(any(HomeExperience.class))).thenAnswer(invocation -> {
+            HomeExperience created = invocation.getArgument(0);
+            created.setVersion(1L);
+            return created;
+        });
+
+        HomeExperienceDtos.HomeExperienceResponse result = service.update(
+                7L, 11L, "legacy-create",
+                new HomeExperienceDtos.UpdateHomeExperienceRequest(
+                        "Welcome", "Start work", "RIGHT", 20, 0L));
+
+        org.mockito.ArgumentCaptor<HomeExperience> saved =
+                org.mockito.ArgumentCaptor.forClass(HomeExperience.class);
+        verify(repository).saveAndFlush(saved.capture());
+        assertThat(saved.getValue().getCompositionPolicy().path("schemaVersion").asInt())
+                .isEqualTo(3);
+        assertThat(saved.getValue().getCompositionPolicy().has("modeLayouts")).isFalse();
+        assertThat(result.compositionPolicy().schemaVersion()).isEqualTo(3);
+        assertThat(result.homeContractCapabilities()).isEmpty();
     }
 
     @Test
@@ -333,6 +368,7 @@ class HomeExperienceServiceTest {
 
     @Test
     void publishesNormalizedTenantHomeCompositionAndWritesAudit() {
+        modeV4ActivationGate.markContinuityReady();
         HomeExperience experience = experience(7L, 2L, null);
         when(repository.findById(7L)).thenReturn(Optional.of(experience));
         when(repository.saveAndFlush(experience)).thenAnswer(invocation -> {
@@ -354,6 +390,7 @@ class HomeExperienceServiceTest {
                         2L));
 
         assertThat(result.compositionPolicy().personalCustomizationEnabled()).isFalse();
+        assertThat(result.compositionPolicy().schemaVersion()).isEqualTo(4);
         assertThat(result.compositionPolicy().governedZones())
                 .extracting(HomeExperienceDtos.GovernedHomeZone::zoneKey)
                 .containsExactly("announcements");
@@ -369,6 +406,58 @@ class HomeExperienceServiceTest {
                 eq("corr-composition"),
                 anyMap(),
                 anyMap());
+    }
+
+    @Test
+    void mixedFleetCannotAdvertiseOrWriteModeScopedHomeContracts() throws Exception {
+        HomeExperience experience = experience(7L, 2L, null);
+        experience.setCompositionPolicy(new ObjectMapper().readTree("""
+                {
+                  "schemaVersion":3,
+                  "experienceVariant":"FLOW_V1",
+                  "personalCustomizationEnabled":true,
+                  "governedZones":[]
+                }
+                """));
+        when(repository.findById(7L)).thenReturn(Optional.of(experience));
+        when(repository.saveAndFlush(experience)).thenAnswer(invocation -> {
+            experience.setVersion(3L);
+            return experience;
+        });
+        ReflectionTestUtils.setField(service, "homeFlowEnabled", true);
+        ReflectionTestUtils.setField(service, "advancedPersonalizationEnabled", true);
+        ReflectionTestUtils.setField(service, "composerEnabled", true);
+        ReflectionTestUtils.setField(service, "viewsReadEnabled", true);
+        ReflectionTestUtils.setField(service, "viewsDualWriteEnabled", true);
+        ReflectionTestUtils.setField(service, "viewsShadowCompareEnabled", true);
+
+        HomeExperienceDtos.HomeExperienceResponse mixed = service.get(7L);
+
+        assertThat(mixed.homeContractCapabilities()).isEmpty();
+        assertThat(mixed.compositionPolicy().schemaVersion()).isEqualTo(3);
+        assertThat(mixed.compositionPolicy().modeLayouts()).isNull();
+        assertThat(mixed.advancedPersonalizationEnabled()).isFalse();
+        assertThat(mixed.homePreferenceStore()).isEqualTo("LEGACY");
+        assertThat(mixed.composerEnabled()).isFalse();
+        assertThat(service.flowPersonalizationEnabled(7L)).isFalse();
+
+        HomeExperienceDtos.HomeExperienceResponse legacyUpdate = service.updateComposition(
+                7L, 11L, "mixed-fleet-v3",
+                new HomeExperienceDtos.UpdateHomeCompositionPolicyRequest(
+                        new HomeExperienceDtos.HomeCompositionPolicy(
+                                3, "FLOW_V1", false, List.of()), 2L));
+
+        assertThat(legacyUpdate.compositionPolicy().schemaVersion()).isEqualTo(3);
+        assertThat(legacyUpdate.compositionPolicy().modeLayouts()).isNull();
+        assertThat(experience.getCompositionPolicy().path("schemaVersion").asInt()).isEqualTo(3);
+        assertThat(experience.getCompositionPolicy().has("modeLayouts")).isFalse();
+        assertThatThrownBy(() -> service.updateComposition(
+                7L, 11L, "mixed-fleet-v4",
+                new HomeExperienceDtos.UpdateHomeCompositionPolicyRequest(
+                        new HomeCompositionPolicyRegistry().defaultPolicy(), 3L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        verify(repository).saveAndFlush(experience);
     }
 
     @Test
@@ -638,6 +727,9 @@ class HomeExperienceServiceTest {
         assertThat(result.contentAlignment()).isEqualTo("CENTER");
         assertThat(result.launchpadConfiguration().groups()).hasSize(4);
         assertThat(result.compositionPolicy().personalCustomizationEnabled()).isFalse();
+        assertThat(result.compositionPolicy().schemaVersion()).isEqualTo(3);
+        assertThat(current.getCompositionPolicy().path("schemaVersion").asInt()).isEqualTo(3);
+        assertThat(current.getCompositionPolicy().has("modeLayouts")).isFalse();
         assertThat(result.compositionPolicy().governedZones().getFirst().size())
                 .isEqualTo("medium");
     }

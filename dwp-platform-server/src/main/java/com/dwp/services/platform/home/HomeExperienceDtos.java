@@ -1,5 +1,6 @@
 package com.dwp.services.platform.home;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -77,7 +78,7 @@ public final class HomeExperienceDtos {
 
     @Schema(requiredProperties = {
             "schemaVersion", "experienceVariant", "personalCustomizationEnabled",
-            "governedZones", "modeLayouts"
+            "governedZones"
     })
     public record HomeCompositionPolicy(
             Integer schemaVersion,
@@ -85,6 +86,7 @@ public final class HomeExperienceDtos {
             String experienceVariant,
             Boolean personalCustomizationEnabled,
             List<GovernedHomeZone> governedZones,
+            @JsonInclude(JsonInclude.Include.NON_NULL)
             Map<String, HomeModeLayoutContract> modeLayouts) {
 
         public HomeCompositionPolicy(
@@ -170,6 +172,7 @@ public final class HomeExperienceDtos {
             Boolean advancedPersonalizationEnabled,
             Boolean composerEnabled,
             @Schema(allowableValues = {"LEGACY", "VIEWS"}) String homePreferenceStore,
+            List<String> homeContractCapabilities,
             Long version,
             OffsetDateTime updatedAt,
             Long updatedBy) {
@@ -203,6 +206,7 @@ public final class HomeExperienceDtos {
                     backgroundWidth, backgroundHeight, launchpadConfiguration,
                     compositionPolicy, effectiveExperienceVariant,
                     advancedPersonalizationEnabled, composerEnabled, homePreferenceStore,
+                    List.of(),
                     version, updatedAt, updatedBy);
         }
     }

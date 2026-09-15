@@ -88,10 +88,10 @@ public class HomeViewCompatibilityBridge {
         affected = jdbc.update("""
                 INSERT INTO usr_home_views (
                     view_id, tenant_id, user_id, surface_key, mode_key, view_key, name, is_default,
-                    schema_version, layout_payload, is_customized,
+                    schema_version, layout_payload, is_customized, legacy_unscoped,
                     version, created_by, updated_by)
                 SELECT gen_random_uuid(), ?, ?, ?, 'CLASSIC', 'default', 'My home', TRUE,
-                       ?, ?::jsonb, ?, 0, ?, ?
+                       ?, ?::jsonb, ?, FALSE, 0, ?, ?
                  WHERE NOT EXISTS (
                     SELECT 1 FROM usr_home_views
                      WHERE tenant_id = ? AND user_id = ? AND surface_key = ?
@@ -104,6 +104,7 @@ public class HomeViewCompatibilityBridge {
                         layout_payload = EXCLUDED.layout_payload,
                         integrity_state = 'VALID',
                         is_customized = EXCLUDED.is_customized,
+                        legacy_unscoped = FALSE,
                         version = usr_home_views.version + 1,
                         updated_at = CURRENT_TIMESTAMP,
                         updated_by = EXCLUDED.updated_by

@@ -83,7 +83,8 @@ class HomeViewCompatibilityBridgeTest {
                 .contains("WHERE NOT EXISTS")
                 .contains("ON CONFLICT (tenant_id, user_id, surface_key, mode_key, view_key)")
                 .contains("WHERE deleted_at IS NULL")
-                .contains("DO UPDATE");
+                .contains("DO UPDATE")
+                .contains("legacy_unscoped = FALSE");
         assertThat(arguments.getAllValues().get(1)).hasSize(11);
         assertThat(arguments.getAllValues().get(1)[8]).isEqualTo(7L);
         assertThat(arguments.getAllValues().get(1)[9]).isEqualTo(11L);

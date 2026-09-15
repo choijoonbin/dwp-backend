@@ -56,14 +56,14 @@ public class HomeViewService extends HomeViewServiceSupport {
     @Transactional(readOnly = true)
     public List<HomeViewDtos.HomeViewResponse> list(
             Long tenantId, Long userId, String surfaceKey) {
-        return list(tenantId, userId, surfaceKey, HomeModeKeys.CLASSIC);
+        return list(tenantId, userId, surfaceKey, null);
     }
 
     @Transactional(readOnly = true)
     public List<HomeViewDtos.HomeViewResponse> list(
             Long tenantId, Long userId, String surfaceKey, String rawModeKey) {
         access.requirePersonalization();
-        String modeKey = HomeModeKeys.canonical(rawModeKey);
+        String modeKey = resolveMode(tenantId, surfaceKey, rawModeKey);
         return views.findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
                         tenantId, userId, surfaceKey, modeKey)
                 .stream().map(this::response).toList();
@@ -84,17 +84,21 @@ public class HomeViewService extends HomeViewServiceSupport {
             String correlationId,
             HomeViewDtos.CreateHomeViewRequest request) {
         access.requirePersonalization();
-        String modeKey = HomeModeKeys.canonical(request.modeKey());
+        String requestedModeKey = request.modeKey();
+        String receiptModeSelector = requestedModeKey == null
+                ? "EFFECTIVE" : HomeModeKeys.canonical(requestedModeKey);
         String fingerprint = fingerprint(Map.of(
                 "operation", "CREATE_VIEW", "surfaceKey", HomePreferenceService.WORKSPACE_HOME,
-                "modeKey", modeKey,
+                "modeSelector", receiptModeSelector,
                 "request", request));
-        String receiptTarget = HomePreferenceService.WORKSPACE_HOME + ":" + modeKey
+        String receiptTarget = HomePreferenceService.WORKSPACE_HOME + ":" + receiptModeSelector
                 + ":" + request.viewKey();
         HomeViewDtos.HomeViewResponse receiptReplay = commandReceipts.replay(
                 tenantId, userId, commandId, "CREATE_VIEW", receiptTarget,
                 fingerprint, HomeViewDtos.HomeViewResponse.class);
         if (receiptReplay != null) return receiptReplay;
+        String modeKey = resolveMode(
+                tenantId, HomePreferenceService.WORKSPACE_HOME, requestedModeKey);
         requirePersonalization(tenantId, HomePreferenceService.WORKSPACE_HOME, modeKey);
         scopeLock.lock(tenantId, userId, HomePreferenceService.WORKSPACE_HOME, modeKey);
         receiptReplay = commandReceipts.replay(
@@ -135,6 +139,16 @@ public class HomeViewService extends HomeViewServiceSupport {
         commandReceipts.record(tenantId, userId, commandId, "CREATE_VIEW",
                 receiptTarget, fingerprint, result);
         return result;
+    }
+
+    private String resolveMode(Long tenantId, String surfaceKey, String rawModeKey) {
+        if (rawModeKey != null && !rawModeKey.isBlank()) {
+            return HomeModeKeys.canonical(rawModeKey);
+        }
+        if (!HomePreferenceService.WORKSPACE_HOME.equals(surfaceKey)) {
+            return HomeModeKeys.CLASSIC;
+        }
+        return HomeModeKeys.canonical(compositionPolicy.effectiveExperienceVariant(tenantId));
     }
 
     @Transactional

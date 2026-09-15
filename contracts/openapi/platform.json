@@ -11449,6 +11449,10 @@
           "makeDefault": {
             "type": "boolean"
           },
+          "modeKey": {
+            "pattern": "CLASSIC|FLOW_V1",
+            "type": "string"
+          },
           "name": {
             "maxLength": 80,
             "minLength": 0,
@@ -12052,8 +12056,10 @@
         "properties": {
           "deviceClass": {
             "enum": [
-              "DESKTOP",
-              "MOBILE"
+              "DESKTOP_WIDE",
+              "DESKTOP_STANDARD",
+              "MOBILE_STANDARD",
+              "MOBILE_COMPACT"
             ],
             "type": "string"
           },
@@ -14087,6 +14093,12 @@
             },
             "type": "array"
           },
+          "modeLayouts": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/HomeModeLayoutContract"
+            },
+            "type": "object"
+          },
           "personalCustomizationEnabled": {
             "type": "boolean"
           },
@@ -14236,6 +14248,12 @@
           },
           "headline": {
             "type": "string"
+          },
+          "homeContractCapabilities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           },
           "homePreferenceStore": {
             "enum": [
@@ -14453,6 +14471,23 @@
           "urgent": {
             "format": "int32",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "HomeModeLayoutContract": {
+        "properties": {
+          "deviceClasses": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "layoutScope": {
+            "enum": [
+              "MODE_SCOPED_VIEW"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -14743,6 +14778,9 @@
           "layout": {
             "$ref": "#/components/schemas/HomeLayoutPayload"
           },
+          "modeKey": {
+            "type": "string"
+          },
           "name": {
             "type": "string"
           },
@@ -14779,6 +14817,7 @@
           "customized",
           "isDefault",
           "layout",
+          "modeKey",
           "name",
           "schemaVersion",
           "surfaceKey",
@@ -24309,6 +24348,9 @@
           "accessState": {
             "type": "string"
           },
+          "badgeSourceKey": {
+            "type": "string"
+          },
           "category": {
             "type": "string"
           },
@@ -24346,6 +24388,9 @@
           },
           "pinned": {
             "type": "boolean"
+          },
+          "requiredPermissionCode": {
+            "type": "string"
           },
           "resourceKey": {
             "type": "string"
@@ -39149,6 +39194,15 @@
               "pattern": "[a-z][a-z0-9-]{1,79}",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "modeKey",
+            "required": false,
+            "schema": {
+              "pattern": "CLASSIC|FLOW_V1",
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -39793,10 +39847,14 @@
             "required": true,
             "schema": {
               "enum": [
+                "DESKTOP_WIDE",
+                "DESKTOP_STANDARD",
+                "MOBILE_STANDARD",
+                "MOBILE_COMPACT",
                 "DESKTOP",
                 "MOBILE"
               ],
-              "pattern": "DESKTOP|MOBILE",
+              "pattern": "DESKTOP|MOBILE|DESKTOP_WIDE|DESKTOP_STANDARD|MOBILE_STANDARD|MOBILE_COMPACT",
               "type": "string"
             }
           }

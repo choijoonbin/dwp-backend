@@ -41,7 +41,7 @@ public class HomeViewController {
             @RequestHeader(USER) Long userId,
             @RequestParam(defaultValue = "workspace-home")
             @Pattern(regexp = "[a-z][a-z0-9-]{1,79}") String surfaceKey,
-            @RequestParam(defaultValue = "CLASSIC")
+            @RequestParam(required = false)
             @Pattern(regexp = "CLASSIC|FLOW_V1") String modeKey) {
         return ApiResponse.success(service.list(tenantId, userId, surfaceKey, modeKey));
     }
