@@ -101,7 +101,7 @@ dwp:
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   provider:
     service-token: ${DWP_PROVIDER_SERVICE_TOKEN:}
-    platform-service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}
+    widget-registry-platform-token: ${DWP_WIDGET_REGISTRY_PROVIDER_TOKEN:}
     provisioning-token: ${DWP_PROVIDER_PROVISIONING_TOKEN:}
     support-validation-token: ${DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN:}
     support-cookie-secure: ${DWP_PROVIDER_SUPPORT_COOKIE_SECURE:true}

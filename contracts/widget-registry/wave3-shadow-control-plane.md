@@ -8,7 +8,7 @@ Flyway V256 adds Definition, immutable Definition Version, native Renderer Bindi
 
 Only `kind=NATIVE` bindings can be stored. Manifest validation binds definition key, owning product, source app resource, renderer key, host API range, and privacy classification to an active allowlisted binding. Renderer URLs, remote JavaScript, and provider data access are absent from the contract.
 
-Provider control-plane traffic enters through these browser-facing gateway namespaces and is proxied to Platform `/v1/admin/...` endpoints:
+Provider control-plane traffic enters through these browser-facing gateway namespaces and is proxied over the purpose-bound `X-DWP-Widget-Registry-Token` to the internal Platform `/internal/provider-bff/v1/widget-registry/...` namespace. Platform rewrites that namespace only after validating the dedicated secret and strips it before the existing operator, permission, and owner-scope guards run:
 
 - `/api/provider/v1/admin/widget-definitions/**`
 - `/api/provider/v1/admin/widget-definition-versions/**`
@@ -46,4 +46,4 @@ The seven legacy rows are `APPROVED/PUBLISHED` only to compare static and shadow
 
 ## Deployment and rollback
 
-V256 and V257 are additive and safe while old binaries run because no existing Home table or runtime path is replaced. Deploy the Wave 3 binary, verify readiness reports SHADOW and runtime false, then compare static and shadow decisions. Rolling back the binary leaves inert additive rows; roll forward to modify their schema. Do not set runtime activation through SQL: this release deliberately has no legal activation state.
+V256 and V257 are additive and safe while old binaries run because no existing Home table or runtime path is replaced. Provision the same independently generated `DWP_WIDGET_REGISTRY_PROVIDER_TOKEN` only to Provider and Platform, deploy both Wave 3 binaries, verify readiness reports SHADOW and runtime false, then compare static and shadow decisions. A missing token fails every Provider registry call closed. Rolling back the binary leaves inert additive rows; roll forward to modify their schema. Do not set runtime activation through SQL: this release deliberately has no legal activation state.

@@ -63,6 +63,7 @@ SIGNED_WORKLOAD_FIELDS = {
 }
 PURPOSE_TOKEN_HEADERS = {
     "X-DWP-Provisioning-Token", "X-DWP-Identity-Sync-Token", "X-DWP-Approval-Recovery-Token",
+    "X-DWP-Widget-Registry-Token",
     "X-DWP-Approval-Form-User-Token",
     "X-DWP-Approval-Workflow-Runtime-Token",
     "X-DWP-Approval-Policy-Impact-Token",

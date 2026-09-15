@@ -55,17 +55,29 @@ CREATE TABLE prv_operator_widget_owner_scopes (
 
 INSERT INTO prv_operator_widget_owner_scopes (
     provider_operator_id, owner_product_key, created_by)
-SELECT DISTINCT assignment.provider_operator_id, owner.owner_product_key, 1
+SELECT DISTINCT assignment.provider_operator_id,
+       owner.owner_product_key,
+       operator.auth_user_id
   FROM prv_operator_role_assignments assignment
+  JOIN prv_operators operator
+    ON operator.provider_operator_id = assignment.provider_operator_id
+   AND operator.lifecycle_state = 'ACTIVE'
+   AND operator.auth_tenant_id > 0
+   AND operator.auth_user_id > 0
+  JOIN prv_operator_roles role
+    ON role.role_code = assignment.role_code
+   AND role.lifecycle_state = 'ACTIVE'
+  JOIN prv_operator_role_permissions role_permission
+    ON role_permission.role_code = assignment.role_code
+   AND LEFT(role_permission.permission_code, 7) = 'WIDGET_'
  CROSS JOIN (VALUES
        ('core.workspace'),
        ('core.work'),
        ('core.calendar'),
        ('core.activity')) owner(owner_product_key)
  WHERE assignment.lifecycle_state = 'ACTIVE'
-   AND assignment.role_code IN (
-       'PROVIDER_ADMIN', 'PROVIDER_OPERATOR',
-       'PROVIDER_CHANGE_APPROVER', 'PROVIDER_AUDITOR')
+   AND (assignment.valid_from IS NULL OR assignment.valid_from <= CURRENT_TIMESTAMP)
+   AND (assignment.valid_to IS NULL OR assignment.valid_to > CURRENT_TIMESTAMP)
 ON CONFLICT (provider_operator_id, owner_product_key) DO NOTHING;
 
 CREATE INDEX idx_prv_widget_owner_scope_active

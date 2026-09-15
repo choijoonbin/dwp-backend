@@ -11,6 +11,17 @@ from scripts import devctl
 
 
 class AgentLocalEnvironmentTest(unittest.TestCase):
+    def test_widget_registry_transport_token_is_scoped_to_provider_and_platform(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            environments = {
+                name: devctl.service_environment(name) for name in devctl.SERVICES
+            }
+
+        token = "DWP_WIDGET_REGISTRY_PROVIDER_TOKEN"
+        self.assertEqual(environments["provider"][token], environments["platform"][token])
+        for name, environment in environments.items():
+            self.assertEqual(token in environment, name in {"provider", "platform"})
+
     def test_approval_local_boot_publishes_signature_contracts_without_enabling_sources(
         self,
     ) -> None:

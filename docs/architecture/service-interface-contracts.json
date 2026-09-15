@@ -287,6 +287,51 @@
       ]
     },
     {
+      "id": "provider-platform-widget-registry-bff",
+      "classification": "provider-widget-registry-control-plane",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-provider-server",
+      "targetServices": [
+        "dwp-platform-server"
+      ],
+      "path": "dwp-provider-server/src/main/java/com/dwp/services/provider/widgetregistry/ProviderWidgetRegistryClient.java",
+      "purpose": "Forward an authenticated Provider operator's database-derived widget permission and explicit owner scope to the Platform-owned Widget Registry control plane.",
+      "auth": "Uses a dedicated Provider-to-Platform Widget Registry transport identity together with verified operator identity, permission, session, and owner-scope headers; browser credentials are forbidden.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "${dwp.services.platform-url:http://localhost:8002}",
+        "/internal/provider-bff/v1/widget-registry",
+        "X-DWP-Widget-Registry-Token",
+        "X-DWP-Control-Plane",
+        "X-DWP-Widget-Owner-Product-Keys",
+        "MAX_BODY_BYTES",
+        "MAX_RESPONSE_BYTES",
+        "@CircuitBreaker",
+        "@Bulkhead",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "Authorization",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "X-DWP-Approval-Retention-Execution-Token",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "X-DWP-Approval-Workflow-Planning-Token",
+        "X-DWP-Approval-Workflow-Runtime-Token"
+      ]
+    },
+    {
       "id": "platform-auth-app-entitlement-provisioner",
       "classification": "identity-entitlement-sync",
       "interfaceType": "internal-http",
@@ -407,7 +452,8 @@
         "X-DWP-Approval-Signature-Source-Token",
         "X-DWP-Notification-Approval-System-Sla-Token",
         "X-DWP-Approval-System-Sla-Token",
-        "X-DWP-Approval-Retention-Execution-Token"
+        "X-DWP-Approval-Retention-Execution-Token",
+        "X-DWP-Widget-Registry-Token"
       ]
     },
     {
@@ -755,7 +801,8 @@
         "X-DWP-Approval-Signature-Source-Token",
         "X-DWP-Notification-Approval-System-Sla-Token",
         "X-DWP-Approval-System-Sla-Token",
-        "X-DWP-Approval-Retention-Execution-Token"
+        "X-DWP-Approval-Retention-Execution-Token",
+        "X-DWP-Widget-Registry-Token"
       ]
     },
     {
@@ -819,7 +866,8 @@
         "X-DWP-Approval-Signature-Source-Token",
         "X-DWP-Notification-Approval-System-Sla-Token",
         "X-DWP-Approval-System-Sla-Token",
-        "X-DWP-Approval-Retention-Execution-Token"
+        "X-DWP-Approval-Retention-Execution-Token",
+        "X-DWP-Widget-Registry-Token"
       ]
     },
     {
@@ -1088,7 +1136,8 @@
         "X-DWP-Approval-Signature-Source-Token",
         "X-DWP-Notification-Approval-System-Sla-Token",
         "X-DWP-Approval-System-Sla-Token",
-        "X-DWP-Approval-Retention-Execution-Token"
+        "X-DWP-Approval-Retention-Execution-Token",
+        "X-DWP-Widget-Registry-Token"
       ]
     },
     {
@@ -1137,7 +1186,8 @@
         "X-DWP-Approval-Signature-Source-Token",
         "X-DWP-Notification-Approval-System-Sla-Token",
         "X-DWP-Approval-System-Sla-Token",
-        "X-DWP-Approval-Retention-Execution-Token"
+        "X-DWP-Approval-Retention-Execution-Token",
+        "X-DWP-Widget-Registry-Token"
       ]
     },
     {
@@ -1186,7 +1236,8 @@
         "X-DWP-Approval-Signature-Source-Token",
         "X-DWP-Notification-Approval-System-Sla-Token",
         "X-DWP-Approval-System-Sla-Token",
-        "X-DWP-Approval-Retention-Execution-Token"
+        "X-DWP-Approval-Retention-Execution-Token",
+        "X-DWP-Widget-Registry-Token"
       ]
     },
     {
@@ -1296,7 +1347,8 @@
         "X-DWP-Tenant-ID",
         "X-DWP-User-ID",
         "X-DWP-Approval-System-Sla-Token",
-        "X-DWP-Approval-Retention-Execution-Token"
+        "X-DWP-Approval-Retention-Execution-Token",
+        "X-DWP-Widget-Registry-Token"
       ]
     },
     {
@@ -1350,7 +1402,8 @@
         "X-DWP-Tenant-ID",
         "X-DWP-User-ID",
         "X-DWP-Approval-System-Sla-Token",
-        "X-DWP-Approval-Retention-Execution-Token"
+        "X-DWP-Approval-Retention-Execution-Token",
+        "X-DWP-Widget-Registry-Token"
       ]
     },
     {
@@ -1404,7 +1457,8 @@
         "X-DWP-Service-Token",
         "X-DWP-Tenant-ID",
         "X-DWP-User-ID",
-        "X-DWP-Approval-Retention-Execution-Token"
+        "X-DWP-Approval-Retention-Execution-Token",
+        "X-DWP-Widget-Registry-Token"
       ]
     }
   ],

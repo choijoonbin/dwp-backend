@@ -675,6 +675,9 @@ def local_environment() -> dict[str, str]:
         "DWP_AGENT_LOCAL_ACTIVITY_SEED_ENABLED": "true",
         "DWP_PLATFORM_SERVICE_TOKEN": "dwp-local-platform-service-token",
         "DWP_PLATFORM_RUNTIME_SERVICE_TOKEN": "dwp-local-platform-runtime-token",
+        "DWP_WIDGET_REGISTRY_PROVIDER_TOKEN": (
+            "dwp-local-widget-registry-provider-token-change-outside-local"
+        ),
         "DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED": "true",
         "DWP_ACTIVITY_LOCAL_FIXTURES_ENABLED": "true",
         "DWP_PRODUCTIVITY_DATA_KEY": (
@@ -855,6 +858,8 @@ def service_environment(service_name: str) -> dict[str, str]:
     elif service_name not in {"platform"}:
         environment.pop("DWP_PLATFORM_SERVICE_TOKEN", None)
         environment.pop("DWP_PLATFORM_RUNTIME_SERVICE_TOKEN", None)
+    if service_name not in {"platform", "provider"}:
+        environment.pop("DWP_WIDGET_REGISTRY_PROVIDER_TOKEN", None)
     if service_name != "platform":
         environment.pop(
             "DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED", None

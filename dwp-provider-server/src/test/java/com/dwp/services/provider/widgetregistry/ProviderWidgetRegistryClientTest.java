@@ -44,10 +44,15 @@ class ProviderWidgetRegistryClientTest {
         MockHttpServletRequest request = new MockHttpServletRequest(
                 "GET", "/v1/admin/widget-definitions");
         request.setQueryString("page=0&size=25");
+        request.addHeader("X-DWP-User-ID", "991111");
+        request.addHeader("X-DWP-Roles", "PLATFORM_ADMIN");
+        request.addHeader("X-DWP-Permissions", "WIDGET_DEFINITION_REVOKE");
+        request.addHeader(ProviderWidgetRegistryClient.OWNER_SCOPE_HEADER, "attacker.product");
+        request.addHeader("X-DWP-Service-Token", "browser-injected-secret");
 
         server.expect(once(), requestTo(
-                        "http://platform.test/v1/admin/widget-definitions?page=0&size=25"))
-                .andExpect(header("X-DWP-Service-Token", "platform-secret"))
+                        "http://platform.test/internal/provider-bff/v1/widget-registry/definitions?page=0&size=25"))
+                .andExpect(header("X-DWP-Widget-Registry-Token", "platform-secret"))
                 .andExpect(header("X-DWP-User-ID", "900001"))
                 .andExpect(header("X-DWP-Tenant-ID", "1"))
                 .andExpect(header("X-DWP-Roles", "PROVIDER_OPERATOR"))
@@ -58,6 +63,12 @@ class ProviderWidgetRegistryClientTest {
                 .andExpect(header("X-DWP-Identity-Plane", "PROVIDER"))
                 .andExpect(header("X-DWP-Control-Plane", "WIDGET_REGISTRY_PROVIDER"))
                 .andExpect(header(ProviderWidgetRegistryClient.OWNER_SCOPE_HEADER, "core.work"))
+                .andExpect(outbound -> {
+                    assertThat(outbound.getHeaders()
+                            .get(ProviderWidgetRegistryClient.WIDGET_REGISTRY_TOKEN_HEADER))
+                            .containsExactly("platform-secret");
+                    assertThat(outbound.getHeaders().containsKey("X-DWP-Service-Token")).isFalse();
+                })
                 .andRespond(withSuccess("{\"success\":true}", MediaType.APPLICATION_JSON));
 
         var response = client.forward(request, null);
@@ -86,5 +97,16 @@ class ProviderWidgetRegistryClientTest {
         assertThatThrownBy(() -> client.forward(new MockHttpServletRequest(
                         "GET", "/v1/admin/widget-definitions"), null))
                 .isInstanceOf(BaseException.class);
+    }
+
+    @Test
+    void failsClosedWithoutProviderValidatedRequestAuthority() {
+        ProviderWidgetRegistryClient client = new ProviderWidgetRegistryClient(
+                RestClient.builder(), "http://platform.test", "platform-secret");
+
+        assertThatThrownBy(() -> client.forward(new MockHttpServletRequest(
+                        "GET", "/v1/admin/widget-definitions"), null))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessage("Provider request context is missing.");
     }
 }
