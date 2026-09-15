@@ -262,8 +262,8 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
     @Override
     @Transactional(readOnly = true)
     public boolean flowPersonalizationEnabled(Long tenantId) {
-        // A Flow mutation must always be mirrored to the Classic preference so
-        // the global kill switch remains a lossless rollback mechanism.
+        // The rollout gates remain shared, while Flow writes stay in their own mode-scoped View.
+        // The preserved Classic View and legacy preference are the lossless rollback target.
         if (!homeFlowEnabled || !advancedPersonalizationEnabled || !viewsDualWriteEnabled) {
             return false;
         }
@@ -481,10 +481,7 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
     private String homePreferenceStore(
             Long tenantId,
             HomeExperienceDtos.HomeCompositionPolicy compositionPolicy) {
-        boolean flowEffective = HomeCompositionPolicyRegistry.FLOW_V1.equals(
-                compositionPolicyRegistry.effectiveVariant(compositionPolicy, homeFlowEnabled));
-        return flowEffective
-                && advancedPersonalizationEnabled
+        return advancedPersonalizationEnabled
                 && viewsReadEnabled
                 && viewsDualWriteEnabled
                 && viewsShadowCompareEnabled

@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -22,7 +23,7 @@ class HomeCompositionPolicyRegistryTest {
                         List.of(new HomeExperienceDtos.GovernedHomeZone(
                                 "announcements", "CANVAS", false, "large", null, 30))));
 
-        assertThat(result.schemaVersion()).isEqualTo(3);
+        assertThat(result.schemaVersion()).isEqualTo(4);
         assertThat(result.experienceVariant()).isEqualTo("CLASSIC");
         assertThat(result.governedZones())
                 .extracting(HomeExperienceDtos.GovernedHomeZone::zoneKey)
@@ -67,6 +68,8 @@ class HomeCompositionPolicyRegistryTest {
                         3, "FLOW_V1", true, List.of()));
 
         assertThat(flow.experienceVariant()).isEqualTo("FLOW_V1");
+        assertThat(flow.schemaVersion()).isEqualTo(4);
+        assertThat(flow.modeLayouts().keySet()).containsExactlyInAnyOrder("CLASSIC", "FLOW_V1");
         assertThat(registry.effectiveVariant(flow, false)).isEqualTo("CLASSIC");
         assertThat(registry.effectiveVariant(flow, true)).isEqualTo("FLOW_V1");
 
@@ -76,6 +79,43 @@ class HomeCompositionPolicyRegistryTest {
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(
                                 ErrorCode.INVALID_INPUT_VALUE));
+    }
+
+    @Test
+    void promotesTheV2PolicyToClassicWithBothModeDescriptors() {
+        HomeExperienceDtos.HomeCompositionPolicy result = registry.normalize(
+                new HomeExperienceDtos.HomeCompositionPolicy(2, true, List.of()));
+
+        assertThat(result.schemaVersion()).isEqualTo(4);
+        assertThat(result.experienceVariant()).isEqualTo("CLASSIC");
+        assertThat(result.modeLayouts().keySet()).containsExactly("CLASSIC", "FLOW_V1");
+    }
+
+    @Test
+    void acceptsOnlyTheCompleteV4ModeAndDeviceContract() {
+        var devices = List.of(
+                "DESKTOP_WIDE", "DESKTOP_STANDARD", "MOBILE_STANDARD", "MOBILE_COMPACT");
+        var contract = new HomeExperienceDtos.HomeModeLayoutContract(
+                "MODE_SCOPED_VIEW", devices);
+        HomeExperienceDtos.HomeCompositionPolicy result = registry.normalize(
+                new HomeExperienceDtos.HomeCompositionPolicy(
+                        4, "FLOW_V1", true, List.of(),
+                        Map.of("CLASSIC", contract, "FLOW_V1", contract)));
+
+        assertThat(result.schemaVersion()).isEqualTo(4);
+        assertThat(result.experienceVariant()).isEqualTo("FLOW_V1");
+        assertThat(result.modeLayouts().get("CLASSIC").deviceClasses()).isEqualTo(devices);
+        assertThatThrownBy(() -> registry.normalize(
+                new HomeExperienceDtos.HomeCompositionPolicy(
+                        4, "CLASSIC", true, List.of(), Map.of("CLASSIC", contract))))
+                .isInstanceOf(BaseException.class);
+        assertThatThrownBy(() -> registry.normalize(
+                new HomeExperienceDtos.HomeCompositionPolicy(
+                        4, "CLASSIC", true, List.of(), Map.of(
+                        "CLASSIC", new HomeExperienceDtos.HomeModeLayoutContract(
+                                "MODE_SCOPED_VIEW", List.of("DESKTOP")),
+                        "FLOW_V1", contract))))
+                .isInstanceOf(BaseException.class);
     }
 
     private void assertInvalid(HomeExperienceDtos.GovernedHomeZone zone) {

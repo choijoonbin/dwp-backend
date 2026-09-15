@@ -40,8 +40,10 @@ public class HomeViewController {
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long userId,
             @RequestParam(defaultValue = "workspace-home")
-            @Pattern(regexp = "[a-z][a-z0-9-]{1,79}") String surfaceKey) {
-        return ApiResponse.success(service.list(tenantId, userId, surfaceKey));
+            @Pattern(regexp = "[a-z][a-z0-9-]{1,79}") String surfaceKey,
+            @RequestParam(defaultValue = "CLASSIC")
+            @Pattern(regexp = "CLASSIC|FLOW_V1") String modeKey) {
+        return ApiResponse.success(service.list(tenantId, userId, surfaceKey, modeKey));
     }
 
     @PostMapping
@@ -139,8 +141,11 @@ public class HomeViewController {
             @RequestHeader(IDEMPOTENCY) UUID commandId,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID viewId,
-            @PathVariable @Pattern(regexp = "DESKTOP|MOBILE")
-            @Schema(allowableValues = {"DESKTOP", "MOBILE"}) String deviceClass,
+            @PathVariable @Pattern(regexp = "DESKTOP|MOBILE|DESKTOP_WIDE|DESKTOP_STANDARD|MOBILE_STANDARD|MOBILE_COMPACT")
+            @Schema(allowableValues = {
+                    "DESKTOP_WIDE", "DESKTOP_STANDARD", "MOBILE_STANDARD", "MOBILE_COMPACT",
+                    "DESKTOP", "MOBILE"
+            }) String deviceClass,
             @Valid @RequestBody HomeViewDtos.UpdateDeviceLayoutRequest request) {
         return ApiResponse.success(service.putDeviceLayout(
                 tenantId, userId, viewId, deviceClass, commandId, correlationId, request));

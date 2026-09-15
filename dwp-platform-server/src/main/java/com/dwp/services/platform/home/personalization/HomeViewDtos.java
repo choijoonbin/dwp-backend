@@ -23,8 +23,21 @@ public final class HomeViewDtos {
     public record CreateHomeViewRequest(
             @NotBlank @Pattern(regexp = "[a-z][a-z0-9-]{0,79}") String viewKey,
             @NotBlank @Size(max = 80) String name,
+            @Pattern(regexp = "CLASSIC|FLOW_V1") String modeKey,
             boolean makeDefault,
             @NotNull @Valid HomePreferenceDtos.HomeLayoutPayload layout) {
+
+        public CreateHomeViewRequest {
+            modeKey = HomeModeKeys.canonical(modeKey);
+        }
+
+        public CreateHomeViewRequest(
+                String viewKey,
+                String name,
+                boolean makeDefault,
+                HomePreferenceDtos.HomeLayoutPayload layout) {
+            this(viewKey, name, null, makeDefault, layout);
+        }
     }
 
     public record UpdateHomeViewRequest(
@@ -70,13 +83,14 @@ public final class HomeViewDtos {
     }
 
     @Schema(requiredProperties = {
-            "viewId", "viewKey", "surfaceKey", "name", "isDefault",
+            "viewId", "viewKey", "surfaceKey", "modeKey", "name", "isDefault",
             "customized", "schemaVersion", "layout", "version", "widgetConfigurations"
     })
     public record HomeViewResponse(
             UUID viewId,
             String viewKey,
             String surfaceKey,
+            String modeKey,
             String name,
             boolean isDefault,
             boolean customized,
@@ -86,6 +100,28 @@ public final class HomeViewDtos {
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt,
             Map<String, WidgetConfigurationPayload> widgetConfigurations) {
+
+        public HomeViewResponse {
+            modeKey = HomeModeKeys.canonical(modeKey);
+        }
+
+        public HomeViewResponse(
+                UUID viewId,
+                String viewKey,
+                String surfaceKey,
+                String name,
+                boolean isDefault,
+                boolean customized,
+                Integer schemaVersion,
+                HomePreferenceDtos.HomeLayoutPayload layout,
+                Long version,
+                OffsetDateTime createdAt,
+                OffsetDateTime updatedAt,
+                Map<String, WidgetConfigurationPayload> widgetConfigurations) {
+            this(viewId, viewKey, surfaceKey, HomeModeKeys.CLASSIC, name, isDefault,
+                    customized, schemaVersion, layout, version, createdAt, updatedAt,
+                    widgetConfigurations);
+        }
     }
 
     @Schema(requiredProperties = {
@@ -94,12 +130,18 @@ public final class HomeViewDtos {
     public record DeviceLayoutResponse(
             UUID deviceLayoutId,
             UUID viewId,
-            @Schema(allowableValues = {"DESKTOP", "MOBILE"})
+            @Schema(allowableValues = {
+                    "DESKTOP_WIDE", "DESKTOP_STANDARD", "MOBILE_STANDARD", "MOBILE_COMPACT"
+            })
             String deviceClass,
             DeviceLayoutOverlay overlay,
             Long version,
             Long viewVersion,
             OffsetDateTime updatedAt) {
+
+        public DeviceLayoutResponse {
+            deviceClass = HomeDeviceClasses.canonical(deviceClass);
+        }
     }
 
     @Schema(requiredProperties = {

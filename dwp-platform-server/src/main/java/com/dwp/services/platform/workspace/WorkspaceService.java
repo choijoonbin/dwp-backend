@@ -262,7 +262,7 @@ public class WorkspaceService {
         WorkspaceRepository.AppRow app = repository.app(
                         tenantId, actorId, appId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        String required = app.resourceKey().toUpperCase(Locale.ROOT) + ":VIEW";
+        String required = requiredAuthority(app);
         if (authorities.contains(required)) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
@@ -537,7 +537,7 @@ public class WorkspaceService {
         WorkspaceRepository.AppRow app = repository.app(
                         tenantId, actorId, appId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        require(authorities, app.resourceKey().toUpperCase(Locale.ROOT) + ":VIEW");
+        require(authorities, requiredAuthority(app));
         return app;
     }
 
@@ -659,8 +659,7 @@ public class WorkspaceService {
             WorkspaceRepository.AppRow row,
             Set<String> authorities,
             AppAccessRequestRepository.RequestRecord request) {
-        boolean entitled = authorities.contains(
-                row.resourceKey().toUpperCase(Locale.ROOT) + ":VIEW");
+        boolean entitled = authorities.contains(requiredAuthority(row));
         String accessState = entitled
                 ? "AVAILABLE"
                 : "CONFIGURATION_REQUIRED".equals(row.health())
@@ -677,12 +676,18 @@ public class WorkspaceService {
         return new WorkspaceDtos.WorkspaceApp(
                 row.id(), row.name(), row.description(), row.owner(), row.category(),
                 row.launchMode(), row.launchTarget(), row.iconKey(), row.resourceKey(),
-                row.health(), row.pinned(), row.lastUsedAt(), row.launchCount(), row.version(),
+                row.requiredPermissionCode(), row.badgeSourceKey(), row.health(), row.pinned(),
+                row.lastUsedAt(), row.launchCount(), row.version(),
                 accessState,
                 request == null ? null : request.requestId(),
                 request == null ? null : request.state(),
                 request == null ? null : request.updatedAt(),
                 request == null ? null : request.version());
+    }
+
+    private String requiredAuthority(WorkspaceRepository.AppRow app) {
+        return app.resourceKey().toUpperCase(Locale.ROOT) + ":"
+                + app.requiredPermissionCode().toUpperCase(Locale.ROOT);
     }
 
     private WorkspaceDtos.AppAccessRequest appAccessRequest(

@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -15,11 +16,14 @@ import java.util.Set;
 @Component
 public class HomeCompositionPolicyRegistry {
 
-    public static final int SCHEMA_VERSION = 3;
+    public static final int SCHEMA_VERSION = 4;
     public static final String CLASSIC = "CLASSIC";
     public static final String FLOW_V1 = "FLOW_V1";
-    private static final Set<Integer> READABLE_SCHEMA_VERSIONS = Set.of(1, 2, SCHEMA_VERSION);
+    private static final Set<Integer> READABLE_SCHEMA_VERSIONS = Set.of(1, 2, 3, SCHEMA_VERSION);
     private static final Set<String> EXPERIENCE_VARIANTS = Set.of(CLASSIC, FLOW_V1);
+    private static final String MODE_SCOPED_VIEW = "MODE_SCOPED_VIEW";
+    private static final List<String> DEVICE_CLASSES = List.of(
+            "DESKTOP_WIDE", "DESKTOP_STANDARD", "MOBILE_STANDARD", "MOBILE_COMPACT");
     private static final Set<String> LEGACY_PERSONAL_ZONE_KEYS = Set.of("workspace-tools");
     private static final Map<String, ZoneContract> ZONES = contracts();
 
@@ -33,13 +37,15 @@ public class HomeCompositionPolicyRegistry {
                         .sorted(Comparator
                                 .comparingInt(HomeExperienceDtos.GovernedHomeZone::sortOrder)
                                 .thenComparing(HomeExperienceDtos.GovernedHomeZone::zoneKey))
-                        .toList());
+                        .toList(),
+                defaultModeLayouts());
     }
 
     public HomeExperienceDtos.HomeCompositionPolicy failClosedPolicy() {
         HomeExperienceDtos.HomeCompositionPolicy defaults = defaultPolicy();
         return new HomeExperienceDtos.HomeCompositionPolicy(
-                defaults.schemaVersion(), CLASSIC, false, defaults.governedZones());
+                defaults.schemaVersion(), CLASSIC, false, defaults.governedZones(),
+                defaults.modeLayouts());
     }
 
     public HomeExperienceDtos.HomeCompositionPolicy normalize(
@@ -52,7 +58,7 @@ public class HomeCompositionPolicyRegistry {
         if (requested.personalCustomizationEnabled() == null) {
             throw invalid("The personal customization policy is required.");
         }
-        String experienceVariant = requested.schemaVersion() < SCHEMA_VERSION
+        String experienceVariant = requested.schemaVersion() < 3
                 ? CLASSIC
                 : requested.experienceVariant();
         if (experienceVariant == null || !EXPERIENCE_VARIANTS.contains(experienceVariant)) {
@@ -97,11 +103,16 @@ public class HomeCompositionPolicyRegistry {
         zones.sort(Comparator
                 .comparingInt(HomeExperienceDtos.GovernedHomeZone::sortOrder)
                 .thenComparing(HomeExperienceDtos.GovernedHomeZone::zoneKey));
+        Map<String, HomeExperienceDtos.HomeModeLayoutContract> modeLayouts =
+                requested.schemaVersion() < SCHEMA_VERSION
+                        ? defaultModeLayouts()
+                        : normalizeModeLayouts(requested.modeLayouts());
         return new HomeExperienceDtos.HomeCompositionPolicy(
                 SCHEMA_VERSION,
                 experienceVariant,
                 requested.personalCustomizationEnabled(),
-                List.copyOf(zones));
+                List.copyOf(zones),
+                modeLayouts);
     }
 
     public String effectiveVariant(
@@ -118,6 +129,35 @@ public class HomeCompositionPolicyRegistry {
             throw invalid("Governed home zone order must be between 0 and 10000.");
         }
         return normalized;
+    }
+
+    private Map<String, HomeExperienceDtos.HomeModeLayoutContract> normalizeModeLayouts(
+            Map<String, HomeExperienceDtos.HomeModeLayoutContract> requested) {
+        if (requested == null || !requested.keySet().equals(EXPERIENCE_VARIANTS)) {
+            throw invalid("Home composition v4 must describe both CLASSIC and FLOW_V1 layouts.");
+        }
+        Map<String, HomeExperienceDtos.HomeModeLayoutContract> result = new LinkedHashMap<>();
+        for (String mode : List.of(CLASSIC, FLOW_V1)) {
+            HomeExperienceDtos.HomeModeLayoutContract contract = requested.get(mode);
+            if (contract == null
+                    || !MODE_SCOPED_VIEW.equals(contract.layoutScope())
+                    || contract.deviceClasses() == null
+                    || !contract.deviceClasses().equals(DEVICE_CLASSES)) {
+                throw invalid("A Home composition mode layout contract is invalid.");
+            }
+            result.put(mode, new HomeExperienceDtos.HomeModeLayoutContract(
+                    MODE_SCOPED_VIEW, DEVICE_CLASSES));
+        }
+        return Collections.unmodifiableMap(result);
+    }
+
+    private Map<String, HomeExperienceDtos.HomeModeLayoutContract> defaultModeLayouts() {
+        Map<String, HomeExperienceDtos.HomeModeLayoutContract> result = new LinkedHashMap<>();
+        for (String mode : List.of(CLASSIC, FLOW_V1)) {
+            result.put(mode, new HomeExperienceDtos.HomeModeLayoutContract(
+                    MODE_SCOPED_VIEW, DEVICE_CLASSES));
+        }
+        return Collections.unmodifiableMap(result);
     }
 
     private static Map<String, ZoneContract> contracts() {

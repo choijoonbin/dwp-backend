@@ -164,6 +164,8 @@ public final class WorkspaceDtos {
             String launchTarget,
             String iconKey,
             String resourceKey,
+            String requiredPermissionCode,
+            String badgeSourceKey,
             String health,
             boolean pinned,
             OffsetDateTime lastUsedAt,
@@ -174,6 +176,18 @@ public final class WorkspaceDtos {
             String accessRequestState,
             OffsetDateTime accessRequestUpdatedAt,
             Long accessRequestVersion) {
+        public WorkspaceApp(
+                String id, String name, String description, String owner, String category,
+                String launchMode, String launchTarget, String iconKey, String resourceKey,
+                String health, boolean pinned, OffsetDateTime lastUsedAt, long launchCount,
+                long version, String accessState, UUID accessRequestId,
+                String accessRequestState, OffsetDateTime accessRequestUpdatedAt,
+                Long accessRequestVersion) {
+            this(id, name, description, owner, category, launchMode, launchTarget,
+                    iconKey, resourceKey, "VIEW", null, health, pinned, lastUsedAt,
+                    launchCount, version, accessState, accessRequestId, accessRequestState,
+                    accessRequestUpdatedAt, accessRequestVersion);
+        }
     }
 
     public record PinAppRequest(

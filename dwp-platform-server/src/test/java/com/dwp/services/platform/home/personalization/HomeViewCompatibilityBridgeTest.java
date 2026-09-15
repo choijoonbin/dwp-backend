@@ -77,10 +77,11 @@ class HomeViewCompatibilityBridgeTest {
         verify(jdbc, org.mockito.Mockito.times(3))
                 .update(sql.capture(), arguments.capture());
         assertThat(sql.getAllValues().getFirst())
-                .contains("WHERE tenant_id = ? AND user_id = ? AND surface_key = ? AND is_default");
+                .contains("WHERE tenant_id = ? AND user_id = ? AND surface_key = ?")
+                .contains("mode_key = 'CLASSIC' AND is_default");
         assertThat(sql.getAllValues().get(1))
                 .contains("WHERE NOT EXISTS")
-                .contains("ON CONFLICT (tenant_id, user_id, surface_key, view_key)")
+                .contains("ON CONFLICT (tenant_id, user_id, surface_key, mode_key, view_key)")
                 .contains("WHERE deleted_at IS NULL")
                 .contains("DO UPDATE");
         assertThat(arguments.getAllValues().get(1)).hasSize(11);

@@ -4,6 +4,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.provisioning.ProviderTenantCommand;
 import com.dwp.core.provisioning.ProviderTenantCommandReceiptStore;
+import com.dwp.services.platform.home.ApprovedHomeApplicationCatalog;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -111,7 +112,7 @@ public class PlatformTenantProvisioningService {
         seedRegistry(request.tenantId(), request.entitlementKeys());
         seedGovernedAgents(request.tenantId(), request.entitlementKeys());
         seedNavigation(request.tenantId(), request.defaultLocale(), request.entitlementKeys());
-        seedWorkspaceApps(request.tenantId(), request.entitlementKeys());
+        seedWorkspaceApps(request.tenantId());
         PlatformCalendarTenantSeeder.seed(jdbc, request.tenantId(), request.displayName());
         return new PlatformTenantProvisioningDtos.ProvisionTenantResponse(
                 request.providerTenantId(), request.tenantId(), "PROVISIONING", 1,
@@ -141,7 +142,7 @@ public class PlatformTenantProvisioningService {
         seedRegistry(tenant.tenantId(), request.entitlementKeys());
         seedGovernedAgents(tenant.tenantId(), request.entitlementKeys());
         seedNavigation(tenant.tenantId(), "en", request.entitlementKeys());
-        seedWorkspaceApps(tenant.tenantId(), request.entitlementKeys());
+        seedWorkspaceApps(tenant.tenantId());
         Set<String> desired = applications(request.entitlementKeys()).stream()
                 .map(AppSeed::navigationKey)
                 .collect(Collectors.toSet());
@@ -414,22 +415,28 @@ public class PlatformTenantProvisioningService {
         return List.copyOf(apps);
     }
 
-    private void seedWorkspaceApps(Long tenantId, List<String> entitlements) {
+    private void seedWorkspaceApps(Long tenantId) {
         jdbc.update("""
                 UPDATE adm_workspace_apps
                    SET lifecycle_state = 'RETIRED',
                        version = version + 1,
                        updated_at = CURRENT_TIMESTAMP
                  WHERE tenant_id = ?
+                   AND (app_key = 'ref-app-collaboration'
+                        OR resource_key IN (
+                            'APP.MAIL_CALENDAR', 'APP.COLLABORATION',
+                            'APP.ROOMS', 'APP.HRIS'))
+                   AND lifecycle_state <> 'RETIRED'
                 """, tenantId);
-        for (WorkspaceAppSeed app : workspaceApplications(entitlements)) {
+        for (WorkspaceAppSeed app : workspaceApplications()) {
             jdbc.update("""
                     INSERT INTO adm_workspace_apps (
                         tenant_id, app_key, name_ko, name_en,
                         description_ko, description_en, owner_name, category,
                         launch_mode, launch_target, icon_key, resource_key,
+                        required_permission_code, badge_source_key,
                         health_state, sort_order, lifecycle_state)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE')
                     ON CONFLICT (tenant_id, app_key) DO UPDATE SET
                         name_ko = EXCLUDED.name_ko,
                         name_en = EXCLUDED.name_en,
@@ -441,6 +448,8 @@ public class PlatformTenantProvisioningService {
                         launch_target = EXCLUDED.launch_target,
                         icon_key = EXCLUDED.icon_key,
                         resource_key = EXCLUDED.resource_key,
+                        required_permission_code = EXCLUDED.required_permission_code,
+                        badge_source_key = EXCLUDED.badge_source_key,
                         health_state = EXCLUDED.health_state,
                         sort_order = EXCLUDED.sort_order,
                         lifecycle_state = 'ACTIVE',
@@ -449,113 +458,33 @@ public class PlatformTenantProvisioningService {
                     """, tenantId, app.appKey(), app.nameKo(), app.nameEn(),
                     app.descriptionKo(), app.descriptionEn(), app.owner(), app.category(),
                     app.launchMode(), app.launchTarget(), app.iconKey(), app.resourceKey(),
+                    app.requiredPermissionCode(), app.badgeSourceKey(),
                     app.health(), app.sortOrder());
         }
     }
 
-    private List<WorkspaceAppSeed> workspaceApplications(List<String> entitlements) {
-        java.util.ArrayList<WorkspaceAppSeed> apps = new java.util.ArrayList<>();
-        if (entitlements.contains("core.workspace")) {
-            apps.add(new WorkspaceAppSeed(
-                    "dwp-work", "업무", "Work",
-                    "우선순위, 승인 및 할 일을 한곳에서 처리합니다.",
-                    "Manage priorities, approvals, and tasks in one place.",
-                    "DWP Platform", "PRODUCTIVITY", "NATIVE", "/work",
-                    "work", "APP.WORK", "HEALTHY", 10));
-            apps.add(new WorkspaceAppSeed(
-                    "dwp-activity", "활동", "Activity",
-                    "사용자, 시스템 및 에이전트 활동을 추적합니다.",
-                    "Track human, system, and agent activity.",
-                    "DWP Platform", "PRODUCTIVITY", "NATIVE", "/activity",
-                    "activity", "APP.ACTIVITY", "HEALTHY", 30));
-            apps.add(new WorkspaceAppSeed(
-                    "dwp-communications", "소식", "Newsroom",
-                    "나에게 필요한 회사 소식, 행사 및 필수 확인 콘텐츠를 한곳에서 읽습니다.",
-                    "Read targeted company news, events, and required updates in one place.",
-                    "DWP Communications", "PRODUCTIVITY", "NATIVE", "/communications",
-                    "communications", "APP.COMMUNICATIONS", "HEALTHY", 35));
-            apps.add(new WorkspaceAppSeed(
-                    "dwp-calendar", "캘린더", "Calendar",
-                    "일정, 집중시간, 참석 응답과 업무 공간 예약을 한곳에서 관리합니다.",
-                    "Manage schedules, focus time, responses, and workplace bookings in one place.",
-                    "DWP Workplace", "PRODUCTIVITY", "NATIVE", "/calendar/home",
-                    "calendar", "APP.CALENDAR", "HEALTHY", 38));
-            apps.add(new WorkspaceAppSeed(
-                    "dwp-rooms", "근무 공간", "Workplace",
-                    "사업장과 층별 배치도에서 회의실, 좌석, 사물함 등 업무 공간을 예약하고 운영합니다.",
-                    "Discover and reserve rooms, desks, lockers, and workplace resources across offices.",
-                    "DWP Workplace", "PRODUCTIVITY", "NATIVE", "/workplace/home",
-                    "workplace", "APP.WORKPLACE", "HEALTHY", 39));
-            apps.add(new WorkspaceAppSeed(
-                    "ref-app-mail", "메일", "Mail",
-                    "중요 메일을 선별하고 회신, 일정, 업무와 협업 후속 조치를 연결합니다.",
-                    "Triage important mail and connect replies, schedules, work, and collaborative follow-ups.",
-                    "DWP Workplace", "PRODUCTIVITY", "NATIVE", "/mail/home",
-                    "mail", "APP.MAIL", "HEALTHY", 40));
-            apps.add(new WorkspaceAppSeed(
-                    "ref-app-collaboration", "협업", "Collaboration",
-                    "채팅, 채널 및 회의를 연결합니다.",
-                    "Connect chat, channels, and meetings.",
-                    "Workplace Platform", "PRODUCTIVITY", "SSO", null,
-                    "collaboration", "APP.COLLABORATION", "CONFIGURATION_REQUIRED", 50));
-            apps.add(new WorkspaceAppSeed(
-                    "ref-app-service", "서비스 센터", "Services",
-                    "IT, 구성원, 업무 환경, 재무 및 구매 요청을 한곳에서 처리합니다.",
-                    "Discover and track IT, people, workplace, finance, and procurement services.",
-                    "Shared Services", "SERVICE", "NATIVE", "/services",
-                    "services", "APP.EMPLOYEE_SERVICES", "HEALTHY", 60));
-            apps.add(new WorkspaceAppSeed(
-                    "ref-app-knowledge", "지식", "Knowledge",
-                    "정책 및 업무 가이드 연결을 구성합니다.",
-                    "Configure connections to policies and workplace guides.",
-                    "Knowledge Office", "KNOWLEDGE", "SSO", null,
-                    "knowledge", "APP.KNOWLEDGE", "CONFIGURATION_REQUIRED", 80));
-            apps.add(new WorkspaceAppSeed(
-                    "ref-app-erp", "비즈니스 ERP", "Business ERP",
-                    "재무 및 구매 업무를 연결합니다.",
-                    "Connect finance and purchasing work.",
-                    "Finance Platform", "BUSINESS", "SSO", null,
-                    "erp", "APP.BUSINESS_ERP", "CONFIGURATION_REQUIRED", 90));
-            apps.add(new WorkspaceAppSeed(
-                    "ref-app-legacy", "레거시 운영", "Legacy operations",
-                    "기존 운영 시스템으로 안전하게 연결합니다.",
-                    "Provide governed access to existing operational systems.",
-                    "Enterprise Systems", "LEGACY", "DEEP_LINK", null,
-                    "legacy", "APP.LEGACY_OPERATIONS", "CONFIGURATION_REQUIRED", 100));
-        }
-        if (entitlements.contains("ai.agent-runtime")) {
-            apps.add(new WorkspaceAppSeed(
-                    "dwp-ask", "DWAI·ON 워크스페이스", "DWAI·ON Workspace",
-                    "업무 근거, 출처 및 감사 증적을 함께 확인하는 AI 작업공간입니다.",
-                    "AI workspace for work evidence, sources, and audit evidence.",
-                    "DWP AI Platform", "KNOWLEDGE", "NATIVE", "/dwaion",
-                    "ask", "APP.ASK", "MANAGED", 20));
-        }
-        if (entitlements.contains("core.approvals")) {
-            apps.add(new WorkspaceAppSeed(
-                    "dwp-approvals", "전자결재", "Approvals",
-                    "결재 요청, 의사결정, 위임 및 처리 상태를 한곳에서 관리합니다.",
-                    "Manage requests, decisions, delegation, and approval health in one place.",
-                    "DWP Decision Hub", "BUSINESS", "NATIVE", "/approvals/home",
-                    "approvals", "APP.APPROVALS", "HEALTHY", 39));
-        }
-        if (entitlements.contains("core.spaces")) {
-            apps.add(new WorkspaceAppSeed(
-                    "dwp-spaces", "Space", "Spaces",
-                    "목적별 협업 공간에서 구성원, 콘텐츠, 앱과 AI 컨텍스트를 안전하게 연결합니다.",
-                    "Connect people, content, apps, and governed AI context in collaboration spaces.",
-                    "DWP Collaboration Platform", "PRODUCTIVITY", "NATIVE", "/spaces/home",
-                    "spaces", "APP.SPACES", "HEALTHY", 35));
-        }
-        if (entitlements.contains("core.people")) {
-            apps.add(new WorkspaceAppSeed(
-                    "ref-app-people", "인사", "HR",
-                    "DWP HCM에서 나의 인사, 구성원, 조직 및 권한별 인력 운영을 연결합니다.",
-                    "Connect personal HR, people, organization, and role-aware workforce operations in DWP HCM.",
-                    "DWP HCM", "PEOPLE", "NATIVE", "/hr",
-                    "hcm", "APP.HCM", "HEALTHY", 70));
-        }
-        return List.copyOf(apps);
+    private List<WorkspaceAppSeed> workspaceApplications() {
+        return ApprovedHomeApplicationCatalog.applications().stream()
+                .map(application -> new WorkspaceAppSeed(
+                        application.appKey(), application.nameKo(), application.nameEn(),
+                        application.nameKo() + " 업무를 DWP 홈에서 안전하게 시작합니다.",
+                        "Launch " + application.nameEn() + " safely from DWP Home.",
+                        application.owner(), application.category(), application.launchMode(),
+                        application.launchTarget(), application.iconKey(), application.resourceKey(),
+                        application.requiredPermissionCode(), application.badgeSourceKey(),
+                        application.healthState(), launchpadSortOrder(application)))
+                .toList();
+    }
+
+    private int launchpadSortOrder(ApprovedHomeApplicationCatalog.Application application) {
+        int groupOffset = switch (application.groupKey()) {
+            case "work" -> 0;
+            case "connect" -> 100;
+            case "services" -> 200;
+            case "systems" -> 300;
+            default -> 400;
+        };
+        return groupOffset + application.sortOrder();
     }
 
     private List<AppSeed> allApplications() {
@@ -672,6 +601,8 @@ public class PlatformTenantProvisioningService {
             String launchTarget,
             String iconKey,
             String resourceKey,
+            String requiredPermissionCode,
+            String badgeSourceKey,
             String health,
             int sortOrder) {
     }

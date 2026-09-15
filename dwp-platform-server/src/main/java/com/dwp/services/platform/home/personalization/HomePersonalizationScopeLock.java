@@ -3,7 +3,7 @@ package com.dwp.services.platform.home.personalization;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
 
-/** Serializes every Classic and Flow mutation for one tenant/user/surface scope. */
+/** Serializes mutations within one tenant/user/surface/mode scope. */
 @Component
 public class HomePersonalizationScopeLock {
     private static final long HASH_SEED = 7_193_041_731L;
@@ -21,5 +21,12 @@ public class HomePersonalizationScopeLock {
                 result -> null,
                 scope,
                 HASH_SEED);
+    }
+
+    public void lock(Long tenantId, Long userId, String surfaceKey, String modeKey) {
+        String canonical = HomeModeKeys.canonical(modeKey);
+        lock(tenantId, userId, HomeModeKeys.CLASSIC.equals(canonical)
+                ? surfaceKey
+                : surfaceKey + ":" + canonical);
     }
 }

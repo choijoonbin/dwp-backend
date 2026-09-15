@@ -201,7 +201,8 @@ class HomeViewServiceTest {
         UUID viewId = UUID.randomUUID();
         HomeView view = HomeView.builder()
                 .viewId(viewId).tenantId(7L).userId(11L)
-                .surfaceKey("workspace-home").viewKey("default").name("My home")
+                .surfaceKey("workspace-home").modeKey("FLOW_V1")
+                .viewKey("default").name("My home")
                 .defaultView(true).schemaVersion(5)
                 .layoutPayload(objectMapper.valueToTree(layout(List.of())))
                 .version(0L).build();
@@ -210,8 +211,8 @@ class HomeViewServiceTest {
         when(compositionPolicy.flowPersonalizationEnabled(7L)).thenReturn(false);
         when(widgetConfigurations.findByViewIdAndTenantIdAndUserIdOrderByWidgetKey(
                 viewId, 7L, 11L)).thenReturn(List.of());
-        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyOrderByUpdatedAtDesc(
-                7L, 11L, "workspace-home")).thenReturn(List.of(view));
+        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
+                7L, 11L, "workspace-home", "FLOW_V1")).thenReturn(List.of(view));
         when(revisionRepository
                 .findTop50ByViewIdAndTenantIdAndUserIdAndRestorableTrueOrderByRevisionNumberDesc(
                 viewId, 7L, 11L)).thenReturn(List.of());
@@ -219,7 +220,7 @@ class HomeViewServiceTest {
                 viewId, 7L, 11L)).thenReturn(List.of());
 
         assertThat(service.get(7L, 11L, viewId).viewId()).isEqualTo(viewId);
-        assertThat(service.list(7L, 11L, "workspace-home")).hasSize(1);
+        assertThat(service.list(7L, 11L, "workspace-home", "FLOW_V1")).hasSize(1);
         assertThat(service.revisions(7L, 11L, viewId)).isEmpty();
         assertThat(service.deviceLayouts(7L, 11L, viewId)).isEmpty();
         assertThatThrownBy(() -> service.update(
@@ -237,8 +238,8 @@ class HomeViewServiceTest {
 
     @Test
     void emptyViewListIsSideEffectFreeForNewUsers() throws Exception {
-        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyOrderByUpdatedAtDesc(
-                7L, 11L, "workspace-home")).thenReturn(List.of());
+        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
+                7L, 11L, "workspace-home", "CLASSIC")).thenReturn(List.of());
 
         assertThat(service.list(7L, 11L, "workspace-home")).isEmpty();
         assertThat(HomeViewService.class
@@ -247,6 +248,64 @@ class HomeViewServiceTest {
                 .readOnly()).isTrue();
         verify(scopeLock, never()).lock(any(), any(), any());
         verify(viewRepository, never()).saveAndFlush(any());
+        verify(compatibilityBridge, never()).mirrorDefaultView(any());
+    }
+
+    @Test
+    void classicAndFlowListsAreIndependentEvenWhenViewKeysMatch() {
+        HomeView classic = HomeView.builder()
+                .viewId(UUID.randomUUID()).tenantId(7L).userId(11L)
+                .surfaceKey("workspace-home").modeKey("CLASSIC")
+                .viewKey("default").name("Classic home").defaultView(true)
+                .schemaVersion(5).layoutPayload(objectMapper.valueToTree(layout(List.of())))
+                .version(0L).build();
+        HomeView flow = HomeView.builder()
+                .viewId(UUID.randomUUID()).tenantId(7L).userId(11L)
+                .surfaceKey("workspace-home").modeKey("FLOW_V1")
+                .viewKey("default").name("Flow home").defaultView(true)
+                .schemaVersion(5).layoutPayload(objectMapper.valueToTree(layout(List.of())))
+                .version(0L).build();
+        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
+                7L, 11L, "workspace-home", "CLASSIC")).thenReturn(List.of(classic));
+        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
+                7L, 11L, "workspace-home", "FLOW_V1")).thenReturn(List.of(flow));
+        when(widgetConfigurations.findByViewIdAndTenantIdAndUserIdOrderByWidgetKey(
+                classic.getViewId(), 7L, 11L)).thenReturn(List.of());
+        when(widgetConfigurations.findByViewIdAndTenantIdAndUserIdOrderByWidgetKey(
+                flow.getViewId(), 7L, 11L)).thenReturn(List.of());
+
+        assertThat(service.list(7L, 11L, "workspace-home", "CLASSIC").getFirst().name())
+                .isEqualTo("Classic home");
+        assertThat(service.list(7L, 11L, "workspace-home", "FLOW_V1").getFirst().name())
+                .isEqualTo("Flow home");
+        assertThat(service.list(7L, 11L, "workspace-home", "FLOW_V1").getFirst().modeKey())
+                .isEqualTo("FLOW_V1");
+    }
+
+    @Test
+    void staleFlowUpdateFailsBeforeMutationAndUsesOnlyTheFlowLock() {
+        UUID viewId = UUID.randomUUID();
+        HomePreferenceDtos.HomeLayoutPayload layout = layout(List.of());
+        HomeView flow = HomeView.builder()
+                .viewId(viewId).tenantId(7L).userId(11L)
+                .surfaceKey("workspace-home").modeKey("FLOW_V1")
+                .viewKey("default").name("Flow home").defaultView(true)
+                .schemaVersion(5).layoutPayload(objectMapper.valueToTree(layout))
+                .version(5L).build();
+        when(viewRepository.findByViewIdAndTenantIdAndUserId(viewId, 7L, 11L))
+                .thenReturn(Optional.of(flow));
+        when(viewRepository.findOwnedForUpdate(viewId, 7L, 11L))
+                .thenReturn(Optional.of(flow));
+
+        assertThatThrownBy(() -> service.update(
+                7L, 11L, viewId, UUID.randomUUID(), "corr",
+                new HomeViewDtos.UpdateHomeViewRequest("Changed", layout, 4L)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(
+                                ErrorCode.RESOURCE_CONFLICT));
+
+        verify(scopeLock).lock(7L, 11L, "workspace-home", "FLOW_V1");
+        verify(viewRepository, never()).saveAndFlush(any(HomeView.class));
         verify(compatibilityBridge, never()).mirrorDefaultView(any());
     }
 
@@ -344,12 +403,12 @@ class HomeViewServiceTest {
                         "command-rail", false, "full", "standard")));
         when(revisionRepository.findByTenantIdAndUserIdAndCommandId(
                 7L, 11L, commandId)).thenReturn(Optional.empty());
-        when(viewRepository.countByTenantIdAndUserIdAndSurfaceKey(
-                7L, 11L, "workspace-home")).thenReturn(0L);
+        when(viewRepository.countByTenantIdAndUserIdAndSurfaceKeyAndModeKey(
+                7L, 11L, "workspace-home", "CLASSIC")).thenReturn(0L);
         when(preferenceService.normalizeForSurface("workspace-home", requested))
                 .thenReturn(requested);
-        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyOrderByUpdatedAtDesc(
-                7L, 11L, "workspace-home")).thenReturn(List.of());
+        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
+                7L, 11L, "workspace-home", "CLASSIC")).thenReturn(List.of());
         when(viewRepository.saveAndFlush(any(HomeView.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(revisionRepository.findTopByViewIdOrderByRevisionNumberDesc(any()))
@@ -364,6 +423,10 @@ class HomeViewServiceTest {
 
         assertThat(result.layout()).isEqualTo(requested);
         assertThat(result.layout().widgets().get(1).visible()).isFalse();
+        assertThat(result.modeKey()).isEqualTo("CLASSIC");
+        verify(viewRepository, org.mockito.Mockito.times(2))
+                .countByTenantIdAndUserIdAndSurfaceKeyAndModeKey(
+                        7L, 11L, "workspace-home", "CLASSIC");
         verify(compatibilityBridge).mirrorDefaultView(any(HomeView.class));
     }
 
@@ -484,7 +547,7 @@ class HomeViewServiceTest {
         when(preferenceService.isWidgetSizeAllowed(
                 "workspace-home", "command-rail", "full")).thenReturn(true);
         when(deviceLayouts.findByViewIdAndTenantIdAndUserIdAndDeviceClass(
-                viewId, 7L, 11L, "MOBILE")).thenReturn(Optional.empty());
+                viewId, 7L, 11L, "MOBILE_STANDARD")).thenReturn(Optional.empty());
         when(deviceLayouts.saveAndFlush(any(HomeDeviceLayout.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(viewRepository.saveAndFlush(view)).thenReturn(view);
@@ -509,6 +572,7 @@ class HomeViewServiceTest {
                 new HomeViewDtos.UpdateDeviceLayoutRequest(overlay, 0L, null));
 
         assertThat(result.overlay()).isEqualTo(overlay);
+        assertThat(result.deviceClass()).isEqualTo("MOBILE_STANDARD");
         assertThat(view.isCustomized()).isTrue();
         verify(compatibilityBridge).mirrorDefaultView(view);
     }

@@ -10,16 +10,17 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface HomeViewRepository extends JpaRepository<HomeView, UUID> {
-    List<HomeView> findByTenantIdAndUserIdAndSurfaceKeyOrderByUpdatedAtDesc(
-            Long tenantId, Long userId, String surfaceKey);
+    List<HomeView> findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
+            Long tenantId, Long userId, String surfaceKey, String modeKey);
 
     Optional<HomeView> findByViewIdAndTenantIdAndUserId(
             UUID viewId, Long tenantId, Long userId);
 
-    Optional<HomeView> findByTenantIdAndUserIdAndSurfaceKeyAndViewKey(
-            Long tenantId, Long userId, String surfaceKey, String viewKey);
+    Optional<HomeView> findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyAndViewKey(
+            Long tenantId, Long userId, String surfaceKey, String modeKey, String viewKey);
 
-    long countByTenantIdAndUserIdAndSurfaceKey(Long tenantId, Long userId, String surfaceKey);
+    long countByTenantIdAndUserIdAndSurfaceKeyAndModeKey(
+            Long tenantId, Long userId, String surfaceKey, String modeKey);
 
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select view from HomeView view where view.viewId = :viewId "

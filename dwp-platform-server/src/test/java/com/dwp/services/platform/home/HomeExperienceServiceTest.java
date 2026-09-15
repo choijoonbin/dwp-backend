@@ -109,7 +109,7 @@ class HomeExperienceServiceTest {
     }
 
     @Test
-    void returnsViewsOnlyWhenFlowV2AndTheReadSwitchAreAllEnabled() throws Exception {
+    void returnsViewsForEitherModeWhenTheReadinessGatesAreEnabled() throws Exception {
         HomeExperience experience = experience(7L, 2L, null);
         experience.setCompositionPolicy(new ObjectMapper().readTree("""
                 {
@@ -142,7 +142,7 @@ class HomeExperienceServiceTest {
         ReflectionTestUtils.setField(service, "homeFlowEnabled", false);
         HomeExperienceDtos.HomeExperienceResponse killed = service.get(7L);
         assertThat(killed.effectiveExperienceVariant()).isEqualTo("CLASSIC");
-        assertThat(killed.homePreferenceStore()).isEqualTo("LEGACY");
+        assertThat(killed.homePreferenceStore()).isEqualTo("VIEWS");
         assertThat(service.flowPersonalizationEnabled(7L)).isFalse();
     }
 

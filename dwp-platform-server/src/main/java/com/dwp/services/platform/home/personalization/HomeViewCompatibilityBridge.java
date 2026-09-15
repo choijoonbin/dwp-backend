@@ -72,7 +72,8 @@ public class HomeViewCompatibilityBridge {
                        integrity_state = 'VALID', is_customized = ?,
                        version = version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                 WHERE tenant_id = ? AND user_id = ? AND surface_key = ? AND is_default
+                 WHERE tenant_id = ? AND user_id = ? AND surface_key = ?
+                   AND mode_key = 'CLASSIC' AND is_default
                    AND deleted_at IS NULL
                 """,
                 preference.getSchemaVersion(), preference.getLayoutPayload().toString(),
@@ -86,16 +87,17 @@ public class HomeViewCompatibilityBridge {
         }
         affected = jdbc.update("""
                 INSERT INTO usr_home_views (
-                    view_id, tenant_id, user_id, surface_key, view_key, name, is_default,
+                    view_id, tenant_id, user_id, surface_key, mode_key, view_key, name, is_default,
                     schema_version, layout_payload, is_customized,
                     version, created_by, updated_by)
-                SELECT gen_random_uuid(), ?, ?, ?, 'default', 'My home', TRUE,
+                SELECT gen_random_uuid(), ?, ?, ?, 'CLASSIC', 'default', 'My home', TRUE,
                        ?, ?::jsonb, ?, 0, ?, ?
                  WHERE NOT EXISTS (
                     SELECT 1 FROM usr_home_views
                      WHERE tenant_id = ? AND user_id = ? AND surface_key = ?
+                       AND mode_key = 'CLASSIC'
                        AND deleted_at IS NULL)
-                ON CONFLICT (tenant_id, user_id, surface_key, view_key)
+                ON CONFLICT (tenant_id, user_id, surface_key, mode_key, view_key)
                     WHERE deleted_at IS NULL
                 DO UPDATE
                     SET schema_version = EXCLUDED.schema_version,
@@ -131,7 +133,8 @@ public class HomeViewCompatibilityBridge {
                        integrity_state = 'VALID', is_customized = FALSE,
                        version = version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                 WHERE tenant_id = ? AND user_id = ? AND surface_key = ? AND is_default
+                 WHERE tenant_id = ? AND user_id = ? AND surface_key = ?
+                   AND mode_key = 'CLASSIC' AND is_default
                    AND deleted_at IS NULL
                 """,
                 HomePreferenceDtos.SCHEMA_VERSION, serializedLayout.toString(), userId,
@@ -147,7 +150,8 @@ public class HomeViewCompatibilityBridge {
                        AND child.tenant_id = active.tenant_id
                        AND child.user_id = active.user_id
                        AND active.tenant_id = ? AND active.user_id = ?
-                       AND active.surface_key = ? AND active.is_default
+                       AND active.surface_key = ? AND active.mode_key = 'CLASSIC'
+                       AND active.is_default
                        AND active.deleted_at IS NULL
                     """, tenantId, userId, surfaceKey);
             jdbc.update("""
@@ -157,7 +161,8 @@ public class HomeViewCompatibilityBridge {
                        AND child.tenant_id = active.tenant_id
                        AND child.user_id = active.user_id
                        AND active.tenant_id = ? AND active.user_id = ?
-                       AND active.surface_key = ? AND active.is_default
+                       AND active.surface_key = ? AND active.mode_key = 'CLASSIC'
+                       AND active.is_default
                        AND active.deleted_at IS NULL
                     """, tenantId, userId, surfaceKey);
             appendClassicRevision(
@@ -166,7 +171,8 @@ public class HomeViewCompatibilityBridge {
     }
 
     public void mirrorDefaultView(HomeView view) {
-        if (!dualWriteEnabled || view == null || !view.isDefaultView()) return;
+        if (!dualWriteEnabled || view == null || !view.isDefaultView()
+                || !HomeModeKeys.CLASSIC.equals(HomeModeKeys.canonical(view.getModeKey()))) return;
         invalidateReadiness(view.getTenantId());
         // usr_home_preferences is the legacy LocalDateTime/TIMESTAMP store. Pass
         // the JVM wall clock explicitly instead of mixing PostgreSQL UTC
@@ -197,7 +203,8 @@ public class HomeViewCompatibilityBridge {
             String candidateJson = jdbc.query("""
                             SELECT layout_payload
                               FROM usr_home_views
-                             WHERE tenant_id = ? AND user_id = ? AND surface_key = ? AND is_default
+                             WHERE tenant_id = ? AND user_id = ? AND surface_key = ?
+                               AND mode_key = 'CLASSIC' AND is_default
                                AND deleted_at IS NULL
                              LIMIT 1
                             """,
@@ -237,6 +244,7 @@ public class HomeViewCompatibilityBridge {
                         ON active.tenant_id = legacy.tenant_id
                        AND active.user_id = legacy.user_id
                        AND active.surface_key = legacy.surface_key
+                       AND active.mode_key = 'CLASSIC'
                        AND active.is_default
                        AND active.deleted_at IS NULL
                      WHERE legacy.tenant_id = ?
@@ -251,6 +259,7 @@ public class HomeViewCompatibilityBridge {
                        AND legacy.user_id = active.user_id
                        AND legacy.surface_key = active.surface_key
                      WHERE active.tenant_id = ?
+                       AND active.mode_key = 'CLASSIC'
                        AND active.is_default
                        AND active.deleted_at IS NULL
                        AND (active.integrity_state <> 'VALID'
@@ -280,6 +289,7 @@ public class HomeViewCompatibilityBridge {
                                 ON active.tenant_id = legacy.tenant_id
                                AND active.user_id = legacy.user_id
                                AND active.surface_key = legacy.surface_key
+                               AND active.mode_key = 'CLASSIC'
                                AND active.is_default
                                AND active.deleted_at IS NULL
                              WHERE legacy.tenant_id = ?
@@ -295,6 +305,7 @@ public class HomeViewCompatibilityBridge {
                                 ON active.tenant_id = legacy.tenant_id
                                AND active.user_id = legacy.user_id
                                AND active.surface_key = legacy.surface_key
+                               AND active.mode_key = 'CLASSIC'
                                AND active.is_default
                                AND active.deleted_at IS NULL
                              WHERE legacy.tenant_id = ?
@@ -376,7 +387,8 @@ public class HomeViewCompatibilityBridge {
                        'USER', ?, CURRENT_TIMESTAMP, ?
                   FROM usr_home_views active
                  WHERE active.tenant_id = ? AND active.user_id = ?
-                   AND active.surface_key = ? AND active.is_default
+                   AND active.surface_key = ? AND active.mode_key = 'CLASSIC'
+                   AND active.is_default
                    AND active.deleted_at IS NULL
                 """, summary, userId, tenantId, userId, surfaceKey);
     }

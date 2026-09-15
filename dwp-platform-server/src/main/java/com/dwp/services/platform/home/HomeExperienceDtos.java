@@ -77,21 +77,35 @@ public final class HomeExperienceDtos {
 
     @Schema(requiredProperties = {
             "schemaVersion", "experienceVariant", "personalCustomizationEnabled",
-            "governedZones"
+            "governedZones", "modeLayouts"
     })
     public record HomeCompositionPolicy(
             Integer schemaVersion,
             @Schema(allowableValues = {"CLASSIC", "FLOW_V1"})
             String experienceVariant,
             Boolean personalCustomizationEnabled,
-            List<GovernedHomeZone> governedZones) {
+            List<GovernedHomeZone> governedZones,
+            Map<String, HomeModeLayoutContract> modeLayouts) {
+
+        public HomeCompositionPolicy(
+                Integer schemaVersion,
+                String experienceVariant,
+                Boolean personalCustomizationEnabled,
+                List<GovernedHomeZone> governedZones) {
+            this(schemaVersion, experienceVariant, personalCustomizationEnabled, governedZones, null);
+        }
 
         public HomeCompositionPolicy(
                 Integer schemaVersion,
                 Boolean personalCustomizationEnabled,
                 List<GovernedHomeZone> governedZones) {
-            this(schemaVersion, null, personalCustomizationEnabled, governedZones);
+            this(schemaVersion, null, personalCustomizationEnabled, governedZones, null);
         }
+    }
+
+    public record HomeModeLayoutContract(
+            @Schema(allowableValues = {"MODE_SCOPED_VIEW"}) String layoutScope,
+            List<String> deviceClasses) {
     }
 
     public record GovernedHomeZone(
