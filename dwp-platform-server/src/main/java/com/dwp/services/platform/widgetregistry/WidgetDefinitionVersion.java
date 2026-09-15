@@ -7,6 +7,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.Table;
 import jakarta.persistence.Version;
 import java.util.UUID;
+import java.time.OffsetDateTime;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -49,6 +50,8 @@ public class WidgetDefinitionVersion extends WidgetRegistryEntity {
     private UUID predecessorVersionId;
     @Column(name = "replacement_version_id")
     private UUID replacementVersionId;
+    @Column(name = "deprecation_ends_at")
+    private OffsetDateTime deprecationEndsAt;
     @Column(name = "validation_run_id")
     private UUID validationRunId;
     @Column(name = "approved_by")

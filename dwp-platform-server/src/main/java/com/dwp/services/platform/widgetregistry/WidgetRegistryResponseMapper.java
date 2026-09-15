@@ -29,7 +29,8 @@ class WidgetRegistryResponseMapper {
                 value.getManifest(), value.getManifestHash(), value.getWorkflowState(),
                 value.getReleaseState(), value.getSafetyState(), value.getAttestation(),
                 value.getCertificationStatus(), value.getPredecessorVersionId(),
-                value.getReplacementVersionId(), value.getValidationRunId(), bindingRevision,
+                value.getReplacementVersionId(), value.getDeprecationEndsAt(),
+                value.getValidationRunId(), bindingRevision,
                 version(value.getVersion()), value.getCreatedAt(), value.getUpdatedAt(),
                 versionTransitions(value));
     }

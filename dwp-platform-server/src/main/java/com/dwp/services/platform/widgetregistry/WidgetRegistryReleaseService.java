@@ -163,15 +163,17 @@ public class WidgetRegistryReleaseService {
             throw invalid("Deprecation replacement must be another eligible version.");
         }
         requireReleaseCandidate(value.getDefinitionId(), replacement);
+        var before = mapper.version(value);
         value.setReleaseState("DEPRECATED");
+        value.setDeprecationEndsAt(request.deprecationEndsAt());
         value.setReplacementVersionId(replacement.getVersionId());
         value.setUpdatedBy(actorId);
         definitions.saveVersion(value);
         var response = mapper.version(value);
         ledger.append(null, "VERSION", versionId.toString(), "WIDGET_VERSION_DEPRECATED",
-                commandId, actorId, correlationId, null, response, List.of(),
+                commandId, actorId, correlationId, before, response, List.of(),
                 WidgetRegistryLedger.RevisionAxis.REGISTRY);
-        receipts.store(actorId, commandId, "DEPRECATE", versionId.toString(), fingerprint, response);
+        receipts.store(actorId, commandId, "DEPRECATE", versionId.toString(), fingerprint, response, request);
         return response;
     }
 

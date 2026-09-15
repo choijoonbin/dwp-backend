@@ -171,6 +171,7 @@ public final class WidgetRegistryDtos {
             String certificationStatus,
             UUID predecessorVersionId,
             UUID replacementVersionId,
+            OffsetDateTime deprecationEndsAt,
             UUID validationRunId,
             String bindingCatalogRevision,
             long version,

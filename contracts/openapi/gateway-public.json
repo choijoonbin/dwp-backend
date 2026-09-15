@@ -55204,7 +55204,8 @@
           "state": {
             "enum": [
               "DISABLED",
-              "ENABLED"
+              "ENABLED",
+              "EXPIRED"
             ],
             "type": "string"
           },
@@ -58430,6 +58431,10 @@
           },
           "definitionId": {
             "format": "uuid",
+            "type": "string"
+          },
+          "deprecationEndsAt": {
+            "format": "date-time",
             "type": "string"
           },
           "manifest": {

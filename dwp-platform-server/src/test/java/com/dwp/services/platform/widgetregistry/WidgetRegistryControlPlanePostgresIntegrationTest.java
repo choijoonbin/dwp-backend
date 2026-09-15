@@ -360,12 +360,46 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
                         "TEST", "self replacement", nextPublished.version())))
                 .isInstanceOfSatisfying(BaseException.class,
                         failure -> assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
-        var deprecated = releases.deprecate(releaser, UUID.randomUUID(), null,
-                nextPublished.versionId(), new WidgetRegistryDtos.DeprecateRequest(
-                        published.versionId(), OffsetDateTime.now(ZoneOffset.UTC).plusDays(30),
-                        "TEST", "deprecate replacement", nextPublished.version()));
+        for (OffsetDateTime invalidDeadline : List.of(
+                OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(1),
+                OffsetDateTime.now(ZoneOffset.UTC).plusDays(366))) {
+            assertThatThrownBy(() -> releases.deprecate(releaser, UUID.randomUUID(), null,
+                    nextPublished.versionId(), new WidgetRegistryDtos.DeprecateRequest(
+                            published.versionId(), invalidDeadline,
+                            "TEST", "invalid deadline", nextPublished.version())))
+                    .isInstanceOfSatisfying(BaseException.class,
+                            failure -> assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.INVALID_STATE));
+        }
+        UUID deprecationCommand = UUID.randomUUID();
+        OffsetDateTime deadline = OffsetDateTime.now(ZoneOffset.UTC).plusDays(30).withNano(0);
+        var deprecationRequest = new WidgetRegistryDtos.DeprecateRequest(
+                published.versionId(), deadline,
+                "TEST", "deprecate replacement", nextPublished.version());
+        var deprecated = releases.deprecate(releaser, deprecationCommand, null,
+                nextPublished.versionId(), deprecationRequest);
         assertThat(deprecated.releaseState()).isEqualTo("DEPRECATED");
         assertThat(deprecated.replacementVersionId()).isEqualTo(published.versionId());
+        assertThat(deprecated.deprecationEndsAt()).isEqualTo(deadline);
+        assertThat(definitions.getVersion(deprecated.versionId()).deprecationEndsAt()).isEqualTo(deadline);
+        assertThat(releases.deprecate(releaser, deprecationCommand, null,
+                nextPublished.versionId(), deprecationRequest)).isEqualTo(deprecated);
+        assertThat(jdbc.queryForObject("""
+                SELECT deprecation_ends_at FROM plt_widget_definition_versions WHERE version_id = ?
+                """, OffsetDateTime.class, deprecated.versionId())).isEqualTo(deadline);
+        List<String> retainedDeadlines = jdbc.queryForList("""
+                SELECT response_payload -> 'deprecationEndsAt' FROM plt_widget_command_receipts
+                 WHERE command_id = ?
+                UNION ALL
+                SELECT request_audit_payload -> 'deprecationEndsAt' FROM plt_widget_command_receipts
+                 WHERE command_id = ?
+                UNION ALL
+                SELECT after_snapshot -> 'deprecationEndsAt' FROM plt_widget_registry_events
+                 WHERE command_id = ?
+                """, String.class, deprecationCommand, deprecationCommand, deprecationCommand);
+        assertThat(retainedDeadlines).hasSize(3);
+        for (String payload : retainedDeadlines) {
+            assertThat(objectMapper.readValue(payload, OffsetDateTime.class)).isEqualTo(deadline);
+        }
 
         var absent = policies.get(1L, definition.definitionId());
         var policyDraft = policies.createRevision(1L, author, UUID.randomUUID(), null,

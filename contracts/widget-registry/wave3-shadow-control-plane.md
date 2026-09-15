@@ -27,7 +27,7 @@ Publish requires `APPROVED`, `PASS`, `CLEAR`, an active native binding, current 
 - `PUBLISHED|DEPRECATED|BLOCKED + CLEAR → BLOCKED/QUARANTINED`
 - any published, deprecated, blocked, or quarantined version → `BLOCKED/REVOKED`
 - revoke is irreversible
-- deprecation requires another eligible published, certified, clear replacement and a bounded future end date
+- deprecation requires another eligible published, certified, clear replacement and a bounded future end date; V259 retains the approved deadline immutably in the version, response, receipt and event, and expired or legacy missing deadlines deny discovery
 - channel promotion and rollback require another eligible published, certified, clear immutable version plus exact channel head and impact revision
 
 Tenant policies are immutable revisions behind an optimistic head. A draft validates its release selector, canonical `AudienceSelectorV1`, supported surfaces, and closed configuration object. Publish, revoke, and rollback create or select new history without deleting configuration or instances. Missing policy denies. Runtime controls can disable catalog mutation, discovery, rendering, or actions at global, provider, tenant, definition, or version scope. Re-enable requires a separate, expiring, single-use approval tied to the current control revision.
@@ -47,3 +47,5 @@ The seven legacy rows are `APPROVED/PUBLISHED` only to compare static and shadow
 ## Deployment and rollback
 
 V256 and V257 are additive and safe while old binaries run because no existing Home table or runtime path is replaced. Provision the same independently generated `DWP_WIDGET_REGISTRY_PROVIDER_TOKEN` only to Provider and Platform, deploy both Wave 3 binaries, verify readiness reports SHADOW and runtime false, then compare static and shadow decisions. A missing token fails every Provider registry call closed. Rolling back the binary leaves inert additive rows; roll forward to modify their schema. Do not set runtime activation through SQL: this release deliberately has no legal activation state.
+
+V259 adds nullable deprecation deadlines without inventing dates for existing deprecated rows. Those legacy rows remain available for review but deny discovery. New deprecation writes require a future deadline within 365 days, which cannot be removed or extended even after block, revocation, or channel rollback. Rolling back to an older binary leaves this database guard installed; its date-unaware deprecation writes fail closed. Keep registry operations disabled when rolling back to a binary without deadline-aware catalog evaluation.

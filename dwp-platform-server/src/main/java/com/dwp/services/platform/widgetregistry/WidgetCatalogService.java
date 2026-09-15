@@ -5,6 +5,8 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.home.HomeExperienceDtos;
 import com.dwp.services.platform.home.HomeExperienceService;
 import com.fasterxml.jackson.databind.JsonNode;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -246,7 +248,14 @@ public class WidgetCatalogService {
         else {
             switch (version.getReleaseState()) {
                 case "PUBLISHED" -> { }
-                case "DEPRECATED" -> deprecated = true;
+                case "DEPRECATED" -> {
+                    if (version.getDeprecationEndsAt() == null
+                            || !version.getDeprecationEndsAt().isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
+                        reasons.add(WidgetRegistryDtos.EffectiveCatalogReason.NOT_AVAILABLE);
+                    } else {
+                        deprecated = true;
+                    }
+                }
                 case "BLOCKED" -> reasons.add(
                         WidgetRegistryDtos.EffectiveCatalogReason.TEMPORARILY_UNAVAILABLE);
                 default -> reasons.add(WidgetRegistryDtos.EffectiveCatalogReason.NOT_AVAILABLE);
