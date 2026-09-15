@@ -31,6 +31,7 @@ public class WorkspaceService {
     private final AppEntitlementProvisioner appEntitlements;
     private final PlatformAuditService auditService;
     private final ActivityService activityService;
+    private final WorkspaceDtoMapper dtoMapper;
 
     public WorkspaceService(
             WorkspaceRepository repository,
@@ -43,6 +44,7 @@ public class WorkspaceService {
         this.appEntitlements = appEntitlements;
         this.auditService = auditService;
         this.activityService = activityService;
+        this.dtoMapper = new WorkspaceDtoMapper();
     }
 
     @Transactional(readOnly = true)
@@ -54,7 +56,8 @@ public class WorkspaceService {
         require(authorities(permissions), WORK_VIEW);
         List<WorkspaceDtos.WorkItem> items = repository.workItems(
                         tenantId, actorId, korean(locale)).stream()
-                .map(row -> workItem(row, locale, authorities(permissions).contains(WORK_UPDATE)))
+                .map(row -> dtoMapper.workItem(
+                        row, korean(locale), authorities(permissions).contains(WORK_UPDATE)))
                 .toList();
         OffsetDateTime now = OffsetDateTime.now();
         return new WorkspaceDtos.WorkQueue(WorkspaceWorkPolicy.summary(items, now), items, now);
@@ -120,7 +123,7 @@ public class WorkspaceService {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
         }
         if (before.status().equals(requestedStatus)) {
-            return workItem(before, locale, true);
+            return dtoMapper.workItem(before, korean(locale), true);
         }
         requireTransition(before.status(), requestedStatus);
         String activityKo = statusActivity(requestedStatus, true);
@@ -147,7 +150,7 @@ public class WorkspaceService {
                 "업무 상태 변경", "Work status changed",
                 before.id() + " 상태가 " + activityKo,
                 before.id() + " " + activityEn, auditRecordId, correlationId);
-        return workItem(after, locale, true);
+        return dtoMapper.workItem(after, korean(locale), true);
     }
 
     @Transactional(readOnly = true)
@@ -296,8 +299,8 @@ public class WorkspaceService {
         auditService.success(
                 tenantId, actorId, "workspace.app-access.requested", "APP_ACCESS_REQUEST",
                 created.requestId().toString(), correlationId, null,
-                appAccessSnapshot(created));
-        return appAccessRequest(created, korean(locale));
+                dtoMapper.appAccessSnapshot(created));
+        return dtoMapper.appAccessRequest(created, korean(locale));
     }
 
     @Transactional
@@ -322,8 +325,8 @@ public class WorkspaceService {
         auditService.success(
                 tenantId, actorId, "workspace.app-access.cancelled", "APP_ACCESS_REQUEST",
                 requestId.toString(), correlationId,
-                appAccessSnapshot(before), appAccessSnapshot(after));
-        return appAccessRequest(after, korean(locale));
+                dtoMapper.appAccessSnapshot(before), dtoMapper.appAccessSnapshot(after));
+        return dtoMapper.appAccessRequest(after, korean(locale));
     }
 
     @Transactional(readOnly = true)
@@ -343,7 +346,7 @@ public class WorkspaceService {
         }
         return appAccessRequests.list(tenantId, normalized).stream()
                 .filter(value -> tenantWide || resourceKeys.contains(value.resourceKey()))
-                .map(value -> appAccessRequest(value, korean(locale)))
+                .map(value -> dtoMapper.appAccessRequest(value, korean(locale)))
                 .toList();
     }
 
@@ -381,8 +384,8 @@ public class WorkspaceService {
                         ? "workspace.app-access.approved"
                         : "workspace.app-access.rejected",
                 "APP_ACCESS_REQUEST", requestId.toString(), correlationId,
-                appAccessSnapshot(before), appAccessSnapshot(after));
-        return appAccessRequest(after, korean(locale));
+                dtoMapper.appAccessSnapshot(before), dtoMapper.appAccessSnapshot(after));
+        return dtoMapper.appAccessRequest(after, korean(locale));
     }
 
     @Transactional
@@ -426,8 +429,8 @@ public class WorkspaceService {
             auditService.success(
                     tenantId, actorId, "workspace.app-access.fulfillment-failed",
                     "APP_ACCESS_REQUEST", requestId.toString(), correlationId,
-                    appAccessSnapshot(before), appAccessSnapshot(failed));
-            return appAccessRequest(failed, korean(locale));
+                    dtoMapper.appAccessSnapshot(before), dtoMapper.appAccessSnapshot(failed));
+            return dtoMapper.appAccessRequest(failed, korean(locale));
         }
 
         if (!appAccessRequests.markFulfilled(
@@ -439,8 +442,8 @@ public class WorkspaceService {
         auditService.success(
                 tenantId, actorId, "workspace.app-access.fulfilled",
                 "APP_ACCESS_REQUEST", requestId.toString(), correlationId,
-                appAccessSnapshot(before), appAccessSnapshot(after));
-        return appAccessRequest(after, korean(locale));
+                dtoMapper.appAccessSnapshot(before), dtoMapper.appAccessSnapshot(after));
+        return dtoMapper.appAccessRequest(after, korean(locale));
     }
 
     @Transactional
@@ -489,8 +492,8 @@ public class WorkspaceService {
         auditService.success(
                 tenantId, actorId, "workspace.app-access.revoked",
                 "APP_ACCESS_REQUEST", requestId.toString(), correlationId,
-                appAccessSnapshot(before), appAccessSnapshot(after));
-        return appAccessRequest(after, korean(locale));
+                dtoMapper.appAccessSnapshot(before), dtoMapper.appAccessSnapshot(after));
+        return dtoMapper.appAccessRequest(after, korean(locale));
     }
 
     @Transactional
@@ -522,7 +525,7 @@ public class WorkspaceService {
             auditService.serviceSuccess(
                     before.tenantId(), "workspace.app-access.expired", "APP_ACCESS_REQUEST",
                     before.requestId().toString(), correlationId,
-                    appAccessSnapshot(before), appAccessSnapshot(after));
+                    dtoMapper.appAccessSnapshot(before), dtoMapper.appAccessSnapshot(after));
             expired++;
         }
         return expired;
@@ -631,30 +634,6 @@ public class WorkspaceService {
         };
     }
 
-    private WorkspaceDtos.WorkItem workItem(
-            WorkspaceRepository.WorkRow row, String locale, boolean canUpdate) {
-        return new WorkspaceDtos.WorkItem(
-                row.workItemId(),
-                row.id(),
-                row.title(),
-                row.summary(),
-                row.dataClassification(),
-                row.type(),
-                row.priority(),
-                row.status(),
-                "SELF".equals(row.owner()) ? (korean(locale) ? "본인" : "You") : row.owner(),
-                row.dueAt(),
-                row.sourceSystem(),
-                row.sourceReference(),
-                row.sourceRoute(),
-                row.reason(),
-                row.recommendedNext(),
-                row.latestActivity(),
-                row.version(),
-                row.updatedAt(),
-                WorkspaceWorkPolicy.capabilities(row, canUpdate));
-    }
-
     private WorkspaceDtos.WorkspaceApp workspaceApp(
             WorkspaceRepository.AppRow row,
             Set<String> authorities,
@@ -688,38 +667,6 @@ public class WorkspaceService {
     private String requiredAuthority(WorkspaceRepository.AppRow app) {
         return app.resourceKey().toUpperCase(Locale.ROOT) + ":"
                 + app.requiredPermissionCode().toUpperCase(Locale.ROOT);
-    }
-
-    private WorkspaceDtos.AppAccessRequest appAccessRequest(
-            AppAccessRequestRepository.RequestRecord value,
-            boolean korean) {
-        return new WorkspaceDtos.AppAccessRequest(
-                value.requestId(), value.userId(), value.appKey(),
-                korean ? value.appNameKo() : value.appNameEn(), value.resourceKey(),
-                value.requestedPermissionCode(), value.justification(), value.state(),
-                value.requestedUntil(), value.decisionNote(), value.decidedAt(),
-                value.decidedBy(), value.fulfillmentState(), value.fulfillmentAttempts(),
-                value.fulfillmentNote(), value.lastFulfillmentAt(), value.lastFulfillmentError(),
-                value.fulfilledAt(), value.fulfilledBy(), value.revokedAt(), value.revokedBy(),
-                value.revocationNote(), value.version(), value.createdAt(), value.updatedAt());
-    }
-
-    private java.util.Map<String, Object> appAccessSnapshot(
-            AppAccessRequestRepository.RequestRecord value) {
-        java.util.Map<String, Object> snapshot = new java.util.LinkedHashMap<>();
-        snapshot.put("requestId", value.requestId());
-        snapshot.put("userId", value.userId());
-        snapshot.put("appKey", value.appKey());
-        snapshot.put("resourceKey", value.resourceKey());
-        snapshot.put("state", value.state());
-        snapshot.put("requestedUntil", value.requestedUntil());
-        snapshot.put("decidedBy", value.decidedBy());
-        snapshot.put("fulfillmentState", value.fulfillmentState());
-        snapshot.put("fulfillmentAttempts", value.fulfillmentAttempts());
-        snapshot.put("fulfilledBy", value.fulfilledBy());
-        snapshot.put("revokedBy", value.revokedBy());
-        snapshot.put("version", value.version());
-        return snapshot;
     }
 
     private boolean korean(String locale) {
