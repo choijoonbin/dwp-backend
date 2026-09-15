@@ -20,11 +20,14 @@ class ApprovalExtensionV9PepRegistryTest {
 
     @Test
     void currentConstructorRetainsAllImmutableBaselinesAndExactNewOwnerBindings() {
-        var baseline = new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 8);
+        var v8 = new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 8);
+        var v9 = new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 9);
         var current = new ApprovalPilotPepRegistry(mapper);
-        assertThat(current.bindingContracts()).hasSize(99).containsAll(baseline.bindingContracts());
-        assertThat(current.bindingContracts()).filteredOn(binding -> !baseline.bindingContracts().contains(binding)).hasSize(27);
-        assertThatThrownBy(() -> new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 10))
+        assertThat(v9.bindingContracts()).hasSize(99).containsAll(v8.bindingContracts());
+        assertThat(v9.bindingContracts()).filteredOn(binding -> !v8.bindingContracts().contains(binding)).hasSize(27);
+        assertThat(current.bindingContracts()).hasSize(157).containsAll(v9.bindingContracts());
+        assertThat(current.bindingContracts()).filteredOn(binding -> !v9.bindingContracts().contains(binding)).hasSize(58);
+        assertThatThrownBy(() -> new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 15))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("Unsupported");
     }
 

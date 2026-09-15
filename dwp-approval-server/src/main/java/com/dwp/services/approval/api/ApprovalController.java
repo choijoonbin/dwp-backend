@@ -1,9 +1,11 @@
 package com.dwp.services.approval.api;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.approval.domain.ApprovalDelegationUpdateRequest;
 import com.dwp.services.approval.domain.ApprovalDtos;
-import com.dwp.services.approval.domain.ApprovalService;
 import com.dwp.services.approval.domain.ApprovalDraftService;
+import com.dwp.services.approval.domain.ApprovalResubmitDraftDtos;
+import com.dwp.services.approval.domain.ApprovalService;
 import com.dwp.services.approval.domain.ApprovalWorkflowQuorumInformationPending;
 import com.dwp.services.approval.security.ApprovalWorkflowQuorumCommandMetadata;
 import com.dwp.services.approval.security.ApprovalWorkflowQuorumCommandProof.Purpose;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.ResponseEntity;
 
 import java.util.List;
 import java.util.UUID;
@@ -117,6 +120,28 @@ public class ApprovalController {
         return ApiResponse.success(drafts.create(request, idempotencyKey, correlationId));
     }
 
+    @PostMapping("/requests/{requestId}/resubmit-draft")
+    @Operation(
+            summary = "Create an owned resubmission draft from a terminal request",
+            parameters = @Parameter(name = "Idempotency-Key", in = ParameterIn.HEADER,
+                    required = true, schema = @Schema(type = "string", maxLength = 120,
+                    pattern = "[A-Za-z0-9._:-]{1,120}")))
+    public ResponseEntity<ApiResponse<ApprovalResubmitDraftDtos.Response>> resubmitDraft(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody ApprovalResubmitDraftDtos.Request request,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
+        try {
+            return ResponseEntity.ok(ApiResponse.success(
+                    drafts.resubmit(requestId, request, idempotencyKey, correlationId)));
+        } catch (ApprovalDraftService.IncompatibleSourcePayload incompatible) {
+            return ResponseEntity.unprocessableEntity().body(ApiResponse.error(
+                    com.dwp.core.common.ErrorCode.INVALID_INPUT_VALUE,
+                    incompatible.getMessage(),
+                    correlationId));
+        }
+    }
+
     @PutMapping("/requests/{requestId}/draft")
     public ApiResponse<ApprovalDtos.RequestDetail> updateDraft(
             @PathVariable UUID requestId,
@@ -208,6 +233,19 @@ public class ApprovalController {
             @Valid @RequestBody ApprovalDtos.CreateDelegationRequest request,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
         return ApiResponse.success(service.createDelegation(request, correlationId));
+    }
+
+    @Operation(parameters = @Parameter(name = "Idempotency-Key", in = ParameterIn.HEADER,
+            required = true, schema = @Schema(type = "string", maxLength = 120,
+            pattern = "[A-Za-z0-9._:-]{1,120}")))
+    @PutMapping("/delegations/{delegationId}")
+    public ApiResponse<List<ApprovalDtos.DelegationSummary>> updateDelegation(
+            @PathVariable UUID delegationId,
+            @Valid @RequestBody ApprovalDelegationUpdateRequest request,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
+        return ApiResponse.success(service.updateDelegation(
+                delegationId, request, idempotencyKey, correlationId));
     }
 
     @PostMapping("/delegations/{delegationId}/revoke")

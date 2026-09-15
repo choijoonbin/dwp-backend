@@ -62,6 +62,32 @@ class ApprovalWorkflowQuorumSlaEventPostgresTest {
         verifyDigest(body);
     }
 
+    @Test void oneRevokedAuthorityCannotStarveTheOtherClaimedDueTimerAndItsLeaseRecoversExactlyOnce() {
+        f.start(one(ApprovalWorkflowQuorum.Mode.ALL, null)); f.dueTimers();
+        var leases = f.sla.claim("isolated-batch-worker", 60, 2);
+        assertEquals(2, leases.size());
+        var rejected = leases.getFirst();
+        f.sla.bindProducer(lease -> {
+            if (lease.timerId().equals(rejected.timerId())) throw new IllegalStateException("revoked authority");
+            return authority();
+        });
+
+        assertThrows(IllegalStateException.class, () -> f.sla.finishClaimed(leases));
+        assertEquals(1, f.jdbc.queryForObject("SELECT count(*) FROM apr_quorum_sla_timers WHERE request_id=? AND status='COMPLETED'", Integer.class, f.request));
+        assertEquals(1, f.jdbc.queryForObject("SELECT count(*) FROM apr_integration_outbox WHERE request_id=? AND event_type LIKE 'Approval.Quorum.Sla%'", Integer.class, f.request));
+
+        f.jdbc.update("UPDATE apr_quorum_sla_timers SET lease_until=clock_timestamp()-interval '1 second' WHERE timer_id=?", rejected.timerId());
+        f.sla.bindProducer(lease -> authority());
+        f.sla.finishClaimed(f.sla.claim("recovery-worker", 60, 2));
+        assertEquals(2, f.jdbc.queryForObject("SELECT count(*) FROM apr_quorum_sla_timers WHERE request_id=? AND status='COMPLETED'", Integer.class, f.request));
+        assertEquals(2, f.jdbc.queryForObject("SELECT count(*) FROM apr_integration_outbox WHERE request_id=? AND event_type LIKE 'Approval.Quorum.Sla%'", Integer.class, f.request));
+    }
+
+    private ApprovalWorkflowQuorumSlaRuntime.ProducerAuthority authority() {
+        return new ApprovalWorkflowQuorumSlaRuntime.ProducerAuthority(f.pool,
+                "asla-" + "a".repeat(64), java.time.Instant.now().plusSeconds(60), () -> { });
+    }
+
     private JsonNode envelope() throws Exception {
         return mapper.readTree(f.jdbc.queryForObject("SELECT payload::text FROM apr_integration_outbox "
                 + "WHERE event_type LIKE 'Approval.Quorum.Sla%'", String.class));

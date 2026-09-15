@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -227,16 +228,18 @@ class ApprovalSlaMaterializationPostgresIntegrationTest {
 
     @Test
     void actualConsumerProcesses1000SeatsIn10NativeChunksAndHistoricalReplayDoesNotCallHttpOrWriteAgain() throws Exception {
-        var plan = ownPlan(1000);
+        var kafka = ownRecord(1000);
+        var plan = ApprovalSlaNotificationContract.translate(kafka);
         server = new SourceServer(plan, new MutableClock(NOW), "GOOD");
-        var consumer = consumer(); consumer.deliver(plan);
+        var listener = new ApprovalSlaNotificationKafkaListener(consumer());
+        listener.receive(kafka);
         assertNativeRows(1000);
         assertThat(eventCount("ntf_approval_sla_delivery_chunks", plan.eventId())).isEqualTo(10);
         assertThat(eventCount("ntf_approval_sla_delivery_recipients", plan.eventId())).isEqualTo(1000);
         assertThat(worker(() -> journal.finished(plan))).isTrue();
         assertThat(server.calls.get()).isEqualTo(21);
         verify(redis, times(1000)).convertAndSend(anyString(), anyString());
-        consumer.deliver(plan);
+        listener.receive(kafka);
         assertThat(server.calls.get()).isEqualTo(21);
         assertNativeRows(1000);
         verify(redis, times(1000)).convertAndSend(anyString(), anyString());
@@ -246,7 +249,7 @@ class ApprovalSlaMaterializationPostgresIntegrationTest {
         replayRecord.headers().remove("dwp-tenant-id").add("dwp-tenant-id", Long.toString(tenant).getBytes(java.nio.charset.StandardCharsets.UTF_8));
         var changedRaw = ApprovalSlaNotificationContract.translate(replayRecord);
         assertThat(changedRaw.envelopeSha256()).isEqualTo(plan.envelopeSha256());
-        assertThatThrownBy(() -> consumer.deliver(changedRaw)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> listener.receive(replayRecord)).isInstanceOf(IllegalArgumentException.class);
         assertThat(server.calls.get()).isEqualTo(21);
     }
 
@@ -288,9 +291,13 @@ class ApprovalSlaMaterializationPostgresIntegrationTest {
         return new ApprovalSlaNotificationConsumer(manager, scope, journal, server.client, materializer);
     }
     private ApprovalSlaNotificationPlan ownPlan(int count) throws Exception {
-        var record = record(UUID.randomUUID(), encode(ownEvent(count)));
-        record.headers().remove("dwp-tenant-id").add("dwp-tenant-id", Long.toString(tenant).getBytes(java.nio.charset.StandardCharsets.UTF_8));
-        return ApprovalSlaNotificationContract.translate(record);
+        return ApprovalSlaNotificationContract.translate(ownRecord(count));
+    }
+    private ConsumerRecord<String, String> ownRecord(int count) throws Exception {
+        var input = record(UUID.randomUUID(), encode(ownEvent(count)));
+        input.headers().remove("dwp-tenant-id").add("dwp-tenant-id",
+                Long.toString(tenant).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return input;
     }
     private com.fasterxml.jackson.databind.node.ObjectNode ownEvent(int count) throws Exception {
         var event = event(count); event.put("tenantId", tenant); return event;

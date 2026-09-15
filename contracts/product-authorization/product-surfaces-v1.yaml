@@ -21037,6 +21037,443 @@
           "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 11,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [
+        {
+          "predicatePolicyKey": "predicate.approval.retention-command-original-authority.v1",
+          "targetBindingKinds": [
+            "OBJECT"
+          ],
+          "ownerServiceKey": "approval",
+          "parameterSchemaKey": "predicate.approval.retention-command-original-authority.v1.parameters.v1",
+          "inputEvidenceSchemaKey": "ApprovalRetentionOriginalCommandReceiptEvidenceV1",
+          "parameterSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          },
+          "policyVersion": 1,
+          "routeContractKeys": [],
+          "lifecycleState": "ACTIVE",
+          "owner": "Approvals + Security"
+        },
+        {
+          "predicatePolicyKey": "predicate.approval.workflow-planning-selection.v1",
+          "targetBindingKinds": [
+            "OBJECT"
+          ],
+          "ownerServiceKey": "approval",
+          "parameterSchemaKey": "predicate.approval.workflow-planning-selection.v1.parameters.v1",
+          "inputEvidenceSchemaKey": "ApprovalWorkflowPlanningEvidenceV1",
+          "parameterSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {}
+          },
+          "policyVersion": 1,
+          "routeContractKeys": [],
+          "lifecycleState": "ACTIVE",
+          "owner": "Approvals + Security"
+        }
+      ],
+      "routes": [
+        {
+          "routeContractKey": "route.approvals.admin.retention-policy-initialization-command.data",
+          "navigationContextId": "approvals.admin",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "approvals",
+            "surfaceKey": "approvals.admin"
+          },
+          "routeKind": "DATA",
+          "sideEffectFree": true,
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "accessProfiles": [
+            {
+              "profileKey": "approval.retention.command-receipt.original-authority.v1",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "approvals.policy.update"
+              },
+              "targetBindingKinds": [
+                "OBJECT"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.approval.retention-command-original-authority.v1"
+              ],
+              "readOnly": true,
+              "responseProjectionBindings": [
+                {
+                  "apiBindingKey": "route.approvals.admin.retention-policy-initialization-command.data.binding.01",
+                  "projectionPolicyKey": "route.approvals.admin.retention-policy-initialization-command.data.approval.retention.command-receipt.original-authority.v1.projection.v1",
+                  "schemaVersion": 1,
+                  "responseSchemaKey": "ApprovalRetentionCommandReceipt",
+                  "openApiSchemaSha256": "95d520bbcaee4a7c3d2283cb18599d457b441e07e516cf7e335987d696eb8fbd",
+                  "additionalProperties": false
+                }
+              ]
+            }
+          ],
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.approvals.admin.retention-policy-initialization-command.data.binding.01",
+              "method": "GET",
+              "path": "/api/approvals/v1/admin/retention/policy-initialization-commands/{idempotencyKey}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.approvals.admin.retention-policy-initialization-command.data.binding.01",
+              "method": "GET",
+              "path": "/v1/admin/retention/policy-initialization-commands/{idempotencyKey}",
+              "pathParameterConstraints": {},
+              "serviceKey": "approval"
+            }
+          ],
+          "owner": "Approvals + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.approvals.admin.retention-policy-draft-command.data",
+          "navigationContextId": "approvals.admin",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "approvals",
+            "surfaceKey": "approvals.admin"
+          },
+          "routeKind": "DATA",
+          "sideEffectFree": true,
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "accessProfiles": [
+            {
+              "profileKey": "approval.retention.command-receipt.original-authority.v1",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "approvals.policy.update"
+              },
+              "targetBindingKinds": [
+                "OBJECT"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.approval.retention-command-original-authority.v1"
+              ],
+              "readOnly": true,
+              "responseProjectionBindings": [
+                {
+                  "apiBindingKey": "route.approvals.admin.retention-policy-draft-command.data.binding.01",
+                  "projectionPolicyKey": "route.approvals.admin.retention-policy-draft-command.data.approval.retention.command-receipt.original-authority.v1.projection.v1",
+                  "schemaVersion": 1,
+                  "responseSchemaKey": "ApprovalRetentionCommandReceipt",
+                  "openApiSchemaSha256": "95d520bbcaee4a7c3d2283cb18599d457b441e07e516cf7e335987d696eb8fbd",
+                  "additionalProperties": false
+                }
+              ]
+            }
+          ],
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.approvals.admin.retention-policy-draft-command.data.binding.01",
+              "method": "GET",
+              "path": "/api/approvals/v1/admin/retention/policies/{policyId}/draft-commands/{idempotencyKey}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.approvals.admin.retention-policy-draft-command.data.binding.01",
+              "method": "GET",
+              "path": "/v1/admin/retention/policies/{policyId}/draft-commands/{idempotencyKey}",
+              "pathParameterConstraints": {},
+              "serviceKey": "approval"
+            }
+          ],
+          "owner": "Approvals + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.approvals.admin.retention-policy-publication-command.data",
+          "navigationContextId": "approvals.admin",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "approvals",
+            "surfaceKey": "approvals.admin"
+          },
+          "routeKind": "DATA",
+          "sideEffectFree": true,
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "accessProfiles": [
+            {
+              "profileKey": "approval.retention.command-receipt.original-authority.v1",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "approvals.policy.publish"
+              },
+              "targetBindingKinds": [
+                "OBJECT"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.approval.retention-command-original-authority.v1"
+              ],
+              "readOnly": true,
+              "responseProjectionBindings": [
+                {
+                  "apiBindingKey": "route.approvals.admin.retention-policy-publication-command.data.binding.01",
+                  "projectionPolicyKey": "route.approvals.admin.retention-policy-publication-command.data.approval.retention.command-receipt.original-authority.v1.projection.v1",
+                  "schemaVersion": 1,
+                  "responseSchemaKey": "ApprovalRetentionCommandReceipt",
+                  "openApiSchemaSha256": "95d520bbcaee4a7c3d2283cb18599d457b441e07e516cf7e335987d696eb8fbd",
+                  "additionalProperties": false
+                }
+              ]
+            }
+          ],
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.approvals.admin.retention-policy-publication-command.data.binding.01",
+              "method": "GET",
+              "path": "/api/approvals/v1/admin/retention/policies/{policyId}/publication-commands/{idempotencyKey}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.approvals.admin.retention-policy-publication-command.data.binding.01",
+              "method": "GET",
+              "path": "/v1/admin/retention/policies/{policyId}/publication-commands/{idempotencyKey}",
+              "pathParameterConstraints": {},
+              "serviceKey": "approval"
+            }
+          ],
+          "owner": "Approvals + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.approvals.admin.retention-record-command.data",
+          "navigationContextId": "approvals.admin",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "approvals",
+            "surfaceKey": "approvals.admin"
+          },
+          "routeKind": "DATA",
+          "sideEffectFree": true,
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "accessProfiles": [
+            {
+              "profileKey": "approval.retention.command-receipt.original-authority.v1",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "approvals.operations.execute"
+              },
+              "targetBindingKinds": [
+                "OBJECT"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.approval.retention-command-original-authority.v1"
+              ],
+              "readOnly": true,
+              "responseProjectionBindings": [
+                {
+                  "apiBindingKey": "route.approvals.admin.retention-record-command.data.binding.01",
+                  "projectionPolicyKey": "route.approvals.admin.retention-record-command.data.approval.retention.command-receipt.original-authority.v1.projection.v1",
+                  "schemaVersion": 1,
+                  "responseSchemaKey": "ApprovalRetentionCommandReceipt",
+                  "openApiSchemaSha256": "95d520bbcaee4a7c3d2283cb18599d457b441e07e516cf7e335987d696eb8fbd",
+                  "additionalProperties": false
+                }
+              ]
+            }
+          ],
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.approvals.admin.retention-record-command.data.binding.01",
+              "method": "GET",
+              "path": "/api/approvals/v1/admin/retention/records/{requestId}/claim-commands/{idempotencyKey}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.approvals.admin.retention-record-command.data.binding.01",
+              "method": "GET",
+              "path": "/v1/admin/retention/records/{requestId}/claim-commands/{idempotencyKey}",
+              "pathParameterConstraints": {},
+              "serviceKey": "approval"
+            }
+          ],
+          "owner": "Approvals + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.approvals.admin.workflow-planning-selection.data",
+          "navigationContextId": "approvals.admin",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "approvals",
+            "surfaceKey": "approvals.admin"
+          },
+          "routeKind": "DATA",
+          "sideEffectFree": true,
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY_EXPRESSION",
+                "mode": "ALL",
+                "capabilityContractKeys": [
+                  "approvals.admin.workflow-planning-form.read",
+                  "approvals.admin.workflow-planning-simulation.read"
+                ]
+              },
+              "targetBindingKinds": [
+                "OBJECT"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.approval.workflow-planning-selection.v1"
+              ],
+              "readOnly": true,
+              "responseProjectionBindings": [
+                {
+                  "apiBindingKey": "route.approvals.admin.workflow-planning-selection.data.binding.01",
+                  "projectionPolicyKey": "route.approvals.admin.workflow-planning-selection.data.full-management.projection.v1",
+                  "schemaVersion": 1,
+                  "responseSchemaKey": "ApprovalWorkflowPlanningSelection",
+                  "openApiSchemaSha256": "ca0ac253c38917b2d75c1793ffda73de9797fd9840edf0c5b558c62f6bd039f3",
+                  "additionalProperties": false
+                }
+              ]
+            }
+          ],
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.approvals.admin.workflow-planning-selection.data.binding.01",
+              "method": "GET",
+              "path": "/api/approvals/v1/admin/workflows/{workflowId}/planning-selection",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.approvals.admin.workflow-planning-selection.data.binding.01",
+              "method": "GET",
+              "path": "/v1/admin/workflows/{workflowId}/planning-selection",
+              "pathParameterConstraints": {},
+              "serviceKey": "approval"
+            }
+          ],
+          "owner": "Approvals + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ]
+    },
+    {
+      "version": 12,
+      "capabilities": [
+        {"contractKey":"approvals.signature.manage","resolvedCapabilityCode":"ADMIN.APPROVAL_SIGNATURE:MANAGE","mappingVersion":1,"productKey":"approvals","surfaceKey":"approvals.admin","resourceKey":"ADMIN.APPROVAL_SIGNATURE","action":"MANAGE","authorityMode":"PERMISSION","responsibilityRequirement":"REQUIRED","scopeResolver":"APP_RESOURCE_SET:RS_APPROVALS","riskTier":"LOW","activationPolicy":null,"sodPolicyId":null,"requiresProductEntitlement":false,"sunsetAt":null,"legacySource":null,"owner":"Approvals + Security","policyVersion":1,"routeContractKeys":[],"lifecycleState":"ACTIVE"},
+        {"contractKey":"approvals.signature.publish","resolvedCapabilityCode":"ADMIN.APPROVAL_SIGNATURE:PUBLISH","mappingVersion":1,"productKey":"approvals","surfaceKey":"approvals.admin","resourceKey":"ADMIN.APPROVAL_SIGNATURE","action":"PUBLISH","authorityMode":"PERMISSION","responsibilityRequirement":"REQUIRED","scopeResolver":"APP_RESOURCE_SET:RS_APPROVALS","riskTier":"HIGH","activationPolicy":"STEPUP-MGMT-HIGH-V1","sodPolicyId":"SOD-APR-SIGNATURE-PUBLISH-V1","requiresProductEntitlement":false,"sunsetAt":null,"legacySource":null,"owner":"Approvals + Security","policyVersion":1,"routeContractKeys":[],"lifecycleState":"ACTIVE"}
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {"routeContractKey":"route.approvals.work.request-resubmit-draft.action","navigationContextId":"approvals.work","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.work.request.update"},"targetBindingKinds":["SELF","OBJECT"],"predicatePolicyKeys":["predicate.approval.own-request.v1","predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.work.request-resubmit-draft.action.binding.01","method":"POST","path":"/api/approvals/v1/requests/{requestId}/resubmit-draft","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.work.request-resubmit-draft.action.binding.01","method":"POST","path":"/v1/requests/{requestId}/resubmit-draft","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.work.delegation-update.action","navigationContextId":"approvals.work","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.work.delegation.manage"},"targetBindingKinds":["SELF","OBJECT"],"predicatePolicyKeys":["predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.work.delegation-update.action.binding.01","method":"PUT","path":"/api/approvals/v1/delegations/{delegationId}","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.work.delegation-update.action.binding.01","method":"PUT","path":"/v1/delegations/{delegationId}","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.signature-diagnostics.data","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.signature.read"},"targetBindingKinds":[],"predicatePolicyKeys":[],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.signature-diagnostics.data.binding.01","method":"GET","path":"/api/approvals/v1/admin/signatures/diagnostics","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.signature-diagnostics.data.binding.01","method":"GET","path":"/v1/admin/signatures/diagnostics","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.signature-provider-diagnostics.data","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.signature.read"},"targetBindingKinds":[],"predicatePolicyKeys":[],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.signature-provider-diagnostics.data.binding.01","method":"GET","path":"/api/approvals/v1/admin/signatures/providers/{providerId}/diagnostics","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.signature-provider-diagnostics.data.binding.01","method":"GET","path":"/v1/admin/signatures/providers/{providerId}/diagnostics","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.signature-diagnostic-history.data","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.signature.read"},"targetBindingKinds":[],"predicatePolicyKeys":[],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.signature-diagnostic-history.data.binding.01","method":"GET","path":"/api/approvals/v1/admin/signatures/diagnostic-history","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.signature-diagnostic-history.data.binding.01","method":"GET","path":"/v1/admin/signatures/diagnostic-history","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.signature-probe.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.signature.manage"},"targetBindingKinds":[],"predicatePolicyKeys":[],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.signature-probe.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/signatures/probes","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.signature-probe.action.binding.01","method":"POST","path":"/v1/admin/signatures/probes","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.signature-kms-probe.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.signature.manage"},"targetBindingKinds":[],"predicatePolicyKeys":[],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.signature-kms-probe.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/signatures/kms/probes","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.signature-kms-probe.action.binding.01","method":"POST","path":"/v1/admin/signatures/kms/probes","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.signature-worm-inspection.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.signature.manage"},"targetBindingKinds":[],"predicatePolicyKeys":[],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.signature-worm-inspection.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/signatures/worm-inspections","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.signature-worm-inspection.action.binding.01","method":"POST","path":"/v1/admin/signatures/worm-inspections","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.signature-policy.data","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.signature.read"},"targetBindingKinds":[],"predicatePolicyKeys":[],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.signature-policy.data.binding.01","method":"GET","path":"/api/approvals/v1/admin/signatures/policy","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.signature-policy.data.binding.01","method":"GET","path":"/v1/admin/signatures/policy","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.signature-policy-initialize.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.signature.manage"},"targetBindingKinds":[],"predicatePolicyKeys":[],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.signature-policy-initialize.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/signatures/policies","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.signature-policy-initialize.action.binding.01","method":"POST","path":"/v1/admin/signatures/policies","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.signature-policy-draft-update.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.signature.manage"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":["predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.signature-policy-draft-update.action.binding.01","method":"PUT","path":"/api/approvals/v1/admin/signatures/policies/{policyId}/draft","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.signature-policy-draft-update.action.binding.01","method":"PUT","path":"/v1/admin/signatures/policies/{policyId}/draft","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.signature-policy-publish.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.signature.publish"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":["predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.signature-policy-publish.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/signatures/policies/{policyId}/publish","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.signature-policy-publish.action.binding.01","method":"POST","path":"/v1/admin/signatures/policies/{policyId}/publish","pathParameterConstraints":{},"serviceKey":"approval"}],"stepUpCommandBindings":[{"bindingKey":"route.approvals.admin.signature-policy-publish.action.binding.01","targetType":"SIGNATURE_POLICY","targetIdPathParameter":"policyId","expectedObjectVersionSource":"COMMAND_HEADER","expectedObjectVersionName":"X-DWP-Expected-Object-Version","ownerServiceKey":"approval","audience":"dwp-approval-server"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.signature-policy-history.data","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.signature.read"},"targetBindingKinds":[],"predicatePolicyKeys":[],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.signature-policy-history.data.binding.01","method":"GET","path":"/api/approvals/v1/admin/signatures/policies/{policyId}/history","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.signature-policy-history.data.binding.01","method":"GET","path":"/v1/admin/signatures/policies/{policyId}/history","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.work.external-signature-context.data","navigationContextId":"approvals.work","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.work"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.work.signature.read"},"targetBindingKinds":["SELF","OBJECT"],"predicatePolicyKeys":["predicate.approval.signature-source.v1"],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.approvals.work.external-signature-context.data.binding.01","method":"GET","path":"/api/approvals/v1/requests/{requestId}/external-signature-context","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.work.external-signature-context.data.binding.01","method":"GET","path":"/v1/requests/{requestId}/external-signature-context","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.work.external-signature-request-create.action","navigationContextId":"approvals.work","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.work.signature.update"},"targetBindingKinds":["SELF","OBJECT"],"predicatePolicyKeys":["predicate.approval.signature-source.v1","predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.work.external-signature-request-create.action.binding.01","method":"POST","path":"/api/approvals/v1/requests/{requestId}/external-signature-requests","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.work.external-signature-request-create.action.binding.01","method":"POST","path":"/v1/requests/{requestId}/external-signature-requests","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.work.external-signature-request.data","navigationContextId":"approvals.work","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.work"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.work.signature.read"},"targetBindingKinds":["SELF","OBJECT"],"predicatePolicyKeys":["predicate.approval.signature-source.v1"],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.approvals.work.external-signature-request.data.binding.01","method":"GET","path":"/api/approvals/v1/external-signature-requests/{signatureRequestId}","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.work.external-signature-request.data.binding.01","method":"GET","path":"/v1/external-signature-requests/{signatureRequestId}","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.work.external-signature-handover.action","navigationContextId":"approvals.work","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.work.signature.sign"},"targetBindingKinds":["SELF","OBJECT"],"predicatePolicyKeys":["predicate.approval.signature-source.v1","predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.work.external-signature-handover.action.binding.01","method":"POST","path":"/api/approvals/v1/external-signature-requests/{signatureRequestId}/handovers","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.work.external-signature-handover.action.binding.01","method":"POST","path":"/v1/external-signature-requests/{signatureRequestId}/handovers","pathParameterConstraints":{},"serviceKey":"approval"}],"stepUpCommandBindings":[{"bindingKey":"route.approvals.work.external-signature-handover.action.binding.01","targetType":"EXTERNAL_SIGNATURE_REQUEST","targetIdPathParameter":"signatureRequestId","expectedObjectVersionSource":"COMMAND_HEADER","expectedObjectVersionName":"X-DWP-Expected-Object-Version","ownerServiceKey":"approval","audience":"dwp-approval-server"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.work.external-signature-refresh.action","navigationContextId":"approvals.work","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.work.signature.update"},"targetBindingKinds":["SELF","OBJECT"],"predicatePolicyKeys":["predicate.approval.signature-source.v1","predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.work.external-signature-refresh.action.binding.01","method":"POST","path":"/api/approvals/v1/external-signature-requests/{signatureRequestId}/refresh","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.work.external-signature-refresh.action.binding.01","method":"POST","path":"/v1/external-signature-requests/{signatureRequestId}/refresh","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.work.external-signature-cancel.action","navigationContextId":"approvals.work","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.work.signature.update"},"targetBindingKinds":["SELF","OBJECT"],"predicatePolicyKeys":["predicate.approval.signature-source.v1","predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.work.external-signature-cancel.action.binding.01","method":"POST","path":"/api/approvals/v1/external-signature-requests/{signatureRequestId}/cancel","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.work.external-signature-cancel.action.binding.01","method":"POST","path":"/v1/external-signature-requests/{signatureRequestId}/cancel","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.work.external-signature-audit.data","navigationContextId":"approvals.work","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.work"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.work.signature.read"},"targetBindingKinds":["SELF","OBJECT"],"predicatePolicyKeys":["predicate.approval.signature-source.v1"],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.approvals.work.external-signature-audit.data.binding.01","method":"GET","path":"/api/approvals/v1/external-signature-requests/{signatureRequestId}/audit","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.work.external-signature-audit.data.binding.01","method":"GET","path":"/v1/external-signature-requests/{signatureRequestId}/audit","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.work.external-signature-artifact.data","navigationContextId":"approvals.work","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.work"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.work.signature.read"},"targetBindingKinds":["SELF","OBJECT"],"predicatePolicyKeys":["predicate.approval.signature-source.v1"],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.approvals.work.external-signature-artifact.data.binding.01","method":"GET","path":"/api/approvals/v1/external-signature-requests/{signatureRequestId}/artifacts/{artifactId}","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.work.external-signature-artifact.data.binding.01","method":"GET","path":"/v1/external-signature-requests/{signatureRequestId}/artifacts/{artifactId}","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.operations.dead-letter.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.operations.execute"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":["predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.operations.dead-letter.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/operations/events/{outboxId}/dead-letter","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.operations.dead-letter.action.binding.01","method":"POST","path":"/v1/admin/operations/events/{outboxId}/dead-letter","pathParameterConstraints":{},"serviceKey":"approval"}],"stepUpCommandBindings":[{"bindingKey":"route.approvals.admin.operations.dead-letter.action.binding.01","targetType":"OUTBOX_EVENT","targetIdPathParameter":"outboxId","expectedObjectVersionSource":"COMMAND_HEADER","expectedObjectVersionName":"X-DWP-Expected-Object-Version","ownerServiceKey":"approval","audience":"dwp-approval-server"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.operations.replay.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.operations.execute"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":["predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.operations.replay.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/operations/events/{outboxId}/replay","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.operations.replay.action.binding.01","method":"POST","path":"/v1/admin/operations/events/{outboxId}/replay","pathParameterConstraints":{},"serviceKey":"approval"}],"stepUpCommandBindings":[{"bindingKey":"route.approvals.admin.operations.replay.action.binding.01","targetType":"OUTBOX_EVENT","targetIdPathParameter":"outboxId","expectedObjectVersionSource":"COMMAND_HEADER","expectedObjectVersionName":"X-DWP-Expected-Object-Version","ownerServiceKey":"approval","audience":"dwp-approval-server"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.operations.batch-retry.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.operations.execute"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":["predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.operations.batch-retry.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/operations/deliveries/retry","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.operations.batch-retry.action.binding.01","method":"POST","path":"/v1/admin/operations/deliveries/retry","pathParameterConstraints":{},"serviceKey":"approval"}],"stepUpCommandBindings":[{"bindingKey":"route.approvals.admin.operations.batch-retry.action.binding.01","targetType":"OPERATION_BATCH","targetIdBodyFields":["operationId"],"expectedObjectVersionSource":"COMMAND_HEADER","expectedObjectVersionName":"X-DWP-Expected-Object-Version","ownerServiceKey":"approval","audience":"dwp-approval-server"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.operations.batch-dead-letter.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.operations.execute"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":["predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.operations.batch-dead-letter.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/operations/deliveries/dead-letter","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.operations.batch-dead-letter.action.binding.01","method":"POST","path":"/v1/admin/operations/deliveries/dead-letter","pathParameterConstraints":{},"serviceKey":"approval"}],"stepUpCommandBindings":[{"bindingKey":"route.approvals.admin.operations.batch-dead-letter.action.binding.01","targetType":"OPERATION_BATCH","targetIdBodyFields":["operationId"],"expectedObjectVersionSource":"COMMAND_HEADER","expectedObjectVersionName":"X-DWP-Expected-Object-Version","ownerServiceKey":"approval","audience":"dwp-approval-server"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.operations.batch-replay.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.operations.execute"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":["predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.operations.batch-replay.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/operations/deliveries/replay","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.operations.batch-replay.action.binding.01","method":"POST","path":"/v1/admin/operations/deliveries/replay","pathParameterConstraints":{},"serviceKey":"approval"}],"stepUpCommandBindings":[{"bindingKey":"route.approvals.admin.operations.batch-replay.action.binding.01","targetType":"OPERATION_BATCH","targetIdBodyFields":["operationId"],"expectedObjectVersionSource":"COMMAND_HEADER","expectedObjectVersionName":"X-DWP-Expected-Object-Version","ownerServiceKey":"approval","audience":"dwp-approval-server"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.operations.reconcile.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.operations.execute"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":["predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.operations.reconcile.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/operations/deliveries/reconcile","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.operations.reconcile.action.binding.01","method":"POST","path":"/v1/admin/operations/deliveries/reconcile","pathParameterConstraints":{},"serviceKey":"approval"}],"stepUpCommandBindings":[{"bindingKey":"route.approvals.admin.operations.reconcile.action.binding.01","targetType":"OPERATION_BATCH","targetIdBodyFields":["operationId"],"expectedObjectVersionSource":"COMMAND_HEADER","expectedObjectVersionName":"X-DWP-Expected-Object-Version","ownerServiceKey":"approval","audience":"dwp-approval-server"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.operations.task-reassign.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.operations.execute"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":["predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.operations.task-reassign.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/operations/tasks/{taskId}/reassign","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.operations.task-reassign.action.binding.01","method":"POST","path":"/v1/admin/operations/tasks/{taskId}/reassign","pathParameterConstraints":{},"serviceKey":"approval"}],"stepUpCommandBindings":[{"bindingKey":"route.approvals.admin.operations.task-reassign.action.binding.01","targetType":"APPROVAL_TASK","targetIdPathParameter":"taskId","expectedObjectVersionSource":"COMMAND_HEADER","expectedObjectVersionName":"X-DWP-Expected-Object-Version","ownerServiceKey":"approval","audience":"dwp-approval-server"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.operations.task-batch-reassign.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.operations.execute"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":["predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.operations.task-batch-reassign.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/operations/tasks/reassign","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.operations.task-batch-reassign.action.binding.01","method":"POST","path":"/v1/admin/operations/tasks/reassign","pathParameterConstraints":{},"serviceKey":"approval"}],"stepUpCommandBindings":[{"bindingKey":"route.approvals.admin.operations.task-batch-reassign.action.binding.01","targetType":"OPERATION_BATCH","targetIdBodyFields":["operationId"],"expectedObjectVersionSource":"COMMAND_HEADER","expectedObjectVersionName":"X-DWP-Expected-Object-Version","ownerServiceKey":"approval","audience":"dwp-approval-server"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"}
+      ]
+    },
+    {
+      "version": 13,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {"routeContractKey":"route.approvals.work.request-draft-migration-preview.data","navigationContextId":"approvals.work","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.work"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.work.request.read"},"targetBindingKinds":["SELF","OBJECT"],"predicatePolicyKeys":["predicate.approval.own-request.v1"],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.approvals.work.request-draft-migration-preview.data.binding.01","method":"GET","path":"/api/approvals/v1/requests/{requestId}/draft/migration-preview","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.work.request-draft-migration-preview.data.binding.01","method":"GET","path":"/v1/requests/{requestId}/draft/migration-preview","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.work.request-draft-migrate.action","navigationContextId":"approvals.work","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-work","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.work.request.update"},"targetBindingKinds":["SELF","OBJECT"],"predicatePolicyKeys":["predicate.approval.own-request.v1","predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.work.request-draft-migrate.action.binding.01","method":"POST","path":"/api/approvals/v1/requests/{requestId}/draft/migrate","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.work.request-draft-migrate.action.binding.01","method":"POST","path":"/v1/requests/{requestId}/draft/migrate","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.policy-create.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.policy.update"},"targetBindingKinds":[],"predicatePolicyKeys":[],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.policy-create.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/policies","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.policy-create.action.binding.01","method":"POST","path":"/v1/admin/policies","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"}
+      ]
+    },
+    {
+      "version": 14,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {"routeContractKey":"route.approvals.admin.form-publish-review-candidates.data","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.design.read"},"targetBindingKinds":[],"predicatePolicyKeys":[],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.form-publish-review-candidates.data.binding.01","method":"GET","path":"/api/approvals/v1/admin/forms/publish-review-candidates","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.form-publish-review-candidates.data.binding.01","method":"GET","path":"/v1/admin/forms/publish-review-candidates","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.form-publish-review-queue.data","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.design.read"},"targetBindingKinds":[],"predicatePolicyKeys":[],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.form-publish-review-queue.data.binding.01","method":"GET","path":"/api/approvals/v1/admin/forms/publish-review-requests","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.form-publish-review-queue.data.binding.01","method":"GET","path":"/v1/admin/forms/publish-review-requests","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.form-publish-review-request.data","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.design.read"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":[],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.form-publish-review-request.data.binding.01","method":"GET","path":"/api/approvals/v1/admin/forms/{formId}/publish-review-request","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.form-publish-review-request.data.binding.01","method":"GET","path":"/v1/admin/forms/{formId}/publish-review-request","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.form-publish-review-request.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.design.update"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":["predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.form-publish-review-request.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/forms/{formId}/publish-review-request","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.form-publish-review-request.action.binding.01","method":"POST","path":"/v1/admin/forms/{formId}/publish-review-request","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"},
+        {"routeContractKey":"route.approvals.admin.form-publish-review-reject.action","navigationContextId":"approvals.admin","subject":{"type":"PRODUCT","productKey":"approvals","surfaceKey":"approvals.admin"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"full-management","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"approvals.design.publish"},"targetBindingKinds":["OBJECT"],"predicatePolicyKeys":["predicate.approval.object-version.v1"],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.approvals.admin.form-publish-review-reject.action.binding.01","method":"POST","path":"/api/approvals/v1/admin/forms/{formId}/publish-review-requests/{requestId}/reject","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.approvals.admin.form-publish-review-reject.action.binding.01","method":"POST","path":"/v1/admin/forms/{formId}/publish-review-requests/{requestId}/reject","pathParameterConstraints":{},"serviceKey":"approval"}],"owner":"Approvals + Security","policyVersion":1,"lifecycleState":"ACTIVE"}
+      ]
     }
   ],
   "descriptorEnrichments": {
@@ -21067,6 +21504,8 @@
       {"contractKey": "approvals.policy.read", "requiredResponsibilityCode": "APP_CONFIG_ADMIN"},
       {"contractKey": "approvals.policy.update", "requiredResponsibilityCode": "APP_CONFIG_ADMIN"},
       {"contractKey": "approvals.signature.read", "requiredResponsibilityCode": "APP_CONFIG_ADMIN"},
+      {"contractKey": "approvals.signature.manage", "requiredResponsibilityCode": "APP_CONFIG_ADMIN"},
+      {"contractKey": "approvals.signature.publish", "requiredResponsibilityCode": "APP_CONFIG_ADMIN"},
       {"contractKey": "communications.content.archive", "requiredResponsibilityCode": "APP_CONFIG_ADMIN"},
       {"contractKey": "communications.content.create", "requiredResponsibilityCode": "APP_CONFIG_ADMIN"},
       {"contractKey": "communications.content.publish", "requiredResponsibilityCode": "APP_CONFIG_ADMIN"},

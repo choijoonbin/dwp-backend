@@ -107,7 +107,8 @@ public final class ApprovalSignatureProviderPolicyDtos {
     public record DraftInput(Long expectedVersion, UUID expectedDraftVersionId, String expectedSourceRevision,
                              String expectedSourceSha256, Rules rules, String idempotencyKey) {
         public DraftInput {
-            version(required(expectedVersion)); source(expectedSourceRevision, expectedSourceSha256); required(rules); key(idempotencyKey);
+            version(required(expectedVersion)); required(expectedDraftVersionId);
+            source(expectedSourceRevision, expectedSourceSha256); required(rules); key(idempotencyKey);
         }
     }
 

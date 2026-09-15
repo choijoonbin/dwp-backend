@@ -20,6 +20,13 @@ public final class PlanningAuthorityService {
         catch(com.dwp.core.exception.BaseException invalid) {throw invalid;}
         catch(RuntimeException unavailable) {throw unavailable();}
     }
+    boolean enabled() { return enabled; }
+    void requireReady() {
+        if(!enabled) throw unavailable();
+        try { verifier.get(); issuer.requireReady(); authority.requireRegistered(); replay.requireReady(); }
+        catch(com.dwp.core.exception.BaseException failure) { throw failure; }
+        catch(RuntimeException failure) { throw unavailable(); }
+    }
     public String evaluate(PlanningProofVerifier.Verified proof) {
         if(!enabled || proof==null) throw unavailable(); authority.requireRegistered(); replay.requireReady();
         var before=authority.requireCurrent(proof); var binding=proof.bindings();
@@ -42,6 +49,7 @@ public final class PlanningAuthorityService {
     }
     public interface SigningPort {
         String issue(PlanningProofVerifier.Verified proof,Current current);
+        void requireReady();
     }
     public static final class Current {
         private final PlanningAuthorityPort.Owner owner; private final PlanningRoleRepository.Snapshot roles;

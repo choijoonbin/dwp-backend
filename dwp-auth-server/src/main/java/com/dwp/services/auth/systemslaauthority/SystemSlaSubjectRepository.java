@@ -14,7 +14,7 @@ import org.springframework.jdbc.support.SqlArrayValue;
 import org.springframework.stereotype.Repository;
 
 @Repository
-public final class SystemSlaSubjectRepository {
+public class SystemSlaSubjectRepository {
     private final NamedParameterJdbcTemplate jdbc;
     private final SystemSlaJson json;
     public SystemSlaSubjectRepository(NamedParameterJdbcTemplate jdbc, SystemSlaJson json) { this.jdbc = jdbc; this.json = json; }

@@ -12,9 +12,14 @@ import java.util.Set;
 /** Only the sealed Planning DATA expression contributes two independent native authorities. */
 final class ApprovalPep10AuthorityKeys {
     static final String ROUTE = "route.approvals.admin.workflow-planning-simulation.data";
+    static final String SELECTION_ROUTE =
+            "route.approvals.admin.workflow-planning-selection.data";
     private static final Set<String> KEYS = Set.of("approvals.admin.workflow-planning-form.read",
             "approvals.admin.workflow-planning-simulation.read");
     private ApprovalPep10AuthorityKeys() { }
+    static boolean isPlanningRoute(String route) {
+        return ROUTE.equals(route) || SELECTION_ROUTE.equals(route);
+    }
     static boolean sameResourceSet(String roles, Map<String, JsonNode> capabilities) {
         var duties = Arrays.stream(roles.split(",")).map(String::trim).toList();
         Set<String> common = null;

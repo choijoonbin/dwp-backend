@@ -35,7 +35,7 @@ public final class ApprovalSignatureCurrentAuthorityBridge implements SignatureC
         try {
             var bundle = contracts.findActive("product-surfaces").orElseThrow(SignatureAuthorityJson::unavailable);
             var pointer = contracts.findActivePointer("product-surfaces").orElseThrow(SignatureAuthorityJson::unavailable);
-            if (bundle.version() != 10 || !"ACTIVE".equals(bundle.bundleStatus()) || !pointer.bundleId().equals(bundle.bundleId())
+            if (!Set.of(10L, 11L, 12L, 13L, 14L).contains(bundle.version()) || !"ACTIVE".equals(bundle.bundleStatus()) || !pointer.bundleId().equals(bundle.bundleId())
                     || !b.registrySha256().equals(bundle.checksum())) throw unavailable();
             var registry = new Registry(seals.loadActive(bundle, pointer));
             var route = registry.routesByKey().get(b.operation().route());
@@ -108,7 +108,8 @@ public final class ApprovalSignatureCurrentAuthorityBridge implements SignatureC
                 || !grant.requiresProductEntitlement() || grant.responsibilityRequirement() != ProductSurfaceAuthorityDtos.ResponsibilityRequirement.NOT_REQUIRED
                 || !grant.scopeKeys().contains(b.contextScopeKey()) || !(grant.activationState() == ProductSurfaceAuthorityDtos.ActivationState.ACTIVE
                     || high && grant.activationState() == ProductSurfaceAuthorityDtos.ActivationState.ELIGIBLE)) throw denied();
-        String policyRevision = "policy-10-" + registered.pointer().revision() + '-' + registered.bundle().checksum();
+        String policyRevision = "policy-" + registered.bundle().version() + '-'
+                + registered.pointer().revision() + '-' + registered.bundle().checksum();
         if (!before.revision().equals(result.authRevision()) || !policyRevision.equals(result.policyRevision()) || result.revalidateAt() == null) throw changed();
         Instant expiry = proof.expiresAt(); expiry = earliest(expiry, result.validUntil()); expiry = earliest(expiry, result.revalidateAt());
         expiry = earliest(expiry, selected.getFirst().validUntil()); expiry = earliest(expiry, grant.validUntil());

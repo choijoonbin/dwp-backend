@@ -133,7 +133,8 @@ class ApprovalServiceTest {
         when(queries.requestPayload(42L, requestId)).thenReturn(Map.of());
         when(queries.timeline(42L, requestId)).thenReturn(List.of());
 
-        service.claim(taskId, 0L, "direct-delegation");
+        ApprovalWorkflowCommandFenceTestSupport.runWithoutLiveDatabase(
+                () -> service.claim(taskId, 0L, "direct-delegation"));
 
         verify(commands).claim(ApprovalRequestContext.require(), access, 0L, "direct-delegation");
         verify(queries, times(2)).taskDetail(ApprovalRequestContext.require(), taskId);
@@ -152,9 +153,10 @@ class ApprovalServiceTest {
         when(queries.taskDetail(ApprovalRequestContext.require(), taskId)).thenReturn(access);
         when(identities.require(42L, 23L)).thenReturn(subject(23L, List.of("WORKSPACE_MEMBER")));
 
-        assertThatThrownBy(() -> service.claim(taskId, 0L, "stale-role-delegation"))
-                .isInstanceOf(com.dwp.core.exception.BaseException.class)
-                .hasMessageContaining("no longer holds");
+        ApprovalWorkflowCommandFenceTestSupport.runWithoutLiveDatabase(() ->
+                assertThatThrownBy(() -> service.claim(taskId, 0L, "stale-role-delegation"))
+                        .isInstanceOf(com.dwp.core.exception.BaseException.class)
+                        .hasMessageContaining("no longer holds"));
     }
 
     @Test
@@ -204,6 +206,68 @@ class ApprovalServiceTest {
         verify(queries, never()).decisionPayload(42L, taskId);
         verify(queries, never()).requestFormSchema(42L, requestId);
         verify(queries, never()).timeline(42L, requestId);
+    }
+
+    @Test
+    void updatesAnOwnedDelegationWithVersionedIdempotentAuditEvidence() {
+        UUID delegationId = UUID.randomUUID();
+        Instant startsAt = Instant.now().plusSeconds(60);
+        ApprovalDelegationUpdateRequest request = new ApprovalDelegationUpdateRequest(
+                23L, "ALL", null, startsAt, startsAt.plusSeconds(86_400),
+                "Cover approvals during the finance close", 4L);
+        ApprovalDelegationCommandSupport.UpdateReplay replay =
+                new ApprovalDelegationCommandSupport.UpdateReplay(
+                        false, "delegation-update-4", "a".repeat(64), UUID.randomUUID());
+        ApprovalDelegationCommandSupport.Updated updated =
+                new ApprovalDelegationCommandSupport.Updated(
+                        delegationId, replay.idempotencyKey(), replay.fingerprint(), 5L);
+        ApprovalIdentityDirectory.Subject delegate = subject(23L, List.of("FINANCE_APPROVERS"));
+        when(commands.delegationUpdateReplay(
+                ApprovalRequestContext.require(), delegationId, request, "delegation-update-4"))
+                .thenReturn(replay);
+        when(identities.require(42L, 23L)).thenReturn(delegate);
+        when(commands.updateDelegation(
+                ApprovalRequestContext.require(), delegationId, request, delegate, replay))
+                .thenReturn(updated);
+        when(queries.delegations(ApprovalRequestContext.require())).thenReturn(List.of());
+
+        assertThat(service.updateDelegation(
+                delegationId, request, "delegation-update-4", "correlation-4")).isEmpty();
+
+        ArgumentCaptor<com.dwp.audit.AuditEvent> event =
+                ArgumentCaptor.forClass(com.dwp.audit.AuditEvent.class);
+        verify(audit).record(event.capture());
+        assertThat(event.getValue().action()).isEqualTo("approval.delegation.updated");
+        assertThat(event.getValue().targetId()).isEqualTo(delegationId.toString());
+        assertThat(event.getValue().afterState())
+                .containsEntry("idempotencyKey", "delegation-update-4")
+                .containsEntry("commandFingerprint", "a".repeat(64))
+                .containsEntry("version", 5L);
+    }
+
+    @Test
+    void returnsTheCurrentProjectionForAnExactDelegationUpdateReplay() {
+        UUID delegationId = UUID.randomUUID();
+        Instant startsAt = Instant.now().plusSeconds(60);
+        ApprovalDelegationUpdateRequest request = new ApprovalDelegationUpdateRequest(
+                23L, "ALL", null, startsAt, startsAt.plusSeconds(86_400),
+                "Cover approvals during the finance close", 4L);
+        ApprovalDelegationCommandSupport.UpdateReplay replay =
+                new ApprovalDelegationCommandSupport.UpdateReplay(
+                        true, "delegation-update-4", "b".repeat(64), UUID.randomUUID());
+        when(commands.delegationUpdateReplay(
+                ApprovalRequestContext.require(), delegationId, request, "delegation-update-4"))
+                .thenReturn(replay);
+        when(queries.delegations(ApprovalRequestContext.require())).thenReturn(List.of());
+
+        assertThat(service.updateDelegation(
+                delegationId, request, "delegation-update-4", "correlation-4")).isEmpty();
+
+        verify(commands, never()).updateDelegation(
+                same(ApprovalRequestContext.require()), eq(delegationId), same(request),
+                org.mockito.ArgumentMatchers.any(), same(replay));
+        verify(identities, never()).require(42L, 23L);
+        verify(audit, never()).record(org.mockito.ArgumentMatchers.any());
     }
 
     @Test

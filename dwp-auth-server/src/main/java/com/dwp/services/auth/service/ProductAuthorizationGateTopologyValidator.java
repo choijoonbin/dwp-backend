@@ -35,6 +35,51 @@ final class ProductAuthorizationGateTopologyValidator {
                         && capability.activationPolicy().startsWith("STEPUP-"));
         List<ProductAuthorizationContractDtos.StepUpCommandBinding> stepUps =
                 nullSafe(route.stepUpCommandBindings());
+        boolean originalAuthorityReceipt =
+                ProductAuthorizationRecovery11ProjectionSchema
+                        .isOriginalAuthorityReceiptRoute(route.routeContractKey())
+                && "DATA".equals(route.routeKind())
+                && Boolean.TRUE.equals(route.sideEffectFree())
+                && route.accessProfiles() != null
+                && route.accessProfiles().size() == 1
+                && ProductAuthorizationRecovery11ProjectionSchema.RECEIPT_PROFILE
+                .equals(route.accessProfiles().getFirst().profileKey())
+                && route.accessProfiles().getFirst().readOnly();
+        boolean nonPublishingReviewRejection =
+                "route.approvals.admin.form-publish-review-reject.action"
+                        .equals(route.routeContractKey())
+                && "ACTION".equals(route.routeKind())
+                && route.gatewayApiBindings() != null
+                && route.gatewayApiBindings().size() == 1
+                && "POST".equals(route.gatewayApiBindings().getFirst().method())
+                && "/api/approvals/v1/admin/forms/{formId}/publish-review-requests/{requestId}/reject"
+                        .equals(route.gatewayApiBindings().getFirst().path())
+                && route.servicePepBindings() != null
+                && route.servicePepBindings().size() == 1
+                && "POST".equals(route.servicePepBindings().getFirst().method())
+                && "/v1/admin/forms/{formId}/publish-review-requests/{requestId}/reject"
+                        .equals(route.servicePepBindings().getFirst().path())
+                && route.accessProfiles() != null
+                && route.accessProfiles().size() == 1
+                && "full-management".equals(route.accessProfiles().getFirst().profileKey())
+                && route.accessProfiles().getFirst().requiredAccess() != null
+                && "CAPABILITY".equals(route.accessProfiles().getFirst().requiredAccess().type())
+                && "approvals.design.publish".equals(route.accessProfiles().getFirst()
+                        .requiredAccess().capabilityContractKey())
+                && List.of("OBJECT").equals(route.accessProfiles().getFirst().targetBindingKinds())
+                && List.of("predicate.approval.object-version.v1")
+                        .equals(route.accessProfiles().getFirst().predicatePolicyKeys())
+                && !route.accessProfiles().getFirst().readOnly();
+        if (elevatedStepUp && originalAuthorityReceipt) {
+            require(stepUps.isEmpty(), route.routeContractKey()
+                    + ": receipt DATA must not declare command step-up bindings.");
+            return;
+        }
+        if (elevatedStepUp && nonPublishingReviewRejection) {
+            require(stepUps.isEmpty(), route.routeContractKey()
+                    + ": non-publishing review rejection must not declare step-up bindings.");
+            return;
+        }
         if (!elevatedStepUp) {
             require(stepUps.isEmpty(), route.routeContractKey()
                     + ": step-up command bindings are forbidden.");

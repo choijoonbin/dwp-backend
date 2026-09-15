@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 import unittest
@@ -10,6 +11,41 @@ from scripts import devctl
 
 
 class AgentLocalEnvironmentTest(unittest.TestCase):
+    def test_approval_local_boot_publishes_signature_contracts_without_enabling_sources(
+        self,
+    ) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            environments = {
+                name: devctl.service_environment(name) for name in devctl.SERVICES
+            }
+
+        expected = {
+            "DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED": "true",
+            "DWP_APPROVAL_INTERNAL_SIGNATURES_ENABLED": "true",
+            "DWP_APPROVAL_INTERNAL_SIGNATURES_SOURCE_ENABLED": "false",
+        }
+        for key, value in expected.items():
+            self.assertEqual(environments["approval"][key], value)
+            self.assertTrue(
+                all(
+                    key not in environment
+                    for name, environment in environments.items()
+                    if name != "approval"
+                )
+            )
+
+        with patch.dict(
+            os.environ,
+            {
+                "DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED": "false",
+                "DWP_APPROVAL_INTERNAL_SIGNATURES_ENABLED": "false",
+            },
+            clear=True,
+        ):
+            overridden = devctl.service_environment("approval")
+        self.assertEqual(overridden["DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED"], "false")
+        self.assertEqual(overridden["DWP_APPROVAL_INTERNAL_SIGNATURES_ENABLED"], "false")
+
     def test_agent_owner_reads_use_explicit_local_gateway_and_preserve_override(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             self.assertEqual(devctl.service_environment("agent")["SERVICE_GATEWAY_URL"],
@@ -17,6 +53,57 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
         with patch.dict(os.environ, {"SERVICE_GATEWAY_URL": "http://127.0.0.1:9080"}):
             self.assertEqual(devctl.service_environment("agent")["SERVICE_GATEWAY_URL"],
                              "http://127.0.0.1:9080")
+
+    def test_frontend_uses_stable_heap_default_and_preserves_explicit_override(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            environments = {
+                name: devctl.service_environment(name) for name in devctl.SERVICES
+            }
+        self.assertEqual(
+            environments["frontend"]["NODE_OPTIONS"],
+            devctl.DEFAULT_FRONTEND_NODE_OPTIONS,
+        )
+        self.assertTrue(
+            all(
+                "NODE_OPTIONS" not in environment
+                for name, environment in environments.items()
+                if name != "frontend"
+            )
+        )
+
+        with patch.dict(
+            os.environ,
+            {"NODE_OPTIONS": "--max-old-space-size=4096"},
+            clear=True,
+        ):
+            frontend = devctl.service_environment("frontend")
+        self.assertEqual(frontend["NODE_OPTIONS"], "--max-old-space-size=4096")
+
+    def test_identity_sync_token_is_scoped_to_registered_consumers(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"DWP_IDENTITY_SYNC_TOKEN": "local-purpose-token"},
+            clear=True,
+        ):
+            environments = {
+                name: devctl.service_environment(name) for name in devctl.SERVICES
+            }
+
+        consumers = {
+            "auth",
+            "platform",
+            "people",
+            "space",
+            "approval",
+            "notification",
+        }
+        for name, environment in environments.items():
+            self.assertEqual("DWP_IDENTITY_SYNC_TOKEN" in environment, name in consumers)
+            if name in consumers:
+                self.assertEqual(
+                    environment["DWP_IDENTITY_SYNC_TOKEN"],
+                    "local-purpose-token",
+                )
 
     def test_core006_bootstrap_settings_are_injected_only_into_exact_services(
         self,
@@ -146,6 +233,7 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
         auth_only = {
             "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
             "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",
+            "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "14",
         }
         for key, value in auth_only.items():
             self.assertEqual(environments["auth"][key], value)
@@ -293,6 +381,100 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
 
             with self.assertRaisesRegex(RuntimeError, "Invalid Agent local environment entry"):
                 devctl.load_agent_local_environment(path)
+
+
+class ApprovalRuntimeKeyEnvironmentTest(unittest.TestCase):
+    def test_generated_keys_are_owner_only_persistent_and_disjoint(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory) / "keys"
+            path = root / "approval-runtime-jwks.json"
+            first = devctl.load_or_create_local_approval_keys(path)
+            first_bytes = path.read_bytes()
+            second = devctl.load_or_create_local_approval_keys(path)
+
+            self.assertEqual(first, second)
+            self.assertEqual(first_bytes, path.read_bytes())
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            self.assertEqual(root.stat().st_mode & 0o777, 0o700)
+            keys = first["keys"]
+            self.assertEqual(set(keys), set(devctl.LOCAL_APPROVAL_KEY_IDS))
+            self.assertEqual(
+                len({pair["public"]["n"] for pair in keys.values()}),
+                len(devctl.LOCAL_APPROVAL_KEY_IDS),
+            )
+
+    def test_rejects_readable_or_malformed_persisted_key_material(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "approval-runtime-jwks.json"
+            path.write_text('{"version":1,"keys":{}}', encoding="utf-8")
+            path.chmod(0o644)
+            with self.assertRaisesRegex(RuntimeError, "owner-only regular file"):
+                devctl.load_or_create_local_approval_keys(path)
+
+            path.chmod(0o600)
+            with self.assertRaisesRegex(RuntimeError, "inventory is incomplete"):
+                devctl.load_or_create_local_approval_keys(path)
+
+    def test_planning_and_sla_keys_are_scoped_to_exact_services(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            environments = {
+                name: devctl.service_environment(name) for name in devctl.SERVICES
+            }
+
+        auth = environments["auth"]
+        approval = environments["approval"]
+        notification = environments["notification"]
+        self.assertEqual(auth["DWP_AUTH_APPROVAL_WORKFLOW_PLANNING_ENABLED"], "true")
+        self.assertEqual(approval["DWP_APPROVAL_WORKFLOW_PLANNING_ENABLED"], "true")
+        self.assertEqual(approval["DWP_APPROVAL_WORKFLOW_QUORUM_SLA_ENABLED"], "true")
+        self.assertEqual(notification["DWP_NOTIFICATION_APPROVAL_SLA_ENABLED"], "true")
+        self.assertEqual(
+            json.loads(notification["DWP_NOTIFICATION_APPROVAL_SLA_TRANSPORT_PRIVATE_JWK"])["kid"],
+            "notification-sla-recipient-transport:local",
+        )
+        self.assertEqual(
+            json.loads(approval["DWP_APPROVAL_SYSTEM_SLA_NOTIFICATION_ATTESTATION_PRIVATE_JWK"])["kid"],
+            "approval-sla-recipient-authority:local",
+        )
+
+        private_owners = {
+            "DWP_AUTH_APPROVAL_WORKFLOW_PLANNING_ATTESTATION_PRIVATE_JWK": "auth",
+            "DWP_AUTH_APPROVAL_SYSTEM_SLA_ATTESTATION_PRIVATE_JWK": "auth",
+            "DWP_APPROVAL_WORKFLOW_PLANNING_OWNER_PRIVATE_KEY": "approval",
+            "DWP_APPROVAL_WORKFLOW_PLANNING_TRANSPORT_PRIVATE_KEY": "approval",
+            "DWP_APPROVAL_SYSTEM_SLA_SOURCE_OWNER_PRIVATE_JWK": "approval",
+            "DWP_APPROVAL_SYSTEM_SLA_SOURCE_TRANSPORT_PRIVATE_JWK": "approval",
+            "DWP_APPROVAL_SYSTEM_SLA_NOTIFICATION_ATTESTATION_PRIVATE_JWK": "approval",
+            "DWP_NOTIFICATION_APPROVAL_SLA_TRANSPORT_PRIVATE_JWK": "notification",
+        }
+        for name, owner in private_owners.items():
+            with self.subTest(name=name):
+                parsed = json.loads(environments[owner][name])
+                self.assertIn("d", parsed)
+                self.assertTrue(
+                    all(
+                        name not in environment
+                        for service, environment in environments.items()
+                        if service != owner
+                    )
+                )
+
+        for service, environment in environments.items():
+            if service not in devctl.LOCAL_APPROVAL_RUNTIME_SERVICES:
+                self.assertFalse(
+                    any(key.startswith(devctl.LOCAL_APPROVAL_RUNTIME_PREFIXES) for key in environment)
+                )
+
+    def test_exact_owner_override_is_preserved_without_cross_service_leakage(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"DWP_AUTH_APPROVAL_WORKFLOW_PLANNING_ENABLED": "false"},
+            clear=True,
+        ):
+            auth = devctl.service_environment("auth")
+            approval = devctl.service_environment("approval")
+        self.assertEqual(auth["DWP_AUTH_APPROVAL_WORKFLOW_PLANNING_ENABLED"], "false")
+        self.assertNotIn("DWP_AUTH_APPROVAL_WORKFLOW_PLANNING_ENABLED", approval)
 
 
 class MeetingInvitationDevctlTest(unittest.TestCase):

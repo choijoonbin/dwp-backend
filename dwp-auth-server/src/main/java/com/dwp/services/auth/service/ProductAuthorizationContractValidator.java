@@ -109,7 +109,7 @@ public class ProductAuthorizationContractValidator {
         require(contract.schemaVersion() == 1, "Unsupported registry schemaVersion.");
         require("product-surfaces".equals(contract.bundleKey()), "Unexpected registry bundleKey.");
         require(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(contract.version()),
-                "Registry descriptor version must be one of the closed versions 1 through 10.");
+                "Registry descriptor version must be one of the closed versions 1 through 14.");
         require(Set.of("DRAFT", "APPROVED", "ACTIVE", "RETIRED").contains(contract.bundleStatus()),
                 "Invalid bundle status.");
         require("SHA-256".equals(contract.checksumAlgorithm()), "Only SHA-256 is supported.");
@@ -156,6 +156,7 @@ public class ProductAuthorizationContractValidator {
         validateApprovalProjectionSchemaCoverage(contract);
         ProductAuthorizationExtensionProjectionSchema.validateCoverage(contract);
         ProductAuthorizationRelease10ProjectionSchema.validateCoverage(contract);
+        ProductAuthorizationRecovery11ProjectionSchema.validateCoverage(contract);
         validateAuthorityEndpoints(contract);
         ProductAuthorizationGateTopologyValidator.validateBundle(contract);
 
@@ -533,7 +534,12 @@ public class ProductAuthorizationContractValidator {
                         && Set.of("auditor", "legacy-oversight").contains(profile.profileKey());
                 for (ProductAuthorizationContractDtos.ResponseProjectionBinding projection
                         : projections) {
-                    if (bundleVersion >= 7 && ProductAuthorizationReleaseLineage
+                    if (bundleVersion >= 11 && ProductAuthorizationRecovery11ProjectionSchema
+                            .isRecovery11DataRoute(route.routeContractKey())) {
+                        require(ProductAuthorizationRecovery11ProjectionSchema.matches(
+                                        route, profile.profileKey(), projection),
+                                profileRef + ": invalid exact recovery11 projection schema metadata.");
+                    } else if (bundleVersion >= 7 && ProductAuthorizationReleaseLineage
                             .isWorkDataRoute(route.routeContractKey())) {
                         require(ProductAuthorizationReleaseLineage.matchesWorkProjection(
                                         route.routeContractKey(), profile.profileKey(), projection),
@@ -543,11 +549,11 @@ public class ProductAuthorizationContractValidator {
                         require(ProductAuthorizationDocumentProjectionSchema.matches(
                                         route.routeContractKey(), profile.profileKey(), projection),
                                 profileRef + ": invalid v8 document/source projection schema metadata.");
-                    } else if (Set.of(9L, 10L).contains(bundleVersion) && ProductAuthorizationExtensionProjectionSchema
+                    } else if (bundleVersion >= 9 && ProductAuthorizationExtensionProjectionSchema
                             .isExtensionDataRoute(route.routeContractKey())) {
                         require(ProductAuthorizationExtensionProjectionSchema.matches(route, profile.profileKey(), projection),
                                 profileRef + ": invalid exact v9 extension projection schema metadata.");
-                    } else if (bundleVersion == 10 && ProductAuthorizationRelease10ProjectionSchema
+                    } else if (bundleVersion >= 10 && ProductAuthorizationRelease10ProjectionSchema
                             .isRelease10DataRoute(route.routeContractKey())) {
                         require(ProductAuthorizationRelease10ProjectionSchema.matches(route, profile.profileKey(), projection),
                                 profileRef + ": invalid exact release10 projection schema metadata.");

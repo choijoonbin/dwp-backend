@@ -40,6 +40,7 @@ class ApprovalIntegrationCurrentLivePostgresTest {
         var source=new PGSimpleDataSource();source.setURL(PG.getJdbcUrl());source.setUser(PG.getUsername());source.setPassword(PG.getPassword());
         jdbc=new JdbcTemplate(source);
         jdbc.execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
+        jdbc.execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         var flyway=Flyway.configure().dataSource(source).locations("classpath:db/migration").cleanDisabled(false).load();flyway.clean();flyway.migrate();
         tx=new TransactionTemplate(new DataSourceTransactionManager(source));repository=new ApprovalIntegrationOutboxRepository(jdbc);
         jdbc.queryForObject("SELECT seed_approval_tenant(42)",Object.class);

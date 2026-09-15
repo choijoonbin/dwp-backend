@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.util.ArrayList;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Lazy;
@@ -35,5 +36,12 @@ public class SystemSlaConfiguration {
     @Bean SystemSlaAuthorityService systemSlaAuthorityService(ObjectProvider<SystemSlaProofVerifier> verifier, SystemSlaCurrentAuthority authority,
             SystemSlaReplayStore replay, SystemSlaAttestationIssuer issuer, ConfigurableEnvironment environment) {
         return new SystemSlaAuthorityService(verifier::getObject, authority, replay, issuer, environment.getProperty(PREFIX + "enabled", Boolean.class, false));
+    }
+    @Bean
+    @ConditionalOnProperty(name="dwp.auth.approval-system-sla.enabled",havingValue="true")
+    SystemSlaRuntimeReadiness systemSlaRuntimeReadiness(ObjectProvider<SystemSlaKeys> keys,
+            ObjectProvider<SystemSlaProofVerifier> verifier,SystemSlaReplayStore replay) {
+        keys.getObject();verifier.getObject();
+        return new SystemSlaRuntimeReadiness(replay);
     }
 }

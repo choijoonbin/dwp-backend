@@ -219,6 +219,6 @@ public class ApprovalWorkflowQuorumFacade {
         var runtime = new ApprovalWorkflowQuorumSlaRuntime(jdbc, mapper, transactions, audit);
         if (slaInitializer == null) throw unavailable("The dedicated SYSTEM_SLA producer is unavailable.");
         slaInitializer.accept(runtime);
-        for (var lease : runtime.claim(owner, leaseSeconds, limit)) runtime.finish(lease);
+        runtime.finishClaimed(runtime.claim(owner, leaseSeconds, limit));
     }
 }

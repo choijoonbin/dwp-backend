@@ -45,6 +45,25 @@ public class ApprovalRetentionForeignJournal {
                 if(!canonical.fingerprint(request).equals(r.getString("request_sha256"))) throw ApprovalRetentionErrors.unavailable();return request;
             });
     }
+
+    @Transactional public DeletionRequest request(UUID intent,UUID deletionRequest,String consumer) {
+        if(intent==null || deletionRequest==null || !Set.of("AUDIT","NOTIFICATION").contains(consumer))
+            throw ApprovalRetentionErrors.forbidden();
+        var rows=jdbc.query("""
+            SELECT f.*,i.request_id FROM apr_retention_foreign_requests f JOIN apr_retention_dispatch_intents i USING(tenant_id,intent_id)
+                JOIN apr_record_retention_heads h ON h.tenant_id=i.tenant_id AND h.request_id=i.request_id AND h.claim_id=i.execution_claim_id
+            WHERE i.intent_id=:intent AND f.deletion_request_id=:request AND f.consumer_service=:consumer
+                AND h.state IN('IRREVERSIBLE','OBJECTS_CONFIRMED','LOCAL_DB_PURGED','COMPLETE')
+            """,Map.of("intent",intent,"request",deletionRequest,"consumer",consumer),(r,n)->{
+                var events=canonical.read(r.getString("producer_event_ids"),UUID[].class);
+                var result=new DeletionRequest(deletionRequest,r.getLong("tenant_id"),intent,r.getObject("request_id",UUID.class),
+                        consumer,r.getInt("chunk_index"),r.getInt("chunk_count"),List.of(events),r.getString("inventory_sha256"),ApprovalRetentionForeignAckVerifier.PURPOSE);
+                if(!canonical.fingerprint(result).equals(r.getString("request_sha256"))) throw ApprovalRetentionErrors.unavailable();
+                return result;
+            });
+        if(rows.size()!=1) throw ApprovalRetentionErrors.hidden();
+        return rows.getFirst();
+    }
     @Transactional public void acknowledge(String consumer,SignedAck signed) {
         var proof=verifier.verify(consumer,signed);var c=proof.claims();
         var rows=jdbc.queryForList("""
@@ -60,8 +79,5 @@ public class ApprovalRetentionForeignJournal {
             jdbc.update("INSERT INTO apr_retention_foreign_acknowledgements(deletion_request_id,tenant_id,consumer_service,request_sha256,consumer_inventory_sha256,outcome,issuer,key_id,nonce,signed_proof_sha256) VALUES(:id,:tenant,:consumer,:sha,:inventory,:outcome,:issuer,:keyId,:nonce,:proof)",
                     Map.of("id",c.deletionRequestId(),"tenant",c.tenantId(),"consumer",consumer,"sha",c.requestSha256(),"inventory",c.consumerInventorySha256(),"outcome",c.outcome(),"issuer",c.issuer(),"keyId",c.keyId(),"nonce",c.nonce(),"proof",proof.proofSha()));
         } catch(org.springframework.dao.DuplicateKeyException collision) {throw ApprovalRetentionErrors.conflict();}
-    }
-    @Transactional public void deliver(UUID intent,ApprovalRetentionForeignPort port) {
-        for(var request:dispatchable(intent,port.consumerService())) acknowledge(port.consumerService(),port.deleteDeclaredCopies(request));
     }
 }

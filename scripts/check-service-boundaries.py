@@ -71,6 +71,7 @@ PURPOSE_TOKEN_HEADERS = {
     "X-DWP-Approval-Signature-Source-Token",
     "X-DWP-Notification-Approval-System-Sla-Token",
     "X-DWP-Approval-System-Sla-Token",
+    "X-DWP-Approval-Retention-Execution-Token",
 }
 WORKFLOW_RUNTIME_TOKEN_HEADER = "X-DWP-Approval-Workflow-Runtime-Token"
 WORKFLOW_RUNTIME_CLIENT = (

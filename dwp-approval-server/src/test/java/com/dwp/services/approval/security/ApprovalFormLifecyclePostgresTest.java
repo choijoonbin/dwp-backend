@@ -46,6 +46,7 @@ class ApprovalFormLifecyclePostgresTest {
     private JdbcTemplate jdbc;
     private TransactionTemplate tx;
     private ApprovalFormLifecycleFacade forms;
+    private ApprovalFormPublishReviewService publishReviews;
     private ApprovalFormWorkspaceRepository repo;
     private ApprovalIdentityDirectory identities;
     private ApprovalStepUpVerifier verifier;
@@ -58,6 +59,7 @@ class ApprovalFormLifecyclePostgresTest {
     @BeforeEach void setUp(TestInfo info) {
         var source=new PGSimpleDataSource();source.setURL(POSTGRES.getJdbcUrl());source.setUser(POSTGRES.getUsername());source.setPassword(POSTGRES.getPassword());
         new JdbcTemplate(source).execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
+        new JdbcTemplate(source).execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         var flyway=Flyway.configure().dataSource(source).locations("classpath:db/migration").cleanDisabled(false).load();flyway.clean();flyway.migrate();
         jdbc=new JdbcTemplate(source);tx=new TransactionTemplate(new DataSourceTransactionManager(source));
         var named=new NamedParameterJdbcTemplate(source);var mapper=new ObjectMapper().findAndRegisterModules();
@@ -89,9 +91,14 @@ class ApprovalFormLifecyclePostgresTest {
         when(verifier.payloadSha256(any())).thenAnswer(call->codec.sha(codec.json(call.getArgument(0))));
         when(verifier.verify(anyString(),any())).thenAnswer(call->new ApprovalStepUpVerifier.VerifiedChallenge(UUID.randomUUID().toString(),UUID.randomUUID().toString(),
                 "test-issued",call.getArgument(1),Instant.now().plusSeconds(30)));
-        forms=new ApprovalFormLifecycleFacade(repo,new ApprovalFormLifecycleStore(repo),new ApprovalFormLifecycleAuthority(identities,requests),
+        var store=new ApprovalFormLifecycleStore(repo);
+        var authority=new ApprovalFormLifecycleAuthority(identities,requests);
+        var reviewRepo=new ApprovalFormPublishReviewRepository(repo);
+        var audit=new AuditOutboxRecorder(named,mapper,"dwp-approval-server","test","test");
+        publishReviews=new ApprovalFormPublishReviewService(repo,store,reviewRepo,authority,identities,audit);
+        forms=new ApprovalFormLifecycleFacade(repo,store,authority,
                 new ApprovalFormManagedPublicationProof(verifier,new ApprovalStepUpReplayRepository(named,mapper)),new ApprovalFormVersionDiff(),
-                new AuditOutboxRecorder(named,mapper,"dwp-approval-server","test","test"));
+                reviewRepo,publishReviews,audit);
         context(99,"form-working-draft.data",false);
         metadata=repo.head(ApprovalRequestContext.require(),formId,false).metadata();
     }
@@ -129,12 +136,56 @@ class ApprovalFormLifecyclePostgresTest {
         denied(()->forms.update(formId,new UpdateWorkingDraft(first.workingDraft().formVersionId(),formRevision,first.workspaceRevision(),Map.of("schemaContract","UNKNOWN"),metadata,otherWorkflow),"unknown","corr"));
         assertThat(state()).isEqualTo(before);
     }
-    @Test void reviewReadHasNoWritesAndReportsActualDraftMakerEligibility() {
-        Workspace first=branch();String before=state();context(99,"form-publish-review.data",false);
-        Review maker=forms.review(formId);assertThat(maker.independentCheckerEligible()).isFalse();
+    @Test void reviewReadIsVisibleOnlyToTheDesignatedIndependentReviewerAndHasNoWrites() {
+        Workspace first=branch();PublishReviewRequest assigned=requestReview(first,100);String before=state();
+        context(99,"form-publish-review.data",false);denied(()->forms.review(formId));
         context(100,"form-publish-review.data",false);Review reviewer=forms.review(formId);
         assertThat(reviewer.independentCheckerEligible()).isTrue();assertThat(reviewer.draftFormVersionId()).isEqualTo(first.workingDraft().formVersionId());
+        assertThat(reviewer.reviewRequest()).isEqualTo(assigned);
         assertThat(state()).isEqualTo(before);
+    }
+    @Test void reviewRequestReplayQueueAndCurrentProjectionStayBoundToTheAssignedReviewer() {
+        Workspace draft=branch();RequestPublishReview input=reviewRequest(draft,100);
+        context(99,"form-publish-review-request.action",false);
+        PublishReviewRequest first=run(()->publishReviews.request(formId,input,"assign-reviewer","corr"));String after=state();
+        PublishReviewRequest replay=run(()->publishReviews.request(formId,input,"assign-reviewer","corr"));
+        assertThat(replay).isEqualTo(first);assertThat(state()).isEqualTo(after);
+        denied(()->publishReviews.request(formId,input,"stale-reviewer-reassignment","corr"));
+        assertThat(state()).isEqualTo(after);
+        context(100,"form-publish-review-queue.data",false);
+        var queue=publishReviews.queue(50);assertThat(queue.items()).singleElement().satisfies(item->{
+            assertThat(item.request()).isEqualTo(first);assertThat(item.formKey()).isEqualTo("ACCESS_EXCEPTION_FORM");
+        });
+        context(100,"form-publish-review-request.data",false);
+        assertThat(publishReviews.latest(formId)).isEqualTo(first);
+        context(101,"form-publish-review-queue.data",false);assertThat(publishReviews.queue(50).items()).isEmpty();
+    }
+    @Test void reviewerRevocationRejectAndDraftSupersessionAreFailClosedAndDurable() {
+        Workspace draft=branch();RequestPublishReview input=reviewRequest(draft,100);
+        context(99,"form-publish-review-request.action",false);String before=state();
+        when(identities.require(42,100)).thenReturn(subject(100,true),subject(100,false));
+        denied(()->publishReviews.request(formId,input,"revoked-reviewer","corr"));assertThat(state()).isEqualTo(before);
+        when(identities.require(42,100)).thenAnswer(call->subject(100,true));
+        PublishReviewRequest assigned=run(()->publishReviews.request(formId,input,"valid-reviewer","corr"));
+        context(101,"form-publish-review-reject.action",true);String assignedState=state();
+        denied(()->publishReviews.reject(formId,assigned.reviewRequestId(),
+                new RejectPublishReview(assigned.formRevision(),assigned.workspaceRevision(),assigned.version(),"A different reviewer cannot reject this request."),"wrong-reviewer","corr"));
+        assertThat(state()).isEqualTo(assignedState);
+        context(100,"form-publish-review-reject.action",true);
+        PublishReviewRequest rejected=run(()->publishReviews.reject(formId,assigned.reviewRequestId(),
+                new RejectPublishReview(assigned.formRevision(),assigned.workspaceRevision(),assigned.version(),"The form requires additional compliance controls."),"reject-review","corr"));
+        assertThat(rejected.status()).isEqualTo("REJECTED");assertThat(rejected.version()).isEqualTo(1);
+        context(100,"form-publish-review.data",false);denied(()->forms.review(formId));
+
+        Workspace next=update(draft);PublishReviewRequest pending=requestReview(next,101);
+        context(next.lastEditorUserId(),"form-working-draft-update.action",false);
+        Workspace changed=run(()->forms.update(formId,new UpdateWorkingDraft(next.workingDraft().formVersionId(),formRevision,next.workspaceRevision(),
+                schema,metadata,otherWorkflow),"supersede-review","corr"));
+        context(101,"form-publish-review-request.data",false);
+        assertThat(publishReviews.latest(formId)).satisfies(result->{
+            assertThat(result.reviewRequestId()).isEqualTo(pending.reviewRequestId());assertThat(result.status()).isEqualTo("SUPERSEDED");
+        });
+        assertThat(changed.workspaceRevision()).isGreaterThan(next.workspaceRevision());
     }
     @Test void makerAndLatestEditorCannotPublishAndCannotConsumeProof() {
         Workspace first=branch();Workspace edited=update(first);Review review=review(edited,100);
@@ -154,8 +205,10 @@ class ApprovalFormLifecyclePostgresTest {
     }
     @Test void digestSchemaBaseAndHeaderTamperAreZeroWrite() {
         Workspace draft=branch();Review review=review(draft,100);context(100,"form-reviewed-publish.action",true);String before=state();
-        denied(()->forms.publish(formId,new PublishReviewed(review.draftFormVersionId(),review.basePublishedVersionId(),review.formRevision(),review.workspaceRevision(),review.schemaSha256(),"b".repeat(64)),headers("digest"),"corr"));
-        denied(()->forms.publish(formId,new PublishReviewed(review.draftFormVersionId(),UUID.randomUUID(),review.formRevision(),review.workspaceRevision(),review.schemaSha256(),review.reviewContentDigest()),headers("base"),"corr"));
+        denied(()->forms.publish(formId,new PublishReviewed(review.draftFormVersionId(),review.basePublishedVersionId(),review.formRevision(),review.workspaceRevision(),review.schemaSha256(),"b".repeat(64),review.reviewRequest().reviewRequestId(),review.reviewRequest().version(),"Independent reviewer approved this publication."),headers("digest"),"corr"));
+        denied(()->forms.publish(formId,new PublishReviewed(review.draftFormVersionId(),UUID.randomUUID(),review.formRevision(),review.workspaceRevision(),review.schemaSha256(),review.reviewContentDigest(),review.reviewRequest().reviewRequestId(),review.reviewRequest().version(),"Independent reviewer approved this publication."),headers("base"),"corr"));
+        denied(()->forms.publish(formId,new PublishReviewed(review.draftFormVersionId(),review.basePublishedVersionId(),review.formRevision(),review.workspaceRevision(),review.schemaSha256(),review.reviewContentDigest(),UUID.randomUUID(),review.reviewRequest().version(),"Independent reviewer approved this publication."),headers("request"),"corr"));
+        denied(()->forms.publish(formId,new PublishReviewed(review.draftFormVersionId(),review.basePublishedVersionId(),review.formRevision(),review.workspaceRevision(),review.schemaSha256(),review.reviewContentDigest(),review.reviewRequest().reviewRequestId(),review.reviewRequest().version()+1,"Independent reviewer approved this publication."),headers("request-version"),"corr"));
         denied(()->forms.publish(formId,body(review),new ApprovalStepUpHeaders("signed","bad-header",REV,formRevision+1),"corr"));
         assertThat(state()).isEqualTo(before);
     }
@@ -418,8 +471,24 @@ class ApprovalFormLifecyclePostgresTest {
         var changed=new MetadataInput(metadata.categoryId(),"Changed",metadata.nameEn(),metadata.descriptionKo(),metadata.descriptionEn(),metadata.ownerGroupRef(),metadata.formKind());
         return run(()->forms.update(formId,new UpdateWorkingDraft(first.workingDraft().formVersionId(),formRevision,first.workspaceRevision(),schema,changed,otherWorkflow),"update","corr"));
     }
-    private Review review(Workspace ignored,long actor) { context(actor,"form-publish-review.data",false);return forms.review(formId); }
-    private PublishReviewed body(Review r) { return new PublishReviewed(r.draftFormVersionId(),r.basePublishedVersionId(),r.formRevision(),r.workspaceRevision(),r.schemaSha256(),r.reviewContentDigest()); }
+    private PublishReviewRequest requestReview(Workspace workspace,long reviewer) {
+        context(workspace.lastEditorUserId(),"form-publish-review-request.action",false);
+        return run(()->publishReviews.request(formId,reviewRequest(workspace,reviewer),
+                "review-request-"+reviewer+"-"+workspace.workspaceRevision(),"corr"));
+    }
+    private RequestPublishReview reviewRequest(Workspace workspace,long reviewer) {
+        var current=jdbc.query("SELECT review_request_id,request_version FROM apr_form_publish_review_requests WHERE tenant_id=42 AND form_id=? ORDER BY requested_at DESC,review_request_id DESC LIMIT 1",
+                (row,number)->Map.entry(row.getObject(1,UUID.class),row.getLong(2)),formId);
+        return new RequestPublishReview(workspace.workingDraft().formVersionId(),
+                workspace.published()==null?null:workspace.published().formVersionId(),workspace.formRevision(),
+                workspace.workspaceRevision(),workspace.workingDraft().schemaSha256(),reviewer,person(reviewer),
+                current.isEmpty()?null:current.getFirst().getKey(),current.isEmpty()?null:current.getFirst().getValue(),
+                "Please independently review this exact form version.");
+    }
+    private Review review(Workspace workspace,long actor) {
+        requestReview(workspace,actor);context(actor,"form-publish-review.data",false);return forms.review(formId);
+    }
+    private PublishReviewed body(Review r) { return new PublishReviewed(r.draftFormVersionId(),r.basePublishedVersionId(),r.formRevision(),r.workspaceRevision(),r.schemaSha256(),r.reviewContentDigest(),r.reviewRequest().reviewRequestId(),r.reviewRequest().version(),"Independent reviewer approved this publication."); }
     private ApprovalStepUpHeaders headers(String key) { return new ApprovalStepUpHeaders("signed-test-proof",key,REV,formRevision); }
     private void context(long actor,String leaf,boolean high) {
         ApprovalRequestContext.set(actor,42L,null,"Designer",Set.of("APPROVAL_OPERATOR"),PERMISSIONS);
@@ -430,8 +499,9 @@ class ApprovalFormLifecyclePostgresTest {
                 high?"STEPUP-MGMT-HIGH-V1":null,null,high,null,null)));
     }
     private ApprovalIdentityDirectory.Subject subject(long id,boolean allowed) {
-        return new ApprovalIdentityDirectory.Subject(42L,id,null,null,"Designer",null,null,"ACTIVE",List.of("APPROVAL_OPERATOR"),allowed?List.copyOf(PERMISSIONS):List.of());
+        return new ApprovalIdentityDirectory.Subject(42L,id,new UUID(1,id),person(id),"Designer "+id,"designer"+id+"@example.test",null,"ACTIVE",List.of("APPROVAL_OPERATOR"),allowed?List.copyOf(PERMISSIONS):List.of());
     }
+    private UUID person(long id) { return new UUID(2,id); }
     private Map<String,Object> field(String key,String type) { return Map.of("key",key,"type",type,"labelKo","Summary","labelEn","Summary"); }
     private <T> T run(Supplier<T> body) { return tx.execute(ignored->body.get()); }
     private void denied(Supplier<?> body) { assertThatThrownBy(()->run(body)).isInstanceOf(BaseException.class); }
@@ -443,7 +513,7 @@ class ApprovalFormLifecyclePostgresTest {
     }
     private String state() {
         var tables=List.of("apr_forms","apr_form_versions","apr_requests","apr_form_workspaces","apr_form_version_material","apr_form_version_lineage",
-                "apr_form_lifecycle_events","apr_form_command_receipts","sys_audit_outbox","apr_high_risk_idempotency_ledger","apr_step_up_replay_ledger");
+                "apr_form_publish_review_requests","apr_form_lifecycle_events","apr_form_command_receipts","sys_audit_outbox","apr_high_risk_idempotency_ledger","apr_step_up_replay_ledger");
         return tables.stream().map(table->jdbc.queryForObject("SELECT COALESCE(jsonb_agg(row ORDER BY row::text),'[]'::jsonb)::text FROM (SELECT to_jsonb(t) AS row FROM "+table+" t) x",String.class))
                 .collect(java.util.stream.Collectors.joining("\n"));
     }

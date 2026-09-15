@@ -55,6 +55,7 @@ class ApprovalWorkflowPublishedRoutePostgresTest {
         source.setUser(POSTGRES.getUsername()); source.setPassword(POSTGRES.getPassword());
         var flyway = Flyway.configure().dataSource(source).locations("classpath:db/migration").cleanDisabled(false).load();
         new JdbcTemplate(source).execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
+        new JdbcTemplate(source).execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         flyway.clean(); flyway.migrate();
         jdbc = new JdbcTemplate(source); named = new NamedParameterJdbcTemplate(source);
         tx = new TransactionTemplate(new DataSourceTransactionManager(source));

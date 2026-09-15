@@ -6,7 +6,6 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.approval.forms.ApprovalFormLifecycleDtos.*;
 import com.dwp.services.approval.security.ApprovalStepUpHeaders;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -22,10 +21,15 @@ public class ApprovalFormLifecycleFacade {
     private final ApprovalFormLifecycleAuthority authority;
     private final ApprovalFormManagedPublicationProof proof;
     private final ApprovalFormVersionDiff diff;
+    private final ApprovalFormPublishReviewRepository reviewRequests;
+    private final ApprovalFormPublishReviewService publishReviews;
     private final AuditOutboxRecorder audit;
     public ApprovalFormLifecycleFacade(ApprovalFormWorkspaceRepository repo,ApprovalFormLifecycleStore store,
-            ApprovalFormLifecycleAuthority authority,ApprovalFormManagedPublicationProof proof,ApprovalFormVersionDiff diff,AuditOutboxRecorder audit) {
-        this.repo=repo;this.store=store;this.authority=authority;this.proof=proof;this.diff=diff;this.audit=audit;
+            ApprovalFormLifecycleAuthority authority,ApprovalFormManagedPublicationProof proof,ApprovalFormVersionDiff diff,
+            ApprovalFormPublishReviewRepository reviewRequests,ApprovalFormPublishReviewService publishReviews,
+            AuditOutboxRecorder audit) {
+        this.repo=repo;this.store=store;this.authority=authority;this.proof=proof;this.diff=diff;
+        this.reviewRequests=reviewRequests;this.publishReviews=publishReviews;this.audit=audit;
     }
     @Transactional(readOnly=true) public Workspace workingDraft(UUID form) {
         return read("form-working-draft.data",form,()->repo.read(actor(),form));
@@ -51,7 +55,8 @@ public class ApprovalFormLifecycleFacade {
     }
     @Transactional public Workspace update(UUID form,UpdateWorkingDraft body,String key,String correlation) {
         return mutate("form-working-draft-update.action",form,body,key,correlation,"UPDATE_DRAFT",()->{
-            var head=repo.head(actor(),form,true);store.expected(head,body.expectedFormRevision(),body.expectedWorkspaceRevision());store.update(actor(),head,body);
+            var head=repo.head(actor(),form,true);store.expected(head,body.expectedFormRevision(),body.expectedWorkspaceRevision());
+            store.update(actor(),head,body);reviewRequests.supersedePending(actor(),form);
         });
     }
     @Transactional public Workspace retire(UUID form,AvailabilityChange body,String key,String correlation) {
@@ -72,9 +77,13 @@ public class ApprovalFormLifecycleFacade {
         var draft=repo.version(actor(),form,head.draft());
         var current=repo.policy(actor(),form,store.metadata(draft.metadata()),UUID.fromString((String)draft.route().get("workflowId")),false);
         if(!current.metadata().equals(draft.metadata())||!current.route().equals(draft.route())) throw ApprovalFormWorkspaceRepository.conflict();
+        var latest=reviewRequests.latest(actor(),form);
+        if(latest==null) throw new BaseException(ErrorCode.NOT_FOUND);
+        var request=reviewRequests.pending(actor(),form,latest.reviewRequestId(),false);
+        publishReviews.requireCurrent(actor(),head,request,request.version());
         var result=new Review(form,head.revision(),head.workspaceRevision(),draft.formVersionId(),head.published(),draft.schemaSha256(),
-                reviewDigest(head,draft),draft.createdBy(),head.editor(),draft.createdBy()!=null&&head.editor()!=null
-                    &&!actor().userId().equals(draft.createdBy())&&!actor().userId().equals(head.editor()),window.evidence().validUntil());
+                ApprovalFormReviewMaterial.digest(repo,head,draft),draft.createdBy(),head.editor(),draft.createdBy()!=null&&head.editor()!=null
+                    &&!actor().userId().equals(draft.createdBy())&&!actor().userId().equals(head.editor()),window.evidence().validUntil(),request);
         repo.unchanged(actor(),head);authority.unchanged(window,leaf,"VIEW","PUBLISH");return result;
     }
     @Transactional public Workspace publish(UUID form,PublishReviewed body,ApprovalStepUpHeaders headers,String correlation) {
@@ -87,11 +96,18 @@ public class ApprovalFormLifecycleFacade {
         store.expected(head,body.expectedFormRevision(),body.expectedWorkspaceRevision());
         if(!Objects.equals(head.draft(),body.draftFormVersionId())||!Objects.equals(head.published(),body.basePublishedVersionId())) throw ApprovalFormWorkspaceRepository.conflict();
         var draft=repo.version(actor(),form,head.draft());
+        var request=reviewRequests.pending(actor(),form,body.reviewRequestId(),true);
+        publishReviews.requireCurrent(actor(),head,request,body.expectedReviewRequestVersion());
         if(draft.createdBy()==null||head.editor()==null) throw ApprovalFormWorkspaceRepository.unavailable();
         if(actor().userId().equals(draft.createdBy())||actor().userId().equals(head.editor())) throw new BaseException(ErrorCode.SOD_CONFLICT);
-        if(!draft.schemaSha256().equals(body.schemaSha256())||!reviewDigest(head,draft).equals(body.reviewContentDigest())) throw ApprovalFormWorkspaceRepository.conflict();
+        if(!draft.schemaSha256().equals(body.schemaSha256())||!ApprovalFormReviewMaterial.digest(repo,head,draft).equals(body.reviewContentDigest())
+                ||!request.reviewContentDigest().equals(body.reviewContentDigest())
+                ||body.reviewComment()==null||!body.reviewComment().equals(body.reviewComment().strip())
+                ||body.reviewComment().length()<10||body.reviewComment().length()>1000
+                ||body.reviewComment().codePoints().anyMatch(Character::isISOControl)) throw ApprovalFormWorkspaceRepository.conflict();
         var permit=proof.begin(window,form,body,headers);
         store.publish(actor(),head,draft);
+        reviewRequests.transition(actor(),request,"PUBLISHED",body.reviewComment());
         authority.unchanged(window,leaf,"VIEW","PUBLISH");proof.complete(permit);
         return finish(form,leaf,key,requestDigest,"PUBLISH",correlation,window);
     }
@@ -113,14 +129,6 @@ public class ApprovalFormLifecycleFacade {
                 .correlationId(correlation).afterState(event).retentionClass("EXTENDED").build());
         store.receipt(actor(),form,window.evidence().contextScopeKey(),leaf,key,digest,outcome);
         authority.unchanged(window,leaf,"VIEW",action.equals("PUBLISH")?"PUBLISH":"UPDATE");return outcome;
-    }
-    private String reviewDigest(ApprovalFormWorkspaceRepository.Head head,Version draft) {
-        var value=new LinkedHashMap<String,Object>();value.put("formId",head.formId().toString());value.put("formRevision",head.revision());
-        value.put("workspaceRevision",head.workspaceRevision());value.put("draftFormVersionId",draft.formVersionId().toString());
-        value.put("basePublishedVersionId",head.published()==null?null:head.published().toString());
-        value.put("sourceVersionId",draft.sourceVersionId()==null?null:draft.sourceVersionId().toString());
-        value.put("materialDigest",draft.materialDigest());value.put("makerUserId",draft.createdBy());value.put("lastEditorUserId",head.editor());
-        return repo.codec.sha(repo.codec.json(value));
     }
     private String requestDigest(UUID form,String leaf,Object body) { return repo.codec.sha(repo.codec.json(Map.of("formId",form.toString(),"route",leaf,"body",body))); }
     private void validateKey(String key) {

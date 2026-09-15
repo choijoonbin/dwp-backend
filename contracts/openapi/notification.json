@@ -238,6 +238,33 @@
         },
         "type": "object"
       },
+      "ApiResponseDeliveryEndpoint": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DeliveryEndpoint"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseDeliveryOperations": {
         "properties": {
           "correlationId": {
@@ -353,6 +380,36 @@
           },
           "data": {
             "$ref": "#/components/schemas/InboxPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListDeliveryEndpoint": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/DeliveryEndpoint"
+            },
+            "type": "array"
           },
           "errorCode": {
             "type": "string"
@@ -960,6 +1017,57 @@
         },
         "type": "object"
       },
+      "DeliveryEndpoint": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "endpointHint": {
+            "type": "string"
+          },
+          "endpointId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lastSeenAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "platform": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DeliveryEndpointRevokeRequest": {
+        "properties": {
+          "expectedVersion": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ],
+        "type": "object"
+      },
       "DeliveryLane": {
         "properties": {
           "failureRatePercent": {
@@ -1155,6 +1263,24 @@
         "required": [
           "deliveryTime",
           "mode"
+        ],
+        "type": "object"
+      },
+      "DraftDecisionRequest": {
+        "properties": {
+          "expectedVersion": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "reason"
         ],
         "type": "object"
       },
@@ -1562,6 +1688,87 @@
           },
           "userOverridable": {
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "PolicySimulationChannelOutcome": {
+        "properties": {
+          "channel": {
+            "type": "string"
+          },
+          "maxPerWindow": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "outcome": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PolicySimulationContext": {
+        "properties": {
+          "focusMode": {
+            "type": "boolean"
+          },
+          "localTime": {
+            "minLength": 1,
+            "pattern": "(?:[01]\\d|2[0-3]):[0-5]\\d",
+            "type": "string"
+          },
+          "persona": {
+            "minLength": 1,
+            "pattern": "KNOWLEDGE_WORKER|FRONTLINE|EXECUTIVE|ON_CALL",
+            "type": "string"
+          },
+          "quietHoursActive": {
+            "type": "boolean"
+          },
+          "timeZone": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "localTime",
+          "persona",
+          "timeZone"
+        ],
+        "type": "object"
+      },
+      "PolicySimulationOutcome": {
+        "properties": {
+          "attentionRisk": {
+            "type": "string"
+          },
+          "channels": {
+            "items": {
+              "$ref": "#/components/schemas/PolicySimulationChannelOutcome"
+            },
+            "type": "array"
+          },
+          "context": {
+            "$ref": "#/components/schemas/PolicySimulationContext"
+          },
+          "deferredChannelCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "immediateChannelCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "providerCostState": {
+            "type": "string"
+          },
+          "suppressedChannelCount": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -2428,6 +2635,9 @@
             "minLength": 1,
             "pattern": "APP|TYPE",
             "type": "string"
+          },
+          "simulation": {
+            "$ref": "#/components/schemas/PolicySimulationContext"
           }
         },
         "required": [
@@ -2488,6 +2698,9 @@
               "$ref": "#/components/schemas/PolicyRuntimeChannelPreview"
             },
             "type": "array"
+          },
+          "simulation": {
+            "$ref": "#/components/schemas/PolicySimulationOutcome"
           }
         },
         "type": "object"
@@ -2521,6 +2734,9 @@
           "appName": {
             "type": "string"
           },
+          "audienceMode": {
+            "type": "string"
+          },
           "channels": {
             "items": {
               "type": "string"
@@ -2534,19 +2750,57 @@
             "format": "uuid",
             "type": "string"
           },
+          "dataClassification": {
+            "type": "string"
+          },
+          "dedupeStrategy": {
+            "type": "string"
+          },
+          "deepLinkTemplate": {
+            "type": "string"
+          },
           "description": {
             "type": "string"
           },
           "displayName": {
             "type": "string"
           },
+          "endEventType": {
+            "type": "string"
+          },
+          "interruptionLevel": {
+            "type": "string"
+          },
           "mandatory": {
             "type": "boolean"
+          },
+          "maxSchemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "minSchemaVersion": {
+            "format": "int32",
+            "type": "integer"
           },
           "ownerLabel": {
             "type": "string"
           },
+          "previewPolicy": {
+            "type": "string"
+          },
           "priority": {
+            "type": "string"
+          },
+          "requiredVariables": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "retentionPolicy": {
+            "type": "string"
+          },
+          "runbookUrl": {
             "type": "string"
           },
           "schemaVersion": {
@@ -2565,6 +2819,9 @@
           "updatedAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "userConfigurable": {
+            "type": "boolean"
           },
           "version": {
             "type": "string"
@@ -2804,6 +3061,104 @@
         ]
       }
     },
+    "/v1/admin/policies/{policyId}/reject": {
+      "post": {
+        "operationId": "rejectPolicyDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/policies/{policyId}/withdraw": {
+      "post": {
+        "operationId": "withdrawPolicyDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantPolicy"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-admin-controller"
+        ]
+      }
+    },
     "/v1/admin/suppressions": {
       "get": {
         "operationId": "list",
@@ -2894,7 +3249,7 @@
     },
     "/v1/admin/suppressions/{suppressionId}/revoke": {
       "post": {
-        "operationId": "revoke",
+        "operationId": "revoke_1",
         "parameters": [
           {
             "in": "path",
@@ -3080,6 +3435,55 @@
         ]
       }
     },
+    "/v1/admin/templates/{revisionId}/reject": {
+      "post": {
+        "operationId": "rejectTemplateDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTemplateRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-admin-controller"
+        ]
+      }
+    },
     "/v1/admin/templates/{revisionId}/retire": {
       "post": {
         "operationId": "retireTemplateDraft",
@@ -3106,7 +3510,56 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TemplateDecisionRequest"
+                "$ref": "#/components/schemas/DraftDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTemplateRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/templates/{revisionId}/withdraw": {
+      "post": {
+        "operationId": "withdrawTemplateDraft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftDecisionRequest"
               }
             }
           },
@@ -3803,6 +4256,75 @@
         },
         "tags": [
           "notification-controller"
+        ]
+      }
+    },
+    "/v1/me/delivery-endpoints": {
+      "get": {
+        "operationId": "list_1",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListDeliveryEndpoint"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-delivery-endpoint-controller"
+        ]
+      }
+    },
+    "/v1/me/delivery-endpoints/{endpointId}/revoke": {
+      "post": {
+        "operationId": "revoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "endpointId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliveryEndpointRevokeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDeliveryEndpoint"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-delivery-endpoint-controller"
         ]
       }
     },

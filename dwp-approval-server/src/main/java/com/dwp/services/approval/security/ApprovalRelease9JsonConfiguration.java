@@ -17,6 +17,8 @@ public class ApprovalRelease9JsonConfiguration implements WebMvcConfigurer {
     private static final List<Class<?>> INPUTS = List.of(ApprovalFormLifecycleDtos.MetadataInput.class,
             ApprovalFormLifecycleDtos.Branch.class, ApprovalFormLifecycleDtos.AvailabilityChange.class,
             ApprovalFormLifecycleDtos.PublishReviewed.class, ApprovalFormLifecycleDtos.UpdateWorkingDraft.class,
+            ApprovalFormLifecycleDtos.RequestPublishReview.class,
+            ApprovalFormLifecycleDtos.RejectPublishReview.class,
             ApprovalAttachmentDtos.InitializePolicy.class, ApprovalAttachmentDtos.SavePolicy.class,
             ApprovalAttachmentDtos.PublishPolicy.class, ApprovalAttachmentDtos.Reserve.class,
             ApprovalAttachmentDtos.Cancel.class, ApprovalAttachmentDtos.Selection.class, ApprovalAttachmentDtos.Download.class);

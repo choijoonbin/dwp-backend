@@ -38,6 +38,7 @@ class ApprovalRetentionDefaultBootPostgresTest {
         assertThat(context.getBean(ApprovalRetentionManagementRepository.class)).isNotNull();
         assertThat(context.getBean(ApprovalRetentionManagementService.class)).isNotNull();
         assertThat(context.getBeansOfType(ApprovalRetentionIntentExecutor.class)).isEmpty();
+        assertThat(context.getBeansOfType(ApprovalRetentionManagedWorker.class)).isEmpty();
         assertThat(context.getBeansOfType(ApprovalRetentionForeignPort.class)).isEmpty();
         assertThat(context.getBeansOfType(ApprovalRetentionExecutionAuthorityPort.class)).isEmpty();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_retention_policy_heads",Long.class)).isZero();

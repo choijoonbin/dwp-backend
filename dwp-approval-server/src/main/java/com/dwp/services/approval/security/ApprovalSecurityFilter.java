@@ -405,18 +405,22 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
                     || has(permissions, "ADMIN.APPROVAL_DESIGN", action, "MANAGE");
         }
         if (path.startsWith("/v1/admin/forms") || path.startsWith("/v1/admin/form-categories")) {
+            boolean publishing = path.endsWith("/publish")
+                    || path.endsWith("/publish-reviewed") || path.endsWith("/reject");
+            boolean creating = "POST".equals(method)
+                    && (path.equals("/v1/admin/forms") || path.equals("/v1/admin/form-categories"));
             String action = readOnly(method)
                     ? "VIEW"
-                    : path.endsWith("/publish")
+                    : publishing
                             ? "APPROVE"
-                            : "POST".equals(method)
+                            : creating
                                     ? "CREATE"
                                     : "UPDATE";
             String contract = readOnly(method) ? "approvals.design.read"
-                    : path.endsWith("/publish") ? "approvals.design.publish"
-                    : "POST".equals(method)
+                    : publishing ? "approvals.design.publish"
+                    : creating
                             ? "approvals.design.create" : "approvals.design.update";
-            String exact = path.endsWith("/publish") ? "PUBLISH" : action;
+            String exact = publishing ? "PUBLISH" : action;
             return scoped(permissions, resourceRoles, contract,
                     "ADMIN.APPROVAL_DESIGN:" + exact)
                     || has(permissions, "ADMIN.APPROVAL_DESIGN", action, "MANAGE");

@@ -21,6 +21,9 @@ import java.util.stream.Collectors;
 
 final class ProductAuthorizationAuthoritySupport {
 
+    static final String PRODUCT_NOT_REGISTERED = "PRODUCT_NOT_REGISTERED";
+    static final String SURFACE_NOT_REGISTERED = "SURFACE_NOT_REGISTERED";
+    static final String ROUTE_NOT_REGISTERED = "ROUTE_NOT_REGISTERED";
     private static final Set<String> WORK_SURFACE_SUFFIXES = Set.of("work", "personal", "team");
 
     private ProductAuthorizationAuthoritySupport() {

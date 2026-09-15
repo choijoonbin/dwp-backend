@@ -98,6 +98,7 @@ public final class GeneratedProductRouteCatalog {
                 .filter(route -> route.exactPattern().matcher(normalizedPath).matches())
                 .filter(route -> queryMatches(route.queryConstraints(), query))
                 .toList();
+        exact = mostSpecificPathBindings(exact);
         if (exact.isEmpty()) {
             if (legacyExempt(normalizedMethod, normalizedPath)) {
                 return new Match(MatchStatus.LEGACY_EXEMPT, List.of());
@@ -118,6 +119,24 @@ public final class GeneratedProductRouteCatalog {
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
         return new Match(products.size() == 1 ? MatchStatus.GOVERNED : MatchStatus.AMBIGUOUS,
                 exact);
+    }
+
+    private List<Route> mostSpecificPathBindings(List<Route> matches) {
+        if (matches.size() < 2) return matches;
+        int fewestParameters = matches.stream()
+                .mapToInt(route -> pathParameterCount(route.publicPath()))
+                .min()
+                .orElse(0);
+        return matches.stream()
+                .filter(route -> pathParameterCount(route.publicPath()) == fewestParameters)
+                .toList();
+    }
+
+    private int pathParameterCount(String template) {
+        int count = 0;
+        java.util.regex.Matcher matcher = Pattern.compile("\\{([^/{}]+)}").matcher(template);
+        while (matcher.find()) count++;
+        return count;
     }
 
     public AuthorityEndpoint authorityEndpoint(String method, String path) {

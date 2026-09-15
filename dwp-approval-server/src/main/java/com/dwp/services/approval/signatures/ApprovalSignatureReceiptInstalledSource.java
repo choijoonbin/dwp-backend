@@ -14,10 +14,10 @@ final class ApprovalSignatureReceiptInstalledSource {
     ApprovalSignatureReceiptInstalledSource(ApprovalSignatureCanonical canonical,Clock clock){this.canonical=canonical;this.clock=clock;}
     ApprovalSignatureInstalledSource.Seal capture(HttpServletRequest request,Query query) {
         String registry;
-        try(var stream=new org.springframework.core.io.ClassPathResource("product-authorization/approval-pilot-pep-v10.generated.json").getInputStream()) {
+        try(var stream=new org.springframework.core.io.ClassPathResource("product-authorization/approval-pilot-pep-v12.generated.json").getInputStream()) {
             byte[] bytes=stream.readNBytes(1048577);if(bytes.length>1048576)throw unavailable();
             var ref=canonical.read(new String(bytes,java.nio.charset.StandardCharsets.UTF_8),JsonNode.class).path("registryRef");
-            if(!ref.path("version").isIntegralNumber() || ref.path("version").intValue()!=10 || !"product-surfaces".equals(ref.path("bundleKey").asText())
+            if(!ref.path("version").isIntegralNumber() || ref.path("version").intValue()!=12 || !"product-surfaces".equals(ref.path("bundleKey").asText())
                     || !ref.path("sha256").isTextual() || !ref.path("sha256").textValue().matches("[a-f0-9]{64}"))throw unavailable();registry=ref.path("sha256").textValue();
         }catch(Exception missing){throw unavailable();}
         if(request==null || !"GET".equals(request.getMethod()) || !query.path().equals(request.getRequestURI()))throw denied();

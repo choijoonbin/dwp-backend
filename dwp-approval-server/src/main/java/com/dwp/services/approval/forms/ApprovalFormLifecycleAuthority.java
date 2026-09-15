@@ -30,7 +30,7 @@ public class ApprovalFormLifecycleAuthority {
                 ||!evidence.validUntil().isAfter(OffsetDateTime.now())||!Set.of("110","111").contains(evidence.rolloutState())) throw forbidden();
         var profiles=ApprovalPilotAuthorizationContext.current().orElseThrow(ApprovalFormWorkspaceRepository::unavailable);
         String kind=leaf.endsWith(".action")?"ACTION":"DATA";
-        String capability=leaf.equals("form-reviewed-publish.action")?"approvals.design.publish"
+        String capability=Set.of("form-reviewed-publish.action","form-publish-review-reject.action").contains(leaf)?"approvals.design.publish"
                 :leaf.endsWith(".action")?"approvals.design.update":"approvals.design.read";
         if(profiles.size()!=1||!route.equals(profiles.getFirst().routeContractKey())
                 ||!kind.equals(profiles.getFirst().routeKind())||profiles.getFirst().readOnly()!=kind.equals("DATA")

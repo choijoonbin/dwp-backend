@@ -50,7 +50,7 @@ ALLOWED_OVERRIDE_REFS = {
     "PS-G010": "test.services-catalog-jit.v1",
 }
 RESERVED_CONTRACTS = {"hcm.reference.publish", "hcm.integration.rotate-secret"}
-REGISTRY_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+REGISTRY_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
 FIXED_GROUP_VERSIONS = {"CANARY": 1, "APPROVALS": 2, "HCM": 3}
 PRESERVED_V7_CATALOG_HASHES = {
     "negativeCases": "e10edda5033f368387a4e6366538f0132c2695aeeaf144d5b82d72495058a0c4",
@@ -459,7 +459,7 @@ def validate_registry_index(index: dict[str, Any]) -> None:
     if not isinstance(versions, list) or [
         entry.get("version") for entry in versions if isinstance(entry, dict)
     ] != list(REGISTRY_VERSIONS):
-        raise ContractError("Registry lineage must contain the declared versions 1 through 10")
+        raise ContractError("Registry lineage must contain the declared versions 1 through 14")
 
 
 def validate_registry_entry(

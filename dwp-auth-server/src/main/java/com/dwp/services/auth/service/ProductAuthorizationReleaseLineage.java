@@ -8,23 +8,36 @@ import java.util.Set;
 
 /** Exact append-only seed lineage and immutable descriptor release pins. */
 final class ProductAuthorizationReleaseLineage {
-    private static final Map<Long, String> CHECKSUMS = Map.of(
-            1L, "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
-            2L, "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
-            3L, "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e",
-            4L, "a9cd08260fd9a11dd7c612f2db6f03bb312f1e7843a2eb10b4082660da151137",
-            5L, "c69816a06349fcbd45a0d946debfbce1d67e09b3ed87a8b056ec8a43f852109f",
-            6L, "7cf8602aa2da5f7a0464b23cfd84a8f381e2d3eb85333ed8a8e483865b2b0abe",
-            7L, "fe9721ef01164c64e03f8798f89765bdf35e55993cf98ad1f6f9c3611dd8d61a",
-            8L, "9449a516a2dbd96106e71963cbda764b80d83f0f61fa861d110d85517adac942",
-            9L, "02b19c4119e560b63d4054ec317fe7e4d694e402a5af03960c63b20db4b41ab7",
-            10L, "1f97638c95a192f0ec7f01053c3965f79b7a3ee4eb9781ea56e3cf8eccc6889b");
-    private static final Map<Long, Map<String, Integer>> COUNTS = Map.of(
-            1L, counts(10, 5, 2, 6, 35), 2L, counts(34, 6, 3, 13, 76),
-            3L, counts(62, 14, 8, 25, 129), 4L, counts(71, 22, 16, 33, 155),
-            5L, counts(72, 22, 16, 33, 160), 6L, counts(119, 22, 16, 34, 250),
-            7L, counts(119, 22, 16, 35, 258), 8L, counts(123, 22, 16, 38, 275),
-            9L, counts(127, 22, 16, 41, 302), 10L, counts(132, 22, 16, 44, 318));
+    private static final Map<Long, String> CHECKSUMS = Map.ofEntries(
+            Map.entry(1L, "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67"),
+            Map.entry(2L, "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c"),
+            Map.entry(3L, "f90c4e3a734204a4619ae77d3476ebc7cc802c43ed8574fcf4f3fc85def67a8e"),
+            Map.entry(4L, "a9cd08260fd9a11dd7c612f2db6f03bb312f1e7843a2eb10b4082660da151137"),
+            Map.entry(5L, "c69816a06349fcbd45a0d946debfbce1d67e09b3ed87a8b056ec8a43f852109f"),
+            Map.entry(6L, "7cf8602aa2da5f7a0464b23cfd84a8f381e2d3eb85333ed8a8e483865b2b0abe"),
+            Map.entry(7L, "fe9721ef01164c64e03f8798f89765bdf35e55993cf98ad1f6f9c3611dd8d61a"),
+            Map.entry(8L, "9449a516a2dbd96106e71963cbda764b80d83f0f61fa861d110d85517adac942"),
+            Map.entry(9L, "02b19c4119e560b63d4054ec317fe7e4d694e402a5af03960c63b20db4b41ab7"),
+            Map.entry(10L, "1f97638c95a192f0ec7f01053c3965f79b7a3ee4eb9781ea56e3cf8eccc6889b"),
+            Map.entry(11L, "e9a32c9312feb325db1294e3c00d34a110474a48fba16399eb1fc52b39fc9043"),
+            Map.entry(12L, "65155dcc88f454a0ad2530518f8ec9b0c070afd31d583a19f980dd3d10f78a74"),
+            Map.entry(13L, "3bd67d7b145c5b7c845788c70f8884c8afadedd9920de419ecd1e1d0e8a4c8b0"),
+            Map.entry(14L, "7ee0bac12ddfbc72dda55a5014c67b0798caa68a5ffc73b4be479d06a4590336"));
+    private static final Map<Long, Map<String, Integer>> COUNTS = Map.ofEntries(
+            Map.entry(1L, counts(10, 5, 2, 6, 35)),
+            Map.entry(2L, counts(34, 6, 3, 13, 76)),
+            Map.entry(3L, counts(62, 14, 8, 25, 129)),
+            Map.entry(4L, counts(71, 22, 16, 33, 155)),
+            Map.entry(5L, counts(72, 22, 16, 33, 160)),
+            Map.entry(6L, counts(119, 22, 16, 34, 250)),
+            Map.entry(7L, counts(119, 22, 16, 35, 258)),
+            Map.entry(8L, counts(123, 22, 16, 38, 275)),
+            Map.entry(9L, counts(127, 22, 16, 41, 302)),
+            Map.entry(10L, counts(132, 22, 16, 44, 318)),
+            Map.entry(11L, counts(132, 22, 16, 46, 323)),
+            Map.entry(12L, counts(134, 22, 16, 46, 352)),
+            Map.entry(13L, counts(134, 22, 16, 46, 355)),
+            Map.entry(14L, counts(134, 22, 16, 46, 360)));
 
     private ProductAuthorizationReleaseLineage() { }
 
@@ -73,9 +86,9 @@ final class ProductAuthorizationReleaseLineage {
         require(index.schemaVersion() == 1, "Unsupported registry seed index schemaVersion.");
         require("product-surfaces".equals(index.bundleKey()), "Unexpected registry seed index bundleKey.");
         require("SHA-256".equals(index.indexChecksumAlgorithm()), "Only SHA-256 index checksums are supported.");
-        require(index.latestVersion() == 10, "Registry latest version must be 10.");
-        require(index.versions() != null && index.versions().size() == 10,
-                "Registry index must contain only versions 1 through 10.");
+        require(index.latestVersion() == 14, "Registry latest version must be 14.");
+        require(index.versions() != null && index.versions().size() == 14,
+                "Registry index must contain only versions 1 through 14.");
         long expectedVersion = 1;
         Set<String> checksums = new HashSet<>();
         for (ProductAuthorizationContractDtos.SeedIndexEntry entry : index.versions()) {

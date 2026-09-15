@@ -212,7 +212,24 @@ public final class ApprovalDtos {
             int activeRequests,
             int overdueTasks,
             int failedIntegrations,
-            List<AssuranceSignal> assurance) {
+            List<AssuranceSignal> assurance,
+            ApprovalAdminTrendDtos.Trend trend) {
+        public AdminPulse(
+                int publishedWorkflows,
+                int draftWorkflows,
+                int activeRequests,
+                int overdueTasks,
+                int failedIntegrations,
+                List<AssuranceSignal> assurance) {
+            this(
+                    publishedWorkflows,
+                    draftWorkflows,
+                    activeRequests,
+                    overdueTasks,
+                    failedIntegrations,
+                    assurance,
+                    ApprovalAdminTrendDtos.Trend.empty());
+        }
     }
 
     public record AssuranceSignal(

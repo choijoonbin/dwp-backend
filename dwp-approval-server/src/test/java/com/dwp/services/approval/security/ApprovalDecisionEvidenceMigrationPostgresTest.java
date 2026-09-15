@@ -44,6 +44,9 @@ class ApprovalDecisionEvidenceMigrationPostgresTest {
                 .target(MigrationVersion.fromVersion("14"))
                 .cleanDisabled(false)
                 .load();
+        JdbcTemplate cleanup = new JdbcTemplate(dataSource);
+        cleanup.execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
+        cleanup.execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         beforeDecisionBinding.clean();
         beforeDecisionBinding.migrate();
         jdbc = new JdbcTemplate(dataSource);

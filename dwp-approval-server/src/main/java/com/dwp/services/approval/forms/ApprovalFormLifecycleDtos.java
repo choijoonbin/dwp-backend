@@ -39,7 +39,50 @@ public final class ApprovalFormLifecycleDtos {
             @JsonDeserialize(using=ApprovalFormExactRevision.class) @NotNull @Min(0) @Max(9007199254740991L) Long expectedFormRevision,
             @JsonDeserialize(using=ApprovalFormExactRevision.class) @NotNull @Min(0) @Max(9007199254740991L) Long expectedWorkspaceRevision,
             @NotBlank @Pattern(regexp="[a-f0-9]{64}") String schemaSha256,
-            @NotBlank @Pattern(regexp="[a-f0-9]{64}") String reviewContentDigest) { }
+            @NotBlank @Pattern(regexp="[a-f0-9]{64}") String reviewContentDigest,
+            @NotNull UUID reviewRequestId,
+            @JsonDeserialize(using=ApprovalFormExactRevision.class) @NotNull @Min(0) @Max(9007199254740991L) Long expectedReviewRequestVersion,
+            @NotBlank @Size(min=10,max=1000) String reviewComment) { }
+    @Schema(name="ApprovalFormPublishReviewRequestInput", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record RequestPublishReview(@NotNull UUID draftFormVersionId, UUID basePublishedVersionId,
+            @JsonDeserialize(using=ApprovalFormExactRevision.class) @NotNull @Min(0) @Max(9007199254740991L) Long expectedFormRevision,
+            @JsonDeserialize(using=ApprovalFormExactRevision.class) @NotNull @Min(0) @Max(9007199254740991L) Long expectedWorkspaceRevision,
+            @NotBlank @Pattern(regexp="[a-f0-9]{64}") String schemaSha256,
+            @NotNull @Min(1) Long reviewerUserId, @NotNull UUID reviewerPersonPublicId,
+            UUID expectedReviewRequestId,
+            @JsonDeserialize(using=ApprovalFormExactRevision.class) @Min(0) @Max(9007199254740991L) Long expectedReviewRequestVersion,
+            @NotBlank @Size(min=10,max=1000) String reason) { }
+    @Schema(name="ApprovalFormPublishReviewRejectInput", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record RejectPublishReview(
+            @JsonDeserialize(using=ApprovalFormExactRevision.class) @NotNull @Min(0) @Max(9007199254740991L) Long expectedFormRevision,
+            @JsonDeserialize(using=ApprovalFormExactRevision.class) @NotNull @Min(0) @Max(9007199254740991L) Long expectedWorkspaceRevision,
+            @JsonDeserialize(using=ApprovalFormExactRevision.class) @NotNull @Min(0) @Max(9007199254740991L) Long expectedReviewRequestVersion,
+            @NotBlank @Size(min=10,max=1000) String reason) { }
+    @Schema(name="ApprovalFormPublishReviewRequest", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record PublishReviewRequest(UUID reviewRequestId, UUID formId, UUID draftFormVersionId,
+            UUID basePublishedFormVersionId, String status, long version, long makerUserId,
+            long lastEditorUserId, long reviewerUserId, UUID reviewerPersonPublicId,
+            long formRevision, long workspaceRevision, String schemaSha256,
+            String reviewContentDigest, String requestReason, OffsetDateTime requestedAt,
+            OffsetDateTime decidedAt, Long decidedBy, String decisionReason) { }
+    @Schema(name="ApprovalFormPublishReviewRequestState", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record PublishReviewRequestState(@Schema(nullable=true) PublishReviewRequest request) { }
+    @Schema(name="ApprovalFormPublishReviewCandidate", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record PublishReviewCandidate(long userId, UUID personPublicId, String displayName,
+            String email, String jobTitle) { }
+    @Schema(name="ApprovalFormPublishReviewCandidates", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record PublishReviewCandidates(List<PublishReviewCandidate> candidates,
+            boolean mayBeTruncated, String decisionRevision, OffsetDateTime authorityValidUntil) {
+        public PublishReviewCandidates { candidates=List.copyOf(candidates); }
+    }
+    @Schema(name="ApprovalFormPublishReviewQueueItem", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record PublishReviewQueueItem(PublishReviewRequest request, String formKey,
+            String formNameKo, String formNameEn) { }
+    @Schema(name="ApprovalFormPublishReviewQueue", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record PublishReviewQueue(List<PublishReviewQueueItem> items,
+            boolean mayBeTruncated, OffsetDateTime generatedAt) {
+        public PublishReviewQueue { items=List.copyOf(items); }
+    }
     @Schema(name="ApprovalFormLifecycleVersion", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
     public record Version(UUID formVersionId, int versionNumber, String lifecycleState,
             UUID sourceVersionId, UUID basePublishedVersionId, Map<String,Object> schema,
@@ -55,7 +98,8 @@ public final class ApprovalFormLifecycleDtos {
     public record Review(UUID formId, long formRevision, long workspaceRevision,
             UUID draftFormVersionId, UUID basePublishedVersionId, String schemaSha256,
             String reviewContentDigest, Long makerUserId, Long lastEditorUserId,
-            boolean independentCheckerEligible, OffsetDateTime authorityValidUntil) { }
+            boolean independentCheckerEligible, OffsetDateTime authorityValidUntil,
+            PublishReviewRequest reviewRequest) { }
     @Schema(name="ApprovalFormLifecycleChange", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
     public record Change(String path, Object before, Object after) { }
     @Schema(name="ApprovalFormLifecycleDiff", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)

@@ -17,7 +17,7 @@ import java.util.Locale;
 import java.util.Optional;
 
 /**
- * Explicit local-only bootstrap for the immutable CORE-006 v3 authorization bundle.
+ * Explicit local-only bootstrap for an immutable product-authorization bundle.
  * Production and shared environments must use the normal approval workflow instead.
  */
 @Component
@@ -25,12 +25,13 @@ import java.util.Optional;
 public class ProductAuthorizationLocalPilotActivationRunner implements ApplicationRunner {
 
     static final String BUNDLE_KEY = "product-surfaces";
-    static final long PILOT_VERSION = 3L;
+    static final long DEFAULT_PILOT_VERSION = 3L;
 
     private static final Logger LOGGER =
             LoggerFactory.getLogger(ProductAuthorizationLocalPilotActivationRunner.class);
 
     private final boolean enabled;
+    private final long targetVersion;
     private final String approvalActorRef;
     private final String activationActorRef;
     private final ProductAuthorizationContractService service;
@@ -38,6 +39,8 @@ public class ProductAuthorizationLocalPilotActivationRunner implements Applicati
     public ProductAuthorizationLocalPilotActivationRunner(
             @Value("${dwp.product-authorization.local-pilot-activation.enabled:false}")
             boolean enabled,
+            @Value("${dwp.product-authorization.local-pilot-activation.version:3}")
+            long targetVersion,
             @Value("${dwp.product-authorization.local-pilot-activation.approval-actor-ref:local-core006-bundle-approver}")
             String approvalActorRef,
             @Value("${dwp.product-authorization.local-pilot-activation.activation-actor-ref:local-core006-bundle-activator}")
@@ -45,6 +48,11 @@ public class ProductAuthorizationLocalPilotActivationRunner implements Applicati
             Environment environment,
             ProductAuthorizationContractService service) {
         this.enabled = enabled;
+        if (targetVersion < 1) {
+            throw new IllegalStateException(
+                    "Local pilot authorization bundle version must be positive.");
+        }
+        this.targetVersion = targetVersion;
         this.approvalActorRef = normalizedActor(approvalActorRef, "approval");
         this.activationActorRef = normalizedActor(activationActorRef, "activation");
         this.service = service;
@@ -66,27 +74,27 @@ public class ProductAuthorizationLocalPilotActivationRunner implements Applicati
         }
 
         ProductAuthorizationContractDtos.BundleView target =
-                service.version(BUNDLE_KEY, PILOT_VERSION);
+                service.version(BUNDLE_KEY, targetVersion);
         if ("DRAFT".equals(target.bundleStatus())) {
-            target = service.approve(BUNDLE_KEY, PILOT_VERSION, approvalActorRef);
+            target = service.approve(BUNDLE_KEY, targetVersion, approvalActorRef);
         }
         if (!"APPROVED".equals(target.bundleStatus())
                 && !"ACTIVE".equals(target.bundleStatus())) {
             throw new IllegalStateException(
-                    "CORE-006 local pilot v3 must be DRAFT, APPROVED or ACTIVE before activation.");
+                    "Local pilot authorization bundle must be DRAFT, APPROVED or ACTIVE before activation.");
         }
 
         Optional<ProductAuthorizationContractDtos.BundleView> activeBefore = active();
         if (isTarget(activeBefore, target.checksum())) {
             LOGGER.info(
-                    "CORE-006 local pilot authorization bundle is already active: version={} revision={}",
-                    PILOT_VERSION, activeBefore.orElseThrow().activeRevision());
+                    "Local pilot authorization bundle is already active: version={} revision={}",
+                    targetVersion, activeBefore.orElseThrow().activeRevision());
             return;
         }
         activeBefore.ifPresent(active -> {
-            if (active.version() > PILOT_VERSION) {
+            if (active.version() > targetVersion) {
                 throw new IllegalStateException(
-                        "CORE-006 local pilot bootstrap will not replace a newer active bundle.");
+                        "Local pilot bootstrap will not replace a newer active bundle.");
             }
         });
         long expectedRevision = activeBefore
@@ -95,20 +103,20 @@ public class ProductAuthorizationLocalPilotActivationRunner implements Applicati
 
         try {
             ProductAuthorizationContractDtos.ActivationResult activated = service.activate(
-                    BUNDLE_KEY, PILOT_VERSION, activationActorRef, expectedRevision);
-            if (activated.version() != PILOT_VERSION
+                    BUNDLE_KEY, targetVersion, activationActorRef, expectedRevision);
+            if (activated.version() != targetVersion
                     || !activated.checksum().equals(target.checksum())) {
                 throw new IllegalStateException(
                         "CORE-006 local pilot activation returned a different immutable bundle.");
             }
             LOGGER.info(
-                    "Activated CORE-006 local pilot authorization bundle: version={} revision={}",
+                    "Activated local pilot authorization bundle: version={} revision={}",
                     activated.version(), activated.revision());
         } catch (BaseException exception) {
             if (exception.getErrorCode() == ErrorCode.RESOURCE_CONFLICT
                     && isTarget(active(), target.checksum())) {
                 LOGGER.info(
-                        "CORE-006 local pilot authorization activation converged after a CAS race.");
+                        "Local pilot authorization activation converged after a CAS race.");
                 return;
             }
             throw exception;
@@ -124,10 +132,10 @@ public class ProductAuthorizationLocalPilotActivationRunner implements Applicati
         }
     }
 
-    private static boolean isTarget(
+    private boolean isTarget(
             Optional<ProductAuthorizationContractDtos.BundleView> active,
             String expectedChecksum) {
-        return active.filter(value -> value.version() == PILOT_VERSION)
+        return active.filter(value -> value.version() == targetVersion)
                 .filter(value -> "ACTIVE".equals(value.bundleStatus()))
                 .filter(value -> value.activeRevision() > 0)
                 .filter(value -> expectedChecksum.equals(value.checksum()))

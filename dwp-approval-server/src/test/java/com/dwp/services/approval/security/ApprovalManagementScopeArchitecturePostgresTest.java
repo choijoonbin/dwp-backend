@@ -3,6 +3,7 @@ package com.dwp.services.approval.security;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.approval.domain.ApprovalCommandRepository;
+import com.dwp.services.approval.domain.ApprovalAttachmentLifecycleTestWiring;
 import com.dwp.services.approval.domain.ApprovalDelegationCommandSupport;
 import com.dwp.services.approval.domain.ApprovalDtos;
 import com.dwp.services.approval.domain.ApprovalQueryRepository;
@@ -44,6 +45,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Testcontainers(disabledWithoutDocker = true)
 class ApprovalManagementScopeArchitecturePostgresTest {
 
+    private static final Set<String> WORK_PERMISSIONS = Set.of(
+            "APP.APPROVALS:VIEW",
+            "ACTION.APPROVAL_REQUEST:CREATE",
+            "ACTION.APPROVAL_REQUEST:UPDATE");
+
     private static final UUID WORKFLOW_A = UUID.fromString(
             "20000000-0000-0000-0000-00000000000a");
     private static final UUID WORKFLOW_B = UUID.fromString(
@@ -62,6 +68,7 @@ class ApprovalManagementScopeArchitecturePostgresTest {
     private PGSimpleDataSource dataSource;
     private ApprovalQueryRepository queries;
     private ApprovalCommandRepository commands;
+    private TransactionTemplate transaction;
 
     @BeforeEach
     void setUp() {
@@ -74,19 +81,43 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 .locations("classpath:db/migration")
                 .cleanDisabled(false)
                 .load();
+        new JdbcTemplate(dataSource).execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
+        new JdbcTemplate(dataSource).execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         flyway.clean();
         flyway.migrate();
         jdbc = new JdbcTemplate(dataSource);
         named = new NamedParameterJdbcTemplate(dataSource);
+        transaction = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         queries = new ApprovalQueryRepository(named, mapper);
         commands = new ApprovalCommandRepository(named, mapper);
+        ApprovalIdentityDirectory identities = new ApprovalIdentityDirectory() {
+            @Override
+            public Subject require(long tenantId, long userId) {
+                return new Subject(
+                        tenantId, userId, null, null, "User", null, null, "ACTIVE",
+                        List.of("APPROVAL_OPERATOR"), List.copyOf(WORK_PERMISSIONS));
+            }
+
+            @Override
+            public List<Subject> search(long tenantId, String query, int limit) {
+                return List.of();
+            }
+
+            @Override
+            public RoleEligibility requireRole(long tenantId, String roleCode) {
+                return new RoleEligibility(tenantId, roleCode, "ACTIVE", 1, true);
+            }
+        };
+        ApprovalAttachmentLifecycleTestWiring.bindDefault(commands, named, identities, mapper);
     }
 
     @AfterEach
     void clearContexts() {
         ApprovalManagementScopeContext.clear();
         ApprovalDecisionRevisionContext.clear();
+        ApprovalPilotAuthorizationContext.clear();
+        ApprovalRequestContext.clear();
     }
 
     @Test
@@ -295,14 +326,15 @@ class ApprovalManagementScopeArchitecturePostgresTest {
         UUID taskA = seedTask(requestA, seedStep(requestA, "A"), "A");
         UUID taskB = seedTask(requestB, seedStep(requestB, "B"), "B");
         ApprovalRequestContext.Actor actor = actor(17);
-        ApprovalQueryRepository.TaskAccess access = queries.taskDetail(actor, taskA);
         setDecision("work-scope", "route.approvals.work.task-decision.action");
-
-        ApprovalCommandRepository.DecisionResult result = commands.decide(
-                actor,
-                access,
-                new ApprovalDtos.DecisionRequest("APPROVE", null, 0L),
-                "governed-work-decision");
+        ApprovalCommandRepository.DecisionResult result = transaction.execute(ignored -> {
+            ApprovalQueryRepository.TaskAccess access = queries.taskDetail(actor, taskA);
+            return commands.decide(
+                    actor,
+                    access,
+                    new ApprovalDtos.DecisionRequest("APPROVE", null, 0L),
+                    "governed-work-decision");
+        });
 
         assertThat(result.decision()).isEqualTo("APPROVE");
         assertThat(result.requestStatus()).isEqualTo("APPROVED");
@@ -365,14 +397,14 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 "self-scope",
                 "route.approvals.work.request-information-response.action");
 
-        commands.respondToInformationRequest(
+        transaction.executeWithoutResult(ignored -> commands.respondToInformationRequest(
                 requester,
                 requestA,
                 new ApprovalDtos.InformationResponseRequest(
                         "Scoped evidence supplied",
                         Map.of("detail", "updated", "summary", " Updated summary "),
                         0L),
-                "governed-information-response");
+                "governed-information-response"));
 
         assertThat(jdbc.queryForObject(
                 "SELECT status FROM apr_requests WHERE request_id = ?",
@@ -396,7 +428,9 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 informationTaskA)).isEqualTo(1);
         assertThat(queries.decisionPayload(42, informationTaskA))
                 .containsEntry("detail", "original");
-        assertThat(queries.requestPayload(42, requestA))
+        Map<String, Object> currentPayload =
+                transaction.execute(ignored -> queries.requestPayload(42, requestA));
+        assertThat(currentPayload)
                 .containsEntry("detail", "updated")
                 .containsEntry("summary", "Updated summary");
         assertThat(jdbc.queryForObject(
@@ -437,11 +471,11 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 "self-scope",
                 "route.approvals.work.request-information-response.action");
 
-        commands.respondToInformationRequest(
+        transaction.executeWithoutResult(ignored -> commands.respondToInformationRequest(
                 actor(99), requestId,
                 new ApprovalDtos.InformationResponseRequest(
                         "Existing evidence confirmed", Map.of("detail", "original"), 0L),
-                "non-material-information-response");
+                "non-material-information-response"));
 
         assertThat(jdbc.queryForObject(
                 "SELECT schema_version FROM apr_request_payloads WHERE request_id = ?",
@@ -535,12 +569,12 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 + "WHERE category_id = (SELECT category_id FROM apr_forms WHERE form_id = ?)",
                 FORM_A);
 
-        assertThatThrownBy(() -> commands.createDraft(
+        assertThatThrownBy(() -> transaction.execute(ignored -> commands.createDraft(
                 requester,
                 new ApprovalDtos.CreateRequest(
                         WORKFLOW_A, FORM_A, "Request", "Summary", "NORMAL",
                         Map.of("detail", "original")),
-                "inactive-create"))
+                "inactive-create")))
                 .isInstanceOf(BaseException.class);
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM apr_requests WHERE tenant_id = 42",
@@ -554,8 +588,9 @@ class ApprovalManagementScopeArchitecturePostgresTest {
         jdbc.update("UPDATE apr_form_workflow_bindings SET lifecycle_state = 'INACTIVE' "
                 + "WHERE form_id = ?", FORM_A);
 
-        assertThatThrownBy(() -> commands.submit(
-                requester, requestId, 0L, "inactive-draft-submit"))
+        setDecision("self-scope", "route.approvals.work.request-submit.action");
+        assertThatThrownBy(() -> transaction.executeWithoutResult(ignored -> commands.submit(
+                requester, requestId, 0L, "inactive-draft-submit")))
                 .isInstanceOf(BaseException.class);
         assertThat(jdbc.queryForObject(
                 "SELECT status FROM apr_requests WHERE request_id = ?",
@@ -716,7 +751,9 @@ class ApprovalManagementScopeArchitecturePostgresTest {
         assertThat(jdbc.queryForObject(
                 "SELECT workflow_id FROM apr_delegations WHERE delegation_id = ?",
                 UUID.class, delegation.delegationId())).isEqualTo(WORKFLOW_A);
-        assertThat(queries.tasks(actor(23), "DELEGATED", 20))
+        List<ApprovalDtos.TaskSummary> delegatedTasks =
+                transaction.execute(ignored -> queries.tasks(actor(23), "DELEGATED", 20));
+        assertThat(delegatedTasks)
                 .extracting(ApprovalDtos.TaskSummary::taskId)
                 .containsExactly(taskA);
         assertThatThrownBy(() -> jdbc.update("""
@@ -936,14 +973,30 @@ class ApprovalManagementScopeArchitecturePostgresTest {
     }
 
     private ApprovalRequestContext.Actor actor(long userId) {
-        return new ApprovalRequestContext.Actor(
-                userId, 42L, null, "User", Set.of(), Set.of());
+        ApprovalRequestContext.set(
+                userId, 42L, null, "User", Set.of("APPROVAL_OPERATOR"), WORK_PERMISSIONS);
+        return ApprovalRequestContext.require();
     }
 
     private void setDecision(String scopeKey, String route) {
         ApprovalDecisionRevisionContext.set(
                 "decision-revision", OffsetDateTime.now().plusMinutes(5),
                 "approvals.work", scopeKey, route, "110");
+        Set<String> predicates = route.equals("route.approvals.work.request-create.action")
+                ? Set.of()
+                : route.equals("route.approvals.work.task-decision.action")
+                        ? Set.of("predicate.approval-task-decision.v1")
+                        : Set.of(
+                                "predicate.approval.own-request.v1",
+                                "predicate.approval.object-version.v1");
+        String capability = route.equals("route.approvals.work.request-create.action")
+                ? "approvals.work.request.create"
+                : route.equals("route.approvals.work.task-decision.action")
+                        ? "approvals.work.task.approve"
+                        : "approvals.work.request.update";
+        ApprovalPilotAuthorizationContext.set(List.of(new ApprovalPilotPepRegistry.RouteAuthority(
+                route, "ACTION", "full-work", false, predicates, capability,
+                null, null, false, null, null)));
     }
 
     private void assertWorkCatalogExcludesBundleB() {

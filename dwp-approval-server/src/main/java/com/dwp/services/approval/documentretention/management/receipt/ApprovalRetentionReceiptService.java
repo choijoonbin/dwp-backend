@@ -4,6 +4,7 @@ import com.dwp.services.approval.documentretention.management.ApprovalRetentionA
 import com.dwp.services.approval.documentretention.management.ApprovalRetentionErrors;
 import com.dwp.services.approval.security.ApprovalDecisionRevisionContext;
 import com.dwp.services.approval.security.ApprovalPilotAuthorizationContext;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -12,6 +13,10 @@ import static com.dwp.services.approval.documentretention.management.receipt.App
 
 @Service
 public class ApprovalRetentionReceiptService {
+    private static final String RECEIPT_PROFILE =
+            "approval.retention.command-receipt.original-authority.v1";
+    private static final String RECEIPT_PREDICATE =
+            "predicate.approval.retention-command-original-authority.v1";
     private final ApprovalRetentionAuthority authority;
     private final ApprovalRetentionReceiptRepository repository;
     public ApprovalRetentionReceiptService(ApprovalRetentionAuthority authority,ApprovalRetentionReceiptRepository repository) {
@@ -40,9 +45,18 @@ public class ApprovalRetentionReceiptService {
     }
     private void exact(String route,Operation operation) {
         ApprovalDecisionRevisionContext.current().ifPresent(evidence->{
-            if(!route.equals(evidence.routeContractKey()) || !ApprovalPilotAuthorizationContext.current().orElseThrow(ApprovalRetentionErrors::unavailable)
-                    .stream().allMatch(a->route.equals(a.routeContractKey()) && "DATA".equals(a.routeKind())
-                        && operation.capability().equals(a.capabilityContractKey()))) throw ApprovalRetentionErrors.forbidden();
+            var authorities=ApprovalPilotAuthorizationContext.current()
+                    .orElseThrow(ApprovalRetentionErrors::unavailable);
+            if(!route.equals(evidence.routeContractKey()) || authorities.size()!=1) {
+                throw ApprovalRetentionErrors.forbidden();
+            }
+            var authority=authorities.getFirst();
+            if(!route.equals(authority.routeContractKey()) || !"DATA".equals(authority.routeKind())
+                    || !RECEIPT_PROFILE.equals(authority.profileKey()) || !authority.readOnly()
+                    || !Set.of(RECEIPT_PREDICATE).equals(authority.predicatePolicyKeys())
+                    || !operation.capability().equals(authority.capabilityContractKey())) {
+                throw ApprovalRetentionErrors.forbidden();
+            }
         });
     }
 }

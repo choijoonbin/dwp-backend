@@ -23,6 +23,7 @@ class ApprovalPolicyBaselineCapturePostgresTest {
         source.setURL(PG.getJdbcUrl()); source.setUser(PG.getUsername()); source.setPassword(PG.getPassword());
         jdbc = new JdbcTemplate(source);
         jdbc.execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
+        jdbc.execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         migration("24").clean(); migration("24").migrate();
     }
 

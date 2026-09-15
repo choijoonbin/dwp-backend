@@ -2,6 +2,7 @@ package com.dwp.services.approval.security;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.approval.domain.ApprovalAdminTrendDtos;
 import com.dwp.services.approval.domain.ApprovalDtos;
 import com.dwp.services.approval.domain.ApprovalResponseProjection;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -163,6 +164,32 @@ class ApprovalResponseProjectionTest {
         assertThat(auditor.toString()).doesNotContain(
                 "outboxId", "eventId", "requestId", "lastError", "failure-secret",
                 "titleKo", "titleEn", "detailKo", "detailEn");
+    }
+
+    @Test
+    void fullOverviewIncludesTheValidatedOperationalTrend() {
+        useProfile(
+                "route.approvals.admin.overview.page",
+                "full-management",
+                "route.approvals.admin.overview.page.full-management.projection.v1",
+                "route.approvals.admin.overview.page.response.v1");
+
+        ApprovalAdminTrendDtos.Bucket bucket = new ApprovalAdminTrendDtos.Bucket(
+                NOW.minusSeconds(21_600), NOW, 4, 3, 1, 2, 19, 5);
+        JsonNode value = json.valueToTree(projection.overview(new ApprovalDtos.AdminPulse(
+                1, 2, 3, 4, 5,
+                List.of(new ApprovalDtos.AssuranceSignal("sod", "HEALTHY", 0)),
+                new ApprovalAdminTrendDtos.Trend(NOW.minusSeconds(60), 72, 6, List.of(bucket)))));
+
+        assertFields(value, Set.of(
+                "publishedWorkflows", "draftWorkflows", "activeRequests", "overdueTasks",
+                "failedIntegrations", "assurance", "trend"));
+        assertFields(value.path("trend"), Set.of(
+                "generatedAt", "windowHours", "bucketHours", "buckets"));
+        assertFields(value.path("trend").path("buckets").get(0), Set.of(
+                "startsAt", "endsAt", "submittedRequests", "completedRequests",
+                "slaBreaches", "unresolvedDeliveryUpdates", "inFlightRequests",
+                "slaEligibleTasks"));
     }
 
     @Test

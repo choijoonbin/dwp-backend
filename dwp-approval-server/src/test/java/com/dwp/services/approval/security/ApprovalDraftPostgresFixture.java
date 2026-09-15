@@ -47,6 +47,7 @@ class ApprovalDraftPostgresFixture {
                 .cleanDisabled(false).load();
         // Only this disposable Testcontainers database is reset, never the dev database.
         new JdbcTemplate(source).execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
+        new JdbcTemplate(source).execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         flyway.clean();
         flyway.migrate();
         jdbc = new JdbcTemplate(source);

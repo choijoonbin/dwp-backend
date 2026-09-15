@@ -12,7 +12,43 @@ EXPORTER = runpy.run_path(str(ROOT / "scripts" / "export-openapi-contracts.py"))
 
 
 class ExportOpenApiContractsTest(unittest.TestCase):
-    def test_gateway_openapi_projection_consumes_append_only_v9_registry(self) -> None:
+    def test_approval_and_gateway_snapshots_publish_exact_signature_contract(self) -> None:
+        owner = json.loads(
+            (ROOT / "contracts/openapi/approval.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+
+        EXPORTER["validate_approval_signature_operations"](owner)
+        EXPORTER["validate_approval_signature_operations"](gateway, gateway=True)
+        self.assertEqual(len(EXPORTER["APPROVAL_SIGNATURE_FEATURE_OPERATIONS"]), 27)
+
+    def test_signature_contract_validation_rejects_missing_or_extra_routes(self) -> None:
+        expected = EXPORTER["APPROVAL_SIGNATURE_FEATURE_OPERATIONS"] | {
+            EXPORTER["APPROVAL_SIGNATURE_LEGACY_OPERATION"]
+        }
+        document = {
+            "paths": {
+                path: {method: {}}
+                for method, path in expected
+            }
+        }
+        EXPORTER["validate_approval_signature_operations"](document)
+
+        missing = copy.deepcopy(document)
+        missing["paths"].pop("/v1/requests/{requestId}/signature-context")
+        with self.assertRaisesRegex(RuntimeError, "missing"):
+            EXPORTER["validate_approval_signature_operations"](missing)
+
+        unexpected = copy.deepcopy(document)
+        unexpected["paths"]["/v1/signature-requests/{signatureRequestId}/retry"] = {
+            "post": {}
+        }
+        with self.assertRaisesRegex(RuntimeError, "unexpected"):
+            EXPORTER["validate_approval_signature_operations"](unexpected)
+
+    def test_gateway_openapi_projection_consumes_append_only_v14_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -21,16 +57,74 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 9)
-        self.assertEqual(registry["version"], 9)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 14)
+        self.assertEqual(registry["version"], 14)
         self.assertEqual(len(dwaion_routes), 95)
         self.assertEqual(
             sum(route["routeKind"] == "ACTION" for route in dwaion_routes), 57
         )
         approval_routes = [route for route in registry["routes"]
                            if route["subject"].get("productKey") == "approvals"]
-        self.assertEqual(len(approval_routes), 93)
-        self.assertEqual(sum(route["routeKind"] == "ACTION" for route in approval_routes), 48)
+        self.assertEqual(len(approval_routes), 151)
+        self.assertEqual(sum(route["routeKind"] == "ACTION" for route in approval_routes), 80)
+
+    def test_v14_governs_every_new_approval_operation(self) -> None:
+        operations = EXPORTER["product_governed_operations"]()
+        required = {
+            ("/api/approvals/v1/requests/{requestId}/resubmit-draft", "post"),
+            ("/api/approvals/v1/delegations/{delegationId}", "put"),
+            ("/api/approvals/v1/admin/operations/events/{outboxId}/dead-letter", "post"),
+            ("/api/approvals/v1/admin/operations/events/{outboxId}/replay", "post"),
+            ("/api/approvals/v1/admin/operations/deliveries/retry", "post"),
+            ("/api/approvals/v1/admin/operations/deliveries/dead-letter", "post"),
+            ("/api/approvals/v1/admin/operations/deliveries/replay", "post"),
+            ("/api/approvals/v1/admin/operations/deliveries/reconcile", "post"),
+            ("/api/approvals/v1/admin/operations/tasks/{taskId}/reassign", "post"),
+            ("/api/approvals/v1/admin/operations/tasks/reassign", "post"),
+            ("/api/approvals/v1/admin/signatures/diagnostics", "get"),
+            ("/api/approvals/v1/admin/signatures/providers/{providerId}/diagnostics", "get"),
+            ("/api/approvals/v1/admin/signatures/diagnostic-history", "get"),
+            ("/api/approvals/v1/admin/signatures/probes", "post"),
+            ("/api/approvals/v1/admin/signatures/kms/probes", "post"),
+            ("/api/approvals/v1/admin/signatures/worm-inspections", "post"),
+            ("/api/approvals/v1/admin/signatures/policy", "get"),
+            ("/api/approvals/v1/admin/signatures/policies/{policyId}/history", "get"),
+            ("/api/approvals/v1/admin/signatures/policies", "post"),
+            ("/api/approvals/v1/admin/signatures/policies/{policyId}/draft", "put"),
+            ("/api/approvals/v1/admin/signatures/policies/{policyId}/publish", "post"),
+            ("/api/approvals/v1/requests/{requestId}/external-signature-context", "get"),
+            ("/api/approvals/v1/requests/{requestId}/external-signature-requests", "post"),
+            ("/api/approvals/v1/external-signature-requests/{signatureRequestId}", "get"),
+            ("/api/approvals/v1/external-signature-requests/{signatureRequestId}/handovers", "post"),
+            ("/api/approvals/v1/external-signature-requests/{signatureRequestId}/refresh", "post"),
+            ("/api/approvals/v1/external-signature-requests/{signatureRequestId}/cancel", "post"),
+            ("/api/approvals/v1/external-signature-requests/{signatureRequestId}/audit", "get"),
+            ("/api/approvals/v1/external-signature-requests/{signatureRequestId}/artifacts/{artifactId}", "get"),
+            ("/api/approvals/v1/requests/{requestId}/draft/migration-preview", "get"),
+            ("/api/approvals/v1/requests/{requestId}/draft/migrate", "post"),
+            ("/api/approvals/v1/admin/policies", "post"),
+            ("/api/approvals/v1/admin/forms/publish-review-candidates", "get"),
+            ("/api/approvals/v1/admin/forms/publish-review-requests", "get"),
+            ("/api/approvals/v1/admin/forms/{formId}/publish-review-request", "get"),
+            ("/api/approvals/v1/admin/forms/{formId}/publish-review-request", "post"),
+            ("/api/approvals/v1/admin/forms/{formId}/publish-review-requests/{requestId}/reject", "post"),
+        }
+
+        self.assertEqual(len(required), 37)
+        self.assertTrue(required.issubset(operations))
+        document = {"paths": {}}
+        for path, method in required:
+            document["paths"].setdefault(path, {})[method] = {"parameters": []}
+        EXPORTER["add_product_governance_contract"](document)
+        for operation in required:
+            self.assertEqual(operations[operation], operation[1] != "get")
+            parameters = document["paths"][operation[0]][operation[1]]["parameters"]
+            names = {parameter["name"] for parameter in parameters}
+            self.assertIn("contextScopeKey", names)
+            if operation[1] == "get":
+                self.assertNotIn("X-DWP-Expected-Decision-Revision", names)
+            else:
+                self.assertIn("X-DWP-Expected-Decision-Revision", names)
 
     def test_document_policy_uuid_operations_receive_scope_and_revision(self) -> None:
         base = "/api/approvals/v1/admin/document-tools/policies/{policyId}"

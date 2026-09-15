@@ -14,11 +14,22 @@ public final class ApprovalRetentionExecutionVerifier {
         @JsonAnySetter public void unknown(String key,JsonNode value) {throw new IllegalArgumentException("Unknown execution proof field: "+key);}
     }
     private final ObjectMapper mapper;private final Clock clock;private final PublicKey key;private final String issuer,keyId;
+    private final boolean configured;
     public ApprovalRetentionExecutionVerifier(ObjectMapper mapper,Clock clock,PublicKey key,String issuer,String keyId) {
         this.mapper=mapper.copy().enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
         this.clock=clock;this.key=Objects.requireNonNull(key);this.issuer=Objects.requireNonNull(issuer);this.keyId=Objects.requireNonNull(keyId);
+        this.configured=true;
     }
+    private ApprovalRetentionExecutionVerifier(ObjectMapper mapper,Clock clock) {
+        this.mapper=mapper.copy().enable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES);
+        this.clock=clock;this.key=null;this.issuer="";this.keyId="";this.configured=false;
+    }
+    public static ApprovalRetentionExecutionVerifier notConfigured(ObjectMapper mapper,Clock clock) {
+        return new ApprovalRetentionExecutionVerifier(mapper,clock);
+    }
+    public boolean configured() { return configured; }
     public String verify(ApprovalRetentionExecutionAuthorityPort.Target target,ApprovalRetentionExecutionAuthorityPort.SignedAuthorization signed) {
+        if(!configured) throw ApprovalRetentionErrors.dependencyNotConfigured("AUTHORITY_VERIFIER_NOT_CONFIGURED");
         try {
             if(signed==null || signed.payloadBase64Url()==null || !signed.payloadBase64Url().matches("[A-Za-z0-9_-]{1,12000}")
                     || signed.signatureBase64Url()==null || !signed.signatureBase64Url().matches("[A-Za-z0-9_-]{86}")) throw ApprovalRetentionErrors.forbidden();

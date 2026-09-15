@@ -15,7 +15,9 @@ import org.springframework.context.annotation.Configuration;
 public class ApprovalFormLifecycleJsonConfiguration {
     private static final Set<Class<?>> INPUTS = Set.of(ApprovalFormLifecycleDtos.MetadataInput.class,
             ApprovalFormLifecycleDtos.Branch.class, ApprovalFormLifecycleDtos.AvailabilityChange.class,
-            ApprovalFormLifecycleDtos.PublishReviewed.class, ApprovalFormLifecycleDtos.UpdateWorkingDraft.class);
+            ApprovalFormLifecycleDtos.PublishReviewed.class, ApprovalFormLifecycleDtos.UpdateWorkingDraft.class,
+            ApprovalFormLifecycleDtos.RequestPublishReview.class,
+            ApprovalFormLifecycleDtos.RejectPublishReview.class);
 
     @Bean Jackson2ObjectMapperBuilderCustomizer approvalFormLifecycleStrictInputCustomizer() {
         return builder -> builder.postConfigurer(mapper -> mapper.addHandler(new DeserializationProblemHandler() {

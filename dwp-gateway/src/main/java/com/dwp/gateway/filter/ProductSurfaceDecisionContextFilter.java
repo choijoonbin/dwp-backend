@@ -13,6 +13,8 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.server.reactive.ServerHttpRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.server.ServerWebExchange;
 import reactor.core.publisher.Mono;
@@ -28,6 +30,9 @@ import java.util.Set;
 /** Product-agnostic generated route PEP that emits only server-owned decision evidence. */
 @Component
 public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, Ordered {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(
+            ProductSurfaceDecisionContextFilter.class);
 
     public static final String ROUTE_HEADER = "X-DWP-Route-Contract-Key";
     public static final String CURRENT_REVISION_HEADER = "X-DWP-Current-Decision-Revision";
@@ -120,6 +125,9 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         }
         if (match.status() != GeneratedProductRouteCatalog.MatchStatus.GOVERNED
                 || match.uniqueRoute() == null) {
+            LOGGER.warn(
+                    "Product surface route resolution failed before authority evaluation: status={}",
+                    match.status());
             return error(sanitizedExchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", null);
         }
@@ -133,6 +141,9 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         String rollout = sanitized.getHeaders().getFirst(
                 ProductSurfaceRolloutHeaderFilter.STATE_HEADER);
         if (!ROLLOUT_STATES.contains(rollout)) {
+            LOGGER.warn(
+                    "Trusted product surface rollout evidence is missing before authority evaluation for route {}",
+                    route.routeContractKey());
             return error(sanitizedExchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", null);
         }
@@ -166,8 +177,14 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                         requestContext.activeAccessMode()))
                 .onErrorResume(
                         com.dwp.gateway.productsurface.ProductSurfaceAuthorityUnavailableException.class,
-                        ignored -> error(canonicalExchange, HttpStatus.SERVICE_UNAVAILABLE,
-                                "AUTHORITY_RESOLUTION_UNAVAILABLE", null));
+                        failure -> {
+                            LOGGER.warn(
+                                    "Product surface authority resolution failed for route {}",
+                                    route.routeContractKey(),
+                                    failure);
+                            return error(canonicalExchange, HttpStatus.SERVICE_UNAVAILABLE,
+                                    "AUTHORITY_RESOLUTION_UNAVAILABLE", null);
+                        });
     }
 
     private ProductSurfaceContextDtos.RequestContext requestContext(

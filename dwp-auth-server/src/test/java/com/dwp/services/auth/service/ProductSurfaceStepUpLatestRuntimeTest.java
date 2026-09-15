@@ -490,8 +490,54 @@ class ProductSurfaceStepUpLatestRuntimeTest {
     }
 
     @Test
-    void arbitraryElevenCannotResolveOrIssueFromAnActualActiveDatabasePointer() {
-        for (long version : List.of(11L)) {
+    void genuineFourteenResolvesTheInheritedExactRouteFromTheLatestSealedRegistry() {
+        rollback(() -> {
+            var contracts = context.getBean(ProductAuthorizationContractService.class);
+            contracts.approve(KEY, 14L, "test-checker");
+            contracts.activate(KEY, 14L, "test-release",
+                    repository.findActivePointer(KEY).orElseThrow().revision());
+
+            var resolved = resolver.resolve(request(null, null));
+
+            assertThat(resolved.bundleVersion()).isEqualTo(14L);
+            assertThat(resolved.bundleChecksum()).isEqualTo(
+                    "7ee0bac12ddfbc72dda55a5014c67b0798caa68a5ffc73b4be479d06a4590336");
+            assertThat(resolved.routeContractKey()).isEqualTo(ROUTE);
+            assertThat(resolved.ownerServiceKey()).isEqualTo("approval");
+            assertThat(resolved.audience()).isEqualTo("dwp-approval-server");
+        });
+    }
+
+    @Test
+    void genuineFourteenAllowsOnlyNonPublishingReviewRejectionWithoutStepUp() {
+        rollback(() -> {
+            var contracts = context.getBean(ProductAuthorizationContractService.class);
+            contracts.approve(KEY, 14L, "test-checker");
+            contracts.activate(KEY, 14L, "test-release",
+                    repository.findActivePointer(KEY).orElseThrow().revision());
+
+            var rejection = authorityService.evaluate(new ProductSurfaceAuthorityDtos.EvaluateRequest(
+                    tenant, actor, "approvals", "approvals.admin",
+                    ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                    "route.approvals.admin.form-publish-review-reject.action",
+                    null, null, null, null, List.of()));
+            var publication = authorityService.evaluate(new ProductSurfaceAuthorityDtos.EvaluateRequest(
+                    tenant, actor, "approvals", "approvals.admin",
+                    ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                    "route.approvals.admin.form-reviewed-publish.action",
+                    null, null, null, null, List.of()));
+
+            assertThat(rejection.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+            assertThat(rejection.requestPolicyRef()).isNull();
+            assertThat(rejection.effectiveReadOnly()).isFalse();
+            assertThat(publication.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+            assertThat(publication.requestPolicyRef()).isEqualTo("STEPUP-MGMT-HIGH-V1");
+        });
+    }
+
+    @Test
+    void arbitraryFifteenCannotResolveOrIssueFromAnActualActiveDatabasePointer() {
+        for (long version : List.of(15L)) {
             rollback(() -> {
                 jdbc.update("""
                         INSERT INTO auth_product_authorization_bundle(bundle_key,version,bundle_status,

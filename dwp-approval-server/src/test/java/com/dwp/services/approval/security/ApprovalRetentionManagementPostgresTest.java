@@ -7,14 +7,23 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.core.exception.GlobalExceptionHandler;
 import com.dwp.services.approval.documentretention.management.*;
 import com.dwp.services.approval.documentretention.management.receipt.*;
+import com.dwp.services.approval.documentretention.*;
+import com.dwp.services.approval.attachment.ApprovalAttachmentStorage.Stored;
 import com.dwp.services.approval.domain.ApprovalWorkAuthority;
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.nimbusds.jose.crypto.RSASSAVerifier;
+import com.nimbusds.jose.jwk.RSAKey;
+import com.nimbusds.jwt.SignedJWT;
 import jakarta.validation.Validation;
 import jakarta.validation.ValidatorFactory;
+import java.net.InetSocketAddress;
+import java.net.URI;
 import java.security.*;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.sql.DataSource;
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -55,6 +64,8 @@ class ApprovalRetentionManagementPostgresTest extends ApprovalDocumentPostgresFi
     KeyPair ackKeys,executionKeys;
     UUID request;
     @BeforeEach void before() throws Exception {
+        var admin=new PGSimpleDataSource();admin.setURL(PG.getJdbcUrl());admin.setUser(PG.getUsername());admin.setPassword(PG.getPassword());
+        new JdbcTemplate(admin).execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         initializeDocuments(PG);var named=new NamedParameterJdbcTemplate(jdbc);
         validator=new ApprovalRetentionPolicyValidator();repository=new ApprovalRetentionManagementRepository(named,canonical,validator);
         inventory=new ApprovalRetentionInventory(named);
@@ -217,10 +228,10 @@ class ApprovalRetentionManagementPostgresTest extends ApprovalDocumentPostgresFi
         assertThatThrownBy(()->permissive.readValue(canonical.json(rules()).replace("\"maxInventoryRows\":50000","\"maxInventoryRows\":9999999999999999999999999999"),PublicRules.class)).isInstanceOf(com.fasterxml.jackson.core.JsonProcessingException.class);
         denied(ErrorCode.INVALID_INPUT_VALUE,()->validator.validate(new PublicRules(true,List.of("INTERNAL","INTERNAL"),1,1,1,1,1,1,1)));
     }
-    @Test void actualCatalogHashExactlyMatchesPrivate37OwnerCatalogWithoutGrantingPrivateHelpers() throws Exception {
+    @Test void actualCatalogHashExactlyMatchesPrivateOwnerCatalogWithoutGrantingPrivateHelpers() throws Exception {
         retainedRequest();var view=tx(()->retention.record(request));
         String privateHash=jdbc.queryForObject("SELECT encode(sha256(convert_to(string_agg(table_oid::oid::text||primary_key::text||row_sha256,'|' ORDER BY table_oid::oid,primary_key::text),'UTF8')),'hex') FROM apr_retention_internal.catalog_rows(42,?)",String.class,request);
-        assertThat(view.inventorySha256()).isEqualTo(privateHash);assertThat(view.inventoryTables()).isEqualTo(39);assertThat(view.claimEligible()).isTrue();
+        assertThat(view.inventorySha256()).isEqualTo(privateHash);assertThat(view.inventoryTables()).isEqualTo(44);assertThat(view.claimEligible()).isTrue();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace,LATERAL aclexplode(p.proacl) a WHERE n.nspname='apr_retention_internal' AND a.grantee=0 AND a.privilege_type='EXECUTE'",Long.class)).isZero();
     }
     @ParameterizedTest @ValueSource(strings={"hold","pending","policy","version","inventory"})
@@ -248,8 +259,10 @@ class ApprovalRetentionManagementPostgresTest extends ApprovalDocumentPostgresFi
         var result=tx(()->retention.claim(request,input,headers));var ds=dedicated();
         var executionVerifier=new ApprovalRetentionExecutionVerifier(mapper,Clock.systemUTC(),executionKeys.getPublic(),"auth-owner","exec1");
         var dispatcher=new ApprovalRetentionIntentExecutor(ds,t->executionProof(t,true),executionVerifier);
-        String before=snapshot();sqlDenied("23514",()->dispatcher.dispatch(result.claimId(),0));
+        String before=snapshot();denied(ErrorCode.RESOURCE_CONFLICT,()->dispatcher.dispatch(result.claimId(),0));
         assertThat(snapshot()).isEqualTo(before);assertThat(tx(()->retention.claim(result.claimId())).state()).isEqualTo("QUEUED");
+        var waiting=new ApprovalRetentionManagedExecutionRepository(ds).status(result.claimId());
+        assertThat(waiting.state()).isEqualTo("READY");assertThat(waiting.reason()).isEqualTo("SOURCE_RETENTION_DEADLINE_PENDING");
         assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_record_purge_claims",Long.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_record_tombstones",Long.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT retain_until>=committed_at+interval '1 day' FROM apr_retention_original_command_witnesses WHERE result_reference_id=?",Boolean.class,result.claimId())).isTrue();
@@ -260,9 +273,194 @@ class ApprovalRetentionManagementPostgresTest extends ApprovalDocumentPostgresFi
     }
     @Test void revokedFreshExecutorProofAndApplicationRoleCannotDispatch() throws Exception {
         retainedRequest();var input=claimInput(tx(()->retention.record(request)),"dispatch");var headers=claimHeaders(input);var intent=tx(()->retention.claim(request,input,headers));
-        var verifier=new ApprovalRetentionExecutionVerifier(mapper,Clock.systemUTC(),executionKeys.getPublic(),"auth-owner","exec1");var executor=new ApprovalRetentionIntentExecutor(dedicated(),t->executionProof(t,false),verifier);String before=snapshot();
-        denied(ErrorCode.FORBIDDEN,()->executor.dispatch(intent.claimId(),0));assertThat(snapshot()).isEqualTo(before);
-        assertThatThrownBy(()->jdbc.queryForObject("SELECT apr_retention_internal.dispatch_record(?,0,repeat('a',64))",UUID.class,intent.claimId())).satisfies(error->{Throwable cause=error;while(cause.getCause()!=null)cause=cause.getCause();assertThat(cause).isInstanceOf(java.sql.SQLException.class);assertThat(((java.sql.SQLException)cause).getSQLState()).isEqualTo("42501");});assertThat(snapshot()).isEqualTo(before);
+        ageClaimSource(intent.claimId());
+        var verifier=new ApprovalRetentionExecutionVerifier(mapper,Clock.systemUTC(),executionKeys.getPublic(),"auth-owner","exec1");var executor=new ApprovalRetentionIntentExecutor(dedicated(),t->executionProof(t,false),verifier);
+        denied(ErrorCode.FORBIDDEN,()->executor.dispatch(intent.claimId(),0));
+        assertThat(jdbc.queryForObject("SELECT state FROM apr_retention_dispatch_intents WHERE intent_id=?",String.class,intent.claimId())).isEqualTo("BLOCKED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_record_purge_claims",Long.class)).isZero();
+        assertThatThrownBy(()->jdbc.queryForObject("SELECT apr_retention_internal.dispatch_record(?,0,repeat('a',64))",UUID.class,intent.claimId())).satisfies(error->{Throwable cause=error;while(cause.getCause()!=null)cause=cause.getCause();assertThat(cause).isInstanceOf(java.sql.SQLException.class);assertThat(((java.sql.SQLException)cause).getSQLState()).isEqualTo("42501");});
+    }
+    @Test void managedExecutionCompletesOnlyAfterExactSignedOwnerAcksAndLocalTombstone() throws Exception {
+        var fixture=managedFixture(false);int steps=0;
+        while(fixture.worker().runOne() && !"COMPLETE".equals(fixture.executions().status(fixture.intent()).state())) {
+            assertThat(++steps).isLessThan(12);
+        }
+        var status=fixture.executions().status(fixture.intent());
+        assertThat(status.state()).isEqualTo("COMPLETE");assertThat(status.stage()).isEqualTo("COMPLETE");
+        assertThat(status.outcomeSha256()).matches("[a-f0-9]{64}");
+        assertThat(fixture.audit().deletes.get()).isEqualTo(1);assertThat(fixture.audit().reconciles.get()).isZero();
+        assertThat(fixture.notification().deletes.get()).isEqualTo(1);assertThat(fixture.notification().reconciles.get()).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_retention_foreign_acknowledgements WHERE tenant_id=42",Long.class)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("SELECT state FROM apr_record_retention_heads WHERE request_id=?",String.class,request)).isEqualTo("COMPLETE");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_record_tombstones WHERE request_id=? AND inventory_sha256=?",Long.class,request,fixture.inventory())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_requests WHERE request_id=?",Long.class,request)).isZero();
+        assertThat(jdbc.queryForObject("SELECT proof_sha256 FROM apr_record_purge_journal WHERE state='COMPLETE' AND reason_code='LOCAL_AND_DECLARED_FOREIGN_COPIES_CONFIRMED'",String.class)).isEqualTo(status.outcomeSha256());
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_retention_managed_execution_events WHERE intent_id=? AND outcome='SUCCEEDED'",Long.class,fixture.intent())).isGreaterThanOrEqualTo(6);
+        assertThat(fixture.worker().runOne()).isFalse();
+        assertThat(fixture.audit().deletes.get()).isEqualTo(1);assertThat(fixture.notification().deletes.get()).isEqualTo(1);
+        sqlDenied("23514",()->jdbc.update("UPDATE apr_retention_managed_executions SET last_reason='TAMPERED',version=version+1 WHERE intent_id=?",fixture.intent()));
+        sqlDenied("23514",()->jdbc.update("DELETE FROM apr_retention_managed_execution_events WHERE intent_id=?",fixture.intent()));
+    }
+    @Test void missingForeignOwnerBlocksBeforeIntentBecomesIrreversible() throws Exception {
+        var fixture=managedFixture(false);
+        var missingAudit=new ApprovalRetentionForeignPort() {
+            public String consumerService(){return "AUDIT";}
+            public boolean configured(){return false;}
+            public SignedAck deleteDeclaredCopies(DeletionRequest request){throw new AssertionError("Owner must not be called");}
+            public SignedAck reconcileDeclaredCopies(DeletionRequest request){throw new AssertionError("Owner must not be called");}
+        };
+        var verifier=new ApprovalRetentionExecutionVerifier(mapper,Clock.systemUTC(),executionKeys.getPublic(),"auth-owner","exec1");
+        var worker=new ApprovalRetentionManagedWorker(fixture.executions(),target->executionProof(target,true),verifier,
+                objectWorker(dedicated(),true),foreign,List.of(missingAudit,fixture.notification()),
+                "retention-missing-owner",Duration.ofSeconds(90));
+        assertThat(worker.runOne()).isTrue();
+        var status=fixture.executions().status(fixture.intent());
+        assertThat(status.state()).isEqualTo("BLOCKED");assertThat(status.stage()).isEqualTo("AUTHORITY");
+        assertThat(status.reason()).isEqualTo("AUDIT_OWNER_NOT_CONFIGURED");
+        assertThat(jdbc.queryForObject("SELECT state FROM apr_retention_dispatch_intents WHERE intent_id=?",String.class,fixture.intent())).isEqualTo("BLOCKED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_record_purge_claims",Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_retention_foreign_acknowledgements",Long.class)).isZero();
+    }
+    @Test void resumedIrreversibleExecutionBlocksBeforeObjectsWhenDownstreamConfigurationDisappears() throws Exception {
+        var fixture=managedFixture(false);assertThat(fixture.worker().runOne()).isTrue();
+        assertThat(fixture.executions().status(fixture.intent()).stage()).isEqualTo("OBJECTS");
+        var missingStorage=objectWorker(dedicated(),false);
+        var verifier=new ApprovalRetentionExecutionVerifier(mapper,Clock.systemUTC(),executionKeys.getPublic(),"auth-owner","exec1");
+        var worker=new ApprovalRetentionManagedWorker(fixture.executions(),target->executionProof(target,true),verifier,
+                missingStorage,foreign,List.of(fixture.audit(),fixture.notification()),
+                "retention-resumed-worker",Duration.ofSeconds(90));
+        assertThat(worker.runOne()).isTrue();
+        var status=fixture.executions().status(fixture.intent());
+        assertThat(status.state()).isEqualTo("BLOCKED");assertThat(status.stage()).isEqualTo("OBJECTS");
+        assertThat(status.reason()).isEqualTo("OBJECT_STORAGE_NOT_CONFIGURED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_requests WHERE request_id=?",Long.class,request)).isOne();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_record_tombstones WHERE request_id=?",Long.class,request)).isZero();
+    }
+    @Test void actualRetentionAuthorityClientUsesPurposeLocalSignedSingleAttemptWire() throws Exception {
+        var fixture=managedFixture(false);
+        var lease=fixture.executions().claim(fixture.intent(),0L,"retention-authority-wire",Duration.ofSeconds(90));
+        var generator=KeyPairGenerator.getInstance("RSA");generator.initialize(2048);
+        var ownerPair=generator.generateKeyPair();var transportPair=generator.generateKeyPair();
+        var owner=new RSAKey.Builder((java.security.interfaces.RSAPublicKey)ownerPair.getPublic())
+                .privateKey(ownerPair.getPrivate()).keyID("retention-owner-1").build();
+        var transport=new RSAKey.Builder((java.security.interfaces.RSAPublicKey)transportPair.getPublic())
+                .privateKey(transportPair.getPrivate()).keyID("retention-transport-1").build();
+        var server=com.sun.net.httpserver.HttpServer.create(new InetSocketAddress("127.0.0.1",0),0);
+        var observed=new java.util.concurrent.atomic.AtomicReference<Throwable>();
+        server.createContext(AuthApprovalRetentionExecutionAuthorityPort.PATH,exchange->{
+            try {
+                byte[] body=exchange.getRequestBody().readAllBytes();var envelope=mapper.readTree(body);
+                var ownerJwt=SignedJWT.parse(envelope.path("sourceProof").asText());
+                var transportJwt=SignedJWT.parse(exchange.getRequestHeaders().getFirst(AuthApprovalRetentionExecutionAuthorityPort.HEADER));
+                assertThat(exchange.getRequestMethod()).isEqualTo("POST");
+                assertThat(exchange.getRequestHeaders().getFirst("X-DWP-Service-Identity")).isEqualTo("dwp-approval-server");
+                assertThat(ownerJwt.verify(new RSASSAVerifier(owner.toPublicJWK()))).isTrue();
+                assertThat(transportJwt.verify(new RSASSAVerifier(transport.toPublicJWK()))).isTrue();
+                assertThat(ownerJwt.getJWTClaimsSet().getStringClaim("purpose")).isEqualTo("APPROVAL_RETENTION_EXECUTION_SOURCE_V1");
+                assertThat(transportJwt.getJWTClaimsSet().getStringClaim("purpose")).isEqualTo("APPROVAL_RETENTION_EXECUTION_TRANSPORT_V1");
+                assertThat(envelope.path("bindings").path("target").path("intentId").asText()).isEqualTo(fixture.intent().toString());
+                byte[] response=mapper.writeValueAsBytes(executionProof(lease.target(),true));
+                exchange.getResponseHeaders().set("Content-Type","application/json");exchange.sendResponseHeaders(200,response.length);
+                exchange.getResponseBody().write(response);
+            } catch(Throwable failure) {observed.set(failure);exchange.sendResponseHeaders(500,-1);}
+            finally {exchange.close();}
+        });server.start();
+        try {
+            var client=new AuthApprovalRetentionExecutionAuthorityPort(new NamedParameterJdbcTemplate(jdbc),mapper,Clock.systemUTC(),
+                    URI.create("http://127.0.0.1:"+server.getAddress().getPort()+AuthApprovalRetentionExecutionAuthorityPort.PATH),owner,transport);
+            var signed=client.current(lease.target());
+            var verifier=new ApprovalRetentionExecutionVerifier(mapper,Clock.systemUTC(),executionKeys.getPublic(),"auth-owner","exec1");
+            assertThat(verifier.verify(lease.target(),signed)).matches("[a-f0-9]{64}");
+            assertThat(observed.get()).isNull();
+        } finally {server.stop(0);fixture.executions().block(lease,"WIRE_TEST_COMPLETE");}
+    }
+    @Test void unknownOwnerResponseStopsUntilExactRecoveryAndThenUsesReconciliationNotAnotherDelete() throws Exception {
+        var fixture=managedFixture(true);
+        assertThat(fixture.worker().runOne()).isTrue(); // authority
+        assertThat(fixture.worker().runOne()).isTrue(); // no objects
+        assertThat(fixture.worker().runOne()).isTrue(); // owner response lost
+        var unknown=fixture.executions().status(fixture.intent());
+        assertThat(unknown.state()).isEqualTo("UNKNOWN");assertThat(unknown.reason()).isEqualTo("OWNER_RESULT_UNKNOWN");
+        assertThat(fixture.audit().deletes.get()).isEqualTo(1);assertThat(fixture.audit().reconciles.get()).isZero();
+        assertThat(fixture.worker().runOne()).isFalse();
+        sqlDenied("40001",()->fixture.worker().recover(fixture.intent(),unknown.version()-1));
+        fixture.worker().recover(fixture.intent(),unknown.version());
+        assertThat(fixture.worker().runOne()).isTrue();
+        assertThat(fixture.audit().deletes.get()).isEqualTo(1);assertThat(fixture.audit().reconciles.get()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT state FROM apr_retention_foreign_delivery_states WHERE consumer_service='AUDIT'",String.class)).isEqualTo("ACKNOWLEDGED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_retention_managed_execution_events WHERE intent_id=? AND outcome='UNKNOWN'",Long.class,fixture.intent())).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_retention_managed_execution_events WHERE intent_id=? AND outcome='RECOVERY_REQUESTED'",Long.class,fixture.intent())).isEqualTo(1);
+    }
+    @Test void ownerUnknownOutcomeTransitionIsDurableWithoutRedispatch() throws Exception {
+        var fixture=managedFixture(false);
+        assertThat(fixture.worker().runOne()).isTrue();
+        assertThat(fixture.worker().runOne()).isTrue();
+        var lease=fixture.executions().claim(fixture.intent(),null,"retention-test-worker",Duration.ofSeconds(90));
+        var work=fixture.executions().claimForeign(lease);
+        assertThat(work).isNotNull();assertThat(work.recoveryMode()).isEqualTo("DISPATCH");
+        fixture.executions().unknownForeign(lease,work.deletionRequestId(),"OWNER_RESULT_UNKNOWN");
+        var unknown=fixture.executions().status(fixture.intent());
+        assertThat(unknown.state()).isEqualTo("UNKNOWN");assertThat(unknown.reason()).isEqualTo("OWNER_RESULT_UNKNOWN");
+    }
+    @Test void foreignLeaseLossAfterOwnerCallRecoversByReconciliationWithoutSecondDelete() throws Exception {
+        var fixture=managedFixture(false);
+        assertThat(fixture.worker().runOne()).isTrue();assertThat(fixture.worker().runOne()).isTrue();
+        var lease=fixture.executions().claim(fixture.intent(),null,"retention-test-worker",Duration.ofSeconds(90));
+        var work=fixture.executions().claimForeign(lease);
+        var request=foreign.request(fixture.intent(),work.deletionRequestId(),work.consumerService());
+        fixture.audit().deleteDeclaredCopies(request);
+        jdbc.update("UPDATE apr_retention_managed_executions SET lease_until=clock_timestamp()-interval '1 second',version=version+1 WHERE intent_id=?",fixture.intent());
+        assertThat(fixture.executions().expireLostLeases()).isEqualTo(1);
+        assertThat(jdbc.queryForObject("SELECT state FROM apr_retention_foreign_delivery_states WHERE deletion_request_id=?",String.class,work.deletionRequestId())).isEqualTo("UNKNOWN");
+        var unknown=fixture.executions().status(fixture.intent());fixture.worker().recover(fixture.intent(),unknown.version());
+        assertThat(fixture.worker().runOne()).isTrue();
+        assertThat(fixture.audit().deletes.get()).isEqualTo(1);assertThat(fixture.audit().reconciles.get()).isEqualTo(1);
+    }
+    @Test void malformedForeignChunkInventoryBlocksBeforeAnyOwnerOrLocalMutation() throws Exception {
+        var fixture=managedFixture(false);UUID extraId=UUID.randomUUID();
+        String inventory=jdbc.queryForObject("SELECT inventory_sha256 FROM apr_retention_foreign_requests WHERE intent_id=? AND consumer_service='AUDIT'",String.class,fixture.intent());
+        var extra=new DeletionRequest(extraId,42,fixture.intent(),request,"AUDIT",1,2,List.of(),inventory,ApprovalRetentionForeignAckVerifier.PURPOSE);
+        jdbc.update("INSERT INTO apr_retention_foreign_requests(deletion_request_id,tenant_id,intent_id,consumer_service,chunk_index,chunk_count,producer_event_ids,inventory_sha256,request_sha256) VALUES(?,42,?,'AUDIT',1,2,'[]',?,?)",extraId,fixture.intent(),inventory,canonical.fingerprint(extra));
+        assertThat(fixture.worker().runOne()).isTrue();assertThat(fixture.worker().runOne()).isTrue();
+        assertThatThrownBy(()->fixture.worker().runOne()).isInstanceOf(org.springframework.dao.DataAccessException.class);
+        var blocked=fixture.executions().status(fixture.intent());assertThat(blocked.state()).isEqualTo("BLOCKED");
+        assertThat(fixture.audit().deletes.get()).isZero();assertThat(fixture.notification().deletes.get()).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_requests WHERE request_id=?",Long.class,request)).isOne();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_record_tombstones WHERE request_id=?",Long.class,request)).isZero();
+    }
+    @Test void expiredLeaseBecomesUnknownAndStaleFenceCannotAdvance() throws Exception {
+        var fixture=managedFixture(false);
+        var lease=fixture.executions().claim(fixture.intent(),0L,"retention-test-worker",Duration.ofSeconds(30));
+        assertThat(lease).isNotNull();
+        jdbc.update("UPDATE apr_retention_managed_executions SET lease_until=clock_timestamp()-interval '1 second',version=version+1 WHERE intent_id=?",fixture.intent());
+        assertThat(fixture.executions().expireLostLeases()).isEqualTo(1);
+        var unknown=fixture.executions().status(fixture.intent());assertThat(unknown.state()).isEqualTo("UNKNOWN");
+        sqlDenied("40001",()->fixture.executions().dispatch(lease,"a".repeat(64)));
+        fixture.executions().recover(fixture.intent(),unknown.version());
+        var reclaimed=fixture.executions().claim(fixture.intent(),0L,"retention-test-worker",Duration.ofSeconds(30));
+        assertThat(reclaimed.generation()).isGreaterThan(lease.generation());assertThat(reclaimed.token()).isNotEqualTo(lease.token());
+    }
+    @Test void currentAuthorityDenialBlocksBeforeAnyIrreversibleOrForeignMutation() throws Exception {
+        var fixture=managedFixture(false);var verifier=new ApprovalRetentionExecutionVerifier(mapper,Clock.systemUTC(),executionKeys.getPublic(),"auth-owner","exec1");
+        var dispatcher=new ApprovalRetentionIntentExecutor(dedicated(),target->executionProof(target,false),verifier);
+        denied(ErrorCode.FORBIDDEN,()->dispatcher.dispatch(fixture.intent(),0));
+        assertThat(jdbc.queryForObject("SELECT state FROM apr_retention_dispatch_intents WHERE intent_id=?",String.class,fixture.intent())).isEqualTo("BLOCKED");
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_record_purge_claims",Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM apr_retention_foreign_acknowledgements",Long.class)).isZero();
+        assertThat(jdbc.queryForObject("SELECT state FROM apr_retention_managed_executions WHERE intent_id=?",String.class,fixture.intent())).isEqualTo("BLOCKED");
+    }
+    @Test void dedicatedExecutorCanOnlyUseManagedFunctionsAndCannotBypassTheirStateMachine() {
+        assertThat(jdbc.queryForObject("SELECT has_function_privilege('dwp_approval_retention_executor','apr_retention_internal.dispatch_record(uuid,bigint,text)','EXECUTE')",Boolean.class)).isFalse();
+        for(String signature:List.of(
+                "apr_retention_internal.claim_managed_retention_execution(uuid,bigint,text,integer)",
+                "apr_retention_internal.recover_managed_retention_execution(uuid,bigint)",
+                "apr_retention_internal.dispatch_managed_retention_record(uuid,bigint,bigint,uuid,text)",
+                "apr_retention_internal.claim_managed_retention_foreign(uuid,bigint,uuid)",
+                "apr_retention_internal.purge_managed_retention_local(uuid,bigint,uuid)",
+                "apr_retention_internal.finalize_managed_retention_execution(uuid,bigint,uuid)"))
+            assertThat(jdbc.queryForObject("SELECT has_function_privilege('dwp_approval_retention_executor',?,'EXECUTE')",Boolean.class,signature)).as(signature).isTrue();
+        for(String table:List.of("apr_retention_managed_executions","apr_retention_managed_execution_events","apr_retention_foreign_delivery_states"))
+            assertThat(jdbc.queryForObject("SELECT has_table_privilege('dwp_approval_retention_executor',?,'SELECT,INSERT,UPDATE,DELETE')",Boolean.class,"public."+table)).as(table).isFalse();
     }
     @Test void signedForeignAckCannotEraseOrConfirmBeforeIrreversibilityOrForAnotherTenant() throws Exception {
         retainedRequest();var input=claimInput(tx(()->retention.record(request)),"dispatch");var headers=claimHeaders(input);var intent=tx(()->retention.claim(request,input,headers));
@@ -449,8 +647,10 @@ class ApprovalRetentionManagementPostgresTest extends ApprovalDocumentPostgresFi
         context(original.actor());if(state.equals("000") || state.equals("100")) return;
         var route=ApprovalRetentionReceiptService.route(original.operation());
         ApprovalDecisionRevisionContext.set("psr-"+"a".repeat(64),OffsetDateTime.now().plusMinutes(5),"context-doc","scope-doc",route,state);
-        ApprovalPilotAuthorizationContext.set(List.of(new ApprovalPilotPepRegistry.RouteAuthority(route,"DATA","APP_CONFIG_ADMIN",true,
-                Set.of("predicate.approval.retention-policy.v1"),original.operation().capability(),"NORMAL",null,false,null,null)));
+        ApprovalPilotAuthorizationContext.set(List.of(new ApprovalPilotPepRegistry.RouteAuthority(
+                route, "DATA", "approval.retention.command-receipt.original-authority.v1", true,
+                Set.of("predicate.approval.retention-command-original-authority.v1"),
+                original.operation().capability(), "NORMAL", null, false, null, null)));
     }
     private MockMvc receiptMvc() {
         var proxy=new ProxyFactory(receipts);proxy.setProxyTargetClass(true);var interceptor=new TransactionInterceptor();
@@ -481,6 +681,55 @@ class ApprovalRetentionManagementPostgresTest extends ApprovalDocumentPostgresFi
         return new ApprovalStepUpHeaders(material+"."+Base64.getUrlEncoder().withoutPadding().encodeToString(sig.sign()),original.idempotencyKey(),original.decisionRevision(),original.expectedObjectVersion());
     }
     private PGSimpleDataSource dedicated(){jdbc.execute("ALTER ROLE dwp_approval_retention_executor LOGIN PASSWORD 'disposable-only'");var ds=new PGSimpleDataSource();ds.setURL(PG.getJdbcUrl());ds.setUser("dwp_approval_retention_executor");ds.setPassword("disposable-only");return ds;}
+    private record ManagedFixture(UUID intent,String inventory,ApprovalRetentionManagedExecutionRepository executions,
+            ApprovalRetentionManagedWorker worker,OwnerPort audit,OwnerPort notification) {}
+    private ManagedFixture managedFixture(boolean unknownAuditDelete) throws Exception {
+        retainedRequest();var record=tx(()->retention.record(request));var input=claimInput(record,"managed-"+UUID.randomUUID());
+        var headers=claimHeaders(input);var accepted=tx(()->retention.claim(request,input,headers));ageClaimSource(accepted.claimId());
+        var source=dedicated();var executions=new ApprovalRetentionManagedExecutionRepository(source);
+        var objectWorker=objectWorker(source,true);
+        var audit=new OwnerPort("AUDIT",unknownAuditDelete);
+        var notification=new OwnerPort("NOTIFICATION",false);
+        var executionVerifier=new ApprovalRetentionExecutionVerifier(mapper,Clock.systemUTC(),executionKeys.getPublic(),"auth-owner","exec1");
+        var worker=new ApprovalRetentionManagedWorker(executions,target->executionProof(target,true),executionVerifier,
+                objectWorker,foreign,List.of(audit,notification),"retention-test-worker",Duration.ofSeconds(90));
+        String sealed=jdbc.queryForObject("SELECT inventory_sha256 FROM apr_retention_dispatch_intents WHERE intent_id=?",String.class,accepted.claimId());
+        return new ManagedFixture(accepted.claimId(),sealed,executions,worker,audit,notification);
+    }
+    private ApprovalRetentionObjectWorker objectWorker(DataSource source,boolean configured) {
+        var storage=new ApprovalRetentionStorage() {
+            public boolean configured(){return configured;}
+            public String locatorSha256(){return "c".repeat(64);}
+            public Stored reconcile(String key,long size,String sha){throw new AssertionError("No attachment object expected");}
+            public void verifyPresence(Stored stored){throw new AssertionError("No attachment object expected");}
+            public boolean deleteAndConfirmAbsent(Stored stored){throw new AssertionError("No attachment object expected");}
+        };
+        return new ApprovalRetentionObjectWorker(new ApprovalRetentionObjectJobs(source),storage);
+    }
+    private final class OwnerPort implements ApprovalRetentionForeignPort {
+        private final String service;private boolean unknownFirst;
+        private final AtomicInteger deletes=new AtomicInteger(),reconciles=new AtomicInteger();
+        private OwnerPort(String service,boolean unknownFirst){this.service=service;this.unknownFirst=unknownFirst;}
+        public String consumerService(){return service;}
+        public SignedAck deleteDeclaredCopies(DeletionRequest request){deletes.incrementAndGet();if(unknownFirst){unknownFirst=false;throw new IllegalStateException("Response lost");}return ownerAck(request);}
+        public SignedAck reconcileDeclaredCopies(DeletionRequest request){reconciles.incrementAndGet();return ownerAck(request);}
+        private SignedAck ownerAck(DeletionRequest request){try{return signedAck(request);}catch(Exception failure){throw new IllegalStateException(failure);}}
+    }
+    private void ageClaimSource(UUID intent) {
+        jdbc.execute("ALTER TABLE apr_retention_original_command_witnesses DISABLE TRIGGER trg_retention_original_command");
+        jdbc.execute("ALTER TABLE apr_retention_inventory_closures DISABLE TRIGGER trg_retention_closure_immutable");
+        jdbc.execute("ALTER TABLE apr_retention_dispatch_intents DISABLE TRIGGER trg_retention_dispatch_source");
+        try {
+            jdbc.update("UPDATE apr_retention_original_command_witnesses SET committed_at=clock_timestamp()-interval '3 days',retain_until=clock_timestamp()-interval '2 days' WHERE result_reference_id=?",intent);
+            String sealed=jdbc.queryForObject("SELECT encode(sha256(convert_to(COALESCE(string_agg(table_oid::oid::text||primary_key::text||row_sha256,'|' ORDER BY table_oid::oid,primary_key::text),''),'UTF8')),'hex') FROM apr_retention_internal.catalog_rows(42,?)",String.class,request);
+            jdbc.update("UPDATE apr_retention_dispatch_intents SET inventory_sha256=? WHERE intent_id=?",sealed,intent);
+            jdbc.update("UPDATE apr_retention_inventory_closures c SET dispatch_inventory_sha256=?,witness_sha256=(SELECT encode(sha256(convert_to(to_jsonb(w)::text,'UTF8')),'hex') FROM apr_retention_original_command_witnesses w WHERE w.command_id=c.command_id) WHERE intent_id=?",sealed,intent);
+        } finally {
+            jdbc.execute("ALTER TABLE apr_retention_dispatch_intents ENABLE TRIGGER trg_retention_dispatch_source");
+            jdbc.execute("ALTER TABLE apr_retention_inventory_closures ENABLE TRIGGER trg_retention_closure_immutable");
+            jdbc.execute("ALTER TABLE apr_retention_original_command_witnesses ENABLE TRIGGER trg_retention_original_command");
+        }
+    }
     private ApprovalRetentionExecutionAuthorityPort.SignedAuthorization executionProof(ApprovalRetentionExecutionAuthorityPort.Target t,boolean allowed) {
         try {byte[] bytes=mapper.writeValueAsBytes(new ApprovalRetentionExecutionVerifier.Claims(t,"auth-owner","dwp-approval-server","APPROVAL_RETENTION_EXECUTE_V1","exec1",UUID.randomUUID(),Instant.now().minusSeconds(1),Instant.now().plusSeconds(200),allowed));var sig=Signature.getInstance("Ed25519");sig.initSign(executionKeys.getPrivate());sig.update(bytes);var enc=Base64.getUrlEncoder().withoutPadding();return new ApprovalRetentionExecutionAuthorityPort.SignedAuthorization(enc.encodeToString(bytes),enc.encodeToString(sig.sign()));}catch(Exception e){throw new IllegalStateException(e);}
     }

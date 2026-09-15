@@ -13,11 +13,12 @@ import java.util.function.Supplier;
 public final class PlanningAuthorityIssuer implements PlanningAuthorityService.SigningPort {
     private final PlanningJson json; private final Supplier<PlanningKeys> keys; private final Clock clock;
     public PlanningAuthorityIssuer(PlanningJson json,Supplier<PlanningKeys> keys,Clock clock) { this.json=json;this.keys=keys;this.clock=clock; }
+    @Override public void requireReady() { keys.get().signer(); }
     @Override
     public String issue(PlanningProofVerifier.Verified proof,PlanningAuthorityService.Current current) {
         long issued=current.evaluated().getEpochSecond(),exp=current.expires().getEpochSecond(),now=clock.instant().getEpochSecond();
         if(issued>now || exp<=now || exp<=issued || exp-issued>30 || current.expires().isAfter(proof.expiresAt())
-                || !current.owner().authRevision().matches("auth-[a-f0-9]{64}") || !current.owner().policyRevision().matches("policy-10-[1-9][0-9]*-[a-f0-9]{64}")) throw unavailable();
+                || !current.owner().authRevision().matches("auth-[a-f0-9]{64}") || !supportedPolicyRevision(current.owner().policyRevision())) throw unavailable();
         var claims=new TreeMap<String,Object>(); claims.put("iss",OWNER_AUDIENCE); claims.put("aud",OWNER_ISSUER);
         claims.put("sub",Long.toString(proof.bindings().actorId())); claims.put("iat",issued); claims.put("nbf",issued); claims.put("exp",exp);
         claims.put("jti",UUID.randomUUID().toString()); claims.put("purpose",ATTESTATION_PURPOSE); claims.put("operation",OPERATION);

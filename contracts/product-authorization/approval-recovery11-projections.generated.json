@@ -1,0 +1,293 @@
+{
+  "bindingCount": 5,
+  "bindings": [
+    {
+      "additionalProperties": false,
+      "apiBindingKey": "route.approvals.admin.retention-policy-draft-command.data.binding.01",
+      "contentTypes": [
+        "*/*"
+      ],
+      "method": "GET",
+      "openApiSchemaSha256": "95d520bbcaee4a7c3d2283cb18599d457b441e07e516cf7e335987d696eb8fbd",
+      "profileKey": "approval.retention.command-receipt.original-authority.v1",
+      "projectionPolicyKey": "route.approvals.admin.retention-policy-draft-command.data.approval.retention.command-receipt.original-authority.v1.projection.v1",
+      "responseSchemaKey": "ApprovalRetentionCommandReceipt",
+      "routeContractKey": "route.approvals.admin.retention-policy-draft-command.data",
+      "schemaKind": "JSON_RECORD",
+      "schemaVersion": 1,
+      "servicePath": "/v1/admin/retention/policies/{policyId}/draft-commands/{idempotencyKey}"
+    },
+    {
+      "additionalProperties": false,
+      "apiBindingKey": "route.approvals.admin.retention-policy-initialization-command.data.binding.01",
+      "contentTypes": [
+        "*/*"
+      ],
+      "method": "GET",
+      "openApiSchemaSha256": "95d520bbcaee4a7c3d2283cb18599d457b441e07e516cf7e335987d696eb8fbd",
+      "profileKey": "approval.retention.command-receipt.original-authority.v1",
+      "projectionPolicyKey": "route.approvals.admin.retention-policy-initialization-command.data.approval.retention.command-receipt.original-authority.v1.projection.v1",
+      "responseSchemaKey": "ApprovalRetentionCommandReceipt",
+      "routeContractKey": "route.approvals.admin.retention-policy-initialization-command.data",
+      "schemaKind": "JSON_RECORD",
+      "schemaVersion": 1,
+      "servicePath": "/v1/admin/retention/policy-initialization-commands/{idempotencyKey}"
+    },
+    {
+      "additionalProperties": false,
+      "apiBindingKey": "route.approvals.admin.retention-policy-publication-command.data.binding.01",
+      "contentTypes": [
+        "*/*"
+      ],
+      "method": "GET",
+      "openApiSchemaSha256": "95d520bbcaee4a7c3d2283cb18599d457b441e07e516cf7e335987d696eb8fbd",
+      "profileKey": "approval.retention.command-receipt.original-authority.v1",
+      "projectionPolicyKey": "route.approvals.admin.retention-policy-publication-command.data.approval.retention.command-receipt.original-authority.v1.projection.v1",
+      "responseSchemaKey": "ApprovalRetentionCommandReceipt",
+      "routeContractKey": "route.approvals.admin.retention-policy-publication-command.data",
+      "schemaKind": "JSON_RECORD",
+      "schemaVersion": 1,
+      "servicePath": "/v1/admin/retention/policies/{policyId}/publication-commands/{idempotencyKey}"
+    },
+    {
+      "additionalProperties": false,
+      "apiBindingKey": "route.approvals.admin.retention-record-command.data.binding.01",
+      "contentTypes": [
+        "*/*"
+      ],
+      "method": "GET",
+      "openApiSchemaSha256": "95d520bbcaee4a7c3d2283cb18599d457b441e07e516cf7e335987d696eb8fbd",
+      "profileKey": "approval.retention.command-receipt.original-authority.v1",
+      "projectionPolicyKey": "route.approvals.admin.retention-record-command.data.approval.retention.command-receipt.original-authority.v1.projection.v1",
+      "responseSchemaKey": "ApprovalRetentionCommandReceipt",
+      "routeContractKey": "route.approvals.admin.retention-record-command.data",
+      "schemaKind": "JSON_RECORD",
+      "schemaVersion": 1,
+      "servicePath": "/v1/admin/retention/records/{requestId}/claim-commands/{idempotencyKey}"
+    },
+    {
+      "additionalProperties": false,
+      "apiBindingKey": "route.approvals.admin.workflow-planning-selection.data.binding.01",
+      "contentTypes": [
+        "application/json"
+      ],
+      "method": "GET",
+      "openApiSchemaSha256": "ca0ac253c38917b2d75c1793ffda73de9797fd9840edf0c5b558c62f6bd039f3",
+      "profileKey": "full-management",
+      "projectionPolicyKey": "route.approvals.admin.workflow-planning-selection.data.full-management.projection.v1",
+      "responseSchemaKey": "ApprovalWorkflowPlanningSelection",
+      "routeContractKey": "route.approvals.admin.workflow-planning-selection.data",
+      "schemaKind": "JSON_RECORD",
+      "schemaVersion": 1,
+      "servicePath": "/v1/admin/workflows/{workflowId}/planning-selection"
+    }
+  ],
+  "checksum": "8ab843579dd0e0b9b4a535a103b91ef490bb7912a4fcfad7a58f5a26dde703ce",
+  "checksumAlgorithm": "SHA-256",
+  "projectionKey": "approval-recovery11-projections",
+  "registryRef": {
+    "bundleKey": "product-surfaces",
+    "sha256": "e9a32c9312feb325db1294e3c00d34a110474a48fba16399eb1fc52b39fc9043",
+    "version": 11
+  },
+  "schemaClosureSha256": "cacbec324f3836582ffbe85f22fcf2002f5d9d2ab6948ce90685807d9fbb2149",
+  "schemaVersion": 1,
+  "schemas": {
+    "ApprovalRetentionCommandReceipt": {
+      "additionalProperties": false,
+      "properties": {
+        "actorUserId": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "commandId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "committedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "idempotencyKey": {
+          "type": "string"
+        },
+        "operation": {
+          "enum": [
+            "INITIALIZE_POLICY",
+            "SAVE_POLICY",
+            "PUBLISH_POLICY",
+            "CLAIM_RECORD"
+          ],
+          "type": "string"
+        },
+        "originAuthorityProfile": {
+          "enum": [
+            "POLICY_UPDATE_TRUSTED",
+            "POLICY_PUBLISH_SIGNED_HIGH_INDEPENDENT_CHECKER",
+            "RETENTION_RECORD_EXECUTE_SIGNED_HIGH"
+          ],
+          "type": "string"
+        },
+        "originalExpectedVersion": {
+          "format": "int64",
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "originalTargetId": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "profileVersion": {
+          "enum": [
+            "RETENTION_COMMAND_RECEIPT_STEP_UP_TYPED_JSON_V1"
+          ],
+          "type": "string"
+        },
+        "requestBodySha256": {
+          "type": "string"
+        },
+        "resourceSetKey": {
+          "type": "string"
+        },
+        "resultReferenceId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "resultVersion": {
+          "format": "int64",
+          "type": "integer"
+        },
+        "status": {
+          "enum": [
+            "COMMITTED"
+          ],
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "ApprovalWorkflowPlanningFormPin": {
+      "additionalProperties": false,
+      "properties": {
+        "formId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "formRevision": {
+          "format": "int64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "formSchemaSha256": {
+          "minLength": 1,
+          "pattern": "[a-f0-9]{64}",
+          "type": "string"
+        },
+        "formVersion": {
+          "format": "int32",
+          "minimum": 1,
+          "type": "integer"
+        },
+        "formVersionId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "formId",
+        "formRevision",
+        "formSchemaSha256",
+        "formVersion",
+        "formVersionId"
+      ],
+      "type": "object"
+    },
+    "ApprovalWorkflowPlanningPolicyPin": {
+      "additionalProperties": false,
+      "properties": {
+        "sha256": {
+          "minLength": 1,
+          "pattern": "[a-f0-9]{64}",
+          "type": "string"
+        },
+        "version": {
+          "format": "int64",
+          "minimum": 1,
+          "type": "integer"
+        }
+      },
+      "required": [
+        "sha256",
+        "version"
+      ],
+      "type": "object"
+    },
+    "ApprovalWorkflowPlanningSelection": {
+      "additionalProperties": false,
+      "properties": {
+        "forms": {
+          "items": {
+            "$ref": "#/components/schemas/ApprovalWorkflowPlanningFormPin"
+          },
+          "maxItems": 100,
+          "minItems": 0,
+          "type": "array"
+        },
+        "generatedAt": {
+          "format": "date-time",
+          "type": "string"
+        },
+        "managementResourceSetKey": {
+          "minLength": 1,
+          "pattern": "[A-Z][A-Z0-9_]{2,79}",
+          "type": "string"
+        },
+        "policy": {
+          "$ref": "#/components/schemas/ApprovalWorkflowPlanningPolicyPin"
+        },
+        "selectedFormId": {
+          "format": "uuid",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "workflowId": {
+          "format": "uuid",
+          "type": "string"
+        },
+        "workflowRevision": {
+          "format": "int64",
+          "minimum": 0,
+          "type": "integer"
+        },
+        "workflowSha256": {
+          "minLength": 1,
+          "pattern": "[a-f0-9]{64}",
+          "type": "string"
+        },
+        "workflowVersionId": {
+          "format": "uuid",
+          "type": "string"
+        }
+      },
+      "required": [
+        "forms",
+        "generatedAt",
+        "managementResourceSetKey",
+        "policy",
+        "selectedFormId",
+        "workflowId",
+        "workflowRevision",
+        "workflowSha256",
+        "workflowVersionId"
+      ],
+      "type": "object"
+    }
+  }
+}

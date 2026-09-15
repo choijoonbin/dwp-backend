@@ -160,7 +160,11 @@ public class ApprovalFormLifecycleStore {
             });
         return rows.isEmpty()?null:rows.getFirst();
     }
-    public void receipt(Actor actor,UUID form,String scope,String route,String key,String digest,Workspace outcome) {
+    public <T> T prior(Actor actor,UUID form,String scope,String route,String key,String digest,Class<T> type) {
+        Map<String,Object> value=prior(actor,form,scope,route,key,digest);
+        return value==null?null:repo.codec.project(value,type);
+    }
+    public void receipt(Actor actor,UUID form,String scope,String route,String key,String digest,Object outcome) {
         repo.jdbc.update("""
             INSERT INTO apr_form_command_receipts(tenant_id,actor_user_id,context_scope_key,route_key,idempotency_key,
                 form_id,management_resource_set_key,request_sha256,result)

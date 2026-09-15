@@ -46,6 +46,23 @@ class ApprovalCommandManagementRepository extends ApprovalCommandLifecycleReposi
         delegationCommands.revoke(actor, delegationId, expectedVersion);
     }
 
+    public ApprovalDelegationCommandSupport.UpdateReplay delegationUpdateReplay(
+            ApprovalRequestContext.Actor actor,
+            UUID delegationId,
+            ApprovalDelegationUpdateRequest request,
+            String idempotencyKey) {
+        return delegationCommands.updateReplay(actor, delegationId, request, idempotencyKey);
+    }
+
+    public ApprovalDelegationCommandSupport.Updated updateDelegation(
+            ApprovalRequestContext.Actor actor,
+            UUID delegationId,
+            ApprovalDelegationUpdateRequest request,
+            com.dwp.services.approval.integration.ApprovalIdentityDirectory.Subject delegate,
+            ApprovalDelegationCommandSupport.UpdateReplay replay) {
+        return delegationCommands.update(actor, delegationId, request, delegate, replay);
+    }
+
     public UUID createFormCategory(
             ApprovalRequestContext.Actor actor,
             ApprovalDtos.CreateFormCategoryRequest request) {

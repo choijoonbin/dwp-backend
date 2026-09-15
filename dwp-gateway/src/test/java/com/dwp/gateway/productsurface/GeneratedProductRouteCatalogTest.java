@@ -171,6 +171,25 @@ class GeneratedProductRouteCatalogTest {
     }
 
     @Test
+    void staticApprovalSearchRouteOutranksTheTaskIdTemplate() {
+        GeneratedProductRouteCatalog latest = catalog(14);
+
+        var search = latest.match(
+                "GET", "/api/approvals/v1/tasks/search", "contextScopeKey=scope-47");
+        var detail = latest.match(
+                "GET", "/api/approvals/v1/tasks/task-47", null);
+
+        assertThat(search.status()).isEqualTo(
+                GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(search.routes()).singleElement().satisfies(route ->
+                assertThat(route.routeContractKey())
+                        .isEqualTo("route.approvals.work.tasks-search.data"));
+        assertThat(search.uniqueRoute()).isNotNull();
+        assertThat(detail.uniqueRoute().routeContractKey())
+                .isEqualTo("route.approvals.work.task-detail.data");
+    }
+
+    @Test
     void appliesFixedParametersBeforeChoosingTheProductOwner() {
         var approval = catalog.match(
                 "PUT", "/api/platform/v1/home-preferences/surfaces/approval-home", null);

@@ -19,11 +19,11 @@ final class ApprovalSignatureInstalledSource {
     record Seal(ApprovalRequestContext.Actor actor, ApprovalDecisionRevisionContext.Evidence evidence, String mode, String registrySha256) { }
     Seal capture(HttpServletRequest request, Binding binding) {
         String registry;
-        try (var stream = new org.springframework.core.io.ClassPathResource("product-authorization/approval-pilot-pep-v10.generated.json").getInputStream()) {
+        try (var stream = new org.springframework.core.io.ClassPathResource("product-authorization/approval-pilot-pep-v12.generated.json").getInputStream()) {
             byte[] bytes = stream.readNBytes(1048577); if (bytes.length > 1048576) throw unavailable();
             JsonNode projection = canonical.read(new String(bytes, java.nio.charset.StandardCharsets.UTF_8), JsonNode.class);
             var ref = projection.path("registryRef");
-            if (!ref.path("version").isIntegralNumber() || ref.path("version").intValue() != 10
+            if (!ref.path("version").isIntegralNumber() || ref.path("version").intValue() != 12
                     || !"product-surfaces".equals(ref.path("bundleKey").asText()) || !ref.path("sha256").isTextual()
                     || !ref.path("sha256").textValue().matches("[a-f0-9]{64}")) throw unavailable();
             registry = ref.path("sha256").textValue();

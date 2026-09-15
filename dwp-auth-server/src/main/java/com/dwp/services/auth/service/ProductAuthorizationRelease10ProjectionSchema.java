@@ -69,7 +69,7 @@ Map.entry("route.approvals.admin.retention-claim.data", new Schema("full-managem
     }
 
     static void validateCoverage(ProductAuthorizationContractDtos.BundleContract contract) {
-        if (contract.version() != 10) return;
+        if (contract.version() < 10) return;
         Set<String> routes = new java.util.HashSet<>();
         int inherited = 0;
         for (var route : contract.routes()) {
@@ -103,4 +103,3 @@ Map.entry("route.approvals.admin.retention-claim.data", new Schema("full-managem
     private record Schema(String profile, String method, String path, String key, String hash,
                           List<String> capabilities, List<String> predicates, boolean readOnly) { }
 }
-

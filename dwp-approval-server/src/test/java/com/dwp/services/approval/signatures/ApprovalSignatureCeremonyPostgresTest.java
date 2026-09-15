@@ -47,6 +47,7 @@ class ApprovalSignatureCeremonyPostgresTest {
         jdbc=new JdbcTemplate(ds); named=new NamedParameterJdbcTemplate(ds);
         // Cleanup is confined to this non-reused Testcontainers database, never a workspace database.
         jdbc.execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
+        jdbc.execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         var migration=Flyway.configure().dataSource(ds).locations("classpath:db/migration").cleanDisabled(false).load(); migration.clean(); migration.migrate();
         jdbc.queryForObject("SELECT seed_approval_tenant(42)",Object.class);
         UUID workflowId=jdbc.queryForObject("SELECT workflow_id FROM apr_workflow_definitions WHERE tenant_id=42 LIMIT 1",UUID.class);

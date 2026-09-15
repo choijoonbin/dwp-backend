@@ -28,6 +28,14 @@ final class ApprovalPepProjectionLineage {
             "02b19c4119e560b63d4054ec317fe7e4d694e402a5af03960c63b20db4b41ab7";
     static final String RELEASE10_CHECKSUM =
             "1f97638c95a192f0ec7f01053c3965f79b7a3ee4eb9781ea56e3cf8eccc6889b";
+    static final String RECOVERY11_CHECKSUM =
+            "e9a32c9312feb325db1294e3c00d34a110474a48fba16399eb1fc52b39fc9043";
+    static final String RELEASE12_CHECKSUM =
+            "65155dcc88f454a0ad2530518f8ec9b0c070afd31d583a19f980dd3d10f78a74";
+    static final String RELEASE13_CHECKSUM =
+            "3bd67d7b145c5b7c845788c70f8884c8afadedd9920de419ecd1e1d0e8a4c8b0";
+    static final String RELEASE14_CHECKSUM =
+            "7ee0bac12ddfbc72dda55a5014c67b0798caa68a5ffc73b4be479d06a4590336";
     static final String BASELINE_PROJECTION_CHECKSUM =
             "b6b3d9fa5b4d296d333d05b03c001252a93b229d112322ee49425d26f7f6f83f";
     static final String WORK_PROJECTION_CHECKSUM =
@@ -40,7 +48,15 @@ final class ApprovalPepProjectionLineage {
             9, new Release(EXTENSION_V9_CHECKSUM,
                     "42eed3ca14abd7fcd5b62f2f3714dd8b62aabaab9b07348cadd33ace829b02bf", 302, 91, 99),
             10, new Release(RELEASE10_CHECKSUM,
-                    "aba923415db4dd09b272652f4486273226cd788e8657806db4722cb552d3e6a4", 318, 107, 115));
+                    "aba923415db4dd09b272652f4486273226cd788e8657806db4722cb552d3e6a4", 318, 107, 115),
+            11, new Release(RECOVERY11_CHECKSUM,
+                    "8fc413036f39f946ab95b5d553d4ed9dfbb5867323890a1d58e74a7099c36ca9", 323, 112, 120),
+            12, new Release(RELEASE12_CHECKSUM,
+                    "9bfb0c0516c9e4c12ea5ad8be4240b0d2f4b47cd406f87e1e3db6e6886755056", 352, 141, 149),
+            13, new Release(RELEASE13_CHECKSUM,
+                    "6e0d8f1b0e1488822704a7886d7acfa058f5eb100ed0ae228a483287fbd08303", 355, 144, 152),
+            14, new Release(RELEASE14_CHECKSUM,
+                    "5797318cfe765d77f89d99837d4da70e0452e97a517b99e0d7aa9a0f806a00d7", 360, 149, 157));
 
     private ApprovalPepProjectionLineage() { }
 

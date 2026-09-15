@@ -2,6 +2,7 @@ package com.dwp.services.approval.domain;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.approval.documentretention.ApprovalRetentionLiveGuard;
 import com.dwp.services.approval.security.ApprovalRequestContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -15,6 +16,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -56,6 +58,43 @@ public class ApprovalDraftRepository {
                 SELECT status = 'DRAFT' FROM apr_requests
                  WHERE tenant_id = :tenantId AND request_id = :requestId AND requester_user_id = :userId
                 """, params(actor, requestId), Boolean.class));
+    }
+
+    public ResubmitSource lockResubmitSource(
+            ApprovalRequestContext.Actor actor,
+            UUID requestId,
+            long expectedVersion) {
+        new ApprovalRetentionLiveGuard(jdbc).writeRequest(actor.tenantId(), requestId);
+        var rows = jdbc.query(
+                ApprovalResubmitDraftSql.OWNED_TERMINAL_SOURCE,
+                params(actor, requestId),
+                (result, rowNumber) -> new ResubmitSource(
+                        requestId,
+                        result.getLong("version"),
+                        result.getString("status"),
+                        result.getObject("workflow_id", UUID.class),
+                        result.getObject("form_id", UUID.class),
+                        result.getString("title"),
+                        result.getString("summary"),
+                        result.getString("priority"),
+                        object(result.getString("payload"))));
+        if (rows.size() != 1) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_NOT_AVAILABLE,
+                    "The owned source approval request is unavailable.");
+        }
+        ResubmitSource source = rows.getFirst();
+        if (source.version() != expectedVersion) {
+            throw new BaseException(
+                    ErrorCode.OBJECT_VERSION_CONFLICT,
+                    "The source approval request version changed.");
+        }
+        if (!Set.of("APPROVED", "REJECTED").contains(source.status())) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "Only a terminal approved or rejected request can seed a resubmission draft.");
+        }
+        return source;
     }
 
     public ApprovalWorkDtos.Page<ApprovalWorkDtos.DraftRevision> revisions(
@@ -208,5 +247,17 @@ public class ApprovalDraftRepository {
 
     public record Receipt(UUID id, String result, UUID requestId) {
         public boolean replay() { return result != null; }
+    }
+
+    public record ResubmitSource(
+            UUID requestId,
+            long version,
+            String status,
+            UUID workflowId,
+            UUID formId,
+            String title,
+            String summary,
+            String priority,
+            Map<String, Object> payload) {
     }
 }

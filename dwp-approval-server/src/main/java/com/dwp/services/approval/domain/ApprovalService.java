@@ -30,6 +30,7 @@ public class ApprovalService {
     private final ApprovalWorkflowQuorumFacade quorum;
     private final ApprovalWorkflowManagementCommands workflowCommands;
     private final ApprovalWorkflowDecisionCommands workflowDecisions;
+    private final ApprovalDelegationManagement delegationManagement;
 
     public ApprovalService(ApprovalQueryRepository queries, ApprovalCommandRepository commands,
             AuditOutboxRecorder audit, ApprovalIdentityDirectory identities) {
@@ -59,6 +60,8 @@ public class ApprovalService {
         this.ownerPredicates = ownerPredicates;
         this.quorum = quorum;
         workflowCommands = new ApprovalWorkflowManagementCommands(commands, queries, audit);
+        delegationManagement = new ApprovalDelegationManagement(
+                queries, commands, audit, identities, ownerPredicates);
         this.taskGovernance = new ApprovalTaskGovernance(
                 queries, identities, ownerPredicates);
         workflowDecisions = new ApprovalWorkflowDecisionCommands(queries, commands, identities, ownerPredicates, taskGovernance, quorum);
@@ -275,33 +278,29 @@ public class ApprovalService {
 
     @Transactional
     public List<ApprovalDtos.DelegationSummary> delegations() {
-        return queries.delegations(prepare());
+        return delegationManagement.list(prepare());
     }
 
     @Transactional
     public List<ApprovalDtos.DelegationSummary> createDelegation(
             ApprovalDtos.CreateDelegationRequest request,
             String correlationId) {
-        ApprovalRequestContext.Actor actor = prepare();
-        ApprovalIdentityDirectory.Subject delegate = identities.require(
-                actor.tenantId(), request.delegateUserId());
-        ApprovalDelegationCommandSupport.Created created =
-                commands.createDelegation(actor, request, delegate);
-        record(actor, "approval.delegation.created", "APPROVAL_DELEGATION",
-                created.delegationId().toString(), correlationId,
-                created.auditAfterState(request.delegateUserId(), request.endsAt()));
-        return queries.delegations(actor);
+        return delegationManagement.create(prepare(), request, correlationId);
+    }
+
+    @Transactional
+    public List<ApprovalDtos.DelegationSummary> updateDelegation(
+            UUID delegationId,
+            ApprovalDelegationUpdateRequest request,
+            String idempotencyKey,
+            String correlationId) {
+        return delegationManagement.update(
+                prepare(), delegationId, request, idempotencyKey, correlationId);
     }
 
     @Transactional
     public List<ApprovalDtos.DelegationCandidate> delegationCandidates(String query, int limit) {
-        ApprovalRequestContext.Actor actor = ApprovalRequestContext.require();
-        return identities.search(actor.tenantId(), query, limit).stream()
-                .filter(subject -> !actor.userId().equals(subject.userId()))
-                .map(subject -> new ApprovalDtos.DelegationCandidate(
-                        subject.userId(), subject.personPublicId(), subject.displayName(),
-                        subject.email(), subject.jobTitle()))
-                .toList();
+        return delegationManagement.candidates(ApprovalRequestContext.require(), query, limit);
     }
 
     @Transactional
@@ -309,15 +308,8 @@ public class ApprovalService {
             UUID delegationId,
             long expectedVersion,
             String correlationId) {
-        ApprovalRequestContext.Actor actor = prepare();
-        if (ownerPredicates != null && ApprovalPilotAuthorizationContext.requiresPredicate(
-                "predicate.approval.object-version.v1")) {
-            ownerPredicates.lockOwnedDelegation(actor, delegationId, expectedVersion);
-        }
-        commands.revokeDelegation(actor, delegationId, expectedVersion);
-        record(actor, "approval.delegation.revoked", "APPROVAL_DELEGATION",
-                delegationId.toString(), correlationId, Map.of());
-        return queries.delegations(actor);
+        return delegationManagement.revoke(
+                prepare(), delegationId, expectedVersion, correlationId);
     }
 
     @Transactional

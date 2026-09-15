@@ -10,7 +10,7 @@ import org.springframework.stereotype.Repository;
 
 /** Minimal membership provenance and next time transition, never directory attributes. */
 @Repository
-public final class PlanningRoleSources {
+public class PlanningRoleSources {
     private final JdbcTemplate jdbc;
     private final PlanningJson json;
     public PlanningRoleSources(JdbcTemplate jdbc,PlanningJson json) { this.jdbc=jdbc; this.json=json; }

@@ -29,6 +29,15 @@ public final class ApprovalRetentionLiveGuard {
     public void writeRequest(long tenant,UUID request) {
         request(tenant,request,"FOR UPDATE");
     }
+    public void writeRequests(long tenant,Collection<UUID> requests) {
+        transaction();
+        var expected=new ArrayList<>(new HashSet<>(requests));
+        expected.sort(Comparator.comparing(UUID::toString));
+        if(expected.isEmpty()) throw hidden();
+        var locked=jdbc.query("SELECT request_id FROM apr_requests WHERE tenant_id=:tenant AND request_id IN(:requests) ORDER BY request_id FOR UPDATE",
+                Map.of("tenant",tenant,"requests",expected),(r,n)->r.getObject(1,UUID.class));
+        if(!locked.equals(expected) || !live(tenant,locked).equals(expected)) throw hidden();
+    }
     private void request(long tenant,UUID request,String lock) {
         transaction();
         var ids=jdbc.query("SELECT request_id FROM apr_requests WHERE tenant_id=:tenant AND request_id=:request "+lock,

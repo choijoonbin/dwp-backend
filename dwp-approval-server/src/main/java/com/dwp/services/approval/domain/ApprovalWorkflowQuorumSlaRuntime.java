@@ -136,6 +136,20 @@ public final class ApprovalWorkflowQuorumSlaRuntime {
             return complete(lease,row,p,recipients,pool.authorityRevision(),pool.expiresAt(),null,null,now);
         }));
     }
+
+    void finishClaimed(List<Lease> leases) {
+        RuntimeException firstFailure = null;
+        for (Lease lease : List.copyOf(leases)) {
+            try {
+                finish(lease);
+            } catch (RuntimeException failure) {
+                if (firstFailure == null) firstFailure = failure;
+                else firstFailure.addSuppressed(failure);
+            }
+        }
+        if (firstFailure != null) throw firstFailure;
+    }
+
     private boolean complete(Lease lease,StageRow row,MapSqlParameterSource p,List<Long> recipients,String revision,Instant expires,Runnable current,
             java.util.function.Consumer<UUID> originalWitness,Instant now) {
             if (!expires.isAfter(store.now())) throw unavailable("Escalation candidate authority expired.");

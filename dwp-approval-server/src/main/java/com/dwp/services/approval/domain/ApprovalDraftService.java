@@ -66,6 +66,48 @@ public class ApprovalDraftService {
         return response;
     }
 
+    @Transactional
+    public ApprovalResubmitDraftDtos.Response resubmit(
+            UUID sourceRequestId,
+            ApprovalResubmitDraftDtos.Request body,
+            String key,
+            String correlationId) {
+        if (sourceRequestId == null || body == null || body.expectedVersion() == null
+                || body.expectedVersion() < 0
+                || body.expectedVersion() > 9_007_199_254_740_991L) {
+            throw input();
+        }
+        validateKey(key);
+        var actor = authority.require(READ, true);
+        var source = repository.lockResubmitSource(actor, sourceRequestId, body.expectedVersion());
+        authority.requireCurrent("ACTION.APPROVAL_REQUEST:CREATE");
+        String route = "POST /v1/requests/" + sourceRequestId + "/resubmit-draft";
+        var receipt = repository.begin(actor, route, "CREATE", sourceRequestId, key, body,
+                body.expectedVersion(), null, correlationId);
+        if (receipt.replay()) {
+            authority.require(READ, true);
+            authority.requireCurrent("ACTION.APPROVAL_REQUEST:CREATE");
+            return repository.read(receipt.result(), ApprovalResubmitDraftDtos.Response.class);
+        }
+        final UUID draftId;
+        try {
+            draftId = commands.createResubmitDraft(actor, source, correlationId);
+        } catch (BaseException exception) {
+            if (exception.getErrorCode() == ErrorCode.INVALID_INPUT_VALUE) {
+                throw new IncompatibleSourcePayload(exception);
+            }
+            throw exception;
+        }
+        authority.require(READ, true);
+        authority.requireCurrent("ACTION.APPROVAL_REQUEST:CREATE");
+        ApprovalDtos.RequestSummary draft = approvals.request(draftId);
+        var response = new ApprovalResubmitDraftDtos.Response(draft, sourceRequestId, source.version());
+        var state = repository.state(actor, draftId, false);
+        recordResubmission(actor, source, state, correlationId);
+        repository.complete(receipt, response, state);
+        return response;
+    }
+
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public ApprovalWorkDtos.Page<ApprovalWorkDtos.DraftRevision> revisions(UUID id, int page, int size) {
         validatePage(page, size);
@@ -178,6 +220,36 @@ public class ApprovalDraftService {
                 .correlationId(correlationId).retentionClass("EXTENDED")
                 .afterState(Map.of("version", state.version(), "payloadRevision", state.payloadRevision()))
                 .build());
+    }
+
+    private void recordResubmission(
+            ApprovalRequestContext.Actor actor,
+            ApprovalDraftRepository.ResubmitSource source,
+            ApprovalWorkDtos.DraftState draft,
+            String correlationId) {
+        audit.record(AuditEvent.builder().tenantId(actor.tenantId()).category("SYSTEM_EVENT")
+                .action("approval.request.resubmit-draft.created").outcome("SUCCESS").severity("INFO")
+                .actorType("USER").actorId(actor.userId().toString())
+                .actorRoles(java.util.List.copyOf(actor.roles()))
+                .sourceService("dwp-approval-server").sourceModule("approval-resubmit-draft")
+                .targetType("APPROVAL_REQUEST").targetId(draft.requestId().toString())
+                .approvalId(draft.requestId().toString()).correlationId(correlationId)
+                .retentionClass("EXTENDED")
+                .afterState(Map.of(
+                        "sourceRequestId", source.requestId().toString(),
+                        "sourceVersion", source.version(),
+                        "sourceStatus", source.status(),
+                        "draftVersion", draft.version(),
+                        "payloadRevision", draft.payloadRevision()))
+                .build());
+    }
+
+    public static final class IncompatibleSourcePayload extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
+        public IncompatibleSourcePayload(Throwable cause) {
+            super("The source approval payload is incompatible with the current published form schema.", cause);
+        }
     }
 
     public static void validatePage(int page, int size) {

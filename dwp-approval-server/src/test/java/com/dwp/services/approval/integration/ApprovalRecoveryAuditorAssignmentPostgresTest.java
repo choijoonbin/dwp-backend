@@ -54,6 +54,7 @@ class ApprovalRecoveryAuditorAssignmentPostgresTest {
                 .cleanDisabled(false)
                 .load();
         new JdbcTemplate(dataSource).execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
+        new JdbcTemplate(dataSource).execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         flyway.clean();
         flyway.migrate();
         jdbc = new JdbcTemplate(dataSource);

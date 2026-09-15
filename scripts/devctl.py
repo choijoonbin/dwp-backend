@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import base64
 import json
 import os
 import re
@@ -11,6 +12,7 @@ import shlex
 import shutil
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -29,9 +31,34 @@ AGENT_LOCAL_ENV_FILE = AGENT_ROOT / ".env.local"
 RUNTIME_ROOT = BACKEND_ROOT / ".dev-runtime"
 LOG_ROOT = RUNTIME_ROOT / "logs"
 STATE_FILE = RUNTIME_ROOT / "processes.json"
+LOCAL_APPROVAL_KEYS_ROOT = RUNTIME_ROOT / "keys"
+LOCAL_APPROVAL_KEYS_FILE = LOCAL_APPROVAL_KEYS_ROOT / "approval-runtime-jwks.json"
+LOCAL_JWK_GENERATOR = BACKEND_ROOT / "scripts" / "DevRuntimeJwkGenerator.java"
+LOCAL_APPROVAL_KEY_IDS = (
+    "approval_planning_owner_local",
+    "approval_planning_transport_local",
+    "auth_planning_attestation_local",
+    "approval_planning_prohibited_local",
+    "approval_sla_owner_local",
+    "approval_sla_transport_local",
+    "auth_sla_attestation_local",
+    "notification-sla-recipient-transport:local",
+    "approval-sla-recipient-authority:local",
+)
+LOCAL_APPROVAL_RUNTIME_SERVICES = frozenset({"auth", "approval", "notification"})
+LOCAL_APPROVAL_RUNTIME_PREFIXES = (
+    "DWP_AUTH_APPROVAL_WORKFLOW_PLANNING_",
+    "DWP_APPROVAL_WORKFLOW_PLANNING_",
+    "DWP_AUTH_APPROVAL_SYSTEM_SLA_",
+    "DWP_APPROVAL_WORKFLOW_QUORUM_SLA_",
+    "DWP_APPROVAL_SYSTEM_SLA_",
+    "DWP_NOTIFICATION_APPROVAL_SLA_",
+    "DWP_APPROVAL_INTEGRATION_",
+)
 MIN_AGENT_PYTHON = (3, 11)
 MIN_FRONTEND_NODE = (24, 18, 0)
 MAX_FRONTEND_NODE_MAJOR = 25
+DEFAULT_FRONTEND_NODE_OPTIONS = "--max-old-space-size=8192"
 ENVIRONMENT_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 CANONICAL_POSITIVE_INTEGER = re.compile(r"^[1-9][0-9]*$")
 SERVICE_STARTUP_TIMEOUT_ENVIRONMENT = "DWP_DEVCTL_STARTUP_TIMEOUT_SECONDS"
@@ -274,6 +301,228 @@ def save_state(state: dict[str, dict[str, object]]) -> None:
     STATE_FILE.write_text(json.dumps(state, indent=2), encoding="utf-8")
 
 
+def _strict_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
+    value: dict[str, object] = {}
+    for key, item in pairs:
+        if key in value:
+            raise RuntimeError(f"Duplicate JSON member in {LOCAL_APPROVAL_KEYS_FILE}: {key}")
+        value[key] = item
+    return value
+
+
+def _canonical_base64url(value: object, *, minimum_bytes: int = 1) -> bool:
+    if not isinstance(value, str) or not re.fullmatch(r"[A-Za-z0-9_-]+", value):
+        return False
+    try:
+        decoded = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+    except (ValueError, TypeError):
+        return False
+    return (
+        len(decoded) >= minimum_bytes
+        and base64.urlsafe_b64encode(decoded).rstrip(b"=").decode("ascii") == value
+    )
+
+
+def _validate_local_approval_keys(value: object) -> dict[str, object]:
+    if not isinstance(value, dict) or set(value) != {"version", "keys"}:
+        raise RuntimeError("Local Approval runtime key file has an invalid envelope.")
+    if value["version"] != 1 or isinstance(value["version"], bool):
+        raise RuntimeError("Local Approval runtime key file has an unsupported version.")
+    keys = value["keys"]
+    if not isinstance(keys, dict) or set(keys) != set(LOCAL_APPROVAL_KEY_IDS):
+        raise RuntimeError("Local Approval runtime key inventory is incomplete.")
+
+    public_fields = {"kty", "kid", "use", "alg", "n", "e"}
+    private_fields = public_fields | {"d", "p", "q", "dp", "dq", "qi"}
+    moduli: set[str] = set()
+    for key_id in LOCAL_APPROVAL_KEY_IDS:
+        pair = keys[key_id]
+        if not isinstance(pair, dict) or set(pair) != {"private", "public"}:
+            raise RuntimeError(f"Local Approval key pair is malformed: {key_id}")
+        private = pair["private"]
+        public = pair["public"]
+        if (
+            not isinstance(private, dict)
+            or set(private) != private_fields
+            or not isinstance(public, dict)
+            or set(public) != public_fields
+        ):
+            raise RuntimeError(f"Local Approval JWK fields are malformed: {key_id}")
+        for jwk in (private, public):
+            if (
+                jwk["kty"] != "RSA"
+                or jwk["kid"] != key_id
+                or jwk["use"] != "sig"
+                or jwk["alg"] != "RS256"
+                or not _canonical_base64url(jwk["n"], minimum_bytes=256)
+                or not _canonical_base64url(jwk["e"])
+            ):
+                raise RuntimeError(f"Local Approval JWK metadata is invalid: {key_id}")
+        for field in private_fields - public_fields:
+            if not _canonical_base64url(private[field], minimum_bytes=32):
+                raise RuntimeError(f"Local Approval private JWK is invalid: {key_id}")
+        if any(private[field] != public[field] for field in public_fields):
+            raise RuntimeError(f"Local Approval public/private JWK mismatch: {key_id}")
+        if private["n"] in moduli:
+            raise RuntimeError("Local Approval runtime keys must be cryptographically disjoint.")
+        moduli.add(str(private["n"]))
+    return value
+
+
+def load_or_create_local_approval_keys(
+    path: Path | None = None,
+) -> dict[str, object]:
+    path = path or LOCAL_APPROVAL_KEYS_FILE
+    if path.exists() or path.is_symlink():
+        metadata = path.lstat()
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or not stat.S_ISREG(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or metadata.st_mode & 0o077
+        ):
+            raise RuntimeError(
+                f"Local Approval runtime keys must be an owner-only regular file: {path}"
+            )
+        try:
+            parsed = json.loads(
+                path.read_text(encoding="utf-8"),
+                object_pairs_hook=_strict_json_object,
+            )
+        except (json.JSONDecodeError, OSError) as error:
+            raise RuntimeError(f"Unable to read local Approval runtime keys: {path}") from error
+        return _validate_local_approval_keys(parsed)
+
+    parent = path.parent
+    if parent.exists() or parent.is_symlink():
+        metadata = parent.lstat()
+        if (
+            stat.S_ISLNK(metadata.st_mode)
+            or not stat.S_ISDIR(metadata.st_mode)
+            or metadata.st_uid != os.getuid()
+            or metadata.st_mode & 0o077
+        ):
+            raise RuntimeError(
+                f"Local Approval runtime key directory must be owner-only: {parent}"
+            )
+    else:
+        parent.mkdir(parents=True, mode=0o700)
+    if not LOCAL_JWK_GENERATOR.is_file():
+        raise RuntimeError(f"Missing local Approval JWK generator: {LOCAL_JWK_GENERATOR}")
+    generated = subprocess.run(
+        ("java", str(LOCAL_JWK_GENERATOR), *LOCAL_APPROVAL_KEY_IDS),
+        cwd=BACKEND_ROOT,
+        check=True,
+        text=True,
+        capture_output=True,
+        timeout=120,
+    ).stdout
+    try:
+        parsed = json.loads(generated, object_pairs_hook=_strict_json_object)
+    except json.JSONDecodeError as error:
+        raise RuntimeError("Local Approval JWK generator returned invalid JSON.") from error
+    material = _validate_local_approval_keys(parsed)
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL
+    if hasattr(os, "O_NOFOLLOW"):
+        flags |= os.O_NOFOLLOW
+    try:
+        descriptor = os.open(path, flags, 0o600)
+    except FileExistsError:
+        return load_or_create_local_approval_keys(path)
+    with os.fdopen(descriptor, "w", encoding="utf-8") as target:
+        json.dump(material, target, separators=(",", ":"), sort_keys=True)
+        target.write("\n")
+        target.flush()
+        os.fsync(target.fileno())
+    return material
+
+
+def _compact_json(value: object) -> str:
+    return json.dumps(value, separators=(",", ":"), sort_keys=True)
+
+
+def _local_approval_runtime_defaults(service_name: str) -> dict[str, str]:
+    if service_name not in LOCAL_APPROVAL_RUNTIME_SERVICES:
+        return {}
+    material = load_or_create_local_approval_keys()
+    keys = material["keys"]
+    assert isinstance(keys, dict)
+
+    def private(key_id: str) -> str:
+        pair = keys[key_id]
+        assert isinstance(pair, dict)
+        return _compact_json(pair["private"])
+
+    def public_set(*key_ids: str) -> str:
+        values = []
+        for key_id in key_ids:
+            pair = keys[key_id]
+            assert isinstance(pair, dict)
+            values.append(pair["public"])
+        return _compact_json({"keys": values})
+
+    planning_owner = "approval_planning_owner_local"
+    planning_transport = "approval_planning_transport_local"
+    planning_attestation = "auth_planning_attestation_local"
+    planning_prohibited = "approval_planning_prohibited_local"
+    sla_owner = "approval_sla_owner_local"
+    sla_transport = "approval_sla_transport_local"
+    sla_attestation = "auth_sla_attestation_local"
+    notification_transport = "notification-sla-recipient-transport:local"
+    notification_attestation = "approval-sla-recipient-authority:local"
+
+    by_service = {
+        "auth": {
+            "DWP_AUTH_APPROVAL_WORKFLOW_PLANNING_ENABLED": "true",
+            "DWP_AUTH_APPROVAL_WORKFLOW_PLANNING_OWNER_PUBLIC_JWKS": public_set(planning_owner),
+            "DWP_AUTH_APPROVAL_WORKFLOW_PLANNING_TRANSPORT_PUBLIC_JWKS": public_set(planning_transport),
+            "DWP_AUTH_APPROVAL_WORKFLOW_PLANNING_ATTESTATION_PRIVATE_JWK": private(planning_attestation),
+            "DWP_AUTH_APPROVAL_WORKFLOW_PLANNING_ATTESTATION_PUBLIC_JWKS": public_set(planning_attestation),
+            "DWP_AUTH_APPROVAL_SYSTEM_SLA_ENABLED": "true",
+            "DWP_AUTH_APPROVAL_SYSTEM_SLA_OWNER_PUBLIC_JWKS": public_set(sla_owner),
+            "DWP_AUTH_APPROVAL_SYSTEM_SLA_TRANSPORT_PUBLIC_JWKS": public_set(sla_transport),
+            "DWP_AUTH_APPROVAL_SYSTEM_SLA_ATTESTATION_PRIVATE_JWK": private(sla_attestation),
+            "DWP_AUTH_APPROVAL_SYSTEM_SLA_ATTESTATION_PUBLIC_JWKS": public_set(sla_attestation),
+        },
+        "approval": {
+            "DWP_APPROVAL_WORKFLOW_PLANNING_ENABLED": "true",
+            "DWP_APPROVAL_WORKFLOW_PLANNING_OWNER_PRIVATE_KEY": private(planning_owner),
+            "DWP_APPROVAL_WORKFLOW_PLANNING_TRANSPORT_PRIVATE_KEY": private(planning_transport),
+            "DWP_APPROVAL_WORKFLOW_PLANNING_AUTH_TRUSTED_KEYS": public_set(planning_attestation),
+            "DWP_APPROVAL_WORKFLOW_PLANNING_PROHIBITED_KEY_CATALOGUE": public_set(planning_prohibited),
+            "DWP_APPROVAL_WORKFLOW_PLANNING_ENDPOINT": "http://localhost:8001/internal/approval-workflow/admin-planning",
+            "DWP_APPROVAL_WORKFLOW_QUORUM_SLA_ENABLED": "true",
+            "DWP_APPROVAL_WORKFLOW_QUORUM_SLA_BATCH_SIZE": "50",
+            "DWP_APPROVAL_WORKFLOW_QUORUM_SLA_LEASE_SECONDS": "30",
+            "DWP_APPROVAL_WORKFLOW_QUORUM_SLA_POLL_DELAY_MS": "2000",
+            "DWP_APPROVAL_SYSTEM_SLA_SOURCE_ENABLED": "true",
+            "DWP_APPROVAL_SYSTEM_SLA_SOURCE_AUTH_BASE_URL": "http://localhost:8001",
+            "DWP_APPROVAL_SYSTEM_SLA_SOURCE_OWNER_PRIVATE_JWK": private(sla_owner),
+            "DWP_APPROVAL_SYSTEM_SLA_SOURCE_TRANSPORT_PRIVATE_JWK": private(sla_transport),
+            "DWP_APPROVAL_SYSTEM_SLA_SOURCE_ATTESTATION_PUBLIC_JWKS": public_set(sla_attestation),
+            "DWP_APPROVAL_SYSTEM_SLA_NOTIFICATION_TRANSPORT_PUBLIC_JWKS": public_set(notification_transport),
+            "DWP_APPROVAL_SYSTEM_SLA_NOTIFICATION_ATTESTATION_PRIVATE_JWK": private(notification_attestation),
+            "DWP_APPROVAL_SYSTEM_SLA_NOTIFICATION_ATTESTATION_PUBLIC_JWKS": public_set(notification_attestation),
+            "DWP_APPROVAL_INTEGRATION_RELAY_ENABLED": "true",
+            "DWP_APPROVAL_INTEGRATION_TOPIC": "dwp.approval.events.v1",
+            "DWP_APPROVAL_INTEGRATION_BATCH_SIZE": "50",
+            "DWP_APPROVAL_INTEGRATION_MAXIMUM_ATTEMPTS": "10",
+            "DWP_APPROVAL_INTEGRATION_POLL_DELAY_MS": "2000",
+        },
+        "notification": {
+            "DWP_NOTIFICATION_APPROVAL_SLA_ENABLED": "true",
+            "DWP_NOTIFICATION_APPROVAL_SLA_ENDPOINT": "http://localhost:8005/internal/approval/v1/quorum-sla/recipient-authority/evaluate",
+            "DWP_NOTIFICATION_APPROVAL_SLA_TOPIC": "dwp.approval.events.v1",
+            "DWP_NOTIFICATION_APPROVAL_SLA_GROUP_ID": "dwp-notification-approval-system-sla-v1",
+            "DWP_NOTIFICATION_APPROVAL_SLA_DEAD_LETTER_TOPIC": "dwp.approval.events.v1.DLT",
+            "DWP_NOTIFICATION_APPROVAL_SLA_TRANSPORT_PRIVATE_JWK": private(notification_transport),
+            "DWP_NOTIFICATION_APPROVAL_SLA_RECIPIENT_AUTHORITY_JWKS": public_set(notification_attestation),
+            "DWP_NOTIFICATION_APPROVAL_SLA_PROHIBITED_JWKS": public_set(sla_owner, sla_transport, sla_attestation),
+        },
+    }
+    return by_service[service_name]
+
+
 def process_alive(pid: int) -> bool:
     try:
         os.kill(pid, 0)
@@ -399,6 +648,7 @@ def local_environment() -> dict[str, str]:
         ),
         "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
         "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",
+        "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "14",
         "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
         "DWP_AGENT_IDENTITY_SIGNING_SECRET": (
             "dwp-local-agent-identity-signing-secret-v1"
@@ -446,7 +696,12 @@ def local_environment() -> dict[str, str]:
         "DWP_APPROVAL_FLYWAY_LOCATIONS": (
             "classpath:db/migration,classpath:db/local-seed"
         ),
-        "DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED": "false",
+        # Publish both signature controller sets in local and contract-export boots.
+        # Provider credentials and the internal signing source remain unavailable, so
+        # commands still fail closed until real runtime evidence is provisioned.
+        "DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED": "true",
+        "DWP_APPROVAL_INTERNAL_SIGNATURES_ENABLED": "true",
+        "DWP_APPROVAL_INTERNAL_SIGNATURES_SOURCE_ENABLED": "false",
         "DWP_APPROVAL_INTEGRATION_RELAY_ENABLED": "true",
         "DWP_SPACE_SERVICE_TOKEN": "dwp-local-space-service-token",
         "DWP_SPACE_FLYWAY_LOCATIONS": (
@@ -544,6 +799,17 @@ def local_environment() -> dict[str, str]:
 
 def service_environment(service_name: str) -> dict[str, str]:
     environment = local_environment()
+    if service_name == "frontend":
+        environment.setdefault("NODE_OPTIONS", DEFAULT_FRONTEND_NODE_OPTIONS)
+    approval_runtime_defaults = _local_approval_runtime_defaults(service_name)
+    for key in tuple(environment):
+        if (
+            key not in approval_runtime_defaults
+            and key.startswith(LOCAL_APPROVAL_RUNTIME_PREFIXES)
+        ):
+            environment.pop(key, None)
+    for key, value in approval_runtime_defaults.items():
+        environment.setdefault(key, value)
     if service_name == "agent":
         for key, value in load_agent_local_environment().items():
             if key not in os.environ:
@@ -574,6 +840,9 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED", None)
         environment.pop(
             "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED", None
+        )
+        environment.pop(
+            "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION", None
         )
     if service_name not in {"agent", "gateway"}:
         environment.pop("DWP_AGENT_SERVICE_TOKEN", None)
@@ -624,6 +893,8 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_APPROVAL_FLYWAY_LOCATIONS", None)
         environment.pop("DWP_APPROVAL_PRODUCT_AUTHORIZATION_V2_ENABLED", None)
         environment.pop("DWP_APPROVAL_EXTERNAL_SIGNATURE_ENABLED", None)
+        environment.pop("DWP_APPROVAL_INTERNAL_SIGNATURES_ENABLED", None)
+        environment.pop("DWP_APPROVAL_INTERNAL_SIGNATURES_SOURCE_ENABLED", None)
         environment.pop("DWP_APPROVAL_INTEGRATION_RELAY_ENABLED", None)
     if service_name != "provider":
         environment.pop("DWP_PROVIDER_SUPPORT_COOKIE_SECURE", None)
@@ -631,7 +902,14 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_PROVIDER_LOCAL_APPROVAL_FIXTURES_ENABLED", None)
     if service_name not in {"auth", "platform", "people", "provider"}:
         environment.pop("DWP_PROVIDER_PROVISIONING_TOKEN", None)
-    if service_name not in {"auth", "platform", "people", "space"}:
+    if service_name not in {
+        "auth",
+        "platform",
+        "people",
+        "space",
+        "approval",
+        "notification",
+    }:
         environment.pop("DWP_IDENTITY_SYNC_TOKEN", None)
     if service_name not in {"gateway", "messaging"}:
         environment.pop("DWP_MESSAGING_SERVICE_TOKEN", None)

@@ -53,6 +53,7 @@ class ApprovalFormRequestVersionPostgresTest {
     @BeforeEach void setUp() {
         var source=new PGSimpleDataSource();source.setURL(POSTGRES.getJdbcUrl());source.setUser(POSTGRES.getUsername());source.setPassword(POSTGRES.getPassword());
         new JdbcTemplate(source).execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
+        new JdbcTemplate(source).execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         var flyway=Flyway.configure().dataSource(source).locations("classpath:db/migration").cleanDisabled(false).load();flyway.clean();flyway.migrate();
         jdbc=new JdbcTemplate(source);tx=new TransactionTemplate(new DataSourceTransactionManager(source));
         var named=new NamedParameterJdbcTemplate(source);var mapper=new ObjectMapper().findAndRegisterModules();

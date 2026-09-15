@@ -34,4 +34,5 @@ public class PlanningConfiguration {
             PlanningRoleRepository roles,PlanningReplayStore replay,PlanningAuthorityIssuer issuer,PlanningJson json,ConfigurableEnvironment environment) {
         return new PlanningAuthorityService(verifier::getObject,authority,roles,replay,issuer,json,Clock.systemUTC(),environment.getProperty(PREFIX+"enabled",Boolean.class,false));
     }
+    @Bean PlanningReadiness planningReadiness(PlanningAuthorityService service) {return new PlanningReadiness(service);}
 }

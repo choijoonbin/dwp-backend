@@ -1,6 +1,7 @@
 package com.dwp.services.approval.domain;
 
 import com.dwp.services.approval.security.ApprovalRequestContext;
+import com.dwp.services.approval.documentretention.ApprovalRetentionLiveGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -15,9 +16,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.mockConstruction;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+@SuppressWarnings("try")
 class ApprovalQueryRepositoryTest {
 
     @Test
@@ -35,7 +38,9 @@ class ApprovalQueryRepositoryTest {
                 Set.of("FINANCE_APPROVERS"),
                 Set.of("APP.APPROVALS:VIEW", "ACTION.APPROVAL_TASK:VIEW"));
 
-        repository.tasks(actor, "COMPLETED", 25);
+        try (var ignored = mockConstruction(ApprovalRetentionLiveGuard.class)) {
+            repository.tasks(actor, "COMPLETED", 25);
+        }
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(jdbc).query(sql.capture(), any(SqlParameterSource.class), any(RowMapper.class));
@@ -54,7 +59,9 @@ class ApprovalQueryRepositoryTest {
                 .thenReturn(List.of());
         ApprovalQueryRepository repository = new ApprovalQueryRepository(jdbc, new ObjectMapper());
 
-        repository.timeline(17L, java.util.UUID.randomUUID());
+        try (var ignored = mockConstruction(ApprovalRetentionLiveGuard.class)) {
+            repository.timeline(17L, java.util.UUID.randomUUID());
+        }
 
         ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
         verify(jdbc).query(sql.capture(), any(SqlParameterSource.class), any(RowMapper.class));

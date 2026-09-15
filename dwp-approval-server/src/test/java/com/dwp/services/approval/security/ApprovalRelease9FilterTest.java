@@ -75,13 +75,14 @@ class ApprovalRelease9FilterTest {
     @Test void endpointSetIsExactlyFinal9MinusImmutable8AndSeparatePolicyImpact() {
         var old = new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 8).bindingContracts().stream()
                 .map(ApprovalPilotPepRegistry.BindingContract::routeContractKey).collect(java.util.stream.Collectors.toSet());
-        var added = registry.bindingContracts().stream().map(ApprovalPilotPepRegistry.BindingContract::routeContractKey)
+        var release9 = new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 9);
+        var added = release9.bindingContracts().stream().map(ApprovalPilotPepRegistry.BindingContract::routeContractKey)
                 .filter(key -> !old.contains(key)).collect(java.util.stream.Collectors.toSet());
         added.remove("route.approvals.admin.policy-impact.data");
         assertThat(ApprovalRelease9EndpointPolicy.ENDPOINTS.stream().map(ApprovalRelease9EndpointPolicy.Endpoint::routeKey))
                 .containsExactlyInAnyOrderElementsOf(added);
         assertThat(added).hasSize(26);
-        for (var endpoint : ApprovalRelease9EndpointPolicy.ENDPOINTS) assertThat(ApprovalRelease9EndpointPolicy.installed(endpoint, registry)).isTrue();
+        for (var endpoint : ApprovalRelease9EndpointPolicy.ENDPOINTS) assertThat(ApprovalRelease9EndpointPolicy.installed(endpoint, release9)).isTrue();
     }
 
     static Stream<Arguments> unsupported() {

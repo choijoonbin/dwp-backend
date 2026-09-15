@@ -21,6 +21,10 @@ import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class ApprovalSlaNotificationContractTest {
     static final long TENANT = 42;
@@ -201,6 +205,24 @@ class ApprovalSlaNotificationContractTest {
             payload(invalid).put(positivePin, 0L);
             rejects(invalid);
         }
+    }
+
+    @Test
+    void kafkaListenerDispatchesOnlyExactSlaEventsAndDoesNotSwallowMalformedOnes() throws Exception {
+        var consumer = mock(ApprovalSlaNotificationConsumer.class);
+        var listener = new ApprovalSlaNotificationKafkaListener(consumer);
+        listener.receive(record(UUID.randomUUID(), encode(event(1))));
+        verify(consumer).deliver(any(ApprovalSlaNotificationPlan.class));
+
+        var unrelated = record(UUID.randomUUID(), "{}", "Approval.Request.Submitted");
+        var untouched = mock(ApprovalSlaNotificationConsumer.class);
+        new ApprovalSlaNotificationKafkaListener(untouched).receive(unrelated);
+        verifyNoInteractions(untouched);
+
+        var malformed = record(UUID.randomUUID(), "{}", "Approval.Quorum.SlaWarning");
+        assertThatThrownBy(() -> new ApprovalSlaNotificationKafkaListener(untouched).receive(malformed))
+                .isInstanceOf(ApprovalNotificationEventException.class);
+        verifyNoInteractions(untouched);
     }
 
     static ApprovalSlaNotificationPlan plan(int count) throws Exception {

@@ -142,7 +142,7 @@ class StoredDescriptorSealPostgresTest {
         var loader = new DefaultResourceLoader(); String indexLocation = "classpath:product-authorization/product-surfaces-v1.index.generated.json";
         ObjectNode index;
         try (var input = loader.getResource(indexLocation).getInputStream()) { index = (ObjectNode) mapper.readTree(input); }
-        index.put("latestVersion", 11); index.put("indexChecksum", validator.indexChecksum(index));
+        index.put("latestVersion", 13); index.put("indexChecksum", validator.indexChecksum(index));
         assertThrows(IllegalArgumentException.class, () -> overridden(indexLocation, index).loadVersion(bundle));
         var reordered = (ObjectNode) reference(8); var capabilities = (com.fasterxml.jackson.databind.node.ArrayNode) reordered.get("capabilities");
         var first = capabilities.remove(0); capabilities.add(first); reordered.put("checksum", validator.checksum(reordered));

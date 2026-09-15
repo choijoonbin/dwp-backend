@@ -39,7 +39,7 @@ class ApprovalFormLifecycleRouteKindTest {
     void profile(String leaf, String kind, boolean readOnly) {
         String route = "route.approvals.admin." + leaf;
         ApprovalDecisionRevisionContext.set("psr-" + "a".repeat(64), OffsetDateTime.now().plusMinutes(1), "context", "opaque", route, "110");
-        String capability = leaf.equals("form-reviewed-publish.action") ? "approvals.design.publish"
+        String capability = Set.of("form-reviewed-publish.action", "form-publish-review-reject.action").contains(leaf) ? "approvals.design.publish"
                 : leaf.endsWith(".action") ? "approvals.design.update" : "approvals.design.read";
         ApprovalPilotAuthorizationContext.set(List.of(new ApprovalPilotPepRegistry.RouteAuthority(route, kind, "full-management", readOnly,
                 Set.of(), capability, null, null, false, "projection", "schema")));
@@ -48,9 +48,10 @@ class ApprovalFormLifecycleRouteKindTest {
         assertThatThrownBy(() -> authority.require(leaf, "VIEW")).isInstanceOf(BaseException.class)
                 .extracting(error -> ((BaseException) error).getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN);
     }
-    @Test void genuineReadOnlyDataKindsPassForAllFiveFormReads() {
+    @Test void genuineReadOnlyDataKindsPassForAllFormAndPublishReviewReads() {
         for (String leaf : List.of("form-working-draft.data", "form-version-history.data", "form-version-detail.data",
-                "form-version-diff.data", "form-publish-review.data")) {
+                "form-version-diff.data", "form-publish-review.data", "form-publish-review-candidates.data",
+                "form-publish-review-queue.data", "form-publish-review-request.data")) {
             profile(leaf, "DATA", true); assertThat(authority.require(leaf, "VIEW").resourceSetKey()).isEqualTo("RS_APPROVALS");
         }
     }
@@ -65,6 +66,12 @@ class ApprovalFormLifecycleRouteKindTest {
     @Test void actualWriteActionStillPassesWithWriteAuthority() {
         String leaf = "form-working-draft-update.action"; profile(leaf, "ACTION", false);
         assertThat(authority.require(leaf, "VIEW", "UPDATE").resourceSetKey()).isEqualTo("RS_APPROVALS");
+    }
+    @Test void publishReviewRequestAndDecisionActionsRequireTheirExactCapability() {
+        String request = "form-publish-review-request.action"; profile(request, "ACTION", false);
+        assertThat(authority.require(request, "VIEW", "UPDATE").resourceSetKey()).isEqualTo("RS_APPROVALS");
+        String reject = "form-publish-review-reject.action"; profile(reject, "ACTION", false);
+        assertThat(authority.require(reject, "VIEW", "PUBLISH").resourceSetKey()).isEqualTo("RS_APPROVALS");
     }
     @Test void legacyPageAuthorityCannotBeBorrowedForData() {
         String leaf = "form-version-history.data"; profile(leaf, "PAGE", false); forbidden(leaf);

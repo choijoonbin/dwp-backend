@@ -20,9 +20,9 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v9.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v14.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 9
+PRODUCT_AUTHORIZATION_VERSION = 14
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 TELEMETRY_PUBLIC_PATH = "/api/platform/v1/observability/product-surface-events"
 TELEMETRY_TRUSTED_HEADERS = {"X-DWP-Tenant-ID", "X-DWP-Rollout-Cohort"}
@@ -67,6 +67,37 @@ EXPECTED_DECISION_REVISION_PARAMETER = {
         "rolloutStates": ["110", "111"],
     },
 }
+
+APPROVAL_SIGNATURE_FEATURE_OPERATIONS = frozenset({
+    ("get", "/v1/admin/signatures/diagnostics"),
+    ("get", "/v1/admin/signatures/providers/{providerId}/diagnostics"),
+    ("get", "/v1/admin/signatures/diagnostic-history"),
+    ("post", "/v1/admin/signatures/probes"),
+    ("post", "/v1/admin/signatures/kms/probes"),
+    ("post", "/v1/admin/signatures/worm-inspections"),
+    ("get", "/v1/admin/signatures/policy"),
+    ("get", "/v1/admin/signatures/policies/{policyId}/history"),
+    ("post", "/v1/admin/signatures/policies"),
+    ("put", "/v1/admin/signatures/policies/{policyId}/draft"),
+    ("post", "/v1/admin/signatures/policies/{policyId}/publish"),
+    ("get", "/v1/requests/{requestId}/external-signature-context"),
+    ("post", "/v1/requests/{requestId}/external-signature-requests"),
+    ("get", "/v1/external-signature-requests/{signatureRequestId}"),
+    ("post", "/v1/external-signature-requests/{signatureRequestId}/handovers"),
+    ("post", "/v1/external-signature-requests/{signatureRequestId}/refresh"),
+    ("post", "/v1/external-signature-requests/{signatureRequestId}/cancel"),
+    ("get", "/v1/external-signature-requests/{signatureRequestId}/audit"),
+    ("get", "/v1/external-signature-requests/{signatureRequestId}/artifacts/{artifactId}"),
+    ("get", "/v1/requests/{requestId}/signature-context"),
+    ("post", "/v1/requests/{requestId}/signature-requests"),
+    ("get", "/v1/signature-requests/{signatureRequestId}"),
+    ("post", "/v1/signature-requests/{signatureRequestId}/consents"),
+    ("post", "/v1/signature-requests/{signatureRequestId}/sign"),
+    ("post", "/v1/signature-requests/{signatureRequestId}/cancel"),
+    ("get", "/v1/signature-requests/{signatureRequestId}/audit"),
+    ("get", "/v1/signature-command-receipts/{idempotencyKey}"),
+})
+APPROVAL_SIGNATURE_LEGACY_OPERATION = ("get", "/v1/admin/signatures")
 
 
 @dataclass(frozen=True)
@@ -121,6 +152,8 @@ def fetch_contract(service: ServiceContract) -> dict[str, Any]:
     if not document.get("paths"):
         raise RuntimeError(f"{service.name} published an empty OpenAPI path registry")
     document.pop("servers", None)
+    if service.name == "approval":
+        validate_approval_signature_operations(document)
     return document
 
 
@@ -134,7 +167,35 @@ def load_snapshot(service: ServiceContract) -> dict[str, Any]:
         ) from error
     if not str(document.get("openapi", "")).startswith("3.") or not document.get("paths"):
         raise RuntimeError(f"{service.name} approved OpenAPI snapshot is invalid")
+    if service.name == "approval":
+        validate_approval_signature_operations(document)
     return document
+
+
+def validate_approval_signature_operations(
+        document: dict[str, Any], *, gateway: bool = False) -> None:
+    prefix = "/api/approvals" if gateway else ""
+    expected = {
+        (method, f"{prefix}{path}")
+        for method, path in APPROVAL_SIGNATURE_FEATURE_OPERATIONS
+    }
+    expected.add((APPROVAL_SIGNATURE_LEGACY_OPERATION[0],
+                  f"{prefix}{APPROVAL_SIGNATURE_LEGACY_OPERATION[1]}"))
+    actual = {
+        (method, path)
+        for path, path_item in document.get("paths", {}).items()
+        if "signature" in path
+        and (not gateway or path.startswith("/api/approvals/"))
+        for method in path_item
+        if method in HTTP_METHODS
+    }
+    if actual != expected:
+        missing = sorted(expected - actual)
+        unexpected = sorted(actual - expected)
+        raise RuntimeError(
+            "Approval signature OpenAPI operations are not exact: "
+            f"missing={missing}, unexpected={unexpected}"
+        )
 
 
 def load_gateway_owned_snapshot() -> dict[str, Any]:
@@ -462,6 +523,7 @@ def main() -> int:
     outputs = {f"{name}.json": document for name, document in documents.items()}
     outputs["gateway-owned.json"] = gateway_owned
     outputs["gateway-public.json"] = gateway_contract(documents, gateway_owned)
+    validate_approval_signature_operations(outputs["gateway-public.json"], gateway=True)
     CONTRACT_ROOT.mkdir(parents=True, exist_ok=True)
 
     changed: list[str] = []

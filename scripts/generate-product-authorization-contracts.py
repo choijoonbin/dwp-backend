@@ -59,6 +59,18 @@ APPROVAL_EXTENSION_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
 APPROVAL_RELEASE10_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
     "approval-pilot-pep-v10.generated.json"
 )
+APPROVAL_RECOVERY11_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
+    "approval-pilot-pep-v11.generated.json"
+)
+APPROVAL_RELEASE12_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
+    "approval-pilot-pep-v12.generated.json"
+)
+APPROVAL_RELEASE13_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
+    "approval-pilot-pep-v13.generated.json"
+)
+APPROVAL_RELEASE14_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
+    "approval-pilot-pep-v14.generated.json"
+)
 PLATFORM_APPROVALS_PEP_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
@@ -74,7 +86,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
+BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -128,6 +140,14 @@ EXPECTED_RELEASE_COUNTS = {
         "predicatePolicies": 41, "routes": 302, "PAGE": 79, "DATA": 70, "ACTION": 153},
     10: {"capabilities": 132, "accessPolicies": 22, "entitlementExpressions": 16,
          "predicatePolicies": 44, "routes": 318, "PAGE": 79, "DATA": 78, "ACTION": 161},
+    11: {"capabilities": 132, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 323, "PAGE": 79, "DATA": 83, "ACTION": 161},
+    12: {"capabilities": 134, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 352, "PAGE": 79, "DATA": 92, "ACTION": 181},
+    13: {"capabilities": 134, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 355, "PAGE": 79, "DATA": 93, "ACTION": 183},
+    14: {"capabilities": 134, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 360, "PAGE": 79, "DATA": 96, "ACTION": 185},
 }
 IMMUTABLE_RELEASE_CHECKSUMS = {
     1: "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
@@ -140,6 +160,10 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     8: "9449a516a2dbd96106e71963cbda764b80d83f0f61fa861d110d85517adac942",
     9: "02b19c4119e560b63d4054ec317fe7e4d694e402a5af03960c63b20db4b41ab7",
     10: "1f97638c95a192f0ec7f01053c3965f79b7a3ee4eb9781ea56e3cf8eccc6889b",
+    11: "e9a32c9312feb325db1294e3c00d34a110474a48fba16399eb1fc52b39fc9043",
+    12: "65155dcc88f454a0ad2530518f8ec9b0c070afd31d583a19f980dd3d10f78a74",
+    13: "3bd67d7b145c5b7c845788c70f8884c8afadedd9920de419ecd1e1d0e8a4c8b0",
+    14: "7ee0bac12ddfbc72dda55a5014c67b0798caa68a5ffc73b4be479d06a4590336",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -323,6 +347,68 @@ APPROVAL_RELEASE10_PROJECTIONS = {'route.approvals.admin.retention-claim.data': 
                                                  'projectionPolicyKey': 'route.approvals.work.signature-request.data.full-work.projection.v1',
                                                  'responseSchemaKey': 'ApprovalSignatureCeremony',
                                                  'schemaVersion': 1}}
+
+APPROVAL_RECOVERY11_PROJECTIONS = {
+    "route.approvals.admin.retention-policy-initialization-command.data": {
+        "profileKey": "approval.retention.command-receipt.original-authority.v1",
+        "apiBindingKey": "route.approvals.admin.retention-policy-initialization-command.data.binding.01",
+        "projectionPolicyKey": "route.approvals.admin.retention-policy-initialization-command.data.approval.retention.command-receipt.original-authority.v1.projection.v1",
+        "responseSchemaKey": "ApprovalRetentionCommandReceipt",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "95d520bbcaee4a7c3d2283cb18599d457b441e07e516cf7e335987d696eb8fbd",
+        "additionalProperties": False,
+    },
+    "route.approvals.admin.retention-policy-draft-command.data": {
+        "profileKey": "approval.retention.command-receipt.original-authority.v1",
+        "apiBindingKey": "route.approvals.admin.retention-policy-draft-command.data.binding.01",
+        "projectionPolicyKey": "route.approvals.admin.retention-policy-draft-command.data.approval.retention.command-receipt.original-authority.v1.projection.v1",
+        "responseSchemaKey": "ApprovalRetentionCommandReceipt",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "95d520bbcaee4a7c3d2283cb18599d457b441e07e516cf7e335987d696eb8fbd",
+        "additionalProperties": False,
+    },
+    "route.approvals.admin.retention-policy-publication-command.data": {
+        "profileKey": "approval.retention.command-receipt.original-authority.v1",
+        "apiBindingKey": "route.approvals.admin.retention-policy-publication-command.data.binding.01",
+        "projectionPolicyKey": "route.approvals.admin.retention-policy-publication-command.data.approval.retention.command-receipt.original-authority.v1.projection.v1",
+        "responseSchemaKey": "ApprovalRetentionCommandReceipt",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "95d520bbcaee4a7c3d2283cb18599d457b441e07e516cf7e335987d696eb8fbd",
+        "additionalProperties": False,
+    },
+    "route.approvals.admin.retention-record-command.data": {
+        "profileKey": "approval.retention.command-receipt.original-authority.v1",
+        "apiBindingKey": "route.approvals.admin.retention-record-command.data.binding.01",
+        "projectionPolicyKey": "route.approvals.admin.retention-record-command.data.approval.retention.command-receipt.original-authority.v1.projection.v1",
+        "responseSchemaKey": "ApprovalRetentionCommandReceipt",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "95d520bbcaee4a7c3d2283cb18599d457b441e07e516cf7e335987d696eb8fbd",
+        "additionalProperties": False,
+    },
+    "route.approvals.admin.workflow-planning-selection.data": {
+        "profileKey": "full-management",
+        "apiBindingKey": "route.approvals.admin.workflow-planning-selection.data.binding.01",
+        "projectionPolicyKey": "route.approvals.admin.workflow-planning-selection.data.full-management.projection.v1",
+        "responseSchemaKey": "ApprovalWorkflowPlanningSelection",
+        "schemaVersion": 1,
+        "openApiSchemaSha256": "ca0ac253c38917b2d75c1793ffda73de9797fd9840edf0c5b558c62f6bd039f3",
+        "additionalProperties": False,
+    },
+}
+APPROVAL_RECOVERY11_RECEIPT_ROUTES = {
+    key for key, projection in APPROVAL_RECOVERY11_PROJECTIONS.items()
+    if projection["profileKey"] == "approval.retention.command-receipt.original-authority.v1"
+}
+APPROVAL_RECOVERY11_RECEIPT_CAPABILITIES = {
+    "route.approvals.admin.retention-policy-initialization-command.data":
+        "approvals.policy.update",
+    "route.approvals.admin.retention-policy-draft-command.data":
+        "approvals.policy.update",
+    "route.approvals.admin.retention-policy-publication-command.data":
+        "approvals.policy.publish",
+    "route.approvals.admin.retention-record-command.data":
+        "approvals.operations.execute",
+}
 
 APPROVAL_WORK_V7_SCHEMAS = {
     "route.approvals.work.draft-command-reconciliation.data": ("DraftReconciliation",
@@ -1166,6 +1252,7 @@ def _validate_approval_projection_schema_metadata(
     seen_document_routes: set[str] = set()
     seen_extension_routes: set[str] = set()
     seen_release10_routes: set[str] = set()
+    seen_recovery11_routes: set[str] = set()
     for route in snapshot["routes"]:
         subject = route["subject"]
         approval_route = (
@@ -1185,7 +1272,14 @@ def _validate_approval_projection_schema_metadata(
                 document_schema = APPROVAL_DOCUMENT_V8_SCHEMAS.get(route["routeContractKey"])
                 extension = APPROVAL_EXTENSION_V9_PROJECTIONS.get(route["routeContractKey"])
                 release10 = APPROVAL_RELEASE10_PROJECTIONS.get(route["routeContractKey"])
-                if snapshot["version"] == 10 and release10 is not None:
+                recovery11 = APPROVAL_RECOVERY11_PROJECTIONS.get(route["routeContractKey"])
+                if snapshot["version"] >= 11 and recovery11 is not None:
+                    key = route["routeContractKey"]
+                    require(profile_key == recovery11["profileKey"] and projection == {
+                        field: value for field, value in recovery11.items() if field != "profileKey"
+                    }, f"{key}: invalid recovery11 projection metadata")
+                    seen_recovery11_routes.add(key)
+                elif snapshot["version"] >= 10 and release10 is not None:
                     key = route["routeContractKey"]
                     require(profile_key == release10["profileKey"] and projection == {
                         field: value for field, value in release10.items() if field != "profileKey"
@@ -1259,8 +1353,11 @@ def _validate_approval_projection_schema_metadata(
                                      if snapshot["version"] >= 9 else set()),
             "Approval v9 extension projection schema coverage drift")
     require(seen_release10_routes == (set(APPROVAL_RELEASE10_PROJECTIONS)
-                                     if snapshot["version"] == 10 else set()),
+                                     if snapshot["version"] >= 10 else set()),
             "Approval release10 projection schema coverage drift")
+    require(seen_recovery11_routes == (set(APPROVAL_RECOVERY11_PROJECTIONS)
+                                      if snapshot["version"] >= 11 else set()),
+            "Approval recovery11 projection schema coverage drift")
 
 
 def _validate_revision(item: dict[str, Any], key: str) -> None:
@@ -1519,7 +1616,51 @@ def _validate_route(
             .get("activationPolicy", "")).startswith("STEPUP-")
         for profile in profiles
     )
-    if elevated_step_up:
+    receipt_capability = APPROVAL_RECOVERY11_RECEIPT_CAPABILITIES.get(key)
+    original_authority_receipt = (
+        receipt_capability is not None
+        and kind == "DATA"
+        and route.get("sideEffectFree") is True
+        and len(profiles) == 1
+        and profiles[0]["profileKey"]
+            == "approval.retention.command-receipt.original-authority.v1"
+        and profiles[0]["precedence"] == 300
+        and profiles[0]["activeAccessModes"] == ["NORMAL", "ELEVATED"]
+        and profiles[0]["requiredAccess"] == {
+            "type": "CAPABILITY",
+            "capabilityContractKey": receipt_capability,
+        }
+        and profiles[0]["targetBindingKinds"] == ["OBJECT"]
+        and profiles[0]["predicatePolicyKeys"] == [
+            "predicate.approval.retention-command-original-authority.v1"
+        ]
+        and profiles[0]["readOnly"] is True
+    )
+    non_publishing_review_rejection = (
+        key == "route.approvals.admin.form-publish-review-reject.action"
+        and kind == "ACTION"
+        and len(gateway) == 1
+        and next(iter(gateway.values()))["method"] == "POST"
+        and next(iter(gateway.values()))["path"]
+            == "/api/approvals/v1/admin/forms/{formId}/publish-review-requests/{requestId}/reject"
+        and len(service) == 1
+        and next(iter(service.values()))["method"] == "POST"
+        and next(iter(service.values()))["path"]
+            == "/v1/admin/forms/{formId}/publish-review-requests/{requestId}/reject"
+        and len(profiles) == 1
+        and profiles[0]["profileKey"] == "full-management"
+        and profiles[0]["requiredAccess"] == {
+            "type": "CAPABILITY",
+            "capabilityContractKey": "approvals.design.publish",
+        }
+        and profiles[0]["targetBindingKinds"] == ["OBJECT"]
+        and profiles[0]["predicatePolicyKeys"] == [
+            "predicate.approval.object-version.v1"
+        ]
+        and profiles[0]["readOnly"] is False
+    )
+    if elevated_step_up and not original_authority_receipt \
+            and not non_publishing_review_rejection:
         _validate_step_up_command_binding(route, service)
     else:
         require(route.get("stepUpCommandBindings") is None,
@@ -2225,6 +2366,10 @@ def verify_no_out_of_lineage_artifacts() -> None:
         APPROVAL_DOCUMENT_PEP_OUTPUT,
         APPROVAL_EXTENSION_PEP_OUTPUT,
         APPROVAL_RELEASE10_PEP_OUTPUT,
+        APPROVAL_RECOVERY11_PEP_OUTPUT,
+        APPROVAL_RELEASE12_PEP_OUTPUT,
+        APPROVAL_RELEASE13_PEP_OUTPUT,
+        APPROVAL_RELEASE14_PEP_OUTPUT,
         PLATFORM_APPROVALS_PEP_OUTPUT,
         PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT,
         HCM_PEOPLE_PEP_OUTPUT,
@@ -2306,6 +2451,42 @@ def main() -> int:
                 "capabilities": 37, "accessPolicies": 1,
                 "entitlementExpressions": 1, "predicatePolicies": 16,
             }, version=10,
+        )
+        approval_recovery11_pep = build_approvals_pep(
+            snapshots[10], "approval", "approval-pilot-pep-v11",
+            {
+                "routes": 112, "bindings": 120,
+                "routeKinds": {"ACTION": 55, "DATA": 42, "PAGE": 15},
+                "capabilities": 37, "accessPolicies": 1,
+                "entitlementExpressions": 1, "predicatePolicies": 18,
+            }, version=11,
+        )
+        approval_release12_pep = build_approvals_pep(
+            snapshots[11], "approval", "approval-pilot-pep-v12",
+            {
+                "routes": 141, "bindings": 149,
+                "routeKinds": {"ACTION": 75, "DATA": 51, "PAGE": 15},
+                "capabilities": 39, "accessPolicies": 1,
+                "entitlementExpressions": 1, "predicatePolicies": 18,
+            }, version=12,
+        )
+        approval_release13_pep = build_approvals_pep(
+            snapshots[12], "approval", "approval-pilot-pep-v13",
+            {
+                "routes": 144, "bindings": 152,
+                "routeKinds": {"ACTION": 77, "DATA": 52, "PAGE": 15},
+                "capabilities": 39, "accessPolicies": 1,
+                "entitlementExpressions": 1, "predicatePolicies": 18,
+            }, version=13,
+        )
+        approval_release14_pep = build_approvals_pep(
+            snapshots[13], "approval", "approval-pilot-pep-v14",
+            {
+                "routes": 149, "bindings": 157,
+                "routeKinds": {"ACTION": 79, "DATA": 55, "PAGE": 15},
+                "capabilities": 39, "accessPolicies": 1,
+                "entitlementExpressions": 1, "predicatePolicies": 18,
+            }, version=14,
         )
         platform_approvals_pep = build_approvals_pep(
             snapshots[1],
@@ -2393,6 +2574,10 @@ def main() -> int:
             ),
             write_or_check(APPROVAL_EXTENSION_PEP_OUTPUT, render(approval_extension_pep), args.check),
             write_or_check(APPROVAL_RELEASE10_PEP_OUTPUT, render(approval_release10_pep), args.check),
+            write_or_check(APPROVAL_RECOVERY11_PEP_OUTPUT, render(approval_recovery11_pep), args.check),
+            write_or_check(APPROVAL_RELEASE12_PEP_OUTPUT, render(approval_release12_pep), args.check),
+            write_or_check(APPROVAL_RELEASE13_PEP_OUTPUT, render(approval_release13_pep), args.check),
+            write_or_check(APPROVAL_RELEASE14_PEP_OUTPUT, render(approval_release14_pep), args.check),
             write_or_check(
                 PLATFORM_APPROVALS_PEP_OUTPUT,
                 render(platform_approvals_pep),
@@ -2430,6 +2615,10 @@ def main() -> int:
         verify_approvals_pep(APPROVAL_DOCUMENT_PEP_OUTPUT, approval_document_pep)
         verify_approvals_pep(APPROVAL_EXTENSION_PEP_OUTPUT, approval_extension_pep)
         verify_approvals_pep(APPROVAL_RELEASE10_PEP_OUTPUT, approval_release10_pep)
+        verify_approvals_pep(APPROVAL_RECOVERY11_PEP_OUTPUT, approval_recovery11_pep)
+        verify_approvals_pep(APPROVAL_RELEASE12_PEP_OUTPUT, approval_release12_pep)
+        verify_approvals_pep(APPROVAL_RELEASE13_PEP_OUTPUT, approval_release13_pep)
+        verify_approvals_pep(APPROVAL_RELEASE14_PEP_OUTPUT, approval_release14_pep)
         verify_approvals_pep(PLATFORM_APPROVALS_PEP_OUTPUT, platform_approvals_pep)
         verify_platform_telemetry_dimensions(platform_telemetry_dimensions)
         verify_approvals_pep(HCM_PEOPLE_PEP_OUTPUT, hcm_people_pep)

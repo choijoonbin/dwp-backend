@@ -62,6 +62,36 @@ class ApprovalSecurityFilterTest {
         assertThat(mutations.get()).isEqualTo(expectedMutations);
     }
 
+    @ParameterizedTest(name = "policy-create state={0}, ready={1}")
+    @MethodSource("rolloutTruthTable")
+    void appliesEveryRolloutStateToTheExactV13PolicyCreateRoute(
+            String state,
+            boolean ready,
+            int expectedStatus,
+            int expectedMutations) throws Exception {
+        ApprovalSecurityFilter filter = new ApprovalSecurityFilter(
+                "trusted", "", ready, objectMapper);
+        MockHttpServletRequest request = request(
+                "POST", "/v1/admin/policies", "WORKSPACE_MEMBER",
+                "ADMIN.APPROVAL_POLICY:UPDATE");
+        request.addHeader(ApprovalSecurityFilter.RESOURCE_ROLES_HEADER,
+                scopedRole("approvals.policy.update", "ADMIN.APPROVAL_POLICY:UPDATE"));
+        rollout(request, state);
+        if (state.charAt(1) == '1') {
+            trustedAuthority(request, "route.approvals.admin.policy-create.action");
+            request.addHeader(ApprovalSecurityFilter.EXPECTED_DECISION_REVISION_HEADER,
+                    "psr-" + "0123456789abcdef".repeat(4));
+        }
+        AtomicInteger mutations = new AtomicInteger();
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, (ignoredRequest, ignoredResponse) ->
+                mutations.incrementAndGet());
+
+        assertThat(response.getStatus()).isEqualTo(expectedStatus);
+        assertThat(mutations.get()).isEqualTo(expectedMutations);
+    }
+
     private static Stream<Arguments> rolloutTruthTable() {
         return Stream.of(
                 Arguments.of("000", false, 200, 1),

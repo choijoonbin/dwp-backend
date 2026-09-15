@@ -71,7 +71,9 @@ class SignatureProviderJsonTest {
         return new ObjectMapper().writeValueAsString(new InitializeInput(true, "sigp-" + SHA, SHA, compiler.disabledInitialRules(), "initialize-1"));
     }
     private String draft() throws Exception {
-        return new ObjectMapper().writeValueAsString(new DraftInput(1L, null, "sigp-" + SHA, SHA, compiler.disabledInitialRules(), "draft-1"));
+        return new ObjectMapper().writeValueAsString(new DraftInput(1L,
+                java.util.UUID.fromString("11111111-1111-1111-1111-111111111111"),
+                "sigp-" + SHA, SHA, compiler.disabledInitialRules(), "draft-1"));
     }
     private void reject(String value, Class<?> type) { assertThatThrownBy(() -> mapper.readValue(value, type)).isInstanceOf(java.io.IOException.class); }
     private ObjectMapper configured() {

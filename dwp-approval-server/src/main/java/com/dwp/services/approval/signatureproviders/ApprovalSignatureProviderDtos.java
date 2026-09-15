@@ -281,6 +281,112 @@ public final class ApprovalSignatureProviderDtos {
         }
     }
 
+    @Schema(name="ApprovalExternalSignatureSource", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record ExternalSource(UUID requestId, long requestVersion, String resourceSetKey,
+                                 String dataClassification, UUID workflowVersionId, UUID formVersionId,
+                                 int payloadRevision, String payloadSha256, String sourceSha256) {
+        public ExternalSource {
+            required(requestId); version(requestVersion); text(resourceSetKey, 80);
+            if (!resourceSetKey.matches("RS_[A-Z0-9_]{1,76}")) throw invalid("Invalid request resource set");
+            if (!Set.of("INTERNAL", "CONFIDENTIAL", "RESTRICTED").contains(dataClassification))
+                throw invalid("Invalid request classification");
+            required(workflowVersionId); required(formVersionId);
+            if (payloadRevision < 1) throw invalid("Invalid payload revision");
+            sha(payloadSha256); sha(sourceSha256);
+        }
+    }
+
+    @Schema(name="ApprovalExternalSignatureContext", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record ExternalContext(Scope scope, ExternalSource source, Policy policy,
+                                  List<ProviderCard> providers, GateState gateState,
+                                  List<String> reasonCodes, Instant evaluatedAt) {
+        public ExternalContext {
+            required(scope); required(source); required(policy); required(gateState); required(evaluatedAt);
+            providers = bounded(providers, MAX_PROVIDERS); reasonCodes = reasons(reasonCodes);
+            if (gateState == GateState.ELIGIBLE && (policy.sourceState() != PolicySourceState.AVAILABLE
+                    || policy.requiredProviderKinds() == null
+                    || policy.requiredProviderKinds().isEmpty() || !reasonCodes.isEmpty()))
+                throw invalid("External signing eligibility requires a current explicit policy");
+            if (gateState != GateState.ELIGIBLE && reasonCodes.isEmpty())
+                throw invalid("Blocked external signing requires exact reasons");
+        }
+    }
+
+    @Schema(name="ApprovalExternalSignatureCreateInput", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record ExternalCreateInput(Long expectedRequestVersion, String expectedSourceRevision,
+                                      String expectedSourceSha256, ProviderTarget provider,
+                                      String idempotencyKey) {
+        public ExternalCreateInput {
+            version(required(expectedRequestVersion)); source(expectedSourceRevision, expectedSourceSha256);
+            required(provider); key(idempotencyKey);
+        }
+    }
+
+    @Schema(name="ApprovalExternalSignatureCommandInput", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record ExternalCommandInput(Long expectedVersion, String expectedSourceRevision,
+                                       String expectedSourceSha256, String idempotencyKey) {
+        public ExternalCommandInput {
+            version(required(expectedVersion)); source(expectedSourceRevision, expectedSourceSha256); key(idempotencyKey);
+        }
+    }
+
+    @Schema(name="ApprovalExternalSignatureRequest", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record ExternalRequest(Scope scope, UUID signatureRequestId, ExternalSource source,
+                                  ProviderTarget provider, UUID policyId, UUID policyVersionId,
+                                  String policySha256, ExternalState state, long version,
+                                  String remoteReferenceSha256, List<String> reasonCodes,
+                                  Instant createdAt, Instant updatedAt) {
+        public ExternalRequest {
+            required(scope); required(signatureRequestId); required(source); required(provider);
+            required(policyId); required(policyVersionId); sha(policySha256); required(state);
+            SignatureProviderModel.version(version);
+            if (remoteReferenceSha256 != null) sha(remoteReferenceSha256);
+            reasonCodes = reasons(reasonCodes); required(createdAt); required(updatedAt);
+            if (updatedAt.isBefore(createdAt)) throw invalid("External signature timeline changed");
+            if (state == ExternalState.COMPLETED_VERIFIED && remoteReferenceSha256 == null)
+                throw invalid("Verified completion requires a provider reference");
+        }
+    }
+
+    @Schema(name="ApprovalExternalSignatureReceipt", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record ExternalReceipt(UUID receiptId, String outcome, Instant committedAt,
+                                  ExternalRequest signatureRequest) {
+        public ExternalReceipt {
+            required(receiptId); required(committedAt); required(signatureRequest);
+            if (!"COMMITTED".equals(outcome)) throw invalid("Only committed external command receipts are exposed");
+        }
+    }
+
+    @Schema(name="ApprovalExternalSignatureEvent", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record ExternalEvent(UUID eventId, long sequence, String action, ExternalState state,
+                                List<String> reasonCodes, UUID evidenceId, String evidenceSha256,
+                                Instant occurredAt) {
+        public ExternalEvent {
+            required(eventId); version(sequence); key(action); required(state);
+            reasonCodes = reasons(reasonCodes); evidence(evidenceId, evidenceSha256); required(occurredAt);
+        }
+    }
+
+    @Schema(name="ApprovalExternalSignatureAudit", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record ExternalAudit(List<ExternalEvent> items, boolean truncated) {
+        public ExternalAudit { items = bounded(items, 1_000); }
+    }
+
+    @Schema(name="ApprovalExternalSignatureArtifact", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
+    public record ExternalArtifact(UUID artifactId, ArtifactKind kind, String mediaType, String sha256,
+                                   long sizeBytes, String storageLocatorSha256, String objectVersionSha256,
+                                   Instant retainUntil, UUID evidenceId, String evidenceSha256,
+                                   Instant recordedAt) {
+        public ExternalArtifact {
+            required(artifactId); required(kind); text(mediaType, 120); sha(sha256);
+            if (sizeBytes < 1 || sizeBytes > 52_428_800L) throw invalid("Invalid external artifact size");
+            sha(storageLocatorSha256); sha(objectVersionSha256); required(retainUntil);
+            evidence(evidenceId, evidenceSha256); required(recordedAt);
+            if (!retainUntil.isAfter(recordedAt) || evidenceId == null)
+                throw invalid("External artifacts require retained verification evidence");
+        }
+    }
+
     private static void source(String revision, String digest) {
         sha(digest); if (!("sigp-" + digest).equals(revision)) throw invalid("Invalid source revision");
     }

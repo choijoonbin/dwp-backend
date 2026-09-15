@@ -87,7 +87,7 @@ class ApprovalFormLifecycleControllerTest {
         verifyNoInteractions(forms);
     }
     @Test void reviewedPublishRequiresExactSingleHeadersAndSafeIntegerObjectVersion() throws Exception {
-        var body=new PublishReviewed(version,null,0L,1L,"a".repeat(64),"b".repeat(64));
+        var body=new PublishReviewed(version,null,0L,1L,"a".repeat(64),"b".repeat(64),form,0L,"Independent review approved.");
         String raw=new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(body);
         for(String revision:List.of("0.0","00","-1","9007199254740992")) {
             mvc.perform(post(base+"/publish-reviewed").contentType(MediaType.APPLICATION_JSON).content(raw)

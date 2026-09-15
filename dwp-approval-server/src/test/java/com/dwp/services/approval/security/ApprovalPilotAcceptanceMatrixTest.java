@@ -9,6 +9,7 @@ import com.dwp.services.approval.domain.ApprovalDelegationCommandSupport;
 import com.dwp.services.approval.domain.ApprovalDtos;
 import com.dwp.services.approval.domain.ApprovalQueryRepository;
 import com.dwp.services.approval.domain.ApprovalService;
+import com.dwp.services.approval.domain.ApprovalWorkflowCommandFenceTestSupport;
 import com.dwp.services.approval.integration.ApprovalIdentityDirectory;
 import com.dwp.services.approval.support.PilotAuthorizationFixtureAdapter;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -84,7 +85,8 @@ class ApprovalPilotAcceptanceMatrixTest {
         }
         ApprovalRequestContext.set(
                 17L, 42L, null, scenario.roles(), scenario.permissions());
-        harness.execute(scenario.mutation());
+        ApprovalWorkflowCommandFenceTestSupport.runWithoutLiveDatabase(
+                () -> harness.execute(scenario.mutation()));
 
         assertRepositoryBoundary(scenario, harness.commands);
     }
@@ -101,12 +103,16 @@ class ApprovalPilotAcceptanceMatrixTest {
                 .containsExactlyInAnyOrderElementsOf(expectedMutations(scenario.mutation()));
         var reads = invocations.stream().filter(call -> QUORUM_READ.equals(signature(call.getMethod()))).toList();
         assertThat(reads).as("%s exact quorum SELECT count", scenario.testId()).hasSize(switch (scenario.mutation()) {
-            case TASK_DECIDE -> 1;
-            case OWN_ACTIONS -> 2;
+            case TASK_CLAIM, TASK_DECIDE, TASK_SELF_DENY -> 1;
+            case OWN_ACTIONS -> 3;
             default -> 0;
         });
-        if (scenario.mutation() == TASK_DECIDE || scenario.mutation() == OWN_ACTIONS) verify(commands).quorumWorkflow(42L, REQUEST_ID);
+        if (scenario.mutation() == TASK_CLAIM || scenario.mutation() == TASK_DECIDE
+                || scenario.mutation() == TASK_SELF_DENY || scenario.mutation() == OWN_ACTIONS) {
+            verify(commands).quorumWorkflow(42L, REQUEST_ID);
+        }
         if (scenario.mutation() == OWN_ACTIONS) verify(commands).quorumWorkflow(42L, uuid(7));
+        if (scenario.mutation() == OWN_ACTIONS) verify(commands).quorumWorkflow(42L, uuid(8));
     }
 
     private static List<RepositorySignature> expectedMutations(Mutation mutation) {

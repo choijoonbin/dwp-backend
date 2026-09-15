@@ -8,5 +8,6 @@ public interface ApprovalRetentionExecutionAuthorityPort {
     record Target(UUID intentId,long tenantId,long actorId,UUID requestId,String resourceSetKey,
             long requestVersion,UUID policyId,long policyVersion,long holdVersion,String inventorySha256,
             String commandFingerprint,long intentVersion) {}
+    default boolean configured() { return true; }
     SignedAuthorization current(Target target);
 }

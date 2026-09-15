@@ -896,6 +896,34 @@ class AuthSessionVerifierTest {
     }
 
     @Test
+    void resolvesApprovalAuthorityForTheSharedPlatformHomePreferenceRoute() {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "identityPlane":"TENANT","roles":["WORKSPACE_MEMBER"],
+                            "permissions":[{"resourceKey":"APP.APPROVALS",
+                            "permissionCode":"VIEW","effect":"ALLOW"}]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
+                .get("/api/platform/v1/home-preferences/surfaces/approval-home")
+                .build()).block();
+
+        assertThat(captured.get().url().getQuery())
+                .isEqualTo("permissionPrefix=APP.APPROVALS");
+        assertThat(identity).isNotNull();
+        assertThat(identity.permissions()).containsExactly("APP.APPROVALS:VIEW");
+    }
+
+    @Test
     void preservesTheAuthResourceSetKeyForApprovalResponsibilityEvidence() {
         WebClient.Builder builder = WebClient.builder().exchangeFunction(ignored -> Mono.just(
                 ClientResponse.create(HttpStatus.OK)

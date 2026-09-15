@@ -18,7 +18,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.orm.jpa.SharedEntityManagerCreator;
 
-/** Genuine immutable10/current full migrations and explicit disposable scoped duties only. */
+/** Genuine immutable planning registry/current migrations and explicit disposable scoped duties only. */
 public final class PlanningActualAuthHarness implements AutoCloseable {
     public static final String CHECKSUM="1f97638c95a192f0ec7f01053c3965f79b7a3ee4eb9781ea56e3cf8eccc6889b";
     private static final AtomicLong USERS=new AtomicLong(92000000);
@@ -28,16 +28,24 @@ public final class PlanningActualAuthHarness implements AutoCloseable {
     private PlanningEmbeddedServer http;
     private final UUID resourceSet;
     public PlanningActualAuthHarness(RSAKey owner,RSAKey transport,RSAKey attestation) throws Exception {
+        this(owner,transport,attestation,10L,CHECKSUM);
+    }
+    public PlanningActualAuthHarness(RSAKey owner,RSAKey transport,RSAKey attestation,long contractVersion) throws Exception {
+        this(owner,transport,attestation,contractVersion,null);
+    }
+    private PlanningActualAuthHarness(RSAKey owner,RSAKey transport,RSAKey attestation,long contractVersion,String expectedChecksum) throws Exception {
         auth=new WorkflowRuntimeActualAuthHarness(new RSAKeyGenerator(2048).keyID("unrelated-planning-runtime-owner").generate(),
                 new RSAKeyGenerator(2048).keyID("unrelated-planning-runtime-transport").generate(),
                 new RSAKeyGenerator(2048).keyID("unrelated-planning-runtime-attestation").generate());
         try {
             var field=WorkflowRuntimeActualAuthHarness.class.getDeclaredField("context");field.setAccessible(true);parent=(AnnotationConfigApplicationContext)field.get(auth);
-            var repository=parent.getBean(ProductAuthorizationContractRepository.class);var ten=repository.find("product-surfaces",10).orElseThrow();
+            var repository=parent.getBean(ProductAuthorizationContractRepository.class);var selected=repository.find("product-surfaces",contractVersion).orElseThrow();
             var seal=new StoredDescriptorSeal(jdbc(),repository,parent.getBean(ProductAuthorizationContractValidator.class),parent.getBean(ObjectMapper.class));
-            if(!CHECKSUM.equals(seal.loadVersion(ten).checksum())) throw new IllegalStateException("Genuine10 seal required.");
-            var contracts=parent.getBean(ProductAuthorizationContractService.class);contracts.approve("product-surfaces",10,"planning-independent-disposable-checker");
-            contracts.activate("product-surfaces",10,"planning-disposable-release",repository.findActivePointer("product-surfaces").orElseThrow().revision());
+            var descriptor=seal.loadVersion(selected);
+            if(expectedChecksum!=null && !expectedChecksum.equals(descriptor.checksum())) throw new IllegalStateException("Expected immutable planning seal required.");
+            var contracts=parent.getBean(ProductAuthorizationContractService.class);
+            contracts.approve("product-surfaces",contractVersion,"planning-independent-disposable-checker");
+            contracts.activate("product-surfaces",contractVersion,"planning-disposable-release",repository.findActivePointer("product-surfaces").orElseThrow().revision());
             resourceSet=jdbc().queryForObject("SELECT resource_set_id FROM com_admin_resource_sets WHERE tenant_id=? AND resource_set_key='RS_APPROVALS' AND lifecycle_state='ACTIVE'",UUID.class,tenantId());
             for(String resource:List.of("APP.APPROVALS","ADMIN.APPROVAL_WORKFLOW","ACTION.APPROVAL_FORM")) {
                 if(!Boolean.TRUE.equals(jdbc().queryForObject("SELECT enabled FROM com_resources WHERE tenant_id=? AND key=?",Boolean.class,tenantId(),resource)))

@@ -4,6 +4,8 @@ import static org.assertj.core.api.Assertions.*;
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.approval.domain.*;
+import com.dwp.services.approval.integration.ApprovalIntegrationOutboxRepository;
+import com.dwp.services.approval.integration.ApprovalIntegrationPublisher;
 import com.dwp.services.approval.systemslaauthority.*;
 import com.fasterxml.jackson.databind.*;
 import com.nimbusds.jose.*;
@@ -49,6 +51,21 @@ class SystemSlaNativeInteropPostgresTest {
     UUID request, workflow, workflowVersion;
     int count;
     boolean forbidGenericSlaFallback;
+
+    @org.springframework.boot.test.context.TestConfiguration(proxyBeanMethods = false)
+    static class CapturingRelayConfiguration {
+        @org.springframework.context.annotation.Bean
+        @org.springframework.context.annotation.Primary
+        CapturingPublisher approvalSystemSlaCapturingPublisher() {
+            return new CapturingPublisher();
+        }
+    }
+
+    static final class CapturingPublisher implements ApprovalIntegrationPublisher {
+        final java.util.concurrent.ConcurrentLinkedQueue<ApprovalIntegrationOutboxRepository.PendingEvent> events =
+                new java.util.concurrent.ConcurrentLinkedQueue<>();
+        @Override public void publish(ApprovalIntegrationOutboxRepository.PendingEvent event) { events.add(event); }
+    }
     @BeforeAll static void databases() {
         var root = Files.isDirectory(Path.of("dwp-auth-server")) ? Path.of(".") : Path.of("..");
         var approvalDs = ds(APPROVAL); var authDs = ds(AUTH);
@@ -187,8 +204,10 @@ class SystemSlaNativeInteropPostgresTest {
             assertThat(business()).isEqualTo(before); assertThat(notification().request()).isEqualTo(original.request());
         }
     }
-    @Test void actualApprovalWebBootInjectsRealProducerAndInternalControllerUsesFreshAuthWithoutGatewayIdentity() throws Exception {
-        ready(3); approval.update("UPDATE apr_quorum_sla_timers SET lease_until=clock_timestamp()-interval '1 second' WHERE request_id=?",request);
+    @Test void actualApprovalSchedulerCreatesAndRelaysDueOutboxBeforeNotificationRechecksFreshAuthority() throws Exception {
+        ready(3);
+        approval.update("UPDATE apr_quorum_sla_timers SET due_at=clock_timestamp()+interval '1 hour' WHERE request_id=? AND timer_id<>?",request,lease.timerId());
+        approval.update("UPDATE apr_quorum_sla_timers SET lease_until=clock_timestamp()-interval '1 second' WHERE timer_id=?",lease.timerId());
         var root = Files.isDirectory(Path.of("dwp-auth-server")) ? Path.of(".") : Path.of("..");
         try (var server = new SystemSlaEmbeddedServer(authService(),true)) {
             var properties = new LinkedHashMap<String,Object>(); properties.put("server.port",0); properties.put("otel.sdk.disabled",true);
@@ -197,11 +216,31 @@ class SystemSlaNativeInteropPostgresTest {
             properties.put("dwp.approval.system-sla.source.enabled",true); properties.put("dwp.approval.system-sla.source.owner-private-jwk",OWNER.toJSONString()); properties.put("dwp.approval.system-sla.source.transport-private-jwk",TRANSPORT.toJSONString()); properties.put("dwp.approval.system-sla.source.attestation-public-jwks",jwks(ATTEST));
             properties.put("dwp.approval.system-sla.source.auth-base-url",server.endpoint().toString().replace(SystemSlaProtocol.PATH,""));
             properties.put("dwp.approval.system-sla.notification.transport-public-jwks",jwks(NF_TRANSPORT)); properties.put("dwp.approval.system-sla.notification.attestation-private-jwk",NF_ATTEST.toJSONString()); properties.put("dwp.approval.system-sla.notification.attestation-public-jwks",jwks(NF_ATTEST));
+            properties.put("dwp.approval.workflow-quorum.sla.enabled",true); properties.put("dwp.approval.workflow-quorum.sla.batch-size",1);
+            properties.put("dwp.approval.workflow-quorum.sla.poll-delay-ms",250); properties.put("dwp.approval.integration-relay.enabled",true);
+            properties.put("dwp.approval.integration-relay.poll-delay-ms",250);
             String[] arguments = properties.entrySet().stream().map(value -> "--"+value.getKey()+"="+value.getValue()).toArray(String[]::new);
-            try (var boot = new org.springframework.boot.builder.SpringApplicationBuilder(com.dwp.services.approval.ApprovalServerApplication.class).run(arguments)) {
-                assertThat(boot.getBean(JdbcTemplate.class).queryForObject("SELECT current_database()",String.class)).isEqualTo(APPROVAL.getDatabaseName());
+            try (var boot = new org.springframework.boot.builder.SpringApplicationBuilder(
+                    com.dwp.services.approval.ApprovalServerApplication.class,CapturingRelayConfiguration.class).run(arguments)) {
+                var database = boot.getBean(JdbcTemplate.class);
+                assertThat(database.queryForObject("SELECT current_database()",String.class)).isEqualTo(APPROVAL.getDatabaseName());
                 assertThat(boot.getBean(SystemSlaProducerSource.class)).isNotNull();
-                boot.getBean(ApprovalWorkflowQuorumFacade.class).pollSla("actual-boot-system-worker",60,1);
+                assertThat(boot.getBean(ApprovalWorkflowQuorumSlaWorker.class)).isNotNull();
+                var captured = boot.getBean(CapturingPublisher.class);
+                await(() -> database.queryForObject("SELECT count(*) FROM apr_integration_outbox WHERE request_id=? AND event_type LIKE 'Approval.Quorum.Sla%' AND status='PUBLISHED'",Integer.class,request)==1);
+                var ownEvents = captured.events.stream()
+                        .filter(event -> event.requestId().equals(request))
+                        .filter(event -> event.eventType().startsWith("Approval.Quorum.Sla"))
+                        .toList();
+                assertThat(ownEvents).hasSize(1);
+                var relayed = ownEvents.getFirst(); assertThat(relayed.eventType()).startsWith("Approval.Quorum.Sla");
+                assertThat(relayed.requestId()).isEqualTo(request); assertThat(relayed.payloadSha256()).hasSize(64);
+                Thread.sleep(600);
+                assertThat(database.queryForObject("SELECT count(*) FROM apr_integration_outbox WHERE request_id=? AND event_type LIKE 'Approval.Quorum.Sla%'",Integer.class,request)).isEqualTo(1);
+                assertThat(captured.events.stream()
+                        .filter(event -> event.requestId().equals(request))
+                        .filter(event -> event.eventType().startsWith("Approval.Quorum.Sla")))
+                        .hasSize(1);
                 var proof = notification(); var token = nfTransport(proof.request()); int port = ((org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext) boot).getWebServer().getPort();
                 var call = java.net.http.HttpRequest.newBuilder(java.net.URI.create("http://127.0.0.1:"+port+SystemSlaNotificationProtocol.PATH)).header("Content-Type","application/json").header("X-DWP-Service-Identity","dwp-notification-server").header(SystemSlaNotificationProtocol.HEADER,token).POST(java.net.http.HttpRequest.BodyPublishers.ofByteArray(JSON.bytes(proof.request()))).build();
                 var response = java.net.http.HttpClient.newHttpClient().send(call,java.net.http.HttpResponse.BodyHandlers.ofByteArray()); assertThat(response.statusCode()).isEqualTo(200);
@@ -209,6 +248,11 @@ class SystemSlaNativeInteropPostgresTest {
                 assertThat(JSON.parse(signed.getPayload().toBytes()).at("/profile/recipients")).hasSize(3);
             }
         }
+    }
+    static void await(java.util.function.BooleanSupplier condition) throws Exception {
+        long deadline=System.nanoTime()+java.util.concurrent.TimeUnit.SECONDS.toNanos(15);
+        while(System.nanoTime()<deadline) {if(condition.getAsBoolean()) return;Thread.sleep(25);}
+        throw new AssertionError("Timed out waiting for scheduled SYSTEM_SLA delivery");
     }
     SystemSlaProducerSource producer(SystemSlaEmbeddedServer server,SystemSlaCurrentSource source,Runnable beforeFreshHttp) {
         var keys = new SystemSlaSourceKeys(JSON,OWNER.toJSONString(),TRANSPORT.toJSONString(),jwks(ATTEST),List.of(NF_TRANSPORT.toJSONString(),NF_ATTEST.toJSONString()));

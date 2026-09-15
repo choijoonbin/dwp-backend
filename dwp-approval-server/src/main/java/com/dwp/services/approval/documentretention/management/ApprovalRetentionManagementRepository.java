@@ -40,7 +40,7 @@ public class ApprovalRetentionManagementRepository {
         String reason=pending==null?"NO_PENDING_REVISION":pending.maker().equals(actor.userId())?"INDEPENDENT_CHECKER_REQUIRED":"ELIGIBLE_REQUIRES_SIGNED_HIGH";
         return new Policy(h.id(),scope,h.version(),h.published(),h.pending(),pending==null?null:pending.maker(),
                 published.sha(),pending==null?null:pending.sha(),published.rules(),pending==null?null:pending.rules(),
-                "ELIGIBLE_REQUIRES_SIGNED_HIGH".equals(reason),reason,"RUNTIME_DISABLED_UNTIL_OWNER_FENCES_AND_PROVIDERS");
+                "ELIGIBLE_REQUIRES_SIGNED_HIGH".equals(reason),reason,"MANAGED_EXECUTION_REQUIRES_CONFIGURED_AUTH_AND_OWNER_PORTS");
     }
     private record Head(UUID id,long version,int published,Integer pending) {}
     private record Version(PublicRules rules,String sha,Long maker) {}
@@ -128,6 +128,6 @@ public class ApprovalRetentionManagementRepository {
         String foreign=r.getBoolean("complete_chunks") && requested==verified?"ALL_DECLARED_COPIES_CONFIRMED":"VERIFIED_FOREIGN_COPY_ACKS_PENDING";
         return new Claim(r.getObject("intent_id",UUID.class),r.getObject("request_id",UUID.class),r.getString("resource_set_key"),
                 r.getLong("version"),r.getString("actual_state")==null?r.getString("state"):r.getString("actual_state"),r.getString("reason_code"),
-                r.getString("inventory_sha256"),r.getObject("execution_claim_id",UUID.class),requested,verified,foreign,"RUNTIME_DISABLED_UNTIL_OWNER_FENCES_AND_PROVIDERS");
+                r.getString("inventory_sha256"),r.getObject("execution_claim_id",UUID.class),requested,verified,foreign,"MANAGED_EXECUTION_REQUIRES_CONFIGURED_AUTH_AND_OWNER_PORTS");
     }
 }

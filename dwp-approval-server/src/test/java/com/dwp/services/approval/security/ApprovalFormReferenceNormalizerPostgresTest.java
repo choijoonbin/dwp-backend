@@ -111,7 +111,8 @@ class ApprovalFormReferenceNormalizerPostgresTest extends ApprovalDraftPostgresF
     @Test void existingPinnedPublishedVersionSurvivesCurrentVersionAdvanceWithoutMigration() {
         var request = createPinnedRequest("create-old");
         advanceVersion();
-        var detail = queries.requestDetail(ApprovalRequestContext.require(), request.requestId());
+        var detail = tx(() -> queries.requestDetail(
+                ApprovalRequestContext.require(), request.requestId()));
         assertThat(detail.formVersionId()).isEqualTo(versionId);
         assertThat(detail.formSchemaSha256()).isEqualTo(new ApprovalFormSchemaV2Compiler().compile(schema).sha256());
         action("request-submit.action", request.requestId()); response(false);

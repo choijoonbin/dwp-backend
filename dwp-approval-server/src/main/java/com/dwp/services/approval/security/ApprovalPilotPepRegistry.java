@@ -3,13 +3,10 @@ package com.dwp.services.approval.security;
 import com.dwp.core.security.ScopedAuthorityToken;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -23,7 +20,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-/** Exact release10 PEP, with immutable v2, v7, v8 and v9 projections validated at startup. */
+import static com.dwp.services.approval.security.ApprovalPepProjectionJson.*;
+
+/** Exact release14 PEP, with every prior immutable projection validated at startup. */
 @Component
 public final class ApprovalPilotPepRegistry {
 
@@ -43,6 +42,14 @@ public final class ApprovalPilotPepRegistry {
             "product-authorization/approval-pilot-pep-v9.generated.json";
     static final String V10_RESOURCE =
             "product-authorization/approval-pilot-pep-v10.generated.json";
+    static final String V11_RESOURCE =
+            "product-authorization/approval-pilot-pep-v11.generated.json";
+    static final String V12_RESOURCE =
+            "product-authorization/approval-pilot-pep-v12.generated.json";
+    static final String V13_RESOURCE =
+            "product-authorization/approval-pilot-pep-v13.generated.json";
+    static final String V14_RESOURCE =
+            "product-authorization/approval-pilot-pep-v14.generated.json";
 
     private final ObjectMapper objectMapper;
     private final Clock clock;
@@ -58,7 +65,7 @@ public final class ApprovalPilotPepRegistry {
     }
 
     ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock) {
-        this(objectMapper, clock, 10);
+        this(objectMapper, clock, 14);
     }
 
     ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock, boolean baselineOnly) {
@@ -68,7 +75,8 @@ public final class ApprovalPilotPepRegistry {
     ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock, int version) {
         this.objectMapper = objectMapper;
         this.clock = clock;
-        require(Set.of(2, 7, 8, 9, 10).contains(version), "Unsupported Approval PEP version");
+        require(Set.of(2L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L).contains((long) version),
+                "Unsupported Approval PEP version");
         if (version != 2) {
             new ApprovalPilotPepRegistry(objectMapper, clock, 2);
         }
@@ -78,6 +86,10 @@ public final class ApprovalPilotPepRegistry {
             case 8 -> V8_RESOURCE;
             case 9 -> V9_RESOURCE;
             case 10 -> V10_RESOURCE;
+            case 11 -> V11_RESOURCE;
+            case 12 -> V12_RESOURCE;
+            case 13 -> V13_RESOURCE;
+            case 14 -> V14_RESOURCE;
             default -> throw new IllegalStateException("Unsupported Approval PEP version");
         });
         ApprovalPepProjectionLineage.validateEnvelope(objectMapper, projection, version);
@@ -96,6 +108,30 @@ public final class ApprovalPilotPepRegistry {
             new ApprovalPilotPepRegistry(objectMapper, clock, 9);
             ApprovalPepProjectionLineage.validateSuperset(readProjection(V9_RESOURCE), projection);
             ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
+        }
+        if (version == 11) {
+            new ApprovalPilotPepRegistry(objectMapper, clock, 10);
+            ApprovalPepProjectionLineage.validateSuperset(readProjection(V10_RESOURCE), projection);
+            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
+            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
+        }
+        if (version == 12) {
+            new ApprovalPilotPepRegistry(objectMapper, clock, 11);
+            ApprovalPepProjectionLineage.validateSuperset(readProjection(V11_RESOURCE), projection);
+            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
+            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
+        }
+        if (version == 13) {
+            new ApprovalPilotPepRegistry(objectMapper, clock, 12);
+            ApprovalPepProjectionLineage.validateSuperset(readProjection(V12_RESOURCE), projection);
+            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
+            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
+        }
+        if (version == 14) {
+            new ApprovalPilotPepRegistry(objectMapper, clock, 13);
+            ApprovalPepProjectionLineage.validateSuperset(readProjection(V13_RESOURCE), projection);
+            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
+            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
         }
         if (version != 2) ApprovalWorkProjectionSchemaContract.validateResource(objectMapper);
         capabilities = index(projection, "capabilities", "contractKey");
@@ -138,7 +174,9 @@ public final class ApprovalPilotPepRegistry {
             binding.profiles().stream()
                     .sorted(Comparator.comparingInt(Profile::precedence).reversed())
                     .filter(profile -> profileAllows(profile, evidence))
-                    .filter(profile -> !ApprovalPep10AuthorityKeys.ROUTE.equals(binding.routeContractKey()) || ApprovalPep10AuthorityKeys.sameResourceSet(evidence.resourceRoles(), capabilities))
+                    .filter(profile -> !ApprovalPep10AuthorityKeys.isPlanningRoute(binding.routeContractKey())
+                            || ApprovalPep10AuthorityKeys.sameResourceSet(
+                            evidence.resourceRoles(), capabilities))
                     .findFirst()
                     .ifPresent(profile -> authorities.addAll(authorityContributions(binding, profile)));
         }
@@ -285,7 +323,7 @@ public final class ApprovalPilotPepRegistry {
     }
 
     private List<RouteAuthority> authorityContributions(Binding binding, Profile profile) {
-        if (ApprovalPep10AuthorityKeys.ROUTE.equals(binding.routeContractKey())) {
+        if (ApprovalPep10AuthorityKeys.isPlanningRoute(binding.routeContractKey())) {
             return ApprovalPep10AuthorityKeys.planning(binding.routeKind(), profile.profileKey(),
                     profile.readOnly(), profile.requiredAccess()).stream()
                     .map(key -> authority(binding, profile, key)).toList();
@@ -389,9 +427,25 @@ public final class ApprovalPilotPepRegistry {
 
     private void validateClosure(ObjectNode projection) {
         int version = projection.path("registryRef").path("version").asInt();
-        require(capabilities.size() == (version == 10 ? 37 : version == 9 ? 32 : version == 8 ? 28 : 24) && policies.size() == 1
-                        && expressions.size() == 1 && predicates.size()
-                        == (version == 2 ? 6 : version == 7 ? 7 : version == 8 ? 10 : version == 9 ? 13 : 16),
+        int expectedCapabilities = switch (version) {
+            case 2, 7 -> 24;
+            case 8 -> 28;
+            case 9 -> 32;
+            case 10, 11 -> 37;
+            case 12, 13, 14 -> 39;
+            default -> throw new IllegalStateException("Unsupported Approval PEP version");
+        };
+        int expectedPredicates = switch (version) {
+            case 2 -> 6;
+            case 7 -> 7;
+            case 8 -> 10;
+            case 9 -> 13;
+            case 10 -> 16;
+            case 11, 12, 13, 14 -> 18;
+            default -> throw new IllegalStateException("Unsupported Approval PEP version");
+        };
+        require(capabilities.size() == expectedCapabilities && policies.size() == 1
+                        && expressions.size() == 1 && predicates.size() == expectedPredicates,
                 "Approval Pilot descriptor closure count changed");
         capabilities.forEach((capabilityKey, capability) -> {
             String requirement = capability.path("responsibilityRequirement").asText();
@@ -455,45 +509,7 @@ public final class ApprovalPilotPepRegistry {
     }
 
     private ObjectNode readProjection(String resource) {
-        try (InputStream input = getClass().getClassLoader().getResourceAsStream(resource)) {
-            if (input == null) throw new IllegalStateException("Generated Approval Pilot PEP is absent.");
-            JsonNode value = objectMapper.readTree(input);
-            if (!(value instanceof ObjectNode object)) {
-                throw new IllegalStateException("Generated Approval Pilot PEP must be an object.");
-            }
-            return object;
-        } catch (IOException exception) {
-            throw new IllegalStateException("Generated Approval Pilot PEP cannot be read.", exception);
-        }
-    }
-
-    private Map<String, JsonNode> index(ObjectNode root, String field, String keyField) {
-        return indexArray(requiredArray(root, field), keyField, field);
-    }
-
-    private Map<String, JsonNode> indexArray(JsonNode values, String keyField, String label) {
-        require(values.isArray(), label + " must be an array");
-        Map<String, JsonNode> result = new LinkedHashMap<>();
-        for (JsonNode value : values) {
-            String key = value.path(keyField).asText();
-            require(!key.isBlank() && result.putIfAbsent(key, value) == null,
-                    label + ": duplicate or empty " + keyField);
-        }
-        return Map.copyOf(result);
-    }
-
-    private JsonNode descriptor(Map<String, JsonNode> values, String key, String label) {
-        JsonNode value = values.get(key);
-        if (value == null) throw new IllegalStateException("Unknown Approval " + label + " " + key);
-        return value;
-    }
-
-    private Set<String> textValues(JsonNode value) {
-        require(value.isArray(), "Expected a generated string array");
-        Set<String> result = new LinkedHashSet<>();
-        value.forEach(item -> require(item.isTextual() && result.add(item.asText()),
-                "Generated string array contains an invalid or duplicate value"));
-        return Set.copyOf(result);
+        return ApprovalPepProjectionJson.readProjection(objectMapper, resource);
     }
 
     private Set<ActiveAccessMode> activeAccessModes(JsonNode value, String profileKey) {
@@ -564,31 +580,6 @@ public final class ApprovalPilotPepRegistry {
         } catch (IllegalArgumentException exception) {
             return Set.of();
         }
-    }
-
-    private static String textOrNull(JsonNode node, String field) {
-        JsonNode value = node.get(field);
-        return value == null || value.isNull() || value.asText().isBlank() ? null : value.asText();
-    }
-
-    private static Integer integerOrNull(JsonNode node, String field) {
-        JsonNode value = node.get(field);
-        return value != null && value.isInt() ? value.intValue() : null;
-    }
-
-    private static Boolean booleanOrNull(JsonNode node, String field) {
-        JsonNode value = node.get(field);
-        return value != null && value.isBoolean() ? value.booleanValue() : null;
-    }
-
-    private static ArrayNode requiredArray(JsonNode source, String field) {
-        JsonNode value = source.path(field);
-        require(value instanceof ArrayNode, field + " must be an array");
-        return (ArrayNode) value;
-    }
-
-    private static void require(boolean condition, String message) {
-        if (!condition) throw new IllegalStateException(message);
     }
 
     public record RequestEvidence(

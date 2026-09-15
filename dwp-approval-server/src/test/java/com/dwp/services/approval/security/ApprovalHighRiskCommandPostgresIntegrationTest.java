@@ -78,6 +78,8 @@ class ApprovalHighRiskCommandPostgresIntegrationTest {
                 .locations("classpath:db/migration")
                 .cleanDisabled(false)
                 .load();
+        new JdbcTemplate(dataSource).execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
+        new JdbcTemplate(dataSource).execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         flyway.clean();
         flyway.migrate();
 
@@ -207,12 +209,14 @@ class ApprovalHighRiskCommandPostgresIntegrationTest {
     }
 
     @Test
-    void missingAssignedPartyAndLegacyEvidenceFailUnavailableWithoutAnySideEffect() {
+    void missingAssignedPartyFailsUnavailableWithoutAnySideEffect() {
         seedUnrecoverableOutbox("PENDING", null, null, null, false);
 
         assertAuthorityUnavailableWithoutSideEffects();
+    }
 
-        jdbc.update("DELETE FROM apr_integration_outbox WHERE outbox_id = ?", OUTBOX_ID);
+    @Test
+    void legacyAssignmentEvidenceFailsUnavailableWithoutAnySideEffect() {
         seedUnrecoverableOutbox(
                 "LEGACY_UNASSIGNED", 300L, "RS_APPROVALS", null, true);
 

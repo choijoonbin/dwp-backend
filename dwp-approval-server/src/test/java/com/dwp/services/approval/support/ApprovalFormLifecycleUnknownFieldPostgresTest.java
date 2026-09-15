@@ -46,10 +46,12 @@ class ApprovalFormLifecycleUnknownFieldPostgresTest {
     }
     @Autowired ObjectMapper json;
     record LegacyProbe(String known) { }
-    @Test void actualConfiguredMapperRejectsUnknownKeysInAllFiveFormInputRecords() throws Exception {
+    @Test void actualConfiguredMapperRejectsUnknownKeysInEveryFormLifecycleInputRecord() throws Exception {
         UUID id = UUID.randomUUID(); var metadata = new MetadataInput(id, "Name", "Name", "Description", "Description", "OWNER", "REQUEST");
         var inputs = List.of(metadata, new Branch(0L, null), new AvailabilityChange(0L, null),
-                new PublishReviewed(id, null, 0L, 0L, "a".repeat(64), "b".repeat(64)),
+                new PublishReviewed(id, null, 0L, 0L, "a".repeat(64), "b".repeat(64), id, 0L, "Independent review approved."),
+                new RequestPublishReview(id, null, 0L, 0L, "a".repeat(64), 10L, id, null, null, "Independent review requested."),
+                new RejectPublishReview(0L, 0L, 0L, "Independent review rejected."),
                 new UpdateWorkingDraft(id, 0L, null, Map.of("schemaVersion", 1, "fields", List.of()), metadata, id));
         var soft = new SoftAssertions();
         for (var input : inputs) {
@@ -82,7 +84,7 @@ class ApprovalFormLifecycleUnknownFieldPostgresTest {
         UUID form = UUID.randomUUID(), version = UUID.randomUUID(); String base = "/v1/admin/forms/" + form;
         var metadata = new MetadataInput(form, "Name", "Name", "Description", "Description", "OWNER", "REQUEST");
         var update = new UpdateWorkingDraft(version, 0L, null, Map.of("arbitrary", Map.of("custom", true)), metadata, form);
-        var publish = new PublishReviewed(version, null, 0L, 0L, "a".repeat(64), "b".repeat(64));
+        var publish = new PublishReviewed(version, null, 0L, 0L, "a".repeat(64), "b".repeat(64), form, 0L, "Independent review approved.");
         var cases = Map.of("/versions/" + version + "/branch", new Branch(0L, null),
                 "/retire", new AvailabilityChange(0L, null), "/reinstate", new AvailabilityChange(0L, null),
                 "/working-draft", update, "/publish-reviewed", publish);

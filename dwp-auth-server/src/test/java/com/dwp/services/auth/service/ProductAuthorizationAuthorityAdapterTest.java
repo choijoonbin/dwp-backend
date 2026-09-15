@@ -350,6 +350,38 @@ class ProductAuthorizationAuthorityAdapterTest {
     }
 
     @Test
+    void allowsAssignedPublishReviewRejectionWithoutActivatingActualPublish() throws IOException {
+        useContract("product-surfaces-v1.bundle-v14.generated.json");
+        List<AppGovernanceDtos.ResourceRole> scope = List.of(role(
+                "APP_CONFIG_ADMIN", "APP.APPROVALS", "RS_APPROVALS"));
+        evidence(Set.of("ADMIN.APPROVAL_DESIGN:PUBLISH"), Set.of(), scope, List.of(
+                duty("APPROVAL_DESIGN_PUBLISH", "ADMIN.APPROVAL_DESIGN",
+                        "RS_APPROVALS", Map.of("approvals.design.publish",
+                                "ADMIN.APPROVAL_DESIGN:PUBLISH"))));
+
+        ProductSurfaceAuthorityDtos.AuthorityResult rejection = evaluate(
+                "approvals", "approvals.admin", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.approvals.admin.form-publish-review-reject.action",
+                null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult publication = evaluate(
+                "approvals", "approvals.admin", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.approvals.admin.form-reviewed-publish.action",
+                null, null, null, null, List.of());
+
+        assertThat(rejection.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(rejection.requestPolicyRef()).isNull();
+        assertThat(rejection.effectiveGrants()).singleElement()
+                .isInstanceOfSatisfying(
+                        ProductSurfaceAuthorityDtos.CapabilityGrant.class,
+                        grant -> assertThat(grant.activationState())
+                                .isEqualTo(ProductSurfaceAuthorityDtos.ActivationState.ACTIVE));
+        assertThat(publication.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
+        assertThat(publication.requestPolicyRef()).isEqualTo("STEPUP-MGMT-HIGH-V1");
+    }
+
+    @Test
     void globalApprovalPermissionAndConfigResponsibilityCannotReplaceScopedDuty() {
         evidence(Set.of("ADMIN.APPROVAL_DESIGN:PUBLISH"), Set.of(
                 "APPROVAL_PUBLISHER"), List.of(role(
@@ -886,6 +918,30 @@ class ProductAuthorizationAuthorityAdapterTest {
             Set<String> permissions,
             List<AppGovernanceDtos.ResourceRole> responsibilities) {
         evidence(permissions, Set.of(), responsibilities);
+    }
+
+    private void useContract(String resource) throws IOException {
+        org.mockito.Mockito.reset(repository);
+        ProductAuthorizationContractDtos.BundleContract contract = new ObjectMapper()
+                .findAndRegisterModules()
+                .readValue(getClass().getResourceAsStream(
+                                "/product-authorization/" + resource),
+                        ProductAuthorizationContractDtos.BundleContract.class);
+        UUID bundleId = UUID.fromString("22222222-2222-2222-2222-222222222222");
+        OffsetDateTime now = OffsetDateTime.now(CLOCK);
+        ProductAuthorizationContractRepository.StoredBundle stored =
+                new ProductAuthorizationContractRepository.StoredBundle(
+                        bundleId, contract.bundleKey(), contract.version(), "ACTIVE",
+                        contract.schemaVersion(), contract.checksumAlgorithm(),
+                        contract.checksum(), contract.owner(), "security-reviewer",
+                        now, now, now);
+        when(repository.findActive("product-surfaces")).thenReturn(Optional.of(stored));
+        when(repository.loadContract(stored)).thenReturn(contract);
+        when(repository.findActivePointer("product-surfaces")).thenReturn(Optional.of(
+                new ProductAuthorizationContractRepository.ActivePointer(
+                        "product-surfaces", bundleId, contract.version(), "release", now)));
+        adapter = new ProductAuthorizationAuthorityAdapter(
+                repository, evidenceService, CLOCK, "urn:dwp:acr:mfa");
     }
 
     private void assertTargetPopulationCapabilityScope(

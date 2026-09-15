@@ -41,4 +41,7 @@ public class WorkflowPlanningConfiguration {
             NamedParameterJdbcTemplate jdbc,ObjectMapper mapper,PlatformTransactionManager manager,ApprovalWorkAuthority work) {
         return new WorkflowPlanningFacade(environment.getProperty(PREFIX+"enabled",Boolean.class,false),runtime::getObject,installed,jdbc,mapper,manager,work);
     }
+    @Bean WorkflowPlanningReadiness workflowPlanningReadiness(Environment environment,ObjectProvider<WorkflowPlanningRuntime> runtime) {
+        return new WorkflowPlanningReadiness(environment.getProperty(PREFIX+"enabled",Boolean.class,false),runtime::getObject);
+    }
 }

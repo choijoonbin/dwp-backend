@@ -1,10 +1,13 @@
 package com.dwp.services.approval.domain;
 
 import com.dwp.services.approval.systemslaauthority.*;
+import com.dwp.services.approval.integration.ApprovalIntegrationPublisher;
 import java.time.Clock;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.context.annotation.*;
 import org.springframework.core.env.Environment;
+import org.springframework.kafka.core.KafkaAdmin;
 
 @Configuration(proxyBeanMethods = false)
 public class ApprovalSystemSlaProducerConfiguration {
@@ -20,6 +23,16 @@ public class ApprovalSystemSlaProducerConfiguration {
             keys.getObject(); client.getObject(); bind(runtime,source);
         });
         return new Object();
+    }
+    @Bean
+    @ConditionalOnProperty(name="dwp.approval.workflow-quorum.sla.enabled",havingValue="true")
+    ApprovalSystemSlaRuntimeReadiness approvalSystemSlaRuntimeReadiness(Environment environment,
+            ObjectProvider<SystemSlaSourceKeys> sourceKeys,ObjectProvider<SystemSlaNotificationKeys> notificationKeys,
+            ObjectProvider<AuthApprovalSystemSlaAuthorityClient> authorityClients,
+            ObjectProvider<ApprovalIntegrationPublisher> publishers,KafkaAdmin kafkaAdmin) {
+        return new ApprovalSystemSlaRuntimeReadiness(environment,() -> {
+            sourceKeys.getObject();notificationKeys.getObject();authorityClients.getObject();publishers.getObject();
+        },kafkaAdmin);
     }
     public static void bind(ApprovalWorkflowQuorumSlaRuntime runtime,SystemSlaProducerSource source) { runtime.bindProducer(source::authority); }
 }

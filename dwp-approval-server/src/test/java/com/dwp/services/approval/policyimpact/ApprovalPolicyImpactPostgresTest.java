@@ -38,6 +38,7 @@ class ApprovalPolicyImpactPostgresTest {
         var source = new PGSimpleDataSource(); source.setURL(PG.getJdbcUrl()); source.setUser(PG.getUsername()); source.setPassword(PG.getPassword());
         var migration = Flyway.configure().dataSource(source).locations("classpath:db/migration").cleanDisabled(false).load();
         new JdbcTemplate(source).execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
+        new JdbcTemplate(source).execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         migration.clean(); migration.migrate();
         jdbc = new JdbcTemplate(source); named = new NamedParameterJdbcTemplate(source);
         transactions = new TransactionTemplate(new DataSourceTransactionManager(source));

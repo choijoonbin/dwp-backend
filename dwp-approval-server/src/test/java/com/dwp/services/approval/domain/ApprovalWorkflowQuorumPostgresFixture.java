@@ -45,6 +45,7 @@ class ApprovalWorkflowQuorumPostgresFixture implements ApprovalWorkflowQuorumAut
         // Reset only the disposable test database, never any live DWP database.
         var flyway = Flyway.configure().dataSource(source).locations("classpath:db/migration").cleanDisabled(false).load();
         new JdbcTemplate(source).execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
+        new JdbcTemplate(source).execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         flyway.clean();
         flyway.migrate();
         jdbc = new JdbcTemplate(source);

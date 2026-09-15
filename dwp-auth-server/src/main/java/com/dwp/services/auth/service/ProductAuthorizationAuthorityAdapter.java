@@ -26,9 +26,6 @@ import static com.dwp.services.auth.service.ProductAuthorizationAuthoritySupport
 public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAuthorityPort {
 
     private static final String BUNDLE_KEY = "product-surfaces";
-    private static final String PRODUCT_NOT_REGISTERED = "PRODUCT_NOT_REGISTERED";
-    private static final String SURFACE_NOT_REGISTERED = "SURFACE_NOT_REGISTERED";
-    private static final String ROUTE_NOT_REGISTERED = "ROUTE_NOT_REGISTERED";
 
     private final ProductAuthorizationContractRepository repository;
     private final ProductAuthorizationIdentityEvidenceService evidenceService;
@@ -618,7 +615,14 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                     ProductSurfaceAuthorityDtos.Decision.SOD_CONFLICT,
                     "SOD_CONFLICT");
         }
-        boolean activationEligible = capability.activationPolicy() != null
+        boolean originalAuthorityReceipt = request.directRouteEvaluation() && readOnly
+                && ProductAuthorizationRecovery11ProjectionSchema.isOriginalAuthorityReceiptRoute(request.routeContractKey())
+                && predicates.equals(List.of(ProductAuthorizationRecovery11ProjectionSchema.RECEIPT_PREDICATE));
+        boolean nonPublishingReviewRejection = request.directRouteEvaluation()
+                && "route.approvals.admin.form-publish-review-reject.action".equals(request.routeContractKey());
+        boolean activationEligible = !originalAuthorityReceipt
+                && !nonPublishingReviewRejection
+                && capability.activationPolicy() != null
                 && request.activeAccessMode() != ProductSurfaceAuthorityDtos.AccessMode.ELEVATED;
         OffsetDateTime validUntil = scoped
                 ? ScopedAdminDutyPolicy.validUntil(duties, roles)
@@ -691,9 +695,5 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 "evidence-" + digest(authRevision + policyRevision).substring(0, 24));
     }
 
-    private record EntryPolicyEvaluation(
-            List<Evaluation> allowed,
-            Evaluation typedDeny) {
-    }
-
+    private record EntryPolicyEvaluation(List<Evaluation> allowed, Evaluation typedDeny) {}
 }

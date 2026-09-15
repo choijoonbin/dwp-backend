@@ -36,12 +36,14 @@ public class ApprovalQueryRepository {
 
     private final NamedParameterJdbcTemplate jdbc;
     private final ApprovalGovernanceQuerySupport governance;
+    private final ApprovalAdminPulseRepository adminPulse;
 
     public ApprovalQueryRepository(
             NamedParameterJdbcTemplate jdbc,
             ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.governance = new ApprovalGovernanceQuerySupport(jdbc, objectMapper);
+        this.adminPulse = new ApprovalAdminPulseRepository(jdbc);
     }
 
     public void ensureTenant(long tenantId) {
@@ -285,23 +287,7 @@ public class ApprovalQueryRepository {
     }
 
     public ApprovalDtos.AdminPulse adminPulse(long tenantId) {
-        return jdbc.queryForObject(ApprovalQuerySql01.ADMIN_PULSE_SELECT_APR_WORKFLOW_DEFINITIONS, managementParams(tenantId),
-                (result, rowNumber) -> new ApprovalDtos.AdminPulse(
-                        result.getInt("published_workflows"),
-                        result.getInt("draft_workflows"),
-                        result.getInt("active_requests"),
-                        result.getInt("overdue_tasks"),
-                        result.getInt("failed_integrations"),
-                        List.of(
-                                assurance("identity", result.getInt("identity_gaps")),
-                                assurance("segregation", result.getInt("sod_violations")),
-                                assurance("evidence", result.getInt("evidence_gaps")),
-                                assurance("delivery", result.getInt("failed_integrations")))));
-    }
-
-    private ApprovalDtos.AssuranceSignal assurance(String key, int exceptions) {
-        return new ApprovalDtos.AssuranceSignal(
-                key, exceptions == 0 ? "ENFORCED" : "ATTENTION", exceptions);
+        return adminPulse.load(managementParams(tenantId));
     }
 
     public List<ApprovalDtos.WorkflowSummary> workflows(long tenantId, boolean publishedOnly) {

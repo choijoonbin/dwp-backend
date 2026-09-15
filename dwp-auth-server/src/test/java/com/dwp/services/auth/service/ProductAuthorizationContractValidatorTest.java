@@ -215,11 +215,19 @@ class ProductAuthorizationContractValidatorTest {
                 generatedDocument("product-surfaces-v1.bundle-v9.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionTen = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v10.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(10);
-        assertThat(index.latestChecksum()).isEqualTo(versionTen.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionEleven = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v11.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionTwelve = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v12.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionThirteen = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v13.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionFourteen = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v14.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(14);
+        assertThat(index.latestChecksum()).isEqualTo(versionFourteen.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
-                .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L);
+                .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -239,6 +247,30 @@ class ProductAuthorizationContractValidatorTest {
         assertStrictCapabilitySuperset(versionNine, versionTen);
         assertThat(versionNine.routes()).hasSize(302);
         assertThat(versionTen.routes()).hasSize(318);
+        assertThat(versionEleven.routes()).hasSize(323)
+                .containsAll(versionTen.routes());
+        assertThat(versionEleven.capabilities())
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionTen.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertStrictCapabilitySuperset(versionEleven, versionTwelve);
+        assertThat(versionTwelve.routes()).hasSize(352)
+                .containsAll(versionEleven.routes());
+        assertThat(versionThirteen.capabilities())
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionTwelve.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertThat(versionThirteen.routes()).hasSize(355)
+                .containsAll(versionTwelve.routes());
+        assertThat(versionFourteen.capabilities())
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionThirteen.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertThat(versionFourteen.routes()).hasSize(360)
+                .containsAll(versionThirteen.routes());
         assertThat(versionSix.routes()).filteredOn(value -> value.routeContractKey().equals(
                 "route.services.work.request-information-response.action"))
                 .singleElement().satisfies(route -> {

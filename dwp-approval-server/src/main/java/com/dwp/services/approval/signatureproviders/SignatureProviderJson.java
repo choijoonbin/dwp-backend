@@ -25,7 +25,9 @@ public final class SignatureProviderJson {
             ApprovalSignatureProviderDtos.ProbeInput.class, ApprovalSignatureProviderDtos.KmsProbeInput.class,
             ApprovalSignatureProviderDtos.WormInspectionInput.class,
             ApprovalSignatureProviderPolicyDtos.InitializeInput.class, ApprovalSignatureProviderPolicyDtos.DraftInput.class,
-            ApprovalSignatureProviderPolicyDtos.PublishInput.class);
+            ApprovalSignatureProviderPolicyDtos.PublishInput.class,
+            ApprovalSignatureProviderDtos.ExternalCreateInput.class,
+            ApprovalSignatureProviderDtos.ExternalCommandInput.class);
     private final ObjectMapper mapper;
 
     public SignatureProviderJson(ObjectMapper configured) {

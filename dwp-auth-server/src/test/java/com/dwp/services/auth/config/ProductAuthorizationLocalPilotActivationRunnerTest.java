@@ -50,7 +50,7 @@ class ProductAuthorizationLocalPilotActivationRunnerTest {
     void rejectsEnabledBootstrapWhenTheEnvironmentMarkerIsMissing() {
         assertThatIllegalStateException()
                 .isThrownBy(() -> new ProductAuthorizationLocalPilotActivationRunner(
-                        true, APPROVER, ACTIVATOR, new MockEnvironment(), service))
+                        true, 3, APPROVER, ACTIVATOR, new MockEnvironment(), service))
                 .withMessageContaining("forbidden outside");
 
         verifyNoInteractions(service);
@@ -60,7 +60,7 @@ class ProductAuthorizationLocalPilotActivationRunnerTest {
     void doesNotTrustTheCanonicalApplicationDefaultAsTheLocalMarker() {
         assertThatIllegalStateException()
                 .isThrownBy(() -> new ProductAuthorizationLocalPilotActivationRunner(
-                        true, APPROVER, ACTIVATOR,
+                        true, 3, APPROVER, ACTIVATOR,
                         new MockEnvironment().withProperty("dwp.environment", "local"),
                         service))
                 .withMessageContaining("forbidden outside");
@@ -73,6 +73,17 @@ class ProductAuthorizationLocalPilotActivationRunnerTest {
         assertThatIllegalStateException()
                 .isThrownBy(() -> runner(true, "local", APPROVER, " " + APPROVER + " "))
                 .withMessageContaining("actor references must differ");
+    }
+
+    @Test
+    void rejectsNonPositiveTargetVersionBeforeDatabaseAccess() {
+        assertThatIllegalStateException()
+                .isThrownBy(() -> new ProductAuthorizationLocalPilotActivationRunner(
+                        true, 0, APPROVER, ACTIVATOR,
+                        new MockEnvironment().withProperty("DWP_ENVIRONMENT", "local"), service))
+                .withMessageContaining("version must be positive");
+
+        verifyNoInteractions(service);
     }
 
     @Test
@@ -124,13 +135,46 @@ class ProductAuthorizationLocalPilotActivationRunnerTest {
         verify(service).activate("product-surfaces", 3, ACTIVATOR, 4);
     }
 
+    @Test
+    void activatesConfiguredLatestBundleOverAnOlderLocalPilot() {
+        ProductAuthorizationContractDtos.BundleView draft =
+                bundle(14, "DRAFT", 0, "sha256:local-v14");
+        ProductAuthorizationContractDtos.BundleView approved =
+                bundle(14, "APPROVED", 0, "sha256:local-v14");
+        ProductAuthorizationContractDtos.BundleView activeV3 = bundle("ACTIVE", 7);
+        when(service.version("product-surfaces", 14)).thenReturn(draft);
+        when(service.approve("product-surfaces", 14, APPROVER)).thenReturn(approved);
+        when(service.active("product-surfaces")).thenReturn(activeV3);
+        when(service.activate("product-surfaces", 14, ACTIVATOR, 7))
+                .thenReturn(new ProductAuthorizationContractDtos.ActivationResult(
+                        "product-surfaces", 14, "ACTIVATE", 8, "sha256:local-v14"));
+
+        runner(true, "local", APPROVER, ACTIVATOR, 14).run(null);
+
+        InOrder order = inOrder(service);
+        order.verify(service).version("product-surfaces", 14);
+        order.verify(service).approve("product-surfaces", 14, APPROVER);
+        order.verify(service).active("product-surfaces");
+        order.verify(service).activate("product-surfaces", 14, ACTIVATOR, 7);
+    }
+
     private ProductAuthorizationLocalPilotActivationRunner runner(
             boolean enabled,
             String environment,
             String approver,
             String activator) {
+        return runner(enabled, environment, approver, activator, 3);
+    }
+
+    private ProductAuthorizationLocalPilotActivationRunner runner(
+            boolean enabled,
+            String environment,
+            String approver,
+            String activator,
+            long targetVersion) {
         return new ProductAuthorizationLocalPilotActivationRunner(
                 enabled,
+                targetVersion,
                 approver,
                 activator,
                 new MockEnvironment().withProperty("DWP_ENVIRONMENT", environment),

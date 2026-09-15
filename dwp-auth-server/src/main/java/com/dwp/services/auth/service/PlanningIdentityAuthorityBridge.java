@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 /** Current Auth-owned management authority. The caller's Gateway revision is never an Auth revision. */
 @Component
 public final class PlanningIdentityAuthorityBridge implements PlanningAuthorityPort {
+    private static final String SELECTION_ROUTE="route.approvals.admin.workflow-planning-selection.data";
     private final ProductAuthorizationIdentityEvidenceService identities;
     private final ProductSurfaceAuthorityService surfaces;
     private final ProductAuthorizationContractRepository contracts;
@@ -35,7 +36,7 @@ public final class PlanningIdentityAuthorityBridge implements PlanningAuthorityP
             var bundle=contracts.findActive("product-surfaces").orElseThrow(PlanningProtocol::unavailable);
             var pointer=contracts.findActivePointer("product-surfaces").orElseThrow(PlanningProtocol::unavailable);
             var registry=new Registry(seals.loadActive(bundle,pointer));
-            if (bundle.version()!=10 || !"ACTIVE".equals(bundle.bundleStatus()) || !pointer.bundleId().equals(bundle.bundleId())) throw unavailable();
+            if (!Set.of(10L, 11L, 12L, 13L, 14L).contains(bundle.version()) || !"ACTIVE".equals(bundle.bundleStatus()) || !pointer.bundleId().equals(bundle.bundleId())) throw unavailable();
             var route=registry.routesByKey().get(ROUTE);
             if (route==null || route.accessProfiles()==null || route.accessProfiles().size()!=1) throw unavailable();
             var profile=route.accessProfiles().getFirst();
@@ -49,10 +50,13 @@ public final class PlanningIdentityAuthorityBridge implements PlanningAuthorityP
                         || !"PERMISSION".equals(capability.authorityMode()) || !"LOW".equals(capability.riskTier())
                         || !"APP_RESOURCE_SET:RS_APPROVALS".equals(capability.scopeResolver()) || capability.requiresProductEntitlement()
                         || capability.mappingVersion()!=1 || capability.policyVersion()!=1 || capability.activationPolicy()!=null || capability.sodPolicyId()!=null
-                        || !capability.routeContractKeys().equals(List.of(ROUTE))) throw unavailable();
+                        || !capability.routeContractKeys().equals(expectedCapabilityRoutes(bundle.version()))) throw unavailable();
             }
             return new Observation(bundle,pointer,registry);
         } catch (RuntimeException invalid) { throw unavailable(); }
+    }
+    private static List<String> expectedCapabilityRoutes(long version) {
+        return version==10L?List.of(ROUTE):List.of(SELECTION_ROUTE,ROUTE);
     }
     @Override public Owner requireCurrent(PlanningProofVerifier.Verified proof) {
         if (proof==null || !proof.expiresAt().isAfter(clock.instant())) throw denied();
@@ -68,7 +72,7 @@ public final class PlanningIdentityAuthorityBridge implements PlanningAuthorityP
                 || !result.effectiveReadOnly() || result.accessMode()!=mode || !binding.contextKey().equals(result.contextKey())) throw denied();
         var scopes=result.scopes().stream().filter(scope->binding.contextScopeKey().equals(scope.key())).toList();
         if (scopes.size()!=1 || !scopes.getFirst().readOnly() || !before.revision().equals(result.authRevision())
-                || !("policy-10-"+beforeRegistry.pointer.revision()+'-'+beforeRegistry.bundle.checksum()).equals(result.policyRevision())) throw changed();
+                || !("policy-"+beforeRegistry.bundle.version()+'-'+beforeRegistry.pointer.revision()+'-'+beforeRegistry.bundle.checksum()).equals(result.policyRevision())) throw changed();
         Instant expiry=earliest(proof.expiresAt(),scopes.getFirst().validUntil());
         expiry=earliest(expiry,result.validUntil()); expiry=earliest(expiry,result.revalidateAt());
         var grants=new java.util.ArrayList<Object>();

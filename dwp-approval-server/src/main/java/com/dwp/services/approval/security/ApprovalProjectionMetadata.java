@@ -14,7 +14,10 @@ final class ApprovalProjectionMetadata {
         Set<String> base = Set.of("apiBindingKey", "projectionPolicyKey", "responseSchemaKey");
         boolean work = ApprovalWorkProjectionSchemaContract.isWorkDataRoute(routeKey);
         boolean document = ApprovalDocumentProjectionSchemaContract.isDocumentDataRoute(routeKey);
-        if (ApprovalRelease10ProjectionSchemaContract.isRelease10DataRoute(routeKey)) {
+        if (ApprovalRecovery11ProjectionSchemaContract.isRecovery11DataRoute(routeKey)) {
+            require(ApprovalRecovery11ProjectionSchemaContract.matches(routeKey, profileKey, projection),
+                    "Approval recovery11 response projection schema metadata changed");
+        } else if (ApprovalRelease10ProjectionSchemaContract.isRelease10DataRoute(routeKey)) {
             require(ApprovalRelease10ProjectionSchemaContract.matches(routeKey, profileKey, projection),
                     "Approval release10 response projection schema metadata changed");
         } else if (ApprovalExtensionProjectionSchemaContract.isExtensionDataRoute(routeKey)) {

@@ -38,4 +38,17 @@ public final class WorkflowPlanningAuthorityClient {
         catch(java.util.concurrent.ExecutionException error) {if(error.getCause() instanceof com.dwp.core.exception.BaseException failure) throw failure;throw unavailable();}
         catch(java.util.concurrent.TimeoutException error) {throw unavailable();} finally {pending.cancel(true);body.cancel();}
     }
+    public void requireReady() {
+        var request=HttpRequest.newBuilder(endpoint).timeout(Duration.ofSeconds(5)).header("Content-Type","application/json")
+                .header("X-DWP-Service-Identity","dwp-approval-server").header(TOKEN_HEADER,"readiness.invalid")
+                .POST(HttpRequest.BodyPublishers.ofString("{}",java.nio.charset.StandardCharsets.UTF_8)).build();
+        var body=new WorkflowPlanningResponseBody();var pending=http.sendAsync(request,info->body);
+        try {
+            var response=pending.get(5,TimeUnit.SECONDS);var types=response.headers().allValues("Content-Type");
+            if(response.statusCode()!=403 || types.size()!=1 || !"application/json".equals(types.getFirst().split(";",2)[0].strip())
+                    || response.body().length==0) throw unavailable();
+        } catch(com.dwp.core.exception.BaseException error) {throw error;} catch(InterruptedException error) {Thread.currentThread().interrupt();throw unavailable();}
+        catch(java.util.concurrent.ExecutionException | java.util.concurrent.TimeoutException error) {throw unavailable();}
+        finally {pending.cancel(true);body.cancel();}
+    }
 }

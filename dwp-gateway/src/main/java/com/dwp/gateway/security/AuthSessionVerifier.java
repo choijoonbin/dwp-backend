@@ -237,6 +237,10 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/platform/v1/admin/dwaion/agents")) {
             return "ADMIN.DWAION_AGENTS";
         }
+        if (path.equals(
+                "/api/platform/v1/home-preferences/surfaces/approval-home")) {
+            return "APP.APPROVALS";
+        }
         if (path.startsWith("/api/platform/v1/mail")) {
             return "APP.MAIL";
         }

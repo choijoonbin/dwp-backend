@@ -31,6 +31,7 @@ class ApprovalRetentionProtocolPostgresTest extends ApprovalDocumentPostgresFixt
     @BeforeEach void before(TestInfo info) throws Exception {
         var admin=source(PG.getUsername(),PG.getPassword());
         // This schema is outside Flyway's public schema and only this disposable PG is reset.
+        new JdbcTemplate(admin).execute("DROP SCHEMA IF EXISTS apr_signature_native CASCADE");
         new JdbcTemplate(admin).execute("DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
         initializeDocuments(PG);
         jdbc.execute("ALTER ROLE dwp_approval_retention_executor LOGIN PASSWORD 'disposable-test-only'");
@@ -136,8 +137,8 @@ class ApprovalRetentionProtocolPostgresTest extends ApprovalDocumentPostgresFixt
         assertThat(jdbc.queryForObject("SELECT count(*) FROM public.retention_function_probe",Long.class)).isEqualTo(1);
     }
     @Test void allCatalogTablesHaveCommonBeforeAfterGuardsWithoutPublicHelperGrant() {
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_trigger WHERE tgname='trg_retention_deny_delete' AND NOT tgisinternal",Integer.class)).isEqualTo(39);
-        assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_trigger WHERE tgname='trg_retention_consume_delete' AND NOT tgisinternal",Integer.class)).isEqualTo(39);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_trigger WHERE tgname='trg_retention_deny_delete' AND NOT tgisinternal",Integer.class)).isEqualTo(44);
+        assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_trigger WHERE tgname='trg_retention_consume_delete' AND NOT tgisinternal",Integer.class)).isEqualTo(44);
         assertThat(jdbc.queryForObject("SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace,LATERAL aclexplode(p.proacl) a WHERE n.nspname='apr_retention_internal' AND a.grantee=0 AND a.privilege_type='EXECUTE'",Integer.class)).isZero();
         assertThat(jdbc.queryForObject("SELECT has_schema_privilege('approval_retention_test_app','apr_retention_internal','USAGE')",Boolean.class)).isFalse();
     }

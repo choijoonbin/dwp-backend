@@ -25,7 +25,7 @@ public final class RetentionExecutionIdentityAuthorityBridge implements Retentio
         try {
             var bundle=contracts.findActive("product-surfaces").orElseThrow(RetentionExecutionProtocol::unavailable);
             var pointer=contracts.findActivePointer("product-surfaces").orElseThrow(RetentionExecutionProtocol::unavailable);
-            if(bundle.version()!=10 || !"ACTIVE".equals(bundle.bundleStatus()) || !bundle.bundleId().equals(pointer.bundleId())) throw unavailable();
+            if(!Set.of(10L, 11L, 12L, 13L, 14L).contains(bundle.version()) || !"ACTIVE".equals(bundle.bundleStatus()) || !bundle.bundleId().equals(pointer.bundleId())) throw unavailable();
             var registry=new Registry(seals.loadActive(bundle,pointer));var route=registry.routesByKey().get(ROUTE);var cap=registry.capabilitiesByKey().get(CAPABILITY);
             if(route==null || !"ACTION".equals(route.routeKind()) || cap==null || !"ACTIVE".equals(cap.lifecycleState())
                     || !PERMISSION.equals(cap.resolvedCapabilityCode()) || !"EXECUTE".equals(cap.action()) || !"HIGH".equals(cap.riskTier())
@@ -65,7 +65,7 @@ public final class RetentionExecutionIdentityAuthorityBridge implements Retentio
         if(grant.readOnly() || !PERMISSION.equals(grant.resolvedCapabilityCode()) || !"APP_CONFIG_ADMIN".equals(grant.responsibility().code())
                 || !grant.scopeKeys().equals(List.of(scopeKey)) || grant.activationState()!=ProductSurfaceAuthorityDtos.ActivationState.ELIGIBLE
                 || !before.revision().equals(result.authRevision())
-                || !("policy-10-"+beforeRegistry.pointer.revision()+'-'+beforeRegistry.bundle.checksum()).equals(result.policyRevision())) throw changed();
+                || !("policy-"+beforeRegistry.bundle.version()+'-'+beforeRegistry.pointer.revision()+'-'+beforeRegistry.bundle.checksum()).equals(result.policyRevision())) throw changed();
         Instant expiry=proof.expiresAt();for(var deadline:Arrays.asList(result.validUntil(),result.revalidateAt(),scopes.getFirst().validUntil(),grant.validUntil(),
                 duties.getFirst().validTo(),responsibilities.getFirst().validTo())) if(deadline!=null && deadline.toInstant().isBefore(expiry)) expiry=deadline.toInstant();
         var after=identities.load(target.tenantId(),target.actorId());var afterPrincipal=principal(target);var afterRegistry=installed();

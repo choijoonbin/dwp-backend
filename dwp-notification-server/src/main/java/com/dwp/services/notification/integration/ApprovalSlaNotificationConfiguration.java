@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.kafka.config.ConcurrentKafkaListenerContainerFactory;
 import org.springframework.kafka.core.ConsumerFactory;
+import org.springframework.kafka.core.KafkaAdmin;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.listener.DeadLetterPublishingRecoverer;
 import org.springframework.kafka.listener.DefaultErrorHandler;
@@ -65,13 +66,27 @@ public class ApprovalSlaNotificationConfiguration {
     @Bean
     ConcurrentKafkaListenerContainerFactory<Object, Object> approvalSlaKafkaListenerContainerFactory(
             ConsumerFactory<Object, Object> consumers, KafkaTemplate<Object, Object> template,
-            @Value("${dwp.notification.approval-sla.dead-letter-topic:dwp.approval.events.v1.SYSTEM_SLA.DLT}") String topic) {
+            @Value("${dwp.notification.approval-sla.dead-letter-topic:dwp.approval.events.v1.DLT}") String topic) {
         if (topic == null || topic.isBlank() || !topic.equals(topic.strip())) throw new IllegalArgumentException("Invalid SLA dead-letter topic.");
         var factory = new ConcurrentKafkaListenerContainerFactory<Object, Object>();
         factory.setConsumerFactory(consumers);
         var recoverer = new DeadLetterPublishingRecoverer(template, (record, error) -> new TopicPartition(topic, record.partition()));
         factory.setCommonErrorHandler(new DefaultErrorHandler(recoverer, new FixedBackOff(1000, 3)));
         return factory;
+    }
+
+    @Bean
+    ApprovalSlaNotificationReadiness approvalSlaNotificationReadiness(
+            org.springframework.core.env.Environment environment,
+            ApprovalSlaRecipientAuthorityClient authority,
+            ApprovalSlaNotificationConsumer consumer,
+            ApprovalSlaNotificationKafkaListener listener,
+            KafkaAdmin kafkaAdmin) {
+        return new ApprovalSlaNotificationReadiness(environment, () -> {
+            java.util.Objects.requireNonNull(authority);
+            java.util.Objects.requireNonNull(consumer);
+            java.util.Objects.requireNonNull(listener);
+        }, kafkaAdmin);
     }
 
     private static List<RSAKey> publicKeys(String raw) throws java.text.ParseException {
