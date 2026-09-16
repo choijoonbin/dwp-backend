@@ -4,6 +4,7 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
 import com.dwp.services.platform.home.personalization.HomeCommandReceiptService;
+import com.dwp.services.platform.audit.PlatformAuditService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
@@ -31,7 +32,7 @@ class HomeWidgetCommandServiceTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final HomeRuntimeProperties properties = new HomeRuntimeProperties(
-            true, false, Duration.ofMillis(900), Duration.ofMillis(400),
+            true, false, true, Duration.ofMillis(900), Duration.ofMillis(400),
             Duration.ofSeconds(30), Duration.ofMinutes(5), 100, 262_144);
 
     @Test
@@ -159,13 +160,78 @@ class HomeWidgetCommandServiceTest {
         assertThat(provider.calls).hasValue(1);
     }
 
+    @Test
+    void commandsRemainFailClosedAndAuditedUntilWaveSixPromotion() {
+        HomeRuntimeContext context = TestFixtures.context();
+        UUID commandId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        FakeCommandProvider provider = new FakeCommandProvider(context, commandId);
+        HomeReadModelService readModels = mock(HomeReadModelService.class);
+        HomeCommandReceiptService receipts = mock(HomeCommandReceiptService.class);
+        PlatformAuditService audit = mock(PlatformAuditService.class);
+        HomeRuntimeProperties disabled = new HomeRuntimeProperties(
+                true, false, false, Duration.ofMillis(900), Duration.ofMillis(400),
+                Duration.ofSeconds(30), Duration.ofMinutes(5), 100, 262_144);
+        HomeWidgetCommandService service = new HomeWidgetCommandService(
+                List.of(provider), readModels, receipts, new HomeCanonicalJson(objectMapper),
+                new ProviderResultValidator(objectMapper, disabled), disabled, audit);
+
+        assertThatThrownBy(() -> service.execute(
+                context, "CLASSIC", "DESKTOP_STANDARD", commandId,
+                new HomeReadModelDtos.CommandRequest(
+                        instanceId, "accept-item", "result-1", Map.of())))
+                .isInstanceOfSatisfying(BaseException.class, failure ->
+                        assertThat(failure.getErrorCode())
+                                .isEqualTo(com.dwp.core.common.ErrorCode.RESOURCE_NOT_AVAILABLE));
+
+        verify(audit).event(
+                context.tenantId(), context.userId(), "home.widget.command.attempted",
+                "HOME_WIDGET_ACTION", instanceId + ":accept-item", commandId.toString(), "SUCCESS");
+        verify(audit).event(
+                context.tenantId(), context.userId(), "home.widget.command.denied",
+                "HOME_WIDGET_ACTION", instanceId + ":accept-item", commandId.toString(), "DENIED");
+        verify(readModels, never()).read(any(), any(), any());
+        assertThat(provider.calls).hasValue(0);
+    }
+
+    @Test
+    void technicalProviderFailureIsAuditedAsFailedRatherThanDenied() {
+        HomeRuntimeContext context = TestFixtures.context();
+        UUID commandId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        FakeCommandProvider provider = new FakeCommandProvider(context, commandId);
+        provider.fail = true;
+        HomeReadModelService readModels = mock(HomeReadModelService.class);
+        when(readModels.read(context, "CLASSIC", "DESKTOP_STANDARD"))
+                .thenReturn(new HomeReadModelDtos.ReadResult(model(instanceId, "result-1"), "\"e\""));
+        HomeCommandReceiptService receipts = mock(HomeCommandReceiptService.class);
+        PlatformAuditService audit = mock(PlatformAuditService.class);
+        HomeWidgetCommandService service = new HomeWidgetCommandService(
+                List.of(provider), readModels, receipts, new HomeCanonicalJson(objectMapper),
+                new ProviderResultValidator(objectMapper, properties), properties, audit);
+
+        assertThatThrownBy(() -> service.execute(
+                context, "CLASSIC", "DESKTOP_STANDARD", commandId,
+                new HomeReadModelDtos.CommandRequest(
+                        instanceId, "accept-item", "result-1", Map.of())))
+                .isInstanceOf(WidgetProviderException.class);
+
+        verify(audit).event(
+                context.tenantId(), context.userId(), "home.widget.command.failed",
+                "HOME_WIDGET_ACTION", instanceId + ":accept-item", commandId.toString(), "FAILED");
+        verify(audit, never()).event(
+                context.tenantId(), context.userId(), "home.widget.command.denied",
+                "HOME_WIDGET_ACTION", instanceId + ":accept-item", commandId.toString(), "DENIED");
+    }
+
     private HomeWidgetCommandService service(
             FakeCommandProvider provider,
             HomeReadModelService readModels,
             HomeCommandReceiptService receipts) {
         return new HomeWidgetCommandService(
                 List.of(provider), readModels, receipts, new HomeCanonicalJson(objectMapper),
-                new ProviderResultValidator(objectMapper, properties), properties);
+                new ProviderResultValidator(objectMapper, properties), properties,
+                mock(PlatformAuditService.class));
     }
 
     private void emulateReceiptStore(HomeCommandReceiptService receipts) {
@@ -214,6 +280,7 @@ class HomeWidgetCommandServiceTest {
         private final HomeRuntimeContext context;
         private final UUID commandId;
         private volatile long delayMillis;
+        private volatile boolean fail;
 
         private FakeCommandProvider(HomeRuntimeContext context, UUID commandId) {
             this.context = context;
@@ -239,6 +306,11 @@ class HomeWidgetCommandServiceTest {
                 HomeWidgetProviderContract.CommandRequest request,
                 OffsetDateTime deadline) {
             calls.incrementAndGet();
+            if (fail) {
+                throw new WidgetProviderException(
+                        WidgetProviderException.Kind.UNAVAILABLE,
+                        "PROVIDER_HTTP_5XX", "Owner provider failed.");
+            }
             if (delayMillis > 0) {
                 try {
                     Thread.sleep(delayMillis);

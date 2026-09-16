@@ -1,5 +1,6 @@
 package com.dwp.services.platform.home.runtime;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -10,6 +11,7 @@ public class HomeRuntimeProperties {
 
     private final boolean enabled;
     private final boolean shadowEnabled;
+    private final boolean commandsEnabled;
     private final Duration overallDeadline;
     private final Duration providerTimeout;
     private final Duration cacheTtl;
@@ -17,9 +19,11 @@ public class HomeRuntimeProperties {
     private final int maximumCacheEntries;
     private final int maximumProviderPayloadBytes;
 
+    @Autowired
     public HomeRuntimeProperties(
             @Value("${dwp.platform.home-runtime.enabled:false}") boolean enabled,
             @Value("${dwp.platform.home-runtime.shadow-enabled:true}") boolean shadowEnabled,
+            @Value("${dwp.platform.home-runtime.commands-enabled:false}") boolean commandsEnabled,
             @Value("${dwp.platform.home-runtime.overall-deadline:PT0.9S}") Duration overallDeadline,
             @Value("${dwp.platform.home-runtime.provider-timeout:PT0.4S}") Duration providerTimeout,
             @Value("${dwp.platform.home-runtime.cache-ttl:PT30S}") Duration cacheTtl,
@@ -29,6 +33,7 @@ public class HomeRuntimeProperties {
             int maximumProviderPayloadBytes) {
         this.enabled = enabled;
         this.shadowEnabled = shadowEnabled;
+        this.commandsEnabled = commandsEnabled;
         this.overallDeadline = bounded(overallDeadline, Duration.ofMillis(100), Duration.ofSeconds(1));
         this.providerTimeout = bounded(providerTimeout, Duration.ofMillis(50), this.overallDeadline);
         this.cacheTtl = bounded(cacheTtl, Duration.ofSeconds(1), Duration.ofMinutes(2));
@@ -38,12 +43,30 @@ public class HomeRuntimeProperties {
                 16_384, Math.min(maximumProviderPayloadBytes, 1_048_576));
     }
 
+    /** Test/source compatibility constructor. Commands remain fail-closed unless explicitly enabled. */
+    public HomeRuntimeProperties(
+            boolean enabled,
+            boolean shadowEnabled,
+            Duration overallDeadline,
+            Duration providerTimeout,
+            Duration cacheTtl,
+            Duration staleIfError,
+            int maximumCacheEntries,
+            int maximumProviderPayloadBytes) {
+        this(enabled, shadowEnabled, false, overallDeadline, providerTimeout, cacheTtl,
+                staleIfError, maximumCacheEntries, maximumProviderPayloadBytes);
+    }
+
     public boolean enabled() {
         return enabled;
     }
 
     public boolean shadowEnabled() {
         return shadowEnabled;
+    }
+
+    public boolean commandsEnabled() {
+        return enabled && commandsEnabled;
     }
 
     public Duration overallDeadline() {

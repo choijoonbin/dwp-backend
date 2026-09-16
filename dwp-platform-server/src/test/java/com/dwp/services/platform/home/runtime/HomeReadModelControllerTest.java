@@ -34,6 +34,7 @@ class HomeReadModelControllerTest {
                 .andExpect(header().string("ETag", "\"etag-1\""))
                 .andExpect(header().string("Cache-Control", HomeReadModelController.CACHE_CONTROL))
                 .andExpect(header().string("X-DWP-Home-Runtime-Mode", "SHADOW"))
+                .andExpect(header().string("X-DWP-Home-Commands-Enabled", "false"))
                 .andExpect(header().string("X-DWP-Widget-Registry-Authoritative", "false"))
                 .andExpect(jsonPath("$.data.schemaVersion").value(2));
     }

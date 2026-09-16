@@ -45,6 +45,18 @@ class PlatformAuditServiceTest {
     }
 
     @Test
+    void recordsMetadataOnlyDeniedEventWithoutBusinessPayload() {
+        service.event(7L, 11L, "home.widget.command.denied", "HOME_WIDGET_ACTION",
+                "instance:action", "command-id", "DENIED");
+
+        ArgumentCaptor<PlatformAuditEvent> capture = ArgumentCaptor.forClass(PlatformAuditEvent.class);
+        verify(repository).save(capture.capture());
+        assertThat(capture.getValue().getOutcome()).isEqualTo("DENIED");
+        assertThat(capture.getValue().getBeforeSnapshot()).isNull();
+        assertThat(capture.getValue().getAfterSnapshot()).isNull();
+    }
+
+    @Test
     void returnsOnlyReferenceSetAggregateActivityInDescendingOrder() {
         PlatformAuditEvent event = PlatformAuditEvent.builder()
                 .auditEventId(UUID.fromString("10000000-0000-0000-0000-000000000001"))

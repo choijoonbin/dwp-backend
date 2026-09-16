@@ -25,6 +25,7 @@ public final class HttpWidgetProviderClient implements WidgetProviderPort {
 
     private final String providerKey;
     private final String serviceToken;
+    private final boolean commandsEnabled;
     private final RestClient client;
     private final CircuitBreaker circuitBreaker;
     private final Bulkhead bulkhead;
@@ -33,12 +34,14 @@ public final class HttpWidgetProviderClient implements WidgetProviderPort {
             String providerKey,
             String baseUrl,
             String serviceToken,
+            boolean commandsEnabled,
             Duration timeout,
             RestClient.Builder builder,
             CircuitBreakerRegistry circuitBreakers,
             BulkheadRegistry bulkheads) {
         this.providerKey = providerKey;
         this.serviceToken = serviceToken == null ? "" : serviceToken.trim();
+        this.commandsEnabled = commandsEnabled;
         HttpClient httpClient = HttpClient.newBuilder().connectTimeout(timeout).build();
         JdkClientHttpRequestFactory requestFactory = new JdkClientHttpRequestFactory(httpClient);
         requestFactory.setReadTimeout(timeout);
@@ -50,6 +53,18 @@ public final class HttpWidgetProviderClient implements WidgetProviderPort {
         this.circuitBreaker = circuitBreakers.circuitBreaker(
                 "homeRuntime-" + providerKey, circuitConfig);
         this.bulkhead = bulkheads.bulkhead("homeRuntime-" + providerKey);
+    }
+
+    /** Compatibility constructor for read-only clients and tests. */
+    public HttpWidgetProviderClient(
+            String providerKey,
+            String baseUrl,
+            String serviceToken,
+            Duration timeout,
+            RestClient.Builder builder,
+            CircuitBreakerRegistry circuitBreakers,
+            BulkheadRegistry bulkheads) {
+        this(providerKey, baseUrl, serviceToken, false, timeout, builder, circuitBreakers, bulkheads);
     }
 
     @Override
@@ -143,6 +158,11 @@ public final class HttpWidgetProviderClient implements WidgetProviderPort {
             HomeRuntimeContext context,
             HomeWidgetProviderContract.CommandRequest command,
             OffsetDateTime deadline) {
+        if (!commandsEnabled) {
+            throw failure(WidgetProviderException.Kind.FORBIDDEN,
+                    "COMMAND_FEATURE_DISABLED",
+                    "Home provider commands are disabled for this deployment.", null);
+        }
         if (serviceToken.isBlank()) {
             throw failure(WidgetProviderException.Kind.UNAVAILABLE,
                     "PROVIDER_NOT_CONFIGURED", "Home provider transport is not configured.", null);

@@ -12,7 +12,8 @@ import java.util.Set;
 public class HomeRuntimeTelemetry {
 
     private static final Set<String> PROVIDERS = Set.of(
-            "platform", "approval", "meeting", "notification", "space", "messaging", "people");
+            "platform", "workplace", "dwaion", "approval", "meeting", "notification", "space",
+            "messaging", "people");
     private static final Set<String> OUTCOMES = Set.of(
             "SUCCESS", "FORBIDDEN", "TIMEOUT", "UNAVAILABLE", "MALFORMED");
     private static final Set<String> CACHE_RESULTS = Set.of(

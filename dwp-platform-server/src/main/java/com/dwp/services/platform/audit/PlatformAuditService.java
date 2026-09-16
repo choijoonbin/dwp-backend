@@ -16,6 +16,8 @@ import java.util.UUID;
 public class PlatformAuditService {
 
     private static final int MAX_SNAPSHOT_LENGTH = 32_000;
+    private static final java.util.Set<String> OUTCOMES =
+            java.util.Set.of("SUCCESS", "DENIED", "FAILED");
 
     private final PlatformAuditEventRepository repository;
     private final ObjectMapper objectMapper;
@@ -49,6 +51,24 @@ public class PlatformAuditService {
                 correlationId, before, after);
     }
 
+    /** Records a metadata-only user event with an explicit security outcome. */
+    public UUID event(
+            Long tenantId,
+            Long actorId,
+            String action,
+            String targetType,
+            String targetId,
+            String correlationId,
+            String outcome) {
+        String normalized = outcome == null ? "" : outcome.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!OUTCOMES.contains(normalized)) {
+            throw new IllegalArgumentException("Unsupported audit outcome.");
+        }
+        return recordEvent(
+                tenantId, "USER", actorId, action, targetType, targetId,
+                correlationId, normalized, null, null);
+    }
+
     public void serviceSuccess(
             Long tenantId,
             String action,
@@ -72,6 +92,22 @@ public class PlatformAuditService {
             String correlationId,
             Object before,
             Object after) {
+        return recordEvent(
+                tenantId, actorType, actorId, action, targetType, targetId,
+                correlationId, "SUCCESS", before, after);
+    }
+
+    private UUID recordEvent(
+            Long tenantId,
+            String actorType,
+            Long actorId,
+            String action,
+            String targetType,
+            String targetId,
+            String correlationId,
+            String outcome,
+            Object before,
+            Object after) {
         UUID auditEventId = UUID.randomUUID();
         repository.save(PlatformAuditEvent.builder()
                 .auditEventId(auditEventId)
@@ -81,7 +117,7 @@ public class PlatformAuditService {
                 .action(action)
                 .targetType(targetType)
                 .targetId(targetId)
-                .outcome("SUCCESS")
+                .outcome(outcome)
                 .correlationId(correlationId)
                 .beforeSnapshot(snapshot(before))
                 .afterSnapshot(snapshot(after))

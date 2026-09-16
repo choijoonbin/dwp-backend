@@ -14,6 +14,7 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.assertThatCode;
 
 class ProviderResultValidatorTest {
 
@@ -44,6 +45,26 @@ class ProviderResultValidatorTest {
                 .isInstanceOfSatisfying(WidgetProviderException.class, failure ->
                         org.assertj.core.api.Assertions.assertThat(failure.kind())
                                 .isEqualTo(WidgetProviderException.Kind.MALFORMED));
+    }
+
+    @Test
+    void rejectsCustomSchemeUrlsInsideDeclarativePayload() {
+        HomeWidgetProviderContract.BatchResponse response = response(valid(
+                Map.of("deepLink", "skdwp://evil.example/path"), List.of(), List.of()));
+
+        assertThatThrownBy(() -> validator.validate(response, context, List.of(request)))
+                .isInstanceOfSatisfying(WidgetProviderException.class, failure ->
+                        org.assertj.core.api.Assertions.assertThat(failure.kind())
+                                .isEqualTo(WidgetProviderException.Kind.MALFORMED));
+    }
+
+    @Test
+    void acceptsOrdinaryLocalizedTextContainingAColon() {
+        HomeWidgetProviderContract.BatchResponse response = response(valid(
+                Map.of("summary", "Re: quarterly planning"), List.of(), List.of()));
+
+        assertThatCode(() -> validator.validate(response, context, List.of(request)))
+                .doesNotThrowAnyException();
     }
 
     @Test
@@ -112,7 +133,7 @@ class ProviderResultValidatorTest {
 
     private HomeRuntimeProperties properties() {
         return new HomeRuntimeProperties(
-                true, false, Duration.ofMillis(900), Duration.ofMillis(400),
+                true, false, true, Duration.ofMillis(900), Duration.ofMillis(400),
                 Duration.ofSeconds(30), Duration.ofMinutes(5), 100, 262_144);
     }
 }

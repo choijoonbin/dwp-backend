@@ -26,7 +26,7 @@ public class ProviderResultValidator {
     private static final int MAX_STRING = 4_096;
     private static final int MAX_REDACTIONS = 32;
     private static final Pattern EXTERNAL_URI = Pattern.compile(
-            "^(?:[A-Za-z][A-Za-z0-9+.-]*:|//).*");
+            "(?i)^(?:(?:[a-z][a-z0-9+.-]*):\\/\\/|//|(?:javascript|data|file|mailto):).*");
 
     private final ObjectMapper objectMapper;
     private final HomeRuntimeProperties properties;
@@ -192,6 +192,9 @@ public class ProviderResultValidator {
                     malformed("Source route action contains command metadata.");
                 }
             } else {
+                if (!properties.commandsEnabled()) {
+                    malformed("Provider command actions are disabled for this deployment.");
+                }
                 if (action.sourceRoute() != null || action.commandKey() == null
                         || !action.commandKey().matches("[a-z][a-z0-9.-]{2,119}")
                         || action.expectedResultVersion() == null

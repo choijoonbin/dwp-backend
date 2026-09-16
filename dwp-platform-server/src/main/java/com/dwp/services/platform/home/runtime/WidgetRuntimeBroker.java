@@ -1,17 +1,14 @@
 package com.dwp.services.platform.home.runtime;
 
 import com.dwp.platform.contract.home.HomeWidgetProviderContract;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -31,7 +28,7 @@ public class WidgetRuntimeBroker {
     private final ProviderResultValidator validator;
     private final HomeRuntimeProperties properties;
     private final HomeRuntimeTelemetry telemetry;
-    private final ObjectMapper objectMapper;
+    private final HomeCanonicalJson canonicalJson;
     private final Executor executor;
 
     public WidgetRuntimeBroker(
@@ -40,7 +37,7 @@ public class WidgetRuntimeBroker {
             ProviderResultValidator validator,
             HomeRuntimeProperties properties,
             HomeRuntimeTelemetry telemetry,
-            ObjectMapper objectMapper,
+            HomeCanonicalJson canonicalJson,
             @Qualifier("homeRuntimeExecutor") Executor executor) {
         this.providers = providers.stream().collect(Collectors.toUnmodifiableMap(
                 WidgetProviderPort::providerKey, Function.identity()));
@@ -48,7 +45,7 @@ public class WidgetRuntimeBroker {
         this.validator = validator;
         this.properties = properties;
         this.telemetry = telemetry;
-        this.objectMapper = objectMapper;
+        this.canonicalJson = canonicalJson;
         this.executor = executor;
     }
 
@@ -75,7 +72,7 @@ public class WidgetRuntimeBroker {
             if (fresh != null) {
                 telemetry.cache(providerKey, "HIT");
                 futures.add(CompletableFuture.completedFuture(
-                        ProviderOutcome.success(providerKey, requests, fresh)));
+                        ProviderOutcome.cacheHit(providerKey, requests, fresh)));
                 continue;
             }
             telemetry.cache(providerKey, "MISS");
@@ -88,7 +85,8 @@ public class WidgetRuntimeBroker {
                         new WidgetProviderException(
                                 WidgetProviderException.Kind.UNAVAILABLE,
                                 "PROVIDER_NOT_REGISTERED",
-                                "No Home provider is registered."))));
+                                "No Home provider is registered."),
+                        Duration.ZERO)));
                 continue;
             }
             long started = System.nanoTime();
@@ -107,29 +105,28 @@ public class WidgetRuntimeBroker {
                     }
                     HomeWidgetProviderContract.BatchResponse response = validator.validate(
                             raw, context, requests);
-                    cacheIfEligible(key, response, context.authorityRevalidateAt());
-                    telemetry.provider(providerKey, "SUCCESS",
+                    return ProviderOutcome.success(
+                            providerKey, requests, key, response,
                             Duration.ofNanos(System.nanoTime() - started));
-                    return ProviderOutcome.success(providerKey, requests, response);
                 } catch (WidgetProviderException exception) {
-                    telemetry.provider(providerKey, exception.kind().name(),
+                    return ProviderOutcome.failure(
+                            providerKey, requests, key, exception,
                             Duration.ofNanos(System.nanoTime() - started));
-                    return ProviderOutcome.failure(providerKey, requests, key, exception);
                 } catch (RuntimeException exception) {
-                    telemetry.provider(providerKey, "UNAVAILABLE",
-                            Duration.ofNanos(System.nanoTime() - started));
                     return ProviderOutcome.failure(providerKey, requests, key,
                             new WidgetProviderException(
                                     WidgetProviderException.Kind.UNAVAILABLE,
                                     "PROVIDER_FAILURE",
-                                    "Home provider failed.", exception));
+                                    "Home provider failed.", exception),
+                            Duration.ofNanos(System.nanoTime() - started));
                 }
             }, executor).completeOnTimeout(
                     ProviderOutcome.failure(providerKey, requests, key,
                             new WidgetProviderException(
                                     WidgetProviderException.Kind.TIMEOUT,
                                     "PROVIDER_TIMEOUT",
-                                    "Home provider exceeded its deadline.")),
+                                    "Home provider exceeded its deadline."),
+                            properties.providerTimeout()),
                     Math.max(1, properties.providerTimeout().toMillis()),
                     TimeUnit.MILLISECONDS);
             futures.add(future);
@@ -139,7 +136,11 @@ public class WidgetRuntimeBroker {
         try {
             CompletableFuture.allOf(futures.toArray(CompletableFuture[]::new))
                     .get(remaining, TimeUnit.MILLISECONDS);
-        } catch (Exception ignored) {
+        } catch (InterruptedException interrupted) {
+            Thread.currentThread().interrupt();
+            futures.forEach(future -> future.cancel(true));
+        } catch (java.util.concurrent.ExecutionException
+                 | java.util.concurrent.TimeoutException ignored) {
             futures.forEach(future -> future.cancel(true));
         }
         List<HomeWidgetProviderContract.WidgetResult> results = new ArrayList<>();
@@ -147,7 +148,18 @@ public class WidgetRuntimeBroker {
             ProviderOutcome outcome = future.isDone() && !future.isCancelled()
                     ? future.getNow(null) : null;
             if (outcome == null) continue;
+            if (outcome.providerInvoked()) {
+                telemetry.provider(
+                        outcome.providerKey(),
+                        outcome.failure() == null ? "SUCCESS" : outcome.failure().kind().name(),
+                        outcome.duration());
+            }
             if (outcome.response() != null) {
+                if (outcome.cacheKey() != null) {
+                    cacheIfEligible(
+                            outcome.cacheKey(), outcome.response(),
+                            context.authorityRevalidateAt());
+                }
                 results.addAll(outcome.response().results());
             } else {
                 results.addAll(degraded(context, outcome));
@@ -222,13 +234,8 @@ public class WidgetRuntimeBroker {
         Set<String> definitions = requests.stream()
                 .map(request -> request.definition().definitionKey())
                 .collect(Collectors.toUnmodifiableSet());
-        String requestMaterial;
-        try {
-            requestMaterial = objectMapper.writeValueAsString(requests.stream()
-                    .map(WidgetProviderPort.Request::contract).toList());
-        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
-            throw new IllegalStateException(exception);
-        }
+        String requestFingerprint = canonicalJson.fingerprint(requests.stream()
+                .map(WidgetProviderPort.Request::contract).toList());
         return new RecipientBoundWidgetCache.Key(
                 context.tenantId(),
                 context.userId(),
@@ -244,7 +251,7 @@ public class WidgetRuntimeBroker {
                 revisions.safetyRevision(),
                 providerKey,
                 definitions,
-                sha256(requestMaterial));
+                requestFingerprint);
     }
 
     private OffsetDateTime earliest(OffsetDateTime first, OffsetDateTime second) {
@@ -293,20 +300,23 @@ public class WidgetRuntimeBroker {
                 new HomeWidgetProviderContract.SourceState(
                         providerKey(request.definition().sourceAppResourceKey()).toUpperCase()
                                 + "_HOME",
-                        now, now, null, reasonCode, retryable, null),
+                        now, now.plusSeconds(1), null, reasonCode, retryable, null),
                 Map.of(), List.of(), List.of());
     }
 
     static String providerKey(String sourceAppResourceKey) {
-        if (sourceAppResourceKey == null) return "platform";
+        if (sourceAppResourceKey == null) return "unknown";
         return switch (sourceAppResourceKey) {
+            case "APP.WORK", "APP.CALENDAR", "APP.ACTIVITY" -> "platform";
+            case "APP.WORKPLACE" -> "workplace";
+            case "APP.ASK" -> "dwaion";
             case "APP.APPROVALS" -> "approval";
             case "APP.MEETINGS" -> "meeting";
             case "APP.NOTIFICATIONS" -> "notification";
             case "APP.SPACES" -> "space";
             case "APP.MESSAGING" -> "messaging";
             case "APP.HCM" -> "people";
-            default -> "platform";
+            default -> "unknown";
         };
     }
 
@@ -315,16 +325,6 @@ public class WidgetRuntimeBroker {
             if (requests.get(index).instanceId().equals(instanceId)) return index;
         }
         return Integer.MAX_VALUE;
-    }
-
-    private String sha256(String value) {
-        try {
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(
-                    MessageDigest.getInstance("SHA-256")
-                            .digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (java.security.NoSuchAlgorithmException exception) {
-            throw new IllegalStateException(exception);
-        }
     }
 
     public record Revisions(
@@ -341,21 +341,36 @@ public class WidgetRuntimeBroker {
             List<WidgetProviderPort.Request> requests,
             RecipientBoundWidgetCache.Key cacheKey,
             HomeWidgetProviderContract.BatchResponse response,
-            WidgetProviderException failure) {
+            WidgetProviderException failure,
+            Duration duration,
+            boolean providerInvoked) {
+
+        static ProviderOutcome cacheHit(
+                String providerKey,
+                List<WidgetProviderPort.Request> requests,
+                HomeWidgetProviderContract.BatchResponse response) {
+            return new ProviderOutcome(
+                    providerKey, requests, null, response, null, Duration.ZERO, false);
+        }
 
         static ProviderOutcome success(
                 String providerKey,
                 List<WidgetProviderPort.Request> requests,
-                HomeWidgetProviderContract.BatchResponse response) {
-            return new ProviderOutcome(providerKey, requests, null, response, null);
+                RecipientBoundWidgetCache.Key cacheKey,
+                HomeWidgetProviderContract.BatchResponse response,
+                Duration duration) {
+            return new ProviderOutcome(
+                    providerKey, requests, cacheKey, response, null, duration, true);
         }
 
         static ProviderOutcome failure(
                 String providerKey,
                 List<WidgetProviderPort.Request> requests,
                 RecipientBoundWidgetCache.Key cacheKey,
-                WidgetProviderException failure) {
-            return new ProviderOutcome(providerKey, requests, cacheKey, null, failure);
+                WidgetProviderException failure,
+                Duration duration) {
+            return new ProviderOutcome(
+                    providerKey, requests, cacheKey, null, failure, duration, true);
         }
     }
 }

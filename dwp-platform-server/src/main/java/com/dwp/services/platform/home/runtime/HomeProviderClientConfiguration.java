@@ -89,6 +89,7 @@ public class HomeProviderClientConfiguration {
             CircuitBreakerRegistry circuitBreakers,
             BulkheadRegistry bulkheads) {
         return new HttpWidgetProviderClient(
-                key, url, token, runtime.providerTimeout(), builder, circuitBreakers, bulkheads);
+                key, url, token, runtime.commandsEnabled(), runtime.providerTimeout(), builder,
+                circuitBreakers, bulkheads);
     }
 }

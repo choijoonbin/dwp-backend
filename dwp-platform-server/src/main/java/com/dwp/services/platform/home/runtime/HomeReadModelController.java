@@ -107,6 +107,8 @@ public class HomeReadModelController {
         HttpHeaders headers = new HttpHeaders();
         headers.set(HttpHeaders.CACHE_CONTROL, "private, no-store, max-age=0");
         headers.set("X-DWP-Home-Runtime-Mode", properties.enabled() ? "ACTIVE" : "SHADOW");
+        headers.set("X-DWP-Home-Commands-Enabled",
+                Boolean.toString(properties.commandsEnabled()));
         headers.set("X-DWP-Widget-Registry-Authoritative", "false");
         return new ResponseEntity<>(ApiResponse.success(commands.execute(
                 context, mode, deviceClass, commandId, request)), headers, HttpStatus.ACCEPTED);
@@ -121,10 +123,10 @@ public class HomeReadModelController {
     }
 
     private void requireCommandsEnabled() {
-        if (!properties.enabled()) {
+        if (!properties.commandsEnabled()) {
             throw new BaseException(
                     ErrorCode.RESOURCE_NOT_AVAILABLE,
-                    "Home Runtime commands remain disabled during shadow operation.");
+                    "Home Runtime commands remain disabled until the owner idempotency gate is promoted.");
         }
     }
 
@@ -134,6 +136,8 @@ public class HomeReadModelController {
         headers.set(HttpHeaders.CACHE_CONTROL, CACHE_CONTROL);
         headers.set(HttpHeaders.VARY, VARY);
         headers.set("X-DWP-Home-Runtime-Mode", properties.enabled() ? "ACTIVE" : "SHADOW");
+        headers.set("X-DWP-Home-Commands-Enabled",
+                Boolean.toString(properties.commandsEnabled()));
         headers.set("X-DWP-Widget-Registry-Authoritative", "false");
         return headers;
     }

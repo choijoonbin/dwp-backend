@@ -145,7 +145,7 @@ public class HomeReadModelService {
             expiresAt = context.authorityRevalidateAt();
         }
         List<String> unavailableSources = widgets.stream()
-                .filter(widget -> technicalDegradation(widget.state()))
+                .filter(this::technicalDegradation)
                 .map(widget -> widget.source().sourceKey())
                 .distinct().sorted().toList();
         boolean partial = !unavailableSources.isEmpty();
@@ -250,9 +250,9 @@ public class HomeReadModelService {
                 new HomeReadModelDtos.SourceState(
                         WidgetRuntimeBroker.providerKey(definition.sourceAppResourceKey())
                                 .toUpperCase(Locale.ROOT) + "_HOME",
-                        now, now, null, forbidden
+                        now, now.plusSeconds(1), null, forbidden
                                 ? "AUTHORIZATION_WIDGET_FORBIDDEN" : "WIDGET_POLICY_UNAVAILABLE",
-                        !forbidden, null),
+                        false, null),
                 Map.of(), List.of(), List.of(), governance);
     }
 
@@ -267,7 +267,7 @@ public class HomeReadModelService {
                 "home.unsupported",
                 HomeWidgetProviderContract.State.UNAVAILABLE,
                 new HomeReadModelDtos.SourceState(
-                        "WIDGET_REGISTRY", now, now, null,
+                        "WIDGET_REGISTRY", now, now.plusSeconds(1), null,
                         "DEFINITION_UNSUPPORTED", false, null),
                 Map.of(), List.of(), List.of(),
                 new HomeReadModelDtos.Governance(
@@ -383,10 +383,11 @@ public class HomeReadModelService {
         return sha256(material);
     }
 
-    private boolean technicalDegradation(HomeWidgetProviderContract.State state) {
-        return state == HomeWidgetProviderContract.State.PARTIAL
-                || state == HomeWidgetProviderContract.State.UNAVAILABLE
-                || state == HomeWidgetProviderContract.State.STALE;
+    private boolean technicalDegradation(HomeReadModelDtos.Widget widget) {
+        return widget.state() == HomeWidgetProviderContract.State.PARTIAL
+                || widget.state() == HomeWidgetProviderContract.State.STALE
+                || widget.state() == HomeWidgetProviderContract.State.UNAVAILABLE
+                && widget.source().retryable();
     }
 
     private String sha256(String value) {

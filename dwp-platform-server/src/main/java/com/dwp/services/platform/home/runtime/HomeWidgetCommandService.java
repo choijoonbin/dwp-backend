@@ -3,6 +3,7 @@ package com.dwp.services.platform.home.runtime;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.platform.contract.home.HomeWidgetProviderContract;
+import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
 import com.dwp.services.platform.home.personalization.HomeCommandReceiptService;
 import org.springframework.stereotype.Service;
@@ -26,6 +27,7 @@ public class HomeWidgetCommandService {
     private final HomeCanonicalJson canonicalJson;
     private final ProviderResultValidator validator;
     private final HomeRuntimeProperties properties;
+    private final PlatformAuditService audit;
     private final Object[] commandLocks = new Object[LOCK_STRIPES];
 
     public HomeWidgetCommandService(
@@ -34,7 +36,8 @@ public class HomeWidgetCommandService {
             HomeCommandReceiptService receipts,
             HomeCanonicalJson canonicalJson,
             ProviderResultValidator validator,
-            HomeRuntimeProperties properties) {
+            HomeRuntimeProperties properties,
+            PlatformAuditService audit) {
         this.providers = providers.stream().collect(Collectors.toUnmodifiableMap(
                 WidgetProviderPort::providerKey, Function.identity()));
         this.readModels = readModels;
@@ -42,6 +45,7 @@ public class HomeWidgetCommandService {
         this.canonicalJson = canonicalJson;
         this.validator = validator;
         this.properties = properties;
+        this.audit = audit;
         for (int index = 0; index < commandLocks.length; index++) {
             commandLocks[index] = new Object();
         }
@@ -63,13 +67,30 @@ public class HomeWidgetCommandService {
                 "deviceClass", deviceClass,
                 "request", request));
         String target = request.instanceId() + ":" + request.actionId();
+        audit(context, commandId, target, "attempted", "SUCCESS");
+        if (!properties.commandsEnabled()) {
+            audit(context, commandId, target, "denied", "DENIED");
+            throw new BaseException(
+                    ErrorCode.RESOURCE_NOT_AVAILABLE,
+                    "Home Runtime commands are disabled until the owner idempotency gate is promoted.");
+        }
         Object lock = commandLocks[Math.floorMod(
                 java.util.Objects.hash(context.tenantId(), context.userId(), commandId),
                 commandLocks.length)];
-        synchronized (lock) {
-            return executeOnce(
-                    context, requestedMode, deviceClass, commandId, request,
-                    fingerprint, target);
+        try {
+            synchronized (lock) {
+                return executeOnce(
+                        context, requestedMode, deviceClass, commandId, request,
+                        fingerprint, target);
+            }
+        } catch (RuntimeException failure) {
+            boolean denied = failure instanceof BaseException
+                    || failure instanceof WidgetProviderException providerFailure
+                    && providerFailure.kind() == WidgetProviderException.Kind.FORBIDDEN;
+            audit(context, commandId, target,
+                    denied ? "denied" : "failed",
+                    denied ? "DENIED" : "FAILED");
+            throw failure;
         }
     }
 
@@ -85,7 +106,10 @@ public class HomeWidgetCommandService {
                 context.tenantId(), context.userId(), commandId,
                 "HOME_WIDGET_ACTION", target, fingerprint,
                 HomeReadModelDtos.CommandReceipt.class);
-        if (replay != null) return replay;
+        if (replay != null) {
+            audit(context, commandId, target, "replayed", "SUCCESS");
+            return replay;
+        }
 
         HomeReadModelDtos.HomeReadModel model = readModels
                 .read(context, requestedMode, deviceClass).model();
@@ -141,7 +165,20 @@ public class HomeWidgetCommandService {
                 response.resultVersion());
         receipts.record(context.tenantId(), context.userId(), commandId,
                 "HOME_WIDGET_ACTION", target, fingerprint, receipt);
+        audit(context, commandId, target, "accepted", "SUCCESS");
         return receipt;
+    }
+
+    private void audit(
+            HomeRuntimeContext context,
+            UUID commandId,
+            String target,
+            String stage,
+            String outcome) {
+        audit.event(
+                context.tenantId(), context.userId(),
+                "home.widget.command." + stage,
+                "HOME_WIDGET_ACTION", target, commandId.toString(), outcome);
     }
 
     private void validate(

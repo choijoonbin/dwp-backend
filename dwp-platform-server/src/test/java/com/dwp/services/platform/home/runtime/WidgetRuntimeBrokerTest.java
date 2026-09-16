@@ -2,6 +2,7 @@ package com.dwp.services.platform.home.runtime;
 
 import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -141,7 +142,8 @@ class WidgetRuntimeBrokerTest {
         return new WidgetRuntimeBroker(
                 List.of(provider), cache,
                 new ProviderResultValidator(objectMapper, properties), properties,
-                new HomeRuntimeTelemetry(new SimpleMeterRegistry()), objectMapper, executor);
+                new HomeRuntimeTelemetry(new SimpleMeterRegistry()),
+                new HomeCanonicalJson(objectMapper), executor);
     }
 
     private HomeWidgetProviderContract.BatchResponse response(

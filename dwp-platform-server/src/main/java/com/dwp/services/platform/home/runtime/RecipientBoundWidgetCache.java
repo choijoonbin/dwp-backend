@@ -67,6 +67,11 @@ public class RecipientBoundWidgetCache {
         entries.keySet().removeIf(key -> key.definitionKeys().contains(definitionKey));
     }
 
+    /** Deployment rollback hook: removes every process-local Home provider projection. */
+    public void clear() {
+        entries.clear();
+    }
+
     int size() {
         return entries.size();
     }

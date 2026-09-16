@@ -111,6 +111,9 @@ dwp:
     home-runtime:
       enabled: ${DWP_HOME_RUNTIME_ENABLED:false}
       shadow-enabled: ${DWP_HOME_RUNTIME_SHADOW_ENABLED:true}
+      # Wave 4 is read-only. Keep commands off until owner services provide durable
+      # idempotency and auditable receipts in the Wave 6 promotion gate.
+      commands-enabled: ${DWP_HOME_RUNTIME_COMMANDS_ENABLED:false}
       overall-deadline: ${DWP_HOME_RUNTIME_OVERALL_DEADLINE:PT0.9S}
       provider-timeout: ${DWP_HOME_RUNTIME_PROVIDER_TIMEOUT:PT0.4S}
       cache-ttl: ${DWP_HOME_RUNTIME_CACHE_TTL:PT30S}
