@@ -92,6 +92,81 @@ public class WidgetCatalogService {
                     "APP.CALENDAR",
                     "30000000-0000-0000-0000-000000000007",
                     "31000000-0000-0000-0000-000000000107"));
+    private static final Set<String> OWNER_PROVIDER_EVIDENCE = Set.of(
+            "MANIFEST", "SECURITY", "PRIVACY");
+    private static final List<BaselineWidget> OWNER_PROVIDER_SHADOW_BASELINE = List.of(
+            new BaselineWidget(
+                    "approval.focus-queue", "1.0.0",
+                    "d203595d9b713745a5e46e3545f29bd47cf403d016b6773aabc13b24d29f1600",
+                    "home.approval.focus-queue", "core.approvals", "APP.APPROVALS",
+                    "36000000-0000-0000-0000-000000000001",
+                    "36100000-0000-0000-0000-000000000001"),
+            new BaselineWidget(
+                    "approval.my-requests", "1.0.0",
+                    "a80bb5bc85786cc1b045eae227dd4b083de6089e41f037ff735e79fdd8ef8d12",
+                    "home.approval.my-requests", "core.approvals", "APP.APPROVALS",
+                    "36000000-0000-0000-0000-000000000002",
+                    "36100000-0000-0000-0000-000000000002"),
+            new BaselineWidget(
+                    "meetings.next-prep", "1.0.0",
+                    "12b4b13ad8838b821931247cbaae7bb694d80f0301138c75d5364759410aeb71",
+                    "home.meetings.next-prep", "core.meetings", "APP.MEETINGS",
+                    "36000000-0000-0000-0000-000000000003",
+                    "36100000-0000-0000-0000-000000000003"),
+            new BaselineWidget(
+                    "meetings.followup-candidates", "1.0.0",
+                    "9a18a83a2b704e4cad302365305ff112ad444629ff49ccca310a98d7c94b5e3b",
+                    "home.meetings.followup-candidates", "core.meetings", "APP.MEETINGS",
+                    "36000000-0000-0000-0000-000000000004",
+                    "36100000-0000-0000-0000-000000000004"),
+            new BaselineWidget(
+                    "notification.app-badges", "1.0.0",
+                    "99f8e3d68f8c7b7d6fb175b6bedb24653bf838a47d87eaa11861078ea789d930",
+                    "home.notification.app-badges", "core.notifications", "APP.NOTIFICATIONS",
+                    "36000000-0000-0000-0000-000000000005",
+                    "36100000-0000-0000-0000-000000000005"),
+            new BaselineWidget(
+                    "notification.response-queue", "1.0.0",
+                    "1095138bdafd1c04e638e65f458f207f7d4616cc395e3da82969c34a0b5ce14b",
+                    "home.notification.response-queue", "core.notifications", "APP.NOTIFICATIONS",
+                    "36000000-0000-0000-0000-000000000006",
+                    "36100000-0000-0000-0000-000000000006"),
+            new BaselineWidget(
+                    "space.change-feed", "1.0.0",
+                    "679133ea378aebfe3259d41615e084a74b3f02136ca273edd023df3896e45ce1",
+                    "home.space.change-feed", "core.spaces", "APP.SPACES",
+                    "36000000-0000-0000-0000-000000000007",
+                    "36100000-0000-0000-0000-000000000007"),
+            new BaselineWidget(
+                    "space.response-queue", "1.0.0",
+                    "cf00ea0674e3dcaec95b5dac3c74305e156815911d74570056e13721e4873457",
+                    "home.space.response-queue", "core.spaces", "APP.SPACES",
+                    "36000000-0000-0000-0000-000000000008",
+                    "36100000-0000-0000-0000-000000000008"),
+            new BaselineWidget(
+                    "messaging.response-queue", "1.0.0",
+                    "3ade20ba736ad8436a43b7877006b0393be15fd42ca711aaf1631990cabc65a1",
+                    "home.messaging.response-queue", "core.messaging", "APP.MESSAGING",
+                    "36000000-0000-0000-0000-000000000009",
+                    "36100000-0000-0000-0000-000000000009"),
+            new BaselineWidget(
+                    "messaging.change-feed", "1.0.0",
+                    "c25cb2b6e21b33e7fa1712956cae92f56fafd5cdb6b426c55db9a64924bcf0bc",
+                    "home.messaging.change-feed", "core.messaging", "APP.MESSAGING",
+                    "36000000-0000-0000-0000-000000000010",
+                    "36100000-0000-0000-0000-000000000010"),
+            new BaselineWidget(
+                    "hr.edu", "1.0.0",
+                    "05806990658c73ffaf4e5f5656721778641dfef19b4734c96d1f4fa9f3463eb8",
+                    "home.hr.edu", "core.people", "APP.HCM",
+                    "36000000-0000-0000-0000-000000000011",
+                    "36100000-0000-0000-0000-000000000011"),
+            new BaselineWidget(
+                    "hr.team-pulse", "1.0.0",
+                    "9cf2e1770e377a3a7a7721ee795beaf9ad1649bac8a8977046e9990f9c6604df",
+                    "home.hr.team-pulse", "core.people", "APP.HCM",
+                    "36000000-0000-0000-0000-000000000012",
+                    "36100000-0000-0000-0000-000000000012"));
     private final WidgetRegistryLedger ledger;
     private final WidgetDefinitionRepository definitions;
     private final WidgetDefinitionVersionRepository versions;
@@ -262,11 +337,11 @@ public class WidgetCatalogService {
         String hostMode = "FLOW_V1".equals(mode) ? "FLOW" : "CLASSIC";
         WidgetRegistryDtos.EffectiveCatalogResponse evaluated = effectiveForMode(
                 tenantId, surfaceKey, permissionHeader, roleHeader, groupHeader, hostMode);
-        Map<String, RuntimeDefinition> definitionsByLegacyKey = new LinkedHashMap<>();
+        Map<String, RuntimeDefinition> definitionsByKey = new LinkedHashMap<>();
         evaluated.contexts().stream()
                 .flatMap(context -> context.items().stream())
-                .forEach(item -> definitionsByLegacyKey.computeIfAbsent(
-                        item.legacyWidgetKey(), ignored -> runtimeDefinition(
+                .forEach(item -> definitionsByKey.computeIfAbsent(
+                        item.definitionKey(), ignored -> runtimeDefinition(
                                 item, evaluated.bindingCatalogRevision())));
         return new RuntimeCatalog(
                 evaluated.mode(),
@@ -275,7 +350,7 @@ public class WidgetCatalogService {
                 evaluated.policyRevision(),
                 evaluated.safetyRevision(),
                 evaluated.hostContext().decisionRevision(),
-                List.copyOf(definitionsByLegacyKey.values()));
+                List.copyOf(definitionsByKey.values()));
     }
 
     private RuntimeDefinition runtimeDefinition(
@@ -389,7 +464,23 @@ public class WidgetCatalogService {
                                     baseline.matches(definition, version)
                                             && baseline.matchesBinding(binding)))
                             .isPresent();
-            if (!legacyShadowDiscovery
+            boolean ownerProviderShadowDiscovery = "SHADOW".equals(
+                    registryState.getMigrationMode())
+                    && !registryState.isRuntimeActivationReady()
+                    && "NOT_RUN".equals(version.getCertificationStatus())
+                    && "WAVE4_OWNER_PROVIDER_SHADOW".equals(
+                            version.getAttestation().path("source").asText())
+                    && OWNER_PROVIDER_SHADOW_BASELINE.stream().anyMatch(
+                            baseline -> baseline.matches(definition, version))
+                    && definitionService.hasCurrentEvidence(
+                            version, OWNER_PROVIDER_EVIDENCE)
+                    && bindings.findByRendererKeyAndBindingState(
+                                    version.getRendererKey(), "ACTIVE")
+                            .filter(binding -> OWNER_PROVIDER_SHADOW_BASELINE.stream().anyMatch(
+                                    baseline -> baseline.matches(definition, version)
+                                            && baseline.matchesBinding(binding)))
+                            .isPresent();
+            if (!legacyShadowDiscovery && !ownerProviderShadowDiscovery
                     && (!"PASS".equals(version.getCertificationStatus())
                     || !definitionService.hasCurrentCertificationEvidence(version))) {
                 reasons.add("EXPIRED".equals(version.getCertificationStatus())

@@ -1,0 +1,62 @@
+package com.dwp.services.platform.provisioning;
+
+import org.springframework.jdbc.core.JdbcTemplate;
+
+/** Keeps newly provisioned tenants aligned with the append-only Wave 4 Registry seed. */
+final class Wave4OwnerWidgetPolicySeeder {
+
+    private Wave4OwnerWidgetPolicySeeder() {
+    }
+
+    static void seed(JdbcTemplate jdbc, Long tenantId) {
+        jdbc.update("""
+                INSERT INTO adm_tenant_widget_policy_revisions (
+                    policy_revision_id, tenant_id, definition_id, revision_number,
+                    policy_state, enabled, selector_type, channel, version_id,
+                    supported_surface_keys, audience_selector, required_widget,
+                    locked_configuration, sharing_policy, impact_revision,
+                    reason_code, reason_text, created_by)
+                SELECT md5('wave4-owner-widget-policy:' || ? || ':' || definition_id)::uuid,
+                       ?, definition_id, 1, 'PUBLISHED',
+                       definition_key = 'notification.app-badges',
+                       'CHANNEL', 'STABLE', NULL,
+                       '["workspace-home"]'::jsonb,
+                       '{"schemaVersion":1,"mode":"ALL_ENTITLED","roleCodes":[],"groupRefs":[]}'::jsonb,
+                       FALSE, '{}'::jsonb, 'PRIVATE', NULL,
+                       CASE WHEN definition_key = 'notification.app-badges'
+                            THEN 'WAVE4_APP_BADGE_PROJECTION'
+                            ELSE 'WAVE5_RENDERER_PENDING' END,
+                       CASE WHEN definition_key = 'notification.app-badges'
+                            THEN 'Wave 4 authoritative app badge projection'
+                            ELSE 'Wave 4 owner provider registered; renderer activation deferred to Wave 5' END,
+                       1
+                  FROM plt_widget_definitions
+                 WHERE definition_key IN (
+                    'approval.focus-queue', 'approval.my-requests',
+                    'meetings.next-prep', 'meetings.followup-candidates',
+                    'notification.app-badges', 'notification.response-queue',
+                    'space.change-feed', 'space.response-queue',
+                    'messaging.response-queue', 'messaging.change-feed',
+                    'hr.edu', 'hr.team-pulse')
+                ON CONFLICT (tenant_id, definition_id, revision_number) DO NOTHING
+                """, tenantId, tenantId);
+        jdbc.update("""
+                INSERT INTO adm_tenant_widget_policy_heads (
+                    policy_head_id, tenant_id, definition_id, current_revision_id,
+                    version, updated_by)
+                SELECT md5('wave4-owner-widget-policy-head:' || ? || ':' || definition_id)::uuid,
+                       ?, definition_id,
+                       md5('wave4-owner-widget-policy:' || ? || ':' || definition_id)::uuid,
+                       0, 1
+                  FROM plt_widget_definitions
+                 WHERE definition_key IN (
+                    'approval.focus-queue', 'approval.my-requests',
+                    'meetings.next-prep', 'meetings.followup-candidates',
+                    'notification.app-badges', 'notification.response-queue',
+                    'space.change-feed', 'space.response-queue',
+                    'messaging.response-queue', 'messaging.change-feed',
+                    'hr.edu', 'hr.team-pulse')
+                ON CONFLICT (tenant_id, definition_id) DO NOTHING
+                """, tenantId, tenantId, tenantId);
+    }
+}

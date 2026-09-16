@@ -512,6 +512,7 @@ public class PlatformTenantProvisioningService {
                     'focus-balance', 'meeting-load')
                 ON CONFLICT (tenant_id, definition_id) DO NOTHING
                 """, tenantId, tenantId, tenantId);
+        Wave4OwnerWidgetPolicySeeder.seed(jdbc, tenantId);
     }
 
     private List<WorkspaceAppSeed> workspaceApplications() {

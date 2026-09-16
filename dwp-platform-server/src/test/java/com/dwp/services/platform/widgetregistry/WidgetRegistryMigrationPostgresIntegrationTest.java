@@ -30,6 +30,10 @@ class WidgetRegistryMigrationPostgresIntegrationTest {
             "src/main/resources/db/migration/V257__seed_native_home_widget_registry.sql");
     private static final Path CANONICAL_CORRECTION = Path.of(
             "src/main/resources/db/migration/V260__correct_native_home_widget_manifest_parity.sql");
+    private static final Path OWNER_FIXTURE =
+            Path.of("../contracts/widget-registry/wave4-owner-widget-manifests.v1.json");
+    private static final Path OWNER_SEED = Path.of(
+            "src/main/resources/db/migration/V261__seed_wave4_owner_home_widget_providers.sql");
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
@@ -57,7 +61,7 @@ class WidgetRegistryMigrationPostgresIntegrationTest {
     }
 
     @Test
-    void seedsFiveGoldenAndTwoDocumentedNativeExtensionsWithForwardCorrections() throws Exception {
+    void seedsNativeAndOwnerProviderContractsWithoutPromotingRegistryAuthority() throws Exception {
         JsonNode fixture = objectMapper.readTree(Files.readString(FIXTURE));
         assertThat(fixture.path("sourceGoldenFixture").path("exactFixtureCount").asInt()).isEqualTo(5);
         assertThat(fixture.path("sourceGoldenFixture").path("extensionCount").asInt()).isEqualTo(2);
@@ -103,26 +107,28 @@ class WidgetRegistryMigrationPostgresIntegrationTest {
                     .isEqualTo(manifest);
         }
 
-        assertThat(count("plt_widget_definitions")).isEqualTo(7);
-        assertThat(count("plt_widget_definition_versions")).isEqualTo(10);
-        assertThat(count("plt_widget_renderer_bindings")).isEqualTo(7);
-        assertThat(count("plt_widget_release_channels")).isEqualTo(7);
-        assertThat(count("plt_widget_evidence")).isEqualTo(10);
+        assertOwnerProviderFixturePersisted();
+
+        assertThat(count("plt_widget_definitions")).isEqualTo(19);
+        assertThat(count("plt_widget_definition_versions")).isEqualTo(22);
+        assertThat(count("plt_widget_renderer_bindings")).isEqualTo(19);
+        assertThat(count("plt_widget_release_channels")).isEqualTo(19);
+        assertThat(count("plt_widget_evidence")).isEqualTo(46);
         long activeTenants = jdbc.queryForObject(
                 "SELECT count(*) FROM sys_service_tenants WHERE lifecycle_state <> 'RETIRED'",
                 Long.class);
-        assertThat(count("adm_tenant_widget_policy_heads")).isEqualTo(activeTenants * 7);
+        assertThat(count("adm_tenant_widget_policy_heads")).isEqualTo(activeTenants * 19);
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM adm_tenant_widget_policy_revisions
                  WHERE audience_selector = '{"schemaVersion":1,"mode":"ALL_ENTITLED","roleCodes":[],"groupRefs":[]}'::jsonb
-                """, Long.class)).isEqualTo(activeTenants * 7);
+                """, Long.class)).isEqualTo(activeTenants * 19);
         assertThat(jdbc.queryForMap("""
                 SELECT migration_mode, runtime_activation_ready, registry_revision
                   FROM plt_widget_registry_state WHERE environment = 'GLOBAL'
                 """))
                 .containsEntry("migration_mode", "SHADOW")
                 .containsEntry("runtime_activation_ready", false)
-                .containsEntry("registry_revision", 11L);
+                .containsEntry("registry_revision", 23L);
 
         assertThat(jdbc.queryForList("""
                 SELECT d.legacy_widget_key, v.semantic_version
@@ -157,6 +163,7 @@ class WidgetRegistryMigrationPostgresIntegrationTest {
         List<Long> before = stateVector();
         jdbc.execute(Files.readString(SEED));
         jdbc.execute(Files.readString(CANONICAL_CORRECTION));
+        jdbc.execute(Files.readString(OWNER_SEED));
         assertThat(stateVector()).containsExactlyElementsOf(before);
     }
 
@@ -168,13 +175,21 @@ class WidgetRegistryMigrationPostgresIntegrationTest {
                  WHERE renderer_key = 'home.focus-balance'
                 """);
 
-        assertThatThrownBy(() -> jdbc.execute(Files.readString(CANONICAL_CORRECTION)))
-                .isInstanceOf(DataAccessException.class)
-                .hasMessageContaining("Wave 3 native manifest correction precondition mismatch");
+        try {
+            assertThatThrownBy(() -> jdbc.execute(Files.readString(CANONICAL_CORRECTION)))
+                    .isInstanceOf(DataAccessException.class)
+                    .hasMessageContaining("Wave 3 native manifest correction precondition mismatch");
+        } finally {
+            jdbc.update("""
+                    UPDATE plt_widget_renderer_bindings
+                       SET source_app_resource_key = 'APP.CALENDAR'
+                     WHERE renderer_key = 'home.focus-balance'
+                    """);
+        }
     }
 
     @Test
-    void postMigrationTenantProvisioningSeedsTheSameSevenPoliciesIdempotently() {
+    void postMigrationTenantProvisioningSeedsBaselineAndOwnerShadowPoliciesIdempotently() {
         long tenantId = 92570L;
         var request = new PlatformTenantProvisioningDtos.ProvisionTenantRequest(
                 UUID.fromString("92570000-0000-0000-0000-000000000001"), tenantId,
@@ -194,20 +209,87 @@ class WidgetRegistryMigrationPostgresIntegrationTest {
                  WHERE h.tenant_id = ?
                  ORDER BY d.legacy_widget_key
                 """, String.class, tenantId)).containsExactly(
-                        "activity", "command-rail", "daily-brief", "focus",
-                        "focus-balance", "meeting-load", "schedule");
+                        "activity", "application-dock", "command-rail", "daily-brief", "focus",
+                        "focus-balance", "focus-queue", "hr-education", "hr-team-pulse",
+                        "meeting-followups", "meeting-load", "meeting-next-prep",
+                        "messaging-change-feed", "messaging-response-queue", "my-requests",
+                        "notification-response-queue", "schedule", "space-change-feed",
+                        "space-response-queue");
         assertThat(jdbc.queryForObject("""
                 SELECT count(*)
                   FROM adm_tenant_widget_policy_revisions r
                  WHERE r.tenant_id = ? AND r.revision_number = 1
                    AND r.policy_state = 'PUBLISHED' AND r.enabled
-                """, Integer.class, tenantId)).isEqualTo(7);
+                """, Integer.class, tenantId)).isEqualTo(8);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*)
+                  FROM adm_tenant_widget_policy_revisions r
+                 WHERE r.tenant_id = ? AND r.revision_number = 1
+                   AND r.policy_state = 'PUBLISHED' AND NOT r.enabled
+                """, Integer.class, tenantId)).isEqualTo(11);
         assertThat(jdbc.queryForObject("""
                 SELECT required_widget
                   FROM adm_tenant_widget_policy_revisions r
                   JOIN plt_widget_definitions d ON d.definition_id = r.definition_id
                  WHERE r.tenant_id = ? AND d.legacy_widget_key = 'command-rail'
                 """, Boolean.class, tenantId)).isTrue();
+    }
+
+    private void assertOwnerProviderFixturePersisted() throws Exception {
+        JsonNode fixture = objectMapper.readTree(Files.readString(OWNER_FIXTURE));
+        assertThat(fixture.path("fixtures")).hasSize(12);
+        for (JsonNode expected : fixture.path("fixtures")) {
+            JsonNode manifest = expected.path("manifest");
+            String definitionKey = manifest.path("definitionKey").asText();
+            String hash = expected.path("expectedSha256").asText();
+            assertThat(WidgetRegistryManifestContract.validate(manifest).manifestHash())
+                    .as(definitionKey).isEqualTo(hash);
+            assertThat(jdbc.queryForMap("""
+                    SELECT d.definition_id::text AS definition_id,
+                           d.legacy_widget_key, d.owner_product_key,
+                           v.version_id::text AS version_id, v.manifest_hash,
+                           v.certification_status, v.attestation ->> 'source' AS source,
+                           b.renderer_binding_id::text AS renderer_binding_id,
+                           b.binding_revision, b.source_app_resource_key
+                      FROM plt_widget_definitions d
+                      JOIN plt_widget_definition_versions v ON v.definition_id = d.definition_id
+                      JOIN plt_widget_renderer_bindings b ON b.renderer_key = v.renderer_key
+                     WHERE d.definition_key = ? AND v.semantic_version = '1.0.0'
+                    """, definitionKey))
+                    .containsEntry("definition_id", expected.path("definitionId").asText())
+                    .containsEntry("legacy_widget_key", expected.path("legacyWidgetKey").asText())
+                    .containsEntry("owner_product_key",
+                            manifest.path("owner").path("productKey").asText())
+                    .containsEntry("version_id", expected.path("versionId").asText())
+                    .containsEntry("manifest_hash", hash)
+                    .containsEntry("certification_status", "NOT_RUN")
+                    .containsEntry("source", "WAVE4_OWNER_PROVIDER_SHADOW")
+                    .containsEntry("renderer_binding_id",
+                            expected.path("rendererBindingId").asText())
+                    .containsEntry("binding_revision", hash)
+                    .containsEntry("source_app_resource_key",
+                            manifest.path("owner").path("sourceAppResourceKey").asText());
+            assertThat(jdbc.queryForObject("""
+                    SELECT count(*) FROM plt_widget_evidence e
+                    JOIN plt_widget_definition_versions v ON v.version_id = e.version_id
+                    JOIN plt_widget_definitions d ON d.definition_id = v.definition_id
+                     WHERE d.definition_key = ? AND e.evidence_status = 'PASS'
+                       AND e.evidence_type IN ('MANIFEST', 'SECURITY', 'PRIVACY')
+                    """, Integer.class, definitionKey)).isEqualTo(3);
+        }
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM plt_widget_evidence e
+                JOIN plt_widget_definition_versions v ON v.version_id = e.version_id
+                JOIN plt_widget_definitions d ON d.definition_id = v.definition_id
+                 WHERE d.definition_key IN (
+                    'approval.focus-queue', 'approval.my-requests',
+                    'meetings.next-prep', 'meetings.followup-candidates',
+                    'notification.app-badges', 'notification.response-queue',
+                    'space.change-feed', 'space.response-queue',
+                    'messaging.response-queue', 'messaging.change-feed',
+                    'hr.edu', 'hr.team-pulse')
+                   AND e.evidence_type IN ('A11Y', 'PERFORMANCE', 'LOCALIZATION')
+                """, Integer.class)).isZero();
     }
 
     @Test

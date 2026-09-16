@@ -64,7 +64,7 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
     private static final Path FIXTURE =
             Path.of("../contracts/widget-registry/native-widget-manifests.v1.json");
     private static final String EXPECTED_BINDING_CATALOG_REVISION =
-            "656986e3056f42073ff5af2b6501d798d33ee2fabc615c8d602bd7f0edc20939";
+            "d9cdfe69d6d5c7f2fc04cd2423365b6b1101d91e56069ffe1b82fb5b1c854643";
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
@@ -679,13 +679,22 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
         assertThat(response.mode()).isEqualTo("SHADOW");
         assertThat(response.bindingCatalogRevision()).isEqualTo(EXPECTED_BINDING_CATALOG_REVISION);
         assertThat(response.contexts()).hasSize(1);
-        assertThat(response.contexts().getFirst().items()).hasSize(7).allSatisfy(item -> {
+        assertThat(response.contexts().getFirst().items()).hasSize(19);
+        List<WidgetRegistryDtos.EffectiveItem> baseline = response.contexts().getFirst().items()
+                .stream().filter(item -> item.definitionId().toString().startsWith("30000000"))
+                .toList();
+        assertThat(baseline).hasSize(7).allSatisfy(item -> {
             assertThat(item.effectiveState())
                     .isEqualTo(WidgetRegistryDtos.EffectiveCatalogState.AVAILABLE);
             assertThat(item.reasonCodes())
                     .containsExactly(WidgetRegistryDtos.EffectiveCatalogReason.AVAILABLE);
             assertThat(item.placementCapabilities().canAdd()).isFalse();
         });
+        assertThat(response.contexts().getFirst().items().stream()
+                .filter(item -> item.definitionId().toString().startsWith("36000000"))
+                .toList()).hasSize(12).allSatisfy(item ->
+                        assertThat(item.effectiveState())
+                                .isEqualTo(WidgetRegistryDtos.EffectiveCatalogState.DENY));
     }
 
     private JsonNode focusManifest(String definitionKey) throws Exception {

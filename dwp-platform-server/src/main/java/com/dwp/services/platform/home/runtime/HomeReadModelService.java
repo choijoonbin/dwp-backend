@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
 @Service
 public class HomeReadModelService {
 
+    private static final String APP_BADGE_DEFINITION = "notification.app-badges";
+    private static final String APP_BADGE_INSTANCE_KEY = "@composition.app-dock-badges";
     private static final Set<String> MODES = Set.of("CLASSIC", "FLOW_V1");
     private static final Set<String> CLASSIFICATIONS = Set.of(
             "PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED");
@@ -79,9 +81,12 @@ public class HomeReadModelService {
                 context.groupsHeader(),
                 mode);
         Map<String, WidgetCatalogService.RuntimeDefinition> definitions =
-                runtimeCatalog.definitions().stream().collect(Collectors.toMap(
-                        WidgetCatalogService.RuntimeDefinition::legacyWidgetKey,
-                        Function.identity()));
+                definitionAliases(runtimeCatalog.definitions());
+        WidgetCatalogService.RuntimeDefinition badgeDefinition = runtimeCatalog.definitions().stream()
+                .filter(definition -> APP_BADGE_DEFINITION.equals(definition.definitionKey()))
+                .findFirst().orElse(null);
+        AppDockBadgeProjection.Projection badgeProjection = initialBadgeProjection(badgeDefinition);
+        UUID badgeInstanceId = null;
         List<WidgetProviderPort.Request> providerRequests = new ArrayList<>();
         List<HomeReadModelDtos.Widget> fixed = new ArrayList<>();
         List<HomePreferenceDtos.WidgetPreference> visible = view.layout().widgets().stream()
@@ -92,6 +97,9 @@ public class HomeReadModelService {
             UUID instanceId = stableInstanceId(context, view, preference.widgetKey());
             if (definition == null) {
                 fixed.add(unsupported(instanceId, preference.widgetKey()));
+                continue;
+            }
+            if (APP_BADGE_DEFINITION.equals(definition.definitionKey())) {
                 continue;
             }
             HomeReadModelDtos.Governance governance = governance(definition);
@@ -111,6 +119,17 @@ public class HomeReadModelService {
             providerRequests.add(new WidgetProviderPort.Request(
                     instanceId, definition, configurationMap, itemLimit));
         }
+        if (badgeDefinition != null
+                && badgeDefinition.effectiveState()
+                == WidgetRegistryDtos.EffectiveCatalogState.AVAILABLE) {
+            governance(badgeDefinition);
+            badgeInstanceId = stableInstanceId(context, view, APP_BADGE_INSTANCE_KEY);
+            providerRequests.add(new WidgetProviderPort.Request(
+                    badgeInstanceId,
+                    badgeDefinition,
+                    Map.of("projection", "APP_DOCK_BADGES_V1"),
+                    HomeWidgetProviderContract.MAX_ITEM_LIMIT));
+        }
         WidgetRuntimeBroker.Revisions revisions = new WidgetRuntimeBroker.Revisions(
                 mode,
                 device,
@@ -123,8 +142,14 @@ public class HomeReadModelService {
                 .collect(Collectors.toMap(
                         HomeWidgetProviderContract.WidgetResult::instanceId,
                         Function.identity()));
+        HomeWidgetProviderContract.WidgetResult badgeResult = badgeInstanceId == null
+                ? null : providerResults.get(badgeInstanceId);
+        if (badgeInstanceId != null) {
+            badgeProjection = AppDockBadgeProjection.from(badgeResult);
+        }
         List<HomeReadModelDtos.Widget> widgets = new ArrayList<>(fixed);
         for (WidgetProviderPort.Request request : providerRequests) {
+            if (request.instanceId().equals(badgeInstanceId)) continue;
             HomeWidgetProviderContract.WidgetResult result = providerResults.get(request.instanceId());
             if (result == null) continue;
             widgets.add(widget(request.definition(), result));
@@ -141,16 +166,26 @@ public class HomeReadModelService {
                 .filter(java.util.Objects::nonNull)
                 .min(Comparator.naturalOrder())
                 .orElse(now.plusSeconds(30));
+        if (badgeResult != null && badgeResult.source() != null
+                && badgeResult.source().expiresAt() != null
+                && badgeResult.source().expiresAt().isBefore(expiresAt)) {
+            expiresAt = badgeResult.source().expiresAt();
+        }
         if (context.authorityRevalidateAt().isBefore(expiresAt)) {
             expiresAt = context.authorityRevalidateAt();
         }
-        List<String> unavailableSources = widgets.stream()
+        List<String> unavailableSources = new ArrayList<>(widgets.stream()
                 .filter(this::technicalDegradation)
                 .map(widget -> widget.source().sourceKey())
-                .distinct().sorted().toList();
+                .distinct().toList());
+        if (technicalDegradation(badgeResult)) {
+            unavailableSources.add(badgeResult.source().sourceKey());
+        }
+        unavailableSources = unavailableSources.stream().distinct().sorted().toList();
         boolean partial = !unavailableSources.isEmpty();
         HomeReadModelDtos.HomeShell shell = HomeReadModelDtos.shell(experience);
-        List<HomeReadModelDtos.AppGroup> appDock = appDock(experience, context);
+        List<HomeReadModelDtos.AppGroup> appDock = appDock(
+                experience, context, badgeProjection);
         String changeVersion = changeVersion(
                 context, experience, view, runtimeCatalog, widgets, shell, appDock, mode, device);
         HomeReadModelDtos.HomeReadModel model = new HomeReadModelDtos.HomeReadModel(
@@ -292,7 +327,8 @@ public class HomeReadModelService {
 
     private List<HomeReadModelDtos.AppGroup> appDock(
             HomeExperienceDtos.HomeExperienceResponse experience,
-            HomeRuntimeContext context) {
+            HomeRuntimeContext context,
+            AppDockBadgeProjection.Projection badges) {
         HomeExperienceDtos.HomeLaunchpadConfiguration launchpad =
                 experience.launchpadConfiguration();
         Map<String, ApprovedHomeApplicationCatalog.Application> apps =
@@ -323,10 +359,48 @@ public class HomeReadModelService {
                                         app.appKey(), korean ? app.nameKo() : app.nameEn(),
                                         app.iconKey(),
                                         ProviderResultValidator.internalRoute(app.launchTarget()),
-                                        HomeReadModelDtos.BadgeState.NOT_REQUESTED,
-                                        null))
+                                        badges.state(app.appKey()),
+                                        badges.badge(app.appKey())))
                                 .toList()))
                 .toList();
+    }
+
+    private AppDockBadgeProjection.Projection initialBadgeProjection(
+            WidgetCatalogService.RuntimeDefinition definition) {
+        if (definition == null) return AppDockBadgeProjection.notRequested();
+        if (definition.effectiveState() == WidgetRegistryDtos.EffectiveCatalogState.DENY
+                && definition.reasonCodes().contains("APP_ACCESS_REQUIRED")) {
+            return AppDockBadgeProjection.forbidden();
+        }
+        return AppDockBadgeProjection.notRequested();
+    }
+
+    private Map<String, WidgetCatalogService.RuntimeDefinition> definitionAliases(
+            List<WidgetCatalogService.RuntimeDefinition> definitions) {
+        Map<String, WidgetCatalogService.RuntimeDefinition> aliases = new LinkedHashMap<>();
+        for (WidgetCatalogService.RuntimeDefinition definition : definitions) {
+            putDefinitionAlias(aliases, definition.definitionKey(), definition);
+            if (definition.legacyWidgetKey() != null
+                    && !definition.legacyWidgetKey().isBlank()) {
+                putDefinitionAlias(aliases, definition.legacyWidgetKey(), definition);
+            }
+        }
+        return Map.copyOf(aliases);
+    }
+
+    private void putDefinitionAlias(
+            Map<String, WidgetCatalogService.RuntimeDefinition> aliases,
+            String key,
+            WidgetCatalogService.RuntimeDefinition definition) {
+        if (key == null || key.isBlank()) {
+            throw new BaseException(ErrorCode.INVALID_STATE,
+                    "Widget Registry definition keys are required.");
+        }
+        WidgetCatalogService.RuntimeDefinition previous = aliases.putIfAbsent(key, definition);
+        if (previous != null && !previous.definitionId().equals(definition.definitionId())) {
+            throw new BaseException(ErrorCode.INVALID_STATE,
+                    "Widget Registry definition aliases must be unique.");
+        }
     }
 
     private String localized(Map<String, String> values, String locale) {
@@ -388,6 +462,14 @@ public class HomeReadModelService {
                 || widget.state() == HomeWidgetProviderContract.State.STALE
                 || widget.state() == HomeWidgetProviderContract.State.UNAVAILABLE
                 && widget.source().retryable();
+    }
+
+    private boolean technicalDegradation(HomeWidgetProviderContract.WidgetResult result) {
+        return result != null && result.source() != null
+                && (result.state() == HomeWidgetProviderContract.State.PARTIAL
+                || result.state() == HomeWidgetProviderContract.State.STALE
+                || result.state() == HomeWidgetProviderContract.State.UNAVAILABLE
+                && result.source().retryable());
     }
 
     private String sha256(String value) {

@@ -495,11 +495,15 @@ public class WidgetRegistryDefinitionService {
     }
 
     boolean hasCurrentCertificationEvidence(WidgetDefinitionVersion value) {
+        return hasCurrentEvidence(value, REQUIRED_EVIDENCE);
+    }
+
+    boolean hasCurrentEvidence(WidgetDefinitionVersion value, Set<String> requiredEvidence) {
         Map<String, WidgetEvidence> latest = new LinkedHashMap<>();
         evidence.findByVersionIdOrderByCreatedAtDescEvidenceIdDesc(value.getVersionId()).forEach(item ->
                 latest.putIfAbsent(item.getEvidenceType(), item));
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        return REQUIRED_EVIDENCE.stream().allMatch(type -> {
+        return requiredEvidence.stream().allMatch(type -> {
             WidgetEvidence item = latest.get(type);
             return item != null
                     && item.getManifestHash().equals(value.getManifestHash())
