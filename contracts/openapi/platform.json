@@ -82,6 +82,36 @@
         },
         "type": "object"
       },
+      "Action": {
+        "properties": {
+          "actionId": {
+            "type": "string"
+          },
+          "commandKey": {
+            "type": "string"
+          },
+          "expectedResultVersion": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "SOURCE_ROUTE",
+              "COMMAND"
+            ],
+            "type": "string"
+          },
+          "labelKey": {
+            "type": "string"
+          },
+          "requiresConfirmation": {
+            "type": "boolean"
+          },
+          "sourceRoute": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ActionProposal": {
         "properties": {
           "actionContractVersion": {
@@ -805,6 +835,27 @@
           "requiredPermissions",
           "sourceSystem"
         ],
+        "type": "object"
+      },
+      "Announcement": {
+        "properties": {
+          "dueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "id": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "sourceRoute": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "AnnouncementDefinition": {
@@ -2111,6 +2162,33 @@
         },
         "type": "object"
       },
+      "ApiResponseCommandReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CommandReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseCommunicationItem": {
         "properties": {
           "correlationId": {
@@ -3252,6 +3330,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/HomePreferenceResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseHomeReadModel": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HomeReadModel"
           },
           "errorCode": {
             "type": "string"
@@ -7944,6 +8049,35 @@
         },
         "type": "object"
       },
+      "AppEntry": {
+        "properties": {
+          "appKey": {
+            "type": "string"
+          },
+          "badge": {
+            "$ref": "#/components/schemas/Badge"
+          },
+          "badgeState": {
+            "enum": [
+              "NOT_REQUESTED",
+              "AVAILABLE",
+              "UNAVAILABLE",
+              "FORBIDDEN"
+            ],
+            "type": "string"
+          },
+          "iconKey": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "sourceRoute": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AppFolderV1": {
         "properties": {
           "appIds": {
@@ -7978,6 +8112,23 @@
           "id",
           "name"
         ],
+        "type": "object"
+      },
+      "AppGroup": {
+        "properties": {
+          "apps": {
+            "items": {
+              "$ref": "#/components/schemas/AppEntry"
+            },
+            "type": "array"
+          },
+          "groupKey": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "AppLaunch": {
@@ -8735,6 +8886,22 @@
           },
           "startsAt": {
             "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Badge": {
+        "properties": {
+          "total": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "urgent": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "version": {
             "type": "string"
           }
         },
@@ -10428,6 +10595,63 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "CommandReceipt": {
+        "properties": {
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "commandKey": {
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resultVersion": {
+            "type": "string"
+          },
+          "sourceRoute": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CommandRequest": {
+        "properties": {
+          "actionId": {
+            "minLength": 1,
+            "pattern": "[a-z][a-z0-9.-]{1,79}",
+            "type": "string"
+          },
+          "expectedResultVersion": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "instanceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "parameters": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "actionId",
+          "expectedResultVersion",
+          "instanceId"
+        ],
         "type": "object"
       },
       "CommentRequest": {
@@ -13326,6 +13550,34 @@
         },
         "type": "object"
       },
+      "EffectiveView": {
+        "properties": {
+          "composition": {
+            "$ref": "#/components/schemas/HomeLayoutPayload"
+          },
+          "deviceClass": {
+            "type": "string"
+          },
+          "deviceOverlay": {
+            "$ref": "#/components/schemas/DeviceLayoutOverlay"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "revision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "source": {
+            "type": "string"
+          },
+          "viewId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Entity": {
         "properties": {
           "description": {
@@ -14894,6 +15146,32 @@
         },
         "type": "object"
       },
+      "Governance": {
+        "properties": {
+          "classification": {
+            "type": "string"
+          },
+          "owner": {
+            "type": "string"
+          },
+          "requiredAuthorities": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "retention": {
+            "type": "string"
+          },
+          "sourceAppResourceKey": {
+            "type": "string"
+          },
+          "sourceRoute": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "GovernanceChangeReview": {
         "properties": {
           "current": {
@@ -15668,6 +15946,59 @@
         ],
         "type": "object"
       },
+      "HomeReadModel": {
+        "properties": {
+          "appDock": {
+            "items": {
+              "$ref": "#/components/schemas/AppGroup"
+            },
+            "type": "array"
+          },
+          "changeVersion": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "mode": {
+            "type": "string"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "registryMode": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "shell": {
+            "$ref": "#/components/schemas/HomeShell"
+          },
+          "unavailableSources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "view": {
+            "$ref": "#/components/schemas/EffectiveView"
+          },
+          "widgets": {
+            "items": {
+              "$ref": "#/components/schemas/Widget"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "HomeResponse": {
         "properties": {
           "accounts": {
@@ -15700,6 +16031,32 @@
               "$ref": "#/components/schemas/SharedInboxPulse"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "HomeShell": {
+        "properties": {
+          "announcements": {
+            "items": {
+              "$ref": "#/components/schemas/Announcement"
+            },
+            "type": "array"
+          },
+          "backgroundAssetRoute": {
+            "type": "string"
+          },
+          "contentAlignment": {
+            "type": "string"
+          },
+          "density": {
+            "type": "string"
+          },
+          "headline": {
+            "type": "string"
+          },
+          "subheadline": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -22477,6 +22834,35 @@
         ],
         "type": "object"
       },
+      "SourceState": {
+        "properties": {
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastSuccessAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "resultVersion": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          },
+          "sourceKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Subject": {
         "properties": {
           "connectorId": {
@@ -24461,6 +24847,63 @@
           "routeGroup",
           "value"
         ],
+        "type": "object"
+      },
+      "Widget": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/Action"
+            },
+            "type": "array"
+          },
+          "definitionKey": {
+            "type": "string"
+          },
+          "definitionManifestHash": {
+            "type": "string"
+          },
+          "definitionVersion": {
+            "type": "string"
+          },
+          "governance": {
+            "$ref": "#/components/schemas/Governance"
+          },
+          "instanceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "redactions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "rendererBindingRevision": {
+            "type": "string"
+          },
+          "rendererKey": {
+            "type": "string"
+          },
+          "source": {
+            "$ref": "#/components/schemas/SourceState"
+          },
+          "state": {
+            "enum": [
+              "AVAILABLE",
+              "EMPTY",
+              "PARTIAL",
+              "FORBIDDEN",
+              "UNAVAILABLE",
+              "STALE"
+            ],
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "WidgetConfigurationPayload": {
@@ -51337,6 +51780,289 @@
         },
         "tags": [
           "workspace-controller"
+        ]
+      }
+    },
+    "/v2/home": {
+      "get": {
+        "description": "Returns a private conditional-read model. ETag identity is bound to tenant, recipient, authority revision, mode, device, locale and time zone.",
+        "operationId": "readHomeV2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "default": "ko-KR",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "pattern": "CLASSIC|FLOW_V1",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "deviceClass",
+            "required": true,
+            "schema": {
+              "pattern": "DESKTOP_WIDE|DESKTOP_STANDARD|MOBILE_STANDARD|MOBILE_COMPACT",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": false,
+            "schema": {
+              "default": "Asia/Seoul",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeReadModel"
+                }
+              }
+            },
+            "description": "Recipient-bound Home read model",
+            "headers": {
+              "Cache-Control": {
+                "description": "private, max-age=0, must-revalidate",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "ETag": {
+                "description": "Recipient and authority-bound entity tag",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "Vary": {
+                "description": "Trusted identity, authority and locale dimensions",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Home-Commands-Enabled": {
+                "schema": {
+                  "type": "boolean"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Home-Runtime-Mode": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Widget-Registry-Authoritative": {
+                "schema": {
+                  "type": "boolean"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "304": {
+            "description": "Entity tag is current; response has no body",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "Vary": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Home-Commands-Enabled": {
+                "schema": {
+                  "type": "boolean"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Home-Runtime-Mode": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Widget-Registry-Authoritative": {
+                "schema": {
+                  "type": "boolean"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid mode, device, locale or time zone"
+          },
+          "401": {
+            "description": "Trusted recipient identity is missing"
+          },
+          "403": {
+            "description": "Current authority does not permit a requested source"
+          },
+          "503": {
+            "description": "Runtime or trusted authority is unavailable"
+          }
+        },
+        "summary": "Read the recipient-bound Home v2 projection",
+        "tags": [
+          "home-read-model-controller"
+        ]
+      }
+    },
+    "/v2/home/widget-actions:execute": {
+      "post": {
+        "description": "Disabled until the Wave 6 command promotion gate. When enabled, owner-side idempotency and an audit receipt are mandatory.",
+        "operationId": "executeHomeWidgetActionV2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "default": "ko-KR",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "mode",
+            "required": false,
+            "schema": {
+              "pattern": "CLASSIC|FLOW_V1",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "deviceClass",
+            "required": true,
+            "schema": {
+              "pattern": "DESKTOP_WIDE|DESKTOP_STANDARD|MOBILE_STANDARD|MOBILE_COMPACT",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": false,
+            "schema": {
+              "default": "Asia/Seoul",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommandRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommandReceipt"
+                }
+              }
+            },
+            "description": "Command accepted with an audit receipt",
+            "headers": {
+              "Cache-Control": {
+                "description": "private, no-store, max-age=0",
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Home-Commands-Enabled": {
+                "schema": {
+                  "type": "boolean"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Home-Runtime-Mode": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Widget-Registry-Authoritative": {
+                "schema": {
+                  "type": "boolean"
+                },
+                "style": "simple"
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid action contract or idempotency key"
+          },
+          "401": {
+            "description": "Trusted recipient identity is missing"
+          },
+          "403": {
+            "description": "Action is not authorized"
+          },
+          "409": {
+            "description": "Idempotency key was reused with a different command"
+          },
+          "503": {
+            "description": "Commands are disabled or the owner is unavailable"
+          }
+        },
+        "summary": "Execute an idempotent Home widget action",
+        "tags": [
+          "home-read-model-controller"
         ]
       }
     }

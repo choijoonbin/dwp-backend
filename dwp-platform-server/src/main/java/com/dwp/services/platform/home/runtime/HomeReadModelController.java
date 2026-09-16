@@ -3,6 +3,11 @@ package com.dwp.services.platform.home.runtime;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.headers.Header;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Pattern;
 import org.springframework.http.HttpHeaders;
@@ -50,6 +55,46 @@ public class HomeReadModelController {
     }
 
     @GetMapping
+    @Operation(
+            operationId = "readHomeV2",
+            summary = "Read the recipient-bound Home v2 projection",
+            description = "Returns a private conditional-read model. ETag identity is bound to "
+                    + "tenant, recipient, authority revision, mode, device, locale and time zone.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200", description = "Recipient-bound Home read model",
+                    useReturnTypeSchema = true,
+                    headers = {
+                            @Header(name = "ETag", description = "Recipient and authority-bound entity tag",
+                                    schema = @Schema(type = "string")),
+                            @Header(name = "Cache-Control", description = "private, max-age=0, must-revalidate",
+                                    schema = @Schema(type = "string")),
+                            @Header(name = "Vary", description = "Trusted identity, authority and locale dimensions",
+                                    schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Runtime-Mode", schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Commands-Enabled", schema = @Schema(type = "boolean")),
+                            @Header(name = "X-DWP-Widget-Registry-Authoritative", schema = @Schema(type = "boolean"))
+                    }),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "304", description = "Entity tag is current; response has no body",
+                    content = @Content,
+                    headers = {
+                            @Header(name = "ETag", schema = @Schema(type = "string")),
+                            @Header(name = "Cache-Control", schema = @Schema(type = "string")),
+                            @Header(name = "Vary", schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Runtime-Mode", schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Commands-Enabled", schema = @Schema(type = "boolean")),
+                            @Header(name = "X-DWP-Widget-Registry-Authoritative", schema = @Schema(type = "boolean"))
+                    }),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "Invalid mode, device, locale or time zone", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401", description = "Trusted recipient identity is missing", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403", description = "Current authority does not permit a requested source", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "503", description = "Runtime or trusted authority is unavailable", content = @Content)
+    })
     public ResponseEntity<ApiResponse<HomeReadModelDtos.HomeReadModel>> read(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
@@ -81,6 +126,33 @@ public class HomeReadModelController {
     }
 
     @PostMapping("/widget-actions:execute")
+    @Operation(
+            operationId = "executeHomeWidgetActionV2",
+            summary = "Execute an idempotent Home widget action",
+            description = "Disabled until the Wave 6 command promotion gate. When enabled, owner-side "
+                    + "idempotency and an audit receipt are mandatory.")
+    @ApiResponses({
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "202", description = "Command accepted with an audit receipt",
+                    useReturnTypeSchema = true,
+                    headers = {
+                            @Header(name = "Cache-Control", description = "private, no-store, max-age=0",
+                                    schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Runtime-Mode", schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Commands-Enabled", schema = @Schema(type = "boolean")),
+                            @Header(name = "X-DWP-Widget-Registry-Authoritative", schema = @Schema(type = "boolean"))
+                    }),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "400", description = "Invalid action contract or idempotency key", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "401", description = "Trusted recipient identity is missing", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "403", description = "Action is not authorized", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "409", description = "Idempotency key was reused with a different command", content = @Content),
+            @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "503", description = "Commands are disabled or the owner is unavailable", content = @Content)
+    })
     public ResponseEntity<ApiResponse<HomeReadModelDtos.CommandReceipt>> execute(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,

@@ -73,6 +73,20 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             "/api/platform/v1/admin/widget-policies/123",
         )
 
+    def test_home_v2_is_the_only_exported_platform_v2_surface(self) -> None:
+        platform_path = EXPORTER["platform_path"]
+        self.assertEqual(platform_path("/v2/home"), "/api/platform/v2/home")
+        self.assertEqual(
+            platform_path("/v2/home/widget-actions:execute"),
+            "/api/platform/v2/home/widget-actions:execute",
+        )
+        self.assertIsNone(platform_path("/v2/admin/unsafe"))
+        operations = EXPORTER["product_governed_operations"]()
+        self.assertFalse(operations[("/api/platform/v2/home", "get")])
+        self.assertTrue(operations[(
+            "/api/platform/v2/home/widget-actions:execute", "post"
+        )])
+
     def test_approval_and_gateway_snapshots_publish_exact_signature_contract(self) -> None:
         owner = json.loads(
             (ROOT / "contracts/openapi/approval.json").read_text(encoding="utf-8")

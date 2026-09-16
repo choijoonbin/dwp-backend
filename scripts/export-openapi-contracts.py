@@ -130,10 +130,18 @@ PROVIDER_WIDGET_REGISTRY_PREFIXES = (
     "/v1/admin/widget-runtime-controls",
     "/v1/admin/widget-registry",
 )
+PLATFORM_V2_PUBLIC_PATHS = frozenset({
+    "/v2/home",
+    "/v2/home/widget-actions:execute",
+})
 
 
 def platform_path(path: str) -> str | None:
-    if path.startswith("/internal/") or not (path.startswith("/v1/") or path == "/v1"):
+    if path.startswith("/internal/"):
+        return None
+    if path in PLATFORM_V2_PUBLIC_PATHS:
+        return f"/api/platform{path}"
+    if not (path.startswith("/v1/") or path == "/v1"):
         return None
     if any(path == prefix or path.startswith(f"{prefix}/")
            for prefix in PROVIDER_WIDGET_REGISTRY_PREFIXES):
