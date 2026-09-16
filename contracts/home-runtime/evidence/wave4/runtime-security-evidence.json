@@ -57,7 +57,7 @@
       "errors": 0,
       "failures": 0,
       "skipped": 0,
-      "tests": 3
+      "tests": 23
     },
     "ProviderResultValidatorTest": {
       "errors": 0,
@@ -94,7 +94,7 @@
     "errors": 0,
     "failures": 0,
     "skipped": 0,
-    "tests": 42
+    "tests": 62
   },
   "lastSuccessOrderingVerified": true,
   "lateTimeoutMutatesCacheOrMetrics": false,
@@ -121,5 +121,5 @@
   "status": "PASS",
   "successMayBeExpired": false,
   "telemetryLeakCount": 0,
-  "testedCommit": "32e7a073277e95dc407369657cbe5a201f1efdeb"
+  "testedCommit": "dd3410bb34067c7d742749ed38e39387e91e8947"
 }
