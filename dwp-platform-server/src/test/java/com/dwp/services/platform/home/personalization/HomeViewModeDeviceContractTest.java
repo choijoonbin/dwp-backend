@@ -29,6 +29,8 @@ import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class HomeViewModeDeviceContractTest {
+    private static final HomeViewRegistryPlacementPolicy.Authority AUTHORITY =
+            HomeViewRegistryPlacementPolicy.Authority.NONE;
     @Mock private HomeViewRepository viewRepository;
     @Mock private HomeViewRevisionRepository revisionRepository;
     @Mock private HomeDeviceLayoutRepository deviceLayouts;
@@ -40,6 +42,7 @@ class HomeViewModeDeviceContractTest {
     @Mock private HomeViewCompatibilityBridge compatibilityBridge;
     @Mock private HomePersonalizationScopeLock scopeLock;
     @Mock private HomeCommandReceiptService commandReceipts;
+    @Mock private HomeViewRegistryPlacementPolicy registryPlacements;
 
     private ObjectMapper objectMapper;
     private HomeViewService service;
@@ -54,7 +57,12 @@ class HomeViewModeDeviceContractTest {
                 preferenceService, compositionPolicy, access, audit,
                 objectMapper, compatibilityBridge, scopeLock,
                 new HomeViewSnapshotCodec(objectMapper, widgetPolicy),
-                widgetPolicy, new HomeCanonicalJson(objectMapper), commandReceipts);
+                widgetPolicy, new HomeCanonicalJson(objectMapper), commandReceipts,
+                registryPlacements);
+        lenient().when(registryPlacements.contracts(any(), any(), any()))
+                .thenReturn(Map.of());
+        lenient().when(registryPlacements.contracts(any(), any(), any(), any()))
+                .thenReturn(Map.of());
         lenient().when(compositionPolicy.personalCustomizationEnabled(7L)).thenReturn(true);
         lenient().when(compositionPolicy.flowPersonalizationEnabled(7L)).thenReturn(true);
     }
@@ -89,7 +97,7 @@ class HomeViewModeDeviceContractTest {
         assertThatThrownBy(() -> service.update(
                 7L, 11L, viewId, UUID.randomUUID(), "corr",
                 new HomeViewDtos.UpdateHomeViewRequest(
-                        "Changed", layout(List.of()), 0L)))
+                        "Changed", layout(List.of()), 0L), AUTHORITY))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
         assertThatThrownBy(() -> service.reset(
@@ -158,9 +166,10 @@ class HomeViewModeDeviceContractTest {
         when(compositionPolicy.effectiveExperienceVariant(7L)).thenReturn("FLOW_V1");
         when(viewRepository.countByTenantIdAndUserIdAndSurfaceKeyAndModeKey(
                 7L, 11L, "workspace-home", "FLOW_V1")).thenReturn(0L);
-        when(preferenceService.normalizeForSurface("workspace-home", initial))
+        when(preferenceService.normalizeForSurface("workspace-home", initial, Map.of()))
                 .thenReturn(initial);
-        when(preferenceService.normalizeForSurface("workspace-home", changed))
+        when(preferenceService.normalizeForSurface(
+                "workspace-home", changed, Map.of(), initial))
                 .thenReturn(changed);
         when(viewRepository.saveAndFlush(any(HomeView.class))).thenAnswer(invocation -> {
             HomeView value = invocation.getArgument(0);
@@ -183,12 +192,13 @@ class HomeViewModeDeviceContractTest {
         HomeViewDtos.HomeViewResponse created = service.create(
                 7L, 11L, createCommand, "legacy-flow-create",
                 new HomeViewDtos.CreateHomeViewRequest(
-                        "personal", "Flow personal", true, initial));
+                        "personal", "Flow personal", true, initial), AUTHORITY);
         HomeViewDtos.HomeViewResponse listed =
                 service.list(7L, 11L, "workspace-home").getFirst();
         HomeViewDtos.HomeViewResponse updated = service.update(
                 7L, 11L, created.viewId(), updateCommand, "legacy-flow-update",
-                new HomeViewDtos.UpdateHomeViewRequest("Changed Flow", changed, 0L));
+                new HomeViewDtos.UpdateHomeViewRequest(
+                        "Changed Flow", changed, 0L), AUTHORITY);
 
         assertThat(created.modeKey()).isEqualTo("FLOW_V1");
         assertThat(listed.modeKey()).isEqualTo("FLOW_V1");
@@ -211,7 +221,7 @@ class HomeViewModeDeviceContractTest {
                 .thenAnswer(ignored -> effectiveMode.get());
         when(viewRepository.countByTenantIdAndUserIdAndSurfaceKeyAndModeKey(
                 7L, 11L, "workspace-home", "FLOW_V1")).thenReturn(0L);
-        when(preferenceService.normalizeForSurface("workspace-home", initial))
+        when(preferenceService.normalizeForSurface("workspace-home", initial, Map.of()))
                 .thenReturn(initial);
         when(viewRepository.saveAndFlush(any(HomeView.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -221,7 +231,7 @@ class HomeViewModeDeviceContractTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         HomeViewDtos.HomeViewResponse created = service.create(
-                7L, 11L, commandId, "legacy-flow-create", request);
+                7L, 11L, commandId, "legacy-flow-create", request, AUTHORITY);
 
         org.mockito.ArgumentCaptor<String> target =
                 org.mockito.ArgumentCaptor.forClass(String.class);
@@ -238,7 +248,7 @@ class HomeViewModeDeviceContractTest {
         effectiveMode.set("CLASSIC");
 
         HomeViewDtos.HomeViewResponse replayed = service.create(
-                7L, 11L, commandId, "retry-after-mode-change", request);
+                7L, 11L, commandId, "retry-after-mode-change", request, AUTHORITY);
 
         assertThat(replayed).isEqualTo(created);
         verify(compositionPolicy).effectiveExperienceVariant(7L);
@@ -280,10 +290,16 @@ class HomeViewModeDeviceContractTest {
 
         assertThatThrownBy(() -> service.update(
                 7L, 11L, viewId, UUID.randomUUID(), "corr",
-                new HomeViewDtos.UpdateHomeViewRequest("Changed", layout, 4L)))
-                .isInstanceOfSatisfying(BaseException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(
-                                ErrorCode.RESOURCE_CONFLICT));
+                new HomeViewDtos.UpdateHomeViewRequest("Changed", layout, 4L), AUTHORITY))
+                .isInstanceOfSatisfying(HomeViewConflictException.class, exception -> {
+                    assertThat(exception.getErrorCode()).isEqualTo(
+                            ErrorCode.HOME_VIEW_VERSION_CONFLICT);
+                    assertThat(exception.conflict().operation()).isEqualTo("UPDATE_VIEW");
+                    assertThat(exception.conflict().expectedVersion()).isEqualTo(4L);
+                    assertThat(exception.conflict().actualVersion()).isEqualTo(5L);
+                    assertThat(exception.conflict().latestView().viewId()).isEqualTo(viewId);
+                    assertThat(exception.conflict().changedFields()).contains("name");
+                });
 
         verify(scopeLock).lock(7L, 11L, "workspace-home", "FLOW_V1");
         verify(viewRepository, never()).saveAndFlush(any(HomeView.class));
@@ -314,7 +330,8 @@ class HomeViewModeDeviceContractTest {
                 List.of("schedule", "focus"), Map.of(), "compact");
         assertThatThrownBy(() -> service.putDeviceLayout(
                 7L, 11L, viewId, "MOBILE", UUID.randomUUID(), "corr",
-                new HomeViewDtos.UpdateDeviceLayoutRequest(overlay, 0L, null)))
+                new HomeViewDtos.UpdateDeviceLayoutRequest(
+                        overlay, 0L, null), AUTHORITY))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(
                                 ErrorCode.INVALID_INPUT_VALUE));
@@ -339,13 +356,14 @@ class HomeViewModeDeviceContractTest {
         when(viewRepository.findOwnedForUpdate(viewId, 7L, 11L))
                 .thenReturn(Optional.of(view));
         when(preferenceService.isWidgetSizeAllowed(
-                "workspace-home", "schedule", "full")).thenReturn(false);
+                "workspace-home", "schedule", "full", Map.of())).thenReturn(false);
 
         var overlay = new HomeViewDtos.DeviceLayoutOverlay(
                 List.of("schedule"), Map.of("schedule", "full"), "compact");
         assertThatThrownBy(() -> service.putDeviceLayout(
                 7L, 11L, viewId, "MOBILE", UUID.randomUUID(), "corr",
-                new HomeViewDtos.UpdateDeviceLayoutRequest(overlay, 0L, null)))
+                new HomeViewDtos.UpdateDeviceLayoutRequest(
+                        overlay, 0L, null), AUTHORITY))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(
                                 ErrorCode.INVALID_INPUT_VALUE));
@@ -374,11 +392,66 @@ class HomeViewModeDeviceContractTest {
                 List.of("schedule"), Map.of(), "relaxed");
         assertThatThrownBy(() -> service.putDeviceLayout(
                 7L, 11L, viewId, "MOBILE", UUID.randomUUID(), "corr",
-                new HomeViewDtos.UpdateDeviceLayoutRequest(overlay, 0L, null)))
+                new HomeViewDtos.UpdateDeviceLayoutRequest(
+                        overlay, 0L, null), AUTHORITY))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(
                                 ErrorCode.INVALID_INPUT_VALUE));
         verify(deviceLayouts, never()).saveAndFlush(any());
+    }
+
+    @Test
+    void staleOrMissingDeviceVersionReturnsBothConcurrencyHeadsAndTheLatestOverlay() {
+        UUID viewId = UUID.randomUUID();
+        HomePreferenceDtos.HomeLayoutPayload current = layout(List.of(
+                new HomePreferenceDtos.WidgetPreference(
+                        "command-rail", true, "large", "short"),
+                new HomePreferenceDtos.WidgetPreference(
+                        "schedule", true, "quarter", "standard")));
+        HomeView view = HomeView.builder()
+                .viewId(viewId).tenantId(7L).userId(11L)
+                .surfaceKey("workspace-home").viewKey("default").name("My home")
+                .defaultView(true).schemaVersion(5).integrityState("VALID")
+                .layoutPayload(objectMapper.valueToTree(current)).version(5L).build();
+        var submittedOverlay = new HomeViewDtos.DeviceLayoutOverlay(
+                List.of("schedule"), Map.of(), "compact");
+        var currentOverlay = new HomeViewDtos.DeviceLayoutOverlay(
+                List.of("schedule"), Map.of("schedule", "quarter"), "comfortable");
+        HomeDeviceLayout stored = HomeDeviceLayout.builder()
+                .deviceLayoutId(UUID.randomUUID()).viewId(viewId)
+                .tenantId(7L).userId(11L).deviceClass("MOBILE_STANDARD")
+                .overlayPayload(objectMapper.valueToTree(currentOverlay)).version(3L).build();
+        when(viewRepository.findByViewIdAndTenantIdAndUserId(viewId, 7L, 11L))
+                .thenReturn(Optional.of(view));
+        when(viewRepository.findOwnedForUpdate(viewId, 7L, 11L))
+                .thenReturn(Optional.of(view));
+        when(deviceLayouts.findByViewIdAndTenantIdAndUserIdAndDeviceClass(
+                viewId, 7L, 11L, "MOBILE_STANDARD")).thenReturn(Optional.of(stored));
+        when(widgetConfigurations.findByViewIdAndTenantIdAndUserIdOrderByWidgetKey(
+                viewId, 7L, 11L)).thenReturn(List.of());
+
+        for (Long submittedVersion : new Long[]{null, 2L}) {
+            assertThatThrownBy(() -> service.putDeviceLayout(
+                    7L, 11L, viewId, "MOBILE", UUID.randomUUID(), "corr",
+                    new HomeViewDtos.UpdateDeviceLayoutRequest(
+                            submittedOverlay, 5L, submittedVersion), AUTHORITY))
+                    .isInstanceOfSatisfying(HomeViewConflictException.class, exception -> {
+                        HomeViewDtos.HomeViewConflictResponse conflict = exception.conflict();
+                        assertThat(conflict.operation()).isEqualTo("UPDATE_DEVICE_LAYOUT");
+                        assertThat(conflict.expectedVersion()).isEqualTo(5L);
+                        assertThat(conflict.actualVersion()).isEqualTo(5L);
+                        assertThat(conflict.expectedDeviceVersion()).isEqualTo(submittedVersion);
+                        assertThat(conflict.actualDeviceVersion()).isEqualTo(3L);
+                        assertThat(conflict.latestDeviceLayout().overlay())
+                                .isEqualTo(currentOverlay);
+                        assertThat(conflict.latestDeviceLayout().viewVersion()).isEqualTo(5L);
+                        assertThat(conflict.changedFields())
+                                .containsExactly("deviceLayouts.MOBILE_STANDARD.version");
+                    });
+        }
+
+        verify(deviceLayouts, never()).saveAndFlush(any());
+        verify(viewRepository, never()).saveAndFlush(any());
     }
 
     @Test
@@ -401,11 +474,11 @@ class HomeViewModeDeviceContractTest {
         when(viewRepository.findOwnedForUpdate(viewId, 7L, 11L))
                 .thenReturn(Optional.of(view));
         when(preferenceService.isWidgetSizeAllowed(
-                "workspace-home", "focus", "medium")).thenReturn(true);
+                "workspace-home", "focus", "medium", Map.of())).thenReturn(true);
         when(preferenceService.isWidgetSizeAllowed(
-                "workspace-home", "schedule", "quarter")).thenReturn(true);
+                "workspace-home", "schedule", "quarter", Map.of())).thenReturn(true);
         when(preferenceService.isWidgetSizeAllowed(
-                "workspace-home", "command-rail", "full")).thenReturn(true);
+                "workspace-home", "command-rail", "full", Map.of())).thenReturn(true);
         when(deviceLayouts.findByViewIdAndTenantIdAndUserIdAndDeviceClass(
                 viewId, 7L, 11L, "MOBILE_STANDARD")).thenReturn(Optional.empty());
         when(deviceLayouts.saveAndFlush(any(HomeDeviceLayout.class)))
@@ -429,7 +502,8 @@ class HomeViewModeDeviceContractTest {
                 "compact");
         var result = service.putDeviceLayout(
                 7L, 11L, viewId, "mobile", UUID.randomUUID(), "corr",
-                new HomeViewDtos.UpdateDeviceLayoutRequest(overlay, 0L, null));
+                new HomeViewDtos.UpdateDeviceLayoutRequest(
+                        overlay, 0L, null), AUTHORITY);
 
         assertThat(result.overlay()).isEqualTo(overlay);
         assertThat(result.deviceClass()).isEqualTo("MOBILE_STANDARD");

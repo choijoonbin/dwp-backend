@@ -12,6 +12,154 @@ EXPORTER = runpy.run_path(str(ROOT / "scripts" / "export-openapi-contracts.py"))
 
 
 class ExportOpenApiContractsTest(unittest.TestCase):
+    def test_wave5_registry_placement_keys_and_instance_ceiling_are_public(self) -> None:
+        platform = json.loads(
+            (ROOT / "contracts/openapi/platform.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+        definition_key = {
+            "maxLength": 160,
+            "minLength": 0,
+            "pattern": "[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*",
+            "type": "string",
+        }
+
+        for document, prefix in ((platform, ""), (gateway, "platform_")):
+            schemas = document["components"]["schemas"]
+            preference = schemas[f"{prefix}WidgetPreference"]
+            self.assertEqual(preference["properties"]["widgetKey"], definition_key)
+
+            layout = schemas[f"{prefix}HomeLayoutPayload"]
+            self.assertEqual(layout["properties"]["widgets"]["maxItems"], 30)
+
+            overlay = schemas[f"{prefix}DeviceLayoutOverlay"]
+            self.assertEqual(overlay["properties"]["widgetOrder"]["maxItems"], 30)
+            self.assertEqual(
+                overlay["properties"]["widgetOrder"]["items"], definition_key
+            )
+            self.assertEqual(
+                overlay["properties"]["widgetSizes"]["maxProperties"], 30
+            )
+            self.assertEqual(
+                overlay["properties"]["widgetSizes"]["propertyNames"],
+                {
+                    "maxLength": 160,
+                    "pattern": "[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*",
+                    "type": "string",
+                },
+            )
+
+    def test_wave5_home_restore_and_conflict_contracts_are_public_and_typed(
+        self,
+    ) -> None:
+        platform = json.loads(
+            (ROOT / "contracts/openapi/platform.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+
+        for document, prefix, component_prefix, operation_id in (
+            (platform, "", "", "restoreHomeTemplateRevision"),
+            (gateway, "/api/platform", "platform_", "platform_restoreHomeTemplateRevision"),
+        ):
+            restore_path = (
+                prefix
+                + "/v1/home-templates/{templateId}/revisions/{revisionId}/restore"
+            )
+            restore = document["paths"][restore_path]["post"]
+            self.assertEqual(restore["operationId"], operation_id)
+            self.assertEqual(
+                restore["requestBody"]["content"]["application/json"]["schema"]["$ref"],
+                f"#/components/schemas/{component_prefix}VersionRequest",
+            )
+            self.assertEqual(
+                restore["responses"]["200"]["content"]["*/*"]["schema"]["$ref"],
+                f"#/components/schemas/{component_prefix}ApiResponseHomeTemplateResponse",
+            )
+
+            update_path = prefix + "/v1/home-views/{viewId}"
+            conflict_ref = document["paths"][update_path]["put"]["responses"]["409"][
+                "content"
+            ]["application/json"]["schema"]["$ref"]
+            self.assertEqual(
+                conflict_ref,
+                f"#/components/schemas/{component_prefix}HomeViewConflictEnvelope",
+            )
+            conflict = document["components"]["schemas"][
+                f"{component_prefix}HomeViewConflictResponse"
+            ]
+            self.assertEqual(
+                conflict["required"],
+                [
+                    "actualVersion",
+                    "changedFields",
+                    "expectedVersion",
+                    "latestView",
+                    "operation",
+                    "submittedDraft",
+                ],
+            )
+            self.assertTrue(
+                {"expectedDeviceVersion", "actualDeviceVersion", "latestDeviceLayout"}
+                .issubset(conflict["properties"])
+            )
+
+    def test_home_studio_audit_contract_is_public_and_bounded(self) -> None:
+        platform = json.loads(
+            (ROOT / "contracts/openapi/platform.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+
+        for document, path, operation_id, response_schema in (
+            (
+                platform,
+                "/v1/admin/home-experience/audit-events",
+                "listHomeStudioAuditEvents",
+                "#/components/schemas/ApiResponseAuditPage",
+            ),
+            (
+                gateway,
+                "/api/platform/v1/admin/home-experience/audit-events",
+                "platform_listHomeStudioAuditEvents",
+                "#/components/schemas/platform_ApiResponseAuditPage",
+            ),
+        ):
+            operation = document["paths"][path]["get"]
+            self.assertEqual(operation["operationId"], operation_id)
+            parameters = {
+                parameter["name"]: parameter["schema"]
+                for parameter in operation["parameters"]
+            }
+            self.assertEqual(
+                parameters["page"],
+                {
+                    "default": 0,
+                    "format": "int32",
+                    "maximum": 1000,
+                    "minimum": 0,
+                    "type": "integer",
+                },
+            )
+            self.assertEqual(
+                parameters["size"],
+                {
+                    "default": 50,
+                    "format": "int32",
+                    "maximum": 100,
+                    "minimum": 1,
+                    "type": "integer",
+                },
+            )
+            self.assertEqual(
+                operation["responses"]["200"]["content"]["*/*"]["schema"]["$ref"],
+                response_schema,
+            )
+
     def test_widget_version_transition_schema_does_not_replace_existing_transition_contracts(
         self,
     ) -> None:

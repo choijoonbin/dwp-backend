@@ -1,5 +1,7 @@
 package com.dwp.services.platform.home.personalization;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.home.preference.HomePreferenceService;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,7 +17,10 @@ import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -110,5 +115,109 @@ class HomeTemplateServiceTest {
         verify(views, never()).requirePolicy(any(), any());
         verify(scopeLock, never()).lock(any());
         verify(templates, never()).findOwnedForUpdate(any(), any());
+    }
+
+    @Test
+    void restoresAHistoricalSnapshotAsAnExplicitDraftWithAuditEvidence() {
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        UUID templateId = UUID.randomUUID();
+        UUID revisionId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        var currentLayout = new com.dwp.services.platform.home.preference.HomePreferenceDtos
+                .HomeLayoutPayload(null, "balanced", List.of());
+        var restoredLayout = new com.dwp.services.platform.home.preference.HomePreferenceDtos
+                .HomeLayoutPayload(null, "compact", List.of());
+        HomeTemplate template = HomeTemplate.builder()
+                .templateId(templateId).tenantId(7L).templateKey("team-home")
+                .name("Published home")
+                .audiencePayload(objectMapper.valueToTree(
+                        new HomeTemplateDtos.TemplateAudience("ALL", List.of())))
+                .lifecycleState("PUBLISHED").schemaVersion(5)
+                .layoutPayload(objectMapper.valueToTree(currentLayout))
+                .publishedAt(OffsetDateTime.parse("2026-09-15T01:00:00Z"))
+                .publishedBy(20L).version(6L).build();
+        HomeTemplateDtos.HomeTemplateSnapshot historical =
+                new HomeTemplateDtos.HomeTemplateSnapshot(
+                        "Restored team home",
+                        new HomeTemplateDtos.TemplateAudience("ROLE", List.of("MANAGER")),
+                        "PUBLISHED", 5, restoredLayout, 2L,
+                        OffsetDateTime.parse("2026-09-01T01:00:00Z"), 19L);
+        HomeTemplateRevision revision = HomeTemplateRevision.builder()
+                .templateRevisionId(revisionId).templateId(templateId).tenantId(7L)
+                .revisionNumber(2L).snapshot(objectMapper.valueToTree(historical))
+                .source("PUBLISH").createdAt(OffsetDateTime.now()).createdBy(19L).build();
+
+        when(views.fingerprint(any())).thenReturn("a".repeat(64));
+        when(templates.findOwnedForUpdate(templateId, 7L)).thenReturn(java.util.Optional.of(template));
+        when(revisions.findByTemplateRevisionIdAndTemplateIdAndTenantId(
+                revisionId, templateId, 7L)).thenReturn(java.util.Optional.of(revision));
+        when(preferenceService.normalizeForSurface("workspace-home", restoredLayout))
+                .thenReturn(restoredLayout);
+        when(views.layout(any())).thenReturn(restoredLayout);
+        when(templates.saveAndFlush(template)).thenReturn(template);
+        when(revisions.findTopByTemplateIdOrderByRevisionNumberDesc(templateId))
+                .thenReturn(java.util.Optional.of(revision));
+        when(revisions.saveAndFlush(any(HomeTemplateRevision.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        var result = service.restore(
+                7L, 21L, "ADMIN.HOME_TEMPLATE:MANAGE", templateId, revisionId,
+                commandId, "wave5", 6L);
+
+        assertThat(result.name()).isEqualTo("Restored team home");
+        assertThat(result.audience().values()).containsExactly("MANAGER");
+        assertThat(result.layout()).isEqualTo(restoredLayout);
+        assertThat(result.lifecycle()).isEqualTo("DRAFT");
+        assertThat(result.publishedAt()).isNull();
+        assertThat(result.publishedBy()).isNull();
+        verify(audit).success(eq(7L), eq(21L), eq("home-template.revision-restored"),
+                eq("HOME_TEMPLATE"), eq(templateId.toString()), eq("wave5"), any(), any());
+        verify(receipts).record(eq(7L), eq(21L), eq(commandId), eq("RESTORE_TEMPLATE"),
+                eq(templateId.toString()), eq("a".repeat(64)), eq(result));
+        verify(revisions).findByTemplateRevisionIdAndTemplateIdAndTenantId(
+                revisionId, templateId, 7L);
+    }
+
+    @Test
+    void restoreRequiresManagePermissionBeforeReadingOrLockingState() {
+        doThrow(new BaseException(ErrorCode.FORBIDDEN))
+                .when(access).requireTemplateManage(null);
+
+        assertThatThrownBy(() -> service.restore(
+                7L, 21L, null, UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), "wave5", 3L))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+
+        verify(views, never()).fingerprint(any());
+        verify(scopeLock, never()).lock(any());
+        verify(templates, never()).findOwnedForUpdate(any(), any());
+        verify(revisions, never()).findByTemplateRevisionIdAndTemplateIdAndTenantId(
+                any(), any(), any());
+    }
+
+    @Test
+    void staleRestoreFailsBeforeHistoricalRevisionLookupOrMutation() {
+        UUID templateId = UUID.randomUUID();
+        HomeTemplate template = HomeTemplate.builder()
+                .templateId(templateId).tenantId(7L).templateKey("team-home")
+                .name("Current home").lifecycleState("PUBLISHED")
+                .schemaVersion(5).version(8L).build();
+        when(views.fingerprint(any())).thenReturn("b".repeat(64));
+        when(templates.findOwnedForUpdate(templateId, 7L))
+                .thenReturn(java.util.Optional.of(template));
+
+        assertThatThrownBy(() -> service.restore(
+                7L, 21L, "ADMIN.HOME_TEMPLATE:MANAGE", templateId, UUID.randomUUID(),
+                UUID.randomUUID(), "wave5", 7L))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+
+        verify(scopeLock).lock(7L);
+        verify(revisions, never()).findByTemplateRevisionIdAndTemplateIdAndTenantId(
+                any(), any(), any());
+        verify(templates, never()).saveAndFlush(any());
+        verify(audit, never()).success(any(), any(), any(), any(), any(), any(), any(), any());
     }
 }

@@ -86,4 +86,34 @@ class PlatformAuditServiceTest {
             assertThat(activity.targetId()).isEqualTo("WORK_PRIORITY/HIGH");
         });
     }
+
+    @Test
+    void homeStudioAuditUsesOnlyTheExactBoundedTargetFamilyBeforePaging() {
+        PlatformAuditEvent event = PlatformAuditEvent.builder()
+                .auditEventId(UUID.fromString("20000000-0000-0000-0000-000000000001"))
+                .tenantId(7L)
+                .actorType("USER")
+                .actorId(11L)
+                .action("home-experience.rolled-back")
+                .targetType("HOME_EXPERIENCE")
+                .targetId("7")
+                .outcome("SUCCESS")
+                .occurredAt(Instant.parse("2026-09-16T10:00:00Z"))
+                .build();
+        when(repository.findByTenantIdAndTargetTypeIn(
+                eq(7L),
+                eq(PlatformAuditService.HOME_STUDIO_TARGET_TYPES),
+                argThat((Pageable pageable) -> pageable.getPageNumber() == 2
+                        && pageable.getPageSize() == 100
+                        && pageable.getSort().getOrderFor("occurredAt").isDescending()
+                        && pageable.getSort().getOrderFor("auditEventId").isDescending())))
+                .thenReturn(new PageImpl<>(List.of(event)));
+
+        PlatformAuditService.AuditPage result = service.listHomeStudio(7L, 2, 500);
+
+        assertThat(result.content()).singleElement().satisfies(activity -> {
+            assertThat(activity.action()).isEqualTo("home-experience.rolled-back");
+            assertThat(activity.targetType()).isEqualTo("HOME_EXPERIENCE");
+        });
+    }
 }

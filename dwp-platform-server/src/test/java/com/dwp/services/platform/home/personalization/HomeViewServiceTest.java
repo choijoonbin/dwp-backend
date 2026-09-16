@@ -30,6 +30,8 @@ import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class HomeViewServiceTest {
+    private static final HomeViewRegistryPlacementPolicy.Authority AUTHORITY =
+            HomeViewRegistryPlacementPolicy.Authority.NONE;
     @Mock private HomeViewRepository viewRepository;
     @Mock private HomeViewRevisionRepository revisionRepository;
     @Mock private HomeDeviceLayoutRepository deviceLayouts;
@@ -41,6 +43,7 @@ class HomeViewServiceTest {
     @Mock private HomeViewCompatibilityBridge compatibilityBridge;
     @Mock private HomePersonalizationScopeLock scopeLock;
     @Mock private HomeCommandReceiptService commandReceipts;
+    @Mock private HomeViewRegistryPlacementPolicy registryPlacements;
 
     private ObjectMapper objectMapper;
     private HomeViewService service;
@@ -55,13 +58,18 @@ class HomeViewServiceTest {
                 preferenceService, compositionPolicy, access, audit,
                 objectMapper, compatibilityBridge, scopeLock,
                 new HomeViewSnapshotCodec(objectMapper, widgetPolicy),
-                widgetPolicy, new HomeCanonicalJson(objectMapper), commandReceipts);
+                widgetPolicy, new HomeCanonicalJson(objectMapper), commandReceipts,
+                registryPlacements);
+        lenient().when(registryPlacements.contracts(any(), any(), any()))
+                .thenReturn(Map.of());
+        lenient().when(registryPlacements.contracts(any(), any(), any(), any()))
+                .thenReturn(Map.of());
         lenient().when(compositionPolicy.personalCustomizationEnabled(7L)).thenReturn(true);
         lenient().when(compositionPolicy.flowPersonalizationEnabled(7L)).thenReturn(true);
     }
 
     @Test
-    void externalLayoutAppliesThePersonalCommandRailAndMirrorsTheDefaultView() {
+    void externalLayoutPreservesGrandfatheredRegistryWidgetsAndMirrorsTheDefaultView() {
         UUID viewId = UUID.randomUUID();
         UUID commandId = UUID.randomUUID();
         HomePreferenceDtos.WidgetPreference classicSnapshot =
@@ -70,10 +78,19 @@ class HomeViewServiceTest {
         HomePreferenceDtos.HomeLayoutPayload current = layout(List.of(
                 classicSnapshot,
                 new HomePreferenceDtos.WidgetPreference(
+                        "partner.retired.summary", false, "medium", "standard"),
+                new HomePreferenceDtos.WidgetPreference(
                         "focus", true, "medium", "tall")));
         HomePreferenceDtos.HomeLayoutPayload requested = layout(List.of(
                 new HomePreferenceDtos.WidgetPreference(
                         "focus", true, "large", "tall"),
+                new HomePreferenceDtos.WidgetPreference(
+                        "command-rail", true, "large", "short")));
+        HomePreferenceDtos.HomeLayoutPayload preserved = layout(List.of(
+                new HomePreferenceDtos.WidgetPreference(
+                        "focus", true, "large", "tall"),
+                new HomePreferenceDtos.WidgetPreference(
+                        "partner.retired.summary", false, "medium", "standard"),
                 new HomePreferenceDtos.WidgetPreference(
                         "command-rail", true, "large", "short")));
         HomeView view = HomeView.builder()
@@ -87,8 +104,8 @@ class HomeViewServiceTest {
                 .thenReturn(Optional.of(view));
         when(viewRepository.findByViewIdAndTenantIdAndUserId(viewId, 7L, 11L))
                 .thenReturn(Optional.of(view));
-        when(preferenceService.normalizeForSurface("workspace-home", requested))
-                .thenReturn(requested);
+        when(preferenceService.normalizeForSurface(
+                "workspace-home", requested, Map.of(), current)).thenReturn(preserved);
         when(viewRepository.saveAndFlush(view)).thenReturn(view);
         when(revisionRepository.findTopByViewIdOrderByRevisionNumberDesc(viewId))
                 .thenReturn(Optional.empty());
@@ -101,9 +118,11 @@ class HomeViewServiceTest {
                 7L, 11L, viewId, 0L, requested, "TEMPLATE", "Applied",
                 commandId, "a".repeat(64), 11L, "corr");
 
-        assertThat(result.layout()).isEqualTo(requested);
-        assertThat(result.layout().widgets().get(1).widgetKey()).isEqualTo("command-rail");
-        assertThat(result.layout().widgets().get(1).visible()).isTrue();
+        assertThat(result.layout()).isEqualTo(preserved);
+        assertThat(result.layout().widgets().get(1).widgetKey())
+                .isEqualTo("partner.retired.summary");
+        assertThat(result.layout().widgets().getLast().widgetKey()).isEqualTo("command-rail");
+        assertThat(result.layout().widgets().getLast().visible()).isTrue();
         assertThat(result.customized()).isTrue();
         verify(compatibilityBridge).mirrorDefaultView(view);
         verify(audit).success(eq(7L), eq(11L), eq("home-view.layout-applied"),
@@ -257,7 +276,8 @@ class HomeViewServiceTest {
                 .thenReturn(Optional.of(view));
         when(revisionRepository.findByTenantIdAndUserIdAndCommandId(
                 7L, 11L, commandId)).thenReturn(Optional.empty());
-        when(preferenceService.normalizeForSurface("workspace-home", requested))
+        when(preferenceService.normalizeForSurface(
+                "workspace-home", requested, Map.of(), current))
                 .thenReturn(requested);
         when(viewRepository.saveAndFlush(view)).thenReturn(view);
         when(revisionRepository.findTopByViewIdOrderByRevisionNumberDesc(viewId))
@@ -271,7 +291,7 @@ class HomeViewServiceTest {
 
         HomeViewDtos.HomeViewResponse result = service.update(
                 7L, 11L, viewId, commandId, "corr",
-                new HomeViewDtos.UpdateHomeViewRequest("Changed", requested, 0L));
+                new HomeViewDtos.UpdateHomeViewRequest("Changed", requested, 0L), AUTHORITY);
 
         assertThat(result.layout()).isEqualTo(requested);
         assertThat(result.layout().widgets().get(1))
@@ -292,7 +312,7 @@ class HomeViewServiceTest {
                 7L, 11L, commandId)).thenReturn(Optional.empty());
         when(viewRepository.countByTenantIdAndUserIdAndSurfaceKeyAndModeKey(
                 7L, 11L, "workspace-home", "CLASSIC")).thenReturn(0L);
-        when(preferenceService.normalizeForSurface("workspace-home", requested))
+        when(preferenceService.normalizeForSurface("workspace-home", requested, Map.of()))
                 .thenReturn(requested);
         when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
                 7L, 11L, "workspace-home", "CLASSIC")).thenReturn(List.of());
@@ -306,7 +326,7 @@ class HomeViewServiceTest {
         HomeViewDtos.HomeViewResponse result = service.create(
                 7L, 11L, commandId, "corr",
                 new HomeViewDtos.CreateHomeViewRequest(
-                        "personal", "Personal", true, requested));
+                        "personal", "Personal", true, requested), AUTHORITY);
 
         assertThat(result.layout()).isEqualTo(requested);
         assertThat(result.layout().widgets().get(1).visible()).isFalse();
@@ -336,7 +356,8 @@ class HomeViewServiceTest {
                 .thenReturn(Optional.of(view));
         when(viewRepository.findOwnedForUpdate(viewId, 7L, 11L))
                 .thenReturn(Optional.of(view));
-        when(preferenceService.normalizeForSurface("workspace-home", recovery))
+        when(preferenceService.normalizeForSurface(
+                "workspace-home", recovery, Map.of(), null))
                 .thenReturn(recovery);
         when(revisionRepository.findByTenantIdAndUserIdAndCommandId(
                 7L, 11L, commandId)).thenReturn(Optional.empty());
@@ -352,7 +373,7 @@ class HomeViewServiceTest {
 
         var result = service.update(
                 7L, 11L, viewId, commandId, "corr",
-                new HomeViewDtos.UpdateHomeViewRequest("Recovered", recovery, 3L));
+                new HomeViewDtos.UpdateHomeViewRequest("Recovered", recovery, 3L), AUTHORITY);
 
         assertThat(result.layout()).isEqualTo(recovery);
         assertThat(view.getSchemaVersion()).isEqualTo(5);
@@ -403,7 +424,7 @@ class HomeViewServiceTest {
                 7L, 11L, commandId)).thenReturn(Optional.empty());
         when(revisionRepository.findByRevisionIdAndViewIdAndTenantIdAndUserId(
                 revisionId, viewId, 7L, 11L)).thenReturn(Optional.of(source));
-        when(preferenceService.normalizeForSurface("workspace-home", revisionLayout))
+        when(preferenceService.normalizeForSurface("workspace-home", revisionLayout, Map.of()))
                 .thenReturn(revisionLayout);
         when(widgetConfigurations.findByViewIdAndTenantIdAndUserIdOrderByWidgetKey(
                 viewId, 7L, 11L)).thenReturn(List.of());
@@ -423,7 +444,7 @@ class HomeViewServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         HomeViewDtos.HomeViewResponse restored = service.restore(
-                7L, 11L, viewId, revisionId, commandId, "corr", 0L);
+                7L, 11L, viewId, revisionId, commandId, "corr", 0L, AUTHORITY);
 
         assertThat(restored.customized()).isFalse();
         assertThat(restored.name()).isEqualTo("Reset home");
@@ -561,8 +582,8 @@ class HomeViewServiceTest {
                 .thenReturn(Optional.of(view));
         when(revisionRepository.findByTenantIdAndUserIdAndCommandId(
                 7L, 11L, commandId)).thenReturn(Optional.empty());
-        when(preferenceService.normalizeForSurface("workspace-home", requested))
-                .thenReturn(requested);
+        when(preferenceService.normalizeForSurface(
+                "workspace-home", requested, Map.of(), current)).thenReturn(requested);
         when(viewRepository.saveAndFlush(view)).thenReturn(view);
         doThrow(new IllegalStateException("dual write unavailable"))
                 .when(compatibilityBridge).mirrorDefaultView(view);
@@ -594,7 +615,8 @@ class HomeViewServiceTest {
 
         assertThat(service.update(
                 7L, 11L, viewId, commandId, "retry",
-                new HomeViewDtos.UpdateHomeViewRequest("Saved", requestLayout, 3L)))
+                new HomeViewDtos.UpdateHomeViewRequest(
+                        "Saved", requestLayout, 3L), AUTHORITY))
                 .isEqualTo(original);
 
         verify(viewRepository, never())

@@ -13097,7 +13097,9 @@
           },
           "widgetOrder": {
             "items": {
-              "pattern": "[a-z][a-z0-9-]{0,39}",
+              "maxLength": 160,
+              "minLength": 0,
+              "pattern": "[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*",
               "type": "string"
             },
             "maxItems": 30,
@@ -13119,7 +13121,8 @@
             },
             "maxProperties": 30,
             "propertyNames": {
-              "pattern": "[a-z][a-z0-9-]{0,39}",
+              "maxLength": 160,
+              "pattern": "[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*",
               "type": "string"
             },
             "type": "object"
@@ -16142,7 +16145,8 @@
               "CREATE",
               "UPDATE",
               "PUBLISH",
-              "REVOKE"
+              "REVOKE",
+              "RESTORE"
             ],
             "type": "string"
           },
@@ -16209,6 +16213,90 @@
           "name",
           "schemaVersion",
           "version"
+        ],
+        "type": "object"
+      },
+      "HomeViewConflictEnvelope": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HomeViewConflictResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "HomeViewConflictResponse": {
+        "properties": {
+          "actualDeviceVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "actualVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "changedFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "expectedDeviceVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "latestDeviceLayout": {
+            "$ref": "#/components/schemas/DeviceLayoutResponse"
+          },
+          "latestView": {
+            "$ref": "#/components/schemas/HomeViewResponse"
+          },
+          "operation": {
+            "enum": [
+              "UPDATE_VIEW",
+              "RESET_VIEW",
+              "DELETE_VIEW",
+              "ACTIVATE_VIEW",
+              "UPDATE_WIDGET_CONFIGURATION",
+              "UPDATE_DEVICE_LAYOUT",
+              "RESTORE_REVISION",
+              "APPLY_TEMPLATE",
+              "APPLY_AI",
+              "APPLY_UNDO"
+            ],
+            "type": "string"
+          },
+          "submittedDraft": {}
+        },
+        "required": [
+          "actualVersion",
+          "changedFields",
+          "expectedVersion",
+          "latestView",
+          "operation",
+          "submittedDraft"
         ],
         "type": "object"
       },
@@ -24955,8 +25043,9 @@
             "type": "boolean"
           },
           "widgetKey": {
-            "minLength": 1,
-            "pattern": "[a-z][a-z0-9-]{0,39}",
+            "maxLength": 160,
+            "minLength": 0,
+            "pattern": "[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*",
             "type": "string"
           }
         },
@@ -30862,6 +30951,52 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseHomeExperienceResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-home-experience-controller"
+        ]
+      }
+    },
+    "/v1/admin/home-experience/audit-events": {
+      "get": {
+        "operationId": "listHomeStudioAuditEvents",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "maximum": 1000,
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "size",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAuditPage"
                 }
               }
             },
@@ -43094,11 +43229,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseVoid"
+                  "$ref": "#/components/schemas/HomeViewConflictEnvelope"
                 }
               }
             },
-            "description": "State, version, or idempotency conflict"
+            "description": "Home view version conflict"
           },
           "413": {
             "content": {
@@ -43202,11 +43337,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseVoid"
+                  "$ref": "#/components/schemas/HomeViewConflictEnvelope"
                 }
               }
             },
-            "description": "State, version, or idempotency conflict"
+            "description": "Home view version conflict"
           },
           "413": {
             "content": {
@@ -43911,11 +44046,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseVoid"
+                  "$ref": "#/components/schemas/HomeViewConflictEnvelope"
                 }
               }
             },
-            "description": "State, version, or idempotency conflict"
+            "description": "Home view version conflict"
           },
           "413": {
             "content": {
@@ -44105,6 +44240,123 @@
               }
             },
             "description": "State, version, or idempotency conflict"
+          }
+        },
+        "tags": [
+          "home-template-controller"
+        ]
+      }
+    },
+    "/v1/home-templates/{templateId}/revisions/{revisionId}/restore": {
+      "post": {
+        "operationId": "restoreHomeTemplateRevision",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "templateId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "revisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseHomeTemplateResponse"
+                }
+              }
+            },
+            "description": "OK"
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Invalid request"
+          },
+          "403": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Feature, tenant policy, or permission denied"
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Owned resource or dependency not found"
+          },
+          "409": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "State, version, or idempotency conflict"
+          },
+          "413": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "Request body exceeds the bounded limit"
           }
         },
         "tags": [
@@ -44484,11 +44736,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseVoid"
+                  "$ref": "#/components/schemas/HomeViewConflictEnvelope"
                 }
               }
             },
-            "description": "State, version, or idempotency conflict"
+            "description": "Home view version conflict"
           }
         },
         "tags": [
@@ -44649,11 +44901,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseVoid"
+                  "$ref": "#/components/schemas/HomeViewConflictEnvelope"
                 }
               }
             },
-            "description": "State, version, or idempotency conflict"
+            "description": "Home view version conflict"
           },
           "413": {
             "content": {
@@ -44757,11 +45009,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseVoid"
+                  "$ref": "#/components/schemas/HomeViewConflictEnvelope"
                 }
               }
             },
-            "description": "State, version, or idempotency conflict"
+            "description": "Home view version conflict"
           },
           "413": {
             "content": {
@@ -44953,11 +45205,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseVoid"
+                  "$ref": "#/components/schemas/HomeViewConflictEnvelope"
                 }
               }
             },
-            "description": "State, version, or idempotency conflict"
+            "description": "Home view or device layout version conflict"
           },
           "413": {
             "content": {
@@ -45061,11 +45313,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseVoid"
+                  "$ref": "#/components/schemas/HomeViewConflictEnvelope"
                 }
               }
             },
-            "description": "State, version, or idempotency conflict"
+            "description": "Home view version conflict"
           },
           "413": {
             "content": {
@@ -45249,11 +45501,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseVoid"
+                  "$ref": "#/components/schemas/HomeViewConflictEnvelope"
                 }
               }
             },
-            "description": "State, version, or idempotency conflict"
+            "description": "Home view version conflict"
           },
           "413": {
             "content": {
@@ -45366,11 +45618,11 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseVoid"
+                  "$ref": "#/components/schemas/HomeViewConflictEnvelope"
                 }
               }
             },
-            "description": "State, version, or idempotency conflict"
+            "description": "Home view version conflict"
           },
           "413": {
             "content": {

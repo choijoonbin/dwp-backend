@@ -1,0 +1,914 @@
+{
+  "schemaVersion": 1,
+  "wave": 5,
+  "component": "backend-home-settings-and-home-studio",
+  "sealedAtUtc": "2026-09-16T12:25:37+00:00",
+  "baseCommit": "fdc3d52532ed752d96f5cc07fb91eb6cb5cbc7d4",
+  "productionCommit": "91e756808d804f928e8cae45a70fc04f00a4f3c9",
+  "scope": [
+    "Account Home View create/update/device/revision restore with structured optimistic conflicts",
+    "Home Template revision restore as a new draft with audit and idempotency",
+    "Admin Home Studio exact VIEW/MANAGE authorization and tenant-only identity plane",
+    "DB-filtered tenant configuration audit paging with a privacy allowlist",
+    "Personal data-plane placement of trusted effective AVAILABLE registry definition keys",
+    "Exact preservation of stored unavailable/deprecated dotted definitions across update, restore, device overlays, TEMPLATE, AI, and UNDO"
+  ],
+  "explicitExclusions": [
+    "No Registry AUTHORITATIVE activation",
+    "No legacyPlacementWrite, instanceV6Write, runtime broker, or canAdd activation",
+    "No Wave 6 rollout",
+    "No registry authority in Admin Home Template create/update/restore; tenant templates cannot add dynamic definitions"
+  ],
+  "publicContracts": {
+    "conflictEnvelope": {
+      "errorCode": "HOME_VIEW_VERSION_CONFLICT",
+      "payloadField": "data"
+    },
+    "templateRestore": {
+      "method": "POST",
+      "path": "/v1/home-templates/{templateId}/revisions/{revisionId}/restore",
+      "operationId": "restoreHomeTemplateRevision",
+      "permission": "ADMIN.HOME_TEMPLATE:MANAGE"
+    },
+    "homeStudioAudit": {
+      "method": "GET",
+      "path": "/v1/admin/home-experience/audit-events",
+      "operationId": "listHomeStudioAuditEvents",
+      "permission": "ADMIN.HOME_EXPERIENCE:VIEW",
+      "maxPage": 1000,
+      "maxSize": 100
+    },
+    "homeStudioPermissionTruthTable": {
+      "GET_HEAD": "ADMIN.HOME_EXPERIENCE:VIEW",
+      "mutations": "ADMIN.HOME_EXPERIENCE:MANAGE"
+    },
+    "registryPlacement": {
+      "definitionKeyMaxLength": 160,
+      "instanceCeiling": 30,
+      "newWrites": "effective AVAILABLE + *_PERSONAL + manifest PERSONAL only",
+      "grandfathering": "exact stored key/size/height/visibility only"
+    }
+  },
+  "privacyAllowlist": [
+    "HOME_COMPOSITION_POLICY",
+    "HOME_EXPERIENCE",
+    "HOME_LAUNCHPAD_CONFIGURATION",
+    "HOME_TEMPLATE"
+  ],
+  "activationState": {
+    "migrationMode": "SHADOW",
+    "runtimeActivationReady": false,
+    "legacyPlacementWrite": false,
+    "instanceV6Write": false,
+    "canAdd": false
+  },
+  "productionTree": {
+    "algorithm": "sha256(sorted lines: <blob-sha256><two-spaces><repo-relative-path><newline>)",
+    "sha256": "12e851cd1eb54e377fc7e2f953b458a677f7fb3d609da84c7ca3e7b94811f73c",
+    "fileCount": 29,
+    "files": [
+      {
+        "path": "dwp-auth-server/src/main/resources/db/migration/V216__authorize_home_experience_management.sql",
+        "sha256": "9007a5281ee0a43613d4900be2eea5c46d98fa84ce6127ddf0ce80e35d66463e",
+        "bytes": 3835
+      },
+      {
+        "path": "dwp-core/src/main/java/com/dwp/core/common/ErrorCode.java",
+        "sha256": "8b9bc7e628987811f3f7a54fdc5757e125fab4fb44d14c8257e63ed906b07273",
+        "bytes": 4211
+      },
+      {
+        "path": "dwp-core/src/main/resources/i18n/dwp-core-messages.properties",
+        "sha256": "10b80709e0a456f0dc1357e20a501a94c0da268d014cd3afe0b30c7f860eaf75",
+        "bytes": 3215
+      },
+      {
+        "path": "dwp-core/src/main/resources/i18n/dwp-core-messages_ko.properties",
+        "sha256": "b5378ac6486957a2942de731f73007f793715ae5171614bedfddf1d862140882",
+        "bytes": 3795
+      },
+      {
+        "path": "dwp-gateway/src/main/java/com/dwp/gateway/security/AuthSessionVerifier.java",
+        "sha256": "878daf0dc12edad31688c0f74066b35ae3947b9cc5fc53e4cf6cafdda9c49cb5",
+        "bytes": 18447
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/audit/PlatformAuditEventRepository.java",
+        "sha256": "befe1fa320bed714d0f98e28419ba94391f176f0b5d4ed428aea537352d4009f",
+        "bytes": 1280
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/audit/PlatformAuditService.java",
+        "sha256": "34e8dfac2bf101b970ef7a31dfefeae3cd016d7379ba422a65e08f75c067bcbc",
+        "bytes": 7952
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/config/PublicOpenApiConfiguration.java",
+        "sha256": "33243b8f3b641ffe19015db1db658a8481216a2bc08122a7f78c7643e8bd840e",
+        "bytes": 5165
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/AdminHomeExperienceController.java",
+        "sha256": "418d4a6176846969dae394d00c819d00b9353c4d1ba866da5533c9e44a9b49d0",
+        "bytes": 7809
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/personalization/HomeComposerController.java",
+        "sha256": "38bcae5b193e9d4940cd21966d01d34c6938a9bd0505e6edbda1d4dcde34ba4a",
+        "bytes": 4612
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/personalization/HomePersonalizationExceptionHandler.java",
+        "sha256": "3aed6cddb4919353fbe8d31750278af9b00c6c1eff42d91fd9a3730d75f18fe0",
+        "bytes": 1283
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/personalization/HomeTemplateController.java",
+        "sha256": "33456c76838ef93ff2217a45ab8c3cbbe569e685cf707727fa7a99c34995e905",
+        "bytes": 7514
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/personalization/HomeTemplateDtos.java",
+        "sha256": "59daf84366cb922bfc264b5be5920a45611b0be2729547a052fabc006b505953",
+        "bytes": 3667
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/personalization/HomeTemplateRevisionRepository.java",
+        "sha256": "9255fdd650c66e2e4c40f587b4358201bc8ed05a8cd773a89a9c60e08f7602f5",
+        "bytes": 707
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/personalization/HomeTemplateService.java",
+        "sha256": "08082fdc82ea1025e772d1ca5a1c24874ebc0c7c694e2478ada2558d6988d393",
+        "bytes": 25740
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/personalization/HomeViewConflictException.java",
+        "sha256": "509cdd48c306576079703c79195be1dcb219e5999d0c82eedc32ed45f11d1ef8",
+        "bytes": 596
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/personalization/HomeViewConflictFactory.java",
+        "sha256": "236da369818bd67d3b954b710fdb7b529e17b9a31875d85231caada2b4c11cc5",
+        "bytes": 1975
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/personalization/HomeViewController.java",
+        "sha256": "fb755af38701dc876a271f1929b889729ee87480a5db47e210fd8177d990b2db",
+        "bytes": 13325
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/personalization/HomeViewDtos.java",
+        "sha256": "97a40d546d655276f6b6dddbca4884d6877d9f710d5c33d06936392001215d26",
+        "bytes": 8417
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/personalization/HomeViewRegistryPlacementPolicy.java",
+        "sha256": "c943b137e1f9081dab967b3b8b3def234820898c639231bc7541afb7cf8dbbed",
+        "bytes": 2573
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/personalization/HomeViewService.java",
+        "sha256": "f586e8445d8a4efd3acbb070480ddb6cdbb6b3bd9dae33033acfbbd2c736dd12",
+        "bytes": 36610
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/personalization/HomeViewServiceSupport.java",
+        "sha256": "7a6e51355052791ed63a43b8b124a654c36f6c4a1c428064f01eaa578bbc6ad1",
+        "bytes": 20631
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/preference/HomeLayoutPolicy.java",
+        "sha256": "5c1a022f24c37679b28667d055c0fe796785d14eff37f3bcb58d78df289ec7b0",
+        "bytes": 26939
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/preference/HomePreferenceDtos.java",
+        "sha256": "da2e2b004e6ef0ae09fdea39dac5489835f26369de6edf46b54cdb0bfdb882bd",
+        "bytes": 3097
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/preference/HomePreferenceService.java",
+        "sha256": "dcc697e17d834799294991679c19ea23be55c60c4e0a5dab53386a25b86c182a",
+        "bytes": 16305
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/security/PlatformSecurityFilter.java",
+        "sha256": "82a3aab3897213c94ed4689c61826b3aaff369577a19e20f2567d174bc7f0298",
+        "bytes": 35340
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetCatalogService.java",
+        "sha256": "b23b8a71b7f049fe8ebd555641224a4a767caed5555231bcf19a9e1c77709a26",
+        "bytes": 34975
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetPlacementWriteContractResolver.java",
+        "sha256": "8c6b029b77c7dbeaf406722e315833aa010fc235996c14897f68be305e250f52",
+        "bytes": 3064
+      },
+      {
+        "path": "dwp-platform-server/src/main/resources/db/migration/V262__restore_home_template_revisions_as_drafts.sql",
+        "sha256": "0dd60911e08243764cd699156f2cc0be7edfa6e2220bfa65d89fe4e0205d310d",
+        "bytes": 1042
+      }
+    ]
+  },
+  "contracts": {
+    "algorithm": "sha256(sorted lines: <file-sha256><two-spaces><repo-relative-path><newline>)",
+    "sha256": "3d63d3bbe9bd35523553543389d7a64d352f3dd65b2e5d2d3fb705a8d68551ee",
+    "fileCount": 2,
+    "files": [
+      {
+        "path": "contracts/openapi/gateway-public.json",
+        "sha256": "3bd6c9977ec8fd2681a281ce0186e9d73c3fb08253a57c79f151fa1f28ab3af0",
+        "bytes": 3289525
+      },
+      {
+        "path": "contracts/openapi/platform.json",
+        "sha256": "59be9586f285a7ae39f0685ba3ad5e30c7b6b505d421924434b36cc80dd5405e",
+        "bytes": 1271000
+      }
+    ]
+  },
+  "evidenceInputsBeforeCommit": {
+    "algorithm": "sha256(sorted lines: <file-sha256><two-spaces><repo-relative-path><newline>)",
+    "sha256": "24fa3a5283dd3443d93c955085b48a9f9b3decd843cc2c895875014febd289a5",
+    "fileCount": 17,
+    "files": [
+      {
+        "path": "contracts/openapi/gateway-public.json",
+        "sha256": "3bd6c9977ec8fd2681a281ce0186e9d73c3fb08253a57c79f151fa1f28ab3af0",
+        "bytes": 3289525
+      },
+      {
+        "path": "contracts/openapi/platform.json",
+        "sha256": "59be9586f285a7ae39f0685ba3ad5e30c7b6b505d421924434b36cc80dd5405e",
+        "bytes": 1271000
+      },
+      {
+        "path": "dwp-auth-server/src/test/java/com/dwp/services/auth/migration/HomeExperienceAuthorizationPostgresTest.java",
+        "sha256": "b18fd98f6512a0a44077f270a8f77fb59ae68a618587b12dad5bdcac703d0da5",
+        "bytes": 4011
+      },
+      {
+        "path": "dwp-gateway/src/test/java/com/dwp/gateway/AuthSessionVerifierHomeExperienceTest.java",
+        "sha256": "000724b34b391d3505f9e95e276d862d26b9a400800ef628b67958b703e0915a",
+        "bytes": 2396
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/audit/HomeStudioAuditPostgresIntegrationTest.java",
+        "sha256": "8857659ee3abc890a2882227e4cf9d2a4e895fa15f7df6193dbbff60b0693904",
+        "bytes": 4111
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/audit/PlatformAuditServiceTest.java",
+        "sha256": "281acd3712b88cbaa6d748e9d64cca591fbb5bbf7cab51accc83d0bb58cb1d37",
+        "bytes": 5173
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/personalization/HomePersonalizationExceptionHandlerTest.java",
+        "sha256": "d2b25b645b28ada2b2969eae9b3d17dd6200b33aee08d1ce89749f501196b7cd",
+        "bytes": 1654
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/personalization/HomeTemplateRestoreMigrationPostgresIntegrationTest.java",
+        "sha256": "df0797eb2f49b0eb3f30cdebcd18809409d6dabf9c35cae4ff76e3dc882c41de",
+        "bytes": 4016
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/personalization/HomeTemplateServiceTest.java",
+        "sha256": "49ab243603ff7e25059f07f45bbfb4587200f3f1e6faa9637d381bcc22519ad6",
+        "bytes": 11119
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/personalization/HomeViewModeDeviceContractTest.java",
+        "sha256": "4ace0644fdedf96f36f284ad9349db6d254f10b77efaf56e37926c6c93fa23af",
+        "bytes": 29316
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/personalization/HomeViewRegistryPlacementPolicyTest.java",
+        "sha256": "75a35cfdae0a5e1d1df1a4dbb79bf63445c2b401c4063301f1f8053526bb4e7c",
+        "bytes": 1903
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/personalization/HomeViewServiceTest.java",
+        "sha256": "a903d5e7ad7c4572a9ae5416bf5188ee2bda53860273e327a61f83f1066e28f2",
+        "bytes": 36216
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/preference/HomeLayoutPolicyRegistryPlacementTest.java",
+        "sha256": "cec8b7129ffb936a465d98626e5f4a57232b20d74a049e484297d4b8bc87500b",
+        "bytes": 5989
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/security/HomeStudioPlatformSecurityFilterTest.java",
+        "sha256": "f7aa9b9528196095cbd1f4676a0380e443f58af498b011f409e6409480f4b3d6",
+        "bytes": 6889
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/security/PlatformApprovalHomeRolloutTruthTableTest.java",
+        "sha256": "cc52815a2a73cbe2fc941e86fe270c2d134fbe944df8d6b24f663c3a725a60f3",
+        "bytes": 7377
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/widgetregistry/WidgetPlacementWriteContractResolverTest.java",
+        "sha256": "d0f9f1e4468d6405a0394c124a3c01d45283f7dd82d913d6643ff1b73ce01fc5",
+        "bytes": 4097
+      },
+      {
+        "path": "scripts/tests/test_export_openapi_contracts.py",
+        "sha256": "4723812e3757b54adb25a5f712ebfceea9076caeceac90eafea1f679ba2be0d2",
+        "bytes": 18483
+      }
+    ]
+  },
+  "verification": {
+    "platformFull": {
+      "result": {
+        "exitCode": 0,
+        "suiteCount": 74,
+        "tests": 419,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "rawOutputDirectory": "build/wave5-evidence/platform-full",
+      "rawXml": {
+        "algorithm": "sha256(sorted lines: <file-sha256><two-spaces><repo-relative-path><newline>)",
+        "sha256": "78a53a24b55bc94354004de81018fe7631f1e3998e2dfc4672c7dff361c78cfa",
+        "fileCount": 74,
+        "files": [
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.audit.HomeStudioAuditPostgresIntegrationTest.xml",
+            "sha256": "bd8f97b180db7cd88893e7a0b3078351ab0b6e1d87e06c161ba9c44f5742f994",
+            "bytes": 74307
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.audit.PlatformAuditServiceTest.xml",
+            "sha256": "729635be9c7701d800cb1238aac7ae8e6957988c5ad5a5291a889ded38f9d3c5",
+            "bytes": 985
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.codecatalog.WidgetRegistryCommandTargetContractRegistryPostgresIntegrationTest.xml",
+            "sha256": "a38b8a7250d3b937a6e88d6d88ab88cbe4b9cb3a0557e539e7027647040a2a63",
+            "bytes": 257404
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.codecatalog.WidgetRegistryIngressFailureContractRegistryPostgresIntegrationTest.xml",
+            "sha256": "fa7ac1acd044697e1fdb64c29066e96a91b9b95cffe495b3e1a77086e22f5551",
+            "bytes": 406442
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.ApprovedHomeApplicationCatalogTest.xml",
+            "sha256": "e2f375c09dcfda6debce43c022f0cf8a1f91dc515b259185873966ac7f02870f",
+            "bytes": 519
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.HomeBackgroundValidatorTest.xml",
+            "sha256": "2bea0785f34af80deaedc541efdcdfa3fe807193010e9a2e3f200c222a72ecc6",
+            "bytes": 768
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.HomeCompositionPolicyRegistryTest.xml",
+            "sha256": "325c986f214d86bcab1c82efc34fe6a182b374679b82004668d65a7ec434d63e",
+            "bytes": 1531
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.HomeExperiencePresentationMigrationPostgresIntegrationTest.xml",
+            "sha256": "55440b32ec669e6047c8b4e1fb0f8c441272abd0eecd24bf40063eee433f0d10",
+            "bytes": 50718
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.HomeExperiencePresentationMigrationTest.xml",
+            "sha256": "fae81893e21304e05d5bb1a24f3c9da5449a77cc0b6ba13f7982ef02121962c7",
+            "bytes": 696
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.HomeExperienceServiceTest.xml",
+            "sha256": "923716e12386b6a28b380505b78e87a848d95d9ee3ae1a1f3179ebf67eb7bfe8",
+            "bytes": 30425
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.HomeLaunchpadPolicyTest.xml",
+            "sha256": "1b7f95ea6da3f6a86da40775c2a90182fe8172f3c8d28990dd2b218a59427aaa",
+            "bytes": 1116
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.HomeWaveOneMigrationPostgresIntegrationTest.xml",
+            "sha256": "f1c1b9a1d95cf395899bdb6d0b53e21b4a4be7b880204ae4a4eda61e31958133",
+            "bytes": 65844
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.overview.HomeOverviewServiceTest.xml",
+            "sha256": "090efc9286bfe1bef09a20720391263cdebed39cdf41c1ea15d9de505659033d",
+            "bytes": 29669
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomeCanonicalJsonTest.xml",
+            "sha256": "7eb810e8d4b1c08b065e80a6f22c5dc8341ef8edd3ebb25c82bc78e7e507ab74",
+            "bytes": 680
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomeCommandReceiptServiceTest.xml",
+            "sha256": "9387360af894db600c0e7fd6965322314617eb2b46655b27799421c4cf8d6963",
+            "bytes": 734
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomeComposerServiceTest.xml",
+            "sha256": "48cb1df2d48b98b5f7faf3cef053a6222a4fd78d7dcbb66073fa31ba33e48b61",
+            "bytes": 1870
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomePersonalizationAccessTest.xml",
+            "sha256": "9252a34387d55cc73d14c4e0bc030270650e1ed1679aa70ee7d0cc424190c5ff",
+            "bytes": 1081
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomePersonalizationBodySizeFilterTest.xml",
+            "sha256": "60e47901587555cbbedaac451b8c5db64204f6927eb49d940675007c3b7c6181",
+            "bytes": 736
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomePersonalizationEntityTest.xml",
+            "sha256": "bab930d5a31aeff7425a0f9e5f90757398d4ef8dc82a89604841eecf8dc5e198",
+            "bytes": 544
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomePersonalizationExceptionHandlerTest.xml",
+            "sha256": "abbe6240d05a44c3948a9f0f033948a210ac55e443bd6db8e757ea47b5f84f70",
+            "bytes": 562
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomePersonalizationMigrationTest.xml",
+            "sha256": "80f4f091e3f6dcf8b51021d9f8d665289d7a9dae7cd5a8840339501b81cda8f3",
+            "bytes": 1702
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomeResponsiveContractTest.xml",
+            "sha256": "0916b8ce57ca0b960847aa79d713fd0f8666772fcd441ab583476c79a27154ab",
+            "bytes": 682
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomeTemplateRestoreMigrationPostgresIntegrationTest.xml",
+            "sha256": "053e51eedf369d7d9133b4f172e9150034bf83fc3c4ad8cfe36e460b9f0f00eb",
+            "bytes": 67483
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomeTemplateServiceTest.xml",
+            "sha256": "cfa59d66b5df5cab308eb9eb21caee651be7c70274b701a5b18f576c08a58aac",
+            "bytes": 1415
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomeViewCompatibilityBridgeTest.xml",
+            "sha256": "4ce652adaeb1b2ef7d210e0ddcd726eaad7c44ca0c2158e41e8d4d1766e6001f",
+            "bytes": 2153
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomeViewModeDeviceContractTest.xml",
+            "sha256": "ff39da28e530d4a2275b02710e12f8678707345995b81fb131518278d729f5b1",
+            "bytes": 2576
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomeViewRegistryPlacementPolicyTest.xml",
+            "sha256": "727650ca21162efaf819755d6ed8c9b7c5de69516d359060d4804fc763e23590",
+            "bytes": 573
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomeViewServiceTest.xml",
+            "sha256": "44295244219044262cfe2ffe89e7a0c1d532efb534da3031eb8630bd7a777e13",
+            "bytes": 2851
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.personalization.HomeWidgetConfigurationPolicyTest.xml",
+            "sha256": "12cc1524306900c65cb93f0b84901a20290eec3d8cf21644dd3729a8f12690bf",
+            "bytes": 545
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.preference.HomeLayoutPayloadDeserializerTest.xml",
+            "sha256": "cdc6cae790fbb15f4278e3e5e4cb4cc903780d70348017e4ce51e750427c2997",
+            "bytes": 695
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.preference.HomeLayoutPolicyRegistryPlacementTest.xml",
+            "sha256": "b5d6884426d3c7c912f84402c2a555248cff8cdd437d3fd6870c98c02450fd75",
+            "bytes": 1501
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.preference.HomePreferenceServiceTest.xml",
+            "sha256": "daf162f91aa6f19239a04efdc649849357872ce8a9a06836ab4f8fcfb4a97b6f",
+            "bytes": 17419
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.AppDockBadgeProjectionTest.xml",
+            "sha256": "bf264f96c6eafb3fd09cf4f2cb0820077aba6aa27d806799cfd834d6c4159ec9",
+            "bytes": 1050
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.HomeNativeProviderContractTest.xml",
+            "sha256": "d20f96f4fff275618cb9cc04067af2c60e2c65c5c33a1225770f56da5b7a058d",
+            "bytes": 714
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.HomeReadModelControllerTest.xml",
+            "sha256": "9a353d4cf6cc80975386e4b4e241ccea51ad2ccdb3fa5f7e2b977ec6e79fe45b",
+            "bytes": 1645
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.HomeReadModelOwnerProviderRoutingTest.xml",
+            "sha256": "dc763a3aeeba790f912bc21b651dae171fb5082abb73d053a18923f4049c97da",
+            "bytes": 1047
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.HomeRuntimeAuthorizationEtagTest.xml",
+            "sha256": "2e5ef3b7805abe559eeef9577cfcf181a2bb53444daa4e7e163a6d7ac015e6c5",
+            "bytes": 1200
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.HomeRuntimeCacheSecurityTest.xml",
+            "sha256": "fb7b3970f1aa56dba03fb2ad277eb98d0fb744dd09f4c6b3c36bdae7311fc069",
+            "bytes": 706
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.HomeRuntimeContextTest.xml",
+            "sha256": "65ec141e8e35bf2fc60864f5c443cbed72f134e0dc5d4c2b6eb7557b8a12fe8d",
+            "bytes": 845
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.HomeRuntimeDeterministicLatencyHarnessTest.xml",
+            "sha256": "a99ab179a6ece80174b362d6d862d9d44732025ee1226c4a6d2c75900ce82a2c",
+            "bytes": 1229
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.HomeRuntimeMetricsPrivacyTest.xml",
+            "sha256": "8f68376a3c1737222f6f0988ae0e684c2ec346d9db5956c5d79132ede82b13f9",
+            "bytes": 526
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.HomeRuntimePreProdSloTest.xml",
+            "sha256": "67aaa0664b898bc0b3e2d5993bd00c72736dea080b1622c319fc3585b1a9c72d",
+            "bytes": 1001
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.HomeRuntimeRollbackDrillTest.xml",
+            "sha256": "78a5f70c8493eb2104463c312305322bc2dd547ae04a796386664c8ac3ee729b",
+            "bytes": 706
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.HomeRuntimeRollbackGateTest.xml",
+            "sha256": "5bd7888a51468e101364f8c8149b5db93c1f605307c82015ea43436df8db7f7a",
+            "bytes": 518
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.HomeWidgetCommandServiceTest.xml",
+            "sha256": "89aad2649e0574a914e33f3018c6ef4a4a920e5edbb03d6c0941f27d7d256a96",
+            "bytes": 1534
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.HttpWidgetProviderClientResilienceTest.xml",
+            "sha256": "968e324c16e47aa7c4af6b711a2c6cb4b4ecf6cb93b733db3a4218e8c797f9fe",
+            "bytes": 1676
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.ProviderResultValidatorSecurityTest.xml",
+            "sha256": "231b491dfa478d539b6b076faad6804cdd2481ce531860ffeabe7f765443c1df",
+            "bytes": 3811
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.ProviderResultValidatorTest.xml",
+            "sha256": "68d8d200727df4618925993e90cf126109ff0cec3df2d0bd7b649254761f1cb7",
+            "bytes": 1612
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.RecipientBoundWidgetCacheTest.xml",
+            "sha256": "ef2dbd500373c6141622c288673c829479926f2b265ea61345d0913ba12e8f31",
+            "bytes": 690
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.WidgetRuntimeBrokerIsolationSecurityTest.xml",
+            "sha256": "cdc7d894f190c294e38901ea5d6a32aa1388b51a6cbe7ce84fe06ad411c84589",
+            "bytes": 547
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.WidgetRuntimeBrokerOwnerProviderContractTest.xml",
+            "sha256": "aa4ec9b1a3979814502e51400a71f0d3446b893a97d0217afb7abae2cca99b01",
+            "bytes": 759
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.home.runtime.WidgetRuntimeBrokerTest.xml",
+            "sha256": "d9f3dcb36e50949e2248e77afc92bfcd33e36db3e2182c2b42d3e79b25124f04",
+            "bytes": 1141
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.security.HomeStudioPlatformSecurityFilterTest.xml",
+            "sha256": "a8b6bcc735f1e210cc14e4b05d0ae401c88f011776038c63bd589abe91790dbe",
+            "bytes": 3172
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.security.PlatformApprovalHomeAcceptanceTest.xml",
+            "sha256": "e4deee9c3f3034a44586591454803349e20898ef6a556b143950131c3d2c47f7",
+            "bytes": 880
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.security.PlatformApprovalHomeRolloutTruthTableTest.xml",
+            "sha256": "6dbb581956ed964de2592ae3b48042c0887595d9b80a1cb7d2098b8c880c7786",
+            "bytes": 1707
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.security.ProviderWidgetRegistryBffIngressFilterTest.xml",
+            "sha256": "b16cff102c104a821d7f66b41551c60a5931d7aea116ca20253240941b2a4ba2",
+            "bytes": 4047
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.security.WidgetRegistryProviderPlatformSecurityFilterTest.xml",
+            "sha256": "5bb271f1306af3f53a9ce9236ecc3fb5d4f4ade8edce783af162cddca067a4b8",
+            "bytes": 560
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.Wave4OwnerWidgetRegistryContractTest.xml",
+            "sha256": "81a4727e2ab311b886776bfb88d8450d6f2efff2d70d2acfe58647cb03806db5",
+            "bytes": 747
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.WidgetAudienceSelectorContractTest.xml",
+            "sha256": "14c13d8cfc501fa96a298b0a830050be5ccfb2e98b70a1a2464ff316c87444a0",
+            "bytes": 868
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.WidgetCatalogDeprecationTest.xml",
+            "sha256": "7c5ee2c7698fa8d2048b904f42eb641398233993cc9c483226a60847a00f32d7",
+            "bytes": 820
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.WidgetCatalogPublicContractTest.xml",
+            "sha256": "9ebbf49fa036e505a89028e90ae047d914537401260ab0f083576209dbe46e25",
+            "bytes": 687
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.WidgetDeprecationMigrationPostgresIntegrationTest.xml",
+            "sha256": "6508b39c05ca463f4b6341474ef7e0f96c81baa6c9db5df0fa393c9c85d53095",
+            "bytes": 64244
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.WidgetPlacementWriteContractResolverTest.xml",
+            "sha256": "1f4e4f5f6cade66533aeef4dc72c5b4aa33a81922ef2891f703fdf4607e847d1",
+            "bytes": 552
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.WidgetRegistryAccessGuardTest.xml",
+            "sha256": "85e03210ca10a3b4f28ff4c34c9d6541d701ba93026205f057f0a9edc2c4862b",
+            "bytes": 3752
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.WidgetRegistryControlPlanePostgresIntegrationTest.xml",
+            "sha256": "ab71206548eea15844501e7ec0c4201cb5b98c6ab9d745fb222ac1e788d96e98",
+            "bytes": 1454535
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.WidgetRegistryMigrationPostgresIntegrationTest.xml",
+            "sha256": "9e85a9f3f9b0eb060b7a79a5138e0bade38a914f2b536c1f73538ea03a491928",
+            "bytes": 66470
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.WidgetRegistryOwnerScopeGuardTest.xml",
+            "sha256": "34f58121ad6a5ee9f8db9fd7d1e959f026bf702796af0d154a5a75db388121d0",
+            "bytes": 876
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.WidgetRegistryTransitionMatrixTest.xml",
+            "sha256": "d5ec01e1e53c50fce34ee97b951e0d72a9483b603d4efc016a1c298abd03c998",
+            "bytes": 533
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.WidgetRuntimeControlExpiryTest.xml",
+            "sha256": "3334ffa9ca09b9c76433b1d6a6612ba2a4f49adf89620d851f0a3a2c0fe35de5",
+            "bytes": 707
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryActivationInterlockTest.xml",
+            "sha256": "ea3412286d12eb5d92d46aa7068938fcc716d04297d13f15a546a9b9e0273f95",
+            "bytes": 3423
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryCommandPayloadValidatorTest.xml",
+            "sha256": "0cba2fea7d056e5be538f93f9cbf7f54a03f49ab7ceb7e3bddebbb4304ee3fbe",
+            "bytes": 1223
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryCommandTrustPolicyTest.xml",
+            "sha256": "fccd73da19d90d739e7df2686afad2283304813e64e8969e5bf03cce326beee8",
+            "bytes": 793
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryInternalRoutesTest.xml",
+            "sha256": "29d0661d5fcceab0f026ff09321f2c0f1af2a4e92144417c48591102516e0b63",
+            "bytes": 984
+          },
+          {
+            "path": "build/wave5-evidence/platform-full/xml/TEST-com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryInternalSecurityFilterTest.xml",
+            "sha256": "4335c233eaa7102fea34e741a5f11f12e6b36bd5b11e756f40cd6a4e37c44e06",
+            "bytes": 47318
+          }
+        ]
+      },
+      "summary": {
+        "path": "build/wave5-evidence/platform-full/summary.json",
+        "sha256": "0f867ab5d4e1aa47450ff4bf1942be17fac3761582aef7e74400a055043fbd27",
+        "bytes": 13907
+      },
+      "gradleLog": {
+        "path": "build/wave5-evidence/platform-full/gradle.txt",
+        "sha256": "c9984454901529067a6d9fccb5056566c70aa0bea407f4116fa0db6e5d709d03",
+        "bytes": 3076
+      }
+    },
+    "grandfatheredExternal": {
+      "result": {
+        "exitCode": 0,
+        "suiteCount": 2,
+        "tests": 20,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "rawOutputDirectory": "build/wave5-evidence/grandfathered-external",
+      "rawXml": {
+        "algorithm": "sha256(sorted lines: <file-sha256><two-spaces><repo-relative-path><newline>)",
+        "sha256": "9722cea75984405dcad663dc47f9df2920fcc7c8b299cece30a8c2bf0f805b9e",
+        "fileCount": 2,
+        "files": [
+          {
+            "path": "build/wave5-evidence/grandfathered-external/xml/TEST-com.dwp.services.platform.home.personalization.HomeViewServiceTest.xml",
+            "sha256": "803a81d96dd3077351624e36ff06463751edb2c786515bbbd1a6703b0e46f14d",
+            "bytes": 3677
+          },
+          {
+            "path": "build/wave5-evidence/grandfathered-external/xml/TEST-com.dwp.services.platform.home.preference.HomeLayoutPolicyRegistryPlacementTest.xml",
+            "sha256": "de44f48fd42bd6ea54c86e9f042b71fb0ecc11dd0f6a39ba2455bbeba4cc0d5e",
+            "bytes": 1501
+          }
+        ]
+      },
+      "summary": {
+        "path": "build/wave5-evidence/grandfathered-external/summary.json",
+        "sha256": "1e66924f9bc43787c3597ff90baea1eb02fb839e81f061fdb7e5745f342674a1",
+        "bytes": 687
+      },
+      "gradleLog": {
+        "path": "build/wave5-evidence/grandfathered-external/gradle.txt",
+        "sha256": "d2e6616914f1429da0fa21f17896d52a4bacaed8ee5f8e9de99548b0d79ea617",
+        "bytes": 2026
+      }
+    },
+    "auth": {
+      "result": {
+        "exitCode": 0,
+        "suiteCount": 4,
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "rawOutputDirectory": "build/wave5-evidence/auth",
+      "rawXml": {
+        "algorithm": "sha256(sorted lines: <file-sha256><two-spaces><repo-relative-path><newline>)",
+        "sha256": "20dbea6bc1a2ac1ff8fd0afedf1a07e76fd7b46c04da01ceabeeb023c29bb9d3",
+        "fileCount": 4,
+        "files": [
+          {
+            "path": "build/wave5-evidence/auth/xml/TEST-com.dwp.services.auth.migration.HomeExperienceAuthorizationPostgresTest.xml",
+            "sha256": "51f419527c492cb85cb6b0c01a3113cd4683662622a034106ac971266e36adc0",
+            "bytes": 27870
+          },
+          {
+            "path": "build/wave5-evidence/auth/xml/TEST-com.dwp.services.auth.migration.HomeTemplateAuthorizationMigrationTest.xml",
+            "sha256": "62750704ed9b41d345d900087af7b0ce9bad9cdcf70321d1d121b72bc8a47b77",
+            "bytes": 518
+          },
+          {
+            "path": "build/wave5-evidence/auth/xml/TEST-com.dwp.services.auth.migration.HomeWidgetPolicyAuthorizationMigrationTest.xml",
+            "sha256": "cef28a1684943792e9b6895849daf93bf338f8cef2dbfef29db03676acfee3d7",
+            "bytes": 538
+          },
+          {
+            "path": "build/wave5-evidence/auth/xml/TEST-com.dwp.services.auth.migration.HomeWidgetPolicyAuthorizationPostgresTest.xml",
+            "sha256": "937bab5a0a26a47fe37bad10ec05fe3481e2dae1dc36a7d56727b5f614ed2d72",
+            "bytes": 27709
+          }
+        ]
+      },
+      "summary": {
+        "path": "build/wave5-evidence/auth/summary.json",
+        "sha256": "41284910946331b43e467614090eac1fb57221c55b7e408d43141f8df77f4c24",
+        "bytes": 1144
+      },
+      "gradleLog": {
+        "path": "build/wave5-evidence/auth/gradle.txt",
+        "sha256": "3459cb79c4ffd7073408cf6e365ca87c5ae028ff544806aa59e11c4e0f58356d",
+        "bytes": 16737
+      }
+    },
+    "gateway": {
+      "result": {
+        "exitCode": 0,
+        "suiteCount": 4,
+        "tests": 50,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "rawOutputDirectory": "build/wave5-evidence/gateway",
+      "rawXml": {
+        "algorithm": "sha256(sorted lines: <file-sha256><two-spaces><repo-relative-path><newline>)",
+        "sha256": "b7154eb5311f25e7e2227d9f20b5f7acc23c7534296501085318c5a46f228d95",
+        "fileCount": 4,
+        "files": [
+          {
+            "path": "build/wave5-evidence/gateway/xml/TEST-com.dwp.gateway.AuthSessionVerifierHomeExperienceTest.xml",
+            "sha256": "82ad14bff440babbf64c81d5dd1647afaa1793d3d8a0e5968cb593a158f334c0",
+            "bytes": 494
+          },
+          {
+            "path": "build/wave5-evidence/gateway/xml/TEST-com.dwp.gateway.AuthSessionVerifierTest.xml",
+            "sha256": "93614aaa0c38f36f72f81689dbb0de4821e79803cddea47eafddea39068e72fd",
+            "bytes": 6064
+          },
+          {
+            "path": "build/wave5-evidence/gateway/xml/TEST-com.dwp.gateway.HomeV2GatewaySecurityTest.xml",
+            "sha256": "59b51ab066a38fae97016730fdac27781880d420367f2f2025225f4bbf5117db",
+            "bytes": 1206
+          },
+          {
+            "path": "build/wave5-evidence/gateway/xml/TEST-com.dwp.gateway.WidgetCatalogAuthSessionVerifierTest.xml",
+            "sha256": "5be80ced286800616757d0a75c6893ba30cebbe511ac035393f4e809436a43c7",
+            "bytes": 1096
+          }
+        ]
+      },
+      "summary": {
+        "path": "build/wave5-evidence/gateway/summary.json",
+        "sha256": "abda755b3671d2547cc8f8216fb44c4f697bc76bef3f899baa7aa85e619fdeec",
+        "bytes": 1003
+      },
+      "gradleLog": {
+        "path": "build/wave5-evidence/gateway/gradle.txt",
+        "sha256": "14d28cc9cdce4f8231d9adc69e1b6610496f4a262be48ed39f389558f71a75e3",
+        "bytes": 2678
+      }
+    },
+    "openApi": {
+      "exportWrite": {
+        "path": "build/wave5-evidence/openapi/export-write.txt",
+        "sha256": "d91deffee49857cc29f7abec4998ae6b66aac485a0524221d457c72b2beaa9b0",
+        "bytes": 64
+      },
+      "exportCheck": {
+        "path": "build/wave5-evidence/openapi/export-check.txt",
+        "sha256": "2726f182b0b3d391ed481820e6fa164a9d3f7172f4bb2fc06de043f5a53511ca",
+        "bytes": 67
+      },
+      "unitLog": {
+        "path": "build/wave5-evidence/openapi/unit-tests.txt",
+        "sha256": "e04a5e795081b9a16fc784f995b503ee0d8d1c8d40b743bb480498ef33ade149",
+        "bytes": 1672
+      },
+      "tests": 12,
+      "failures": 0,
+      "errors": 0
+    },
+    "staticChecks": {
+      "log": {
+        "path": "build/wave5-evidence/static-checks/gradle.txt",
+        "sha256": "983db77aa866110a0040e3f2496660d8286cb0f0826c8842e248c244851e712c",
+        "bytes": 1937
+      },
+      "sourceFilesChecked": 2142,
+      "sourceSizeRatchetTests": 6,
+      "unusedPrivateRatchetTests": 4,
+      "failures": 0
+    },
+    "gitDiffCheck": {
+      "exitCode": 0
+    }
+  },
+  "reproduction": {
+    "workingDirectory": "/Users/a10697/Work/DWP/.codex-worktrees/home-wave123/backend",
+    "platformFull": "test_args=(); while IFS= read -r test_class; do test_args+=(--tests \"$test_class\"); done < docs/architecture/verification/wave5-home-backend/platform-test-classes.txt; ./gradlew :dwp-platform-server:test --rerun-tasks --no-daemon --max-workers=1 \"${test_args[@]}\"",
+    "grandfatheredExternal": "./gradlew :dwp-platform-server:test --rerun-tasks --no-daemon --max-workers=1 --tests 'com.dwp.services.platform.home.personalization.HomeViewServiceTest' --tests 'com.dwp.services.platform.home.preference.HomeLayoutPolicyRegistryPlacementTest'",
+    "auth": "./gradlew :dwp-auth-server:test --rerun-tasks --no-daemon --max-workers=1 --tests 'com.dwp.services.auth.migration.HomeExperienceAuthorizationPostgresTest' --tests 'com.dwp.services.auth.migration.HomeTemplateAuthorizationMigrationTest' --tests 'com.dwp.services.auth.migration.HomeWidgetPolicyAuthorizationMigrationTest' --tests 'com.dwp.services.auth.migration.HomeWidgetPolicyAuthorizationPostgresTest'",
+    "gateway": "./gradlew :dwp-gateway:test --rerun-tasks --no-daemon --max-workers=1 --tests 'com.dwp.gateway.AuthSessionVerifierHomeExperienceTest' --tests 'com.dwp.gateway.AuthSessionVerifierTest' --tests 'com.dwp.gateway.WidgetCatalogAuthSessionVerifierTest' --tests 'com.dwp.gateway.HomeV2GatewaySecurityTest'",
+    "openApi": [
+      "Start dwp-platform-server with DWP_OPENAPI_ENABLED=true against a disposable PostgreSQL 16 database after all migrations through V262 apply.",
+      "python3 scripts/export-openapi-contracts.py --write --service platform",
+      "python3 scripts/export-openapi-contracts.py --check --service platform",
+      "python3 -m unittest discover -s scripts/tests -p 'test_export_openapi_contracts.py' -v"
+    ],
+    "staticChecks": "./gradlew checkSourceSize checkUnusedPrivateMethods --no-daemon --max-workers=1",
+    "whitespace": "git diff --check"
+  },
+  "limitations": [
+    "The final claim is the explicit 74-class Wave 5 Home/Widget Registry matrix, not the entire dwp-platform-server module suite.",
+    "An earlier whole-module attempt exited 143 under local resource pressure and is not counted as success.",
+    "Raw XML and logs remain under ignored build/wave5-evidence; this manifest seals their paths and SHA-256 values while the committed class list and commands reproduce them."
+  ]
+}
