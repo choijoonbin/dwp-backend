@@ -332,7 +332,7 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
 
         var current = definitions.getVersion(draft.versionId());
         var submitted = definitions.submit(author, UUID.randomUUID(), null, draft.versionId(),
-                new WidgetRegistryDtos.TransitionRequest(
+                new WidgetRegistryDtos.WidgetVersionTransitionRequest(
                         "TEST", "submit", current.version()));
         assertThatThrownBy(() -> definitions.decide(author, UUID.randomUUID(), null,
                 draft.versionId(), new WidgetRegistryDtos.ReviewDecisionRequest(
@@ -614,7 +614,7 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
         }
         var current = definitions.getVersion(draft.versionId());
         var submitted = definitions.submit(author, UUID.randomUUID(), null, draft.versionId(),
-                new WidgetRegistryDtos.TransitionRequest(
+                new WidgetRegistryDtos.WidgetVersionTransitionRequest(
                         "TEST", "submit replacement", current.version()));
         var approved = definitions.decide(reviewer, UUID.randomUUID(), null, draft.versionId(),
                 new WidgetRegistryDtos.ReviewDecisionRequest(

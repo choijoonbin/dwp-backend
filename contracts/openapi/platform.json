@@ -23379,26 +23379,38 @@
       },
       "TransitionRequest": {
         "properties": {
-          "expectedVersion": {
+          "assignedTo": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "note": {
+            "maxLength": 2000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "targetStatus": {
+            "enum": [
+              "DRAFT",
+              "SUBMITTED",
+              "TRIAGED",
+              "IN_PROGRESS",
+              "AWAITING_REQUESTER",
+              "RESOLVED",
+              "CLOSED",
+              "CANCELLED"
+            ],
+            "type": "string"
+          },
+          "version": {
             "format": "int64",
             "minimum": 0,
             "type": "integer"
-          },
-          "reasonCode": {
-            "maxLength": 64,
-            "minLength": 0,
-            "type": "string"
-          },
-          "reasonText": {
-            "maxLength": 500,
-            "minLength": 0,
-            "type": "string"
           }
         },
         "required": [
-          "expectedVersion",
-          "reasonCode",
-          "reasonText"
+          "targetStatus",
+          "version"
         ],
         "type": "object"
       },
@@ -24508,6 +24520,31 @@
         "required": [
           "visible",
           "widgetKey"
+        ],
+        "type": "object"
+      },
+      "WidgetVersionTransitionRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reasonText": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "reasonCode",
+          "reasonText"
         ],
         "type": "object"
       },
@@ -35151,7 +35188,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TransitionRequest"
+                "$ref": "#/components/schemas/WidgetVersionTransitionRequest"
               }
             }
           },
@@ -35209,7 +35246,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/TransitionRequest"
+                "$ref": "#/components/schemas/WidgetVersionTransitionRequest"
               }
             }
           },

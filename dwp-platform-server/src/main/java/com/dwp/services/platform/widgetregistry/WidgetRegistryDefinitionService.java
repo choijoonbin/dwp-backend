@@ -333,7 +333,7 @@ public class WidgetRegistryDefinitionService {
     @Transactional
     public WidgetRegistryDtos.VersionResponse submit(
             Long actorId, UUID commandId, String correlationId, UUID versionId,
-            WidgetRegistryDtos.TransitionRequest request) {
+            WidgetRegistryDtos.WidgetVersionTransitionRequest request) {
         return transition(actorId, commandId, correlationId, versionId, request,
                 "SUBMIT", "VALIDATED", "SUBMITTED", "WIDGET_VERSION_SUBMITTED");
     }
@@ -341,7 +341,7 @@ public class WidgetRegistryDefinitionService {
     @Transactional
     public WidgetRegistryDtos.VersionResponse rework(
             Long actorId, UUID commandId, String correlationId, UUID versionId,
-            WidgetRegistryDtos.TransitionRequest request) {
+            WidgetRegistryDtos.WidgetVersionTransitionRequest request) {
         return transition(actorId, commandId, correlationId, versionId, request,
                 "REWORK", "REJECTED", "DRAFT", "WIDGET_VERSION_REWORKED");
     }
@@ -516,7 +516,7 @@ public class WidgetRegistryDefinitionService {
 
     private WidgetRegistryDtos.VersionResponse transition(
             Long actorId, UUID commandId, String correlationId, UUID versionId,
-            WidgetRegistryDtos.TransitionRequest request, String operation,
+            WidgetRegistryDtos.WidgetVersionTransitionRequest request, String operation,
             String sourceState, String targetState, String eventType) {
         String fingerprint = receipts.fingerprint(request);
         var replay = receipts.replay(actorId, commandId, operation, versionId.toString(), fingerprint,

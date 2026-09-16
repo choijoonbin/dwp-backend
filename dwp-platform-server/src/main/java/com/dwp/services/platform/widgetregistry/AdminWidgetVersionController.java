@@ -77,7 +77,7 @@ public class AdminWidgetVersionController {
             @RequestHeader(COMMAND) UUID commandId,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID versionId,
-            @Valid @RequestBody WidgetRegistryDtos.TransitionRequest request) {
+            @Valid @RequestBody WidgetRegistryDtos.WidgetVersionTransitionRequest request) {
         return ApiResponse.success(definitions.submit(
                 actorId, commandId, correlationId, versionId, request));
     }
@@ -99,7 +99,7 @@ public class AdminWidgetVersionController {
             @RequestHeader(COMMAND) UUID commandId,
             @RequestHeader(value = CORRELATION, required = false) String correlationId,
             @PathVariable UUID versionId,
-            @Valid @RequestBody WidgetRegistryDtos.TransitionRequest request) {
+            @Valid @RequestBody WidgetRegistryDtos.WidgetVersionTransitionRequest request) {
         return ApiResponse.success(definitions.rework(
                 actorId, commandId, correlationId, versionId, request));
     }

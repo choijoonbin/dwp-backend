@@ -108,7 +108,7 @@ public final class WidgetRegistryDtos {
             @NotBlank @Size(max = 500) String reasonText,
             @NotNull @Min(0) Long expectedVersion) {}
 
-    public record TransitionRequest(
+    public record WidgetVersionTransitionRequest(
             @NotBlank @Size(max = 64) String reasonCode,
             @NotBlank @Size(max = 500) String reasonText,
             @NotNull @Min(0) Long expectedVersion) {}

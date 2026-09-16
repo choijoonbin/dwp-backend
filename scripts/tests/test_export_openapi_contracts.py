@@ -12,6 +12,44 @@ EXPORTER = runpy.run_path(str(ROOT / "scripts" / "export-openapi-contracts.py"))
 
 
 class ExportOpenApiContractsTest(unittest.TestCase):
+    def test_widget_version_transition_schema_does_not_replace_existing_transition_contracts(
+        self,
+    ) -> None:
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+
+        def request_schema(path: str) -> str:
+            return gateway["paths"][path]["post"]["requestBody"]["content"][
+                "application/json"
+            ]["schema"]["$ref"]
+
+        existing_transition = "#/components/schemas/platform_TransitionRequest"
+        widget_transition = (
+            "#/components/schemas/platform_WidgetVersionTransitionRequest"
+        )
+        for path in (
+            "/api/platform/v1/admin/localization/revisions/{revisionId}/publish",
+            "/api/platform/v1/admin/localization/revisions/{revisionId}/submit",
+            "/api/platform/v1/admin/services/requests/{requestId}/transition",
+        ):
+            self.assertEqual(request_schema(path), existing_transition)
+        for path in (
+            "/api/provider/v1/admin/widget-definition-versions/{versionId}/submit",
+            "/api/provider/v1/admin/widget-definition-versions/{versionId}/rework",
+        ):
+            self.assertEqual(request_schema(path), widget_transition)
+
+        schemas = gateway["components"]["schemas"]
+        self.assertEqual(
+            schemas["platform_TransitionRequest"]["required"],
+            ["targetStatus", "version"],
+        )
+        self.assertEqual(
+            schemas["platform_WidgetVersionTransitionRequest"]["required"],
+            ["expectedVersion", "reasonCode", "reasonText"],
+        )
+
     def test_widget_registry_provider_control_plane_has_one_public_identity_plane(self) -> None:
         platform_path = EXPORTER["platform_path"]
         self.assertEqual(
