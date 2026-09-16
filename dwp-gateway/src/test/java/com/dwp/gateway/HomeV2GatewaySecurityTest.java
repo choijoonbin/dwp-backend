@@ -182,11 +182,26 @@ class HomeV2GatewaySecurityTest {
 
     @Test
     void requestsAllAppAuthoritiesFreshForEveryHomeV2Read() {
+        assertAllAppAuthoritiesAreRequestedFresh(
+                MockServerHttpRequest.get(HOME_V2)
+                        .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
+                        .build());
+    }
+
+    @Test
+    void requestsAllAppAuthoritiesFreshForEveryHomeV2Command() {
+        assertAllAppAuthoritiesAreRequestedFresh(
+                MockServerHttpRequest.post(HOME_COMMAND)
+                        .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
+                        .build());
+    }
+
+    private void assertAllAppAuthoritiesAreRequestedFresh(MockServerHttpRequest request) {
         AtomicInteger calls = new AtomicInteger();
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
-        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(outbound -> {
             calls.incrementAndGet();
-            captured.set(request);
+            captured.set(outbound);
             return Mono.just(ClientResponse.create(HttpStatus.OK)
                     .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
                     .body("""
@@ -202,9 +217,6 @@ class HomeV2GatewaySecurityTest {
         });
         AuthSessionVerifier verifier = new AuthSessionVerifier(
                 builder, "http://auth.test", Duration.ofSeconds(1));
-        MockServerHttpRequest request = MockServerHttpRequest.get(HOME_V2)
-                .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
-                .build();
 
         VerifiedIdentity first = verifier.verify(request).block();
         VerifiedIdentity second = verifier.verify(request).block();

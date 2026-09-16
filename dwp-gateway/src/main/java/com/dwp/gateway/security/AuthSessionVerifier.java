@@ -191,7 +191,8 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.equals("/api/platform/v1/home/overview")) {
             return "APP.WORK,APP.ACTIVITY,APP.CALENDAR,APP.COMMUNICATIONS";
         }
-        if (path.equals("/api/platform/v2/home")) {
+        if (path.equals("/api/platform/v2/home")
+                || path.equals("/api/platform/v2/home/widget-actions:execute")) {
             // The effective Home v2 response includes the governed app dock and can
             // compose widgets owned by any entitled application. Request only the
             // APP authority namespace; owner services still re-authorize their data.
