@@ -3,6 +3,7 @@ package com.dwp.services.platform.home.personalization;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.home.preference.HomeLayoutPolicy;
 import com.dwp.services.platform.home.preference.HomePreferenceDtos;
 import com.dwp.services.platform.home.preference.HomePreferenceService;
 import com.dwp.services.platform.workspace.WorkspaceService;
@@ -24,6 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
@@ -76,7 +78,8 @@ class HomeComposerServiceTest {
             return objectMapper.treeToValue(
                     current.getLayoutPayload(), HomePreferenceDtos.HomeLayoutPayload.class);
         });
-        lenient().when(preferenceService.normalizeForSurface(eq("workspace-home"), any()))
+        lenient().when(preferenceService.normalizeForSurface(
+                        eq("workspace-home"), any(), anyMap(), any()))
                 .thenAnswer(invocation -> invocation.getArgument(1));
         lenient().when(proposals.saveAndFlush(any(HomeComposerProposal.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
@@ -272,6 +275,57 @@ class HomeComposerServiceTest {
     }
 
     @Test
+    void staticComposerChangesPreserveGrandfatheredDefinitionsAndRejectTheirMutation() {
+        HomePreferenceDtos.WidgetPreference grandfathered =
+                new HomePreferenceDtos.WidgetPreference(
+                        "partner.retired.summary", false, "medium", "standard");
+        HomePreferenceDtos.HomeLayoutPayload stored =
+                new HomePreferenceDtos.HomeLayoutPayload(
+                        layout.appLayout(), layout.presentation(),
+                        List.of(
+                                layout.widgets().get(0), grandfathered,
+                                layout.widgets().get(1), layout.widgets().get(2)));
+        view.setLayoutPayload(objectMapper.valueToTree(stored));
+        HomeLayoutPolicy policy = new HomeLayoutPolicy(objectMapper);
+        when(preferenceService.normalizeForSurface(
+                eq("workspace-home"), any(), anyMap(), any()))
+                .thenAnswer(invocation -> policy.normalizeForSurface(
+                        invocation.getArgument(0), invocation.getArgument(1),
+                        invocation.getArgument(2), invocation.getArgument(3)));
+        when(views.requireOwnedForUpdate(7L, 11L, view.getViewId())).thenReturn(view);
+        UUID staticCommand = UUID.randomUUID();
+        when(proposals.findByTenantIdAndUserIdAndCreationCommandId(
+                7L, 11L, staticCommand)).thenReturn(Optional.empty());
+
+        var preview = service.create(
+                7L, 11L, null, staticCommand, "corr",
+                new HomeComposerDtos.CreateComposerProposalRequest(
+                        view.getViewId(), 0L, List.of("STATIC_REORDER"),
+                        List.of(new HomeComposerDtos.ComposerChange(
+                                "MOVE_WIDGET", "schedule", null, 3, 2, null))));
+
+        assertThat(preview.proposedLayout().widgets())
+                .contains(grandfathered)
+                .extracting(HomePreferenceDtos.WidgetPreference::widgetKey)
+                .containsSubsequence(
+                        "command-rail", "partner.retired.summary", "schedule", "focus");
+
+        UUID mutationCommand = UUID.randomUUID();
+        when(proposals.findByTenantIdAndUserIdAndCreationCommandId(
+                7L, 11L, mutationCommand)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service.create(
+                7L, 11L, null, mutationCommand, "corr",
+                new HomeComposerDtos.CreateComposerProposalRequest(
+                        view.getViewId(), 0L, List.of("DYNAMIC_MUTATION"),
+                        List.of(new HomeComposerDtos.ComposerChange(
+                                "SET_WIDTH", "partner.retired.summary", null,
+                                null, null, "large")))))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(
+                                ErrorCode.INVALID_INPUT_VALUE));
+    }
+
+    @Test
     void stillRejectsTenantManagedFlowZones() {
         UUID command = UUID.randomUUID();
         when(proposals.findByTenantIdAndUserIdAndCreationCommandId(7L, 11L, command))
@@ -330,7 +384,8 @@ class HomeComposerServiceTest {
         when(proposals.findByTenantIdAndUserIdAndCreationCommandId(7L, 11L, command))
                 .thenReturn(Optional.empty());
         when(views.requireOwnedForUpdate(7L, 11L, view.getViewId())).thenReturn(view);
-        when(preferenceService.normalizeForSurface(eq("workspace-home"), any()))
+        when(preferenceService.normalizeForSurface(
+                eq("workspace-home"), any(), anyMap(), any()))
                 .thenAnswer(invocation -> {
                     HomePreferenceDtos.HomeLayoutPayload candidate = invocation.getArgument(1);
                     List<HomePreferenceDtos.WidgetPreference> widgets =
