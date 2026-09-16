@@ -1,0 +1,128 @@
+{
+  "ambientAuthorizationRejected": true,
+  "ambientCookieRejected": true,
+  "dedicatedIdentityRequired": true,
+  "duplicateProtectedHeaderRejected": true,
+  "exactBatchPath": "POST /internal/home/v1/widget-data:batch",
+  "exactCommandPath": "POST /internal/home/v1/widget-actions:execute",
+  "foreignDefinitionRejected": true,
+  "gate": "W4-PROVIDER-IDENTITY",
+  "junitByModule": {
+    "dwp-approval-server": {
+      "com.dwp.services.approval.home.ApprovalHomeWidgetProviderControllerTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 4
+      },
+      "com.dwp.services.approval.security.ApprovalHomeProviderFilterBoundaryTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 1
+      }
+    },
+    "dwp-meeting-server": {
+      "com.dwp.services.meeting.security.MeetingHomeProviderExactPathSecurityTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 1
+      },
+      "com.dwp.services.meeting.videomeeting.home.MeetingHomeWidgetProviderControllerTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 2
+      }
+    },
+    "dwp-messaging-server": {
+      "com.dwp.services.messaging.home.MessagingHomeWidgetProviderControllerTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 1
+      },
+      "com.dwp.services.messaging.security.MessagingHomeProviderExactPathSecurityTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 1
+      }
+    },
+    "dwp-notification-server": {
+      "com.dwp.services.notification.home.NotificationHomeWidgetProviderControllerTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 1
+      },
+      "com.dwp.services.notification.security.NotificationHomeProviderExactPathSecurityTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 1
+      }
+    },
+    "dwp-people-server": {
+      "com.dwp.services.people.home.PeopleHomeWidgetProviderControllerTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 2
+      },
+      "com.dwp.services.people.security.PeopleHomeProviderExactPathSecurityTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 1
+      }
+    },
+    "dwp-platform-contracts": {
+      "com.dwp.platform.contract.home.HomeWidgetProviderRequestCodecTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 3
+      },
+      "com.dwp.platform.contract.home.HomeWidgetProviderSecurityTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 4
+      }
+    },
+    "dwp-space-server": {
+      "com.dwp.services.space.home.SpaceHomeWidgetProviderControllerTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 1
+      },
+      "com.dwp.services.space.security.SpaceHomeProviderExactPathSecurityTest": {
+        "errors": 0,
+        "failures": 0,
+        "skipped": 0,
+        "tests": 1
+      }
+    }
+  },
+  "junitTotal": {
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "tests": 24
+  },
+  "leastPrivilegeNegativeCasesVerified": true,
+  "owners": [
+    "approval",
+    "meeting",
+    "notification",
+    "space",
+    "messaging",
+    "people"
+  ],
+  "schemaVersion": 1,
+  "status": "PASS",
+  "testedCommit": "32e7a073277e95dc407369657cbe5a201f1efdeb"
+}

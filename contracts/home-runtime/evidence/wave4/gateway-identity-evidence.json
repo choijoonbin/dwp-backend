@@ -1,0 +1,24 @@
+{
+  "ambientProviderControlHeadersForwarded": 0,
+  "gate": "W4-GATEWAY-IDENTITY",
+  "junit": {
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "tests": 6
+  },
+  "routes": [
+    "GET /api/platform/v2/home",
+    "POST /api/platform/v2/home/widget-actions:execute"
+  ],
+  "schemaVersion": 1,
+  "sessionVerificationCached": false,
+  "spoofedIdentityHeadersForwarded": 0,
+  "status": "PASS",
+  "testedCommit": "32e7a073277e95dc407369657cbe5a201f1efdeb",
+  "trustedAuthorityPrefixes": [
+    "APP.",
+    "ACTION.APPROVAL_",
+    "DATA.WORKFORCE"
+  ]
+}

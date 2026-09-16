@@ -1,0 +1,25 @@
+{
+  "schemaVersion" : 1,
+  "gate" : "W4-PREPROD-RUNTIME-SLO",
+  "status" : "PASS",
+  "environment" : "PRE_PROD_DETERMINISTIC",
+  "broker" : {
+    "sampleCount" : 1000,
+    "p95Ms" : 0.22,
+    "maximumMs" : 13.241,
+    "hardFailureCount" : 0,
+    "providerInvocations" : 1
+  },
+  "mockMvc" : {
+    "sampleCount" : 1000,
+    "p95Ms" : 0.812,
+    "maximumMs" : 9.419,
+    "hardFailureCount" : 0
+  },
+  "sampleCount" : 2000,
+  "serverP95Ms" : 0.812,
+  "hardFailureCount" : 0,
+  "hardFailureRate" : 0.0,
+  "liveProduction" : false,
+  "wave6WebVitalsPending" : true
+}

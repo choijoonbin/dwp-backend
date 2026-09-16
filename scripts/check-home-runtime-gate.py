@@ -86,6 +86,8 @@ def validate(
         problems.append(f"status must equal {expected_status}")
     if evidence.get("registryAuthoritative") is not False:
         problems.append("registryAuthoritative must remain false through Wave 4")
+    if evidence.get("commandsEnabled") is not False:
+        problems.append("commandsEnabled must remain false through Wave 4")
     if evidence.get("productionReleaseReady") is not False:
         problems.append("productionReleaseReady must remain false until Wave 6")
     if evidence.get("nextWave") != "WAVE5":
@@ -166,6 +168,8 @@ def validate(
             problems.append(f"contract hash mismatch: {relative}")
 
     coverage = _object(evidence.get("providerCoverage"), "providerCoverage", problems)
+    if coverage.get("scope") != "WAVE4_OWNER_PROVIDER_DEFINITIONS":
+        problems.append("providerCoverage.scope must bind the Wave 4 owner provider inventory")
     active = coverage.get("activeDefinitions")
     verified = coverage.get("verifiedDefinitions")
     shadow = coverage.get("shadowDefinitions")
@@ -174,10 +178,10 @@ def validate(
         if active != 0 or verified != 0 or shadow != 0 or verified_shadow != 0:
             problems.append("pending provider coverage must be zero")
     else:
-        if type(active) is not int or active <= 0 or verified != active:
-            problems.append("every active definition must have a verified provider")
-        if type(shadow) is not int or shadow < 12 or verified_shadow != shadow:
-            problems.append("all 12 or more SHADOW definitions must have verified provider routing")
+        if active != 1 or verified != 1:
+            problems.append("the single enabled Wave 4 definition must have a verified provider")
+        if shadow != 12 or verified_shadow != 12:
+            problems.append("all 12 SHADOW definitions must have verified provider routing")
 
     security = _object(evidence.get("security"), "security", problems)
     for field in ("crossTenantLeakCount", "forbiddenLeakCount", "telemetryLeakCount"):

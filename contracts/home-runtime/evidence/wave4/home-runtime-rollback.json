@@ -1,0 +1,12 @@
+{
+  "schemaVersion" : 1,
+  "gate" : "W4-RUNTIME-ROLLBACK",
+  "status" : "PASS",
+  "v2KillSwitchVerified" : true,
+  "commandKillSwitchVerified" : true,
+  "providerKillSwitchVerified" : true,
+  "cachePurgeVerified" : true,
+  "schemaDowngradeRequired" : false,
+  "recoveryTimeMillis" : 119,
+  "recoveryTimeSeconds" : 1
+}

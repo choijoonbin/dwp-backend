@@ -44,6 +44,7 @@ class HomeRuntimeGateTest(unittest.TestCase):
                 "backendCommit": "a" * 40,
                 "contractHashes": {"build/reports/wave4.txt": digest},
                 "providerCoverage": {
+                    "scope": "WAVE4_OWNER_PROVIDER_DEFINITIONS",
                     "activeDefinitions": 1, "verifiedDefinitions": 1,
                     "shadowDefinitions": 12, "verifiedShadowDefinitions": 12,
                 },
@@ -86,6 +87,7 @@ class HomeRuntimeGateTest(unittest.TestCase):
         evidence = copy.deepcopy(TEMPLATE)
         evidence["security"]["crossTenantLeakCount"] = 1
         evidence["providerCoverage"] = {
+            "scope": "WAVE4_OWNER_PROVIDER_DEFINITIONS",
             "activeDefinitions": 4, "verifiedDefinitions": 3,
             "shadowDefinitions": 12, "verifiedShadowDefinitions": 11,
         }
@@ -99,6 +101,7 @@ class HomeRuntimeGateTest(unittest.TestCase):
         evidence = copy.deepcopy(TEMPLATE)
         evidence["status"] = "PASS"
         evidence["providerCoverage"] = {
+            "scope": "WAVE4_OWNER_PROVIDER_DEFINITIONS",
             "activeDefinitions": 1, "verifiedDefinitions": 1,
             "shadowDefinitions": 12, "verifiedShadowDefinitions": 11,
         }
@@ -106,8 +109,17 @@ class HomeRuntimeGateTest(unittest.TestCase):
         problems = CHECKER_MODULE.validate(evidence)
 
         self.assertIn(
-            "all 12 or more SHADOW definitions must have verified provider routing",
+            "all 12 SHADOW definitions must have verified provider routing",
             problems,
+        )
+
+    def test_wave_four_cannot_enable_commands(self) -> None:
+        evidence = copy.deepcopy(TEMPLATE)
+        evidence["commandsEnabled"] = True
+
+        self.assertIn(
+            "commandsEnabled must remain false through Wave 4",
+            CHECKER_MODULE.validate(evidence, allow_pending=True),
         )
 
 
