@@ -6,6 +6,7 @@ import com.dwp.services.platform.home.overview.HomeOverviewService;
 import com.dwp.services.platform.workspace.WorkspaceDtos;
 import com.dwp.services.platform.calendar.CalendarDtos;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
@@ -13,18 +14,84 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 @Component
 public class PlatformNativeWidgetProvider implements WidgetProviderPort {
 
     private final HomeOverviewService overviewService;
     private final ObjectMapper objectMapper;
+    private final HomeOwnerActionReceiptService ownerReceipts;
 
+    @Autowired
     public PlatformNativeWidgetProvider(
             HomeOverviewService overviewService,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            HomeOwnerActionReceiptService ownerReceipts) {
         this.overviewService = overviewService;
         this.objectMapper = objectMapper;
+        this.ownerReceipts = ownerReceipts;
+    }
+
+    PlatformNativeWidgetProvider(
+            HomeOverviewService overviewService,
+            ObjectMapper objectMapper) {
+        this(overviewService, objectMapper, null);
+    }
+
+    @Override
+    public HomeWidgetProviderContract.CommandResponse executeCommand(
+            HomeRuntimeContext context,
+            HomeWidgetProviderContract.CommandRequest request,
+            OffsetDateTime deadline) {
+        if (!deadline.isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
+            throw new WidgetProviderException(
+                    WidgetProviderException.Kind.TIMEOUT,
+                    "PROVIDER_DEADLINE_EXCEEDED",
+                    "The Platform Home owner deadline elapsed before command execution.");
+        }
+        HomeOwnerActionContracts.Contract contract = HomeOwnerActionContracts.find(
+                        request.definitionKey(), "1.0.0", request.actionId())
+                .orElseThrow(() -> new WidgetProviderException(
+                        WidgetProviderException.Kind.FORBIDDEN,
+                        "HOME_PROVIDER_COMMAND_NOT_DECLARED",
+                        "The Platform Home provider did not declare this command."));
+        contract.validate(context, request);
+        Object rawKey = request.parameters().get("recommendationKey");
+        if (!(rawKey instanceof String recommendationKey)
+                || !recommendationKey.matches("[a-z][a-z0-9-]{1,79}")) {
+            throw new WidgetProviderException(
+                    WidgetProviderException.Kind.MALFORMED,
+                    "COMMAND_PARAMETERS_INVALID",
+                    "The recommendation command parameters are invalid.");
+        }
+        if (ownerReceipts == null) {
+            throw new WidgetProviderException(
+                    WidgetProviderException.Kind.UNAVAILABLE,
+                    "OWNER_RECEIPT_STORE_UNAVAILABLE",
+                    "The owner idempotency store is unavailable.");
+        }
+        return ownerReceipts.execute(context, contract.contractId(), request, () -> {
+            HomeOverviewDtos.RecommendationFeedbackResponse feedback = overviewService.recordFeedback(
+                    context.tenantId(),
+                    context.userId(),
+                    recommendationKey,
+                    request.commandId().toString(),
+                    new HomeOverviewDtos.RecommendationFeedbackRequest("DISMISSED"));
+            return new HomeWidgetProviderContract.CommandResponse(
+                    HomeWidgetProviderContract.SCHEMA_VERSION,
+                    context.tenantId(),
+                    context.userId(),
+                    context.authorityDecisionRevision(),
+                    UUID.randomUUID(),
+                    request.commandId(),
+                    request.actionId(),
+                    request.commandKey(),
+                    HomeWidgetProviderContract.CommandStatus.COMPLETED,
+                    "/home",
+                    feedback.recordedAt(),
+                    feedback.ruleVersion() + ":" + feedback.recordedAt().toInstant());
+        });
     }
 
     @Override

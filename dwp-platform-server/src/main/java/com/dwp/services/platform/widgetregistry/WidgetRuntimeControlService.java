@@ -8,6 +8,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -233,6 +234,12 @@ public class WidgetRuntimeControlService {
             case "PROVIDER" -> request.providerProductKey() != null
                     && request.providerProductKey().equals(request.targetId());
             case "DEFINITION", "VERSION" -> request.targetId() != null;
+            case "MODE" -> request.targetId() != null
+                    && Set.of("CLASSIC", "FLOW_V1").contains(request.targetId())
+                    && request.providerProductKey() == null;
+            case "ACTION" -> request.targetId() != null
+                    && request.providerProductKey() != null
+                    && request.targetId().split("\\|", -1).length == 5;
             default -> false;
         };
         if (!valid) throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Runtime control target is inconsistent.");

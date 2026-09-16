@@ -2,6 +2,8 @@ package com.dwp.services.platform.home.runtime;
 
 import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
+import com.dwp.services.platform.widgetregistry.WidgetRegistryMutationGuard;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 
@@ -30,7 +32,9 @@ public class WidgetRuntimeBroker {
     private final HomeRuntimeTelemetry telemetry;
     private final HomeCanonicalJson canonicalJson;
     private final Executor executor;
+    private final WidgetRegistryMutationGuard controls;
 
+    @Autowired
     public WidgetRuntimeBroker(
             List<WidgetProviderPort> providers,
             RecipientBoundWidgetCache cache,
@@ -38,7 +42,8 @@ public class WidgetRuntimeBroker {
             HomeRuntimeProperties properties,
             HomeRuntimeTelemetry telemetry,
             HomeCanonicalJson canonicalJson,
-            @Qualifier("homeRuntimeExecutor") Executor executor) {
+            @Qualifier("homeRuntimeExecutor") Executor executor,
+            WidgetRegistryMutationGuard controls) {
         this.providers = providers.stream().collect(Collectors.toUnmodifiableMap(
                 WidgetProviderPort::providerKey, Function.identity()));
         this.cache = cache;
@@ -47,6 +52,19 @@ public class WidgetRuntimeBroker {
         this.telemetry = telemetry;
         this.canonicalJson = canonicalJson;
         this.executor = executor;
+        this.controls = controls;
+    }
+
+    /** Source-compatible constructor for isolated broker tests. */
+    WidgetRuntimeBroker(
+            List<WidgetProviderPort> providers,
+            RecipientBoundWidgetCache cache,
+            ProviderResultValidator validator,
+            HomeRuntimeProperties properties,
+            HomeRuntimeTelemetry telemetry,
+            HomeCanonicalJson canonicalJson,
+            Executor executor) {
+        this(providers, cache, validator, properties, telemetry, canonicalJson, executor, null);
     }
 
     public List<HomeWidgetProviderContract.WidgetResult> read(
@@ -58,7 +76,16 @@ public class WidgetRuntimeBroker {
         }
         OffsetDateTime deadline = OffsetDateTime.now(ZoneOffset.UTC)
                 .plus(properties.overallDeadline());
-        Map<String, List<WidgetProviderPort.Request>> grouped = requested.stream()
+        List<HomeWidgetProviderContract.WidgetResult> results = new ArrayList<>();
+        List<WidgetProviderPort.Request> activeRequests = new ArrayList<>();
+        for (WidgetProviderPort.Request request : requested) {
+            if (runtimeDenied(context, revisions, request)) {
+                results.add(unavailable(request, "RUNTIME_RENDER_DISABLED"));
+            } else {
+                activeRequests.add(request);
+            }
+        }
+        Map<String, List<WidgetProviderPort.Request>> grouped = activeRequests.stream()
                 .collect(Collectors.groupingBy(
                         request -> providerKey(request.definition().sourceAppResourceKey()),
                         LinkedHashMap::new,
@@ -143,7 +170,6 @@ public class WidgetRuntimeBroker {
                  | java.util.concurrent.TimeoutException ignored) {
             futures.forEach(future -> future.cancel(true));
         }
-        List<HomeWidgetProviderContract.WidgetResult> results = new ArrayList<>();
         for (CompletableFuture<ProviderOutcome> future : futures) {
             ProviderOutcome outcome = future.isDone() && !future.isCancelled()
                     ? future.getNow(null) : null;
@@ -155,14 +181,34 @@ public class WidgetRuntimeBroker {
                         outcome.duration());
             }
             if (outcome.response() != null) {
-                if (outcome.cacheKey() != null) {
+                boolean allStillAllowed = outcome.requests().stream()
+                        .noneMatch(request -> runtimeDenied(context, revisions, request));
+                if (outcome.cacheKey() != null && allStillAllowed) {
                     cacheIfEligible(
                             outcome.cacheKey(), outcome.response(),
                             context.authorityRevalidateAt());
                 }
-                results.addAll(outcome.response().results());
+                Map<java.util.UUID, HomeWidgetProviderContract.WidgetResult> returned =
+                        outcome.response().results().stream().collect(Collectors.toMap(
+                                HomeWidgetProviderContract.WidgetResult::instanceId,
+                                Function.identity()));
+                for (WidgetProviderPort.Request request : outcome.requests()) {
+                    if (runtimeDenied(context, revisions, request)) {
+                        results.add(unavailable(request, "RUNTIME_RENDER_DISABLED"));
+                    } else if (returned.get(request.instanceId()) != null) {
+                        results.add(returned.get(request.instanceId()));
+                    }
+                }
             } else {
-                results.addAll(degraded(context, outcome));
+                Map<java.util.UUID, HomeWidgetProviderContract.WidgetResult> degraded =
+                        degraded(context, outcome).stream().collect(Collectors.toMap(
+                                HomeWidgetProviderContract.WidgetResult::instanceId,
+                                Function.identity()));
+                for (WidgetProviderPort.Request request : outcome.requests()) {
+                    results.add(runtimeDenied(context, revisions, request)
+                            ? unavailable(request, "RUNTIME_RENDER_DISABLED")
+                            : degraded.get(request.instanceId()));
+                }
             }
         }
         Set<java.util.UUID> returned = results.stream()
@@ -249,6 +295,7 @@ public class WidgetRuntimeBroker {
                 revisions.catalogRevision(),
                 revisions.policyRevision(),
                 revisions.safetyRevision(),
+                revisions.rolloutRevision(),
                 providerKey,
                 definitions,
                 requestFingerprint);
@@ -256,6 +303,20 @@ public class WidgetRuntimeBroker {
 
     private OffsetDateTime earliest(OffsetDateTime first, OffsetDateTime second) {
         return first.isBefore(second) ? first : second;
+    }
+
+    private boolean runtimeDenied(
+            HomeRuntimeContext context,
+            Revisions revisions,
+            WidgetProviderPort.Request request) {
+        return controls != null && controls.runtimeDenied(
+                "RUNTIME_RENDER",
+                context.tenantId(),
+                request.definition().ownerProductKey(),
+                request.definition().definitionId(),
+                request.definition().versionId(),
+                revisions.mode(),
+                null);
     }
 
     private HomeWidgetProviderContract.WidgetResult stale(
@@ -333,7 +394,19 @@ public class WidgetRuntimeBroker {
             String viewRevision,
             String catalogRevision,
             String policyRevision,
-            String safetyRevision) {
+            String safetyRevision,
+            String rolloutRevision) {
+
+        public Revisions(
+                String mode,
+                String deviceClass,
+                String viewRevision,
+                String catalogRevision,
+                String policyRevision,
+                String safetyRevision) {
+            this(mode, deviceClass, viewRevision, catalogRevision, policyRevision,
+                    safetyRevision, "legacy-shadow");
+        }
     }
 
     private record ProviderOutcome(

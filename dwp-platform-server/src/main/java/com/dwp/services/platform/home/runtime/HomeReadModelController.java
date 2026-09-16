@@ -1,8 +1,6 @@
 package com.dwp.services.platform.home.runtime;
 
 import com.dwp.core.common.ApiResponse;
-import com.dwp.core.common.ErrorCode;
-import com.dwp.core.exception.BaseException;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.headers.Header;
 import io.swagger.v3.oas.annotations.media.Content;
@@ -39,7 +37,10 @@ public class HomeReadModelController {
             "X-DWP-Permissions",
             "X-DWP-Roles",
             "X-DWP-Group-Refs",
-            "X-DWP-Current-Decision-Revision");
+            "X-DWP-Current-Decision-Revision",
+            "X-DWP-Home-Runtime-State",
+            "X-DWP-Home-Rollout-Ring",
+            "X-DWP-Home-Rollout-Revision");
 
     private final HomeReadModelService service;
     private final HomeWidgetCommandService commands;
@@ -72,6 +73,9 @@ public class HomeReadModelController {
                             @Header(name = "Vary", description = "Trusted identity, authority and locale dimensions",
                                     schema = @Schema(type = "string")),
                             @Header(name = "X-DWP-Home-Runtime-Mode", schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Runtime-State", schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Rollout-Ring", schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Rollout-Revision", schema = @Schema(type = "string")),
                             @Header(name = "X-DWP-Home-Commands-Enabled", schema = @Schema(type = "boolean")),
                             @Header(name = "X-DWP-Widget-Registry-Authoritative", schema = @Schema(type = "boolean"))
                     }),
@@ -83,6 +87,9 @@ public class HomeReadModelController {
                             @Header(name = "Cache-Control", schema = @Schema(type = "string")),
                             @Header(name = "Vary", schema = @Schema(type = "string")),
                             @Header(name = "X-DWP-Home-Runtime-Mode", schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Runtime-State", schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Rollout-Ring", schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Rollout-Revision", schema = @Schema(type = "string")),
                             @Header(name = "X-DWP-Home-Commands-Enabled", schema = @Schema(type = "boolean")),
                             @Header(name = "X-DWP-Widget-Registry-Authoritative", schema = @Schema(type = "boolean"))
                     }),
@@ -105,6 +112,9 @@ public class HomeReadModelController {
             @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader("X-DWP-Current-Decision-Revision") String decisionRevision,
             @RequestHeader("X-DWP-Current-Revalidate-At") String revalidateAt,
+            @RequestHeader("X-DWP-Home-Runtime-State") String runtimeState,
+            @RequestHeader("X-DWP-Home-Rollout-Ring") String rolloutRing,
+            @RequestHeader("X-DWP-Home-Rollout-Revision") String rolloutRevision,
             @RequestHeader(value = "Accept-Language", defaultValue = "ko-KR") String locale,
             @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch,
             @RequestParam(required = false)
@@ -113,12 +123,47 @@ public class HomeReadModelController {
             @Pattern(regexp = "DESKTOP_WIDE|DESKTOP_STANDARD|MOBILE_STANDARD|MOBILE_COMPACT")
             String deviceClass,
             @RequestParam(defaultValue = "Asia/Seoul") String timeZone) {
-        requireAvailable();
+        requireDeploymentAvailable();
+        HomeRuntimeContext context = HomeRuntimeContext.create(
+                tenantId, userId, personPublicId, permissions, roles, groupRefs,
+                decisionRevision, revalidateAt, locale, timeZone);
+        HomeRuntimeRolloutDecision.TrustedInput trustedRollout =
+                HomeRuntimeRolloutDecision.TrustedInput.parse(
+                        runtimeState, rolloutRing, rolloutRevision);
+        HomeReadModelDtos.ReadResult result = service.read(
+                context, trustedRollout, mode, deviceClass);
+        HttpHeaders headers = responseHeaders(result.etag(), result.decision());
+        if (matches(ifNoneMatch, result.etag())) {
+            return new ResponseEntity<>(null, headers, HttpStatus.NOT_MODIFIED);
+        }
+        return new ResponseEntity<>(ApiResponse.success(result.model()), headers, HttpStatus.OK);
+    }
+
+    /** Direct-call compatibility for pre-Wave 6 tests; HTTP requests must supply trusted headers. */
+    ResponseEntity<ApiResponse<HomeReadModelDtos.HomeReadModel>> read(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String permissions,
+            String roles,
+            String groupRefs,
+            String decisionRevision,
+            String revalidateAt,
+            String locale,
+            String ifNoneMatch,
+            String mode,
+            String deviceClass,
+            String timeZone) {
+        if (!properties.enabled() && !properties.shadowEnabled()) {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.RESOURCE_NOT_AVAILABLE,
+                    "Home Runtime v2 is disabled for this deployment.");
+        }
         HomeRuntimeContext context = HomeRuntimeContext.create(
                 tenantId, userId, personPublicId, permissions, roles, groupRefs,
                 decisionRevision, revalidateAt, locale, timeZone);
         HomeReadModelDtos.ReadResult result = service.read(context, mode, deviceClass);
-        HttpHeaders headers = responseHeaders(result.etag());
+        HttpHeaders headers = responseHeaders(result.etag(), result.decision());
         if (matches(ifNoneMatch, result.etag())) {
             return new ResponseEntity<>(null, headers, HttpStatus.NOT_MODIFIED);
         }
@@ -139,6 +184,9 @@ public class HomeReadModelController {
                             @Header(name = "Cache-Control", description = "private, no-store, max-age=0",
                                     schema = @Schema(type = "string")),
                             @Header(name = "X-DWP-Home-Runtime-Mode", schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Runtime-State", schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Rollout-Ring", schema = @Schema(type = "string")),
+                            @Header(name = "X-DWP-Home-Rollout-Revision", schema = @Schema(type = "string")),
                             @Header(name = "X-DWP-Home-Commands-Enabled", schema = @Schema(type = "boolean")),
                             @Header(name = "X-DWP-Widget-Registry-Authoritative", schema = @Schema(type = "boolean"))
                     }),
@@ -163,6 +211,9 @@ public class HomeReadModelController {
             @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader("X-DWP-Current-Decision-Revision") String decisionRevision,
             @RequestHeader("X-DWP-Current-Revalidate-At") String revalidateAt,
+            @RequestHeader("X-DWP-Home-Runtime-State") String runtimeState,
+            @RequestHeader("X-DWP-Home-Rollout-Ring") String rolloutRing,
+            @RequestHeader("X-DWP-Home-Rollout-Revision") String rolloutRevision,
             @RequestHeader(value = "Accept-Language", defaultValue = "ko-KR") String locale,
             @RequestHeader("Idempotency-Key") UUID commandId,
             @RequestParam(required = false)
@@ -172,45 +223,82 @@ public class HomeReadModelController {
             String deviceClass,
             @RequestParam(defaultValue = "Asia/Seoul") String timeZone,
             @Valid @RequestBody HomeReadModelDtos.CommandRequest request) {
-        requireCommandsEnabled();
+        requireDeploymentAvailable();
         HomeRuntimeContext context = HomeRuntimeContext.create(
                 tenantId, userId, personPublicId, permissions, roles, groupRefs,
                 decisionRevision, revalidateAt, locale, timeZone);
-        HttpHeaders headers = new HttpHeaders();
+        HomeRuntimeRolloutDecision.TrustedInput trustedRollout =
+                HomeRuntimeRolloutDecision.TrustedInput.parse(
+                        runtimeState, rolloutRing, rolloutRevision);
+        HomeWidgetCommandService.ExecutionResult result = commands.execute(
+                context, trustedRollout, mode, deviceClass, commandId, request);
+        HttpHeaders headers = runtimeHeaders(result.decision());
         headers.set(HttpHeaders.CACHE_CONTROL, "private, no-store, max-age=0");
-        headers.set("X-DWP-Home-Runtime-Mode", properties.enabled() ? "ACTIVE" : "SHADOW");
-        headers.set("X-DWP-Home-Commands-Enabled",
-                Boolean.toString(properties.commandsEnabled()));
-        headers.set("X-DWP-Widget-Registry-Authoritative", "false");
-        return new ResponseEntity<>(ApiResponse.success(commands.execute(
-                context, mode, deviceClass, commandId, request)), headers, HttpStatus.ACCEPTED);
+        return new ResponseEntity<>(
+                ApiResponse.success(result.receipt()), headers, HttpStatus.ACCEPTED);
     }
 
-    private void requireAvailable() {
+    /** Direct-call compatibility for pre-Wave 6 tests; HTTP requests use the trusted overload. */
+    ResponseEntity<ApiResponse<HomeReadModelDtos.CommandReceipt>> execute(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String permissions,
+            String roles,
+            String groupRefs,
+            String decisionRevision,
+            String revalidateAt,
+            String locale,
+            UUID commandId,
+            String mode,
+            String deviceClass,
+            String timeZone,
+            HomeReadModelDtos.CommandRequest request) {
+        if (!properties.commandsEnabled()) {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.RESOURCE_NOT_AVAILABLE,
+                    "Home Runtime commands remain disabled.");
+        }
+        HomeRuntimeContext context = HomeRuntimeContext.create(
+                tenantId, userId, personPublicId, permissions, roles, groupRefs,
+                decisionRevision, revalidateAt, locale, timeZone);
+        HomeReadModelDtos.CommandReceipt receipt = commands.execute(
+                context, mode, deviceClass, commandId, request);
+        HttpHeaders headers = new HttpHeaders();
+        headers.set(HttpHeaders.CACHE_CONTROL, "private, no-store, max-age=0");
+        return new ResponseEntity<>(ApiResponse.success(receipt), headers, HttpStatus.ACCEPTED);
+    }
+
+    private HttpHeaders responseHeaders(
+            String etag,
+            HomeRuntimeRolloutDecision decision) {
+        HttpHeaders headers = runtimeHeaders(decision);
+        headers.setETag(etag);
+        headers.set(HttpHeaders.CACHE_CONTROL, CACHE_CONTROL);
+        headers.set(HttpHeaders.VARY, VARY);
+        return headers;
+    }
+
+    private void requireDeploymentAvailable() {
         if (!properties.enabled() && !properties.shadowEnabled()) {
-            throw new BaseException(
-                    ErrorCode.RESOURCE_NOT_AVAILABLE,
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.RESOURCE_NOT_AVAILABLE,
                     "Home Runtime v2 is disabled for this deployment.");
         }
     }
 
-    private void requireCommandsEnabled() {
-        if (!properties.commandsEnabled()) {
-            throw new BaseException(
-                    ErrorCode.RESOURCE_NOT_AVAILABLE,
-                    "Home Runtime commands remain disabled until the owner idempotency gate is promoted.");
-        }
-    }
-
-    private HttpHeaders responseHeaders(String etag) {
+    private HttpHeaders runtimeHeaders(HomeRuntimeRolloutDecision decision) {
         HttpHeaders headers = new HttpHeaders();
-        headers.setETag(etag);
-        headers.set(HttpHeaders.CACHE_CONTROL, CACHE_CONTROL);
-        headers.set(HttpHeaders.VARY, VARY);
-        headers.set("X-DWP-Home-Runtime-Mode", properties.enabled() ? "ACTIVE" : "SHADOW");
+        boolean active = decision.state().ordinal()
+                >= HomeRuntimeRolloutDecision.State.READ_ONLY_ACTIVE.ordinal();
+        headers.set("X-DWP-Home-Runtime-Mode", active ? "ACTIVE" : "SHADOW");
+        headers.set("X-DWP-Home-Runtime-State", decision.state().name());
+        headers.set("X-DWP-Home-Rollout-Ring", decision.ring().name());
+        headers.set("X-DWP-Home-Rollout-Revision", decision.revision());
         headers.set("X-DWP-Home-Commands-Enabled",
-                Boolean.toString(properties.commandsEnabled()));
-        headers.set("X-DWP-Widget-Registry-Authoritative", "false");
+                Boolean.toString(decision.commandsEnabled()));
+        headers.set("X-DWP-Widget-Registry-Authoritative",
+                Boolean.toString(decision.registryAuthoritative()));
         return headers;
     }
 

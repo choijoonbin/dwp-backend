@@ -4,6 +4,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.home.HomeExperienceDtos;
 import com.dwp.services.platform.home.HomeExperienceService;
+import com.dwp.services.platform.widgetregistry.internal.security.WidgetRegistryActivationInterlock;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -27,7 +28,9 @@ public class WidgetCatalogService {
     private static final List<String> CAPABILITIES = List.of(
             "WIDGET_REGISTRY_CONTROL_PLANE",
             "WIDGET_REGISTRY_SHADOW_EVALUATION",
-            "TENANT_WIDGET_POLICY");
+            "TENANT_WIDGET_POLICY",
+            "EVIDENCE_BOUND_AUTHORITY_PERMIT",
+            "RUNTIME_RENDER_ACTION_CONTROLS");
     private static final List<BaselineWidget> NATIVE_BASELINE = List.of(
             new BaselineWidget(
                     "core.workspace.command-rail",
@@ -205,7 +208,10 @@ public class WidgetCatalogService {
     public WidgetRegistryDtos.ReadinessResponse readiness() {
         WidgetRegistryState state = ledger.state();
         List<WidgetDefinitionVersion> baselineVersions = resolveBaseline();
-        boolean controlPlaneReady = baselineVersions.size() == NATIVE_BASELINE.size();
+        int expected = NATIVE_BASELINE.size() + OWNER_PROVIDER_SHADOW_BASELINE.size();
+        int activeBindingCount = bindings.findByBindingStateOrderByRendererKey("ACTIVE").size();
+        boolean controlPlaneReady = baselineVersions.size() == expected
+                && activeBindingCount == expected;
         boolean runtimeActivationReady = controlPlaneReady
                 && state.isRuntimeActivationReady()
                 && "AUTHORITATIVE".equals(state.getMigrationMode())
@@ -218,12 +224,15 @@ public class WidgetCatalogService {
                 controlPlaneReady,
                 runtimeActivationReady,
                 CAPABILITIES,
-                state.getRegistryRevision(), state.getPolicyRevision(), state.getSafetyRevision());
+                state.getRegistryRevision(), state.getPolicyRevision(), state.getSafetyRevision(),
+                activeBindingCount, bindingRevision());
     }
 
     private List<WidgetDefinitionVersion> resolveBaseline() {
         List<WidgetDefinitionVersion> resolved = new ArrayList<>();
-        for (BaselineWidget baseline : NATIVE_BASELINE) {
+        List<BaselineWidget> authorityBaseline = new ArrayList<>(NATIVE_BASELINE);
+        authorityBaseline.addAll(OWNER_PROVIDER_SHADOW_BASELINE);
+        for (BaselineWidget baseline : authorityBaseline) {
             WidgetDefinition definition = definitions.findByDefinitionKey(baseline.definitionKey())
                     .filter(value -> "ACTIVE".equals(value.getDefinitionState()))
                     .filter(value -> baseline.ownerProductKey().equals(value.getOwnerProductKey()))
@@ -251,6 +260,35 @@ public class WidgetCatalogService {
             resolved.add(version);
         }
         return List.copyOf(resolved);
+    }
+
+    @Transactional(readOnly = true)
+    public WidgetRegistryActivationInterlock.AuthorityEvidence authorityEvidence() {
+        WidgetRegistryDtos.ReadinessResponse readiness = readiness();
+        return new WidgetRegistryActivationInterlock.AuthorityEvidence(
+                readiness.migrationMode(),
+                readiness.runtimeActivationReady(),
+                readiness.activeBindingCount(),
+                readiness.bindingCatalogRevision(),
+                readiness.safetyRevision());
+    }
+
+    /** Exact static-safe Home catalog used whenever Registry authority is not evidence-permitted. */
+    public boolean isHomeRuntimeBaseline(RuntimeDefinition definition) {
+        if (definition == null || definition.definitionId() == null
+                || definition.versionId() == null) return false;
+        return java.util.stream.Stream.concat(
+                        NATIVE_BASELINE.stream(), OWNER_PROVIDER_SHADOW_BASELINE.stream())
+                .anyMatch(baseline -> baseline.definitionId().equals(
+                                definition.definitionId().toString())
+                        && baseline.versionId().equals(definition.versionId().toString())
+                        && baseline.definitionKey().equals(definition.definitionKey())
+                        && baseline.semanticVersion().equals(definition.semanticVersion())
+                        && baseline.manifestHash().equals(definition.manifestHash())
+                        && baseline.rendererKey().equals(definition.rendererKey())
+                        && baseline.ownerProductKey().equals(definition.ownerProductKey())
+                        && baseline.sourceAppResourceKey().equals(
+                                definition.sourceAppResourceKey()));
     }
 
     @Transactional(readOnly = true)

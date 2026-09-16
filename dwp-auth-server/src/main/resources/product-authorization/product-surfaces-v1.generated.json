@@ -4103,6 +4103,7 @@
       "riskTier": "LOW",
       "routeContractKeys": [
         "route.workplace.work.home-read-model.data",
+        "route.workplace.work.home-shadow-receipt.action",
         "route.workplace.work.home-widget-action-execute.action"
       ],
       "scopeResolver": "SELF",
@@ -4135,7 +4136,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "da0a7a2006df0c8a7bae78e1c7fc8ca42804ea25fa6062b947c075281ac0c4c4",
+  "checksum": "4ed4e9515d28745bce14707ff45ba75b93108943a625b90fd95ef987d8b35015",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -28186,6 +28187,58 @@
           ],
           "precedence": 300,
           "predicatePolicyKeys": [],
+          "profileKey": "home-shadow-observer",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "workplace.home.read",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.home-shadow-receipt.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v2/home/shadow-receipts",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.work.home-shadow-receipt.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.home-shadow-receipt.action.binding.01",
+          "method": "POST",
+          "path": "/v2/home/shadow-receipts",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
           "profileKey": "home-command",
           "readOnly": false,
           "requiredAccess": {
@@ -28231,5 +28284,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 16
+  "version": 17
 }

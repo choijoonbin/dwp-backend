@@ -86,8 +86,15 @@ dwp:
     activity:
       # Local UI evidence stays SAMPLE and is invisible unless the server is explicitly opted in.
       local-fixtures-enabled: ${DWP_ACTIVITY_LOCAL_FIXTURES_ENABLED:false}
-    # Deny-only interlock: true intentionally fails startup until the authoritative runtime exists.
+    # Authority remains disabled unless the exact, expiring Wave 6 evidence seal also matches.
     widget-registry-enabled: ${DWP_WIDGET_REGISTRY_ENABLED:false}
+    widget-registry-authority:
+      binding-count: ${DWP_WIDGET_REGISTRY_AUTHORITY_BINDING_COUNT:0}
+      binding-revision: ${DWP_WIDGET_REGISTRY_AUTHORITY_BINDING_REVISION:}
+      safety-revision: ${DWP_WIDGET_REGISTRY_AUTHORITY_SAFETY_REVISION:-1}
+      rollout-revision: ${DWP_WIDGET_REGISTRY_AUTHORITY_ROLLOUT_REVISION:}
+      expires-at: ${DWP_WIDGET_REGISTRY_AUTHORITY_EXPIRES_AT:}
+      evidence-sha256: ${DWP_WIDGET_REGISTRY_AUTHORITY_EVIDENCE_SHA256:}
     home:
       flow-enabled: ${DWP_HOME_FLOW_ENABLED:false}
       # Activate only after all pre-Wave1 pods are drained; see the rollout contract.
@@ -114,6 +121,11 @@ dwp:
       # Wave 4 is read-only. Keep commands off until owner services provide durable
       # idempotency and auditable receipts in the Wave 6 promotion gate.
       commands-enabled: ${DWP_HOME_RUNTIME_COMMANDS_ENABLED:false}
+      rollout:
+        ceiling: ${DWP_HOME_RUNTIME_ROLLOUT_CEILING:SHADOW_COMPARE}
+        active-rings: ${DWP_HOME_RUNTIME_ROLLOUT_ACTIVE_RINGS:}
+        active-modes: ${DWP_HOME_RUNTIME_ROLLOUT_ACTIVE_MODES:}
+        command-contracts: ${DWP_HOME_RUNTIME_ROLLOUT_COMMAND_CONTRACTS:}
       overall-deadline: ${DWP_HOME_RUNTIME_OVERALL_DEADLINE:PT0.9S}
       provider-timeout: ${DWP_HOME_RUNTIME_PROVIDER_TIMEOUT:PT0.4S}
       cache-ttl: ${DWP_HOME_RUNTIME_CACHE_TTL:PT30S}

@@ -6,6 +6,8 @@ import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
 import com.dwp.services.platform.home.personalization.HomeCommandReceiptService;
+import com.dwp.services.platform.widgetregistry.WidgetRegistryMutationGuard;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.OffsetDateTime;
@@ -28,8 +30,10 @@ public class HomeWidgetCommandService {
     private final ProviderResultValidator validator;
     private final HomeRuntimeProperties properties;
     private final PlatformAuditService audit;
+    private final WidgetRegistryMutationGuard controls;
     private final Object[] commandLocks = new Object[LOCK_STRIPES];
 
+    @Autowired
     public HomeWidgetCommandService(
             List<WidgetProviderPort> providers,
             HomeReadModelService readModels,
@@ -37,7 +41,8 @@ public class HomeWidgetCommandService {
             HomeCanonicalJson canonicalJson,
             ProviderResultValidator validator,
             HomeRuntimeProperties properties,
-            PlatformAuditService audit) {
+            PlatformAuditService audit,
+            WidgetRegistryMutationGuard controls) {
         this.providers = providers.stream().collect(Collectors.toUnmodifiableMap(
                 WidgetProviderPort::providerKey, Function.identity()));
         this.readModels = readModels;
@@ -46,9 +51,21 @@ public class HomeWidgetCommandService {
         this.validator = validator;
         this.properties = properties;
         this.audit = audit;
+        this.controls = controls;
         for (int index = 0; index < commandLocks.length; index++) {
             commandLocks[index] = new Object();
         }
+    }
+
+    HomeWidgetCommandService(
+            List<WidgetProviderPort> providers,
+            HomeReadModelService readModels,
+            HomeCommandReceiptService receipts,
+            HomeCanonicalJson canonicalJson,
+            ProviderResultValidator validator,
+            HomeRuntimeProperties properties,
+            PlatformAuditService audit) {
+        this(providers, readModels, receipts, canonicalJson, validator, properties, audit, null);
     }
 
     public HomeReadModelDtos.CommandReceipt execute(
@@ -57,6 +74,29 @@ public class HomeWidgetCommandService {
             String deviceClass,
             UUID commandId,
             HomeReadModelDtos.CommandRequest request) {
+        return executeInternal(
+                context, null, requestedMode, deviceClass, commandId, request, false).receipt();
+    }
+
+    public ExecutionResult execute(
+            HomeRuntimeContext context,
+            HomeRuntimeRolloutDecision.TrustedInput trustedRollout,
+            String requestedMode,
+            String deviceClass,
+            UUID commandId,
+            HomeReadModelDtos.CommandRequest request) {
+        return executeInternal(
+                context, trustedRollout, requestedMode, deviceClass, commandId, request, true);
+    }
+
+    private ExecutionResult executeInternal(
+            HomeRuntimeContext context,
+            HomeRuntimeRolloutDecision.TrustedInput trustedRollout,
+            String requestedMode,
+            String deviceClass,
+            UUID commandId,
+            HomeReadModelDtos.CommandRequest request,
+            boolean enforceRollout) {
         if (commandId == null) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Idempotency-Key is required.");
         }
@@ -80,8 +120,8 @@ public class HomeWidgetCommandService {
         try {
             synchronized (lock) {
                 return executeOnce(
-                        context, requestedMode, deviceClass, commandId, request,
-                        fingerprint, target);
+                        context, trustedRollout, requestedMode, deviceClass, commandId, request,
+                        fingerprint, target, enforceRollout);
             }
         } catch (RuntimeException failure) {
             boolean denied = failure instanceof BaseException
@@ -94,25 +134,36 @@ public class HomeWidgetCommandService {
         }
     }
 
-    private HomeReadModelDtos.CommandReceipt executeOnce(
+    private ExecutionResult executeOnce(
             HomeRuntimeContext context,
+            HomeRuntimeRolloutDecision.TrustedInput trustedRollout,
             String requestedMode,
             String deviceClass,
             UUID commandId,
             HomeReadModelDtos.CommandRequest request,
             String fingerprint,
-            String target) {
-        HomeReadModelDtos.CommandReceipt replay = receipts.replay(
-                context.tenantId(), context.userId(), commandId,
-                "HOME_WIDGET_ACTION", target, fingerprint,
-                HomeReadModelDtos.CommandReceipt.class);
-        if (replay != null) {
-            audit(context, commandId, target, "replayed", "SUCCESS");
-            return replay;
+            String target,
+            boolean enforceRollout) {
+        if (!enforceRollout) {
+            HomeReadModelDtos.CommandReceipt replay = receipts.replay(
+                    context.tenantId(), context.userId(), commandId,
+                    "HOME_WIDGET_ACTION", target, fingerprint,
+                    HomeReadModelDtos.CommandReceipt.class);
+            if (replay != null) {
+                audit(context, commandId, target, "replayed", "SUCCESS");
+                return new ExecutionResult(replay, null);
+            }
         }
-
-        HomeReadModelDtos.HomeReadModel model = readModels
-                .read(context, requestedMode, deviceClass).model();
+        HomeReadModelDtos.ReadResult readResult = enforceRollout
+                ? readModels.read(context, trustedRollout, requestedMode, deviceClass)
+                : readModels.read(context, requestedMode, deviceClass);
+        HomeReadModelDtos.HomeReadModel model = readResult.model();
+        HomeRuntimeRolloutDecision decision = readResult.decision();
+        if (enforceRollout && (decision == null || !decision.commandsEnabled())) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_NOT_AVAILABLE,
+                    "Home Runtime commands are disabled by the current rollout decision.");
+        }
         HomeReadModelDtos.Widget widget = model.widgets().stream()
                 .filter(candidate -> candidate.instanceId().equals(request.instanceId()))
                 .findFirst().orElseThrow(() -> new BaseException(
@@ -135,8 +186,44 @@ public class HomeWidgetCommandService {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
                     "The Home widget action contract changed; refresh before retrying.");
         }
+        HomeOwnerActionContracts.Contract contract = HomeOwnerActionContracts.find(
+                        widget.definitionKey(), widget.definitionVersion(), action.actionId())
+                .filter(candidate -> candidate.commandKey().equals(action.commandKey()))
+                .filter(candidate -> candidate.definitionManifestHash().equals(
+                        widget.definitionManifestHash()))
+                .orElse(null);
+        if (enforceRollout && contract == null) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "The Home widget action is not an approved owner contract.");
+        }
+        if (enforceRollout && (!decision.actionAllowed(contract.contractId())
+                || controls == null
+                || controls.runtimeDenied(
+                "RUNTIME_ACTION", context.tenantId(), contract.providerProductKey(),
+                null, null, decision.mode(), contract.contractId())
+                || !controls.runtimeActionApproved(
+                context.tenantId(), contract.providerProductKey(), contract.contractId()))) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_NOT_AVAILABLE,
+                    "The Home owner action is disabled by the current runtime control.");
+        }
+        if (enforceRollout) {
+            HomeReadModelDtos.CommandReceipt replay = receipts.replay(
+                    context.tenantId(), context.userId(), commandId,
+                    "HOME_WIDGET_ACTION", target, fingerprint,
+                    HomeReadModelDtos.CommandReceipt.class);
+            if (replay != null) {
+                audit(context, commandId, target, "replayed", "SUCCESS");
+                return new ExecutionResult(replay, decision);
+            }
+        }
         String providerKey = WidgetRuntimeBroker.providerKey(
                 widget.governance().sourceAppResourceKey());
+        if (contract != null && !contract.providerKey().equals(providerKey)) {
+            throw new BaseException(ErrorCode.FORBIDDEN,
+                    "The Home owner action provider contract is inconsistent.");
+        }
         WidgetProviderPort provider = providers.get(providerKey);
         if (provider == null) {
             throw new BaseException(ErrorCode.RESOURCE_NOT_AVAILABLE,
@@ -154,6 +241,7 @@ public class HomeWidgetCommandService {
                         action.commandKey(),
                         request.expectedResultVersion(),
                         request.parameters());
+        if (contract != null) contract.validate(context, providerRequest);
         OffsetDateTime deadline = OffsetDateTime.now(ZoneOffset.UTC)
                 .plus(properties.providerTimeout());
         HomeWidgetProviderContract.CommandResponse response = provider.executeCommand(
@@ -166,7 +254,7 @@ public class HomeWidgetCommandService {
         receipts.record(context.tenantId(), context.userId(), commandId,
                 "HOME_WIDGET_ACTION", target, fingerprint, receipt);
         audit(context, commandId, target, "accepted", "SUCCESS");
-        return receipt;
+        return new ExecutionResult(receipt, decision);
     }
 
     private void audit(
@@ -209,5 +297,10 @@ public class HomeWidgetCommandService {
         if (response.sourceRoute() != null) {
             ProviderResultValidator.internalRoute(response.sourceRoute());
         }
+    }
+
+    public record ExecutionResult(
+            HomeReadModelDtos.CommandReceipt receipt,
+            HomeRuntimeRolloutDecision decision) {
     }
 }

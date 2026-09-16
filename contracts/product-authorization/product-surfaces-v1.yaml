@@ -21496,6 +21496,16 @@
       "routes": [
         {"routeContractKey":"route.workplace.work.home-widget-action-execute.action","navigationContextId":"workplace.work","subject":{"type":"PRODUCT","productKey":"workplace","surfaceKey":"workplace.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"home-command","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"workplace.home.read"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":[],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.workplace.work.home-widget-action-execute.action.binding.01","method":"POST","path":"/api/platform/v2/home/widget-actions:execute","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.workplace.work.home-widget-action-execute.action.binding.01","method":"POST","path":"/v2/home/widget-actions:execute","pathParameterConstraints":{},"serviceKey":"platform"}],"owner":"Workplace + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"}
       ]
+    },
+    {
+      "version": 17,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {"routeContractKey":"route.workplace.work.home-shadow-receipt.action","navigationContextId":"workplace.work","subject":{"type":"PRODUCT","productKey":"workplace","surfaceKey":"workplace.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"home-shadow-observer","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"workplace.home.read"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":[],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.workplace.work.home-shadow-receipt.action.binding.01","method":"POST","path":"/api/platform/v2/home/shadow-receipts","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.workplace.work.home-shadow-receipt.action.binding.01","method":"POST","path":"/v2/home/shadow-receipts","pathParameterConstraints":{},"serviceKey":"platform"}],"owner":"Workplace + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"}
+      ]
     }
   ],
   "descriptorEnrichments": {

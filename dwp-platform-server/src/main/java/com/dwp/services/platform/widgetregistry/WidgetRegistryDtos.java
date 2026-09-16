@@ -45,7 +45,9 @@ public final class WidgetRegistryDtos {
             List<String> capabilities,
             long registryRevision,
             long policyRevision,
-            long safetyRevision) {}
+            long safetyRevision,
+            int activeBindingCount,
+            String bindingCatalogRevision) {}
 
     public record DefinitionResponse(
             UUID definitionId,
@@ -350,8 +352,9 @@ public final class WidgetRegistryDtos {
 
     public record RuntimeDisableRequest(
             @NotBlank @Pattern(regexp = "CATALOG_MUTATIONS|CATALOG_DISCOVERY|RUNTIME_RENDER|RUNTIME_ACTION") String scope,
-            @NotBlank @Pattern(regexp = "GLOBAL|PROVIDER|TENANT|DEFINITION|VERSION") String targetType,
-            @Size(max = 160) String targetId,
+            @NotBlank @Pattern(regexp = "GLOBAL|PROVIDER|TENANT|DEFINITION|VERSION|MODE|ACTION")
+            String targetType,
+            @Size(max = 320) String targetId,
             Long tenantId,
             @Size(max = 120) String providerProductKey,
             OffsetDateTime expiresAt,

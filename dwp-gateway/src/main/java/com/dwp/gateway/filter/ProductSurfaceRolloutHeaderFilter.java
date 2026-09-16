@@ -32,6 +32,9 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
     public static final String COHORT_HEADER = "X-DWP-Rollout-Cohort";
     public static final String REVISION_HEADER = "X-DWP-Rollout-Revision";
     public static final String STATE_HEADER = "X-DWP-Rollout-State";
+    public static final String HOME_RUNTIME_STATE_HEADER = "X-DWP-Home-Runtime-State";
+    public static final String HOME_ROLLOUT_RING_HEADER = "X-DWP-Home-Rollout-Ring";
+    public static final String HOME_ROLLOUT_REVISION_HEADER = "X-DWP-Home-Rollout-Revision";
 
     private static final String TELEMETRY_PATH =
             "/api/platform/v1/observability/product-surface-events";
@@ -43,6 +46,9 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
             COHORT_HEADER,
             REVISION_HEADER,
             STATE_HEADER,
+            HOME_RUNTIME_STATE_HEADER,
+            HOME_ROLLOUT_RING_HEADER,
+            HOME_ROLLOUT_REVISION_HEADER,
             "X-DWP-Rollout-Flags",
             "X-DWP-Rollout-Flag");
 
@@ -167,6 +173,11 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
             headers.set(COHORT_HEADER, rollout.cohort());
             headers.set(REVISION_HEADER, rollout.opaqueRevision());
             headers.set(STATE_HEADER, rollout.state());
+            if (homeRuntimeRoute(request)) {
+                headers.set(HOME_RUNTIME_STATE_HEADER, homeState(rollout.state()));
+                headers.set(HOME_ROLLOUT_RING_HEADER, homeRing(rollout.cohort()));
+                headers.set(HOME_ROLLOUT_REVISION_HEADER, rollout.opaqueRevision());
+            }
         }).build();
         return exchange.mutate().request(trusted).build();
     }
@@ -223,6 +234,34 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
                 request.getHeaders().getFirst(CORRELATION_HEADER),
                 request.getHeaders().getFirst(TRACE_PARENT_HEADER),
                 request.getHeaders().getFirst(TRACE_STATE_HEADER));
+    }
+
+    private boolean homeRuntimeRoute(ServerHttpRequest request) {
+        String path = request.getURI().getPath();
+        return (request.getMethod() == HttpMethod.GET
+                && "/api/platform/v2/home".equals(path))
+                || (request.getMethod() == HttpMethod.POST
+                && ("/api/platform/v2/home/widget-actions:execute".equals(path)
+                || "/api/platform/v2/home/shadow-receipts".equals(path)));
+    }
+
+    private String homeState(String state) {
+        return switch (state) {
+            case "100" -> "SHADOW_COMPARE";
+            case "110" -> "READ_ONLY_ACTIVE";
+            case "111" -> "COMMAND_CANARY";
+            default -> "DISABLED";
+        };
+    }
+
+    private String homeRing(String cohort) {
+        return switch (cohort) {
+            case "eligible-10" -> "INTERNAL";
+            case "eligible-25" -> "PILOT";
+            case "eligible-50" -> "EARLY_ADOPTER";
+            case "eligible-90", "full" -> "GA";
+            default -> "CONTROL";
+        };
     }
 
     private Long positiveLong(String value) {

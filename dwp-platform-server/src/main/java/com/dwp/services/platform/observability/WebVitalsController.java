@@ -29,6 +29,13 @@ public class WebVitalsController {
 
     private static final Set<String> METRICS = Set.of("CLS", "INP", "LCP");
     private static final Set<String> RATINGS = Set.of("good", "needs-improvement", "poor");
+    private static final Set<String> HOME_MODES = Set.of("CLASSIC", "FLOW_V1");
+    private static final Set<String> HOME_RUNTIME_STATES = Set.of(
+            "DISABLED", "SHADOW_COMPARE", "READ_ONLY_ACTIVE", "COMMAND_CANARY");
+    private static final Set<String> HOME_RINGS = Set.of(
+            "CONTROL", "INTERNAL", "PILOT", "EARLY_ADOPTER", "GA");
+    private static final Set<String> DEVICE_CLASSES = Set.of(
+            "DESKTOP_WIDE", "DESKTOP_STANDARD", "MOBILE_STANDARD", "MOBILE_COMPACT");
 
     private final MeterRegistry registry;
 
@@ -42,18 +49,26 @@ public class WebVitalsController {
     public ResponseEntity<Void> ingest(@Valid @RequestBody WebVitalRequest request) {
         String metric = request.name().toUpperCase(Locale.ROOT);
         String rating = request.rating().toLowerCase(Locale.ROOT);
-        if (!METRICS.contains(metric) || !RATINGS.contains(rating)) {
+        if (!METRICS.contains(metric) || !RATINGS.contains(rating)
+                || !validHomeDimensions(request)) {
             return ResponseEntity.unprocessableEntity().build();
         }
-        DistributionSummary.builder("dwp.frontend.web_vital")
+        String meterName = "CLS".equals(metric)
+                ? "dwp.frontend.web_vital.cls"
+                : "dwp.frontend.web_vital.duration";
+        DistributionSummary.Builder builder = DistributionSummary.builder(meterName)
                 .description("Browser Core Web Vital samples received through the DWP Gateway")
-                .baseUnit("milliseconds")
-                .tag("metric", metric)
+                .baseUnit("CLS".equals(metric) ? "1" : "milliseconds")
                 .tag("rating", rating)
-                .tag("route.group", request.routeGroup())
-                .publishPercentileHistogram()
-                .register(registry)
-                .record(request.value());
+                .tag("route.group", request.routeGroup());
+        if (!"CLS".equals(metric)) builder.tag("metric", metric);
+        if (isHome(request.routeGroup())) {
+            builder.tag("home.mode", request.homeMode())
+                    .tag("home.runtime", request.homeRuntime())
+                    .tag("rollout.ring", request.rolloutRing())
+                    .tag("device.class", request.deviceClass());
+        }
+        builder.publishPercentileHistogram().register(registry).record(request.value());
         return ResponseEntity.accepted().location(URI.create("/v1/observability/web-vitals")).build();
     }
 
@@ -67,6 +82,50 @@ public class WebVitalsController {
             @NotBlank @Size(max = 32) String rating,
             @NotBlank @Size(max = 40) String navigationType,
             @NotBlank @Size(max = 80)
-            @Pattern(regexp = "[a-z0-9][a-z0-9._/-]*") String routeGroup) {
+            @Pattern(regexp = "[a-z0-9][a-z0-9._/-]*") String routeGroup,
+            @Schema(allowableValues = {"CLASSIC", "FLOW_V1"}) String homeMode,
+            @Schema(allowableValues = {
+                    "DISABLED", "SHADOW_COMPARE", "READ_ONLY_ACTIVE", "COMMAND_CANARY"})
+            String homeRuntime,
+            @Schema(allowableValues = {"CONTROL", "INTERNAL", "PILOT", "EARLY_ADOPTER", "GA"})
+            String rolloutRing,
+            @Schema(allowableValues = {
+                    "DESKTOP_WIDE", "DESKTOP_STANDARD", "MOBILE_STANDARD", "MOBILE_COMPACT"})
+            String deviceClass) {
+
+        public WebVitalRequest(
+                String name,
+                Double value,
+                Double delta,
+                String id,
+                String rating,
+                String navigationType,
+                String routeGroup) {
+            this(name, value, delta, id, rating, navigationType, routeGroup,
+                    null, null, null, null);
+        }
+    }
+
+    private boolean validHomeDimensions(WebVitalRequest request) {
+        if (!isHome(request.routeGroup())) {
+            return request.homeMode() == null
+                    && request.homeRuntime() == null
+                    && request.rolloutRing() == null
+                    && request.deviceClass() == null;
+        }
+        return request.homeMode() != null
+                && request.homeRuntime() != null
+                && request.rolloutRing() != null
+                && request.deviceClass() != null
+                && HOME_MODES.contains(request.homeMode())
+                && HOME_RUNTIME_STATES.contains(request.homeRuntime())
+                && HOME_RINGS.contains(request.rolloutRing())
+                && DEVICE_CLASSES.contains(request.deviceClass());
+    }
+
+    private boolean isHome(String routeGroup) {
+        return "home".equals(routeGroup)
+                || routeGroup != null && (routeGroup.startsWith("home.")
+                || routeGroup.endsWith(".home"));
     }
 }

@@ -24,7 +24,8 @@ class HomeReadModelControllerTest {
     void returnsRecipientBoundEtagAndShadowHeaders() throws Exception {
         HomeReadModelService service = mock(HomeReadModelService.class);
         HomeReadModelDtos.HomeReadModel model = model();
-        when(service.read(any(), eq("CLASSIC"), eq("DESKTOP_STANDARD")))
+        when(service.read(any(), any(HomeRuntimeRolloutDecision.TrustedInput.class),
+                        eq("CLASSIC"), eq("DESKTOP_STANDARD")))
                 .thenReturn(new HomeReadModelDtos.ReadResult(model, "\"etag-1\""));
         MockMvc mvc = standaloneSetup(new HomeReadModelController(
                 service, mock(HomeWidgetCommandService.class), properties())).build();
@@ -34,15 +35,19 @@ class HomeReadModelControllerTest {
                 .andExpect(header().string("ETag", "\"etag-1\""))
                 .andExpect(header().string("Cache-Control", HomeReadModelController.CACHE_CONTROL))
                 .andExpect(header().string("X-DWP-Home-Runtime-Mode", "SHADOW"))
+                .andExpect(header().string("X-DWP-Home-Runtime-State", "SHADOW_COMPARE"))
+                .andExpect(header().string("X-DWP-Home-Rollout-Ring", "CONTROL"))
+                .andExpect(header().string("X-DWP-Home-Rollout-Revision", "legacy-shadow"))
                 .andExpect(header().string("X-DWP-Home-Commands-Enabled", "false"))
                 .andExpect(header().string("X-DWP-Widget-Registry-Authoritative", "false"))
-                .andExpect(jsonPath("$.data.schemaVersion").value(2));
+                .andExpect(jsonPath("$.data.schemaVersion").value(3));
     }
 
     @Test
     void matchingEtagReturns304WithTheSameCacheContract() throws Exception {
         HomeReadModelService service = mock(HomeReadModelService.class);
-        when(service.read(any(), eq("CLASSIC"), eq("DESKTOP_STANDARD")))
+        when(service.read(any(), any(HomeRuntimeRolloutDecision.TrustedInput.class),
+                        eq("CLASSIC"), eq("DESKTOP_STANDARD")))
                 .thenReturn(new HomeReadModelDtos.ReadResult(model(), "\"etag-1\""));
         MockMvc mvc = standaloneSetup(new HomeReadModelController(
                 service, mock(HomeWidgetCommandService.class), properties())).build();
@@ -66,13 +71,16 @@ class HomeReadModelControllerTest {
                 .header("X-DWP-Current-Decision-Revision", "decision-17")
                 .header("X-DWP-Current-Revalidate-At",
                         OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(5).toString())
+                .header("X-DWP-Home-Runtime-State", "SHADOW_COMPARE")
+                .header("X-DWP-Home-Rollout-Ring", "CONTROL")
+                .header("X-DWP-Home-Rollout-Revision", "rollout-17")
                 .header("Accept-Language", "ko-KR");
     }
 
     private HomeReadModelDtos.HomeReadModel model() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         return new HomeReadModelDtos.HomeReadModel(
-                2, "CLASSIC", null, null, List.of(), List.of(), now, now.plusSeconds(30),
+                3, "CLASSIC", null, null, List.of(), List.of(), now, now.plusSeconds(30),
                 false, List.of(), "etag-1", "SHADOW");
     }
 

@@ -33,7 +33,7 @@ public class WidgetRuntimeControl {
     private String controlScope;
     @Column(name = "target_type", nullable = false, length = 16)
     private String targetType;
-    @Column(name = "target_id", length = 160)
+    @Column(name = "target_id", length = 320)
     private String targetId;
     @Column(name = "control_state", nullable = false, length = 16)
     private String controlState;

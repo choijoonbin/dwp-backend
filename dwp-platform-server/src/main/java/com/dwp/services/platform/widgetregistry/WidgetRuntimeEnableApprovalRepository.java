@@ -9,6 +9,8 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 interface WidgetRuntimeEnableApprovalRepository extends JpaRepository<WidgetRuntimeEnableApproval, UUID> {
+    boolean existsByControlIdAndApprovalState(UUID controlId, String approvalState);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("select a from WidgetRuntimeEnableApproval a where a.approvalId = :id")
     Optional<WidgetRuntimeEnableApproval> lockById(@Param("id") UUID id);

@@ -642,6 +642,48 @@ class ProductSurfaceFeatureRolloutContractTest {
     }
 
     @Test
+    void homeRuntimeRouteStripsForgedHeadersAndInjectsBoundedServerDecision() {
+        FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
+        when(client.evaluateProducts(eq(7L), eq(List.of("workplace")), any()))
+                .thenReturn(Mono.just(List.of(
+                        new ProductSurfaceContextDtos.ProductRollout(
+                                "workplace",
+                                "110",
+                                new ProductSurfaceContextDtos.RolloutFlags(true, true, false),
+                                "eligible-10",
+                                "home-rollout-17",
+                                ProductSurfaceContextDtos.AuthorityStatus.AVAILABLE))));
+        ProductSurfaceRolloutHeaderFilter filter = new ProductSurfaceRolloutHeaderFilter(
+                client, productRouteCatalog(), new ObjectMapper());
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/platform/v2/home")
+                        .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                        .header(ProductSurfaceRolloutHeaderFilter.HOME_RUNTIME_STATE_HEADER,
+                                "COMMAND_CANARY")
+                        .header(ProductSurfaceRolloutHeaderFilter.HOME_ROLLOUT_RING_HEADER, "GA")
+                        .header(ProductSurfaceRolloutHeaderFilter.HOME_ROLLOUT_REVISION_HEADER,
+                                "forged")
+                        .build());
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter.filter(exchange, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceRolloutHeaderFilter.HOME_RUNTIME_STATE_HEADER))
+                .isEqualTo("READ_ONLY_ACTIVE");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceRolloutHeaderFilter.HOME_ROLLOUT_RING_HEADER))
+                .isEqualTo("INTERNAL");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceRolloutHeaderFilter.HOME_ROLLOUT_REVISION_HEADER))
+                .isEqualTo("home-rollout-17");
+    }
+
+    @Test
     void exactLegacyWorkforceAccessRequestsBypassRolloutAndStripSpoofedEvidence() {
         FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
         ProductSurfaceRolloutHeaderFilter filter =

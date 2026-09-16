@@ -76,6 +76,7 @@ final class WidgetRegistryOwnerScopeGuard {
             case "PROVIDER" -> control.getProviderProductKey();
             case "DEFINITION" -> ownerForDefinition(control.getTargetId());
             case "VERSION" -> ownerForVersion(control.getTargetId());
+            case "ACTION" -> control.getProviderProductKey();
             default -> null;
         };
         return owner != null && owners.get().contains(owner);
@@ -91,6 +92,7 @@ final class WidgetRegistryOwnerScopeGuard {
             case "PROVIDER" -> request.providerProductKey();
             case "DEFINITION" -> ownerForDefinition(request.targetId());
             case "VERSION" -> ownerForVersion(request.targetId());
+            case "ACTION" -> request.providerProductKey();
             default -> null;
         };
         if (owner == null) throw forbidden();

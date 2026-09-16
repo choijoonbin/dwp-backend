@@ -110,12 +110,35 @@ public class RecipientBoundWidgetCache {
             String catalogRevision,
             String policyRevision,
             String safetyRevision,
+            String rolloutRevision,
             String providerKey,
             Set<String> definitionKeys,
             String requestFingerprint) {
 
         public Key {
             definitionKeys = definitionKeys == null ? Set.of() : Set.copyOf(definitionKeys);
+        }
+
+        public Key(
+                long tenantId,
+                long userId,
+                String authorityFingerprint,
+                String authorityDecisionRevision,
+                String locale,
+                String timeZone,
+                String mode,
+                String deviceClass,
+                String viewRevision,
+                String catalogRevision,
+                String policyRevision,
+                String safetyRevision,
+                String providerKey,
+                Set<String> definitionKeys,
+                String requestFingerprint) {
+            this(tenantId, userId, authorityFingerprint, authorityDecisionRevision, locale,
+                    timeZone, mode, deviceClass, viewRevision, catalogRevision, policyRevision,
+                    safetyRevision, "legacy-shadow", providerKey, definitionKeys,
+                    requestFingerprint);
         }
     }
 

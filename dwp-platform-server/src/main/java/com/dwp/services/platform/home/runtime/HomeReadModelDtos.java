@@ -17,7 +17,7 @@ import java.util.UUID;
 
 public final class HomeReadModelDtos {
 
-    public static final int SCHEMA_VERSION = 2;
+    public static final int SCHEMA_VERSION = 3;
 
     private HomeReadModelDtos() {
     }
@@ -29,12 +29,45 @@ public final class HomeReadModelDtos {
             HomeShell shell,
             List<AppGroup> appDock,
             List<Widget> widgets,
+            RuntimeDecision runtime,
             OffsetDateTime generatedAt,
             OffsetDateTime expiresAt,
             boolean partial,
             List<String> unavailableSources,
             String changeVersion,
             String registryMode) {
+
+        public HomeReadModel(
+                int schemaVersion,
+                String mode,
+                EffectiveView view,
+                HomeShell shell,
+                List<AppGroup> appDock,
+                List<Widget> widgets,
+                OffsetDateTime generatedAt,
+                OffsetDateTime expiresAt,
+                boolean partial,
+                List<String> unavailableSources,
+                String changeVersion,
+                String registryMode) {
+            this(schemaVersion, mode, view, shell, appDock, widgets,
+                    new RuntimeDecision(
+                            "SHADOW_COMPARE", mode, "CONTROL", "legacy-shadow",
+                            false, false, expiresAt),
+                    generatedAt, expiresAt, partial, unavailableSources, changeVersion,
+                    registryMode);
+        }
+    }
+
+    /** Bounded browser-visible rollout decision. Internal provider/definition allowlists stay server-side. */
+    public record RuntimeDecision(
+            String state,
+            String homeMode,
+            String rolloutRing,
+            String rolloutRevision,
+            boolean commandsEnabled,
+            boolean registryAuthoritative,
+            OffsetDateTime expiresAt) {
     }
 
     public record EffectiveView(
@@ -124,7 +157,23 @@ public final class HomeReadModelDtos {
             String sourceRoute) {
     }
 
-    public record ReadResult(HomeReadModel model, String etag) {
+    public record ReadResult(
+            HomeReadModel model,
+            String etag,
+            HomeRuntimeRolloutDecision decision) {
+
+        public ReadResult(HomeReadModel model, String etag) {
+            this(model, etag, new HomeRuntimeRolloutDecision(
+                    HomeRuntimeRolloutDecision.State.valueOf(model.runtime().state()),
+                    model.runtime().homeMode(),
+                    HomeRuntimeRolloutDecision.Ring.valueOf(model.runtime().rolloutRing()),
+                    model.runtime().rolloutRevision(),
+                    model.runtime().registryAuthoritative(),
+                    java.util.Set.of(),
+                    java.util.Set.of(),
+                    java.util.Set.of(),
+                    model.runtime().expiresAt()));
+        }
     }
 
     public record CommandRequest(

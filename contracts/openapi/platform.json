@@ -6590,6 +6590,33 @@
         },
         "type": "object"
       },
+      "ApiResponseShadowReceiptResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ShadowReceiptResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseSharedInboxSummary": {
         "properties": {
           "correlationId": {
@@ -15977,6 +16004,9 @@
           "registryMode": {
             "type": "string"
           },
+          "runtime": {
+            "$ref": "#/components/schemas/RuntimeDecision"
+          },
           "schemaVersion": {
             "format": "int32",
             "type": "integer"
@@ -19560,6 +19590,13 @@
       },
       "ReadinessResponse": {
         "properties": {
+          "activeBindingCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "bindingCatalogRevision": {
+            "type": "string"
+          },
           "capabilities": {
             "items": {
               "type": "string"
@@ -21514,6 +21551,33 @@
         },
         "type": "object"
       },
+      "RuntimeDecision": {
+        "properties": {
+          "commandsEnabled": {
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "homeMode": {
+            "type": "string"
+          },
+          "registryAuthoritative": {
+            "type": "boolean"
+          },
+          "rolloutRevision": {
+            "type": "string"
+          },
+          "rolloutRing": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "RuntimeDisableRequest": {
         "properties": {
           "expectedVersion": {
@@ -21556,13 +21620,13 @@
             "type": "string"
           },
           "targetId": {
-            "maxLength": 160,
+            "maxLength": 320,
             "minLength": 0,
             "type": "string"
           },
           "targetType": {
             "minLength": 1,
-            "pattern": "GLOBAL|PROVIDER|TENANT|DEFINITION|VERSION",
+            "pattern": "GLOBAL|PROVIDER|TENANT|DEFINITION|VERSION|MODE|ACTION",
             "type": "string"
           },
           "tenantId": {
@@ -22394,6 +22458,96 @@
               "FORBIDDEN",
               "UNAVAILABLE"
             ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ShadowReceiptRequest": {
+        "properties": {
+          "deviceClass": {
+            "pattern": "DESKTOP_WIDE|DESKTOP_STANDARD|MOBILE_STANDARD|MOBILE_COMPACT",
+            "type": "string"
+          },
+          "homeMode": {
+            "pattern": "CLASSIC|FLOW_V1",
+            "type": "string"
+          },
+          "mismatchCount": {
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "outcome": {
+            "enum": [
+              "MATCH",
+              "EXPECTED_TRANSIENT",
+              "MISMATCH",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "enum": [
+                "MATCH",
+                "EXPECTED_TRANSIENT",
+                "STRUCTURE",
+                "AUTHORITY",
+                "MODE",
+                "LAYOUT",
+                "APP_DOCK",
+                "WIDGET_STATE",
+                "ROUTE_ACTION",
+                "FRESHNESS",
+                "UNAVAILABLE"
+              ],
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "rolloutRevision": {
+            "maxLength": 160,
+            "minLength": 0,
+            "pattern": "[A-Za-z0-9._:-]{1,160}",
+            "type": "string"
+          },
+          "rolloutRing": {
+            "pattern": "CONTROL|INTERNAL|PILOT|EARLY_ADOPTER|GA",
+            "type": "string"
+          },
+          "runtimeState": {
+            "pattern": "SHADOW_COMPARE",
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "maximum": 1,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "deviceClass",
+          "homeMode",
+          "outcome",
+          "reasons",
+          "rolloutRevision",
+          "rolloutRing",
+          "runtimeState"
+        ],
+        "type": "object"
+      },
+      "ShadowReceiptResponse": {
+        "properties": {
+          "accepted": {
+            "type": "boolean"
+          },
+          "receiptVersion": {
             "type": "string"
           }
         },
@@ -24883,6 +25037,31 @@
             "minimum": -600000.0,
             "type": "number"
           },
+          "deviceClass": {
+            "enum": [
+              "DESKTOP_WIDE",
+              "DESKTOP_STANDARD",
+              "MOBILE_STANDARD",
+              "MOBILE_COMPACT"
+            ],
+            "type": "string"
+          },
+          "homeMode": {
+            "enum": [
+              "CLASSIC",
+              "FLOW_V1"
+            ],
+            "type": "string"
+          },
+          "homeRuntime": {
+            "enum": [
+              "DISABLED",
+              "SHADOW_COMPARE",
+              "READ_ONLY_ACTIVE",
+              "COMMAND_CANARY"
+            ],
+            "type": "string"
+          },
           "id": {
             "maxLength": 160,
             "minLength": 0,
@@ -24911,6 +25090,16 @@
             ],
             "maxLength": 32,
             "minLength": 0,
+            "type": "string"
+          },
+          "rolloutRing": {
+            "enum": [
+              "CONTROL",
+              "INTERNAL",
+              "PILOT",
+              "EARLY_ADOPTER",
+              "GA"
+            ],
             "type": "string"
           },
           "routeGroup": {
@@ -52123,7 +52312,25 @@
                 },
                 "style": "simple"
               },
+              "X-DWP-Home-Rollout-Revision": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Home-Rollout-Ring": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
               "X-DWP-Home-Runtime-Mode": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Home-Runtime-State": {
                 "schema": {
                   "type": "string"
                 },
@@ -52164,7 +52371,25 @@
                 },
                 "style": "simple"
               },
+              "X-DWP-Home-Rollout-Revision": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Home-Rollout-Ring": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
               "X-DWP-Home-Runtime-Mode": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Home-Runtime-State": {
                 "schema": {
                   "type": "string"
                 },
@@ -52194,6 +52419,38 @@
         "summary": "Read the recipient-bound Home v2 projection",
         "tags": [
           "home-read-model-controller"
+        ]
+      }
+    },
+    "/v2/home/shadow-receipts": {
+      "post": {
+        "operationId": "recordHomeShadowReceiptV2",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ShadowReceiptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseShadowReceiptResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Record a bounded privacy-safe Home legacy/v2 comparison receipt",
+        "tags": [
+          "home-shadow-receipt-controller"
         ]
       }
     },
@@ -52282,7 +52539,25 @@
                 },
                 "style": "simple"
               },
+              "X-DWP-Home-Rollout-Revision": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Home-Rollout-Ring": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
               "X-DWP-Home-Runtime-Mode": {
+                "schema": {
+                  "type": "string"
+                },
+                "style": "simple"
+              },
+              "X-DWP-Home-Runtime-State": {
                 "schema": {
                   "type": "string"
                 },

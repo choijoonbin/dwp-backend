@@ -20,6 +20,15 @@ interface WidgetRuntimeControlRepository extends JpaRepository<WidgetRuntimeCont
             """)
     List<WidgetRuntimeControl> findActiveDisabled(@Param("now") OffsetDateTime now);
 
+    @Query("""
+            select c from WidgetRuntimeControl c
+             where c.controlState = 'ENABLED'
+               and c.controlScope = 'RUNTIME_ACTION'
+               and c.targetType = 'ACTION'
+               and (c.expiresAt is null or c.expiresAt > :now)
+            """)
+    List<WidgetRuntimeControl> findEnabledActionApprovals(@Param("now") OffsetDateTime now);
+
     @Lock(LockModeType.PESSIMISTIC_WRITE)
     @Query("""
             select c from WidgetRuntimeControl c

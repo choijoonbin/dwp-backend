@@ -11,6 +11,8 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -76,6 +78,42 @@ class WidgetRegistryActivationInterlockTest {
         contextRunner
                 .withPropertyValues("dwp.platform.widget-registry-enabled=not-a-boolean")
                 .run(context -> assertThat(context.getStartupFailure()).isNotNull());
+    }
+
+    @Test
+    void exactEvidencePermitsAuthorityAndAnyRevisionMismatchRollsBackToShadow() {
+        String bindingRevision = "binding-revision-1234567890";
+        String rolloutRevision = "home-rollout-17";
+        long safetyRevision = 29L;
+        OffsetDateTime expiresAt = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(15);
+        String digest = WidgetRegistryActivationInterlock.evidenceDigest(
+                WidgetRegistryActivationInterlock.REQUIRED_BINDING_COUNT,
+                bindingRevision, safetyRevision, rolloutRevision, expiresAt);
+        WidgetRegistryActivationInterlock interlock = new WidgetRegistryActivationInterlock(
+                new WidgetRegistryActivationProperties(
+                        true,
+                        WidgetRegistryActivationInterlock.REQUIRED_BINDING_COUNT,
+                        bindingRevision,
+                        safetyRevision,
+                        rolloutRevision,
+                        expiresAt.toString(),
+                        digest));
+        WidgetRegistryActivationInterlock.AuthorityEvidence evidence =
+                new WidgetRegistryActivationInterlock.AuthorityEvidence(
+                        "AUTHORITATIVE", true,
+                        WidgetRegistryActivationInterlock.REQUIRED_BINDING_COUNT,
+                        bindingRevision, safetyRevision);
+
+        interlock.afterPropertiesSet();
+        assertThat(interlock.permitsAuthority(evidence, rolloutRevision)).isTrue();
+        assertThat(interlock.permitsAuthority(evidence, "home-rollout-18")).isFalse();
+        assertThat(interlock.permitsAuthority(
+                new WidgetRegistryActivationInterlock.AuthorityEvidence(
+                        "SHADOW", false,
+                        WidgetRegistryActivationInterlock.REQUIRED_BINDING_COUNT,
+                        bindingRevision, safetyRevision),
+                rolloutRevision)).isFalse();
+        assertThat(interlock.permitsRequest()).isFalse();
     }
 
     @Test

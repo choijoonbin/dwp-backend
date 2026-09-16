@@ -86,7 +86,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16)
+BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17)
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -152,6 +152,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 46, "routes": 361, "PAGE": 79, "DATA": 97, "ACTION": 185},
     16: {"capabilities": 135, "accessPolicies": 22, "entitlementExpressions": 16,
          "predicatePolicies": 46, "routes": 362, "PAGE": 79, "DATA": 97, "ACTION": 186},
+    17: {"capabilities": 135, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 363, "PAGE": 79, "DATA": 97, "ACTION": 187},
 }
 IMMUTABLE_RELEASE_CHECKSUMS = {
     1: "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",

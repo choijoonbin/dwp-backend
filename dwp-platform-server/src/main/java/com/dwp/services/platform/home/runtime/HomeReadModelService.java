@@ -14,6 +14,7 @@ import com.dwp.services.platform.widgetregistry.WidgetCatalogService;
 import com.dwp.services.platform.widgetregistry.WidgetRegistryDtos;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
@@ -48,26 +49,62 @@ public class HomeReadModelService {
     private final WidgetRuntimeBroker broker;
     private final ObjectMapper objectMapper;
     private final HomeCanonicalJson canonicalJson;
+    private final HomeRuntimeRolloutDecisionResolver rolloutDecisions;
 
+    @Autowired
     public HomeReadModelService(
             HomeExperienceService experiences,
             EffectiveHomeViewQuery views,
             WidgetCatalogService catalog,
             WidgetRuntimeBroker broker,
             ObjectMapper objectMapper,
-            HomeCanonicalJson canonicalJson) {
+            HomeCanonicalJson canonicalJson,
+            HomeRuntimeRolloutDecisionResolver rolloutDecisions) {
         this.experiences = experiences;
         this.views = views;
         this.catalog = catalog;
         this.broker = broker;
         this.objectMapper = objectMapper;
         this.canonicalJson = canonicalJson;
+        this.rolloutDecisions = rolloutDecisions;
+    }
+
+    /** Source-compatible test constructor. Production injection always supplies the resolver. */
+    HomeReadModelService(
+            HomeExperienceService experiences,
+            EffectiveHomeViewQuery views,
+            WidgetCatalogService catalog,
+            WidgetRuntimeBroker broker,
+            ObjectMapper objectMapper,
+            HomeCanonicalJson canonicalJson) {
+        this(experiences, views, catalog, broker, objectMapper, canonicalJson, null);
     }
 
     public HomeReadModelDtos.ReadResult read(
             HomeRuntimeContext context,
             String requestedMode,
             String deviceClass) {
+        return read(
+                context,
+                new HomeRuntimeRolloutDecision.TrustedInput(
+                        HomeRuntimeRolloutDecision.State.SHADOW_COMPARE,
+                        HomeRuntimeRolloutDecision.Ring.CONTROL,
+                        context.authorityDecisionRevision()),
+                requestedMode,
+                deviceClass);
+    }
+
+    public HomeReadModelDtos.ReadResult read(
+            HomeRuntimeContext context,
+            HomeRuntimeRolloutDecision.TrustedInput trustedRollout,
+            String requestedMode,
+            String deviceClass) {
+        if (trustedRollout == null
+                || trustedRollout.state() == HomeRuntimeRolloutDecision.State.DISABLED) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_NOT_AVAILABLE,
+                    "Home Runtime v2 is disabled by the trusted rollout decision.");
+        }
         HomeExperienceDtos.HomeExperienceResponse experience = experiences.get(context.tenantId());
         String mode = effectiveMode(experience, requestedMode);
         String device = canonicalDevice(deviceClass);
@@ -80,6 +117,13 @@ public class HomeReadModelService {
                 context.rolesHeader(),
                 context.groupsHeader(),
                 mode);
+        HomeRuntimeRolloutDecision decision = decision(
+                context, trustedRollout, mode, runtimeCatalog);
+        if (decision.state() == HomeRuntimeRolloutDecision.State.DISABLED) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_NOT_AVAILABLE,
+                    "Home Runtime v2 is disabled by the current rollout decision.");
+        }
         Map<String, WidgetCatalogService.RuntimeDefinition> definitions =
                 definitionAliases(runtimeCatalog.definitions());
         WidgetCatalogService.RuntimeDefinition badgeDefinition = runtimeCatalog.definitions().stream()
@@ -97,6 +141,11 @@ public class HomeReadModelService {
             UUID instanceId = stableInstanceId(context, view, preference.widgetKey());
             if (definition == null) {
                 fixed.add(unsupported(instanceId, preference.widgetKey()));
+                continue;
+            }
+            if (!decision.allowedDefinitions().contains(definition.definitionKey())
+                    || !decision.allowedProviders().contains(definition.ownerProductKey())) {
+                fixed.add(controlled(instanceId, definition));
                 continue;
             }
             if (APP_BADGE_DEFINITION.equals(definition.definitionKey())) {
@@ -120,6 +169,8 @@ public class HomeReadModelService {
                     instanceId, definition, configurationMap, itemLimit));
         }
         if (badgeDefinition != null
+                && decision.allowedDefinitions().contains(badgeDefinition.definitionKey())
+                && decision.allowedProviders().contains(badgeDefinition.ownerProductKey())
                 && badgeDefinition.effectiveState()
                 == WidgetRegistryDtos.EffectiveCatalogState.AVAILABLE) {
             governance(badgeDefinition);
@@ -136,7 +187,8 @@ public class HomeReadModelService {
                 Long.toString(view.revision()),
                 runtimeCatalog.catalogRevision(),
                 runtimeCatalog.policyRevision(),
-                runtimeCatalog.safetyRevision());
+                runtimeCatalog.safetyRevision(),
+                decision.revision());
         Map<UUID, HomeWidgetProviderContract.WidgetResult> providerResults = broker.read(
                         context, revisions, providerRequests).stream()
                 .collect(Collectors.toMap(
@@ -152,7 +204,7 @@ public class HomeReadModelService {
             if (request.instanceId().equals(badgeInstanceId)) continue;
             HomeWidgetProviderContract.WidgetResult result = providerResults.get(request.instanceId());
             if (result == null) continue;
-            widgets.add(widget(request.definition(), result));
+            widgets.add(widget(request.definition(), result, decision));
         }
         Map<UUID, Integer> order = new LinkedHashMap<>();
         for (int index = 0; index < visible.size(); index++) {
@@ -187,7 +239,8 @@ public class HomeReadModelService {
         List<HomeReadModelDtos.AppGroup> appDock = appDock(
                 experience, context, badgeProjection);
         String changeVersion = changeVersion(
-                context, experience, view, runtimeCatalog, widgets, shell, appDock, mode, device);
+                context, experience, view, runtimeCatalog, widgets, shell, appDock,
+                mode, device, decision);
         HomeReadModelDtos.HomeReadModel model = new HomeReadModelDtos.HomeReadModel(
                 HomeReadModelDtos.SCHEMA_VERSION,
                 mode,
@@ -197,13 +250,46 @@ public class HomeReadModelService {
                 shell,
                 appDock,
                 List.copyOf(widgets),
+                new HomeReadModelDtos.RuntimeDecision(
+                        decision.state().name(),
+                        decision.mode(),
+                        decision.ring().name(),
+                        decision.revision(),
+                        decision.commandsEnabled(),
+                        decision.registryAuthoritative(),
+                        decision.expiresAt()),
                 now,
                 expiresAt,
                 partial,
                 unavailableSources,
                 changeVersion,
-                runtimeCatalog.registryMode());
-        return new HomeReadModelDtos.ReadResult(model, "\"" + changeVersion + "\"");
+                decision.registryAuthoritative() ? "AUTHORITATIVE" : "SHADOW");
+        return new HomeReadModelDtos.ReadResult(
+                model, "\"" + changeVersion + "\"", decision);
+    }
+
+    private HomeRuntimeRolloutDecision decision(
+            HomeRuntimeContext context,
+            HomeRuntimeRolloutDecision.TrustedInput trusted,
+            String mode,
+            WidgetCatalogService.RuntimeCatalog runtimeCatalog) {
+        if (rolloutDecisions != null) {
+            return rolloutDecisions.resolve(context, trusted, mode, runtimeCatalog);
+        }
+        Set<String> providers = runtimeCatalog.definitions().stream()
+                .filter(definition -> definition.effectiveState()
+                        != WidgetRegistryDtos.EffectiveCatalogState.DENY)
+                .map(WidgetCatalogService.RuntimeDefinition::ownerProductKey)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toUnmodifiableSet());
+        Set<String> definitions = runtimeCatalog.definitions().stream()
+                .filter(definition -> definition.effectiveState()
+                        != WidgetRegistryDtos.EffectiveCatalogState.DENY)
+                .map(WidgetCatalogService.RuntimeDefinition::definitionKey)
+                .collect(Collectors.toUnmodifiableSet());
+        return new HomeRuntimeRolloutDecision(
+                trusted.state(), mode, trusted.ring(), trusted.revision(), false,
+                providers, definitions, Set.of(), context.authorityRevalidateAt());
     }
 
     private String effectiveMode(
@@ -310,10 +396,60 @@ public class HomeReadModelService {
                         "INTERNAL", "NONE", "/home"));
     }
 
+    private HomeReadModelDtos.Widget controlled(
+            UUID instanceId,
+            WidgetCatalogService.RuntimeDefinition definition) {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        return new HomeReadModelDtos.Widget(
+                instanceId,
+                definition.definitionKey(),
+                definition.semanticVersion(),
+                definition.manifestHash(),
+                definition.rendererBindingRevision(),
+                definition.rendererKey(),
+                HomeWidgetProviderContract.State.UNAVAILABLE,
+                new HomeReadModelDtos.SourceState(
+                        WidgetRuntimeBroker.providerKey(definition.sourceAppResourceKey())
+                                .toUpperCase(Locale.ROOT) + "_HOME",
+                        now,
+                        now.plusSeconds(1),
+                        null,
+                        "RUNTIME_RENDER_DISABLED",
+                        false,
+                        null),
+                Map.of(),
+                List.of(),
+                List.of(),
+                governance(definition));
+    }
+
     private HomeReadModelDtos.Widget widget(
             WidgetCatalogService.RuntimeDefinition definition,
-            HomeWidgetProviderContract.WidgetResult result) {
+            HomeWidgetProviderContract.WidgetResult result,
+            HomeRuntimeRolloutDecision decision) {
         HomeWidgetProviderContract.SourceState source = result.source();
+        List<HomeWidgetProviderContract.Action> actions = new ArrayList<>();
+        for (HomeWidgetProviderContract.Action action : result.actions()) {
+            if (action.kind() == HomeWidgetProviderContract.ActionKind.SOURCE_ROUTE) {
+                actions.add(action);
+                continue;
+            }
+            HomeOwnerActionContracts.find(
+                            definition.definitionKey(), definition.semanticVersion(), action.actionId())
+                    .filter(contract -> contract.commandKey().equals(action.commandKey()))
+                    .filter(contract -> decision.actionAllowed(contract.contractId()))
+                    .ifPresent(ignored -> actions.add(action));
+        }
+        HomeOwnerActionContracts.find(
+                        definition.definitionKey(), definition.semanticVersion(),
+                        HomeOwnerActionContracts.DISMISS_RECOMMENDATION.actionId())
+                .filter(contract -> contract.definitionManifestHash().equals(definition.manifestHash()))
+                .filter(contract -> decision.actionAllowed(contract.contractId()))
+                .filter(contract -> result.state() == HomeWidgetProviderContract.State.AVAILABLE
+                        || result.state() == HomeWidgetProviderContract.State.PARTIAL)
+                .filter(contract -> actions.stream().noneMatch(action ->
+                        contract.actionId().equals(action.actionId())))
+                .ifPresent(contract -> actions.add(contract.action(source.resultVersion())));
         return new HomeReadModelDtos.Widget(
                 result.instanceId(), definition.definitionKey(), definition.semanticVersion(),
                 definition.manifestHash(), definition.rendererBindingRevision(),
@@ -322,7 +458,7 @@ public class HomeReadModelService {
                         source.sourceKey(), source.generatedAt(), source.expiresAt(),
                         source.lastSuccessAt(), source.reasonCode(), source.retryable(),
                         source.resultVersion()),
-                result.payload(), result.actions(), result.redactions(), governance(definition));
+                result.payload(), List.copyOf(actions), result.redactions(), governance(definition));
     }
 
     private List<HomeReadModelDtos.AppGroup> appDock(
@@ -441,7 +577,8 @@ public class HomeReadModelService {
             HomeReadModelDtos.HomeShell shell,
             List<HomeReadModelDtos.AppGroup> appDock,
             String mode,
-            String device) {
+            String device,
+            HomeRuntimeRolloutDecision decision) {
         Map<String, Object> representation = new LinkedHashMap<>();
         representation.put("shell", shell);
         representation.put("appDock", appDock);
@@ -453,6 +590,7 @@ public class HomeReadModelService {
                 + experience.version() + "\n" + view.revision() + "\n"
                 + catalog.catalogRevision() + "\n" + catalog.bindingRevision() + "\n"
                 + catalog.policyRevision() + "\n" + catalog.safetyRevision() + "\n"
+                + decision.revision() + "\n" + decision.state() + "\n"
                 + canonicalJson.fingerprint(representation);
         return sha256(material);
     }
