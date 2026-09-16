@@ -28,6 +28,32 @@ tasks.register('serviceBoundaryRatchetTest', Exec) {
             '-s', 'scripts/tests', '-p', 'test_service_boundaries.py', '-v'
 }
 
+tasks.register('homeRuntimeBoundaryTest', Exec) {
+    group = 'verification'
+    description = 'Runs fail-closed Wave 4 sibling-DB, telemetry, and evidence regressions.'
+    workingDir rootDir
+    commandLine 'python3', '-m', 'unittest', 'discover',
+            '-s', 'scripts/tests', '-p', 'test_home_runtime_*.py', '-v'
+}
+
+tasks.register('checkHomeRuntimeBoundaries', Exec) {
+    group = 'verification'
+    description = 'Rejects Home Runtime sibling persistence and sensitive telemetry access.'
+    dependsOn tasks.named('homeRuntimeBoundaryTest')
+    workingDir rootDir
+    commandLine 'python3', 'scripts/check-home-runtime-boundaries.py'
+}
+
+tasks.register('checkHomeRuntimeGateTemplate', Exec) {
+    group = 'verification'
+    description = 'Verifies the machine-readable Wave 4 evidence template.'
+    dependsOn tasks.named('homeRuntimeBoundaryTest')
+    workingDir rootDir
+    commandLine 'python3', 'scripts/check-home-runtime-gate.py',
+            '--evidence', 'contracts/home-runtime/wave4-runtime-gate.template.json',
+            '--allow-pending-template'
+}
+
 tasks.register('checkSourceSize', Exec) {
     dependsOn 'sourceSizeRatchetTest'
     workingDir rootDir
@@ -144,6 +170,8 @@ tasks.register('authorizationNegativeMatrixTest', Exec) {
 
 tasks.named('check') {
     dependsOn tasks.named('checkServiceBoundaries')
+    dependsOn tasks.named('checkHomeRuntimeBoundaries')
+    dependsOn tasks.named('checkHomeRuntimeGateTemplate')
     dependsOn tasks.named('checkSourceSize')
     dependsOn tasks.named('checkTestSourceSize')
     dependsOn tasks.named('checkJavaDependencyCycles')
