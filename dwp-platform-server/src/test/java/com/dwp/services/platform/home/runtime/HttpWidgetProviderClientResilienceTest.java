@@ -11,6 +11,7 @@ import org.springframework.web.client.RestClient;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -25,6 +26,89 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static org.assertj.core.api.Assertions.assertThat;
 
 class HttpWidgetProviderClientResilienceTest {
+
+    @Test
+    void rejectsNullResultsAndAuthorityRevisionAsMalformedOwnerEnvelopes() throws Exception {
+        HomeRuntimeContext context = TestFixtures.context();
+        WidgetProviderPort.Request request = TestFixtures.request("meetings.next-prep");
+        for (String body : List.of(
+                responseJson(context, "\"" + context.authorityDecisionRevision() + "\"", "null"),
+                responseJson(context, "null", "[]"))) {
+            try (JsonFixture fixture = jsonFixture(body)) {
+                WidgetProviderException failure = (WidgetProviderException)
+                        org.assertj.core.api.Assertions.catchThrowable(() -> fixture.client().readBatch(
+                                context, List.of(request), deadline(context)));
+                assertThat(failure.kind()).isEqualTo(WidgetProviderException.Kind.MALFORMED);
+                assertThat(failure.reasonCode()).isEqualTo("PROVIDER_ENVELOPE_MISMATCH");
+            }
+        }
+    }
+
+    @Test
+    void rejectsRecipientMismatchAndDuplicateResultIdsAsMalformedOwnerEnvelopes() throws Exception {
+        HomeRuntimeContext context = TestFixtures.context();
+        WidgetProviderPort.Request request = TestFixtures.request("meetings.next-prep");
+        String duplicate = "[{\"instanceId\":\"" + request.instanceId()
+                + "\"},{\"instanceId\":\"" + request.instanceId() + "\"}]";
+        for (String body : List.of(
+                "{\"schemaVersion\":1,\"tenantId\":999,\"userId\":" + context.userId()
+                        + ",\"authorityDecisionRevision\":\""
+                        + context.authorityDecisionRevision() + "\",\"results\":[]}",
+                responseJson(context, "\"" + context.authorityDecisionRevision() + "\"", duplicate))) {
+            try (JsonFixture fixture = jsonFixture(body)) {
+                WidgetProviderException failure = (WidgetProviderException)
+                        org.assertj.core.api.Assertions.catchThrowable(() -> fixture.client().readBatch(
+                                context, List.of(request), deadline(context)));
+                assertThat(failure.kind()).isEqualTo(WidgetProviderException.Kind.MALFORMED);
+                assertThat(failure.reasonCode()).isEqualTo("PROVIDER_ENVELOPE_MISMATCH");
+            }
+        }
+    }
+
+    @Test
+    void repeatedMalformedOwnerEnvelopeOpensCircuitAndSuppressesNextCall() throws Exception {
+        HomeRuntimeContext context = TestFixtures.context();
+        WidgetProviderPort.Request request = TestFixtures.request("meetings.next-prep");
+        String mismatch = "{\"schemaVersion\":1,\"tenantId\":999,\"userId\":"
+                + context.userId() + ",\"authorityDecisionRevision\":\""
+                + context.authorityDecisionRevision() + "\",\"results\":[]}";
+        try (JsonFixture fixture = jsonFixture(mismatch)) {
+            WidgetProviderException malformed = (WidgetProviderException)
+                    org.assertj.core.api.Assertions.catchThrowable(() -> fixture.client().readBatch(
+                            context, List.of(request), deadline(context)));
+            WidgetProviderException isolated = (WidgetProviderException)
+                    org.assertj.core.api.Assertions.catchThrowable(() -> fixture.client().readBatch(
+                            context, List.of(request), deadline(context)));
+
+            assertThat(malformed.reasonCode()).isEqualTo("PROVIDER_ENVELOPE_MISMATCH");
+            assertThat(isolated.reasonCode()).isEqualTo("PROVIDER_CIRCUIT_OPEN");
+            assertThat(fixture.calls()).hasValue(1);
+            assertThat(fixture.circuit().getState()).isEqualTo(CircuitBreaker.State.OPEN);
+        }
+    }
+
+    @Test
+    void rejectsOversizedBatchAndDeadlineBeforeCallingOwner() throws Exception {
+        try (Fixture fixture = fixture(500)) {
+            HomeRuntimeContext context = TestFixtures.context();
+            WidgetProviderPort.Request request = TestFixtures.request("meetings.next-prep");
+            List<WidgetProviderPort.Request> oversized = java.util.stream.IntStream
+                    .rangeClosed(0, com.dwp.platform.contract.home.HomeWidgetProviderContract.MAX_WIDGETS_PER_BATCH)
+                    .mapToObj(ignored -> request)
+                    .toList();
+
+            WidgetProviderException batchFailure = (WidgetProviderException)
+                    org.assertj.core.api.Assertions.catchThrowable(() -> fixture.client().readBatch(
+                            context, oversized, deadline(context)));
+            WidgetProviderException deadlineFailure = (WidgetProviderException)
+                    org.assertj.core.api.Assertions.catchThrowable(() -> fixture.client().readBatch(
+                            context, List.of(request), OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(2)));
+
+            assertThat(batchFailure.reasonCode()).isEqualTo("PROVIDER_BATCH_OUT_OF_BOUNDS");
+            assertThat(deadlineFailure.reasonCode()).isEqualTo("PROVIDER_DEADLINE_EXPIRED");
+            assertThat(fixture.calls()).hasValue(0);
+        }
+    }
 
     @Test
     void repeatedOwnerFailureOpensCircuitAndSuppressesTheNextNetworkCall() throws Exception {
@@ -115,6 +199,54 @@ class HttpWidgetProviderClientResilienceTest {
                         OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(1)));
     }
 
+    private OffsetDateTime deadline(HomeRuntimeContext context) {
+        OffsetDateTime candidate = OffsetDateTime.now(ZoneOffset.UTC).plus(Duration.ofMillis(500));
+        return candidate.isBefore(context.authorityRevalidateAt())
+                ? candidate : context.authorityRevalidateAt().minusNanos(1);
+    }
+
+    private String responseJson(
+            HomeRuntimeContext context,
+            String authorityRevision,
+            String results) {
+        return "{\"schemaVersion\":1,\"tenantId\":" + context.tenantId()
+                + ",\"userId\":" + context.userId()
+                + ",\"authorityDecisionRevision\":" + authorityRevision
+                + ",\"results\":" + results + "}";
+    }
+
+    private JsonFixture jsonFixture(String body) throws IOException {
+        AtomicInteger calls = new AtomicInteger();
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", exchange -> {
+            calls.incrementAndGet();
+            exchange.getRequestBody().readAllBytes();
+            byte[] encoded = body.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, encoded.length);
+            exchange.getResponseBody().write(encoded);
+            exchange.close();
+        });
+        server.start();
+        CircuitBreakerConfig config = CircuitBreakerConfig.custom()
+                .slidingWindowSize(1)
+                .minimumNumberOfCalls(1)
+                .failureRateThreshold(50)
+                .waitDurationInOpenState(Duration.ofMinutes(1))
+                .build();
+        CircuitBreakerRegistry circuits = CircuitBreakerRegistry.of(config);
+        HttpWidgetProviderClient client = new HttpWidgetProviderClient(
+                "meeting",
+                "http://127.0.0.1:" + server.getAddress().getPort(),
+                "test-service-token",
+                Duration.ofMillis(250),
+                RestClient.builder(),
+                circuits,
+                BulkheadRegistry.ofDefaults());
+        return new JsonFixture(server, client, calls,
+                circuits.circuitBreaker("homeRuntime-meeting"));
+    }
+
     private Fixture fixture(int status) throws IOException {
         AtomicInteger calls = new AtomicInteger();
         HttpServer server = HttpServer.create(
@@ -146,6 +278,17 @@ class HttpWidgetProviderClientResilienceTest {
     }
 
     private record Fixture(
+            HttpServer server,
+            HttpWidgetProviderClient client,
+            AtomicInteger calls,
+            CircuitBreaker circuit) implements AutoCloseable {
+        @Override
+        public void close() {
+            server.stop(0);
+        }
+    }
+
+    private record JsonFixture(
             HttpServer server,
             HttpWidgetProviderClient client,
             AtomicInteger calls,

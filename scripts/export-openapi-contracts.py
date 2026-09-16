@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v14.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v16.json"
 )
 PRODUCT_AUTHORIZATION_VERSION = 16
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}

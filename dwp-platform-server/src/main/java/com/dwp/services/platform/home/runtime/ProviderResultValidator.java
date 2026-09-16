@@ -44,10 +44,11 @@ public class ProviderResultValidator {
                 || response.schemaVersion() != HomeWidgetProviderContract.SCHEMA_VERSION
                 || response.tenantId() != context.tenantId()
                 || response.userId() != context.userId()
+                || response.authorityDecisionRevision() == null
                 || !context.authorityDecisionRevision().equals(response.authorityDecisionRevision())) {
             malformed("Provider response identity binding does not match the request.");
         }
-        if (response.results().size() != requests.size()) {
+        if (response.results() == null || response.results().size() != requests.size()) {
             malformed("Provider response cardinality does not match the request.");
         }
         Map<UUID, WidgetProviderPort.Request> expected = new HashMap<>();

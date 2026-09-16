@@ -77,7 +77,7 @@ public final class HomeWidgetProviderContract {
             List<WidgetResult> results) {
 
         public BatchResponse {
-            results = results == null ? List.of() : List.copyOf(results);
+            results = results == null ? null : List.copyOf(results);
         }
     }
 

@@ -37,6 +37,22 @@ class ProviderResultValidatorTest {
     }
 
     @Test
+    void rejectsNullResultCollectionAndAuthorityRevision() {
+        HomeWidgetProviderContract.BatchResponse nullResults =
+                new HomeWidgetProviderContract.BatchResponse(
+                        1, context.tenantId(), context.userId(),
+                        context.authorityDecisionRevision(), null);
+        HomeWidgetProviderContract.BatchResponse nullRevision =
+                new HomeWidgetProviderContract.BatchResponse(
+                        1, context.tenantId(), context.userId(), null, List.of());
+
+        assertThatThrownBy(() -> validator.validate(nullResults, context, List.of(request)))
+                .isInstanceOf(WidgetProviderException.class);
+        assertThatThrownBy(() -> validator.validate(nullRevision, context, List.of()))
+                .isInstanceOf(WidgetProviderException.class);
+    }
+
+    @Test
     void rejectsExternalUrlsInsideDeclarativePayload() {
         HomeWidgetProviderContract.BatchResponse response = response(valid(
                 Map.of("image", "https://evil.example/pixel"), List.of(), List.of()));
