@@ -5270,6 +5270,33 @@
         },
         "type": "object"
       },
+      "ApiResponsePersonalWorkSourceLink": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PersonalWorkSourceLink"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponsePersonalWorkTask": {
         "properties": {
           "correlationId": {
@@ -11326,7 +11353,7 @@
             "type": "string"
           },
           "title": {
-            "maxLength": 240,
+            "maxLength": 300,
             "minLength": 0,
             "type": "string"
           },
@@ -16321,15 +16348,48 @@
           "availability": {
             "type": "string"
           },
+          "channelName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
           "dueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "excerpt": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "receivedAt": {
             "format": "date-time",
             "type": "string"
           },
           "reference": {
             "$ref": "#/components/schemas/PersonalWorkSourceReference"
           },
+          "senderName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sourceEditedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sourceMessageId": {
+            "maxLength": 36,
+            "minLength": 0,
+            "type": "string"
+          },
           "sourceRoute": {
             "type": "string"
+          },
+          "sourceVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
           },
           "status": {
             "type": "string"
@@ -21524,7 +21584,7 @@
             "type": "string"
           },
           "title": {
-            "maxLength": 240,
+            "maxLength": 300,
             "minLength": 0,
             "type": "string"
           },
@@ -46060,6 +46120,36 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponsePersonalWorkTask"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "personal-work-controller"
+        ]
+      }
+    },
+    "/v1/workspace/work-hub/personal-tasks/source-preflight": {
+      "post": {
+        "operationId": "preflightSource",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PersonalWorkSourceReference"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePersonalWorkSourceLink"
                 }
               }
             },

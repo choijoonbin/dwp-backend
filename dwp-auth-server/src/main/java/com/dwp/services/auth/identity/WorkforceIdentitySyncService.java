@@ -84,6 +84,9 @@ public class WorkforceIdentitySyncService {
 
         user.setPersonPublicId(event.personPublicId());
         user.setExternalId(event.externalId().strip());
+        if (event.workerNumber() != null) {
+            user.setWorkerNumber(event.workerNumber().strip());
+        }
         user.setDisplayName(event.displayName().strip());
         user.setGivenName(trimToNull(event.givenName()));
         user.setFamilyName(trimToNull(event.familyName()));
@@ -222,6 +225,7 @@ public class WorkforceIdentitySyncService {
         }
         List<String> changed = new ArrayList<>();
         if (!Objects.equals(previous.externalId(), user.getExternalId())) changed.add("externalId");
+        if (!Objects.equals(previous.workerNumber(), user.getWorkerNumber())) changed.add("workerNumber");
         if (!Objects.equals(previous.displayName(), user.getDisplayName())) changed.add("displayName");
         if (!Objects.equals(previous.email(), user.getEmail())) changed.add("workEmail");
         if (!Objects.equals(previous.jobTitle(), user.getJobTitle())) changed.add("jobTitle");
@@ -281,6 +285,7 @@ public class WorkforceIdentitySyncService {
 
     private record PreviousIdentity(
             String externalId,
+            String workerNumber,
             String displayName,
             String email,
             String jobTitle,
@@ -288,7 +293,7 @@ public class WorkforceIdentitySyncService {
             String status) {
         private static PreviousIdentity from(User user) {
             return new PreviousIdentity(
-                    user.getExternalId(), user.getDisplayName(), user.getEmail(),
+                    user.getExternalId(), user.getWorkerNumber(), user.getDisplayName(), user.getEmail(),
                     user.getJobTitle(), user.getPreferredLocale(), user.getStatus());
         }
 

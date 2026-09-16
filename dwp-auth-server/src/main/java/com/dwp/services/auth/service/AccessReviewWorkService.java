@@ -64,7 +64,7 @@ public class AccessReviewWorkService {
             Long actorId,
             String correlationId,
             UUID workItemRef,
-            AccessReviewDtos.DecisionRequest request) {
+            AccessReviewDtos.WorkDecisionRequest request) {
         WorkEvidence before = requireAccessible(
                 tenantId, actorId, workItemRef, request.version(), true);
         String remediationState = "APPROVE".equals(request.decision())
@@ -205,6 +205,8 @@ public class AccessReviewWorkService {
                 value.subjectUserId(),
                 value.subjectDisplayName(),
                 value.subjectEmail(),
+                value.subjectOrganizationName(),
+                value.subjectWorkerNumber(),
                 value.roleId(),
                 value.roleCode(),
                 value.roleName(),
@@ -235,6 +237,8 @@ public class AccessReviewWorkService {
                 result.getLong("subject_user_id"),
                 result.getString("subject_display_name"),
                 result.getString("subject_email"),
+                result.getString("subject_organization_name"),
+                result.getString("subject_worker_number"),
                 result.getLong("role_id"),
                 result.getString("role_code"),
                 result.getString("role_name"),
@@ -281,7 +285,9 @@ public class AccessReviewWorkService {
                    item.reviewer_assignment_state,
                    campaign.lifecycle_state AS campaign_state, campaign.due_at,
                    item.subject_user_id, subject.display_name AS subject_display_name,
-                   subject.email AS subject_email, item.role_id,
+                   subject.email AS subject_email,
+                   subject_org.name AS subject_organization_name,
+                   subject.worker_number AS subject_worker_number, item.role_id,
                    role.code AS role_code, role.name AS role_name,
                    item.access_source_type, item.source_key, item.source_display_name,
                    item.assignment_created_at, item.subject_last_sign_in_at,
@@ -295,6 +301,9 @@ public class AccessReviewWorkService {
               JOIN com_users subject
                 ON subject.tenant_id = item.tenant_id
                AND subject.user_id = item.subject_user_id
+              LEFT JOIN com_organization_units subject_org
+                ON subject_org.tenant_id = subject.tenant_id
+               AND subject_org.org_unit_id = subject.primary_org_unit_id
               JOIN com_users reviewer
                 ON reviewer.tenant_id = item.tenant_id
                AND reviewer.user_id = item.reviewer_user_id
@@ -328,6 +337,8 @@ public class AccessReviewWorkService {
             Long subjectUserId,
             String subjectDisplayName,
             String subjectEmail,
+            String subjectOrganizationName,
+            String subjectWorkerNumber,
             Long roleId,
             String roleCode,
             String roleName,

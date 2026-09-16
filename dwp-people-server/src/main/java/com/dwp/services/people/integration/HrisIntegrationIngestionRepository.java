@@ -116,6 +116,7 @@ class HrisIntegrationIngestionRepository extends HrisIntegrationConnectorReposit
                         'contractVersion', 1,
                         'personPublicId', :personPublicId,
                         'externalId', :externalId,
+                        'workerNumber', :workerNumber,
                         'displayName', :displayName,
                         'givenName', :givenName,
                         'familyName', :familyName,
@@ -130,6 +131,7 @@ class HrisIntegrationIngestionRepository extends HrisIntegrationConnectorReposit
                 """, new MapSqlParameterSource("tenantId", tenantId)
                 .addValue("personPublicId", personPublicId.toString())
                 .addValue("externalId", worker.externalId())
+                .addValue("workerNumber", worker.workerNumber())
                 .addValue("displayName", worker.displayName())
                 .addValue("givenName", worker.givenName())
                 .addValue("familyName", worker.familyName())

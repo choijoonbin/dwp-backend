@@ -88,6 +88,8 @@ public final class AccessReviewDtos {
             Long subjectUserId,
             String subjectDisplayName,
             String subjectEmail,
+            String subjectOrganizationName,
+            String subjectWorkerNumber,
             Long roleId,
             String roleCode,
             String roleName,
@@ -112,6 +114,13 @@ public final class AccessReviewDtos {
     public record DecisionRequest(
             @NotBlank @Pattern(regexp = "APPROVE|REVOKE") String decision,
             @NotBlank @Size(min = 10, max = 1000) String reason,
+            @NotNull @Min(0) Long version) {
+    }
+
+    /** Assigned Work reviews use the compact M1 rationale contract. */
+    public record WorkDecisionRequest(
+            @NotBlank @Pattern(regexp = "APPROVE|REVOKE") String decision,
+            @NotBlank @Size(min = 10, max = 500) String reason,
             @NotNull @Min(0) Long version) {
     }
 }

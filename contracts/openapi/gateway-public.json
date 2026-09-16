@@ -17587,6 +17587,31 @@
         ],
         "type": "object"
       },
+      "auth_WorkDecisionRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVE|REVOKE",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
       "auth_WorkItemDetail": {
         "properties": {
           "accessSourceType": {
@@ -17651,9 +17676,15 @@
             "format": "date-time",
             "type": "string"
           },
+          "subjectOrganizationName": {
+            "type": "string"
+          },
           "subjectUserId": {
             "format": "int64",
             "type": "integer"
+          },
+          "subjectWorkerNumber": {
+            "type": "string"
           },
           "version": {
             "format": "int64",
@@ -39841,6 +39872,33 @@
         },
         "type": "object"
       },
+      "platform_ApiResponsePersonalWorkSourceLink": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_PersonalWorkSourceLink"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponsePersonalWorkTask": {
         "properties": {
           "correlationId": {
@@ -45626,7 +45684,7 @@
             "type": "string"
           },
           "title": {
-            "maxLength": 240,
+            "maxLength": 300,
             "minLength": 0,
             "type": "string"
           },
@@ -50612,15 +50670,48 @@
           "availability": {
             "type": "string"
           },
+          "channelName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
           "dueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "excerpt": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "receivedAt": {
             "format": "date-time",
             "type": "string"
           },
           "reference": {
             "$ref": "#/components/schemas/platform_PersonalWorkSourceReference"
           },
+          "senderName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sourceEditedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sourceMessageId": {
+            "maxLength": 36,
+            "minLength": 0,
+            "type": "string"
+          },
           "sourceRoute": {
             "type": "string"
+          },
+          "sourceVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
           },
           "status": {
             "type": "string"
@@ -55681,7 +55772,7 @@
             "type": "string"
           },
           "title": {
-            "maxLength": 240,
+            "maxLength": 300,
             "minLength": 0,
             "type": "string"
           },
@@ -79968,7 +80059,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/auth_DecisionRequest"
+                "$ref": "#/components/schemas/auth_WorkDecisionRequest"
               }
             }
           },
@@ -86814,6 +86905,44 @@
             "schema": {
               "format": "int64",
               "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/messaging_ApiResponseMessageSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging"
+        ]
+      },
+      "get": {
+        "operationId": "messaging_message",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],
@@ -116305,6 +116434,36 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/platform_ApiResponsePersonalWorkTask"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workspace/work-hub/personal-tasks/source-preflight": {
+      "post": {
+        "operationId": "platform_preflightSource",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_PersonalWorkSourceReference"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponsePersonalWorkSourceLink"
                 }
               }
             },

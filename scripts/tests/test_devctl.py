@@ -230,6 +230,67 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
                 name == "platform",
             )
 
+        messaging_source_token = "DWP_MESSAGING_WORK_SOURCE_TOKEN"
+        platform_messaging_source_token = "DWP_WORK_MESSAGING_SOURCE_TOKEN"
+        self.assertEqual(
+            environments["messaging"][messaging_source_token],
+            environments["platform"][platform_messaging_source_token],
+        )
+        self.assertEqual(
+            environments["platform"]["DWP_WORK_MESSAGING_SOURCE_SERVICE_TOKEN"],
+            environments["messaging"]["DWP_MESSAGING_SERVICE_TOKEN"],
+        )
+        self.assertEqual(
+            environments["platform"]["DWP_WORK_MESSAGING_SOURCE_BASE_URL"],
+            "http://localhost:8007",
+        )
+        self.assertEqual(
+            environments["platform"]["DWP_WORK_MESSAGING_SOURCE_ALLOW_HTTP"],
+            "true",
+        )
+        for name, environment in environments.items():
+            self.assertEqual(
+                messaging_source_token in environment, name == "messaging"
+            )
+            for platform_only_key in (
+                "DWP_WORK_MESSAGING_SOURCE_BASE_URL",
+                "DWP_WORK_MESSAGING_SOURCE_SERVICE_TOKEN",
+                platform_messaging_source_token,
+                "DWP_WORK_MESSAGING_SOURCE_ALLOW_HTTP",
+            ):
+                self.assertEqual(
+                    platform_only_key in environment,
+                    name == "platform",
+                    f"{platform_only_key} leaked into {name}",
+                )
+
+        with patch.dict(
+            os.environ,
+            {
+                "DWP_MESSAGING_SERVICE_TOKEN": "overridden-messaging-service",
+                "DWP_WORK_MESSAGING_SOURCE_TOKEN": "overridden-work-source-purpose",
+            },
+            clear=True,
+        ):
+            overridden_platform = devctl.service_environment("platform")
+            overridden_messaging = devctl.service_environment("messaging")
+        self.assertEqual(
+            overridden_platform["DWP_WORK_MESSAGING_SOURCE_SERVICE_TOKEN"],
+            "overridden-messaging-service",
+        )
+        self.assertEqual(
+            overridden_messaging["DWP_MESSAGING_SERVICE_TOKEN"],
+            "overridden-messaging-service",
+        )
+        self.assertEqual(
+            overridden_platform[platform_messaging_source_token],
+            "overridden-work-source-purpose",
+        )
+        self.assertEqual(
+            overridden_messaging[messaging_source_token],
+            "overridden-work-source-purpose",
+        )
+
         auth_only = {
             "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
             "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",

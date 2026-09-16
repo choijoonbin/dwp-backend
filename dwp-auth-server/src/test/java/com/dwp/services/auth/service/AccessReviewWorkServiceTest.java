@@ -72,7 +72,7 @@ class AccessReviewWorkServiceTest {
     @Test
     void staleExpectedVersionProducesConflictBeforeDomainMutation() throws Exception {
         stubEvidence(7L, "ACTIVE", "ACTIVE", NOW.plusSeconds(600), "PENDING", 11L);
-        var request = new AccessReviewDtos.DecisionRequest(
+        var request = new AccessReviewDtos.WorkDecisionRequest(
                 "REVOKE", "Access is no longer required for this assignment.", 10L);
 
         assertThatThrownBy(() -> service.decide(1L, 7L, "corr", ref, request))
@@ -89,13 +89,15 @@ class AccessReviewWorkServiceTest {
                 anyString(),
                 any(Object[].class)))
                 .thenReturn(1);
-        var request = new AccessReviewDtos.DecisionRequest(
+        var request = new AccessReviewDtos.WorkDecisionRequest(
                 "APPROVE", "Access remains required for assigned responsibilities.", 11L);
 
         AccessReviewDtos.WorkItemDetail result = service.decide(
                 1L, 7L, "corr", ref, request);
 
         assertThat(result.workItemRef()).isEqualTo(ref);
+        assertThat(result.subjectOrganizationName()).isEqualTo("Finance");
+        assertThat(result.subjectWorkerNumber()).isEqualTo("EMP-88219");
         verify(events).decided(1L, ref, "corr", "APPROVE", 12L);
         verify(audit).success(
                 eq(1L), eq(7L), eq("access-review.work-item.decided"),
@@ -122,6 +124,8 @@ class AccessReviewWorkServiceTest {
         when(resultSet.getLong("subject_user_id")).thenReturn(101L);
         when(resultSet.getString("subject_display_name")).thenReturn("Assigned subject");
         when(resultSet.getString("subject_email")).thenReturn("subject@example.invalid");
+        when(resultSet.getString("subject_organization_name")).thenReturn("Finance");
+        when(resultSet.getString("subject_worker_number")).thenReturn("EMP-88219");
         when(resultSet.getLong("role_id")).thenReturn(55L);
         when(resultSet.getString("role_code")).thenReturn("ROLE_REVIEWED");
         when(resultSet.getString("role_name")).thenReturn("Reviewed role");

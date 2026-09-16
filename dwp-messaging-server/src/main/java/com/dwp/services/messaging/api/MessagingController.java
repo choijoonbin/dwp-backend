@@ -56,6 +56,13 @@ public class MessagingController {
         return ApiResponse.success(service.messages(conversationId, beforeSequence, limit));
     }
 
+    @GetMapping("/conversations/{conversationId}/messages/{messageId}")
+    public ApiResponse<MessagingDtos.MessageSummary> message(
+            @PathVariable UUID conversationId,
+            @PathVariable UUID messageId) {
+        return ApiResponse.success(service.message(conversationId, messageId));
+    }
+
     @PostMapping("/direct-conversations")
     public ApiResponse<MessagingDtos.ConversationSummary> directConversation(
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,

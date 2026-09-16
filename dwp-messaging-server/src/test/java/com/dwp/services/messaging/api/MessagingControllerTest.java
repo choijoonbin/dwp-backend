@@ -109,6 +109,54 @@ class MessagingControllerTest {
     }
 
     @Test
+    void exactMessageSerializesAnAuthorizedReplyOutsideTheRootHistoryPage() throws Exception {
+        UUID conversationId = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+        UUID rootMessageId = UUID.randomUUID();
+        MessagingService service = mock(MessagingService.class);
+        MessagingDtos.MessageSummary reply = new MessagingDtos.MessageSummary(
+                messageId, conversationId, 42, 100, UUID.randomUUID(), "Test User",
+                "exact reply", "TEXT", "USER", rootMessageId, null, null, CREATED_AT, 3,
+                List.of(), 0, null);
+        when(service.message(conversationId, messageId)).thenReturn(reply);
+        MockMvc mvc = standaloneSetup(new MessagingController(service)).build();
+
+        mvc.perform(get(
+                        "/v1/conversations/{conversationId}/messages/{messageId}",
+                        conversationId, messageId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.messageId").value(messageId.toString()))
+                .andExpect(jsonPath("$.data.conversationId").value(conversationId.toString()))
+                .andExpect(jsonPath("$.data.replyToMessageId").value(rootMessageId.toString()))
+                .andExpect(jsonPath("$.data.body").value("exact reply"));
+        verify(service).message(conversationId, messageId);
+    }
+
+    @Test
+    void internalWorkSourceSerializesOnlyBoundedAuthoritativeProvenance() throws Exception {
+        UUID conversationId = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+        MessagingService service = mock(MessagingService.class);
+        when(service.workSource(conversationId, messageId)).thenReturn(
+                new MessagingDtos.WorkSourceMessage(conversationId, messageId,
+                        "DWP Product Room", "김채원 책임", CREATED_AT, null,
+                        "공지 초안을 정리해 주세요", 4));
+        MockMvc mvc = standaloneSetup(new MessagingInternalWorkSourceController(service)).build();
+
+        mvc.perform(get(
+                        "/internal/v1/work-sources/conversations/{conversationId}/messages/{messageId}",
+                        conversationId, messageId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.conversationId").value(conversationId.toString()))
+                .andExpect(jsonPath("$.data.messageId").value(messageId.toString()))
+                .andExpect(jsonPath("$.data.channelName").value("DWP Product Room"))
+                .andExpect(jsonPath("$.data.senderName").value("김채원 책임"))
+                .andExpect(jsonPath("$.data.excerpt").value("공지 초안을 정리해 주세요"))
+                .andExpect(jsonPath("$.data.version").value(4))
+                .andExpect(jsonPath("$.data.body").doesNotExist());
+    }
+
+    @Test
     void reactionCommandsSerializeOnlyTheUpdatedMessage() throws Exception {
         UUID conversationId = UUID.randomUUID();
         UUID messageId = UUID.randomUUID();

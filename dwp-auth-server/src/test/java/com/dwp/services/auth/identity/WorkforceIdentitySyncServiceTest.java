@@ -57,6 +57,7 @@ class WorkforceIdentitySyncServiceTest {
         verify(accounts).synchronizeManagedUser(captor.getValue());
         assertThat(captor.getValue().getEmail()).isEqualTo("employee@example.com");
         assertThat(captor.getValue().getPersonPublicId()).isEqualTo(personPublicId);
+        assertThat(captor.getValue().getWorkerNumber()).isEqualTo("EMP-88219");
         assertThat(result.lifecycleState()).isEqualTo("CREATED");
     }
 
@@ -65,7 +66,7 @@ class WorkforceIdentitySyncServiceTest {
         UUID tenantPublicId = UUID.randomUUID();
         UUID personPublicId = UUID.randomUUID();
         WorkforceIdentityDtos.WorkforceIdentityEvent event = new WorkforceIdentityDtos.WorkforceIdentityEvent(
-                UUID.randomUUID(), tenantPublicId, personPublicId, "worker-1", "Employee",
+                UUID.randomUUID(), tenantPublicId, personPublicId, "worker-1", "EMP-88219", "Employee",
                 "Em", "Ployee", "employee@example.com", "Engineer", "ko-KR",
                 "TERMINATED", "v2");
         when(tenants.findByPublicId(tenantPublicId)).thenReturn(Optional.of(Tenant.builder()
@@ -109,7 +110,7 @@ class WorkforceIdentitySyncServiceTest {
             UUID tenantPublicId,
             UUID personPublicId) {
         return new WorkforceIdentityDtos.WorkforceIdentityEvent(
-                UUID.randomUUID(), tenantPublicId, personPublicId, "worker-1", "Employee",
+                UUID.randomUUID(), tenantPublicId, personPublicId, "worker-1", "EMP-88219", "Employee",
                 "Em", "Ployee", "Employee@Example.COM", "Engineer", "ko-KR",
                 "ACTIVE", "v1");
     }

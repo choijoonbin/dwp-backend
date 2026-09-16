@@ -8,6 +8,7 @@ import com.dwp.services.auth.security.DurableIdentityPlaneGuard;
 import com.dwp.services.auth.service.AccessReviewService;
 import com.dwp.services.auth.service.AccessReviewWorkService;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.constraints.Size;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -53,7 +54,7 @@ class AccessReviewWorkControllerTest {
         AccessReviewWorkController controller =
                 new AccessReviewWorkController(service, guard, planeGuard);
         UUID ref = UUID.randomUUID();
-        var request = new AccessReviewDtos.DecisionRequest(
+        var request = new AccessReviewDtos.WorkDecisionRequest(
                 "APPROVE", "Access remains required for assigned duties.", 11L);
 
         controller.decide(authentication(7L, List.of("EMPLOYEE")), "1", "corr-1", ref, request);
@@ -106,13 +107,24 @@ class AccessReviewWorkControllerTest {
                         String.class,
                         String.class,
                         UUID.class,
-                        AccessReviewDtos.DecisionRequest.class)
+                        AccessReviewDtos.WorkDecisionRequest.class)
                 .getAnnotation(Operation.class);
 
         assertThat(detail).isNotNull();
         assertThat(detail.operationId()).isEqualTo("getAssignedAccessReviewWorkItem");
         assertThat(decision).isNotNull();
         assertThat(decision.operationId()).isEqualTo("decideAssignedAccessReviewWorkItem");
+    }
+
+    @Test
+    void workDecisionRationaleIsBoundedToTheFiveHundredCharacterContract() {
+        Size size = AccessReviewDtos.WorkDecisionRequest.class.getRecordComponents()[1]
+                .getAccessor()
+                .getAnnotation(Size.class);
+
+        assertThat(size).isNotNull();
+        assertThat(size.min()).isEqualTo(10);
+        assertThat(size.max()).isEqualTo(500);
     }
 
     private Authentication authentication(Long userId, List<String> roles) {

@@ -67,6 +67,13 @@ class CalendarMigrationPathPostgresIntegrationTest {
                        'cal_calendar_subscriptions',
                        'cal_event_user_preferences')
                 """, Integer.class, schema)).isEqualTo(3);
+        assertThat(jdbc.queryForObject("""
+                SELECT character_maximum_length
+                  FROM information_schema.columns
+                 WHERE table_schema = ?
+                   AND table_name = 'cal_events'
+                   AND column_name = 'title'
+                """, Integer.class, schema)).isEqualTo(300);
     }
 
     private void assertLatestSharingGovernance(String schema) {

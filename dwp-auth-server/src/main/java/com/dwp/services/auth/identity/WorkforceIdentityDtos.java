@@ -18,6 +18,7 @@ public final class WorkforceIdentityDtos {
             @NotNull UUID providerTenantId,
             @NotNull UUID personPublicId,
             @NotBlank @Size(max = 255) String externalId,
+            @Size(min = 1, max = 100) String workerNumber,
             @NotBlank @Size(max = 200) String displayName,
             @Size(max = 120) String givenName,
             @Size(max = 120) String familyName,

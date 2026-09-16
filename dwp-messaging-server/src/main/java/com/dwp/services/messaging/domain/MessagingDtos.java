@@ -199,6 +199,18 @@ public final class MessagingDtos {
             Long nextBeforeSequence) {
     }
 
+    /** Current message metadata for an actor-authorized Work source handoff. */
+    public record WorkSourceMessage(
+            UUID conversationId,
+            UUID messageId,
+            @Size(max = 200) String channelName,
+            @Size(max = 200) String senderName,
+            OffsetDateTime receivedAt,
+            OffsetDateTime editedAt,
+            @Size(max = 500) String excerpt,
+            @Min(0) long version) {
+    }
+
     public record ThreadResponse(
             MessageSummary root,
             List<MessageSummary> replies,

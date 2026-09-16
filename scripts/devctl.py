@@ -598,6 +598,17 @@ def local_environment() -> dict[str, str]:
         "DWP_MEETING_INVITATION_DELIVERY_TOKEN",
         "dwp-local-meeting-notification-token",
     )
+    messaging_service_token = environment.get(
+        "DWP_MESSAGING_SERVICE_TOKEN",
+        "dwp-local-messaging-service-token",
+    )
+    messaging_work_source_token = environment.get(
+        "DWP_WORK_MESSAGING_SOURCE_TOKEN",
+        environment.get(
+            "DWP_MESSAGING_WORK_SOURCE_TOKEN",
+            "dwp-local-work-messaging-source-token",
+        ),
+    )
     defaults = {
         "DB_HOST": "localhost",
         "DB_PORT": "5432",
@@ -642,6 +653,10 @@ def local_environment() -> dict[str, str]:
             "ZHdwLWxvY2FsLXdvcmstbWVldGluZy1zZWNyZXQtdjEh"
         ),
         "DWP_WORK_MEETING_SOURCE_ALLOW_HTTP": "true",
+        "DWP_WORK_MESSAGING_SOURCE_BASE_URL": "http://localhost:8007",
+        "DWP_WORK_MESSAGING_SOURCE_SERVICE_TOKEN": messaging_service_token,
+        "DWP_WORK_MESSAGING_SOURCE_TOKEN": messaging_work_source_token,
+        "DWP_WORK_MESSAGING_SOURCE_ALLOW_HTTP": "true",
         "DWP_MEETING_WORK_ASSERTION_KEY_ID": "local-work-meeting-v1",
         "DWP_MEETING_WORK_ASSERTION_SECRET_BASE64": (
             "ZHdwLWxvY2FsLXdvcmstbWVldGluZy1zZWNyZXQtdjEh"
@@ -707,7 +722,8 @@ def local_environment() -> dict[str, str]:
         "DWP_SPACE_FLYWAY_LOCATIONS": (
             "classpath:db/migration,classpath:db/local-seed"
         ),
-        "DWP_MESSAGING_SERVICE_TOKEN": "dwp-local-messaging-service-token",
+        "DWP_MESSAGING_SERVICE_TOKEN": messaging_service_token,
+        "DWP_MESSAGING_WORK_SOURCE_TOKEN": messaging_work_source_token,
         "DWP_MESSAGING_EVENT_TRANSPORT": "kafka",
         "DWP_MESSAGING_EVENT_TRANSPORT_ENABLED": "true",
         "DWP_MESSAGING_MEETING_PROVIDER": "livekit",
@@ -833,6 +849,10 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_WORK_MEETING_ASSERTION_KEY_ID", None)
         environment.pop("DWP_WORK_MEETING_ASSERTION_SECRET_BASE64", None)
         environment.pop("DWP_WORK_MEETING_SOURCE_ALLOW_HTTP", None)
+        environment.pop("DWP_WORK_MESSAGING_SOURCE_BASE_URL", None)
+        environment.pop("DWP_WORK_MESSAGING_SOURCE_SERVICE_TOKEN", None)
+        environment.pop("DWP_WORK_MESSAGING_SOURCE_TOKEN", None)
+        environment.pop("DWP_WORK_MESSAGING_SOURCE_ALLOW_HTTP", None)
     if service_name != "meeting":
         environment.pop("DWP_MEETING_WORK_ASSERTION_KEY_ID", None)
         environment.pop("DWP_MEETING_WORK_ASSERTION_SECRET_BASE64", None)
@@ -914,6 +934,7 @@ def service_environment(service_name: str) -> dict[str, str]:
     if service_name not in {"gateway", "messaging"}:
         environment.pop("DWP_MESSAGING_SERVICE_TOKEN", None)
     if service_name != "messaging":
+        environment.pop("DWP_MESSAGING_WORK_SOURCE_TOKEN", None)
         environment.pop("DWP_MESSAGING_EVENT_TRANSPORT", None)
         environment.pop("DWP_MESSAGING_EVENT_TRANSPORT_ENABLED", None)
         environment.pop("DWP_MESSAGING_MEETING_PROVIDER", None)

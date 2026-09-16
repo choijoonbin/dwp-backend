@@ -21,6 +21,8 @@ import java.util.UUID;
 @Service
 public class MessagingService {
 
+    private static final int WORK_SOURCE_EXCERPT_LIMIT = 500;
+
     private static final Set<String> SCOPES =
             Set.of("ALL", "FAVORITES", "SPACES", "DIRECT", "CHANNELS", "MENTIONS");
     private static final Set<String> NOTIFICATION_LEVELS =
@@ -128,6 +130,43 @@ public class MessagingService {
         return messageQueries.messagePage(
                 subject.tenantId(), conversationId, subject.userId(),
                 beforeSequence, resolvedLimit);
+    }
+
+    @Transactional(readOnly = true)
+    public MessagingDtos.MessageSummary message(UUID conversationId, UUID messageId) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        visibleConversation(subject.tenantId(), subject.userId(), conversationId);
+        visibleMessage(subject, conversationId, messageId);
+        return message(subject, conversationId, messageId);
+    }
+
+    @Transactional(readOnly = true)
+    public MessagingDtos.WorkSourceMessage workSource(UUID conversationId, UUID messageId) {
+        MessagingRequestContext.Subject subject = MessagingRequestContext.get();
+        MessagingDtos.ConversationSummary conversation = visibleConversation(
+                subject.tenantId(), subject.userId(), conversationId);
+        MessagingMessageAccess access = messageQueries.access(
+                        subject.tenantId(), conversationId, subject.userId(), messageId)
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.ENTITY_NOT_FOUND, "The message was not found."));
+        MessagingDtos.MessageSummary message = messageQueries.message(
+                        subject.tenantId(), conversationId, subject.userId(), messageId)
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.ENTITY_NOT_FOUND, "The message was not found."));
+        if (access.deletedAt() != null || message.deletedAt() != null
+                || message.body() == null || message.body().isBlank()
+                || "SYSTEM".equals(message.messageKind())) {
+            throw new BaseException(ErrorCode.RESOURCE_NOT_AVAILABLE,
+                    "The message is not available as a Work source.");
+        }
+        String excerpt = message.body().strip().replaceAll("\\s+", " ");
+        if (excerpt.length() > WORK_SOURCE_EXCERPT_LIMIT) {
+            excerpt = excerpt.substring(0, WORK_SOURCE_EXCERPT_LIMIT);
+        }
+        return new MessagingDtos.WorkSourceMessage(
+                conversationId, messageId, bounded(conversation.name(), 200),
+                bounded(message.senderName(), 200), message.createdAt(), message.editedAt(),
+                excerpt, message.version());
     }
 
     @Transactional
@@ -479,6 +518,12 @@ public class MessagingService {
         return queries.conversation(tenantId, userId, conversationId)
                 .orElseThrow(() -> new BaseException(
                         ErrorCode.ENTITY_NOT_FOUND, "The conversation was not found."));
+    }
+
+    private String bounded(String value, int limit) {
+        if (value == null) return null;
+        String result = value.strip();
+        return result.length() <= limit ? result : result.substring(0, limit);
     }
 
     private MessagingDtos.ConversationDetail detail(

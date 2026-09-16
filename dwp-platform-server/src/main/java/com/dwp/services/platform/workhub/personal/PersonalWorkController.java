@@ -51,6 +51,14 @@ public class PersonalWorkController {
         return ApiResponse.success(service.get(context, taskId));
     }
 
+    @PostMapping("/personal-tasks/source-preflight")
+    public ApiResponse<SourceLink> preflightSource(
+            @Parameter(hidden = true)
+            @ModelAttribute(value = "personalWorkContext", binding = false) AccessContext context,
+            @Valid @RequestBody SourceReference reference) {
+        return ApiResponse.success(service.preflightSource(context, reference));
+    }
+
     @PostMapping("/personal-tasks")
     public ApiResponse<Task> create(@Parameter(hidden = true) @ModelAttribute(value = "personalWorkContext", binding = false) AccessContext context,
             @RequestHeader("Idempotency-Key") UUID commandId,

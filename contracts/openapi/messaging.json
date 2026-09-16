@@ -994,6 +994,33 @@
         },
         "type": "object"
       },
+      "ApiResponseWorkSourceMessage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkSourceMessage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AppearancePolicy": {
         "properties": {
           "allowPersonalBackgrounds": {
@@ -2579,6 +2606,47 @@
           }
         },
         "type": "object"
+      },
+      "WorkSourceMessage": {
+        "properties": {
+          "channelName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "conversationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "editedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "excerpt": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "messageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "receivedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "senderName": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "type": "object"
       }
     }
   },
@@ -2588,6 +2656,46 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/internal/v1/work-sources/conversations/{conversationId}/messages/{messageId}": {
+      "get": {
+        "operationId": "workSource",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkSourceMessage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-internal-work-source-controller"
+        ]
+      }
+    },
     "/v1/admin/overview": {
       "get": {
         "operationId": "adminOverview",
@@ -3778,6 +3886,44 @@
             "schema": {
               "format": "int64",
               "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseMessageSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "messaging-controller"
+        ]
+      },
+      "get": {
+        "operationId": "message",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
             }
           }
         ],

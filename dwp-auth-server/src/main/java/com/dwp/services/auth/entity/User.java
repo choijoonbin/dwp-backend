@@ -48,6 +48,9 @@ public class User extends BaseEntity {
     @Column(name = "external_id", length = 255)
     private String externalId;
 
+    @Column(name = "worker_number", length = 100)
+    private String workerNumber;
+
     @Column(name = "person_public_id")
     private UUID personPublicId;
 

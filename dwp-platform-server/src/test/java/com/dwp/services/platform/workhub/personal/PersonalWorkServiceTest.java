@@ -83,6 +83,31 @@ class PersonalWorkServiceTest {
     }
 
     @Test
+    void messagePreviewIsAuthoritativeAndCreateRevalidatesAfterRevocation() {
+        SourceReference message = new SourceReference(
+                "MESSAGING_MESSAGE", UUID.randomUUID().toString(), UUID.randomUUID().toString());
+        OffsetDateTime receivedAt = OffsetDateTime.parse("2026-09-04T09:12:00+09:00");
+        ResolvedSource resolved = new ResolvedSource(
+                message, "공지 초안 정리", "/messages/inbox?conversation=exact", "AVAILABLE", null,
+                "DWP Product Room", "김채원 책임", receivedAt, "공지 초안을 정리해 주세요",
+                message.obligationKey(), 3L, receivedAt.plusMinutes(2));
+        when(resolver.supports(message)).thenReturn(true);
+        when(resolver.resolve(owner, message)).thenReturn(Optional.of(resolved), Optional.empty());
+
+        SourceLink preview = service.preflightSource(owner, message);
+        assertThat(preview.availability()).isEqualTo("AVAILABLE");
+        assertThat(preview.channelName()).isEqualTo("DWP Product Room");
+        assertThat(preview.senderName()).isEqualTo("김채원 책임");
+        assertThat(preview.excerpt()).isEqualTo("공지 초안을 정리해 주세요");
+        assertThat(preview.sourceMessageId()).isEqualTo(message.obligationKey());
+        assertThat(preview.sourceVersion()).isEqualTo(3);
+
+        assertCode(() -> service.create(owner, UUID.randomUUID(), null, request(message)),
+                ErrorCode.RESOURCE_NOT_AVAILABLE);
+        verify(repository, never()).insert(any(), any(), any());
+    }
+
+    @Test
     void updateCanKeepRevokedSourceWithoutRevalidatingOrLosingThePrivateLink() {
         when(repository.find(owner, taskId)).thenReturn(Optional.of(row(source, Status.OPEN, 2)));
         when(repository.update(eq(owner), eq(taskId), any())).thenReturn(row(source, Status.OPEN, 3));

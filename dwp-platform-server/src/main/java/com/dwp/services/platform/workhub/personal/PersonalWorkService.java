@@ -60,6 +60,22 @@ public class PersonalWorkService {
         return response(context, requireTask(context, taskId));
     }
 
+    /**
+     * Returns current owner-authorized metadata without persisting it. The create command resolves
+     * the identity again inside its transaction, so this response is display context rather than
+     * an authorization grant.
+     */
+    @Transactional(readOnly = true)
+    public SourceLink preflightSource(AccessContext context, SourceReference reference) {
+        access.write(context);
+        requireReference(reference);
+        SourceLink source = sourceLink(context, reference);
+        if (!"AVAILABLE".equals(source.availability())) {
+            throw new BaseException(ErrorCode.RESOURCE_NOT_AVAILABLE);
+        }
+        return source;
+    }
+
     @Transactional
     public Task create(AccessContext context, UUID commandId, String correlationId, CreateTaskRequest request) {
         access.write(context);
@@ -228,13 +244,21 @@ public class PersonalWorkService {
         return resolve(context, reference)
                 .map(source -> new SourceLink(referenceOnly(source) ? "REFERENCE_ONLY" : "AVAILABLE",
                         source.reference(), source.title(),
-                        source.sourceRoute(), source.status(), source.dueAt()))
-                .orElseGet(() -> new SourceLink("UNAVAILABLE", null, null, null, null, null));
+                        source.sourceRoute(), source.status(), source.dueAt(),
+                        source.channelName(), source.senderName(), source.receivedAt(),
+                        source.excerpt(), source.sourceMessageId(), source.sourceVersion(),
+                        source.sourceEditedAt()))
+                .orElseGet(() -> new SourceLink("UNAVAILABLE", null, null, null, null, null,
+                        null, null, null, null, null, null, null));
     }
 
     private boolean referenceOnly(ResolvedSource source) {
         return source.title() == null && source.sourceRoute() == null
-                && source.status() == null && source.dueAt() == null;
+                && source.status() == null && source.dueAt() == null
+                && source.channelName() == null && source.senderName() == null
+                && source.receivedAt() == null && source.excerpt() == null
+                && source.sourceMessageId() == null && source.sourceVersion() == null
+                && source.sourceEditedAt() == null;
     }
 
     private Optional<ResolvedSource> resolve(AccessContext context, SourceReference reference) {

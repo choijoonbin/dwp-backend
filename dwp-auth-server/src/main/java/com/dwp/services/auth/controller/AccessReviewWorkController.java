@@ -61,7 +61,7 @@ public class AccessReviewWorkController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable UUID workItemRef,
-            @Valid @RequestBody AccessReviewDtos.DecisionRequest request) {
+            @Valid @RequestBody AccessReviewDtos.WorkDecisionRequest request) {
         identityPlaneGuard.requireTenant(authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);

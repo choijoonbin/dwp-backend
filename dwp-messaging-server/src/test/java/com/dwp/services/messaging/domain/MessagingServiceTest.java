@@ -219,6 +219,104 @@ class MessagingServiceTest {
     }
 
     @Test
+    void exactMessageReturnsAnAuthorizedReplyThatIsAbsentFromRootHistory() {
+        MessagingRequestContext.set(subject(100));
+        UUID conversationId = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+        UUID rootMessageId = UUID.randomUUID();
+        allowConversation(conversationId);
+        MessagingMessageAccess access = access(
+                messageId, conversationId, 200, rootMessageId, 3, "MEMBER");
+        MessagingDtos.MessageSummary reply = new MessagingDtos.MessageSummary(
+                messageId, conversationId, 42, 200, UUID.randomUUID(), "Test User",
+                "exact reply", "TEXT", "USER", rootMessageId, null, null,
+                OffsetDateTime.parse("2026-09-04T09:12:00+09:00"), 3,
+                List.of(), 0, null);
+        when(messageQueries.access(1, conversationId, 100, messageId))
+                .thenReturn(Optional.of(access));
+        when(messageQueries.message(1, conversationId, 100, messageId))
+                .thenReturn(Optional.of(reply));
+
+        MessagingDtos.MessageSummary result = service().message(conversationId, messageId);
+
+        assertThat(result).isSameAs(reply);
+        assertThat(result.replyToMessageId()).isEqualTo(rootMessageId);
+        verify(messageQueries).access(1, conversationId, 100, messageId);
+        verify(messageQueries).message(1, conversationId, 100, messageId);
+    }
+
+    @Test
+    void exactMessageFailsClosedBeforeLoadingContentWhenMessageIsNotVisible() {
+        MessagingRequestContext.set(subject(100));
+        UUID conversationId = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+        allowConversation(conversationId);
+        when(messageQueries.access(1, conversationId, 100, messageId))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service().message(conversationId, messageId))
+                .isInstanceOfSatisfying(BaseException.class,
+                        error -> assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.ENTITY_NOT_FOUND));
+
+        verify(messageQueries, never()).message(1, conversationId, 100, messageId);
+    }
+
+    @Test
+    void workSourceReturnsCurrentEditedMessageFromTheExactAuthorizedConversation() {
+        MessagingRequestContext.set(subject(100));
+        UUID conversationId = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+        OffsetDateTime receivedAt = OffsetDateTime.parse("2026-09-04T09:12:00+09:00");
+        OffsetDateTime editedAt = receivedAt.plusMinutes(5);
+        allowConversation(conversationId);
+        when(messageQueries.access(1, conversationId, 100, messageId))
+                .thenReturn(Optional.of(access(messageId, conversationId, 200, null, 7, "MEMBER")));
+        when(messageQueries.message(1, conversationId, 100, messageId))
+                .thenReturn(Optional.of(new MessagingDtos.MessageSummary(
+                        messageId, conversationId, 14, 200, UUID.randomUUID(), "김채원 책임",
+                        "  이번 주  공지 초안을\n정리해 주세요  ", "TEXT", "USER", null,
+                        editedAt, null, receivedAt, 7, List.of(), 0, null)));
+
+        MessagingDtos.WorkSourceMessage result = service().workSource(conversationId, messageId);
+
+        assertThat(result.conversationId()).isEqualTo(conversationId);
+        assertThat(result.messageId()).isEqualTo(messageId);
+        assertThat(result.channelName()).isEqualTo("Test");
+        assertThat(result.senderName()).isEqualTo("김채원 책임");
+        assertThat(result.receivedAt()).isEqualTo(receivedAt);
+        assertThat(result.editedAt()).isEqualTo(editedAt);
+        assertThat(result.excerpt()).isEqualTo("이번 주 공지 초안을 정리해 주세요");
+        assertThat(result.version()).isEqualTo(7);
+    }
+
+    @Test
+    void workSourceFailsClosedAfterDeleteMembershipLossOrTenantMismatch() {
+        MessagingRequestContext.set(subject(100));
+        UUID conversationId = UUID.randomUUID();
+        UUID messageId = UUID.randomUUID();
+        allowConversation(conversationId);
+        OffsetDateTime deletedAt = OffsetDateTime.now();
+        when(messageQueries.access(1, conversationId, 100, messageId))
+                .thenReturn(Optional.of(new MessagingMessageAccess(
+                        messageId, conversationId, 1, 200, null, deletedAt, 3, "MEMBER")));
+        when(messageQueries.message(1, conversationId, 100, messageId))
+                .thenReturn(Optional.of(message(messageId, conversationId, 3, deletedAt)));
+        assertThatThrownBy(() -> service().workSource(conversationId, messageId))
+                .isInstanceOfSatisfying(BaseException.class,
+                        error -> assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.RESOURCE_NOT_AVAILABLE));
+
+        UUID revokedConversation = UUID.randomUUID();
+        when(queries.conversation(1, 100, revokedConversation)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> service().workSource(revokedConversation, messageId))
+                .isInstanceOfSatisfying(BaseException.class,
+                        error -> assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.ENTITY_NOT_FOUND));
+        verify(messageQueries, never()).access(1, revokedConversation, 100, messageId);
+    }
+
+    @Test
     void invisibleConversationHistoryIsReportedAsNotFoundWithoutQueryingMessages() {
         MessagingRequestContext.set(subject(100));
         UUID conversationId = UUID.randomUUID();

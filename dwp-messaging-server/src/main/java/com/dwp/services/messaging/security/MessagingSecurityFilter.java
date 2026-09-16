@@ -8,6 +8,7 @@ import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
 import org.springframework.http.MediaType;
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 public class MessagingSecurityFilter extends OncePerRequestFilter {
 
     private static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
+    private static final String WORK_SOURCE_TOKEN_HEADER = "X-DWP-Work-Source-Token";
     private static final String USER_HEADER = "X-DWP-User-ID";
     private static final String TENANT_HEADER = "X-DWP-Tenant-ID";
     private static final String ROLES_HEADER = "X-DWP-Roles";
@@ -37,13 +39,21 @@ public class MessagingSecurityFilter extends OncePerRequestFilter {
     private static final String DISPLAY_NAME_HEADER = "X-DWP-Display-Name-B64";
 
     private final String serviceToken;
+    private final String workSourceToken;
     private final ObjectMapper objectMapper;
 
+    @Autowired
     public MessagingSecurityFilter(
             @Value("${dwp.messaging.service-token:}") String serviceToken,
+            @Value("${dwp.messaging.work-source-token:}") String workSourceToken,
             ObjectMapper objectMapper) {
         this.serviceToken = serviceToken == null ? "" : serviceToken.trim();
+        this.workSourceToken = workSourceToken == null ? "" : workSourceToken.trim();
         this.objectMapper = objectMapper;
+    }
+
+    public MessagingSecurityFilter(String serviceToken, ObjectMapper objectMapper) {
+        this(serviceToken, "", objectMapper);
     }
 
     @Override
@@ -67,6 +77,14 @@ public class MessagingSecurityFilter extends OncePerRequestFilter {
         if (!constantTimeEquals(serviceToken, request.getHeader(SERVICE_TOKEN_HEADER))) {
             writeError(response, ErrorCode.UNAUTHORIZED,
                     "Trusted Messaging service identity is required.");
+            return;
+        }
+        if (request.getRequestURI().startsWith("/internal/v1/work-sources/")
+                && (workSourceToken.isBlank()
+                || !constantTimeEquals(workSourceToken,
+                        request.getHeader(WORK_SOURCE_TOKEN_HEADER)))) {
+            writeError(response, ErrorCode.UNAUTHORIZED,
+                    "Trusted Work source identity is required.");
             return;
         }
 
@@ -102,6 +120,10 @@ public class MessagingSecurityFilter extends OncePerRequestFilter {
     private boolean authorized(HttpServletRequest request, Set<String> permissions) {
         String path = request.getRequestURI();
         String method = request.getMethod();
+        if (path.startsWith("/internal/v1/work-sources/")) {
+            return has(permissions, "APP.MESSAGING", "VIEW")
+                    && has(permissions, "APP.WORK", "VIEW");
+        }
         if (("PUT".equals(method) && "/v1/privacy-preferences".equals(path))
                 || ("POST".equals(method)
                     && path.matches("/v1/conversations/[0-9a-fA-F-]{36}/read-receipts"))) {

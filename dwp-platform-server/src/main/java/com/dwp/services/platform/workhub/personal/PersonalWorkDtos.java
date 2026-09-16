@@ -36,12 +36,38 @@ public final class PersonalWorkDtos {
      */
     @Schema(name = "PersonalWorkResolvedSource")
     public record ResolvedSource(SourceReference reference, String title, String sourceRoute,
-                                 String status, OffsetDateTime dueAt) { }
+                                 String status, OffsetDateTime dueAt,
+                                 @Size(max = 200) String channelName,
+                                 @Size(max = 200) String senderName,
+                                 OffsetDateTime receivedAt,
+                                 @Size(max = 500) String excerpt,
+                                 @Size(max = 36) String sourceMessageId,
+                                 @Min(0) Long sourceVersion,
+                                 OffsetDateTime sourceEditedAt) {
+        public ResolvedSource(SourceReference reference, String title, String sourceRoute,
+                              String status, OffsetDateTime dueAt) {
+            this(reference, title, sourceRoute, status, dueAt,
+                    null, null, null, null, null, null, null);
+        }
+    }
 
     /** availability: AVAILABLE, REFERENCE_ONLY, or UNAVAILABLE. */
     @Schema(name = "PersonalWorkSourceLink")
     public record SourceLink(String availability, SourceReference reference, String title,
-                             String sourceRoute, String status, OffsetDateTime dueAt) { }
+                             String sourceRoute, String status, OffsetDateTime dueAt,
+                             @Size(max = 200) String channelName,
+                             @Size(max = 200) String senderName,
+                             OffsetDateTime receivedAt,
+                             @Size(max = 500) String excerpt,
+                             @Size(max = 36) String sourceMessageId,
+                             @Min(0) Long sourceVersion,
+                             OffsetDateTime sourceEditedAt) {
+        public SourceLink(String availability, SourceReference reference, String title,
+                          String sourceRoute, String status, OffsetDateTime dueAt) {
+            this(availability, reference, title, sourceRoute, status, dueAt,
+                    null, null, null, null, null, null, null);
+        }
+    }
 
     @Schema(name = "PersonalWorkChecklistItem")
     public record ChecklistItem(@NotNull UUID itemId, @NotBlank @Size(max = 500) String title,

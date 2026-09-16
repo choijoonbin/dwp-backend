@@ -380,7 +380,7 @@ public final class CalendarDtos {
     }
 
     public record CreateEventRequest(
-            @NotBlank @Size(max = 240) String title,
+            @NotBlank @Size(max = 300) String title,
             @Size(max = 4000) String description,
             @NotNull EventType type,
             @NotNull OffsetDateTime startsAt,
@@ -426,7 +426,7 @@ public final class CalendarDtos {
     }
 
     public record UpdateEventRequest(
-            @NotBlank @Size(max = 240) String title,
+            @NotBlank @Size(max = 300) String title,
             @Size(max = 4000) String description,
             @NotNull EventType type,
             @NotNull OffsetDateTime startsAt,

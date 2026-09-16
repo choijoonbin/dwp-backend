@@ -73,6 +73,13 @@ PURPOSE_TOKEN_HEADERS = {
     "X-DWP-Approval-System-Sla-Token",
     "X-DWP-Approval-Retention-Execution-Token",
 }
+# Generic internal clients may use owner-specific purpose credentials that are
+# not part of the Approval proof families above. Keep those credentials out of
+# the Approval forbidden-set algebra while still requiring an explicit token in
+# each registered internal HTTP contract.
+INTERNAL_PURPOSE_TOKEN_HEADERS = PURPOSE_TOKEN_HEADERS | {
+    "X-DWP-Work-Source-Token",
+}
 WORKFLOW_RUNTIME_TOKEN_HEADER = "X-DWP-Approval-Workflow-Runtime-Token"
 WORKFLOW_RUNTIME_CLIENT = (
     "dwp-approval-server/src/main/java/com/dwp/services/approval/workflowauthority/"
@@ -1117,7 +1124,7 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                             f"{section}:{entry_id} internal-http contracts must forbid Gateway /api/ calls"
                         )
                     if ("signedWorkload" not in entry and "ownerToken" not in entry
-                            and not PURPOSE_TOKEN_HEADERS.intersection(required_markers)):
+                            and not INTERNAL_PURPOSE_TOKEN_HEADERS.intersection(required_markers)):
                         violations.append(
                             f"{section}:{entry_id} internal-http contracts must require a purpose-specific service token"
                         )

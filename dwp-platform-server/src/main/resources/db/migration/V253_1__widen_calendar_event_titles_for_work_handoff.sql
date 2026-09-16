@@ -1,0 +1,2 @@
+ALTER TABLE cal_events
+    ALTER COLUMN title TYPE VARCHAR(300);
