@@ -181,22 +181,27 @@ class HomeV2GatewaySecurityTest {
     }
 
     @Test
-    void requestsAllAppAuthoritiesFreshForEveryHomeV2Read() {
-        assertAllAppAuthoritiesAreRequestedFresh(
+    void requestsAllCatalogAuthorityNamespacesFreshForEveryHomeV2Read() {
+        assertAllCatalogAuthorityNamespacesAreRequestedFresh(
                 MockServerHttpRequest.get(HOME_V2)
+                        .header(VerifiedIdentityFilter.PERMISSIONS_HEADER,
+                                "ACTION.APPROVAL_TASK:ADMIN,DATA.WORKFORCE:ADMIN")
                         .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
                         .build());
     }
 
     @Test
-    void requestsAllAppAuthoritiesFreshForEveryHomeV2Command() {
-        assertAllAppAuthoritiesAreRequestedFresh(
+    void requestsAllCatalogAuthorityNamespacesFreshForEveryHomeV2Command() {
+        assertAllCatalogAuthorityNamespacesAreRequestedFresh(
                 MockServerHttpRequest.post(HOME_COMMAND)
+                        .header(VerifiedIdentityFilter.PERMISSIONS_HEADER,
+                                "ACTION.APPROVAL_REQUEST:ADMIN,DATA.WORKFORCE:ADMIN")
                         .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
                         .build());
     }
 
-    private void assertAllAppAuthoritiesAreRequestedFresh(MockServerHttpRequest request) {
+    private void assertAllCatalogAuthorityNamespacesAreRequestedFresh(
+            MockServerHttpRequest request) {
         AtomicInteger calls = new AtomicInteger();
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(outbound -> {
@@ -210,6 +215,9 @@ class HomeV2GatewaySecurityTest {
                             "permissions":[
                               {"resourceKey":"APP.CALENDAR","permissionCode":"VIEW","effect":"ALLOW"},
                               {"resourceKey":"APP.MEETINGS","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"ACTION.APPROVAL_TASK","permissionCode":"VIEW","effect":"ALLOW"},
+                              {"resourceKey":"ACTION.APPROVAL_REQUEST","permissionCode":"VIEW","effect":"DENY"},
+                              {"resourceKey":"DATA.WORKFORCE","permissionCode":"VIEW","effect":"ALLOW"},
                               {"resourceKey":"APP.HCM","permissionCode":"VIEW_TEAM","effect":"DENY"}
                             ]}}
                             """)
@@ -221,10 +229,17 @@ class HomeV2GatewaySecurityTest {
         VerifiedIdentity first = verifier.verify(request).block();
         VerifiedIdentity second = verifier.verify(request).block();
 
-        assertThat(captured.get().url().getQuery()).isEqualTo("permissionPrefix=APP.");
+        assertThat(captured.get().url().getQuery()).isEqualTo(
+                "permissionPrefix=APP.,ACTION.APPROVAL_,DATA.WORKFORCE");
         assertThat(first).isNotNull();
         assertThat(first.permissions()).containsExactly(
-                "APP.CALENDAR:VIEW", "APP.MEETINGS:VIEW");
+                "ACTION.APPROVAL_TASK:VIEW", "APP.CALENDAR:VIEW",
+                "APP.MEETINGS:VIEW", "DATA.WORKFORCE:VIEW");
+        assertThat(first.permissions()).doesNotContain(
+                "ACTION.APPROVAL_TASK:ADMIN",
+                "ACTION.APPROVAL_REQUEST:ADMIN",
+                "ACTION.APPROVAL_REQUEST:VIEW",
+                "DATA.WORKFORCE:ADMIN");
         assertThat(second).isNotNull();
         assertThat(calls).hasValue(2);
     }
