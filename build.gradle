@@ -54,6 +54,13 @@ tasks.register('checkHomeRuntimeGateTemplate', Exec) {
             '--allow-pending-template'
 }
 
+tasks.register('checkHomeOwnerProviderContracts', Exec) {
+    group = 'verification'
+    description = 'Verifies the checked internal Home owner-provider endpoint contract.'
+    workingDir rootDir
+    commandLine 'python3', 'scripts/check-home-owner-provider-contracts.py'
+}
+
 tasks.register('checkSourceSize', Exec) {
     dependsOn 'sourceSizeRatchetTest'
     workingDir rootDir
@@ -172,6 +179,7 @@ tasks.named('check') {
     dependsOn tasks.named('checkServiceBoundaries')
     dependsOn tasks.named('checkHomeRuntimeBoundaries')
     dependsOn tasks.named('checkHomeRuntimeGateTemplate')
+    dependsOn tasks.named('checkHomeOwnerProviderContracts')
     dependsOn tasks.named('checkSourceSize')
     dependsOn tasks.named('checkTestSourceSize')
     dependsOn tasks.named('checkJavaDependencyCycles')

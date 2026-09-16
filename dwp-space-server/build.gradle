@@ -15,6 +15,7 @@ dependencies {
     implementation project(':dwp-core')
     implementation project(':dwp-audit')
     implementation project(':dwp-observability')
+    implementation project(':dwp-platform-contracts')
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
 }

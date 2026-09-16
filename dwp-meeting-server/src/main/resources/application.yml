@@ -45,6 +45,7 @@ dwp:
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   meeting:
     service-token: ${DWP_MEETING_SERVICE_TOKEN:}
+    home-runtime-service-token: ${DWP_MEETING_HOME_RUNTIME_SERVICE_TOKEN:}
     invitation-delivery:
       enabled: ${DWP_MEETING_INVITATION_DELIVERY_ENABLED:false}
       base-url: ${DWP_MEETING_INVITATION_DELIVERY_BASE_URL:}

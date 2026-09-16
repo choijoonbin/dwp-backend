@@ -2,6 +2,7 @@ package com.dwp.services.messaging.security;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
+import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -51,7 +52,14 @@ public class MessagingSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return path.startsWith("/actuator/health")
                 || path.startsWith("/v3/api-docs")
+                || isHomeProviderPost(request, path)
                 || path.equals("/error");
+    }
+
+    private boolean isHomeProviderPost(HttpServletRequest request, String path) {
+        return "POST".equals(request.getMethod())
+                && (HomeWidgetProviderContract.BATCH_PATH.equals(path)
+                || HomeWidgetProviderContract.COMMAND_PATH.equals(path));
     }
 
     @Override
