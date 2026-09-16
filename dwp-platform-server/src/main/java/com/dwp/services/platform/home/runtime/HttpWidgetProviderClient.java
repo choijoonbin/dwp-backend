@@ -18,6 +18,7 @@ import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 public final class HttpWidgetProviderClient implements WidgetProviderPort {
@@ -134,6 +135,85 @@ public final class HttpWidgetProviderClient implements WidgetProviderPort {
             throw failure(kind, kind == WidgetProviderException.Kind.TIMEOUT
                     ? "PROVIDER_TIMEOUT" : "PROVIDER_TRANSPORT_FAILURE",
                     "Home provider transport failed.", exception);
+        }
+    }
+
+    @Override
+    public HomeWidgetProviderContract.CommandResponse executeCommand(
+            HomeRuntimeContext context,
+            HomeWidgetProviderContract.CommandRequest command,
+            OffsetDateTime deadline) {
+        if (serviceToken.isBlank()) {
+            throw failure(WidgetProviderException.Kind.UNAVAILABLE,
+                    "PROVIDER_NOT_CONFIGURED", "Home provider transport is not configured.", null);
+        }
+        Supplier<HomeWidgetProviderContract.CommandResponse> invocation = () ->
+                invokeCommand(context, command, deadline);
+        Supplier<HomeWidgetProviderContract.CommandResponse> isolated =
+                CircuitBreaker.decorateSupplier(
+                        circuitBreaker,
+                        Bulkhead.decorateSupplier(bulkhead, invocation));
+        try {
+            return isolated.get();
+        } catch (WidgetProviderException exception) {
+            throw exception;
+        } catch (io.github.resilience4j.circuitbreaker.CallNotPermittedException exception) {
+            throw failure(WidgetProviderException.Kind.UNAVAILABLE,
+                    "PROVIDER_CIRCUIT_OPEN", "Home provider circuit is open.", exception);
+        } catch (io.github.resilience4j.bulkhead.BulkheadFullException exception) {
+            throw failure(WidgetProviderException.Kind.UNAVAILABLE,
+                    "PROVIDER_BULKHEAD_FULL", "Home provider bulkhead is full.", exception);
+        }
+    }
+
+    private HomeWidgetProviderContract.CommandResponse invokeCommand(
+            HomeRuntimeContext context,
+            HomeWidgetProviderContract.CommandRequest command,
+            OffsetDateTime deadline) {
+        try {
+            RestClient.RequestBodySpec request = client.post()
+                    .uri(HomeWidgetProviderContract.COMMAND_PATH)
+                    .contentType(MediaType.APPLICATION_JSON)
+                    .accept(MediaType.APPLICATION_JSON)
+                    .headers(OutboundHttpHeaders::propagateObservability)
+                    .header(HomeWidgetProviderContract.SERVICE_TOKEN_HEADER, serviceToken)
+                    .header(HomeWidgetProviderContract.SERVICE_IDENTITY_HEADER,
+                            "dwp-platform-server")
+                    .header("Idempotency-Key", command.commandId().toString())
+                    .header("X-DWP-Tenant-ID", Long.toString(context.tenantId()))
+                    .header("X-DWP-User-ID", Long.toString(context.userId()))
+                    .header("X-DWP-Permissions", context.permissionsHeader())
+                    .header("X-DWP-Roles", context.rolesHeader())
+                    .header("X-DWP-Group-Refs", context.groupsHeader())
+                    .header(HomeWidgetProviderContract.AUTHORITY_REVISION_HEADER,
+                            context.authorityDecisionRevision())
+                    .header("X-DWP-Current-Revalidate-At",
+                            context.authorityRevalidateAt().toString())
+                    .header("X-DWP-Home-Deadline-At", deadline.toString());
+            if (context.personPublicId() != null) {
+                request.header("X-DWP-Person-Public-ID", context.personPublicId().toString());
+            }
+            return request.body(command).retrieve()
+                    .body(HomeWidgetProviderContract.CommandResponse.class);
+        } catch (RestClientResponseException exception) {
+            if (exception.getStatusCode() == HttpStatus.FORBIDDEN) {
+                throw failure(WidgetProviderException.Kind.FORBIDDEN,
+                        "AUTHORIZATION_PROVIDER_FORBIDDEN",
+                        "Home provider denied the command.", exception);
+            }
+            if (exception.getStatusCode().is5xxServerError()) {
+                throw failure(WidgetProviderException.Kind.UNAVAILABLE,
+                        "PROVIDER_HTTP_5XX", "Home provider is unavailable.", exception);
+            }
+            throw failure(WidgetProviderException.Kind.MALFORMED,
+                    "PROVIDER_COMMAND_REJECTED",
+                    "Home provider rejected the command contract.", exception);
+        } catch (RestClientException exception) {
+            WidgetProviderException.Kind kind = causedByTimeout(exception)
+                    ? WidgetProviderException.Kind.TIMEOUT : WidgetProviderException.Kind.UNAVAILABLE;
+            throw failure(kind, kind == WidgetProviderException.Kind.TIMEOUT
+                    ? "PROVIDER_TIMEOUT" : "PROVIDER_TRANSPORT_FAILURE",
+                    "Home provider command transport failed.", exception);
         }
     }
 

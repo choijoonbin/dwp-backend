@@ -90,6 +90,18 @@ public class ProviderResultValidator {
         return value;
     }
 
+    public void validateCommandParameters(Map<String, Object> parameters) {
+        JsonNode payload = objectMapper.valueToTree(parameters == null ? Map.of() : parameters);
+        inspect(payload, 0, new int[]{0});
+        try {
+            if (objectMapper.writeValueAsBytes(payload).length > 16_384) {
+                malformed("Home command parameters exceed the payload budget.");
+            }
+        } catch (com.fasterxml.jackson.core.JsonProcessingException exception) {
+            throw malformed("Home command parameters cannot be serialized.", exception);
+        }
+    }
+
     private void validateResult(HomeWidgetProviderContract.WidgetResult result) {
         if (result.state() == null || result.source() == null
                 || result.source().sourceKey() == null

@@ -213,6 +213,7 @@ public class HomeReadModelService {
         }
         return new HomeReadModelDtos.Governance(
                 definition.ownerProductKey(),
+                definition.sourceAppResourceKey(),
                 definition.requiredAuthorities(),
                 definition.classification(),
                 definition.retention(),
@@ -255,7 +256,7 @@ public class HomeReadModelService {
                         "DEFINITION_UNSUPPORTED", false, null),
                 Map.of(), List.of(), List.of(),
                 new HomeReadModelDtos.Governance(
-                        "dwp-platform-home", List.of("APP.WORK:VIEW"),
+                        "dwp-platform-home", "APP.WORK", List.of("APP.WORK:VIEW"),
                         "INTERNAL", "NONE", "/home"));
     }
 

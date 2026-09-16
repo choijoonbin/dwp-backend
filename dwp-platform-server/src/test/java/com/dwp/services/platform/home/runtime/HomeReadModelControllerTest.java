@@ -26,7 +26,8 @@ class HomeReadModelControllerTest {
         HomeReadModelDtos.HomeReadModel model = model();
         when(service.read(any(), eq("CLASSIC"), eq("DESKTOP_STANDARD")))
                 .thenReturn(new HomeReadModelDtos.ReadResult(model, "\"etag-1\""));
-        MockMvc mvc = standaloneSetup(new HomeReadModelController(service, properties())).build();
+        MockMvc mvc = standaloneSetup(new HomeReadModelController(
+                service, mock(HomeWidgetCommandService.class), properties())).build();
 
         mvc.perform(request().header("If-None-Match", "\"older\""))
                 .andExpect(status().isOk())
@@ -42,7 +43,8 @@ class HomeReadModelControllerTest {
         HomeReadModelService service = mock(HomeReadModelService.class);
         when(service.read(any(), eq("CLASSIC"), eq("DESKTOP_STANDARD")))
                 .thenReturn(new HomeReadModelDtos.ReadResult(model(), "\"etag-1\""));
-        MockMvc mvc = standaloneSetup(new HomeReadModelController(service, properties())).build();
+        MockMvc mvc = standaloneSetup(new HomeReadModelController(
+                service, mock(HomeWidgetCommandService.class), properties())).build();
 
         mvc.perform(request().header("If-None-Match", "W/\"etag-1\""))
                 .andExpect(status().isNotModified())

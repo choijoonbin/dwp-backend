@@ -18,6 +18,7 @@ public final class HomeWidgetProviderContract {
     public static final int MAX_WIDGETS_PER_BATCH = 100;
     public static final int MAX_ACTIONS_PER_WIDGET = 8;
     public static final String BATCH_PATH = "/internal/home/v1/widget-data:batch";
+    public static final String COMMAND_PATH = "/internal/home/v1/widget-actions:execute";
     public static final String SERVICE_IDENTITY_HEADER = "X-DWP-Service-Identity";
     public static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
     public static final String AUTHORITY_REVISION_HEADER = "X-DWP-Current-Decision-Revision";
@@ -37,6 +38,11 @@ public final class HomeWidgetProviderContract {
     public enum ActionKind {
         SOURCE_ROUTE,
         COMMAND
+    }
+
+    public enum CommandStatus {
+        ACCEPTED,
+        COMPLETED
     }
 
     public record BatchRequest(
@@ -110,5 +116,37 @@ public final class HomeWidgetProviderContract {
             String commandKey,
             String expectedResultVersion,
             boolean requiresConfirmation) {
+    }
+
+    public record CommandRequest(
+            int schemaVersion,
+            UUID commandId,
+            UUID instanceId,
+            String definitionKey,
+            String definitionManifestHash,
+            String rendererBindingRevision,
+            String actionId,
+            String commandKey,
+            String expectedResultVersion,
+            Map<String, Object> parameters) {
+
+        public CommandRequest {
+            parameters = parameters == null ? Map.of() : Map.copyOf(parameters);
+        }
+    }
+
+    public record CommandResponse(
+            int schemaVersion,
+            long tenantId,
+            long userId,
+            String authorityDecisionRevision,
+            UUID receiptId,
+            UUID commandId,
+            String actionId,
+            String commandKey,
+            CommandStatus status,
+            String sourceRoute,
+            OffsetDateTime acceptedAt,
+            String resultVersion) {
     }
 }

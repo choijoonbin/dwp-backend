@@ -5,6 +5,10 @@ import com.dwp.services.platform.home.HomeExperienceDtos;
 import com.dwp.services.platform.home.personalization.HomeViewDtos;
 import com.dwp.services.platform.home.preference.HomePreferenceDtos;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -113,6 +117,7 @@ public final class HomeReadModelDtos {
 
     public record Governance(
             String owner,
+            String sourceAppResourceKey,
             List<String> requiredAuthorities,
             String classification,
             String retention,
@@ -123,10 +128,10 @@ public final class HomeReadModelDtos {
     }
 
     public record CommandRequest(
-            UUID instanceId,
-            String actionId,
-            String expectedResultVersion,
-            Map<String, Object> parameters) {
+            @NotNull UUID instanceId,
+            @NotBlank @Pattern(regexp = "[a-z][a-z0-9.-]{1,79}") String actionId,
+            @NotBlank @Size(max = 160) String expectedResultVersion,
+            @Size(max = 40) Map<String, Object> parameters) {
 
         public CommandRequest {
             parameters = parameters == null ? Map.of() : Map.copyOf(parameters);
@@ -139,7 +144,8 @@ public final class HomeReadModelDtos {
             String commandKey,
             String status,
             String sourceRoute,
-            OffsetDateTime acceptedAt) {
+            OffsetDateTime acceptedAt,
+            String resultVersion) {
     }
 
     static HomeShell shell(HomeExperienceDtos.HomeExperienceResponse experience) {

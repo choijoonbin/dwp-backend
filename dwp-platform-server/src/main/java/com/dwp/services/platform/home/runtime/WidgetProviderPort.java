@@ -17,6 +17,16 @@ public interface WidgetProviderPort {
             List<Request> requests,
             OffsetDateTime deadline);
 
+    default HomeWidgetProviderContract.CommandResponse executeCommand(
+            HomeRuntimeContext context,
+            HomeWidgetProviderContract.CommandRequest request,
+            OffsetDateTime deadline) {
+        throw new WidgetProviderException(
+                WidgetProviderException.Kind.MALFORMED,
+                "COMMAND_NOT_SUPPORTED",
+                "This Home provider does not support commands.");
+    }
+
     record Request(
             UUID instanceId,
             WidgetCatalogService.RuntimeDefinition definition,
