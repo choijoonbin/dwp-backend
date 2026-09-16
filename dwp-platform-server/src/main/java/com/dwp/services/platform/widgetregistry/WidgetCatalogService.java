@@ -264,6 +264,22 @@ public class WidgetCatalogService {
                 tenantId, surfaceKey, permissionHeader, roleHeader, groupHeader, null);
     }
 
+    /**
+     * Returns the bounded manifest contracts that the legacy Home View store may persist.
+     * Registry rollout stays in SHADOW: this does not enable broker rendering or v6 instances.
+     */
+    @Transactional(readOnly = true)
+    public Map<String, PlacementWriteContract> availablePlacementContracts(
+            Long tenantId,
+            String surfaceKey,
+            String permissionHeader,
+            String roleHeader,
+            String groupHeader) {
+        WidgetRegistryDtos.EffectiveCatalogResponse evaluated = effective(
+                tenantId, surfaceKey, permissionHeader, roleHeader, groupHeader);
+        return WidgetPlacementWriteContractResolver.resolve(evaluated, versions);
+    }
+
     private WidgetRegistryDtos.EffectiveCatalogResponse effectiveForMode(
             Long tenantId,
             String surfaceKey,
@@ -614,6 +630,14 @@ public class WidgetCatalogService {
             int freshnessSeconds,
             WidgetRegistryDtos.EffectiveCatalogState effectiveState,
             List<String> reasonCodes) {
+    }
+
+    public record PlacementWriteContract(
+            boolean canHide,
+            String defaultSize,
+            Set<String> allowedSizes,
+            String defaultHeight,
+            Set<String> allowedHeights) {
     }
 
     private record BaselineWidget(

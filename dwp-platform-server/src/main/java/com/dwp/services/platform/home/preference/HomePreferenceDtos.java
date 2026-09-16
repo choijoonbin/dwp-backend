@@ -23,7 +23,8 @@ public final class HomePreferenceDtos {
 
     public record WidgetPreference(
             @NotBlank
-            @Pattern(regexp = "[a-z][a-z0-9-]{0,39}")
+            @Pattern(regexp = "[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*")
+            @Size(max = 160)
             String widgetKey,
             @NotNull Boolean visible,
             @Pattern(regexp = "fifth|quarter|compact|medium|large|full")

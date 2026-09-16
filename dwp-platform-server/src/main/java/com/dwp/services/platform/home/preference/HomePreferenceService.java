@@ -206,6 +206,22 @@ public class HomePreferenceService {
         return layoutPolicy.normalizeForSurface(surfaceKey, layout);
     }
 
+    public HomePreferenceDtos.HomeLayoutPayload normalizeForSurface(
+            String surfaceKey,
+            HomePreferenceDtos.HomeLayoutPayload layout,
+            Map<String, HomeLayoutPolicy.RegistryWidgetContract> registryWidgets) {
+        return layoutPolicy.normalizeForSurface(surfaceKey, layout, registryWidgets);
+    }
+
+    public HomePreferenceDtos.HomeLayoutPayload normalizeForSurface(
+            String surfaceKey,
+            HomePreferenceDtos.HomeLayoutPayload layout,
+            Map<String, HomeLayoutPolicy.RegistryWidgetContract> availableRegistryWidgets,
+            HomePreferenceDtos.HomeLayoutPayload storedLayout) {
+        return layoutPolicy.normalizeForSurface(
+                surfaceKey, layout, availableRegistryWidgets, storedLayout);
+    }
+
     /** Reconciles registry-stale persisted layouts for read-cutover without mutating storage. */
     public HomePreferenceDtos.HomeLayoutPayload reconcileStoredForSurface(
             String surfaceKey,
@@ -292,6 +308,15 @@ public class HomePreferenceService {
      */
     public boolean isWidgetSizeAllowed(String surfaceKey, String widgetKey, String size) {
         return layoutPolicy.isWidgetSizeAllowed(surfaceKey, widgetKey, size);
+    }
+
+    public boolean isWidgetSizeAllowed(
+            String surfaceKey,
+            String widgetKey,
+            String size,
+            Map<String, HomeLayoutPolicy.RegistryWidgetContract> registryWidgets) {
+        return layoutPolicy.isWidgetSizeAllowed(
+                surfaceKey, widgetKey, size, registryWidgets);
     }
 
     private java.time.OffsetDateTime offset(java.time.LocalDateTime value) {

@@ -1,6 +1,10 @@
 package com.dwp.services.platform.home.personalization;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -110,7 +114,31 @@ public class HomeTemplateController {
                 commandId, correlationId, request.version()));
     }
 
+    @PostMapping("/{templateId}/revisions/{revisionId}/restore")
+    @Operation(operationId = "restoreHomeTemplateRevision")
+    public ApiResponse<HomeTemplateDtos.HomeTemplateResponse> restore(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) Long actorId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @RequestHeader(IDEMPOTENCY) UUID commandId,
+            @RequestHeader(value = CORRELATION, required = false) String correlationId,
+            @PathVariable UUID templateId,
+            @PathVariable UUID revisionId,
+            @Valid @RequestBody HomeTemplateDtos.VersionRequest request) {
+        return ApiResponse.success(service.restore(
+                tenantId, actorId, permissions, templateId, revisionId,
+                commandId, correlationId, request.version()));
+    }
+
     @PostMapping("/{templateId}/apply")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200", description = "OK", useReturnTypeSchema = true),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "409", description = "Home view version conflict",
+            content = @Content(mediaType = "application/json", schema = @Schema(
+                    implementation = HomeViewDtos.HomeViewConflictEnvelope.class)))
+    })
     public ApiResponse<HomeViewDtos.HomeViewResponse> apply(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long userId,

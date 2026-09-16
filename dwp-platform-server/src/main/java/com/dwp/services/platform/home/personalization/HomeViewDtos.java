@@ -1,5 +1,6 @@
 package com.dwp.services.platform.home.personalization;
 
+import com.dwp.core.common.ApiResponse;
 import com.dwp.services.platform.home.preference.HomePreferenceDtos;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -67,9 +68,12 @@ public final class HomeViewDtos {
     }
 
     public record DeviceLayoutOverlay(
-            @NotNull @Size(max = 30) List<@NotNull @Pattern(regexp = "[a-z][a-z0-9-]{0,39}") String> widgetOrder,
+            @NotNull @Size(max = 30) List<@NotNull
+                    @Pattern(regexp = "[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*")
+                    @Size(max = 160) String> widgetOrder,
             @NotNull @Size(max = 30) Map<
-                    @NotNull @Pattern(regexp = "[a-z][a-z0-9-]{0,39}") String,
+                    @NotNull @Pattern(regexp = "[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*")
+                    @Size(max = 160) String,
                     @NotNull @Pattern(regexp = "fifth|quarter|compact|medium|large|full") String> widgetSizes,
             @NotBlank @Pattern(regexp = "comfortable|compact")
             @Schema(allowableValues = {"comfortable", "compact"}) String density) {
@@ -182,5 +186,32 @@ public final class HomeViewDtos {
     }
 
     public record DeleteHomeViewResponse(UUID deletedViewId, UUID activeViewId) {
+    }
+
+    @Schema(requiredProperties = {
+            "operation", "expectedVersion", "actualVersion", "submittedDraft",
+            "latestView", "changedFields"
+    })
+    public record HomeViewConflictResponse(
+            @Schema(allowableValues = {
+                    "UPDATE_VIEW", "RESET_VIEW", "DELETE_VIEW", "ACTIVATE_VIEW",
+                    "UPDATE_WIDGET_CONFIGURATION", "UPDATE_DEVICE_LAYOUT",
+                    "RESTORE_REVISION", "APPLY_TEMPLATE", "APPLY_AI", "APPLY_UNDO"
+            })
+            String operation,
+            Long expectedVersion,
+            Long actualVersion,
+            Object submittedDraft,
+            HomeViewResponse latestView,
+            Long expectedDeviceVersion,
+            Long actualDeviceVersion,
+            DeviceLayoutResponse latestDeviceLayout,
+            List<String> changedFields) {
+    }
+
+    /** Concrete generic binding used by the public OpenAPI conflict response. */
+    @Schema(name = "HomeViewConflictEnvelope")
+    public static final class HomeViewConflictEnvelope
+            extends ApiResponse<HomeViewConflictResponse> {
     }
 }

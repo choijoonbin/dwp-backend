@@ -1,6 +1,9 @@
 package com.dwp.services.platform.home.personalization;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -48,6 +51,14 @@ public class HomeComposerController {
     }
 
     @PostMapping("/{proposalId}/apply")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200", description = "OK", useReturnTypeSchema = true),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "409", description = "Home view version conflict",
+            content = @Content(mediaType = "application/json", schema = @Schema(
+                    implementation = HomeViewDtos.HomeViewConflictEnvelope.class)))
+    })
     public ApiResponse<HomeComposerDtos.ComposerProposalResponse> apply(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long userId,
@@ -62,6 +73,14 @@ public class HomeComposerController {
     }
 
     @PostMapping("/{proposalId}/undo")
+    @ApiResponses({
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "200", description = "OK", useReturnTypeSchema = true),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(
+            responseCode = "409", description = "Home view version conflict",
+            content = @Content(mediaType = "application/json", schema = @Schema(
+                    implementation = HomeViewDtos.HomeViewConflictEnvelope.class)))
+    })
     public ApiResponse<HomeComposerDtos.ComposerProposalResponse> undo(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long userId,

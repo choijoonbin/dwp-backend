@@ -6,11 +6,15 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.Collection;
 import java.util.UUID;
 
 public interface PlatformAuditEventRepository extends JpaRepository<PlatformAuditEvent, UUID> {
 
     Page<PlatformAuditEvent> findByTenantId(Long tenantId, Pageable pageable);
+
+    Page<PlatformAuditEvent> findByTenantIdAndTargetTypeIn(
+            Long tenantId, Collection<String> targetTypes, Pageable pageable);
 
     @Query("""
             SELECT event

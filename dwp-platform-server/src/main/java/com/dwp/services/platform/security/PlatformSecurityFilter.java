@@ -204,6 +204,25 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                     "The support session does not permit this platform resource.");
             return;
         }
+        boolean personalHomePath = pathFamily(path, "/v1/home-views") || pathFamily(path, "/v1/home-experience")
+                || pathFamily(path, "/v1/home-templates")
+                || pathFamily(path, "/v1/home-composer/proposals")
+                || pathFamily(path, "/v1/home-preferences");
+        if (personalHomePath
+                && (supportAccess
+                || !"TENANT".equals(request.getHeader("X-DWP-Identity-Plane")))) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Personal Home settings require a tenant data-plane identity.");
+            return;
+        }
+        boolean adminHomeExperiencePath = pathFamily(path, "/v1/admin/home-experience");
+        boolean delegatedHomeExperienceAccess = adminHomeExperiencePath && !supportAccess
+                && "TENANT".equals(request.getHeader("X-DWP-Identity-Plane"))
+                && hasHomeExperienceAuthority(request);
+        if (adminHomeExperiencePath && !delegatedHomeExperienceAccess) {
+            writeError(response, ErrorCode.FORBIDDEN, "Home Experience administration permission is required.");
+            return;
+        }
         PlatformProductAuthorizationSupport.TrustedAuthorityEvidence trustedAuthority = null;
         if (exactEnforcement) {
             trustedAuthority = productAuthorization.trustedAuthority(request);
@@ -379,7 +398,7 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 && !scopedAppAccess && !delegatedCommunicationsAccess && !delegatedServicesAccess
                 && !delegatedCalendarAccess && !delegatedRoomsAccess
                 && !delegatedWorkplaceAccess && !delegatedMailAccess
-                && !delegatedDwaionAgentAccess
+                && !delegatedDwaionAgentAccess && !delegatedHomeExperienceAccess
                 && path.startsWith("/v1/admin/")
                 && !hasRole(request.getHeader(ROLES_HEADER), ADMIN_ROLES)) {
             writeError(response, ErrorCode.FORBIDDEN, "Tenant administrator permission is required.");
@@ -602,8 +621,18 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 requiredPermission);
     }
 
+    private boolean hasHomeExperienceAuthority(HttpServletRequest request) {
+        String method = request.getMethod();
+        String required = "GET".equals(method) || "HEAD".equals(method) ? "VIEW" : "MANAGE";
+        return hasAuthority(request.getHeader(PERMISSIONS_HEADER), "ADMIN.HOME_EXPERIENCE", required);
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private boolean pathFamily(String path, String prefix) {
+        return path.equals(prefix) || path.startsWith(prefix + "/");
     }
 
     private boolean hasRole(String rolesHeader, Set<String> allowedRoles) {

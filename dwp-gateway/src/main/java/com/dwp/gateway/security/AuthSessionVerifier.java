@@ -207,6 +207,10 @@ public class AuthSessionVerifier implements SessionVerifier {
                 || path.startsWith("/api/platform/v1/admin/widget-policies/")) {
             return "ADMIN.HOME_WIDGET_POLICY";
         }
+        if (path.equals("/api/platform/v1/admin/home-experience")
+                || path.startsWith("/api/platform/v1/admin/home-experience/")) {
+            return "ADMIN.HOME_EXPERIENCE";
+        }
         if (path.equals("/api/platform/v1/home-templates")
                 || path.startsWith("/api/platform/v1/home-templates/")) {
             return "ADMIN.HOME_TEMPLATE";

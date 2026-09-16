@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /** Canonical, persistence-free validation and reconciliation policy for home layouts. */
 @Component
@@ -25,6 +26,9 @@ public final class HomeLayoutPolicy {
     private static final String LEGACY_HRIS_HOME = HomeSurfaceKeys.LEGACY_HRIS_HOME;
     private static final String APPROVAL_HOME = HomeSurfaceKeys.APPROVAL_HOME;
     private static final int MAX_LAYOUT_BYTES = 96 * 1024;
+    private static final int MAX_WIDGETS = 30;
+    private static final Pattern REGISTRY_DEFINITION_KEY = Pattern.compile(
+            "[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*");
     private static final Set<String> PRESENTATIONS = Set.of("balanced", "expressive", "focused");
     private static final Set<String> WIDGET_SIZES = Set.of(
             "fifth", "quarter", "compact", "medium", "large", "full");
@@ -57,7 +61,35 @@ public final class HomeLayoutPolicy {
             String surfaceKey,
             HomePreferenceDtos.HomeLayoutPayload layout) {
         String canonical = canonicalSurfaceKey(surfaceKey);
-        return normalizeLayout(canonical, requireSurface(canonical), layout, true, true);
+        return normalizeLayout(
+                canonical, requireSurface(canonical), layout, Map.of(), true, true);
+    }
+
+    public HomePreferenceDtos.HomeLayoutPayload normalizeForSurface(
+            String surfaceKey,
+            HomePreferenceDtos.HomeLayoutPayload layout,
+            Map<String, RegistryWidgetContract> registryWidgets) {
+        String canonical = canonicalSurfaceKey(surfaceKey);
+        return normalizeLayout(
+                canonical, requireSurface(canonical), layout,
+                registryWidgets == null ? Map.of() : registryWidgets, true, true);
+    }
+
+    public HomePreferenceDtos.HomeLayoutPayload normalizeForSurface(
+            String surfaceKey,
+            HomePreferenceDtos.HomeLayoutPayload layout,
+            Map<String, RegistryWidgetContract> availableRegistryWidgets,
+            HomePreferenceDtos.HomeLayoutPayload storedLayout) {
+        Map<String, RegistryWidgetContract> available = availableRegistryWidgets == null
+                ? Map.of() : availableRegistryWidgets;
+        HomePreferenceDtos.HomeLayoutPayload preserved = preserveUnavailableRegistryWidgets(
+                layout, available, storedLayout);
+        Map<String, RegistryWidgetContract> contracts = new LinkedHashMap<>(available);
+        contractsForStoredLayout(storedLayout).forEach(contracts::putIfAbsent);
+        String canonical = canonicalSurfaceKey(surfaceKey);
+        return normalizeLayout(
+                canonical, requireSurface(canonical), preserved,
+                Map.copyOf(contracts), true, true);
     }
 
     /** Reconciles registry-stale persisted layouts without mutating storage. */
@@ -71,7 +103,9 @@ public final class HomeLayoutPolicy {
                     layout.appLayout(), layout.presentation(), layout.widgets().stream()
                     .filter(widget -> !"admin-health".equals(widget.widgetKey())).toList());
         }
-        return normalizeLayout(canonical, requireSurface(canonical), layout, false, false);
+        return normalizeLayout(
+                canonical, requireSurface(canonical), layout,
+                contractsForStoredLayout(layout), false, false);
     }
 
     public HomePreferenceDtos.HomeLayoutPayload defaultLayoutForSurface(String surfaceKey) {
@@ -96,9 +130,20 @@ public final class HomeLayoutPolicy {
     }
 
     public boolean isWidgetSizeAllowed(String surfaceKey, String widgetKey, String size) {
+        return isWidgetSizeAllowed(surfaceKey, widgetKey, size, Map.of());
+    }
+
+    public boolean isWidgetSizeAllowed(
+            String surfaceKey,
+            String widgetKey,
+            String size,
+            Map<String, RegistryWidgetContract> registryWidgets) {
         SurfaceContract contract = SURFACE_CONTRACTS.get(canonicalSurfaceKey(surfaceKey));
         if (contract == null || widgetKey == null || size == null) return false;
         WidgetContract widget = contract.widgets().get(widgetKey);
+        if (widget == null && registryWidgets != null) {
+            widget = widget(registryWidgets.get(widgetKey));
+        }
         return widget != null && WIDGET_SIZES.contains(size) && widget.allowedSizes().contains(size);
     }
 
@@ -116,6 +161,7 @@ public final class HomeLayoutPolicy {
             String surfaceKey,
             SurfaceContract contract,
             HomePreferenceDtos.HomeLayoutPayload layout,
+            Map<String, RegistryWidgetContract> registryWidgets,
             boolean rejectUnsupportedAppLayout,
             boolean rejectGovernedZoneInput) {
         if (rejectUnsupportedAppLayout
@@ -134,6 +180,13 @@ public final class HomeLayoutPolicy {
 
         Set<String> unique = new HashSet<>();
         Map<String, HomePreferenceDtos.WidgetPreference> requested = new LinkedHashMap<>();
+        Map<String, WidgetContract> knownWidgets = new LinkedHashMap<>(contract.widgets());
+        registryWidgets.forEach((key, value) -> {
+            WidgetContract converted = widget(value);
+            if (validRegistryKey(key) && converted != null) {
+                knownWidgets.putIfAbsent(key, converted);
+            }
+        });
         for (HomePreferenceDtos.WidgetPreference widget : layout.widgets()) {
             if (widget == null || widget.widgetKey() == null || widget.widgetKey().isBlank()
                     || widget.visible() == null) {
@@ -148,12 +201,17 @@ public final class HomeLayoutPolicy {
                 }
                 continue;
             }
-            WidgetContract widgetContract = contract.widgets().get(widget.widgetKey());
+            WidgetContract widgetContract = knownWidgets.get(widget.widgetKey());
             if (widgetContract == null) {
                 throw invalid("The personal home layout contains an unknown or duplicate widget.");
             }
             if (!widgetContract.canHide() && !Boolean.TRUE.equals(widget.visible())) {
                 throw invalid("A governed personal home widget cannot be hidden.");
+            }
+            RegistryWidgetContract registryContract = registryWidgets.get(widget.widgetKey());
+            if (registryContract != null && registryContract.fixedVisibility() != null
+                    && !registryContract.fixedVisibility().equals(widget.visible())) {
+                throw invalid("An unavailable registry widget must be preserved without changes.");
             }
             String size = widget.size() == null ? widgetContract.defaultSize() : widget.size();
             if (!WIDGET_SIZES.contains(size) || !widgetContract.allowedSizes().contains(size)) {
@@ -190,6 +248,9 @@ public final class HomeLayoutPolicy {
             }
             widgets.add(insertionIndex, preference);
         });
+        if (widgets.size() > MAX_WIDGETS) {
+            throw invalid("The personal home layout contains too many widgets.");
+        }
         if (widgets.stream().noneMatch(widget -> Boolean.TRUE.equals(widget.visible()))) {
             throw invalid("At least one personal home widget must remain visible.");
         }
@@ -316,6 +377,54 @@ public final class HomeLayoutPolicy {
                 && LEGACY_WORKSPACE_FIXED_ZONE_KEYS.contains(widgetKey);
     }
 
+    public Map<String, RegistryWidgetContract> contractsForStoredLayout(
+            HomePreferenceDtos.HomeLayoutPayload layout) {
+        Map<String, RegistryWidgetContract> contracts = new LinkedHashMap<>();
+        if (layout == null || layout.widgets() == null) return Map.of();
+        layout.widgets().forEach(widget -> {
+            if (widget == null || !validRegistryKey(widget.widgetKey())
+                    || !widget.widgetKey().contains(".")) return;
+            String size = WIDGET_SIZES.contains(widget.size()) ? widget.size() : "medium";
+            String height = WIDGET_HEIGHTS.contains(widget.height())
+                    ? widget.height() : "standard";
+            contracts.put(widget.widgetKey(), new RegistryWidgetContract(
+                    true, size, Set.of(size), height, Set.of(height), widget.visible()));
+        });
+        return Map.copyOf(contracts);
+    }
+
+    private HomePreferenceDtos.HomeLayoutPayload preserveUnavailableRegistryWidgets(
+            HomePreferenceDtos.HomeLayoutPayload requested,
+            Map<String, RegistryWidgetContract> available,
+            HomePreferenceDtos.HomeLayoutPayload stored) {
+        if (stored == null || stored.widgets() == null) return requested;
+        List<HomePreferenceDtos.WidgetPreference> widgets =
+                new ArrayList<>(requested.widgets());
+        for (int index = 0; index < stored.widgets().size(); index++) {
+            HomePreferenceDtos.WidgetPreference prior = stored.widgets().get(index);
+            if (prior == null || !validRegistryKey(prior.widgetKey())
+                    || !prior.widgetKey().contains(".")
+                    || available.containsKey(prior.widgetKey())) continue;
+            HomePreferenceDtos.WidgetPreference submitted = widgets.stream()
+                    .filter(widget -> widget != null
+                            && prior.widgetKey().equals(widget.widgetKey()))
+                    .findFirst().orElse(null);
+            if (submitted != null && !prior.equals(submitted)) {
+                throw invalid("An unavailable registry widget must be preserved without changes.");
+            }
+            widgets.removeIf(widget -> widget != null
+                    && prior.widgetKey().equals(widget.widgetKey()));
+            widgets.add(Math.min(index, widgets.size()), prior);
+        }
+        return new HomePreferenceDtos.HomeLayoutPayload(
+                requested.appLayout(), requested.presentation(), List.copyOf(widgets));
+    }
+
+    private boolean validRegistryKey(String widgetKey) {
+        return widgetKey != null && widgetKey.length() <= 160
+                && REGISTRY_DEFINITION_KEY.matcher(widgetKey).matches();
+    }
+
     private static SurfaceContract workspaceContract() {
         Map<String, WidgetContract> widgets = new LinkedHashMap<>();
         widgets.put("command-rail", widget(true, "large", Set.of("large", "full"),
@@ -390,6 +499,15 @@ public final class HomeLayoutPolicy {
                 defaultHeight, Set.copyOf(allowedHeights));
     }
 
+    private static WidgetContract widget(RegistryWidgetContract contract) {
+        if (contract == null || contract.defaultSize() == null
+                || contract.defaultHeight() == null || contract.allowedSizes() == null
+                || contract.allowedHeights() == null) return null;
+        return widget(
+                contract.canHide(), contract.defaultSize(), contract.allowedSizes(),
+                contract.defaultHeight(), contract.allowedHeights());
+    }
+
     private BaseException invalid(String message) {
         return new BaseException(ErrorCode.INVALID_INPUT_VALUE, message);
     }
@@ -407,5 +525,14 @@ public final class HomeLayoutPolicy {
             Set<String> allowedSizes,
             String defaultHeight,
             Set<String> allowedHeights) {
+    }
+
+    public record RegistryWidgetContract(
+            boolean canHide,
+            String defaultSize,
+            Set<String> allowedSizes,
+            String defaultHeight,
+            Set<String> allowedHeights,
+            Boolean fixedVisibility) {
     }
 }

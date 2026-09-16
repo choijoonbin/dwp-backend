@@ -2,6 +2,7 @@ package com.dwp.services.platform.home.personalization;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.platform.home.preference.HomeLayoutPolicy;
 import com.dwp.services.platform.home.preference.HomePreferenceDtos;
 import com.dwp.services.platform.home.preference.HomePreferenceService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -97,6 +98,14 @@ abstract class HomeViewServiceSupport {
         }
     }
 
+    HomePreferenceDtos.HomeLayoutPayload storedLayoutForPreservation(HomeView view) {
+        try {
+            return layout(view.getLayoutPayload());
+        } catch (RuntimeException exception) {
+            return null;
+        }
+    }
+
     HomeViewRevision appendRevision(
             HomeView view,
             String source,
@@ -157,6 +166,13 @@ abstract class HomeViewServiceSupport {
 
     protected void validateDeviceOverlay(
             HomeView view, HomeViewDtos.DeviceLayoutOverlay overlay) {
+        validateDeviceOverlay(view, overlay, Map.of());
+    }
+
+    protected void validateDeviceOverlay(
+            HomeView view,
+            HomeViewDtos.DeviceLayoutOverlay overlay,
+            Map<String, HomeLayoutPolicy.RegistryWidgetContract> registryWidgets) {
         if (overlay == null || overlay.widgetOrder() == null || overlay.widgetSizes() == null
                 || overlay.widgetOrder().stream().anyMatch(java.util.Objects::isNull)
                 || overlay.widgetSizes().entrySet().stream().anyMatch(entry ->
@@ -176,7 +192,7 @@ abstract class HomeViewServiceSupport {
         }
         if (overlay.widgetSizes().entrySet().stream().anyMatch(entry ->
                 !preferenceService.isWidgetSizeAllowed(
-                        view.getSurfaceKey(), entry.getKey(), entry.getValue()))) {
+                        view.getSurfaceKey(), entry.getKey(), entry.getValue(), registryWidgets))) {
             throw invalid("A device overlay widget size is not allowed for this widget.");
         }
         List<String> semanticOrder = current.widgets().stream()
@@ -233,6 +249,13 @@ abstract class HomeViewServiceSupport {
 
     protected void reconcileDeviceLayouts(
             HomeView view, Map<String, HomeViewDtos.DeviceLayoutOverlay> desired) {
+        reconcileDeviceLayouts(view, desired, Map.of());
+    }
+
+    protected void reconcileDeviceLayouts(
+            HomeView view,
+            Map<String, HomeViewDtos.DeviceLayoutOverlay> desired,
+            Map<String, HomeLayoutPolicy.RegistryWidgetContract> registryWidgets) {
         if (desired.size() > DEVICE_CLASSES.size() || desired.entrySet().stream()
                 .anyMatch(entry -> entry.getKey() == null || entry.getValue() == null)) {
             throw invalid("The revision contains invalid device layouts.");
@@ -244,7 +267,8 @@ abstract class HomeViewServiceSupport {
                 throw invalid("A revision contains duplicate device class aliases.");
             }
         });
-        canonical.values().forEach(overlay -> validateDeviceOverlay(view, overlay));
+        canonical.values().forEach(overlay ->
+                validateDeviceOverlay(view, overlay, registryWidgets));
         List<HomeDeviceLayout> existing = deviceLayouts
                 .findByViewIdAndTenantIdAndUserIdOrderByDeviceClass(
                         view.getViewId(), view.getTenantId(), view.getUserId());
