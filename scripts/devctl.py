@@ -648,7 +648,7 @@ def local_environment() -> dict[str, str]:
         ),
         "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
         "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",
-        "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "14",
+        "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "15",
         "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
         "DWP_AGENT_IDENTITY_SIGNING_SECRET": (
             "dwp-local-agent-identity-signing-secret-v1"

@@ -86,7 +86,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
+BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15)
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -148,6 +148,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 46, "routes": 355, "PAGE": 79, "DATA": 93, "ACTION": 183},
     14: {"capabilities": 134, "accessPolicies": 22, "entitlementExpressions": 16,
          "predicatePolicies": 46, "routes": 360, "PAGE": 79, "DATA": 96, "ACTION": 185},
+    15: {"capabilities": 135, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 361, "PAGE": 79, "DATA": 97, "ACTION": 185},
 }
 IMMUTABLE_RELEASE_CHECKSUMS = {
     1: "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
@@ -164,6 +166,7 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     12: "65155dcc88f454a0ad2530518f8ec9b0c070afd31d583a19f980dd3d10f78a74",
     13: "3bd67d7b145c5b7c845788c70f8884c8afadedd9920de419ecd1e1d0e8a4c8b0",
     14: "7ee0bac12ddfbc72dda55a5014c67b0798caa68a5ffc73b4be479d06a4590336",
+    15: "5fdd43747ffb3621cd7e032bb4f44c4a761d3350a2e5b0c0d1ff47bd3a081085",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -689,15 +692,15 @@ TARGET_KINDS = {"SELF", "OBJECT", "RELATIONSHIP", "TARGET_POPULATION", "CONFIG_S
 LIFECYCLE_STATES = {"ACTIVE", "RETIRED"}
 BUNDLE_STATES = {"DRAFT", "APPROVED", "ACTIVE", "RETIRED"}
 SERVICE_PATH_PREFIXES = {
-    "agent": "/v1/",
-    "auth": "/auth/",
-    "meeting": "/v1/",
-    "messaging": "/v1/",
-    "notification": "/v1/",
-    "platform": "/v1/",
-    "approval": "/v1/",
-    "people": "/v1/",
-    "space": "/v1/",
+    "agent": ("/v1/",),
+    "auth": ("/auth/",),
+    "meeting": ("/v1/",),
+    "messaging": ("/v1/",),
+    "notification": ("/v1/",),
+    "platform": ("/v1/", "/v2/"),
+    "approval": ("/v1/",),
+    "people": ("/v1/",),
+    "space": ("/v1/",),
 }
 
 
@@ -1531,8 +1534,9 @@ def _validate_route(
         _validate_binding_constraints(public_binding, binding_key)
         _validate_binding_constraints(service_binding, binding_key)
         service_key = service_binding.get("serviceKey")
-        prefix = SERVICE_PATH_PREFIXES.get(service_key)
-        require(prefix and service_binding["path"].startswith(prefix), f"{binding_key}: service path grammar mismatch")
+        prefixes = SERVICE_PATH_PREFIXES.get(service_key, ())
+        require(any(service_binding["path"].startswith(prefix) for prefix in prefixes),
+                f"{binding_key}: service path grammar mismatch")
         require("/**" not in public_binding["path"] and "/**" not in service_binding["path"], f"{binding_key}: wildcard binding forbidden")
 
     profiles = route.get("accessProfiles")

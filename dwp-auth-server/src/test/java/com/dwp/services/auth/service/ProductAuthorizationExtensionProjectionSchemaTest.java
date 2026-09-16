@@ -129,9 +129,9 @@ class ProductAuthorizationExtensionProjectionSchemaTest {
         }
     }
     @Test void descriptorStructureAdmitsEverySealedReleaseAndRejectsTheNextUnsealedRelease() throws Exception {
-        for (long version = 1; version <= 14; version++)
+        for (long version = 1; version <= 15; version++)
             assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(version));
-        assertFalse(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(15));
+        assertFalse(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(16));
         var candidate = bundle(); candidate.put("checksum", "0".repeat(64));
         assertThrows(IllegalArgumentException.class, () -> ProductAuthorizationReleaseLineage.validateBundle(typed(candidate)));
     }

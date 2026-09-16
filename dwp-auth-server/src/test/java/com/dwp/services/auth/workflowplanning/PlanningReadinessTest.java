@@ -32,9 +32,9 @@ class PlanningReadinessTest {
         assertThat(unavailable.getDetails()).containsEntry("state","UNAVAILABLE");
     }
     @Test void supportedPolicyRevisionIsExactAndBoundedToInstalledPlanningContracts() {
-        for(long version=10;version<=14;version++)
+        for(long version=10;version<=15;version++)
             assertThat(PlanningProtocol.supportedPolicyRevision("policy-"+version+"-1-"+"a".repeat(64))).isTrue();
-        for(String invalid:java.util.List.of("policy-9-1-"+"a".repeat(64),"policy-15-1-"+"a".repeat(64),
+        for(String invalid:java.util.List.of("policy-9-1-"+"a".repeat(64),"policy-16-1-"+"a".repeat(64),
                 "policy-14-0-"+"a".repeat(64),"policy-14-1-"+"A".repeat(64),"policy-14-1-"+"a".repeat(63),""))
             assertThat(PlanningProtocol.supportedPolicyRevision(invalid)).as(invalid).isFalse();
         assertThat(PlanningProtocol.supportedPolicyRevision(null)).isFalse();

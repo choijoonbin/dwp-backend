@@ -28,7 +28,7 @@ class HomeV2GatewaySecurityTest {
             "/api/platform/v2/home?deviceClass=DESKTOP_STANDARD";
 
     @Test
-    void replacesEverySpoofableHomeAuthorityHeaderWithVerifiedIdentity() {
+    void replacesEverySpoofableHomeIdentityHeaderWithVerifiedIdentity() {
         SessionVerifier verifier = ignored -> Mono.just(new VerifiedIdentity(
                 "7", "1", List.of("WORKSPACE_MEMBER"),
                 List.of("APP.CALENDAR:VIEW", "APP.MEETINGS:VIEW"),
@@ -45,7 +45,12 @@ class HomeV2GatewaySecurityTest {
                 .header(VerifiedIdentityFilter.GROUP_REFS_HEADER, "spoofed-group")
                 .header(VerifiedIdentityFilter.RESOURCE_ROLES_HEADER,
                         "APP_OWNER@APP.HCM")
+                .header(VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER,
+                        "90000000-0000-0000-0000-000000000001")
+                .header(VerifiedIdentityFilter.DISPLAY_NAME_HEADER, "attacker")
+                .header(VerifiedIdentityFilter.AUTH_SESSION_ID_HEADER, "attacker-session")
                 .header(VerifiedIdentityFilter.IDENTITY_PLANE_HEADER, "PROVIDER")
+                .header(VerifiedIdentityFilter.LEGACY_ROLE_FALLBACK_HEADER, "true")
                 .header(VerifiedIdentityFilter.CONTROL_PLANE_HEADER,
                         "WIDGET_REGISTRY_PROVIDER")
                 .header(VerifiedIdentityFilter.WIDGET_OWNER_SCOPE_HEADER, "hcm")
@@ -74,8 +79,17 @@ class HomeV2GatewaySecurityTest {
         assertThat(forwarded.get().getHeaders().getFirst(
                 VerifiedIdentityFilter.RESOURCE_ROLES_HEADER))
                 .isEqualTo("MEETING_HOST@MEETING:42");
+        assertThat(forwarded.get().getHeaders()).doesNotContainKey(
+                VerifiedIdentityFilter.PERSON_PUBLIC_ID_HEADER);
+        assertThat(forwarded.get().getHeaders().getFirst(
+                VerifiedIdentityFilter.DISPLAY_NAME_HEADER)).isEqualTo("SG9tZSB1c2Vy");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                VerifiedIdentityFilter.AUTH_SESSION_ID_HEADER))
+                .isEqualTo("40000000-0000-0000-0000-000000000001");
         assertThat(forwarded.get().getHeaders().getFirst(
                 VerifiedIdentityFilter.IDENTITY_PLANE_HEADER)).isEqualTo("TENANT");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                VerifiedIdentityFilter.LEGACY_ROLE_FALLBACK_HEADER)).isEqualTo("false");
         assertThat(forwarded.get().getHeaders()).doesNotContainKeys(
                 VerifiedIdentityFilter.CONTROL_PLANE_HEADER,
                 VerifiedIdentityFilter.WIDGET_OWNER_SCOPE_HEADER);

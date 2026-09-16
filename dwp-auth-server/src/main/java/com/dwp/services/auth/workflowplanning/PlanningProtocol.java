@@ -8,7 +8,7 @@ import java.util.regex.Pattern;
 
 /** A separate read-only planning protocol, never runtime voter or USER authority. */
 public final class PlanningProtocol {
-    private static final Set<Long> SUPPORTED_POLICY_VERSIONS = Set.of(10L, 11L, 12L, 13L, 14L);
+    private static final Set<Long> SUPPORTED_POLICY_VERSIONS = Set.of(10L, 11L, 12L, 13L, 14L, 15L);
     private static final Pattern POLICY_REVISION = Pattern.compile(
             "policy-([0-9]+)-[1-9][0-9]*-[a-f0-9]{64}");
     private PlanningProtocol() { }

@@ -244,7 +244,7 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
         auth_only = {
             "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
             "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",
-            "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "14",
+            "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "15",
         }
         for key, value in auth_only.items():
             self.assertEqual(environments["auth"][key], value)

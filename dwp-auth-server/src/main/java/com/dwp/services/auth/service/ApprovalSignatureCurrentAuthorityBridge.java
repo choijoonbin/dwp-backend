@@ -35,7 +35,7 @@ public final class ApprovalSignatureCurrentAuthorityBridge implements SignatureC
         try {
             var bundle = contracts.findActive("product-surfaces").orElseThrow(SignatureAuthorityJson::unavailable);
             var pointer = contracts.findActivePointer("product-surfaces").orElseThrow(SignatureAuthorityJson::unavailable);
-            if (!Set.of(10L, 11L, 12L, 13L, 14L).contains(bundle.version()) || !"ACTIVE".equals(bundle.bundleStatus()) || !pointer.bundleId().equals(bundle.bundleId())
+            if (!Set.of(10L, 11L, 12L, 13L, 14L, 15L).contains(bundle.version()) || !"ACTIVE".equals(bundle.bundleStatus()) || !pointer.bundleId().equals(bundle.bundleId())
                     || !b.registrySha256().equals(bundle.checksum())) throw unavailable();
             var registry = new Registry(seals.loadActive(bundle, pointer));
             var route = registry.routesByKey().get(b.operation().route());

@@ -223,11 +223,13 @@ class ProductAuthorizationContractValidatorTest {
                 generatedDocument("product-surfaces-v1.bundle-v13.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionFourteen = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v14.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(14);
-        assertThat(index.latestChecksum()).isEqualTo(versionFourteen.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionFifteen = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v15.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(15);
+        assertThat(index.latestChecksum()).isEqualTo(versionFifteen.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
-                .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L);
+                .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -271,6 +273,27 @@ class ProductAuthorizationContractValidatorTest {
                         .toList());
         assertThat(versionFourteen.routes()).hasSize(360)
                 .containsAll(versionThirteen.routes());
+        assertThat(versionFifteen.capabilities()).hasSize(135)
+                .containsAll(versionFourteen.capabilities());
+        assertThat(versionFifteen.routes()).hasSize(361)
+                .containsAll(versionFourteen.routes());
+        assertThat(versionFifteen.capabilities())
+                .filteredOn(value -> "workplace.home.read".equals(value.contractKey()))
+                .singleElement().satisfies(capability -> {
+                    assertThat(capability.resolvedCapabilityCode()).isEqualTo("APP.WORK:VIEW");
+                    assertThat(capability.requiresProductEntitlement()).isFalse();
+                });
+        assertThat(versionFifteen.routes())
+                .filteredOn(value -> "route.workplace.work.home-read-model.data"
+                        .equals(value.routeContractKey()))
+                .singleElement().satisfies(route -> {
+                    assertThat(route.routeKind()).isEqualTo("DATA");
+                    assertThat(route.accessProfiles().getFirst().readOnly()).isTrue();
+                    assertThat(route.gatewayApiBindings().getFirst().path())
+                            .isEqualTo("/api/platform/v2/home");
+                    assertThat(route.servicePepBindings().getFirst().path())
+                            .isEqualTo("/v2/home");
+                });
         assertThat(versionSix.routes()).filteredOn(value -> value.routeContractKey().equals(
                 "route.services.work.request-information-response.action"))
                 .singleElement().satisfies(route -> {

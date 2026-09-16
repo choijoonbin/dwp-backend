@@ -4086,6 +4086,30 @@
       "surfaceKey": "spaces.work"
     },
     {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "workplace.home.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "workplace",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "APP.WORK:VIEW",
+      "resourceKey": "APP.WORK",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.workplace.work.home-read-model.data"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "workplace.work"
+    },
+    {
       "action": "CREATE",
       "activationPolicy": null,
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
@@ -4110,7 +4134,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "7ee0bac12ddfbc72dda55a5014c67b0798caa68a5ffc73b4be479d06a4590336",
+  "checksum": "5fdd43747ffb3621cd7e032bb4f44c4a761d3350a2e5b0c0d1ff47bd3a081085",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -28092,8 +28116,67 @@
       },
       "uiRouteId": null,
       "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "home-reader",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "workplace.home.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.workplace.work.home-read-model.data.binding.01",
+              "projectionPolicyKey": "route.workplace.work.home-read-model.data.home-reader.projection.v1",
+              "responseSchemaKey": "route.workplace.work.home-read-model.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.home-read-model.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v2/home",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.work.home-read-model.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.home-read-model.data.binding.01",
+          "method": "GET",
+          "path": "/v2/home",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
     }
   ],
   "schemaVersion": 1,
-  "version": 14
+  "version": 15
 }
