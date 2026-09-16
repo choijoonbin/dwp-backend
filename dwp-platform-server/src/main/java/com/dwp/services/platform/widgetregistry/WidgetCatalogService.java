@@ -11,6 +11,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Locale;
@@ -184,13 +185,26 @@ public class WidgetCatalogService {
             String permissionHeader,
             String roleHeader,
             String groupHeader) {
+        return effectiveForMode(
+                tenantId, surfaceKey, permissionHeader, roleHeader, groupHeader, null);
+    }
+
+    private WidgetRegistryDtos.EffectiveCatalogResponse effectiveForMode(
+            Long tenantId,
+            String surfaceKey,
+            String permissionHeader,
+            String roleHeader,
+            String groupHeader,
+            String requestedMode) {
         if (!"workspace-home".equals(surfaceKey)) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Unsupported Widget Catalog surface.");
         }
         AuthorityContext authority = AuthorityContext.of(permissionHeader, roleHeader, groupHeader);
         WidgetRegistryState state = ledger.state();
         HomeExperienceDtos.HomeExperienceResponse home = homeExperience.get(tenantId);
-        String resolvedHostMode = "FLOW_V1".equals(home.effectiveExperienceVariant()) ? "FLOW" : "CLASSIC";
+        String resolvedHostMode = requestedMode == null
+                ? ("FLOW_V1".equals(home.effectiveExperienceVariant()) ? "FLOW" : "CLASSIC")
+                : requestedMode;
         List<String> contextKeys = "FLOW".equals(resolvedHostMode)
                 ? List.of("FLOW_PERSONAL", "FLOW_GOVERNED") : List.of("CLASSIC_PERSONAL");
         Map<UUID, TenantWidgetPolicyRevision> tenantPolicies = heads.findByTenantId(tenantId).stream()
@@ -230,6 +244,84 @@ public class WidgetCatalogService {
         return new WidgetRegistryDtos.EffectiveCatalogResponse(
                 WidgetRegistryDtos.SCHEMA_VERSION, state.getMigrationMode(), catalogRevision, bindingRevision,
                 policyRevision, safetyRevision, hostContext, List.copyOf(contexts));
+    }
+
+    /**
+     * Supplies the Runtime Broker with the same evaluated catalog decision and immutable manifest
+     * metadata used by catalog discovery. The broker must still enforce the returned state and
+     * never treats SHADOW catalog evaluation as permission to activate Registry authority.
+     */
+    @Transactional(readOnly = true)
+    public RuntimeCatalog runtimeCatalog(
+            Long tenantId,
+            String surfaceKey,
+            String permissionHeader,
+            String roleHeader,
+            String groupHeader,
+            String mode) {
+        String hostMode = "FLOW_V1".equals(mode) ? "FLOW" : "CLASSIC";
+        WidgetRegistryDtos.EffectiveCatalogResponse evaluated = effectiveForMode(
+                tenantId, surfaceKey, permissionHeader, roleHeader, groupHeader, hostMode);
+        Map<String, RuntimeDefinition> definitionsByLegacyKey = new LinkedHashMap<>();
+        evaluated.contexts().stream()
+                .flatMap(context -> context.items().stream())
+                .forEach(item -> definitionsByLegacyKey.computeIfAbsent(
+                        item.legacyWidgetKey(), ignored -> runtimeDefinition(
+                                item, evaluated.bindingCatalogRevision())));
+        return new RuntimeCatalog(
+                evaluated.mode(),
+                evaluated.catalogRevision(),
+                evaluated.bindingCatalogRevision(),
+                evaluated.policyRevision(),
+                evaluated.safetyRevision(),
+                evaluated.hostContext().decisionRevision(),
+                List.copyOf(definitionsByLegacyKey.values()));
+    }
+
+    private RuntimeDefinition runtimeDefinition(
+            WidgetRegistryDtos.EffectiveItem item,
+            String rendererBindingRevision) {
+        WidgetDefinition definition = definitions.findById(item.definitionId()).orElse(null);
+        WidgetDefinitionVersion version = item.resolvedVersionId() == null
+                ? null : versions.findById(item.resolvedVersionId()).orElse(null);
+        JsonNode manifest = version == null ? null : version.getManifest();
+        return new RuntimeDefinition(
+                item.definitionId(),
+                item.definitionKey(),
+                item.legacyWidgetKey(),
+                item.resolvedVersionId(),
+                item.semanticVersion(),
+                version == null ? null : version.getManifestHash(),
+                rendererBindingRevision,
+                version == null ? null : version.getRendererKey(),
+                definition == null ? null : definition.getOwnerProductKey(),
+                text(manifest, "/owner/sourceAppResourceKey"),
+                strings(manifest, "/requiredAuthorities"),
+                text(manifest, "/privacy/classification"),
+                text(manifest, "/privacy/retention"),
+                integer(manifest, "/operations/freshnessSeconds", 30),
+                item.effectiveState(),
+                item.reasonCodes().stream().map(Enum::name).toList());
+    }
+
+    private String text(JsonNode node, String pointer) {
+        if (node == null) return null;
+        JsonNode value = node.at(pointer);
+        return value.isTextual() ? value.asText() : null;
+    }
+
+    private List<String> strings(JsonNode node, String pointer) {
+        if (node == null || !node.at(pointer).isArray()) return List.of();
+        List<String> result = new ArrayList<>();
+        node.at(pointer).forEach(value -> {
+            if (value.isTextual()) result.add(value.asText());
+        });
+        return List.copyOf(result);
+    }
+
+    private int integer(JsonNode node, String pointer, int fallback) {
+        if (node == null || !node.at(pointer).canConvertToInt()) return fallback;
+        return node.at(pointer).asInt(fallback);
     }
 
     private WidgetRegistryDtos.EffectiveItem evaluate(
@@ -402,6 +494,35 @@ public class WidgetCatalogService {
                     .map(value -> uppercase ? value.toUpperCase(Locale.ROOT) : value)
                     .collect(Collectors.toUnmodifiableSet());
         }
+    }
+
+    public record RuntimeCatalog(
+            String registryMode,
+            String catalogRevision,
+            String bindingRevision,
+            String policyRevision,
+            String safetyRevision,
+            String decisionRevision,
+            List<RuntimeDefinition> definitions) {
+    }
+
+    public record RuntimeDefinition(
+            UUID definitionId,
+            String definitionKey,
+            String legacyWidgetKey,
+            UUID versionId,
+            String semanticVersion,
+            String manifestHash,
+            String rendererBindingRevision,
+            String rendererKey,
+            String ownerProductKey,
+            String sourceAppResourceKey,
+            List<String> requiredAuthorities,
+            String classification,
+            String retention,
+            int freshnessSeconds,
+            WidgetRegistryDtos.EffectiveCatalogState effectiveState,
+            List<String> reasonCodes) {
     }
 
     private record BaselineWidget(

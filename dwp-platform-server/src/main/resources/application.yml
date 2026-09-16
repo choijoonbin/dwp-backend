@@ -106,6 +106,36 @@ dwp:
         revision-retention-per-object: ${DWP_HOME_REVISION_RETENTION_PER_OBJECT:100}
       views-shadow-compare-enabled: ${DWP_HOME_VIEWS_SHADOW_COMPARE_ENABLED:false}
       views-read-enabled: ${DWP_HOME_VIEWS_READ_ENABLED:false}
+    # Wave 4 data-plane runtime. Shadow is the default until the release gate promotes the
+    # endpoint; Widget Registry remains advisory (SHADOW/AUTHORITATIVE=false).
+    home-runtime:
+      enabled: ${DWP_HOME_RUNTIME_ENABLED:false}
+      shadow-enabled: ${DWP_HOME_RUNTIME_SHADOW_ENABLED:true}
+      overall-deadline: ${DWP_HOME_RUNTIME_OVERALL_DEADLINE:PT0.9S}
+      provider-timeout: ${DWP_HOME_RUNTIME_PROVIDER_TIMEOUT:PT0.4S}
+      cache-ttl: ${DWP_HOME_RUNTIME_CACHE_TTL:PT30S}
+      stale-if-error: ${DWP_HOME_RUNTIME_STALE_IF_ERROR:PT5M}
+      maximum-cache-entries: ${DWP_HOME_RUNTIME_MAXIMUM_CACHE_ENTRIES:10000}
+      maximum-provider-payload-bytes: ${DWP_HOME_RUNTIME_MAXIMUM_PROVIDER_PAYLOAD_BYTES:262144}
+      providers:
+        approval:
+          url: ${DWP_HOME_PROVIDER_APPROVAL_URL:http://localhost:8005}
+          token: ${DWP_HOME_PROVIDER_APPROVAL_TOKEN:}
+        meeting:
+          url: ${DWP_HOME_PROVIDER_MEETING_URL:http://localhost:8009}
+          token: ${DWP_HOME_PROVIDER_MEETING_TOKEN:}
+        notification:
+          url: ${DWP_HOME_PROVIDER_NOTIFICATION_URL:http://localhost:8008}
+          token: ${DWP_HOME_PROVIDER_NOTIFICATION_TOKEN:}
+        space:
+          url: ${DWP_HOME_PROVIDER_SPACE_URL:http://localhost:8006}
+          token: ${DWP_HOME_PROVIDER_SPACE_TOKEN:}
+        messaging:
+          url: ${DWP_HOME_PROVIDER_MESSAGING_URL:http://localhost:8007}
+          token: ${DWP_HOME_PROVIDER_MESSAGING_TOKEN:}
+        people:
+          url: ${DWP_HOME_PROVIDER_PEOPLE_URL:http://localhost:8003}
+          token: ${DWP_HOME_PROVIDER_PEOPLE_TOKEN:}
     product-authorization-approvals-v2-enabled: ${DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED:false}
     product-authorization-dwaion-v6-enabled: ${DWP_PLATFORM_PRODUCT_AUTHORIZATION_DWAION_V6_ENABLED:false}
     product-surface-telemetry:

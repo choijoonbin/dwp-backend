@@ -1,0 +1,154 @@
+package com.dwp.services.platform.home.runtime;
+
+import com.dwp.platform.contract.home.HomeWidgetProviderContract;
+import com.dwp.services.platform.home.HomeExperienceDtos;
+import com.dwp.services.platform.home.personalization.HomeViewDtos;
+import com.dwp.services.platform.home.preference.HomePreferenceDtos;
+import com.fasterxml.jackson.annotation.JsonInclude;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+
+public final class HomeReadModelDtos {
+
+    public static final int SCHEMA_VERSION = 2;
+
+    private HomeReadModelDtos() {
+    }
+
+    public record HomeReadModel(
+            int schemaVersion,
+            String mode,
+            EffectiveView view,
+            HomeShell shell,
+            List<AppGroup> appDock,
+            List<Widget> widgets,
+            OffsetDateTime generatedAt,
+            OffsetDateTime expiresAt,
+            boolean partial,
+            List<String> unavailableSources,
+            String changeVersion,
+            String registryMode) {
+    }
+
+    public record EffectiveView(
+            @JsonInclude(JsonInclude.Include.NON_NULL) UUID viewId,
+            long revision,
+            String source,
+            String mode,
+            String deviceClass,
+            HomePreferenceDtos.HomeLayoutPayload composition,
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            HomeViewDtos.DeviceLayoutOverlay deviceOverlay) {
+    }
+
+    public record HomeShell(
+            String headline,
+            String subheadline,
+            String contentAlignment,
+            String density,
+            String backgroundAssetRoute,
+            List<Announcement> announcements) {
+    }
+
+    public record Announcement(
+            String id,
+            String kind,
+            String title,
+            OffsetDateTime dueAt,
+            String sourceRoute) {
+    }
+
+    public record AppGroup(
+            String groupKey,
+            String label,
+            List<AppEntry> apps) {
+    }
+
+    public record AppEntry(
+            String appKey,
+            String label,
+            String iconKey,
+            String sourceRoute,
+            BadgeState badgeState,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Badge badge) {
+    }
+
+    public enum BadgeState {
+        NOT_REQUESTED,
+        AVAILABLE,
+        UNAVAILABLE,
+        FORBIDDEN
+    }
+
+    public record Badge(int total, int urgent, String version) {
+    }
+
+    public record Widget(
+            UUID instanceId,
+            String definitionKey,
+            String definitionVersion,
+            String definitionManifestHash,
+            String rendererBindingRevision,
+            String rendererKey,
+            HomeWidgetProviderContract.State state,
+            SourceState source,
+            Map<String, Object> payload,
+            List<HomeWidgetProviderContract.Action> actions,
+            List<String> redactions,
+            Governance governance) {
+    }
+
+    public record SourceState(
+            String sourceKey,
+            OffsetDateTime generatedAt,
+            OffsetDateTime expiresAt,
+            OffsetDateTime lastSuccessAt,
+            String reasonCode,
+            boolean retryable,
+            String resultVersion) {
+    }
+
+    public record Governance(
+            String owner,
+            List<String> requiredAuthorities,
+            String classification,
+            String retention,
+            String sourceRoute) {
+    }
+
+    public record ReadResult(HomeReadModel model, String etag) {
+    }
+
+    public record CommandRequest(
+            UUID instanceId,
+            String actionId,
+            String expectedResultVersion,
+            Map<String, Object> parameters) {
+
+        public CommandRequest {
+            parameters = parameters == null ? Map.of() : Map.copyOf(parameters);
+        }
+    }
+
+    public record CommandReceipt(
+            UUID receiptId,
+            UUID commandId,
+            String commandKey,
+            String status,
+            String sourceRoute,
+            OffsetDateTime acceptedAt) {
+    }
+
+    static HomeShell shell(HomeExperienceDtos.HomeExperienceResponse experience) {
+        return new HomeShell(
+                experience.headline(),
+                experience.subheadline(),
+                experience.contentAlignment(),
+                "COMFORTABLE",
+                experience.backgroundUrl(),
+                List.of());
+    }
+}
