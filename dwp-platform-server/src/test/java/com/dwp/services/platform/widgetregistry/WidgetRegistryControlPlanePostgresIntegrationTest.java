@@ -695,6 +695,14 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
                 .toList()).hasSize(12).allSatisfy(item ->
                         assertThat(item.effectiveState())
                                 .isEqualTo(WidgetRegistryDtos.EffectiveCatalogState.DENY));
+
+        var runtime = catalog.runtimeCatalog(
+                tenantId, "workspace-home", authorities, "", "", "CLASSIC");
+        assertThat(runtime.registryMode()).isEqualTo("SHADOW");
+        assertThat(runtime.bindingRevision()).isEqualTo(EXPECTED_BINDING_CATALOG_REVISION);
+        assertThat(runtime.definitions()).hasSize(19).allSatisfy(definition ->
+                assertThat(definition.rendererBindingRevision())
+                        .isEqualTo(EXPECTED_BINDING_CATALOG_REVISION));
     }
 
     private JsonNode focusManifest(String definitionKey) throws Exception {
