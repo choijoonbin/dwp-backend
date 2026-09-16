@@ -40,4 +40,20 @@ class HomeRuntimeContextTest {
                         assertThat(failure.getErrorCode())
                                 .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
     }
+
+    @Test
+    void authorityExpiryBoundsCacheLifetimeWithoutChurningAuthorityFingerprint() {
+        UUID personId = UUID.randomUUID();
+        OffsetDateTime firstExpiry = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(2);
+        OffsetDateTime secondExpiry = firstExpiry.plusMinutes(1);
+        HomeRuntimeContext first = HomeRuntimeContext.create(
+                11L, 22L, personId, "APP.WORK:VIEW", "MEMBER", "team-a",
+                "decision-7", firstExpiry.toString(), "ko-KR", "Asia/Seoul");
+        HomeRuntimeContext second = HomeRuntimeContext.create(
+                11L, 22L, personId, "APP.WORK:VIEW", "MEMBER", "team-a",
+                "decision-7", secondExpiry.toString(), "ko-KR", "Asia/Seoul");
+
+        assertThat(first.fingerprint()).isEqualTo(second.fingerprint());
+        assertThat(first.authorityRevalidateAt()).isNotEqualTo(second.authorityRevalidateAt());
+    }
 }

@@ -17,6 +17,7 @@ public final class HomeWidgetProviderContract {
     public static final int SCHEMA_VERSION = 1;
     public static final int MAX_WIDGETS_PER_BATCH = 100;
     public static final int MAX_ACTIONS_PER_WIDGET = 8;
+    public static final int MAX_ITEM_LIMIT = 50;
     public static final String BATCH_PATH = "/internal/home/v1/widget-data:batch";
     public static final String COMMAND_PATH = "/internal/home/v1/widget-actions:execute";
     public static final String SERVICE_IDENTITY_HEADER = "X-DWP-Service-Identity";

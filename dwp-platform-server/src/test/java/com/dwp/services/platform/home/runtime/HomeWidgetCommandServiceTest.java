@@ -14,6 +14,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.CompletableFuture;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -23,6 +25,7 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.doAnswer;
 
 class HomeWidgetCommandServiceTest {
 
@@ -105,6 +108,57 @@ class HomeWidgetCommandServiceTest {
         assertThat(provider.calls).hasValue(0);
     }
 
+    @Test
+    void concurrentSameKeyExecutesOwnerCommandExactlyOnce() {
+        HomeRuntimeContext context = TestFixtures.context();
+        UUID commandId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        FakeCommandProvider provider = new FakeCommandProvider(context, commandId);
+        provider.delayMillis = 80;
+        HomeReadModelService readModels = mock(HomeReadModelService.class);
+        when(readModels.read(context, "CLASSIC", "DESKTOP_STANDARD"))
+                .thenReturn(new HomeReadModelDtos.ReadResult(model(instanceId, "result-1"), "\"e\""));
+        HomeCommandReceiptService receipts = mock(HomeCommandReceiptService.class);
+        emulateReceiptStore(receipts);
+        HomeWidgetCommandService service = service(provider, readModels, receipts);
+        HomeReadModelDtos.CommandRequest request = new HomeReadModelDtos.CommandRequest(
+                instanceId, "accept-item", "result-1", Map.of("comment", "Approved"));
+
+        CompletableFuture<HomeReadModelDtos.CommandReceipt> first = CompletableFuture.supplyAsync(
+                () -> service.execute(context, "CLASSIC", "DESKTOP_STANDARD", commandId, request));
+        CompletableFuture<HomeReadModelDtos.CommandReceipt> second = CompletableFuture.supplyAsync(
+                () -> service.execute(context, "CLASSIC", "DESKTOP_STANDARD", commandId, request));
+
+        assertThat(first.join()).isEqualTo(second.join());
+        assertThat(provider.calls).hasValue(1);
+    }
+
+    @Test
+    void sameKeyWithDifferentCommandDigestIsAConflict() {
+        HomeRuntimeContext context = TestFixtures.context();
+        UUID commandId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        FakeCommandProvider provider = new FakeCommandProvider(context, commandId);
+        HomeReadModelService readModels = mock(HomeReadModelService.class);
+        when(readModels.read(context, "CLASSIC", "DESKTOP_STANDARD"))
+                .thenReturn(new HomeReadModelDtos.ReadResult(model(instanceId, "result-1"), "\"e\""));
+        HomeCommandReceiptService receipts = mock(HomeCommandReceiptService.class);
+        emulateReceiptStore(receipts);
+        HomeWidgetCommandService service = service(provider, readModels, receipts);
+        service.execute(context, "CLASSIC", "DESKTOP_STANDARD", commandId,
+                new HomeReadModelDtos.CommandRequest(
+                        instanceId, "accept-item", "result-1", Map.of("comment", "A")));
+
+        assertThatThrownBy(() -> service.execute(
+                context, "CLASSIC", "DESKTOP_STANDARD", commandId,
+                new HomeReadModelDtos.CommandRequest(
+                        instanceId, "accept-item", "result-1", Map.of("comment", "B"))))
+                .isInstanceOfSatisfying(BaseException.class, failure ->
+                        assertThat(failure.getErrorCode())
+                                .isEqualTo(com.dwp.core.common.ErrorCode.RESOURCE_CONFLICT));
+        assertThat(provider.calls).hasValue(1);
+    }
+
     private HomeWidgetCommandService service(
             FakeCommandProvider provider,
             HomeReadModelService readModels,
@@ -112,6 +166,25 @@ class HomeWidgetCommandServiceTest {
         return new HomeWidgetCommandService(
                 List.of(provider), readModels, receipts, new HomeCanonicalJson(objectMapper),
                 new ProviderResultValidator(objectMapper, properties), properties);
+    }
+
+    private void emulateReceiptStore(HomeCommandReceiptService receipts) {
+        AtomicReference<HomeReadModelDtos.CommandReceipt> stored = new AtomicReference<>();
+        AtomicReference<String> storedFingerprint = new AtomicReference<>();
+        when(receipts.replay(any(), any(), any(), any(), any(), any(),
+                eq(HomeReadModelDtos.CommandReceipt.class))).thenAnswer(invocation -> {
+            if (stored.get() == null) return null;
+            String fingerprint = invocation.getArgument(5);
+            if (!fingerprint.equals(storedFingerprint.get())) {
+                throw new BaseException(com.dwp.core.common.ErrorCode.RESOURCE_CONFLICT);
+            }
+            return stored.get();
+        });
+        doAnswer(invocation -> {
+            storedFingerprint.set(invocation.getArgument(5));
+            stored.set(invocation.getArgument(6));
+            return null;
+        }).when(receipts).record(any(), any(), any(), any(), any(), any(), any());
     }
 
     private HomeReadModelDtos.HomeReadModel model(UUID instanceId, String resultVersion) {
@@ -140,6 +213,7 @@ class HomeWidgetCommandServiceTest {
         private final AtomicInteger calls = new AtomicInteger();
         private final HomeRuntimeContext context;
         private final UUID commandId;
+        private volatile long delayMillis;
 
         private FakeCommandProvider(HomeRuntimeContext context, UUID commandId) {
             this.context = context;
@@ -165,6 +239,13 @@ class HomeWidgetCommandServiceTest {
                 HomeWidgetProviderContract.CommandRequest request,
                 OffsetDateTime deadline) {
             calls.incrementAndGet();
+            if (delayMillis > 0) {
+                try {
+                    Thread.sleep(delayMillis);
+                } catch (InterruptedException exception) {
+                    Thread.currentThread().interrupt();
+                }
+            }
             return new HomeWidgetProviderContract.CommandResponse(
                     1, context.tenantId(), context.userId(),
                     context.authorityDecisionRevision(), UUID.randomUUID(), commandId,

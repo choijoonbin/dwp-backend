@@ -18,12 +18,15 @@ import java.util.stream.Collectors;
 @Service
 public class HomeWidgetCommandService {
 
+    private static final int LOCK_STRIPES = 256;
+
     private final Map<String, WidgetProviderPort> providers;
     private final HomeReadModelService readModels;
     private final HomeCommandReceiptService receipts;
     private final HomeCanonicalJson canonicalJson;
     private final ProviderResultValidator validator;
     private final HomeRuntimeProperties properties;
+    private final Object[] commandLocks = new Object[LOCK_STRIPES];
 
     public HomeWidgetCommandService(
             List<WidgetProviderPort> providers,
@@ -39,6 +42,9 @@ public class HomeWidgetCommandService {
         this.canonicalJson = canonicalJson;
         this.validator = validator;
         this.properties = properties;
+        for (int index = 0; index < commandLocks.length; index++) {
+            commandLocks[index] = new Object();
+        }
     }
 
     public HomeReadModelDtos.CommandReceipt execute(
@@ -57,6 +63,24 @@ public class HomeWidgetCommandService {
                 "deviceClass", deviceClass,
                 "request", request));
         String target = request.instanceId() + ":" + request.actionId();
+        Object lock = commandLocks[Math.floorMod(
+                java.util.Objects.hash(context.tenantId(), context.userId(), commandId),
+                commandLocks.length)];
+        synchronized (lock) {
+            return executeOnce(
+                    context, requestedMode, deviceClass, commandId, request,
+                    fingerprint, target);
+        }
+    }
+
+    private HomeReadModelDtos.CommandReceipt executeOnce(
+            HomeRuntimeContext context,
+            String requestedMode,
+            String deviceClass,
+            UUID commandId,
+            HomeReadModelDtos.CommandRequest request,
+            String fingerprint,
+            String target) {
         HomeReadModelDtos.CommandReceipt replay = receipts.replay(
                 context.tenantId(), context.userId(), commandId,
                 "HOME_WIDGET_ACTION", target, fingerprint,

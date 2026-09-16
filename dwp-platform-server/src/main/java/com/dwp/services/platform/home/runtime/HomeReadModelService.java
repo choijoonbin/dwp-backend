@@ -7,6 +7,7 @@ import com.dwp.services.platform.home.ApprovedHomeApplicationCatalog;
 import com.dwp.services.platform.home.HomeExperienceDtos;
 import com.dwp.services.platform.home.HomeExperienceService;
 import com.dwp.services.platform.home.personalization.EffectiveHomeViewQuery;
+import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
 import com.dwp.services.platform.home.personalization.HomeViewDtos;
 import com.dwp.services.platform.home.preference.HomePreferenceDtos;
 import com.dwp.services.platform.widgetregistry.WidgetCatalogService;
@@ -44,18 +45,21 @@ public class HomeReadModelService {
     private final WidgetCatalogService catalog;
     private final WidgetRuntimeBroker broker;
     private final ObjectMapper objectMapper;
+    private final HomeCanonicalJson canonicalJson;
 
     public HomeReadModelService(
             HomeExperienceService experiences,
             EffectiveHomeViewQuery views,
             WidgetCatalogService catalog,
             WidgetRuntimeBroker broker,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            HomeCanonicalJson canonicalJson) {
         this.experiences = experiences;
         this.views = views;
         this.catalog = catalog;
         this.broker = broker;
         this.objectMapper = objectMapper;
+        this.canonicalJson = canonicalJson;
     }
 
     public HomeReadModelDtos.ReadResult read(
@@ -100,8 +104,10 @@ public class HomeReadModelService {
             Map<String, Object> configurationMap = configuration == null
                     ? Map.of() : objectMapper.convertValue(
                             configuration, new TypeReference<Map<String, Object>>() { });
-            int itemLimit = configuration == null || configuration.itemLimit() == null
+            int configuredItemLimit = configuration == null || configuration.itemLimit() == null
                     ? 10 : configuration.itemLimit();
+            int itemLimit = Math.max(1, Math.min(
+                    configuredItemLimit, HomeWidgetProviderContract.MAX_ITEM_LIMIT));
             providerRequests.add(new WidgetProviderPort.Request(
                     instanceId, definition, configurationMap, itemLimit));
         }
@@ -143,16 +149,18 @@ public class HomeReadModelService {
                 .map(widget -> widget.source().sourceKey())
                 .distinct().sorted().toList();
         boolean partial = !unavailableSources.isEmpty();
+        HomeReadModelDtos.HomeShell shell = HomeReadModelDtos.shell(experience);
+        List<HomeReadModelDtos.AppGroup> appDock = appDock(experience, context);
         String changeVersion = changeVersion(
-                context, experience, view, runtimeCatalog, widgets, mode, device);
+                context, experience, view, runtimeCatalog, widgets, shell, appDock, mode, device);
         HomeReadModelDtos.HomeReadModel model = new HomeReadModelDtos.HomeReadModel(
                 HomeReadModelDtos.SCHEMA_VERSION,
                 mode,
                 new HomeReadModelDtos.EffectiveView(
                         view.viewId(), view.revision(), view.source(), mode, device,
                         view.layout(), view.deviceOverlay()),
-                HomeReadModelDtos.shell(experience),
-                appDock(experience, context),
+                shell,
+                appDock,
                 List.copyOf(widgets),
                 now,
                 expiresAt,
@@ -204,6 +212,13 @@ public class HomeReadModelService {
                         new BaseException(ErrorCode.INVALID_STATE,
                                 "Widget source application is not registered."));
         if (definition.ownerProductKey() == null || definition.ownerProductKey().isBlank()
+                || definition.manifestHash() == null
+                || !definition.manifestHash().matches("[0-9a-f]{64}")
+                || definition.rendererBindingRevision() == null
+                || definition.rendererBindingRevision().isBlank()
+                || definition.rendererBindingRevision().length() > 160
+                || definition.rendererKey() == null
+                || definition.rendererKey().isBlank()
                 || definition.requiredAuthorities() == null
                 || definition.requiredAuthorities().isEmpty()
                 || !CLASSIFICATIONS.contains(definition.classification())
@@ -349,14 +364,22 @@ public class HomeReadModelService {
             EffectiveHomeViewQuery.EffectiveView view,
             WidgetCatalogService.RuntimeCatalog catalog,
             List<HomeReadModelDtos.Widget> widgets,
+            HomeReadModelDtos.HomeShell shell,
+            List<HomeReadModelDtos.AppGroup> appDock,
             String mode,
             String device) {
-        String material = context.fingerprint() + "\n" + mode + "\n" + device + "\n"
+        Map<String, Object> representation = new LinkedHashMap<>();
+        representation.put("shell", shell);
+        representation.put("appDock", appDock);
+        representation.put("composition", view.layout());
+        representation.put("deviceOverlay", view.deviceOverlay());
+        representation.put("widgets", widgets);
+        String material = context.fingerprint() + "\n" + context.locale() + "\n"
+                + context.timeZone() + "\n" + mode + "\n" + device + "\n"
                 + experience.version() + "\n" + view.revision() + "\n"
                 + catalog.catalogRevision() + "\n" + catalog.bindingRevision() + "\n"
                 + catalog.policyRevision() + "\n" + catalog.safetyRevision() + "\n"
-                + widgets.stream().map(widget -> widget.instanceId() + ":" + widget.state() + ":"
-                        + widget.source().resultVersion()).collect(Collectors.joining("\n"));
+                + canonicalJson.fingerprint(representation);
         return sha256(material);
     }
 
