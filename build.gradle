@@ -61,6 +61,22 @@ tasks.register('checkHomeOwnerProviderContracts', Exec) {
     commandLine 'python3', 'scripts/check-home-owner-provider-contracts.py'
 }
 
+tasks.register('wave4OwnerWidgetSeedTest', Exec) {
+    group = 'verification'
+    description = 'Runs fail-closed Wave 4 owner-widget seed and evidence regressions.'
+    workingDir rootDir
+    commandLine 'python3', '-m', 'unittest', 'discover',
+            '-s', 'scripts/tests', '-p', 'test_wave4_owner_widget_seed.py', '-v'
+}
+
+tasks.register('checkWave4OwnerWidgetSeed', Exec) {
+    group = 'verification'
+    description = 'Verifies 12 owner widgets remain truthful, hash-bound SHADOW fixtures.'
+    dependsOn tasks.named('wave4OwnerWidgetSeedTest')
+    workingDir rootDir
+    commandLine 'python3', 'scripts/check-wave4-owner-widget-seed.py'
+}
+
 tasks.register('checkSourceSize', Exec) {
     dependsOn 'sourceSizeRatchetTest'
     workingDir rootDir
@@ -180,6 +196,7 @@ tasks.named('check') {
     dependsOn tasks.named('checkHomeRuntimeBoundaries')
     dependsOn tasks.named('checkHomeRuntimeGateTemplate')
     dependsOn tasks.named('checkHomeOwnerProviderContracts')
+    dependsOn tasks.named('checkWave4OwnerWidgetSeed')
     dependsOn tasks.named('checkSourceSize')
     dependsOn tasks.named('checkTestSourceSize')
     dependsOn tasks.named('checkJavaDependencyCycles')
