@@ -47,9 +47,11 @@ class HomeRuntimeGateTest(unittest.TestCase):
                 "slo": {
                     "status": "PASS", "sampleCount": 1000,
                     "serverP95Ms": 850, "hardFailureRate": 0.001,
+                    "liveProduction": False,
                 },
                 "rollback": {
                     "status": "PASS", "v2KillSwitchVerified": True,
+                    "commandKillSwitchVerified": True,
                     "providerKillSwitchVerified": True, "cachePurgeVerified": True,
                     "recoveryTimeSeconds": 120,
                 },
@@ -65,6 +67,17 @@ class HomeRuntimeGateTest(unittest.TestCase):
             with patch.object(CHECKER_MODULE, "_commit_is_ancestor", return_value=True):
                 problems = CHECKER_MODULE.validate(evidence, root)
             self.assertTrue(any("hash mismatch" in item for item in problems))
+
+    def test_wave_four_cannot_claim_production_vitals_or_canary(self) -> None:
+        for field, value in (("status", "PASS"), ("lcpP75", 2200),
+                             ("inpP75", 180), ("canary", "PASS")):
+            with self.subTest(field=field):
+                evidence = copy.deepcopy(TEMPLATE)
+                evidence["wave6ProductionTelemetry"][field] = value
+
+                problems = CHECKER_MODULE.validate(evidence, allow_pending=True)
+
+                self.assertTrue(any("wave6ProductionTelemetry" in item for item in problems))
 
     def test_cross_tenant_leak_and_incomplete_provider_coverage_fail_closed(self) -> None:
         evidence = copy.deepcopy(TEMPLATE)

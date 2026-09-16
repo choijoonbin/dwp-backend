@@ -178,6 +178,8 @@ def validate(
             problems.append(f"security.{field} must equal zero")
 
     slo = _object(evidence.get("slo"), "slo", problems)
+    if slo.get("liveProduction") is not False:
+        problems.append("slo.liveProduction must remain false for the Wave 4 pre-production gate")
     if allow_pending:
         if slo.get("status") != "PENDING":
             problems.append("pending slo.status must equal PENDING")
@@ -200,6 +202,8 @@ def validate(
             problems.append("rollback.status must equal PASS")
         if rollback.get("v2KillSwitchVerified") is not True:
             problems.append("rollback.v2KillSwitchVerified must be true")
+        if rollback.get("commandKillSwitchVerified") is not True:
+            problems.append("rollback.commandKillSwitchVerified must be true")
         if rollback.get("providerKillSwitchVerified") is not True:
             problems.append("rollback.providerKillSwitchVerified must be true")
         if rollback.get("cachePurgeVerified") is not True:
@@ -207,6 +211,20 @@ def validate(
         seconds = rollback.get("recoveryTimeSeconds")
         if type(seconds) is not int or not 0 <= seconds <= 300:
             problems.append("rollback.recoveryTimeSeconds must be between 0 and 300")
+
+    production = _object(
+        evidence.get("wave6ProductionTelemetry"),
+        "wave6ProductionTelemetry",
+        problems,
+    )
+    if production.get("status") != "PENDING":
+        problems.append("wave6ProductionTelemetry.status must remain PENDING through Wave 4")
+    if production.get("lcpP75") is not None:
+        problems.append("wave6ProductionTelemetry.lcpP75 must remain null through Wave 4")
+    if production.get("inpP75") is not None:
+        problems.append("wave6ProductionTelemetry.inpP75 must remain null through Wave 4")
+    if production.get("canary") != "PENDING":
+        problems.append("wave6ProductionTelemetry.canary must remain PENDING through Wave 4")
     return problems
 
 
