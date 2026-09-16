@@ -26,6 +26,7 @@ public final class HomeRuntimeRolloutProperties {
         this.ceiling = state(ceiling);
         this.activeRings = tokens(activeRings).stream()
                 .map(HomeRuntimeRolloutProperties::ring)
+                .filter(java.util.Objects::nonNull)
                 .collect(Collectors.toUnmodifiableSet());
         this.activeModes = tokens(activeModes).stream()
                 .map(value -> value.toUpperCase(Locale.ROOT))
@@ -64,7 +65,7 @@ public final class HomeRuntimeRolloutProperties {
         try {
             return HomeRuntimeRolloutDecision.Ring.valueOf(value.toUpperCase(Locale.ROOT));
         } catch (RuntimeException exception) {
-            return HomeRuntimeRolloutDecision.Ring.CONTROL;
+            return null;
         }
     }
 

@@ -44,6 +44,10 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
     public static final String ACTIVE_ACCESS_MODE_HEADER = "X-DWP-Active-Access-Mode";
     public static final String SCOPE_QUERY_PARAMETER = "contextScopeKey";
     private static final Set<String> ROLLOUT_STATES = Set.of("000", "100", "110", "111");
+    private static final Set<String> HOME_RUNTIME_ROUTE_KEYS = Set.of(
+            "route.workplace.work.home-read-model.data",
+            "route.workplace.work.home-shadow-receipt.action",
+            "route.workplace.work.home-widget-action-execute.action");
     private static final List<String> INTERNAL_HEADERS = List.of(
             ROUTE_HEADER, CURRENT_REVISION_HEADER, CURRENT_REVALIDATE_AT_HEADER,
             RESPONSE_REVISION_HEADER, CONTEXT_HEADER, SCOPE_HEADER, ACTIVE_ACCESS_MODE_HEADER,
@@ -147,7 +151,13 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             return error(sanitizedExchange, HttpStatus.SERVICE_UNAVAILABLE,
                     "AUTHORITY_RESOLUTION_UNAVAILABLE", null);
         }
-        if (rollout.charAt(1) == '0') return chain.filter(sanitizedExchange);
+        // State 100 normally bypasses the product PEP. Home Runtime shadow reads are the
+        // deliberate exception: the owner contract requires recipient-bound authority
+        // evidence even while the legacy UI remains authoritative. State 000 stays a hard
+        // compatibility bypass and every non-Home product preserves the existing behavior.
+        if (rollout.charAt(1) == '0' && !requiresHomeShadowAuthority(rollout, route)) {
+            return chain.filter(sanitizedExchange);
+        }
 
         Long actorId = positive(sanitized.getHeaders().getFirst(VerifiedIdentityFilter.USER_HEADER));
         Long tenantId = positive(sanitized.getHeaders().getFirst(VerifiedIdentityFilter.TENANT_HEADER));
@@ -296,6 +306,13 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
                 || value.indexOf(',') >= 0 || value.indexOf('\r') >= 0
                 || value.indexOf('\n') >= 0) return null;
         return value.trim();
+    }
+
+    private boolean requiresHomeShadowAuthority(
+            String rollout,
+            GeneratedProductRouteCatalog.Route route) {
+        return "100".equals(rollout)
+                && HOME_RUNTIME_ROUTE_KEYS.contains(route.routeContractKey());
     }
 
     private ScopeSelection scopeSelection(String rawQuery) {

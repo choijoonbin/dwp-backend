@@ -13,17 +13,26 @@ public final class WidgetProviderException extends RuntimeException {
 
     private final Kind kind;
     private final String reasonCode;
+    private final String securityViolationReason;
 
     public WidgetProviderException(Kind kind, String reasonCode, String message) {
-        super(message);
-        this.kind = kind;
-        this.reasonCode = reasonCode;
+        this(kind, reasonCode, message, null, null);
     }
 
     public WidgetProviderException(Kind kind, String reasonCode, String message, Throwable cause) {
+        this(kind, reasonCode, message, cause, null);
+    }
+
+    WidgetProviderException(
+            Kind kind,
+            String reasonCode,
+            String message,
+            Throwable cause,
+            String securityViolationReason) {
         super(message, cause);
         this.kind = kind;
         this.reasonCode = reasonCode;
+        this.securityViolationReason = securityViolationReason;
     }
 
     public Kind kind() {
@@ -32,5 +41,9 @@ public final class WidgetProviderException extends RuntimeException {
 
     public String reasonCode() {
         return reasonCode;
+    }
+
+    public String securityViolationReason() {
+        return securityViolationReason;
     }
 }

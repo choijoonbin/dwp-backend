@@ -57,6 +57,7 @@ public record HomeRuntimeContext(
         String material = tenantId + "\n" + userId + "\n"
                 + (personPublicId == null ? "" : personPublicId) + "\n"
                 + revision + "\n"
+                + revalidate.toString() + "\n"
                 + String.join(",", permissionSet.stream().sorted().toList()) + "\n"
                 + String.join(",", roleSet.stream().sorted().toList()) + "\n"
                 + String.join(",", groups.stream().sorted().toList());
@@ -76,6 +77,33 @@ public record HomeRuntimeContext(
 
     public boolean has(String authority) {
         return permissions.contains(authority.toUpperCase(Locale.ROOT));
+    }
+
+    /**
+     * Stable authority identity for durable command idempotency. The short-lived authority lease
+     * expiry is deliberately excluded: a retry after Gateway renews the same authority decision
+     * must replay the original receipt rather than conflict solely because revalidation moved.
+     */
+    public String stableAuthorityFingerprint() {
+        String material = tenantId + "\n" + userId + "\n"
+                + (personPublicId == null ? "" : personPublicId) + "\n"
+                + authorityDecisionRevision + "\n"
+                + String.join(",", permissions.stream().sorted().toList()) + "\n"
+                + String.join(",", roles.stream().sorted().toList()) + "\n"
+                + String.join(",", groupRefs.stream().sorted().toList());
+        return sha256(material);
+    }
+
+    /**
+     * Revalidates the trusted authority lease at the point where recipient data is disclosed or
+     * mutated. Context construction is not sufficient because a provider call may outlive the
+     * lease that was current when the request entered the Platform service.
+     */
+    public void requireAuthorityCurrent() {
+        if (authorityRevalidateAt == null
+                || !OffsetDateTime.now(ZoneOffset.UTC).isBefore(authorityRevalidateAt)) {
+            throw unavailable("Trusted Home authority decision has expired.");
+        }
     }
 
     public String permissionsHeader() {

@@ -41,7 +41,9 @@ public class WorkplaceNativeWidgetProvider implements WidgetProviderPort {
             List<Request> requests,
             OffsetDateTime deadline) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        if (!deadline.isAfter(now)) {
+        context.requireAuthorityCurrent();
+        if (deadline == null || deadline.isAfter(context.authorityRevalidateAt())
+                || !deadline.isAfter(now)) {
             throw new WidgetProviderException(
                     WidgetProviderException.Kind.TIMEOUT,
                     "PROVIDER_DEADLINE_EXCEEDED",
@@ -51,6 +53,13 @@ public class WorkplaceNativeWidgetProvider implements WidgetProviderPort {
         List<WorkplaceDtos.Booking> bookings = workplace.myBookings(
                 context.tenantId(), context.userId(), now.minusHours(1), now.plusDays(7),
                 context.locale(), context.groupsHeader());
+        context.requireAuthorityCurrent();
+        if (!deadline.isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
+            throw new WidgetProviderException(
+                    WidgetProviderException.Kind.TIMEOUT,
+                    "PROVIDER_DEADLINE_EXCEEDED",
+                    "The Workplace Home provider deadline elapsed during execution.");
+        }
         List<WorkplaceDtos.Booking> projected = bookings.stream()
                 .filter(booking -> booking.endsAt().isAfter(now))
                 .limit(Math.max(1, Math.min(maximumItems,
@@ -93,9 +102,18 @@ public class WorkplaceNativeWidgetProvider implements WidgetProviderPort {
                             null, false, resultVersion),
                     payload, actions, List.of()));
         }
-        return new HomeWidgetProviderContract.BatchResponse(
-                HomeWidgetProviderContract.SCHEMA_VERSION,
-                context.tenantId(), context.userId(),
-                context.authorityDecisionRevision(), List.copyOf(results));
+        HomeWidgetProviderContract.BatchResponse response =
+                new HomeWidgetProviderContract.BatchResponse(
+                        HomeWidgetProviderContract.SCHEMA_VERSION,
+                        context.tenantId(), context.userId(),
+                        context.authorityDecisionRevision(), List.copyOf(results));
+        context.requireAuthorityCurrent();
+        if (!deadline.isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
+            throw new WidgetProviderException(
+                    WidgetProviderException.Kind.TIMEOUT,
+                    "PROVIDER_DEADLINE_EXCEEDED",
+                    "The Workplace Home provider deadline elapsed before disclosure.");
+        }
+        return response;
     }
 }

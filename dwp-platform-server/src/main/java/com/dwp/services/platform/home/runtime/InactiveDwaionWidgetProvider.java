@@ -26,6 +26,14 @@ public class InactiveDwaionWidgetProvider implements WidgetProviderPort {
             List<Request> requests,
             OffsetDateTime deadline) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        context.requireAuthorityCurrent();
+        if (deadline == null || deadline.isAfter(context.authorityRevalidateAt())
+                || !deadline.isAfter(now)) {
+            throw new WidgetProviderException(
+                    WidgetProviderException.Kind.TIMEOUT,
+                    "PROVIDER_DEADLINE_EXCEEDED",
+                    "The DWAI.ON Home provider deadline elapsed before execution.");
+        }
         List<HomeWidgetProviderContract.WidgetResult> results = requests.stream()
                 .map(request -> new HomeWidgetProviderContract.WidgetResult(
                         request.instanceId(), request.definition().definitionKey(),
@@ -37,9 +45,18 @@ public class InactiveDwaionWidgetProvider implements WidgetProviderPort {
                                 "PROVIDER_INACTIVE_WAVE4", false, null),
                         Map.of(), List.of(), List.of()))
                 .toList();
-        return new HomeWidgetProviderContract.BatchResponse(
-                HomeWidgetProviderContract.SCHEMA_VERSION,
-                context.tenantId(), context.userId(),
-                context.authorityDecisionRevision(), results);
+        HomeWidgetProviderContract.BatchResponse response =
+                new HomeWidgetProviderContract.BatchResponse(
+                        HomeWidgetProviderContract.SCHEMA_VERSION,
+                        context.tenantId(), context.userId(),
+                        context.authorityDecisionRevision(), results);
+        context.requireAuthorityCurrent();
+        if (!deadline.isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
+            throw new WidgetProviderException(
+                    WidgetProviderException.Kind.TIMEOUT,
+                    "PROVIDER_DEADLINE_EXCEEDED",
+                    "The DWAI.ON Home provider deadline elapsed before disclosure.");
+        }
+        return response;
     }
 }

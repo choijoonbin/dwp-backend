@@ -65,6 +65,43 @@ class WidgetRuntimeBrokerIsolationSecurityTest {
         assertThat(results.get(1).actions()).isEmpty();
     }
 
+    @Test
+    void crossScopeProviderResponseIsBlockedAndEmittedExactlyOnce() {
+        HomeRuntimeContext context = TestFixtures.context();
+        WidgetProviderPort.Request request = request(
+                "core.work.focus", "APP.WORK", "home.focus");
+        HomeWidgetProviderContract.BatchResponse valid = response(context, request);
+        WidgetProviderPort provider = new FixedProvider(
+                "platform",
+                new HomeWidgetProviderContract.BatchResponse(
+                        valid.schemaVersion(), valid.tenantId(), valid.userId() + 1,
+                        valid.authorityDecisionRevision(), valid.results()));
+        HomeRuntimeProperties properties = properties();
+        SimpleMeterRegistry meters = new SimpleMeterRegistry();
+        WidgetRuntimeBroker broker = new WidgetRuntimeBroker(
+                List.of(provider), new RecipientBoundWidgetCache(properties),
+                new ProviderResultValidator(mapper, properties), properties,
+                new HomeRuntimeTelemetry(meters),
+                new HomeCanonicalJson(mapper), executor);
+
+        List<HomeWidgetProviderContract.WidgetResult> results = broker.read(
+                context,
+                new WidgetRuntimeBroker.Revisions(
+                        "CLASSIC", "DESKTOP_STANDARD", "view-1", "catalog-1",
+                        "policy-1", "safety-1", "rollout-1", "INTERNAL"),
+                List.of(request));
+
+        assertThat(results).singleElement().satisfies(result -> {
+            assertThat(result.state()).isEqualTo(HomeWidgetProviderContract.State.UNAVAILABLE);
+            assertThat(result.payload()).isEmpty();
+            assertThat(result.actions()).isEmpty();
+        });
+        assertThat(meters.get("dwp.home.security.violation")
+                .tags("release_ring", "INTERNAL", "mode", "CLASSIC",
+                        "scope", "PROVIDER", "reason", "CROSS_SCOPE")
+                .counter().count()).isEqualTo(1);
+    }
+
     private WidgetProviderPort.Request request(
             String definitionKey,
             String sourceResource,

@@ -40,8 +40,9 @@ public class HomeOwnerActionReceiptService {
             String contractId,
             HomeWidgetProviderContract.CommandRequest request,
             Supplier<HomeWidgetProviderContract.CommandResponse> ownerMutation) {
+        context.requireAuthorityCurrent();
         String fingerprint = canonicalJson.fingerprint(Map.of(
-                "authority", context.fingerprint(),
+                "authority", context.stableAuthorityFingerprint(),
                 "contractId", contractId,
                 "request", request));
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
@@ -57,9 +58,11 @@ public class HomeOwnerActionReceiptService {
                         "The owner idempotency key is expired, in flight, or bound to another command.");
             }
             try {
-                return objectMapper.treeToValue(
+                HomeWidgetProviderContract.CommandResponse response = objectMapper.treeToValue(
                         existing.getResponsePayload(),
                         HomeWidgetProviderContract.CommandResponse.class);
+                context.requireAuthorityCurrent();
+                return response;
             } catch (JsonProcessingException exception) {
                 throw new BaseException(
                         ErrorCode.INTERNAL_SERVER_ERROR,
@@ -87,7 +90,9 @@ public class HomeOwnerActionReceiptService {
                     ErrorCode.RESOURCE_CONFLICT,
                     "The owner idempotency key is already being processed.");
         }
+        context.requireAuthorityCurrent();
         HomeWidgetProviderContract.CommandResponse response = ownerMutation.get();
+        context.requireAuthorityCurrent();
         try {
             if (objectMapper.writeValueAsBytes(response).length > MAX_RESPONSE_BYTES) {
                 throw new BaseException(
@@ -103,6 +108,7 @@ public class HomeOwnerActionReceiptService {
         claimed.setReceiptState("COMPLETED");
         claimed.setResponsePayload(objectMapper.valueToTree(response));
         receipts.saveAndFlush(claimed);
+        context.requireAuthorityCurrent();
         return response;
     }
 }

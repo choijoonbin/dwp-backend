@@ -15,6 +15,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -46,30 +47,56 @@ public class WebVitalsController {
     @PostMapping
     @ApiResponse(responseCode = "202", description = "Metric accepted")
     @ApiResponse(responseCode = "422", description = "Unsupported metric or rating")
-    public ResponseEntity<Void> ingest(@Valid @RequestBody WebVitalRequest request) {
+    public ResponseEntity<Void> ingest(
+            @RequestHeader(value = "X-DWP-Home-Runtime-State", required = false)
+            String trustedHomeRuntime,
+            @RequestHeader(value = "X-DWP-Home-Rollout-Ring", required = false)
+            String trustedRolloutRing,
+            @Valid @RequestBody WebVitalRequest request) {
         String metric = request.name().toUpperCase(Locale.ROOT);
         String rating = request.rating().toLowerCase(Locale.ROOT);
         if (!METRICS.contains(metric) || !RATINGS.contains(rating)
-                || !validHomeDimensions(request)) {
+                || !validHomeDimensions(request, trustedHomeRuntime, trustedRolloutRing)) {
             return ResponseEntity.unprocessableEntity().build();
         }
-        String meterName = "CLS".equals(metric)
-                ? "dwp.frontend.web_vital.cls"
-                : "dwp.frontend.web_vital.duration";
+        boolean home = isHome(request.routeGroup());
+        String meterName = home
+                ? switch (metric) {
+                    case "LCP" -> "dwp.home.web.vital.lcp.ms";
+                    case "INP" -> "dwp.home.web.vital.inp.ms";
+                    default -> "dwp.home.web.vital.cls.ratio";
+                }
+                : "CLS".equals(metric)
+                    ? "dwp.frontend.web_vital.cls"
+                    : "dwp.frontend.web_vital.duration";
         DistributionSummary.Builder builder = DistributionSummary.builder(meterName)
                 .description("Browser Core Web Vital samples received through the DWP Gateway")
-                .baseUnit("CLS".equals(metric) ? "1" : "milliseconds")
-                .tag("rating", rating)
-                .tag("route.group", request.routeGroup());
-        if (!"CLS".equals(metric)) builder.tag("metric", metric);
-        if (isHome(request.routeGroup())) {
-            builder.tag("home.mode", request.homeMode())
-                    .tag("home.runtime", request.homeRuntime())
-                    .tag("rollout.ring", request.rolloutRing())
-                    .tag("device.class", request.deviceClass());
+                .publishPercentileHistogram();
+        if (home) {
+            String device = request.deviceClass().startsWith("MOBILE_")
+                    ? "MOBILE" : "DESKTOP";
+            builder.tag("release_ring", trustedRolloutRing)
+                    .tag("mode", request.homeMode())
+                    .tag("runtime", trustedHomeRuntime)
+                    .tag("device_class", device);
+            registry.counter("dwp.home.web.vital.sample",
+                    "release_ring", trustedRolloutRing,
+                    "mode", request.homeMode(),
+                    "runtime", trustedHomeRuntime,
+                    "device_class", device,
+                    "vital_name", metric).increment();
+        } else {
+            builder.baseUnit("CLS".equals(metric) ? "1" : "milliseconds")
+                    .tag("rating", rating)
+                    .tag("route.group", request.routeGroup());
+            if (!"CLS".equals(metric)) builder.tag("metric", metric);
         }
-        builder.publishPercentileHistogram().register(registry).record(request.value());
+        builder.register(registry).record(request.value());
         return ResponseEntity.accepted().location(URI.create("/v1/observability/web-vitals")).build();
+    }
+
+    ResponseEntity<Void> ingest(WebVitalRequest request) {
+        return ingest(null, null, request);
     }
 
     public record WebVitalRequest(
@@ -106,20 +133,29 @@ public class WebVitalsController {
         }
     }
 
-    private boolean validHomeDimensions(WebVitalRequest request) {
+    private boolean validHomeDimensions(
+            WebVitalRequest request,
+            String trustedHomeRuntime,
+            String trustedRolloutRing) {
         if (!isHome(request.routeGroup())) {
             return request.homeMode() == null
                     && request.homeRuntime() == null
                     && request.rolloutRing() == null
-                    && request.deviceClass() == null;
+                    && request.deviceClass() == null
+                    && trustedHomeRuntime == null
+                    && trustedRolloutRing == null;
         }
         return request.homeMode() != null
                 && request.homeRuntime() != null
                 && request.rolloutRing() != null
                 && request.deviceClass() != null
+                && trustedHomeRuntime != null
+                && trustedRolloutRing != null
                 && HOME_MODES.contains(request.homeMode())
-                && HOME_RUNTIME_STATES.contains(request.homeRuntime())
-                && HOME_RINGS.contains(request.rolloutRing())
+                && HOME_RUNTIME_STATES.contains(trustedHomeRuntime)
+                && HOME_RINGS.contains(trustedRolloutRing)
+                && trustedHomeRuntime.equals(request.homeRuntime())
+                && trustedRolloutRing.equals(request.rolloutRing())
                 && DEVICE_CLASSES.contains(request.deviceClass());
     }
 

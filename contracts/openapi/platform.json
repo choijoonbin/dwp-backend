@@ -47516,6 +47516,7 @@
     "/v1/observability/web-vitals": {
       "post": {
         "operationId": "ingest",
+        "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -52425,7 +52426,17 @@
     "/v2/home/shadow-receipts": {
       "post": {
         "operationId": "recordHomeShadowReceiptV2",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "default": "ko-KR",
+              "type": "string"
+            }
+          }
+        ],
         "requestBody": {
           "content": {
             "application/json": {
@@ -52437,7 +52448,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "202": {
             "content": {
               "*/*": {
                 "schema": {
@@ -52445,7 +52456,13 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Comparison receipt accepted"
+          },
+          "400": {
+            "description": "Receipt or trusted rollout context is invalid"
+          },
+          "503": {
+            "description": "Home rollout decision is unavailable"
           }
         },
         "summary": "Record a bounded privacy-safe Home legacy/v2 comparison receipt",

@@ -224,6 +224,31 @@ class HomeWidgetCommandServiceTest {
                 "HOME_WIDGET_ACTION", instanceId + ":accept-item", commandId.toString(), "DENIED");
     }
 
+    @Test
+    void authorityExpiryDuringOwnerCommandRejectsTheReceiptAndCapsDeadline() {
+        HomeRuntimeContext context = TestFixtures.withAuthorityRevalidateAt(
+                TestFixtures.context(),
+                OffsetDateTime.now(ZoneOffset.UTC).plus(Duration.ofMillis(300)));
+        UUID commandId = UUID.randomUUID();
+        UUID instanceId = UUID.randomUUID();
+        FakeCommandProvider provider = new FakeCommandProvider(context, commandId);
+        provider.delayMillis = 500;
+        HomeReadModelService readModels = mock(HomeReadModelService.class);
+        when(readModels.read(context, "CLASSIC", "DESKTOP_STANDARD"))
+                .thenReturn(new HomeReadModelDtos.ReadResult(model(instanceId, "result-1"), "\"e\""));
+        HomeCommandReceiptService receipts = mock(HomeCommandReceiptService.class);
+        HomeWidgetCommandService service = service(provider, readModels, receipts);
+
+        assertThatThrownBy(() -> service.execute(
+                context, "CLASSIC", "DESKTOP_STANDARD", commandId,
+                new HomeReadModelDtos.CommandRequest(
+                        instanceId, "accept-item", "result-1", Map.of())))
+                .isInstanceOf(BaseException.class);
+
+        assertThat(provider.deadline.get()).isBeforeOrEqualTo(context.authorityRevalidateAt());
+        verify(receipts, never()).record(any(), any(), any(), any(), any(), any(), any());
+    }
+
     private HomeWidgetCommandService service(
             FakeCommandProvider provider,
             HomeReadModelService readModels,
@@ -279,6 +304,7 @@ class HomeWidgetCommandServiceTest {
         private final AtomicInteger calls = new AtomicInteger();
         private final HomeRuntimeContext context;
         private final UUID commandId;
+        private final AtomicReference<OffsetDateTime> deadline = new AtomicReference<>();
         private volatile long delayMillis;
         private volatile boolean fail;
 
@@ -306,6 +332,7 @@ class HomeWidgetCommandServiceTest {
                 HomeWidgetProviderContract.CommandRequest request,
                 OffsetDateTime deadline) {
             calls.incrementAndGet();
+            this.deadline.set(deadline);
             if (fail) {
                 throw new WidgetProviderException(
                         WidgetProviderException.Kind.UNAVAILABLE,

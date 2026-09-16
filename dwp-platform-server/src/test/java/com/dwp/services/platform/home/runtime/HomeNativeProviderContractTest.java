@@ -1,6 +1,8 @@
 package com.dwp.services.platform.home.runtime;
 
+import com.dwp.core.exception.BaseException;
 import com.dwp.platform.contract.home.HomeWidgetProviderContract;
+import com.dwp.services.platform.home.overview.HomeOverviewService;
 import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
 import com.dwp.services.platform.widgetregistry.WidgetCatalogService;
 import com.dwp.services.platform.widgetregistry.WidgetRegistryDtos;
@@ -19,7 +21,11 @@ import java.util.UUID;
 import static com.dwp.services.platform.workplace.WorkplaceTypes.BookingStatus.RESERVED;
 import static com.dwp.services.platform.workplace.WorkplaceTypes.ResourceType.FOCUS_POD;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -88,6 +94,32 @@ class HomeNativeProviderContractTest {
             assertThat(result.payload()).isEmpty();
             assertThat(result.actions()).isEmpty();
         });
+    }
+
+    @Test
+    void expiredAuthorityStopsThePlatformNativeCommandBeforeOwnerMutation() {
+        HomeRuntimeContext context = TestFixtures.withAuthorityRevalidateAt(
+                TestFixtures.context(), OffsetDateTime.now(ZoneOffset.UTC).minusNanos(1));
+        HomeOverviewService overview = mock(HomeOverviewService.class);
+        HomeOwnerActionReceiptService ownerReceipts = mock(HomeOwnerActionReceiptService.class);
+        PlatformNativeWidgetProvider provider = new PlatformNativeWidgetProvider(
+                overview, objectMapper, ownerReceipts);
+        HomeOwnerActionContracts.Contract contract =
+                HomeOwnerActionContracts.DISMISS_RECOMMENDATION;
+        HomeWidgetProviderContract.CommandRequest request =
+                new HomeWidgetProviderContract.CommandRequest(
+                        HomeWidgetProviderContract.SCHEMA_VERSION,
+                        UUID.randomUUID(), UUID.randomUUID(),
+                        contract.definitionKey(), contract.definitionManifestHash(),
+                        "binding-revision-1234567890", contract.actionId(), contract.commandKey(),
+                        "result-1", Map.of("recommendationKey", "work-due-soon"));
+
+        assertThatThrownBy(() -> provider.executeCommand(
+                context, request, OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(1)))
+                .isInstanceOf(BaseException.class);
+
+        verify(ownerReceipts, never()).execute(any(), any(), any(), any());
+        verify(overview, never()).recordFeedback(anyLong(), anyLong(), any(), any(), any());
     }
 
     private HomeRuntimeContext context() {

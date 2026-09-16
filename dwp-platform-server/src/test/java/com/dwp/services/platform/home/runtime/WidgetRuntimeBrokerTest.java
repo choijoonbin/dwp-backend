@@ -17,6 +17,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class WidgetRuntimeBrokerTest {
 
@@ -137,6 +138,54 @@ class WidgetRuntimeBrokerTest {
         assertThat(provider.calls).hasValue(2);
     }
 
+    @Test
+    void providerDeadlineIsCappedByTheAuthorityLease() {
+        FakeProvider provider = new FakeProvider();
+        HomeRuntimeContext context = TestFixtures.context();
+        HomeRuntimeContext shortLease = TestFixtures.withAuthorityRevalidateAt(
+                context, OffsetDateTime.now(ZoneOffset.UTC).plusSeconds(2));
+        WidgetProviderPort.Request request = TestFixtures.request("core.work.focus");
+        provider.response = response(shortLease, request, Duration.ofSeconds(20));
+        WidgetRuntimeBroker broker = broker(provider, properties(10_000));
+
+        broker.read(shortLease, revisions(), List.of(request));
+
+        assertThat(provider.deadline.get()).isNotNull()
+                .isBeforeOrEqualTo(shortLease.authorityRevalidateAt());
+    }
+
+    @Test
+    void authorityExpiryDuringProviderCallPreventsResponseAndCacheDisclosure() {
+        FakeProvider provider = new FakeProvider();
+        HomeRuntimeContext context = TestFixtures.withAuthorityRevalidateAt(
+                TestFixtures.context(),
+                OffsetDateTime.now(ZoneOffset.UTC).plus(Duration.ofMillis(300)));
+        WidgetProviderPort.Request request = TestFixtures.request("core.work.focus");
+        provider.delayMillis = 500;
+        provider.response = response(context, request, Duration.ofSeconds(20));
+        WidgetRuntimeBroker broker = broker(provider, properties(500));
+
+        assertThatThrownBy(() -> broker.read(context, revisions(), List.of(request)))
+                .isInstanceOf(com.dwp.core.exception.BaseException.class);
+        assertThat(provider.deadline.get()).isBeforeOrEqualTo(context.authorityRevalidateAt());
+    }
+
+    @Test
+    void expiredAuthorityCannotReuseARecipientCacheEntry() {
+        FakeProvider provider = new FakeProvider();
+        HomeRuntimeContext context = TestFixtures.context();
+        WidgetProviderPort.Request request = TestFixtures.request("core.work.focus");
+        provider.response = response(context, request, Duration.ofSeconds(20));
+        WidgetRuntimeBroker broker = broker(provider, properties(400));
+        broker.read(context, revisions(), List.of(request));
+        HomeRuntimeContext expired = TestFixtures.withAuthorityRevalidateAt(
+                context, OffsetDateTime.now(ZoneOffset.UTC).minusNanos(1));
+
+        assertThatThrownBy(() -> broker.read(expired, revisions(), List.of(request)))
+                .isInstanceOf(com.dwp.core.exception.BaseException.class);
+        assertThat(provider.calls).hasValue(1);
+    }
+
     private WidgetRuntimeBroker broker(FakeProvider provider, HomeRuntimeProperties properties) {
         RecipientBoundWidgetCache cache = new RecipientBoundWidgetCache(properties);
         return new WidgetRuntimeBroker(
@@ -177,6 +226,8 @@ class WidgetRuntimeBrokerTest {
 
     private static final class FakeProvider implements WidgetProviderPort {
         private final AtomicInteger calls = new AtomicInteger();
+        private final java.util.concurrent.atomic.AtomicReference<OffsetDateTime> deadline =
+                new java.util.concurrent.atomic.AtomicReference<>();
         private volatile HomeWidgetProviderContract.BatchResponse response;
         private volatile WidgetProviderException failure;
         private volatile long delayMillis;
@@ -192,6 +243,7 @@ class WidgetRuntimeBrokerTest {
                 List<Request> requests,
                 OffsetDateTime deadline) {
             calls.incrementAndGet();
+            this.deadline.set(deadline);
             if (delayMillis > 0) {
                 try {
                     Thread.sleep(delayMillis);

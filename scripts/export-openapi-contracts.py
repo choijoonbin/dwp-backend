@@ -67,6 +67,26 @@ EXPECTED_DECISION_REVISION_PARAMETER = {
         "rolloutStates": ["110", "111"],
     },
 }
+RESPONSE_DECISION_REVISION_HEADER = {
+    "description": (
+        "Current server-owned product authority decision revision. Reuse this value as "
+        "X-DWP-Expected-Decision-Revision for a subsequent governed mutation."
+    ),
+    "schema": {"type": "string", "minLength": 1, "maxLength": 200},
+    "x-dwp-conditional-present": {
+        "rolloutStates": ["100", "110", "111"],
+        "authority": "GATEWAY",
+    },
+}
+HOME_RUNTIME_PATHS = frozenset({
+    "/api/platform/v2/home",
+    "/api/platform/v2/home/shadow-receipts",
+    "/api/platform/v2/home/widget-actions:execute",
+})
+HOME_RUNTIME_MUTATION_PATHS = frozenset({
+    "/api/platform/v2/home/shadow-receipts",
+    "/api/platform/v2/home/widget-actions:execute",
+})
 
 APPROVAL_SIGNATURE_FEATURE_OPERATIONS = frozenset({
     ("get", "/v1/admin/signatures/diagnostics"),
@@ -454,11 +474,33 @@ def add_product_governance_contract(document: dict[str, Any]) -> None:
                     f"{method.upper()} {path}"
                 )
             canonical_revision = copy.deepcopy(EXPECTED_DECISION_REVISION_PARAMETER)
+            if path in HOME_RUNTIME_MUTATION_PATHS:
+                canonical_revision["description"] = (
+                    "Required and fail-closed for the Home Runtime authority states "
+                    "100/110/111; state 000 never enters the Home Runtime owner contract."
+                )
+                canonical_revision["x-dwp-conditional-required"]["rolloutStates"] = [
+                    "100", "110", "111"
+                ]
             if revision_collisions:
                 parameters[revision_collisions[0][0]] = canonical_revision
             else:
                 parameters.append(canonical_revision)
             revision_injected += 1
+        if path in HOME_RUNTIME_PATHS:
+            for status, response in operation.get("responses", {}).items():
+                if status not in {"200", "202", "204", "304"} \
+                        or not isinstance(response, dict):
+                    continue
+                headers = response.setdefault("headers", {})
+                if "X-DWP-Decision-Revision" in headers:
+                    raise RuntimeError(
+                        f"Gateway decision revision response header collision: "
+                        f"{method.upper()} {path} {status}"
+                    )
+                headers["X-DWP-Decision-Revision"] = copy.deepcopy(
+                    RESPONSE_DECISION_REVISION_HEADER
+                )
     if injected == 0:
         raise RuntimeError("Gateway public contract has no exported governed PRODUCT operation")
     if revision_injected == 0:

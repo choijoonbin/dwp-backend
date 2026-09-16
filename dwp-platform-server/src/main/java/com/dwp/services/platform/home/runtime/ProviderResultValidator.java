@@ -49,12 +49,21 @@ public class ProviderResultValidator {
             HomeRuntimeContext context,
             List<WidgetProviderPort.Request> requests) {
         if (response == null
-                || response.schemaVersion() != HomeWidgetProviderContract.SCHEMA_VERSION
-                || response.tenantId() != context.tenantId()
-                || response.userId() != context.userId()
-                || response.authorityDecisionRevision() == null
-                || !context.authorityDecisionRevision().equals(response.authorityDecisionRevision())) {
-            malformed("Provider response identity binding does not match the request.");
+                || response.schemaVersion() != HomeWidgetProviderContract.SCHEMA_VERSION) {
+            malformed("Provider response schema does not match the request.");
+        }
+        if (response.tenantId() != context.tenantId()
+                || response.userId() != context.userId()) {
+            malformed(
+                    "Provider response identity binding does not match the request.",
+                    "CROSS_SCOPE");
+        }
+        if (response.authorityDecisionRevision() == null
+                || !context.authorityDecisionRevision().equals(
+                response.authorityDecisionRevision())) {
+            malformed(
+                    "Provider response authority binding does not match the request.",
+                    "AUTHORITY_BYPASS");
         }
         if (response.results() == null || response.results().size() != requests.size()) {
             malformed("Provider response cardinality does not match the request.");
@@ -173,7 +182,9 @@ public class ProviderResultValidator {
         boolean noData = result.state() == HomeWidgetProviderContract.State.FORBIDDEN
                 || result.state() == HomeWidgetProviderContract.State.UNAVAILABLE;
         if (noData && (!result.payload().isEmpty() || !result.actions().isEmpty())) {
-            malformed("Forbidden or unavailable provider results cannot expose data or actions.");
+            malformed(
+                    "Forbidden or unavailable provider results cannot expose data or actions.",
+                    "FORBIDDEN_EXPOSURE");
         }
         if (result.state() == HomeWidgetProviderContract.State.EMPTY
                 && !result.payload().isEmpty()) {
@@ -282,14 +293,26 @@ public class ProviderResultValidator {
     }
 
     private void malformed(String message) {
-        throw malformed(message, null);
+        throw malformed(message, null, "UNSAFE_ALLOW");
+    }
+
+    private void malformed(String message, String securityViolationReason) {
+        throw malformed(message, null, securityViolationReason);
     }
 
     private WidgetProviderException malformed(String message, Throwable cause) {
+        throw malformed(message, cause, "UNSAFE_ALLOW");
+    }
+
+    private WidgetProviderException malformed(
+            String message,
+            Throwable cause,
+            String securityViolationReason) {
         throw new WidgetProviderException(
                 WidgetProviderException.Kind.MALFORMED,
                 "PROVIDER_CONTRACT_INVALID",
                 message,
-                cause);
+                cause,
+                securityViolationReason);
     }
 }

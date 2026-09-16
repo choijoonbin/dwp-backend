@@ -368,6 +368,71 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
+    void homeShadowRoutesReceiveRecipientBoundAuthorityEvidence() {
+        ProductSurfaceContextAggregationService authority = authority(allowed());
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+
+        MockServerWebExchange read = exchange(MockServerHttpRequest.get(
+                        "/api/platform/v2/home?deviceClass=DESKTOP_STANDARD")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "100")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwardedRead =
+                new AtomicReference<>();
+        filter.filter(read, filtered -> {
+            forwardedRead.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwardedRead.get()).isNotNull();
+        assertThat(forwardedRead.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.ROUTE_HEADER))
+                .isEqualTo("route.workplace.work.home-read-model.data");
+        assertThat(forwardedRead.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.CURRENT_REVISION_HEADER))
+                .isEqualTo(REVISION);
+
+        MockServerWebExchange receipt = exchange(MockServerHttpRequest.post(
+                        "/api/platform/v2/home/shadow-receipts")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "100")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                .header(ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER,
+                        REVISION));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest>
+                forwardedReceipt = new AtomicReference<>();
+        filter.filter(receipt, filtered -> {
+            forwardedReceipt.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwardedReceipt.get()).isNotNull();
+        assertThat(forwardedReceipt.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.ROUTE_HEADER))
+                .isEqualTo("route.workplace.work.home-shadow-receipt.action");
+        assertThat(forwardedReceipt.get().getHeaders().getFirst(
+                ProductSurfaceDecisionContextFilter.EXPECTED_REVISION_HEADER))
+                .isEqualTo(REVISION);
+        verify(authority, times(2)).evaluateProductTrusted(any(), any());
+    }
+
+    @Test
+    void homeShadowMutationWithoutExpectedRevisionFailsClosed() {
+        ProductSurfaceContextAggregationService authority = authority(allowed());
+        ProductSurfaceDecisionContextFilter filter = filter(authority);
+        MockServerWebExchange receipt = exchange(MockServerHttpRequest.post(
+                        "/api/platform/v2/home/shadow-receipts")
+                .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "100")
+                .header(VerifiedIdentityFilter.USER_HEADER, "41")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "7"));
+
+        filter.filter(receipt, ignored -> Mono.empty()).block();
+
+        assertThat(receipt.getResponse().getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(body(receipt)).contains("DECISION_REVISION_CONFLICT");
+    }
+
+    @Test
     void contractLessRaw110RouteFailsClosedWithoutCompatibilityDowngrade() {
         ProductSurfaceContextAggregationService authority = authority(productNotRegistered());
         ProductSurfaceDecisionContextFilter filter = filter(authority);

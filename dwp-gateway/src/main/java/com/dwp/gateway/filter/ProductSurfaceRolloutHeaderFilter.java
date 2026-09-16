@@ -38,6 +38,8 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
 
     private static final String TELEMETRY_PATH =
             "/api/platform/v1/observability/product-surface-events";
+    private static final String WEB_VITALS_PATH =
+            "/api/platform/v1/observability/web-vitals";
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
     private static final String TRACE_PARENT_HEADER = "traceparent";
     private static final String TRACE_STATE_HEADER = "tracestate";
@@ -92,7 +94,8 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
                             ignored -> complete(exchange, HttpStatus.SERVICE_UNAVAILABLE));
         }
         if (sanitized.getMethod() != HttpMethod.POST
-                || !TELEMETRY_PATH.equals(sanitized.getURI().getPath())) {
+                || (!TELEMETRY_PATH.equals(sanitized.getURI().getPath())
+                && !WEB_VITALS_PATH.equals(sanitized.getURI().getPath()))) {
             return chain.filter(sanitizedExchange);
         }
 
@@ -102,8 +105,11 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
 
         return DataBufferUtils.join(sanitized.getBody(), MAX_TELEMETRY_BYTES)
                 .switchIfEmpty(Mono.error(new InvalidTelemetryProductException()))
-                .flatMap(buffer -> evaluateAndForward(
-                        sanitizedExchange, sanitized, buffer, tenantId, chain))
+                .flatMap(buffer -> WEB_VITALS_PATH.equals(sanitized.getURI().getPath())
+                        ? evaluateWebVitalAndForward(
+                                sanitizedExchange, sanitized, buffer, tenantId, chain)
+                        : evaluateAndForward(
+                                sanitizedExchange, sanitized, buffer, tenantId, chain))
                 .onErrorResume(DataBufferLimitException.class,
                         ignored -> complete(exchange, HttpStatus.PAYLOAD_TOO_LARGE))
                 .onErrorResume(InvalidTelemetryProductException.class,
@@ -161,7 +167,29 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
                         return Mono.error(new InvalidTelemetryProductException());
                     }
                     return chain.filter(withTrustedHeaders(
-                            exchange, request, body, rollouts.getFirst()));
+                            exchange, request, body, rollouts.getFirst(), false));
+                });
+    }
+
+    private Mono<Void> evaluateWebVitalAndForward(
+            ServerWebExchange exchange,
+            ServerHttpRequest request,
+            DataBuffer buffer,
+            long tenantId,
+            GatewayFilterChain chain) {
+        byte[] body = readAndRelease(buffer);
+        if (!homeRouteGroup(body)) {
+            return chain.filter(withBody(exchange, request, body));
+        }
+        return rolloutClient.evaluateProducts(
+                        tenantId, List.of("workplace"), metadata(request))
+                .flatMap(rollouts -> {
+                    if (rollouts.size() != 1
+                            || !"workplace".equals(rollouts.getFirst().productKey())) {
+                        return Mono.error(new InvalidTelemetryProductException());
+                    }
+                    return chain.filter(withTrustedHeaders(
+                            exchange, request, body, rollouts.getFirst(), true));
                 });
     }
 
@@ -186,7 +214,8 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
             ServerWebExchange exchange,
             ServerHttpRequest request,
             byte[] body,
-            ProductSurfaceContextDtos.ProductRollout rollout) {
+            ProductSurfaceContextDtos.ProductRollout rollout,
+            boolean homeRuntime) {
         ServerHttpRequest decorated = new ServerHttpRequestDecorator(request) {
             @Override
             public HttpHeaders getHeaders() {
@@ -197,6 +226,11 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
                 headers.set(COHORT_HEADER, rollout.cohort());
                 headers.set(REVISION_HEADER, rollout.opaqueRevision());
                 headers.set(STATE_HEADER, rollout.state());
+                if (homeRuntime) {
+                    headers.set(HOME_RUNTIME_STATE_HEADER, homeState(rollout.state()));
+                    headers.set(HOME_ROLLOUT_RING_HEADER, homeRing(rollout.cohort()));
+                    headers.set(HOME_ROLLOUT_REVISION_HEADER, rollout.opaqueRevision());
+                }
                 return headers;
             }
 
@@ -206,6 +240,38 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
             }
         };
         return exchange.mutate().request(decorated).build();
+    }
+
+    private ServerWebExchange withBody(
+            ServerWebExchange exchange,
+            ServerHttpRequest request,
+            byte[] body) {
+        ServerHttpRequest decorated = new ServerHttpRequestDecorator(request) {
+            @Override
+            public HttpHeaders getHeaders() {
+                HttpHeaders headers = new HttpHeaders();
+                headers.putAll(super.getHeaders());
+                headers.remove(HttpHeaders.TRANSFER_ENCODING);
+                headers.setContentLength(body.length);
+                return headers;
+            }
+
+            @Override
+            public Flux<DataBuffer> getBody() {
+                return Flux.just(exchange.getResponse().bufferFactory().wrap(body));
+            }
+        };
+        return exchange.mutate().request(decorated).build();
+    }
+
+    private byte[] readAndRelease(DataBuffer buffer) {
+        byte[] body = new byte[buffer.readableByteCount()];
+        try {
+            buffer.read(body);
+            return body;
+        } finally {
+            DataBufferUtils.release(buffer);
+        }
     }
 
     private String productKey(byte[] body) {
@@ -225,6 +291,28 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
             FeatureRolloutEvaluationClient.uiFlag(value);
             return value;
         } catch (IOException | IllegalArgumentException exception) {
+            throw new InvalidTelemetryProductException();
+        }
+    }
+
+    private boolean homeRouteGroup(byte[] body) {
+        try {
+            JsonNode payload = objectMapper.readerFor(JsonNode.class)
+                    .with(StreamReadFeature.STRICT_DUPLICATE_DETECTION)
+                    .with(DeserializationFeature.FAIL_ON_TRAILING_TOKENS)
+                    .readTree(body);
+            if (payload == null || !payload.isObject()) {
+                throw new InvalidTelemetryProductException();
+            }
+            JsonNode routeGroup = payload.get("routeGroup");
+            if (routeGroup == null || !routeGroup.isTextual()) {
+                throw new InvalidTelemetryProductException();
+            }
+            String value = routeGroup.textValue();
+            return "home".equals(value)
+                    || value.startsWith("home.")
+                    || value.endsWith(".home");
+        } catch (IOException exception) {
             throw new InvalidTelemetryProductException();
         }
     }

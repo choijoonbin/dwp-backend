@@ -17,6 +17,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class HomeOwnerActionReceiptServiceTest {
@@ -37,6 +39,12 @@ class HomeOwnerActionReceiptServiceTest {
         HomeOwnerActionReceiptService service = new HomeOwnerActionReceiptService(
                 repository, new HomeCanonicalJson(objectMapper), objectMapper);
         HomeRuntimeContext context = TestFixtures.context();
+        HomeRuntimeContext renewedContext = HomeRuntimeContext.create(
+                context.tenantId(), context.userId(), context.personPublicId(),
+                context.permissionsHeader(), context.rolesHeader(), context.groupsHeader(),
+                context.authorityDecisionRevision(),
+                context.authorityRevalidateAt().plusMinutes(1).toString(),
+                context.locale(), context.timeZone());
         UUID commandId = UUID.randomUUID();
         HomeOwnerActionContracts.Contract contract =
                 HomeOwnerActionContracts.DISMISS_RECOMMENDATION;
@@ -51,17 +59,44 @@ class HomeOwnerActionReceiptServiceTest {
                     return response;
                 });
         HomeWidgetProviderContract.CommandResponse replay = service.execute(
-                context, contract.contractId(), request, () -> {
+                renewedContext, contract.contractId(), request, () -> {
                     mutations.incrementAndGet();
                     return response;
                 });
 
         assertThat(first).isEqualTo(replay);
+        assertThat(context.fingerprint()).isNotEqualTo(renewedContext.fingerprint());
+        assertThat(context.stableAuthorityFingerprint())
+                .isEqualTo(renewedContext.stableAuthorityFingerprint());
         assertThat(mutations).hasValue(1);
         assertThatThrownBy(() -> service.execute(
                 context, contract.contractId(),
                 request(commandId, contract, "calendar-conflicts"),
                 () -> response)).isInstanceOf(BaseException.class);
+    }
+
+    @Test
+    void expiredAuthorityStopsBeforeClaimingOrRunningTheOwnerMutation() {
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        HomeOwnerActionReceiptRepository repository = mock(HomeOwnerActionReceiptRepository.class);
+        HomeOwnerActionReceiptService service = new HomeOwnerActionReceiptService(
+                repository, new HomeCanonicalJson(objectMapper), objectMapper);
+        HomeRuntimeContext context = TestFixtures.withAuthorityRevalidateAt(
+                TestFixtures.context(), OffsetDateTime.now(ZoneOffset.UTC).minusNanos(1));
+        HomeOwnerActionContracts.Contract contract =
+                HomeOwnerActionContracts.DISMISS_RECOMMENDATION;
+        HomeWidgetProviderContract.CommandRequest request = request(
+                UUID.randomUUID(), contract, "work-due-soon");
+        AtomicInteger mutations = new AtomicInteger();
+
+        assertThatThrownBy(() -> service.execute(
+                context, contract.contractId(), request, () -> {
+                    mutations.incrementAndGet();
+                    return response(context, request);
+                })).isInstanceOf(BaseException.class);
+
+        assertThat(mutations).hasValue(0);
+        verify(repository, never()).saveAndFlush(any());
     }
 
     private HomeWidgetProviderContract.CommandRequest request(

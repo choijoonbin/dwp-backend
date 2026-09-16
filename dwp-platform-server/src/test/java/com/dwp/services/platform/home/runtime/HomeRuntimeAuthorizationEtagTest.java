@@ -30,7 +30,7 @@ import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standal
 class HomeRuntimeAuthorizationEtagTest {
 
     @Test
-    void authorityExpiryDoesNotChurnEtagButAuthorityRevisionDoes() throws Exception {
+    void authorityExpiryAndRevisionBothInvalidateTheEtag() throws Exception {
         UUID personId = UUID.randomUUID();
         OffsetDateTime firstExpiry = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(2);
         HomeRuntimeContext first = context(personId, "authority-7", firstExpiry);
@@ -41,8 +41,8 @@ class HomeRuntimeAuthorizationEtagTest {
         String renewedEtag = changeVersion(renewed);
         String revisedEtag = changeVersion(revised);
 
-        assertThat(renewed.fingerprint()).isEqualTo(first.fingerprint());
-        assertThat(renewedEtag).isEqualTo(firstEtag);
+        assertThat(renewed.fingerprint()).isNotEqualTo(first.fingerprint());
+        assertThat(renewedEtag).isNotEqualTo(firstEtag);
         assertThat(revised.fingerprint()).isNotEqualTo(first.fingerprint());
         assertThat(revisedEtag).isNotEqualTo(firstEtag);
     }
@@ -50,7 +50,11 @@ class HomeRuntimeAuthorizationEtagTest {
     @Test
     void oldConditionalEtagCannotReturn304AfterAuthorityRevisionChanges() throws Exception {
         HomeReadModelService service = mock(HomeReadModelService.class);
-        when(service.read(any(), eq("CLASSIC"), eq("DESKTOP_STANDARD")))
+        when(service.read(
+                any(),
+                any(HomeRuntimeRolloutDecision.TrustedInput.class),
+                eq("CLASSIC"),
+                eq("DESKTOP_STANDARD")))
                 .thenReturn(new HomeReadModelDtos.ReadResult(model("etag-authority-8"),
                         "\"etag-authority-8\""));
         MockMvc mvc = standaloneSetup(new HomeReadModelController(
@@ -66,13 +70,20 @@ class HomeRuntimeAuthorizationEtagTest {
                         .header("X-DWP-Current-Decision-Revision", "authority-8")
                         .header("X-DWP-Current-Revalidate-At",
                                 OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(5).toString())
+                        .header("X-DWP-Home-Runtime-State", "SHADOW_COMPARE")
+                        .header("X-DWP-Home-Rollout-Ring", "CONTROL")
+                        .header("X-DWP-Home-Rollout-Revision", "rollout-authority-8")
                         .header("If-None-Match", "\"etag-authority-7\""))
                 .andExpect(status().isOk())
                 .andExpect(header().string("ETag", "\"etag-authority-8\""));
 
         ArgumentCaptor<HomeRuntimeContext> context = ArgumentCaptor.forClass(
                 HomeRuntimeContext.class);
-        verify(service).read(context.capture(), eq("CLASSIC"), eq("DESKTOP_STANDARD"));
+        verify(service).read(
+                context.capture(),
+                any(HomeRuntimeRolloutDecision.TrustedInput.class),
+                eq("CLASSIC"),
+                eq("DESKTOP_STANDARD"));
         assertThat(context.getValue().authorityDecisionRevision()).isEqualTo("authority-8");
     }
 
@@ -102,13 +113,17 @@ class HomeRuntimeAuthorizationEtagTest {
                 HomeReadModelDtos.HomeShell.class,
                 List.class,
                 String.class,
-                String.class);
+                String.class,
+                HomeRuntimeRolloutDecision.class);
         method.setAccessible(true);
+        HomeRuntimeRolloutDecision decision = mock(HomeRuntimeRolloutDecision.class);
+        when(decision.revision()).thenReturn("rollout-17");
+        when(decision.state()).thenReturn(HomeRuntimeRolloutDecision.State.SHADOW_COMPARE);
         return (String) method.invoke(
                 service, context, experience, view, catalog, List.of(),
                 new HomeReadModelDtos.HomeShell(
                         "Home", "", "LEFT", "COMFORTABLE", null, List.of()),
-                List.of(), "CLASSIC", "DESKTOP_STANDARD");
+                List.of(), "CLASSIC", "DESKTOP_STANDARD", decision);
     }
 
     private HomeRuntimeContext context(

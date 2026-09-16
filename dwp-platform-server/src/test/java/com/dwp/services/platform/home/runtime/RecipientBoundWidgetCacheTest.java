@@ -53,6 +53,22 @@ class RecipientBoundWidgetCacheTest {
         assertThat(cache.fresh(workflow)).contains(response);
     }
 
+    @Test
+    void expiredAuthorityLeaseIsNeverInserted() {
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        RecipientBoundWidgetCache.Key key = key(
+                1L, 2L, "authority-a", "ko-KR", "CLASSIC", "DESKTOP_STANDARD",
+                Set.of("core.work.focus"));
+        HomeWidgetProviderContract.BatchResponse response =
+                new HomeWidgetProviderContract.BatchResponse(
+                        1, 1L, 2L, "revision-1", List.of());
+
+        cache.put(key, response, now.plusSeconds(20), now.minusNanos(1));
+
+        assertThat(cache.size()).isZero();
+        assertThat(cache.fresh(key)).isEmpty();
+    }
+
     private RecipientBoundWidgetCache.Key key(
             long tenant, long user, String authority, String locale, String mode,
             String device, Set<String> definitions) {

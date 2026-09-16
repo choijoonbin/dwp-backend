@@ -101,7 +101,9 @@ public final class HttpWidgetProviderClient implements WidgetProviderPort {
                         circuitBreaker,
                         Bulkhead.decorateSupplier(bulkhead, invocation));
         try {
-            return isolated.get();
+            HomeWidgetProviderContract.BatchResponse response = isolated.get();
+            validateContextAndDeadline(context, deadline);
+            return response;
         } catch (WidgetProviderException exception) {
             throw exception;
         } catch (io.github.resilience4j.circuitbreaker.CallNotPermittedException exception) {
@@ -188,7 +190,9 @@ public final class HttpWidgetProviderClient implements WidgetProviderPort {
                         circuitBreaker,
                         Bulkhead.decorateSupplier(bulkhead, invocation));
         try {
-            return isolated.get();
+            HomeWidgetProviderContract.CommandResponse response = isolated.get();
+            validateContextAndDeadline(context, deadline);
+            return response;
         } catch (WidgetProviderException exception) {
             throw exception;
         } catch (io.github.resilience4j.circuitbreaker.CallNotPermittedException exception) {
@@ -304,7 +308,13 @@ public final class HttpWidgetProviderClient implements WidgetProviderPort {
             HomeRuntimeContext context,
             OffsetDateTime deadline) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        if (context == null || deadline == null || !deadline.isAfter(now)
+        if (context == null) {
+            throw failure(WidgetProviderException.Kind.TIMEOUT,
+                    "PROVIDER_DEADLINE_EXPIRED",
+                    "Home provider authority context is unavailable.", null);
+        }
+        context.requireAuthorityCurrent();
+        if (deadline == null || !deadline.isAfter(now)
                 || deadline.isAfter(now.plus(MAX_DEADLINE_AHEAD))
                 || deadline.isAfter(context.authorityRevalidateAt())) {
             throw failure(WidgetProviderException.Kind.TIMEOUT,

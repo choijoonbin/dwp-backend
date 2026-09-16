@@ -38,6 +38,7 @@ public class HomeReadModelController {
             "X-DWP-Roles",
             "X-DWP-Group-Refs",
             "X-DWP-Current-Decision-Revision",
+            "X-DWP-Current-Revalidate-At",
             "X-DWP-Home-Runtime-State",
             "X-DWP-Home-Rollout-Ring",
             "X-DWP-Home-Rollout-Revision");

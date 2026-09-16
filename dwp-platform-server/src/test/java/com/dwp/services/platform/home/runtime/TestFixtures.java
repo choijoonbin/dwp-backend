@@ -22,6 +22,16 @@ final class TestFixtures {
                 "ko-KR", "Asia/Seoul");
     }
 
+    static HomeRuntimeContext withAuthorityRevalidateAt(
+            HomeRuntimeContext context,
+            OffsetDateTime authorityRevalidateAt) {
+        return new HomeRuntimeContext(
+                context.tenantId(), context.userId(), context.personPublicId(),
+                context.permissions(), context.roles(), context.groupRefs(),
+                context.authorityDecisionRevision(), authorityRevalidateAt,
+                context.locale(), context.timeZone(), context.fingerprint());
+    }
+
     static WidgetProviderPort.Request request(String definitionKey) {
         WidgetCatalogService.RuntimeDefinition definition = new WidgetCatalogService.RuntimeDefinition(
                 UUID.randomUUID(), definitionKey, "focus", UUID.randomUUID(), "1.0.0",

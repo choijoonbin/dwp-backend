@@ -44,12 +44,8 @@ public class PlatformNativeWidgetProvider implements WidgetProviderPort {
             HomeRuntimeContext context,
             HomeWidgetProviderContract.CommandRequest request,
             OffsetDateTime deadline) {
-        if (!deadline.isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
-            throw new WidgetProviderException(
-                    WidgetProviderException.Kind.TIMEOUT,
-                    "PROVIDER_DEADLINE_EXCEEDED",
-                    "The Platform Home owner deadline elapsed before command execution.");
-        }
+        requireCurrent(context, deadline,
+                "The Platform Home owner deadline elapsed before command execution.");
         HomeOwnerActionContracts.Contract contract = HomeOwnerActionContracts.find(
                         request.definitionKey(), "1.0.0", request.actionId())
                 .orElseThrow(() -> new WidgetProviderException(
@@ -71,27 +67,34 @@ public class PlatformNativeWidgetProvider implements WidgetProviderPort {
                     "OWNER_RECEIPT_STORE_UNAVAILABLE",
                     "The owner idempotency store is unavailable.");
         }
-        return ownerReceipts.execute(context, contract.contractId(), request, () -> {
-            HomeOverviewDtos.RecommendationFeedbackResponse feedback = overviewService.recordFeedback(
-                    context.tenantId(),
-                    context.userId(),
-                    recommendationKey,
-                    request.commandId().toString(),
-                    new HomeOverviewDtos.RecommendationFeedbackRequest("DISMISSED"));
-            return new HomeWidgetProviderContract.CommandResponse(
-                    HomeWidgetProviderContract.SCHEMA_VERSION,
-                    context.tenantId(),
-                    context.userId(),
-                    context.authorityDecisionRevision(),
-                    UUID.randomUUID(),
-                    request.commandId(),
-                    request.actionId(),
-                    request.commandKey(),
-                    HomeWidgetProviderContract.CommandStatus.COMPLETED,
-                    "/home",
-                    feedback.recordedAt(),
-                    feedback.ruleVersion() + ":" + feedback.recordedAt().toInstant());
-        });
+        HomeWidgetProviderContract.CommandResponse response = ownerReceipts.execute(
+                context, contract.contractId(), request, () -> {
+                    requireCurrent(context, deadline,
+                            "The Platform Home owner deadline elapsed before mutation.");
+                    HomeOverviewDtos.RecommendationFeedbackResponse feedback =
+                            overviewService.recordFeedback(
+                                    context.tenantId(),
+                                    context.userId(),
+                                    recommendationKey,
+                                    request.commandId().toString(),
+                                    new HomeOverviewDtos.RecommendationFeedbackRequest("DISMISSED"));
+                    return new HomeWidgetProviderContract.CommandResponse(
+                            HomeWidgetProviderContract.SCHEMA_VERSION,
+                            context.tenantId(),
+                            context.userId(),
+                            context.authorityDecisionRevision(),
+                            UUID.randomUUID(),
+                            request.commandId(),
+                            request.actionId(),
+                            request.commandKey(),
+                            HomeWidgetProviderContract.CommandStatus.COMPLETED,
+                            "/home",
+                            feedback.recordedAt(),
+                            feedback.ruleVersion() + ":" + feedback.recordedAt().toInstant());
+                });
+        requireCurrent(context, deadline,
+                "The Platform Home owner deadline elapsed before receipt disclosure.");
+        return response;
     }
 
     @Override
@@ -104,12 +107,8 @@ public class PlatformNativeWidgetProvider implements WidgetProviderPort {
             HomeRuntimeContext context,
             List<Request> requests,
             OffsetDateTime deadline) {
-        if (!deadline.isAfter(OffsetDateTime.now(ZoneOffset.UTC))) {
-            throw new WidgetProviderException(
-                    WidgetProviderException.Kind.TIMEOUT,
-                    "PROVIDER_DEADLINE_EXCEEDED",
-                    "The Platform Home provider deadline elapsed before execution.");
-        }
+        requireCurrent(context, deadline,
+                "The Platform Home provider deadline elapsed before execution.");
         HomeOverviewDtos.HomeOverviewResponse overview = overviewService.overview(
                 context.tenantId(),
                 context.userId(),
@@ -119,14 +118,35 @@ public class PlatformNativeWidgetProvider implements WidgetProviderPort {
                 context.locale(),
                 context.timeZone(),
                 context.groupsHeader());
+        requireCurrent(context, deadline,
+                "The Platform Home provider deadline elapsed during execution.");
         List<HomeWidgetProviderContract.WidgetResult> results = new ArrayList<>();
         for (Request request : requests) results.add(result(request, overview));
-        return new HomeWidgetProviderContract.BatchResponse(
-                HomeWidgetProviderContract.SCHEMA_VERSION,
-                context.tenantId(),
-                context.userId(),
-                context.authorityDecisionRevision(),
-                List.copyOf(results));
+        HomeWidgetProviderContract.BatchResponse response =
+                new HomeWidgetProviderContract.BatchResponse(
+                        HomeWidgetProviderContract.SCHEMA_VERSION,
+                        context.tenantId(),
+                        context.userId(),
+                        context.authorityDecisionRevision(),
+                        List.copyOf(results));
+        requireCurrent(context, deadline,
+                "The Platform Home provider deadline elapsed before disclosure.");
+        return response;
+    }
+
+    private void requireCurrent(
+            HomeRuntimeContext context,
+            OffsetDateTime deadline,
+            String message) {
+        context.requireAuthorityCurrent();
+        OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        if (deadline == null || deadline.isAfter(context.authorityRevalidateAt())
+                || !deadline.isAfter(now)) {
+            throw new WidgetProviderException(
+                    WidgetProviderException.Kind.TIMEOUT,
+                    "PROVIDER_DEADLINE_EXCEEDED",
+                    message);
+        }
     }
 
     private HomeWidgetProviderContract.WidgetResult result(

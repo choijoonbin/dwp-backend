@@ -71,11 +71,13 @@ public class WidgetRuntimeBroker {
             HomeRuntimeContext context,
             Revisions revisions,
             List<WidgetProviderPort.Request> requested) {
+        context.requireAuthorityCurrent();
         if (requested.size() > HomeWidgetProviderContract.MAX_WIDGETS_PER_BATCH) {
             throw new IllegalArgumentException("Home widget instance budget exceeded.");
         }
-        OffsetDateTime deadline = OffsetDateTime.now(ZoneOffset.UTC)
-                .plus(properties.overallDeadline());
+        OffsetDateTime deadline = earliest(
+                OffsetDateTime.now(ZoneOffset.UTC).plus(properties.overallDeadline()),
+                context.authorityRevalidateAt());
         List<HomeWidgetProviderContract.WidgetResult> results = new ArrayList<>();
         List<WidgetProviderPort.Request> activeRequests = new ArrayList<>();
         for (WidgetProviderPort.Request request : requested) {
@@ -95,8 +97,10 @@ public class WidgetRuntimeBroker {
             String providerKey = entry.getKey();
             List<WidgetProviderPort.Request> requests = List.copyOf(entry.getValue());
             RecipientBoundWidgetCache.Key key = key(context, revisions, providerKey, requests);
+            context.requireAuthorityCurrent();
             HomeWidgetProviderContract.BatchResponse fresh = cache.fresh(key).orElse(null);
             if (fresh != null) {
+                context.requireAuthorityCurrent();
                 telemetry.cache(providerKey, "HIT");
                 futures.add(CompletableFuture.completedFuture(
                         ProviderOutcome.cacheHit(providerKey, requests, fresh)));
@@ -119,11 +123,16 @@ public class WidgetRuntimeBroker {
             long started = System.nanoTime();
             OffsetDateTime providerDeadline = earliest(
                     deadline,
-                    OffsetDateTime.now(ZoneOffset.UTC).plus(properties.providerTimeout()));
+                    OffsetDateTime.now(ZoneOffset.UTC).plus(properties.providerTimeout()),
+                    context.authorityRevalidateAt());
+            long providerBudgetMillis = Math.max(1, Duration.between(
+                    OffsetDateTime.now(ZoneOffset.UTC), providerDeadline).toMillis());
             CompletableFuture<ProviderOutcome> future = CompletableFuture.supplyAsync(() -> {
                 try {
+                    context.requireAuthorityCurrent();
                     HomeWidgetProviderContract.BatchResponse raw = provider.readBatch(
                             context, requests, providerDeadline);
+                    context.requireAuthorityCurrent();
                     if (!OffsetDateTime.now(ZoneOffset.UTC).isBefore(providerDeadline)) {
                         throw new WidgetProviderException(
                                 WidgetProviderException.Kind.TIMEOUT,
@@ -132,6 +141,7 @@ public class WidgetRuntimeBroker {
                     }
                     HomeWidgetProviderContract.BatchResponse response = validator.validate(
                             raw, context, requests);
+                    context.requireAuthorityCurrent();
                     return ProviderOutcome.success(
                             providerKey, requests, key, response,
                             Duration.ofNanos(System.nanoTime() - started));
@@ -153,8 +163,8 @@ public class WidgetRuntimeBroker {
                                     WidgetProviderException.Kind.TIMEOUT,
                                     "PROVIDER_TIMEOUT",
                                     "Home provider exceeded its deadline."),
-                            properties.providerTimeout()),
-                    Math.max(1, properties.providerTimeout().toMillis()),
+                            Duration.ofMillis(providerBudgetMillis)),
+                    providerBudgetMillis,
                     TimeUnit.MILLISECONDS);
             futures.add(future);
         }
@@ -171,19 +181,30 @@ public class WidgetRuntimeBroker {
             futures.forEach(future -> future.cancel(true));
         }
         for (CompletableFuture<ProviderOutcome> future : futures) {
+            context.requireAuthorityCurrent();
             ProviderOutcome outcome = future.isDone() && !future.isCancelled()
                     ? future.getNow(null) : null;
             if (outcome == null) continue;
             if (outcome.providerInvoked()) {
                 telemetry.provider(
+                        revisions.rolloutRing(),
                         outcome.providerKey(),
                         outcome.failure() == null ? "SUCCESS" : outcome.failure().kind().name(),
                         outcome.duration());
+            }
+            if (outcome.failure() != null
+                    && outcome.failure().kind() == WidgetProviderException.Kind.MALFORMED) {
+                telemetry.securityViolation(
+                        revisions.rolloutRing(),
+                        revisions.mode(),
+                        "PROVIDER",
+                        outcome.failure().securityViolationReason());
             }
             if (outcome.response() != null) {
                 boolean allStillAllowed = outcome.requests().stream()
                         .noneMatch(request -> runtimeDenied(context, revisions, request));
                 if (outcome.cacheKey() != null && allStillAllowed) {
+                    context.requireAuthorityCurrent();
                     cacheIfEligible(
                             outcome.cacheKey(), outcome.response(),
                             context.authorityRevalidateAt());
@@ -218,14 +239,18 @@ public class WidgetRuntimeBroker {
                 .map(request -> unavailable(request, "HOME_DEADLINE_EXCEEDED"))
                 .forEach(results::add);
         results.forEach(result -> telemetry.state(
+                revisions.rolloutRing(),
                 providerKey(requested.stream()
                         .filter(request -> request.instanceId().equals(result.instanceId()))
                         .findFirst().map(request -> request.definition().sourceAppResourceKey())
                         .orElse(null)),
-                result.state()));
-        return results.stream()
+                result.state(),
+                result.source() == null ? null : result.source().reasonCode()));
+        List<HomeWidgetProviderContract.WidgetResult> ordered = results.stream()
                 .sorted(Comparator.comparing(result -> indexOf(requested, result.instanceId())))
                 .toList();
+        context.requireAuthorityCurrent();
+        return ordered;
     }
 
     private List<HomeWidgetProviderContract.WidgetResult> degraded(
@@ -239,6 +264,7 @@ public class WidgetRuntimeBroker {
         }
         if (failure.kind() == WidgetProviderException.Kind.UNAVAILABLE
                 || failure.kind() == WidgetProviderException.Kind.TIMEOUT) {
+            context.requireAuthorityCurrent();
             HomeWidgetProviderContract.BatchResponse stale = cache.stale(outcome.cacheKey())
                     .orElse(null);
             if (stale != null
@@ -246,9 +272,11 @@ public class WidgetRuntimeBroker {
                     && stale.userId() == context.userId()
                     && context.authorityDecisionRevision().equals(stale.authorityDecisionRevision())) {
                 telemetry.cache(outcome.providerKey(), "STALE_FALLBACK");
-                return stale.results().stream()
+                List<HomeWidgetProviderContract.WidgetResult> results = stale.results().stream()
                         .map(result -> stale(result, failure.reasonCode()))
                         .toList();
+                context.requireAuthorityCurrent();
+                return results;
             }
         }
         return outcome.requests().stream()
@@ -301,8 +329,12 @@ public class WidgetRuntimeBroker {
                 requestFingerprint);
     }
 
-    private OffsetDateTime earliest(OffsetDateTime first, OffsetDateTime second) {
-        return first.isBefore(second) ? first : second;
+    private OffsetDateTime earliest(OffsetDateTime... values) {
+        OffsetDateTime result = values[0];
+        for (OffsetDateTime value : values) {
+            if (value.isBefore(result)) result = value;
+        }
+        return result;
     }
 
     private boolean runtimeDenied(
@@ -395,7 +427,20 @@ public class WidgetRuntimeBroker {
             String catalogRevision,
             String policyRevision,
             String safetyRevision,
-            String rolloutRevision) {
+            String rolloutRevision,
+            String rolloutRing) {
+
+        public Revisions(
+                String mode,
+                String deviceClass,
+                String viewRevision,
+                String catalogRevision,
+                String policyRevision,
+                String safetyRevision,
+                String rolloutRevision) {
+            this(mode, deviceClass, viewRevision, catalogRevision, policyRevision,
+                    safetyRevision, rolloutRevision, "CONTROL");
+        }
 
         public Revisions(
                 String mode,
@@ -405,7 +450,7 @@ public class WidgetRuntimeBroker {
                 String policyRevision,
                 String safetyRevision) {
             this(mode, deviceClass, viewRevision, catalogRevision, policyRevision,
-                    safetyRevision, "legacy-shadow");
+                    safetyRevision, "legacy-shadow", "CONTROL");
         }
     }
 

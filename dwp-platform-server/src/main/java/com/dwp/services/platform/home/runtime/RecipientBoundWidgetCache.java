@@ -47,10 +47,12 @@ public class RecipientBoundWidgetCache {
             OffsetDateTime providerExpiry,
             OffsetDateTime authorityValidUntil) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        if (authorityValidUntil == null || !now.isBefore(authorityValidUntil)) return;
         OffsetDateTime configuredExpiry = now.plus(properties.cacheTtl());
         OffsetDateTime freshUntil = earliest(configuredExpiry, providerExpiry, authorityValidUntil);
         OffsetDateTime staleUntil = earliest(
                 freshUntil.plus(properties.staleIfError()), authorityValidUntil);
+        if (!OffsetDateTime.now(ZoneOffset.UTC).isBefore(authorityValidUntil)) return;
         entries.put(key, new Entry(response, freshUntil, staleUntil, authorityValidUntil, now));
         trim(now);
     }

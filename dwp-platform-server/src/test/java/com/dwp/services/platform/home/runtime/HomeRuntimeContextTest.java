@@ -42,7 +42,7 @@ class HomeRuntimeContextTest {
     }
 
     @Test
-    void authorityExpiryBoundsCacheLifetimeWithoutChurningAuthorityFingerprint() {
+    void authorityExpiryIsBoundIntoTheCacheAuthorityFingerprint() {
         UUID personId = UUID.randomUUID();
         OffsetDateTime firstExpiry = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(2);
         OffsetDateTime secondExpiry = firstExpiry.plusMinutes(1);
@@ -53,7 +53,20 @@ class HomeRuntimeContextTest {
                 11L, 22L, personId, "APP.WORK:VIEW", "MEMBER", "team-a",
                 "decision-7", secondExpiry.toString(), "ko-KR", "Asia/Seoul");
 
-        assertThat(first.fingerprint()).isEqualTo(second.fingerprint());
+        assertThat(first.fingerprint()).isNotEqualTo(second.fingerprint());
+        assertThat(first.stableAuthorityFingerprint())
+                .isEqualTo(second.stableAuthorityFingerprint());
         assertThat(first.authorityRevalidateAt()).isNotEqualTo(second.authorityRevalidateAt());
+    }
+
+    @Test
+    void reusedContextFailsClosedAfterItsAuthorityLeaseExpires() {
+        HomeRuntimeContext context = TestFixtures.withAuthorityRevalidateAt(
+                TestFixtures.context(), OffsetDateTime.now(ZoneOffset.UTC).minusNanos(1));
+
+        assertThatThrownBy(context::requireAuthorityCurrent)
+                .isInstanceOfSatisfying(BaseException.class, failure ->
+                        assertThat(failure.getErrorCode())
+                                .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
     }
 }

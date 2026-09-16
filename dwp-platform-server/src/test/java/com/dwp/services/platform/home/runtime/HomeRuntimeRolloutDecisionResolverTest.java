@@ -95,6 +95,15 @@ class HomeRuntimeRolloutDecisionResolverTest {
                 .isInstanceOf(BaseException.class);
     }
 
+    @Test
+    void malformedConfiguredRingCannotActivateControl() {
+        HomeRuntimeRolloutProperties rollout = new HomeRuntimeRolloutProperties(
+                "READ_ONLY_ACTIVE", "INTERNL", "CLASSIC", "");
+
+        assertThat(rollout.activeRing(HomeRuntimeRolloutDecision.Ring.CONTROL)).isFalse();
+        assertThat(rollout.activeRing(HomeRuntimeRolloutDecision.Ring.INTERNAL)).isFalse();
+    }
+
     private HomeRuntimeRolloutDecisionResolver resolver(
             HomeRuntimeRolloutProperties rollout,
             WidgetRegistryMutationGuard controls) {

@@ -19,6 +19,7 @@ import org.springframework.stereotype.Service;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ public class HomeReadModelService {
     private final ObjectMapper objectMapper;
     private final HomeCanonicalJson canonicalJson;
     private final HomeRuntimeRolloutDecisionResolver rolloutDecisions;
+    private final HomeRuntimeTelemetry telemetry;
 
     @Autowired
     public HomeReadModelService(
@@ -59,7 +61,8 @@ public class HomeReadModelService {
             WidgetRuntimeBroker broker,
             ObjectMapper objectMapper,
             HomeCanonicalJson canonicalJson,
-            HomeRuntimeRolloutDecisionResolver rolloutDecisions) {
+            HomeRuntimeRolloutDecisionResolver rolloutDecisions,
+            HomeRuntimeTelemetry telemetry) {
         this.experiences = experiences;
         this.views = views;
         this.catalog = catalog;
@@ -67,6 +70,7 @@ public class HomeReadModelService {
         this.objectMapper = objectMapper;
         this.canonicalJson = canonicalJson;
         this.rolloutDecisions = rolloutDecisions;
+        this.telemetry = telemetry;
     }
 
     /** Source-compatible test constructor. Production injection always supplies the resolver. */
@@ -77,7 +81,7 @@ public class HomeReadModelService {
             WidgetRuntimeBroker broker,
             ObjectMapper objectMapper,
             HomeCanonicalJson canonicalJson) {
-        this(experiences, views, catalog, broker, objectMapper, canonicalJson, null);
+        this(experiences, views, catalog, broker, objectMapper, canonicalJson, null, null);
     }
 
     public HomeReadModelDtos.ReadResult read(
@@ -99,6 +103,27 @@ public class HomeReadModelService {
             HomeRuntimeRolloutDecision.TrustedInput trustedRollout,
             String requestedMode,
             String deviceClass) {
+        long started = System.nanoTime();
+        try {
+            return readResolved(context, trustedRollout, requestedMode, deviceClass, started);
+        } catch (RuntimeException failure) {
+            if (telemetry != null) {
+                telemetry.readFailure(
+                        trustedRollout,
+                        requestedMode,
+                        Duration.ofNanos(System.nanoTime() - started));
+            }
+            throw failure;
+        }
+    }
+
+    private HomeReadModelDtos.ReadResult readResolved(
+            HomeRuntimeContext context,
+            HomeRuntimeRolloutDecision.TrustedInput trustedRollout,
+            String requestedMode,
+            String deviceClass,
+            long started) {
+        context.requireAuthorityCurrent();
         if (trustedRollout == null
                 || trustedRollout.state() == HomeRuntimeRolloutDecision.State.DISABLED) {
             throw new BaseException(
@@ -188,7 +213,8 @@ public class HomeReadModelService {
                 runtimeCatalog.catalogRevision(),
                 runtimeCatalog.policyRevision(),
                 runtimeCatalog.safetyRevision(),
-                decision.revision());
+                decision.revision(),
+                decision.ring().name());
         Map<UUID, HomeWidgetProviderContract.WidgetResult> providerResults = broker.read(
                         context, revisions, providerRequests).stream()
                 .collect(Collectors.toMap(
@@ -198,6 +224,12 @@ public class HomeReadModelService {
                 ? null : providerResults.get(badgeInstanceId);
         if (badgeInstanceId != null) {
             badgeProjection = AppDockBadgeProjection.from(badgeResult);
+            if (telemetry != null && badgeResult != null) {
+                telemetry.appDock(
+                        decision,
+                        badgeResult.state(),
+                        badgeResult.source() == null ? null : badgeResult.source().reasonCode());
+            }
         }
         List<HomeReadModelDtos.Widget> widgets = new ArrayList<>(fixed);
         for (WidgetProviderPort.Request request : providerRequests) {
@@ -264,8 +296,42 @@ public class HomeReadModelService {
                 unavailableSources,
                 changeVersion,
                 decision.registryAuthoritative() ? "AUTHORITATIVE" : "SHADOW");
+        context.requireAuthorityCurrent();
+        if (telemetry != null) {
+            telemetry.read(
+                    decision,
+                    partial ? "PARTIAL" : "SUCCESS",
+                    Duration.ofNanos(System.nanoTime() - started));
+        }
+        context.requireAuthorityCurrent();
         return new HomeReadModelDtos.ReadResult(
                 model, "\"" + changeVersion + "\"", decision);
+    }
+
+    /**
+     * Recomputes the recipient-bound rollout decision for diagnostic and command receipts.
+     * The public decision revision is derived from current authority, catalog, controls and
+     * the Gateway-supplied rollout revision; callers must never compare it to the raw Gateway
+     * revision directly.
+     */
+    public HomeRuntimeRolloutDecision resolveCurrentDecision(
+            HomeRuntimeContext context,
+            HomeRuntimeRolloutDecision.TrustedInput trustedRollout,
+            String requestedMode) {
+        context.requireAuthorityCurrent();
+        HomeExperienceDtos.HomeExperienceResponse experience = experiences.get(context.tenantId());
+        String mode = effectiveMode(experience, requestedMode);
+        WidgetCatalogService.RuntimeCatalog runtimeCatalog = catalog.runtimeCatalog(
+                context.tenantId(),
+                "workspace-home",
+                context.permissionsHeader(),
+                context.rolesHeader(),
+                context.groupsHeader(),
+                mode);
+        HomeRuntimeRolloutDecision decision = decision(
+                context, trustedRollout, mode, runtimeCatalog);
+        context.requireAuthorityCurrent();
+        return decision;
     }
 
     private HomeRuntimeRolloutDecision decision(

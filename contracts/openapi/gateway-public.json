@@ -115875,6 +115875,7 @@
     "/api/platform/v1/observability/web-vitals": {
       "post": {
         "operationId": "platform_ingest",
+        "parameters": [],
         "requestBody": {
           "content": {
             "application/json": {
@@ -120917,6 +120918,22 @@
                 },
                 "style": "simple"
               },
+              "X-DWP-Decision-Revision": {
+                "description": "Current server-owned product authority decision revision. Reuse this value as X-DWP-Expected-Decision-Revision for a subsequent governed mutation.",
+                "schema": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "x-dwp-conditional-present": {
+                  "authority": "GATEWAY",
+                  "rolloutStates": [
+                    "100",
+                    "110",
+                    "111"
+                  ]
+                }
+              },
               "X-DWP-Home-Commands-Enabled": {
                 "schema": {
                   "type": "boolean"
@@ -120975,6 +120992,22 @@
                   "type": "string"
                 },
                 "style": "simple"
+              },
+              "X-DWP-Decision-Revision": {
+                "description": "Current server-owned product authority decision revision. Reuse this value as X-DWP-Expected-Decision-Revision for a subsequent governed mutation.",
+                "schema": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "x-dwp-conditional-present": {
+                  "authority": "GATEWAY",
+                  "rolloutStates": [
+                    "100",
+                    "110",
+                    "111"
+                  ]
+                }
               },
               "X-DWP-Home-Commands-Enabled": {
                 "schema": {
@@ -121038,6 +121071,15 @@
         "operationId": "platform_recordHomeShadowReceiptV2",
         "parameters": [
           {
+            "in": "header",
+            "name": "Accept-Language",
+            "required": false,
+            "schema": {
+              "default": "ko-KR",
+              "type": "string"
+            }
+          },
+          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -121050,7 +121092,7 @@
             }
           },
           {
-            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "description": "Required and fail-closed for the Home Runtime authority states 100/110/111; state 000 never enters the Home Runtime owner contract.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
             "required": false,
@@ -121062,6 +121104,7 @@
             "x-dwp-conditional-required": {
               "enforcement": "FAIL_CLOSED",
               "rolloutStates": [
+                "100",
                 "110",
                 "111"
               ]
@@ -121079,7 +121122,7 @@
           "required": true
         },
         "responses": {
-          "200": {
+          "202": {
             "content": {
               "*/*": {
                 "schema": {
@@ -121087,7 +121130,31 @@
                 }
               }
             },
-            "description": "OK"
+            "description": "Comparison receipt accepted",
+            "headers": {
+              "X-DWP-Decision-Revision": {
+                "description": "Current server-owned product authority decision revision. Reuse this value as X-DWP-Expected-Decision-Revision for a subsequent governed mutation.",
+                "schema": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "x-dwp-conditional-present": {
+                  "authority": "GATEWAY",
+                  "rolloutStates": [
+                    "100",
+                    "110",
+                    "111"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Receipt or trusted rollout context is invalid"
+          },
+          "503": {
+            "description": "Home rollout decision is unavailable"
           }
         },
         "summary": "Record a bounded privacy-safe Home legacy/v2 comparison receipt",
@@ -121159,7 +121226,7 @@
             }
           },
           {
-            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "description": "Required and fail-closed for the Home Runtime authority states 100/110/111; state 000 never enters the Home Runtime owner contract.",
             "in": "header",
             "name": "X-DWP-Expected-Decision-Revision",
             "required": false,
@@ -121171,6 +121238,7 @@
             "x-dwp-conditional-required": {
               "enforcement": "FAIL_CLOSED",
               "rolloutStates": [
+                "100",
                 "110",
                 "111"
               ]
@@ -121204,6 +121272,22 @@
                   "type": "string"
                 },
                 "style": "simple"
+              },
+              "X-DWP-Decision-Revision": {
+                "description": "Current server-owned product authority decision revision. Reuse this value as X-DWP-Expected-Decision-Revision for a subsequent governed mutation.",
+                "schema": {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "x-dwp-conditional-present": {
+                  "authority": "GATEWAY",
+                  "rolloutStates": [
+                    "100",
+                    "110",
+                    "111"
+                  ]
+                }
               },
               "X-DWP-Home-Commands-Enabled": {
                 "schema": {
