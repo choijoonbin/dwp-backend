@@ -1,0 +1,490 @@
+{
+  "schemaVersion": 1,
+  "gateId": "DWP-HOME-WAVE6-BACKEND-GUARDED-ROLLOUT",
+  "status": "PASS_PREPRODUCTION_INPUT",
+  "sealedAtUtc": "2026-09-16T15:41:07+00:00",
+  "scope": "Wave 6 Home runtime authority, rollout, provider isolation, command idempotency, trusted telemetry and OpenAPI contracts",
+  "baseCommit": "23906591226f4eb0822667507e8b6df40bb84585",
+  "initialImplementationCommit": "4f290885831c76c5facbbabb5e77d0204ce1e9d0",
+  "productCommit": "e310f78a7d126b0ae409745cb90033e401a5981f",
+  "activationDefaults": {
+    "runtimeEnabled": false,
+    "shadowEnabled": true,
+    "rolloutCeiling": "SHADOW_COMPARE",
+    "registryAuthoritative": false,
+    "commandsEnabled": false
+  },
+  "implemented": [
+    "server-authoritative Home rollout state, ring and revision propagation",
+    "authority-lease-bound provider/read/cache deadlines and ETag identity",
+    "stable authority fingerprint and early receipt replay for durable command idempotency",
+    "exact provider-definition-version-action command allowlist with current control revalidation",
+    "recipient-bound provider isolation, stale fallback and partial-failure behavior",
+    "bounded legacy-v2 semantic shadow comparison receipt admission",
+    "trusted Web Vitals dimensions and bounded Home runtime metrics",
+    "security violation counters at provider scope/authority and owner receipt rejection points",
+    "generated Platform and Gateway OpenAPI snapshots"
+  ],
+  "verification": {
+    "platformIntegratedHomeTelemetry": {
+      "status": "PASS",
+      "logicalTests": 53,
+      "failed": 0,
+      "note": "Aggregate run plus one impacted fixture rerun; no unaffected suite repetition."
+    },
+    "gatewayIntegratedRolloutContracts": {
+      "status": "PASS",
+      "logicalTests": 65,
+      "failed": 0,
+      "note": "Aggregate run plus one impacted OpenAPI contract rerun."
+    },
+    "openApiSnapshotExport": {
+      "status": "PASS",
+      "tests": 1,
+      "failed": 0,
+      "servicesVerified": 9,
+      "gatewayPublicPaths": 1009
+    },
+    "authorityFenceFocused": {
+      "status": "PASS",
+      "classes": 8,
+      "tests": 37,
+      "failed": 0
+    },
+    "idempotencyReceiptRegression": {
+      "status": "PASS",
+      "classes": 4,
+      "tests": 17,
+      "failed": 0
+    },
+    "securityMetricImpact": {
+      "status": "PASS",
+      "classes": 8,
+      "tests": 58,
+      "failed": 0
+    },
+    "diffCheck": {
+      "status": "PASS"
+    },
+    "pythonExporterCompile": {
+      "status": "PASS"
+    },
+    "independentReview": {
+      "status": "PASS",
+      "p0": 0,
+      "p1": 0,
+      "nonBlocking": [
+        "Shadow receipt admission dedupe and rate limiting are process-local, so multi-pod comparison metrics can duplicate.",
+        "Actual release automation transition receipts and production observations remain LIVE_PENDING."
+      ]
+    }
+  },
+  "safety": {
+    "authorityExpiry": "FAIL_CLOSED_BEFORE_DISCLOSURE_OR_MUTATION",
+    "idempotency": "STABLE_AUTHORITY_FINGERPRINT_WITH_CURRENT_ALLOWLIST_SOD_REVALIDATION",
+    "cacheIdentity": "INCLUDES_AUTHORITY_REVALIDATE_AT",
+    "registryAuthority": "EVIDENCE_BOUND_AND_DISABLED_BY_DEFAULT",
+    "commandCanary": "EXACT_ALLOWLIST_AND_DISABLED_BY_DEFAULT",
+    "securityMetricDimensions": [
+      "release_ring",
+      "mode",
+      "scope",
+      "reason"
+    ],
+    "rollbackMetricSource": "release_automation",
+    "rollbackMetricBoundary": "No request-level rollback emission; live source requires a durable before/after transition receipt."
+  },
+  "verificationScopePolicy": {
+    "sessionHomeChangesOnly": true,
+    "unrelatedApplicationTestsRepeated": false,
+    "fullRepositoryTestsRepeated": false,
+    "impactedFailuresRerunOnly": true
+  },
+  "sourceIntegrity": {
+    "algorithm": "sha256(sorted lines: <file-sha256><two spaces><repo-relative-path><newline>)",
+    "sha256": "460b5ceb89c01d0a0078463eed06d5e92c4ab502835a757fe4be9fbf07794edc",
+    "fileCount": 76,
+    "files": [
+      {
+        "path": "contracts/home-runtime/platform-owner-actions.v1.json",
+        "bytes": 744,
+        "sha256": "99944020d7618729878914c8b3ef81137138124ab8f1687da3f18605dd1a9410"
+      },
+      {
+        "path": "contracts/openapi/gateway-public.json",
+        "bytes": 3301269,
+        "sha256": "191980e05fe4e2c5ae0bcf10f1eaa70ad875b21f5aefbff11e4304eb2e981e81"
+      },
+      {
+        "path": "contracts/openapi/platform.json",
+        "bytes": 1278699,
+        "sha256": "4a03617301330f7eca1ffae83120a4720eeb2da6fb9c709e114937f96e5a8fdc"
+      },
+      {
+        "path": "contracts/product-authorization/pilot-fixtures.v1.generated.json",
+        "bytes": 109335,
+        "sha256": "7ff9485672090a875c6dd12db1dad1d52d040ba653f80cb783bebd79e8e090ca"
+      },
+      {
+        "path": "contracts/product-authorization/product-surfaces-v1.bundle-v17.json",
+        "bytes": 919174,
+        "sha256": "97834f3e2756ae0aab96bbf5b794592f235f5064e41643a7397feb4da0f2c3b1"
+      },
+      {
+        "path": "contracts/product-authorization/product-surfaces-v1.index.json",
+        "bytes": 8250,
+        "sha256": "9e0b9caab1e6380053dd3754452590563860e04c4696076cdbe1692eaf5eafe6"
+      },
+      {
+        "path": "contracts/product-authorization/product-surfaces-v1.json",
+        "bytes": 919174,
+        "sha256": "97834f3e2756ae0aab96bbf5b794592f235f5064e41643a7397feb4da0f2c3b1"
+      },
+      {
+        "path": "contracts/product-authorization/product-surfaces-v1.yaml",
+        "bytes": 858222,
+        "sha256": "bfc42e9bc50a312f485c14ff42e23fc68982a485d62233ff1eae0f12ec561771"
+      },
+      {
+        "path": "dwp-auth-server/src/main/resources/product-authorization/product-surfaces-v1.bundle-v17.generated.json",
+        "bytes": 919174,
+        "sha256": "97834f3e2756ae0aab96bbf5b794592f235f5064e41643a7397feb4da0f2c3b1"
+      },
+      {
+        "path": "dwp-auth-server/src/main/resources/product-authorization/product-surfaces-v1.generated.json",
+        "bytes": 919174,
+        "sha256": "97834f3e2756ae0aab96bbf5b794592f235f5064e41643a7397feb4da0f2c3b1"
+      },
+      {
+        "path": "dwp-auth-server/src/main/resources/product-authorization/product-surfaces-v1.index.generated.json",
+        "bytes": 8250,
+        "sha256": "9e0b9caab1e6380053dd3754452590563860e04c4696076cdbe1692eaf5eafe6"
+      },
+      {
+        "path": "dwp-gateway/src/main/java/com/dwp/gateway/filter/ProductSurfaceDecisionContextFilter.java",
+        "bytes": 21938,
+        "sha256": "bf508bc1f7b594b7c9517bb98057d686355164b6bdf9efeff9d8691967d0dec7"
+      },
+      {
+        "path": "dwp-gateway/src/main/java/com/dwp/gateway/filter/ProductSurfaceRolloutHeaderFilter.java",
+        "bytes": 17193,
+        "sha256": "f0e5385b82186de9ce3d3ea8bc4752841f1791bc03038fa0a006e63eb0630485"
+      },
+      {
+        "path": "dwp-gateway/src/main/java/com/dwp/gateway/productsurface/FeatureRolloutEvaluationClient.java",
+        "bytes": 18659,
+        "sha256": "fa7c90c7f3107aa597aaccb85dff7c2d7cbce34ec98926249527d2dae263bf33"
+      },
+      {
+        "path": "dwp-gateway/src/main/java/com/dwp/gateway/security/AuthSessionVerifier.java",
+        "bytes": 18519,
+        "sha256": "0bb584ff63010e87a804cc03183fb5d35ca9049bce7f1e2f440a5e5f7f6ffd78"
+      },
+      {
+        "path": "dwp-gateway/src/test/java/com/dwp/gateway/ProductSurfaceDecisionContextFilterTest.java",
+        "bytes": 50688,
+        "sha256": "4bef28eb60ace1528032b1992b691759b4e37ad30c77bf118595369cde331f3f"
+      },
+      {
+        "path": "dwp-gateway/src/test/java/com/dwp/gateway/ProductSurfaceFeatureRolloutContractTest.java",
+        "bytes": 55414,
+        "sha256": "3b1b9a13d77932a32fb4048034918260e06295f752cb0d6244a6dec0d5ecf9c8"
+      },
+      {
+        "path": "dwp-gateway/src/test/java/com/dwp/gateway/productsurface/GatewayProductSurfaceOpenApiContractTest.java",
+        "bytes": 21110,
+        "sha256": "791c5b0a692ccef7ce996c3b12ec665894e9d6318da9afad737588023cf7f0fa"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeOwnerActionContracts.java",
+        "bytes": 3415,
+        "sha256": "7b851b250fc0ee6d97c91a217a222fdf4c075062be939ea5fde75f44e38fefd3"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeOwnerActionReceipt.java",
+        "bytes": 1618,
+        "sha256": "0bb345075292b50e8a2b4b5d294abc7d91f8a676aa3935f63b8919cf3317be60"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeOwnerActionReceiptRepository.java",
+        "bytes": 400,
+        "sha256": "9178dbf3f03d46fb2502debe53d79736d5cca5bceb6349a9eca0c5834c4ac61b"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeOwnerActionReceiptService.java",
+        "bytes": 5136,
+        "sha256": "e2af5a214c297635aca4e783861b2e3503d9521e1b802b52c0e968433d89f534"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeReadModelController.java",
+        "bytes": 18140,
+        "sha256": "b6befb7df7cbacbbfab68d5f69422e4c97b8463e61aa430b07871227385949a3"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeReadModelDtos.java",
+        "bytes": 6797,
+        "sha256": "db9c39eaf05138d5b777bd6fbca653b288f71d11fa02b668efbcba7b8266f8d5"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeReadModelService.java",
+        "bytes": 35307,
+        "sha256": "0ff5351e8131e223e53160bfcf9116189bce218db6a75b3880527edf0877ef85"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeReadModelShadowComparator.java",
+        "bytes": 7119,
+        "sha256": "21a955fa8cb13eccd6192adcffa3620ffcb803549d752ef210299672fd002f06"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeRuntimeContext.java",
+        "bytes": 6900,
+        "sha256": "344949a33618cc18b4a7a80812c40eedb61d8489aafb2b4ff7f90a55f476765f"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeRuntimeRolloutDecision.java",
+        "bytes": 2547,
+        "sha256": "338d0a2a2f7dddb3067a11a79a4cf98ee378a7f34731fd351ee678c2ac607ed9"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeRuntimeRolloutDecisionResolver.java",
+        "bytes": 8576,
+        "sha256": "f0036663242ec9948222ab49ae72ea9841155682412f10351e5877212723ce70"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeRuntimeRolloutProperties.java",
+        "bytes": 3062,
+        "sha256": "e3ac19ac8acef8df74331212cc8e109ee93ac419b1a418b265d6aebc193dc265"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeRuntimeTelemetry.java",
+        "bytes": 9728,
+        "sha256": "9fe6aaf8496774345dd17290255ba5160037f94e5a3cc2c09605dc99d29e4375"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeShadowReceiptController.java",
+        "bytes": 15315,
+        "sha256": "34a806879102b9b1216f28c45f5304e9e1bd073d99e49c67f92ca5bb186d30b7"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeWidgetCommandService.java",
+        "bytes": 21226,
+        "sha256": "4d0bf75fcd66d4c41849278b21fdcbb725ff83acf59d734cd259e6be34c617b9"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HttpWidgetProviderClient.java",
+        "bytes": 19930,
+        "sha256": "3ff2da63d6edb9e361f7d4d61fffd32afb6db191015330029a18fddaf701421a"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/InactiveDwaionWidgetProvider.java",
+        "bytes": 2784,
+        "sha256": "5569d4ab273439a257fc950c58ab80163af2df03755b80e7fee8aea8115a30ad"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/PlatformNativeWidgetProvider.java",
+        "bytes": 11165,
+        "sha256": "51653a2448a19aa51a55952e19c772e0c1e3d24e9ed64135a6a5b75a251fe0e2"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/ProviderResultValidator.java",
+        "bytes": 15497,
+        "sha256": "9af116b0e83cb781a3b9877fac94d6842757a26a85a2812582a115efcddafda8"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/RecipientBoundWidgetCache.java",
+        "bytes": 5829,
+        "sha256": "6e639fd5b545c495faf6092f6b3afa520930448c6ed6e476c8af4d07f5d42cec"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/WidgetProviderException.java",
+        "bytes": 1266,
+        "sha256": "8be13cccc302a9ca5cca21c5b10a13ab83c574051b62286a546e914d64bd0bec"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/WidgetRuntimeBroker.java",
+        "bytes": 23763,
+        "sha256": "49319be2d1b3c0ecf9b51f95cfa50686aec4dab8768c477908bf25eb5e76a1a4"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/WorkplaceNativeWidgetProvider.java",
+        "bytes": 5901,
+        "sha256": "5682336fde29bc6c5912f97410e841d557e4586f24bf8f3106001eae0be1ee77"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/observability/WebVitalsController.java",
+        "bytes": 7811,
+        "sha256": "39c268a1bbf25372c801128330664919b71dcceb8f726f676c189567fbd5fee3"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetCatalogService.java",
+        "bytes": 37361,
+        "sha256": "53bf810be5a312a017abe9ce6fe8dd8cee1da559def50c9d446184d5966ba817"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetRegistryDtos.java",
+        "bytes": 19747,
+        "sha256": "c76de9d56f3adc7e0b0d4fbf8ee76f52bf36294f062938bcfe798b7c8a70d278"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetRegistryMutationGuard.java",
+        "bytes": 4698,
+        "sha256": "99954fa42e1043e9ddfb66f3bd5366638e74ec72ec504452051528c165792436"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetRegistryOwnerScopeGuard.java",
+        "bytes": 5775,
+        "sha256": "79fec00c2ab3485be1633ed81caf17d2fec107ff1c56e25c294fb6da8b7abfc9"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetRuntimeControl.java",
+        "bytes": 2081,
+        "sha256": "e390cd4a74133c17c4dcf01cbe78c4e41f46ac57f1d032d5da77a50855f3cc4a"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetRuntimeControlRepository.java",
+        "bytes": 1798,
+        "sha256": "11360b4acc8c14778662c317660adfbb9e57592e109e736efb5f5f69c95e9920"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetRuntimeControlService.java",
+        "bytes": 13704,
+        "sha256": "743b3a1ab2b65a6fec91e22f1b9b5a28a503e6b2080d3463f33edbbecfb638cb"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetRuntimeEnableApprovalRepository.java",
+        "bytes": 762,
+        "sha256": "d7c221d55601dd20f2bf7cffeffb8c511a9f4ecb9f41b329a758d75cd1c37e46"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryActivationInterlock.java",
+        "bytes": 3769,
+        "sha256": "a8b3c021e893b8a32fede53bbe90ed36711332ae8a0226e9a41b88a0774a716c"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryActivationProperties.java",
+        "bytes": 2776,
+        "sha256": "2c537a84165699b10ed2f77c005938c69e5b2181f19d2b4742e9331305bdd5fc"
+      },
+      {
+        "path": "dwp-platform-server/src/main/resources/application.yml",
+        "bytes": 10978,
+        "sha256": "d12837e92f90e6bfcbaf40351560b1c2f5beb2e6b2e7800e4ec19fbb43e3a963"
+      },
+      {
+        "path": "dwp-platform-server/src/main/resources/db/migration/V263__wire_home_runtime_rollout_controls.sql",
+        "bytes": 1779,
+        "sha256": "a60fcdd938582e2c6716f016b4d6cebdb8af3397dd8cfd57e4e29e937cd037e0"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeNativeProviderContractTest.java",
+        "bytes": 8180,
+        "sha256": "c913466b09c93d2565e66bc31fa27eed709447b6f883904d7c060d481418d3fa"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeOwnerActionCommandGateTest.java",
+        "bytes": 17487,
+        "sha256": "01648523f3b322d48fe3be94e356eca8c537c9110ac9b8aefe41254f200a5f00"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeOwnerActionContractsTest.java",
+        "bytes": 1551,
+        "sha256": "8bd74fe8f080ce55fe31ee0c44db3bc4c0696661b83fd632c5133e402fb3d0b6"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeOwnerActionReceiptServiceTest.java",
+        "bytes": 6397,
+        "sha256": "59ee1de3173ae3c3d1cc72961e8125b8e0b6b35b2436dcc6d095d6b9cb61ee9d"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeReadModelControllerTest.java",
+        "bytes": 4868,
+        "sha256": "e1e2f7085ffd781e724154c6d431a66d51e8f1f43115a2620925ba3ee0e8f2aa"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeReadModelShadowComparatorTest.java",
+        "bytes": 8729,
+        "sha256": "152d201a30c573e67f7332684802c771a85a6464631cea1537ed1b153f9cd784"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeRuntimeAuthorizationEtagTest.java",
+        "bytes": 7541,
+        "sha256": "ed59f5a9e63e97d492db8dad454ef8a304fc6a0ac2083ee2622c0893bf0df093"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeRuntimeContextTest.java",
+        "bytes": 3420,
+        "sha256": "fc086aebf8cd9d41c8c0e3626b44fe37ffd945026aae778a7d87840aaf3d8d1a"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeRuntimeContinuityPostgresIntegrationTest.java",
+        "bytes": 5878,
+        "sha256": "7738d53d440fb05ced2e7a1530ed94b41a6934d6356cffeae09d70a9115c7f4c"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeRuntimeMetricsPrivacyTest.java",
+        "bytes": 6445,
+        "sha256": "b738dcef860ddb61b947aa40995c74240fc37330713ee1a208b51af010e707cd"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeRuntimeRolloutDecisionResolverTest.java",
+        "bytes": 7317,
+        "sha256": "1bf148fd26d7c62f85b07b6f60e83df63500a8aafca48c1413a68920dd0d91a2"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeWidgetCommandServiceTest.java",
+        "bytes": 18987,
+        "sha256": "bc07a2028ddf2eabae56e7858e48ea7618f5e21145e938877ad4a584287ff2c3"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/RecipientBoundWidgetCacheTest.java",
+        "bytes": 3996,
+        "sha256": "ba45c1a6a8b2d32d82c0fe918facb5d45def4ac091ffcd6045e484eb0f262e1d"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/TestFixtures.java",
+        "bytes": 1904,
+        "sha256": "35a8f2fb5739cadb876118e3cb0a0fbe56ba01bea2071a8c2becc7d5b6b073e6"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/WidgetRuntimeBrokerIsolationSecurityTest.java",
+        "bytes": 8161,
+        "sha256": "8818567d2ace1b4777f3f7c40ca6843307c5653ddc24050976f0e82f7daffced"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/WidgetRuntimeBrokerTest.java",
+        "bytes": 12446,
+        "sha256": "9e4808418e9f42c8452f3bcf291082db34caa79e968489d9835587bfec86cd66"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/observability/WebVitalsControllerTest.java",
+        "bytes": 3389,
+        "sha256": "15f76687a8dca995e7f52c43bf74ecfb18597bf94ad2992bf85a334b771016a1"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/widgetregistry/WidgetRuntimeControlExpiryTest.java",
+        "bytes": 4608,
+        "sha256": "ed201b29f36108fd0edf54ba9f2974649fa96414cec76027c63618fd38df3716"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryActivationInterlockTest.java",
+        "bytes": 10838,
+        "sha256": "06d22469424715467a9af68c43b84d92851ca86f8804f20858231c7b2b20189f"
+      },
+      {
+        "path": "scripts/export-openapi-contracts.py",
+        "bytes": 25943,
+        "sha256": "8a36acc8d638548a25092eaf34bcb222949123d17e95e132dd7f97e64655abe4"
+      },
+      {
+        "path": "scripts/generate-product-authorization-contracts.py",
+        "bytes": 125342,
+        "sha256": "c1718552864b2c8282f1901a95000ad57188714d58c0c5cb6244c9befe39e755"
+      },
+      {
+        "path": "scripts/generate-product-authorization-fixtures.py",
+        "bytes": 60247,
+        "sha256": "613d2b3dc8a41070c244fce8624aca713217dbdba491c7036849ee182d7d8ef7"
+      }
+    ]
+  }
+}
