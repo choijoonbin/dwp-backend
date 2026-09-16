@@ -225,11 +225,13 @@ class ProductAuthorizationContractValidatorTest {
                 generatedDocument("product-surfaces-v1.bundle-v14.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionFifteen = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v15.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(15);
-        assertThat(index.latestChecksum()).isEqualTo(versionFifteen.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionSixteen = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v16.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(16);
+        assertThat(index.latestChecksum()).isEqualTo(versionSixteen.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
-                .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L);
+                .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -293,6 +295,27 @@ class ProductAuthorizationContractValidatorTest {
                             .isEqualTo("/api/platform/v2/home");
                     assertThat(route.servicePepBindings().getFirst().path())
                             .isEqualTo("/v2/home");
+                });
+        assertThat(versionSixteen.capabilities())
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionFifteen.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertThat(versionSixteen.routes()).hasSize(362)
+                .containsAll(versionFifteen.routes());
+        assertThat(versionSixteen.routes())
+                .filteredOn(value -> "route.workplace.work.home-widget-action-execute.action"
+                        .equals(value.routeContractKey()))
+                .singleElement().satisfies(route -> {
+                    assertThat(route.routeKind()).isEqualTo("ACTION");
+                    assertThat(route.accessProfiles().getFirst().readOnly()).isFalse();
+                    assertThat(route.accessProfiles().getFirst().targetBindingKinds())
+                            .containsExactly("SELF");
+                    assertThat(route.gatewayApiBindings().getFirst().method()).isEqualTo("POST");
+                    assertThat(route.gatewayApiBindings().getFirst().path())
+                            .isEqualTo("/api/platform/v2/home/widget-actions:execute");
+                    assertThat(route.servicePepBindings().getFirst().path())
+                            .isEqualTo("/v2/home/widget-actions:execute");
                 });
         assertThat(versionSix.routes()).filteredOn(value -> value.routeContractKey().equals(
                 "route.services.work.request-information-response.action"))

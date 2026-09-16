@@ -118,8 +118,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 15)
-        self.assertEqual(registry["version"], 15)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 16)
+        self.assertEqual(registry["version"], 16)
         self.assertEqual(len(dwaion_routes), 95)
         self.assertEqual(
             sum(route["routeKind"] == "ACTION" for route in dwaion_routes), 57

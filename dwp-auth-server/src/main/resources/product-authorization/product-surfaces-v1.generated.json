@@ -4102,7 +4102,8 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
-        "route.workplace.work.home-read-model.data"
+        "route.workplace.work.home-read-model.data",
+        "route.workplace.work.home-widget-action-execute.action"
       ],
       "scopeResolver": "SELF",
       "sodPolicyId": null,
@@ -4134,7 +4135,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "5fdd43747ffb3621cd7e032bb4f44c4a761d3350a2e5b0c0d1ff47bd3a081085",
+  "checksum": "da0a7a2006df0c8a7bae78e1c7fc8ca42804ea25fa6062b947c075281ac0c4c4",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -28175,8 +28176,60 @@
       },
       "uiRouteId": null,
       "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "home-command",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "workplace.home.read",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.home-widget-action-execute.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v2/home/widget-actions:execute",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.work.home-widget-action-execute.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.home-widget-action-execute.action.binding.01",
+          "method": "POST",
+          "path": "/v2/home/widget-actions:execute",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
     }
   ],
   "schemaVersion": 1,
-  "version": 15
+  "version": 16
 }

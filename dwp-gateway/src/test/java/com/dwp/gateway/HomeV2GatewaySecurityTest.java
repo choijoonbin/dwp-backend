@@ -1,10 +1,12 @@
 package com.dwp.gateway;
 
 import com.dwp.gateway.filter.VerifiedIdentityFilter;
+import com.dwp.gateway.productsurface.GeneratedProductRouteCatalog;
 import com.dwp.gateway.security.AuthSessionVerifier;
 import com.dwp.gateway.security.SessionVerifier;
 import com.dwp.gateway.security.VerifiedIdentity;
 import org.junit.jupiter.api.Test;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -14,6 +16,8 @@ import org.springframework.web.reactive.function.client.ClientRequest;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 import java.time.Duration;
 import java.util.List;
@@ -26,6 +30,75 @@ class HomeV2GatewaySecurityTest {
 
     private static final String HOME_V2 =
             "/api/platform/v2/home?deviceClass=DESKTOP_STANDARD";
+    private static final String HOME_COMMAND =
+            "/api/platform/v2/home/widget-actions:execute";
+
+    @Test
+    void canonicalCatalogGovernsTheExactHomeReadRouteAsSideEffectFreeData() {
+        GeneratedProductRouteCatalog catalog = new GeneratedProductRouteCatalog(
+                new ObjectMapper(),
+                new ClassPathResource("product-authorization/product-surfaces-v1.generated.json"));
+
+        GeneratedProductRouteCatalog.Match match = catalog.match(
+                "GET", "/api/platform/v2/home", "deviceClass=DESKTOP_STANDARD");
+
+        assertThat(match.status()).isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(match.uniqueRoute()).isNotNull().satisfies(route -> {
+            assertThat(route.routeContractKey())
+                    .isEqualTo("route.workplace.work.home-read-model.data");
+            assertThat(route.productKey()).isEqualTo("workplace");
+            assertThat(route.surfaceKey()).isEqualTo("workplace.work");
+            assertThat(route.routeKind()).isEqualTo("DATA");
+            assertThat(route.stateChanging()).isFalse();
+        });
+        GeneratedProductRouteCatalog.Match command = catalog.match(
+                "POST", HOME_COMMAND, null);
+        assertThat(command.status()).isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(command.uniqueRoute()).isNotNull().satisfies(route -> {
+            assertThat(route.routeContractKey())
+                    .isEqualTo("route.workplace.work.home-widget-action-execute.action");
+            assertThat(route.productKey()).isEqualTo("workplace");
+            assertThat(route.surfaceKey()).isEqualTo("workplace.work");
+            assertThat(route.routeKind()).isEqualTo("ACTION");
+            assertThat(route.stateChanging()).isTrue();
+        });
+    }
+
+    @Test
+    void commandRouteReplacesSpoofedIdentityAndDropsProviderControlHeaders() {
+        SessionVerifier verifier = ignored -> Mono.just(new VerifiedIdentity(
+                "7", "1", List.of("WORKSPACE_MEMBER"), List.of("APP.WORK:VIEW"),
+                List.of(), List.of(), null, "Home user", false,
+                "40000000-0000-0000-0000-000000000001", "TENANT"));
+        VerifiedIdentityFilter filter = new VerifiedIdentityFilter(verifier);
+        MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
+                .post(HOME_COMMAND)
+                .header(VerifiedIdentityFilter.USER_HEADER, "900001")
+                .header(VerifiedIdentityFilter.TENANT_HEADER, "999")
+                .header(VerifiedIdentityFilter.PERMISSIONS_HEADER, "APP.HCM:ADMIN")
+                .header(VerifiedIdentityFilter.CONTROL_PLANE_HEADER,
+                        "WIDGET_REGISTRY_PROVIDER")
+                .header(VerifiedIdentityFilter.WIDGET_OWNER_SCOPE_HEADER, "hcm")
+                .build());
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter.filter(exchange, filteredExchange -> {
+            forwarded.set(filteredExchange.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().getFirst(VerifiedIdentityFilter.USER_HEADER))
+                .isEqualTo("7");
+        assertThat(forwarded.get().getHeaders().getFirst(VerifiedIdentityFilter.TENANT_HEADER))
+                .isEqualTo("1");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                VerifiedIdentityFilter.PERMISSIONS_HEADER)).isEqualTo("APP.WORK:VIEW");
+        assertThat(forwarded.get().getHeaders()).doesNotContainKeys(
+                VerifiedIdentityFilter.CONTROL_PLANE_HEADER,
+                VerifiedIdentityFilter.WIDGET_OWNER_SCOPE_HEADER);
+    }
 
     @Test
     void replacesEverySpoofableHomeIdentityHeaderWithVerifiedIdentity() {

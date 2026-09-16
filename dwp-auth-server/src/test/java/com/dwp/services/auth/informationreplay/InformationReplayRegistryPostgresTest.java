@@ -42,7 +42,7 @@ class InformationReplayRegistryPostgresTest {
                     () -> service.evaluate(exchange.body(), exchange.token())).getErrorCode());
             String prefix = "dwp:auth:information-replay:v1:{1:" + InformationReplayProtocol.OWNER_PURPOSE + "}:";
             for (String key : List.of(prefix + "owner:" + proof.sourceJti(), prefix + "transport:" + proof.transportJti())) assertFalse(auth.redis().hasKey(key));
-            for (long version : new long[]{9, 10, 16}) {
+            for (long version : new long[]{9, 10, 17}) {
                 var rejected = assertThrows(DataAccessException.class, () -> auth.jdbc().update(
                         "UPDATE auth_product_authorization_bundle SET version=? WHERE bundle_status='ACTIVE'", version));
                 assertEquals("P0001", ((java.sql.SQLException) rejected.getMostSpecificCause()).getSQLState());
@@ -54,7 +54,7 @@ class InformationReplayRegistryPostgresTest {
                 var failure = assertThrows(IllegalArgumentException.class, () -> validator.validateDocument(fabricated));
                 if (version == 9) assertTrue(failure.getMessage().contains("v9 extension"));
                 else if (version == 10) assertTrue(failure.getMessage().contains("release10 response projection coverage"));
-                else assertTrue(failure.getMessage().contains("closed versions 1 through 15"));
+                else assertTrue(failure.getMessage().contains("closed versions 1 through 16"));
             }
         }
     }

@@ -36,7 +36,7 @@ public final class PlanningIdentityAuthorityBridge implements PlanningAuthorityP
             var bundle=contracts.findActive("product-surfaces").orElseThrow(PlanningProtocol::unavailable);
             var pointer=contracts.findActivePointer("product-surfaces").orElseThrow(PlanningProtocol::unavailable);
             var registry=new Registry(seals.loadActive(bundle,pointer));
-            if (!Set.of(10L, 11L, 12L, 13L, 14L, 15L).contains(bundle.version()) || !"ACTIVE".equals(bundle.bundleStatus()) || !pointer.bundleId().equals(bundle.bundleId())) throw unavailable();
+            if (!Set.of(10L, 11L, 12L, 13L, 14L, 15L, 16L).contains(bundle.version()) || !"ACTIVE".equals(bundle.bundleStatus()) || !pointer.bundleId().equals(bundle.bundleId())) throw unavailable();
             var route=registry.routesByKey().get(ROUTE);
             if (route==null || route.accessProfiles()==null || route.accessProfiles().size()!=1) throw unavailable();
             var profile=route.accessProfiles().getFirst();

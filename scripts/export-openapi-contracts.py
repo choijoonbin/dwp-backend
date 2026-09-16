@@ -22,7 +22,7 @@ GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
     ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v14.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 15
+PRODUCT_AUTHORIZATION_VERSION = 16
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 TELEMETRY_PUBLIC_PATH = "/api/platform/v1/observability/product-surface-events"
 TELEMETRY_TRUSTED_HEADERS = {"X-DWP-Tenant-ID", "X-DWP-Rollout-Cohort"}
