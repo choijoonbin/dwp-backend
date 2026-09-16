@@ -43,7 +43,10 @@ class HomeRuntimeGateTest(unittest.TestCase):
                 "status": "PASS",
                 "backendCommit": "a" * 40,
                 "contractHashes": {"build/reports/wave4.txt": digest},
-                "providerCoverage": {"activeDefinitions": 4, "verifiedDefinitions": 4},
+                "providerCoverage": {
+                    "activeDefinitions": 1, "verifiedDefinitions": 1,
+                    "shadowDefinitions": 12, "verifiedShadowDefinitions": 12,
+                },
                 "slo": {
                     "status": "PASS", "sampleCount": 1000,
                     "serverP95Ms": 850, "hardFailureRate": 0.001,
@@ -82,12 +85,30 @@ class HomeRuntimeGateTest(unittest.TestCase):
     def test_cross_tenant_leak_and_incomplete_provider_coverage_fail_closed(self) -> None:
         evidence = copy.deepcopy(TEMPLATE)
         evidence["security"]["crossTenantLeakCount"] = 1
-        evidence["providerCoverage"] = {"activeDefinitions": 4, "verifiedDefinitions": 3}
+        evidence["providerCoverage"] = {
+            "activeDefinitions": 4, "verifiedDefinitions": 3,
+            "shadowDefinitions": 12, "verifiedShadowDefinitions": 11,
+        }
 
         problems = CHECKER_MODULE.validate(evidence, allow_pending=True)
 
         self.assertIn("security.crossTenantLeakCount must equal zero", problems)
         self.assertIn("pending provider coverage must be zero", problems)
+
+    def test_pass_requires_every_shadow_definition_to_have_verified_routing(self) -> None:
+        evidence = copy.deepcopy(TEMPLATE)
+        evidence["status"] = "PASS"
+        evidence["providerCoverage"] = {
+            "activeDefinitions": 1, "verifiedDefinitions": 1,
+            "shadowDefinitions": 12, "verifiedShadowDefinitions": 11,
+        }
+
+        problems = CHECKER_MODULE.validate(evidence)
+
+        self.assertIn(
+            "all 12 or more SHADOW definitions must have verified provider routing",
+            problems,
+        )
 
 
 if __name__ == "__main__":

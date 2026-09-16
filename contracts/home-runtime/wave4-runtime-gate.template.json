@@ -8,20 +8,27 @@
   "backendCommit": null,
   "contractHashes": {},
   "checks": [
-    {"id": "W4-CONTRACT-CANONICAL", "status": "PENDING", "command": ["./gradlew", "exportOpenApiContracts"], "artifacts": []},
+    {"id": "W4-CONTRACT-CANONICAL", "status": "PENDING", "command": ["python3", "scripts/export-openapi-contracts.py", "--check"], "artifacts": []},
     {"id": "W4-GATEWAY-IDENTITY", "status": "PENDING", "command": ["./gradlew", ":dwp-gateway:test", "--tests", "com.dwp.gateway.HomeV2GatewaySecurityTest"], "artifacts": []},
-    {"id": "W4-PROVIDER-IDENTITY", "status": "PENDING", "command": ["./gradlew", "providerHomeSecurityTest"], "artifacts": []},
+    {"id": "W4-PROVIDER-IDENTITY", "status": "PENDING", "command": ["./gradlew", ":dwp-platform-contracts:test", ":dwp-approval-server:test", ":dwp-meeting-server:test", ":dwp-notification-server:test", ":dwp-space-server:test", ":dwp-messaging-server:test", ":dwp-people-server:test", "--tests", "*HomeWidgetProvider*", "--tests", "*HomeProvider*"], "artifacts": []},
+    {"id": "W4-OWNER-WIDGET-SEED", "status": "PENDING", "command": ["./gradlew", "checkWave4OwnerWidgetSeed"], "artifacts": []},
+    {"id": "W4-OWNER-PROVIDER-ROUTING", "status": "PENDING", "command": ["./gradlew", ":dwp-platform-server:test", "--tests", "*OwnerProvider*"], "artifacts": []},
     {"id": "W4-AUTHORIZATION-CACHE", "status": "PENDING", "command": ["./gradlew", ":dwp-platform-server:test", "--tests", "*HomeRuntimeAuthorization*"], "artifacts": []},
     {"id": "W4-CACHE-INVALIDATION", "status": "PENDING", "command": ["./gradlew", ":dwp-platform-server:test", "--tests", "*HomeRuntimeCache*"], "artifacts": []},
     {"id": "W4-FAILURE-ISOLATION", "status": "PENDING", "command": ["./gradlew", ":dwp-platform-server:test", "--tests", "*WidgetRuntimeBroker*"], "artifacts": []},
     {"id": "W4-FRESHNESS-STATE", "status": "PENDING", "command": ["./gradlew", ":dwp-platform-server:test", "--tests", "*ProviderResultValidator*"], "artifacts": []},
     {"id": "W4-PRIVACY-TELEMETRY", "status": "PENDING", "command": ["./gradlew", ":dwp-platform-server:test", "--tests", "*HomeRuntimeMetricsPrivacy*"], "artifacts": []},
     {"id": "W4-SIBLING-DB-BOUNDARY", "status": "PENDING", "command": ["python3", "scripts/check-home-runtime-boundaries.py"], "artifacts": []},
-    {"id": "W4-COMMAND-RECEIPT", "status": "PENDING", "command": ["./gradlew", ":dwp-platform-server:test", "--tests", "*HomeCommandReceipt*"], "artifacts": []},
+    {"id": "W4-COMMAND-RECEIPT", "status": "PENDING", "command": ["./gradlew", ":dwp-platform-server:test", "--tests", "*HomeWidgetCommandService*"], "artifacts": []},
     {"id": "W4-SLO", "status": "PENDING", "command": ["./gradlew", ":dwp-platform-server:test", "--tests", "com.dwp.services.platform.home.runtime.HomeRuntimePreProdSloTest"], "artifacts": []},
     {"id": "W4-ROLLBACK", "status": "PENDING", "command": ["./gradlew", ":dwp-platform-server:test", "--tests", "com.dwp.services.platform.home.runtime.HomeRuntimeRollbackGateTest"], "artifacts": []}
   ],
-  "providerCoverage": {"activeDefinitions": 0, "verifiedDefinitions": 0},
+  "providerCoverage": {
+    "activeDefinitions": 0,
+    "verifiedDefinitions": 0,
+    "shadowDefinitions": 0,
+    "verifiedShadowDefinitions": 0
+  },
   "security": {"crossTenantLeakCount": 0, "forbiddenLeakCount": 0, "telemetryLeakCount": 0},
   "slo": {"status": "PENDING", "sampleCount": 0, "serverP95Ms": null, "hardFailureRate": null, "liveProduction": false},
   "rollback": {

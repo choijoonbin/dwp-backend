@@ -21,6 +21,8 @@ REQUIRED_CHECKS = {
     "W4-FAILURE-ISOLATION",
     "W4-FRESHNESS-STATE",
     "W4-GATEWAY-IDENTITY",
+    "W4-OWNER-PROVIDER-ROUTING",
+    "W4-OWNER-WIDGET-SEED",
     "W4-PRIVACY-TELEMETRY",
     "W4-PROVIDER-IDENTITY",
     "W4-ROLLBACK",
@@ -166,11 +168,16 @@ def validate(
     coverage = _object(evidence.get("providerCoverage"), "providerCoverage", problems)
     active = coverage.get("activeDefinitions")
     verified = coverage.get("verifiedDefinitions")
+    shadow = coverage.get("shadowDefinitions")
+    verified_shadow = coverage.get("verifiedShadowDefinitions")
     if allow_pending:
-        if active != 0 or verified != 0:
+        if active != 0 or verified != 0 or shadow != 0 or verified_shadow != 0:
             problems.append("pending provider coverage must be zero")
-    elif type(active) is not int or active <= 0 or verified != active:
-        problems.append("every active definition must have a verified provider")
+    else:
+        if type(active) is not int or active <= 0 or verified != active:
+            problems.append("every active definition must have a verified provider")
+        if type(shadow) is not int or shadow < 12 or verified_shadow != shadow:
+            problems.append("all 12 or more SHADOW definitions must have verified provider routing")
 
     security = _object(evidence.get("security"), "security", problems)
     for field in ("crossTenantLeakCount", "forbiddenLeakCount", "telemetryLeakCount"):
