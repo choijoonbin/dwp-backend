@@ -5,6 +5,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
+import java.time.OffsetDateTime;
+import java.time.ZoneOffset;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -12,8 +16,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.time.OffsetDateTime;
-import java.time.ZoneOffset;
 import java.util.regex.Pattern;
 
 @Component
@@ -27,6 +29,12 @@ public class ProviderResultValidator {
     private static final int MAX_REDACTIONS = 32;
     private static final Pattern EXTERNAL_URI = Pattern.compile(
             "(?i)^(?:(?:[a-z][a-z0-9+.-]*):\\/\\/|//|(?:javascript|data|file|mailto):).*");
+    private static final Pattern INTERNAL_ROUTE = Pattern.compile(
+            "/[A-Za-z0-9/_?=&.%-]*");
+    private static final Pattern INVALID_PERCENT_ESCAPE = Pattern.compile(
+            "%(?![0-9A-Fa-f]{2})");
+    private static final Pattern ENCODED_SEQUENCE = Pattern.compile(
+            "%[0-9A-Fa-f]{2}");
 
     private final ObjectMapper objectMapper;
     private final HomeRuntimeProperties properties;
@@ -80,15 +88,56 @@ public class ProviderResultValidator {
     public static String internalRoute(String value) {
         if (value == null || value.isBlank() || value.length() > 512
                 || !value.startsWith("/") || value.startsWith("//")
-                || value.contains("\\") || value.contains("..")
+                || value.contains("\\") || value.contains("#")
                 || value.contains("\r") || value.contains("\n")
-                || !value.matches("/[A-Za-z0-9/_?=&.%-]*")) {
-            throw new WidgetProviderException(
-                    WidgetProviderException.Kind.MALFORMED,
-                    "INVALID_SOURCE_ROUTE",
-                    "Provider returned an invalid internal route.");
+                || !INTERNAL_ROUTE.matcher(value).matches()
+                || INVALID_PERCENT_ESCAPE.matcher(value).find()) {
+            invalidInternalRoute();
+        }
+        int queryIndex = value.indexOf('?');
+        if (queryIndex != value.lastIndexOf('?')) {
+            invalidInternalRoute();
+        }
+        String encodedPath = queryIndex < 0 ? value : value.substring(0, queryIndex);
+        if (hasDotSegment(encodedPath)) {
+            invalidInternalRoute();
+        }
+        String decodedPath;
+        try {
+            decodedPath = URLDecoder.decode(encodedPath, StandardCharsets.UTF_8);
+        } catch (IllegalArgumentException exception) {
+            invalidInternalRoute();
+            return value;
+        }
+        if (decodedPath.startsWith("//") || decodedPath.contains("\\")
+                || decodedPath.contains("?") || decodedPath.contains("#")
+                || hasControlOrNonAscii(decodedPath) || hasDotSegment(decodedPath)
+                || slashCount(decodedPath) != slashCount(encodedPath)
+                || ENCODED_SEQUENCE.matcher(decodedPath).find()) {
+            invalidInternalRoute();
         }
         return value;
+    }
+
+    private static boolean hasDotSegment(String value) {
+        return java.util.Arrays.stream(value.split("/", -1))
+                .anyMatch(segment -> ".".equals(segment) || "..".equals(segment));
+    }
+
+    private static boolean hasControlOrNonAscii(String value) {
+        return value.codePoints().anyMatch(codePoint ->
+                codePoint <= 31 || codePoint == 127 || codePoint > 127);
+    }
+
+    private static long slashCount(String value) {
+        return value.chars().filter(character -> character == '/').count();
+    }
+
+    private static void invalidInternalRoute() {
+        throw new WidgetProviderException(
+                WidgetProviderException.Kind.MALFORMED,
+                "INVALID_SOURCE_ROUTE",
+                "Provider returned an invalid internal route.");
     }
 
     public void validateCommandParameters(Map<String, Object> parameters) {
