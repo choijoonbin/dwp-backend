@@ -96,7 +96,7 @@ public class MailService {
                 queries.threadsAdvanced(
                         tenantId, userId, "", "", "INBOX", null, false, "",
                         accountId, "", null, "", "", "", null, null,
-                        null, null, null, 0, 6),
+                        null, null, null, "", 0, 6),
                 queries.proposalsFiltered(tenantId, userId, accountId, "PROPOSED", "", 4),
                 queries.sharedInboxPulse(tenantId, userId, accountId),
                 OffsetDateTime.now());
@@ -156,6 +156,36 @@ public class MailService {
             Boolean hasAttachment,
             int page,
             int pageSize) {
+        return threadsAdvanced(
+                tenantId, userId, lane, state, folder, folderId, sharedOnly, search,
+                accountId, scope, sharedInboxId, assignment, sender, recipient,
+                dateFrom, dateTo, unread, needsReply, hasAttachment, "", page, pageSize);
+    }
+
+    @Transactional(readOnly = true)
+    public MailDtos.ThreadPage threadsAdvanced(
+            Long tenantId,
+            Long userId,
+            String lane,
+            String state,
+            String folder,
+            UUID folderId,
+            boolean sharedOnly,
+            String search,
+            UUID accountId,
+            String scope,
+            UUID sharedInboxId,
+            String assignment,
+            String sender,
+            String recipient,
+            java.time.LocalDate dateFrom,
+            java.time.LocalDate dateTo,
+            Boolean unread,
+            Boolean needsReply,
+            Boolean hasAttachment,
+            String importance,
+            int page,
+            int pageSize) {
         List<MailDtos.AccountSummary> accounts = queries.accounts(tenantId, userId);
         requireMailbox(accounts);
         if (accountId != null && accounts.stream().noneMatch(account -> account.accountId().equals(accountId))) {
@@ -168,10 +198,11 @@ public class MailService {
         String resolvedScope = normalizeChoice(scope, Set.of("ALL", "PERSONAL", "SHARED"));
         if ("ALL".equals(resolvedScope)) resolvedScope = "";
         String resolvedAssignment = normalizeChoice(
-                assignment, Set.of("ALL", "MINE", "UNASSIGNED"));
+                assignment, Set.of("ALL", "MINE", "UNASSIGNED", "OVERDUE"));
         if ("ALL".equals(resolvedAssignment)) resolvedAssignment = "";
         String resolvedSender = normalizeSearch(sender);
         String resolvedRecipient = normalizeSearch(recipient);
+        String resolvedImportance = enumValue(importance, Importance.class);
         if (dateFrom != null && dateTo != null && dateFrom.isAfter(dateTo)) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "The mail date range is invalid.");
         }
@@ -182,12 +213,13 @@ public class MailService {
                         tenantId, userId, resolvedLane, resolvedState, resolvedFolder, folderId,
                         sharedOnly, resolvedSearch, accountId, resolvedScope, sharedInboxId,
                         resolvedAssignment, resolvedSender, resolvedRecipient, dateFrom, dateTo,
-                        unread, needsReply, hasAttachment, resolvedPage, resolvedPageSize),
+                        unread, needsReply, hasAttachment, resolvedImportance,
+                        resolvedPage, resolvedPageSize),
                 queries.threadCountAdvanced(
                         tenantId, userId, resolvedLane, resolvedState, resolvedFolder, folderId,
                         sharedOnly, resolvedSearch, accountId, resolvedScope, sharedInboxId,
                         resolvedAssignment, resolvedSender, resolvedRecipient, dateFrom, dateTo,
-                        unread, needsReply, hasAttachment),
+                        unread, needsReply, hasAttachment, resolvedImportance),
                 resolvedPage, resolvedPageSize);
     }
 
@@ -428,6 +460,23 @@ public class MailService {
                     tenantId, userId,
                     visibleThread(tenantId, userId, delivered.threadId()));
         }
+        MailCommandRepository.ComposeResult composed = commands.composeCommand(
+                tenantId, userId, request.idempotencyKey());
+        if (composed != null) {
+            requireMatchingComposeCommand(composed, requestFingerprint);
+            return detail(
+                    tenantId, userId,
+                    visibleThread(tenantId, userId, composed.threadId()));
+        }
+        if (request.deliveryMode() == DeliveryMode.SEND) {
+            validateExternalRecipientPolicy(
+                    commands.defaultComposeSenderEmail(tenantId, userId)
+                            .orElseThrow(() -> new BaseException(
+                                    ErrorCode.INVALID_STATE,
+                                    "No active default mail account is available.")),
+                    List.of(request.toEmail()), request.classification(),
+                    request.externalRecipientConfirmed());
+        }
         MailCommandRepository.ComposeResult result = commands.compose(
                 tenantId, userId, request, requestFingerprint);
         if (result == null) {
@@ -483,6 +532,16 @@ public class MailService {
                 requireMatchingSendCommand(deliveryCommand, threadId, requestFingerprint);
                 return detail(tenantId, userId, before);
             }
+            String senderEmail = queries.accounts(tenantId, userId).stream()
+                    .filter(account -> account.accountId().equals(before.accountId()))
+                    .map(MailDtos.AccountSummary::emailAddress)
+                    .findFirst()
+                    .orElseThrow(() -> new BaseException(
+                            ErrorCode.FORBIDDEN,
+                            "The draft sending account is no longer available."));
+            validateExternalRecipientPolicy(
+                    senderEmail, List.of(request.toEmail()), request.classification(),
+                    request.externalRecipientConfirmed());
         }
         if (!"DRAFTS".equals(before.folderType())
                 || before.workflowState() != WorkflowState.DRAFT
@@ -619,15 +678,46 @@ public class MailService {
 
     @Transactional(readOnly = true)
     public List<MailDtos.ActionProposal> proposals(
+            Long tenantId, Long userId, String status, String type) {
+        return proposals(
+                tenantId, userId, status, type, null, null, null, 0, 100).items();
+    }
+
+    @Transactional(readOnly = true)
+    public MailDtos.ActionProposalPage proposals(
             Long tenantId,
             Long userId,
             String status,
-            String type) {
-        requireMailbox(queries.accounts(tenantId, userId));
+            String type,
+            UUID accountId,
+            java.time.LocalDate dateFrom,
+            java.time.LocalDate dateTo,
+            int page,
+            int pageSize) {
+        List<MailDtos.AccountSummary> accounts = queries.accounts(tenantId, userId);
+        requireMailbox(accounts);
+        if (accountId != null && accounts.stream()
+                .noneMatch(account -> account.accountId().equals(accountId))) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "The selected mail account is not available.");
+        }
+        if (dateFrom != null && dateTo != null && dateFrom.isAfter(dateTo)) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "The proposal date range is invalid.");
+        }
         String resolvedStatus = enumValue(status, ProposalStatus.class);
         String resolvedType = enumValue(type, ProposalType.class);
-        return queries.proposalsFiltered(
-                tenantId, userId, null, resolvedStatus, resolvedType, 200);
+        int resolvedPage = Math.max(0, page);
+        int resolvedPageSize = Math.max(1, Math.min(100, pageSize));
+        return new MailDtos.ActionProposalPage(
+                queries.proposalsFiltered(
+                        tenantId, userId, accountId, resolvedStatus, resolvedType,
+                        dateFrom, dateTo, resolvedPage, resolvedPageSize),
+                queries.proposalCountFiltered(
+                        tenantId, userId, accountId, resolvedStatus, resolvedType,
+                        dateFrom, dateTo),
+                resolvedPage, resolvedPageSize);
     }
 
     @Transactional
@@ -869,6 +959,10 @@ public class MailService {
 
     private MailDtos.ThreadDetail detail(
             Long tenantId, Long userId, MailDtos.ThreadSummary thread) {
+        MailDtos.SharedInboxReplyIdentity replyIdentity = thread.sharedInboxId() == null
+                ? null
+                : queries.sharedInboxReplyIdentity(
+                        tenantId, userId, thread.threadId()).orElse(null);
         return new MailDtos.ThreadDetail(
                 thread,
                 queries.messages(tenantId, userId, thread.threadId()),
@@ -877,12 +971,15 @@ public class MailService {
                 thread.sharedInboxId() == null
                         ? List.of()
                         : queries.sharedInboxMembers(tenantId, thread.sharedInboxId()),
-                sharedInboxActions(tenantId, userId, thread.sharedInboxId()),
+                sharedInboxActions(
+                        tenantId, userId, thread.sharedInboxId(), replyIdentity != null),
+                replyIdentity,
                 null,
                 List.of());
     }
 
-    private List<String> sharedInboxActions(Long tenantId, Long userId, UUID sharedInboxId) {
+    private List<String> sharedInboxActions(
+            Long tenantId, Long userId, UUID sharedInboxId, boolean replyIdentityAvailable) {
         if (sharedInboxId == null) return List.of();
         List<String> actions = new ArrayList<>();
         if (queries.hasSharedInboxPermission(
@@ -895,7 +992,7 @@ public class MailService {
                 MailQueryRepository.SharedInboxPermission.MANAGE)) {
             actions.add("COMMENT");
         }
-        if (queries.hasSharedInboxPermission(
+        if (replyIdentityAvailable && queries.hasSharedInboxPermission(
                 tenantId, sharedInboxId, userId,
                 MailQueryRepository.SharedInboxPermission.SEND)) {
             actions.add("REPLY");
@@ -972,6 +1069,39 @@ public class MailService {
     private String replyMode(MailDtos.ReplyRequest request) {
         return request.mode() == null || request.mode().isBlank()
                 ? "REPLY" : request.mode().trim().toUpperCase(Locale.ROOT);
+    }
+
+    private void validateExternalRecipientPolicy(
+            String senderEmail,
+            List<String> recipientEmails,
+            Classification classification,
+            Boolean externalRecipientConfirmed) {
+        if (classification == null || externalRecipientConfirmed == null) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Message classification and external-recipient confirmation are required.");
+        }
+        String senderDomain = emailDomain(senderEmail);
+        boolean external = recipientEmails.stream()
+                .map(this::emailDomain)
+                .anyMatch(domain -> !senderDomain.equals(domain));
+        if (external && classification != Classification.PUBLIC
+                && !externalRecipientConfirmed) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Confirm the external recipients before sending non-public content.");
+        }
+    }
+
+    private String emailDomain(String email) {
+        String normalized = email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
+        int separator = normalized.lastIndexOf('@');
+        if (separator < 1 || separator == normalized.length() - 1) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "A recipient email address is invalid.");
+        }
+        return normalized.substring(separator + 1);
     }
 
     private boolean validProposalValue(Object value, int depth) {

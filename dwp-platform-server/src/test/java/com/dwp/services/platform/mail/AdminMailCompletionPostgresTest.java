@@ -1,10 +1,14 @@
 package com.dwp.services.platform.mail;
 
+import com.dwp.core.event.DomainEventContractRegistry;
+import com.dwp.core.event.DomainEventOutboxRepository;
+import com.dwp.core.event.DomainEventRecorder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.server.ResponseStatusException;
@@ -85,14 +89,18 @@ class AdminMailCompletionPostgresTest {
     void purgeDeletesOnlyAfterFreshFingerprintAndTwoDistinctApprovals() {
         String schema = "mail_admin_purge_execution";
         migrate(schema);
-        JdbcTemplate jdbc = new JdbcTemplate(dataSource(schema));
+        PGSimpleDataSource source = dataSource(schema);
+        JdbcTemplate jdbc = new JdbcTemplate(source);
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         AdminMailCompletionRepository repository =
                 new AdminMailCompletionRepository(jdbc, objectMapper);
+        DataSourceTransactionManager transactions = new DataSourceTransactionManager(source);
         AdminMailCompletionService service = new AdminMailCompletionService(
                 repository,
                 new MailConnectorRegistry(List.of(new DwpSandboxMailConnector())),
                 objectMapper);
+        AdminMailPurgeWorker worker = purgeWorker(
+                repository, transactions, source, objectMapper, 5);
         PurgeFixture fixture = purgeFixture(jdbc);
         long policyVersion = jdbc.queryForObject("""
                 SELECT version FROM mail_tenant_policies WHERE tenant_id = ?
@@ -113,11 +121,26 @@ class AdminMailCompletionPostgresTest {
                 new PurgeApprovalRequest("APPROVE", UUID.randomUUID(), policyVersion));
         assertThat(second.distinctApproverCount()).isEqualTo(2);
 
-        var job = service.executePurge(
+        var accepted = service.executePurge(
                 fixture.tenantId(), 7001, preview.candidateSnapshotId(), "purge-correlation",
                 new PurgeExecuteRequest(
                         UUID.randomUUID(), policyVersion, preview.fingerprint()));
 
+        assertThat(accepted.state()).isEqualTo("ACCEPTED");
+        worker.executePending();
+        var pendingPublication = service.purgeJob(fixture.tenantId(), accepted.jobId());
+        assertThat(pendingPublication.state()).isEqualTo("PARTIAL");
+        assertThat(pendingPublication.errorCode())
+                .isEqualTo("PURGE_EVENT_PUBLICATION_PENDING");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM sys_domain_event_outbox
+                 WHERE tenant_id = ? AND aggregate_type = 'MAIL_PURGE_JOB'
+                   AND aggregate_id = ? AND event_type = 'mail.purge.completed.v1'
+                   AND status = 'PENDING'
+                """, Integer.class, fixture.tenantId(), accepted.jobId().toString())).isOne();
+        publishPurgeEvent(jdbc, fixture.tenantId(), accepted.jobId());
+        worker.executePending();
+        var job = service.purgeJob(fixture.tenantId(), accepted.jobId());
         assertThat(job.state()).isEqualTo("SUCCEEDED");
         assertThat(job.verificationState()).isEqualTo("VERIFIED");
         assertThat(jdbc.queryForObject("""
@@ -137,11 +160,15 @@ class AdminMailCompletionPostgresTest {
     void purgePreservesRestrictEvidenceAndDeletesTheRemainingEligibleSet() {
         String schema = "mail_admin_purge_evidence";
         migrateThroughMailAdmin(schema);
-        JdbcTemplate jdbc = new JdbcTemplate(dataSource(schema));
+        PGSimpleDataSource source = dataSource(schema);
+        JdbcTemplate jdbc = new JdbcTemplate(source);
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         AdminMailCompletionRepository repository =
                 new AdminMailCompletionRepository(jdbc, objectMapper);
         AdminMailCompletionService service = service(repository, objectMapper);
+        DataSourceTransactionManager transactions = new DataSourceTransactionManager(source);
+        AdminMailPurgeWorker worker = purgeWorker(
+                repository, transactions, source, objectMapper, 5);
         PurgeFixture eligible = purgeFixture(jdbc);
         PurgeFixture snapshotEvidence = additionalPurgeFixture(
                 jdbc, eligible, "Purge snapshot evidence");
@@ -175,12 +202,16 @@ class AdminMailCompletionPostgresTest {
                 historyEvidence.threadId(), receiptEvidence.threadId(),
                 backfillEvidence.threadId());
 
-        PurgeJob job = service.executePurge(
+        PurgeJob accepted = service.executePurge(
                 eligible.tenantId(), 7001, preview.candidateSnapshotId(),
                 "purge-evidence-correlation",
                 new PurgeExecuteRequest(
                         UUID.randomUUID(), policyVersion, preview.fingerprint()));
 
+        worker.executePending();
+        publishPurgeEvent(jdbc, eligible.tenantId(), accepted.jobId());
+        worker.executePending();
+        PurgeJob job = service.purgeJob(eligible.tenantId(), accepted.jobId());
         assertThat(job.state()).isEqualTo("SUCCEEDED");
         assertThat(job.verificationState()).isEqualTo("VERIFIED");
         assertThat(job.stepResults()).anySatisfy(step -> {
@@ -222,14 +253,17 @@ class AdminMailCompletionPostgresTest {
         long policyVersion = policyVersion(jdbc, fixture.tenantId());
         var preview = approvedPreview(service, fixture.tenantId(), policyVersion);
 
-        PurgeJob job = new TransactionTemplate(transactions).execute(status ->
+        PurgeJob accepted = new TransactionTemplate(transactions).execute(status ->
                 service.executePurge(
                         fixture.tenantId(), 7301, preview.candidateSnapshotId(),
                         "purge-failure-correlation",
                         new PurgeExecuteRequest(
                                 UUID.randomUUID(), policyVersion, preview.fingerprint())));
 
-        assertThat(job).isNotNull();
+        assertThat(accepted).isNotNull();
+        assertThat(accepted.state()).isEqualTo("ACCEPTED");
+        purgeWorker(repository, transactions, source, objectMapper, 1).executePending();
+        PurgeJob job = service.purgeJob(fixture.tenantId(), accepted.jobId());
         assertThat(job.state()).isEqualTo("FAILED");
         assertThat(job.verificationState()).isEqualTo("UNKNOWN");
         assertThat(job.errorCode()).isEqualTo("LOCAL_DELETE_FAILED");
@@ -369,6 +403,41 @@ class AdminMailCompletionPostgresTest {
                 repository,
                 new MailConnectorRegistry(List.of(new DwpSandboxMailConnector())),
                 objectMapper);
+    }
+
+    private AdminMailPurgeWorker purgeWorker(
+            AdminMailCompletionRepository repository,
+            DataSourceTransactionManager transactions,
+            PGSimpleDataSource source,
+            ObjectMapper objectMapper,
+            int maximumAttempts) {
+        DomainEventContractRegistry contracts = new DomainEventContractRegistry();
+        DomainEventRecorder recorder = new DomainEventRecorder(
+                new DomainEventOutboxRepository(
+                        new NamedParameterJdbcTemplate(source), objectMapper),
+                contracts,
+                objectMapper);
+        return new AdminMailPurgeWorker(
+                repository,
+                new AdminMailPurgeTransactions(repository, transactions),
+                (tenantId, actorId, jobId) -> new MailPurgeExecutionAuthority.Decision(
+                        MailPurgeExecutionAuthority.State.ALLOWED,
+                        "test-authority:" + actorId,
+                        "test-revision",
+                        "TEST_AUTHORITY_ALLOWED"),
+                new MailPurgeDomainEvents(recorder, contracts, objectMapper),
+                true, 5, 30, maximumAttempts, "mail-purge-test");
+    }
+
+    private void publishPurgeEvent(JdbcTemplate jdbc, long tenantId, UUID jobId) {
+        assertThat(jdbc.update("""
+                UPDATE sys_domain_event_outbox
+                   SET status = 'PUBLISHED', published_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE tenant_id = ? AND aggregate_type = 'MAIL_PURGE_JOB'
+                   AND aggregate_id = ? AND event_type = 'mail.purge.completed.v1'
+                   AND status = 'PENDING'
+                """, tenantId, jobId.toString())).isOne();
     }
 
     private MailWorkspaceDtos.PurgePreview approvedPreview(
@@ -628,7 +697,7 @@ class AdminMailCompletionPostgresTest {
                 .locations(
                         "filesystem:src/main/resources/db/migration",
                         "filesystem:../dwp-core/src/main/resources/db/migration")
-                .target("282")
+                .target("305")
                 .cleanDisabled(false)
                 .load();
         flyway.clean();

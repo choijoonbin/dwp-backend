@@ -11,6 +11,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
 
@@ -36,6 +37,15 @@ class MailDefaultAccountPreferencePostgresTest {
         MailJsonCodec json = new MailJsonCodec(
                 new ObjectMapper().findAndRegisterModules());
         Owner owner = owner(jdbc);
+        OffsetDateTime lastSync = OffsetDateTime.parse("2026-09-17T01:02:03Z");
+        jdbc.update("""
+                UPDATE mail_provider_connections connection
+                   SET last_synchronized_at = ?
+                  FROM mail_accounts account
+                 WHERE account.tenant_id = connection.tenant_id
+                   AND account.connection_id = connection.connection_id
+                   AND account.tenant_id = ? AND account.account_id = ?
+                """, lastSync, owner.tenantId(), owner.staticDefaultAccountId());
         UUID preferredAccountId = addPreferredAccount(jdbc, owner);
         setPreference(jdbc, owner, preferredAccountId);
 
@@ -51,6 +61,16 @@ class MailDefaultAccountPreferencePostgresTest {
                 .singleElement()
                 .extracting(MailDtos.AccountSummary::defaultAccount)
                 .isEqualTo(false);
+        MailDtos.AccountReadiness persistedEvidence = accounts.stream()
+                .filter(account -> account.accountId().equals(owner.staticDefaultAccountId()))
+                .findFirst().orElseThrow().readiness();
+        assertThat(persistedEvidence.lastSuccessfulSyncAt()).isEqualTo(lastSync);
+        assertThat(persistedEvidence.lastSuccessfulSyncScope()).isEqualTo("ACCOUNT");
+        assertThat(persistedEvidence.featureReadiness().values())
+                .allSatisfy(feature -> {
+                    assertThat(feature.lastSuccessfulAt()).isNull();
+                    assertThat(feature.lastSuccessfulScope()).isEqualTo("UNAVAILABLE");
+                });
 
         MailWorkspaceRepository workspace = new MailWorkspaceRepository(jdbc, json);
         assertThat(workspace.composeAccount(owner.tenantId(), owner.userId(), null))
@@ -96,6 +116,30 @@ class MailDefaultAccountPreferencePostgresTest {
                         "corr-default-account", "a".repeat(64)));
         assertThat(group).isNotNull();
         assertThreadAccount(jdbc, owner.tenantId(), group.threadId(), preferredAccountId);
+
+        SharedAccount shared = sharedAccount(jdbc, owner);
+        jdbc.update("""
+                UPDATE mail_shared_inbox_access_grants
+                   SET can_read = TRUE, can_send_as = FALSE,
+                       can_send_on_behalf = TRUE
+                 WHERE tenant_id = ? AND shared_inbox_id = ? AND user_id = ?
+                """, owner.tenantId(), shared.sharedInboxId(), owner.userId());
+        setPreference(jdbc, owner, shared.accountId());
+        assertThat(workspace.accountSendAccessible(
+                owner.tenantId(), owner.userId(), shared.accountId())).isTrue();
+        assertThat(workspace.composeAccount(owner.tenantId(), owner.userId(), null))
+                .contains(shared.accountId());
+
+        jdbc.update("""
+                UPDATE mail_shared_inbox_access_grants
+                   SET can_send_as = FALSE, can_send_on_behalf = FALSE
+                 WHERE tenant_id = ? AND shared_inbox_id = ? AND user_id = ?
+                """, owner.tenantId(), shared.sharedInboxId(), owner.userId());
+        assertThat(workspace.accountAccessible(
+                owner.tenantId(), owner.userId(), shared.accountId())).isTrue();
+        assertThat(workspace.accountSendAccessible(
+                owner.tenantId(), owner.userId(), shared.accountId())).isFalse();
+        assertThat(workspace.composeAccount(owner.tenantId(), owner.userId(), null)).isEmpty();
     }
 
     private UUID addPreferredAccount(JdbcTemplate jdbc, Owner owner) {
@@ -161,6 +205,16 @@ class MailDefaultAccountPreferencePostgresTest {
                    AND owner_user_id IS NOT NULL
                    AND is_default = TRUE
                    AND connection_state = 'ACTIVE'
+                   AND EXISTS (
+                       SELECT 1
+                         FROM mail_shared_inbox_access_grants access_grant
+                         JOIN mail_shared_inboxes inbox
+                           ON inbox.tenant_id = access_grant.tenant_id
+                          AND inbox.shared_inbox_id = access_grant.shared_inbox_id
+                          AND inbox.lifecycle_state = 'ACTIVE'
+                        WHERE access_grant.tenant_id = mail_accounts.tenant_id
+                          AND access_grant.user_id = mail_accounts.owner_user_id
+                          AND access_grant.member_state = 'ACTIVE')
                  ORDER BY tenant_id, owner_user_id
                  LIMIT 1
                 """, result -> {
@@ -172,6 +226,30 @@ class MailDefaultAccountPreferencePostgresTest {
                     result.getLong("owner_user_id"),
                     result.getObject("account_id", UUID.class));
         });
+    }
+
+    private SharedAccount sharedAccount(JdbcTemplate jdbc, Owner owner) {
+        return jdbc.queryForObject("""
+                SELECT account.account_id, inbox.shared_inbox_id
+                  FROM mail_accounts account
+                  JOIN mail_shared_inboxes inbox
+                    ON inbox.tenant_id = account.tenant_id
+                   AND inbox.account_id = account.account_id
+                   AND inbox.lifecycle_state = 'ACTIVE'
+                  JOIN mail_shared_inbox_access_grants access_grant
+                    ON access_grant.tenant_id = inbox.tenant_id
+                   AND access_grant.shared_inbox_id = inbox.shared_inbox_id
+                   AND access_grant.user_id = ?
+                   AND access_grant.member_state = 'ACTIVE'
+                 WHERE account.tenant_id = ?
+                   AND account.account_kind = 'SHARED'
+                   AND account.connection_state = 'ACTIVE'
+                 ORDER BY account.account_id
+                 LIMIT 1
+                """, (result, ignored) -> new SharedAccount(
+                        result.getObject("account_id", UUID.class),
+                        result.getObject("shared_inbox_id", UUID.class)),
+                owner.userId(), owner.tenantId());
     }
 
     private void migrate(String schema) {
@@ -206,5 +284,8 @@ class MailDefaultAccountPreferencePostgresTest {
             long tenantId,
             long userId,
             UUID staticDefaultAccountId) {
+    }
+
+    private record SharedAccount(UUID accountId, UUID sharedInboxId) {
     }
 }

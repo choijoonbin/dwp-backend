@@ -116,6 +116,7 @@ public final class MailAddressBookDtos {
             @NotBlank @Size(max = 100_000) String body,
             @NotNull Classification classification,
             @NotNull GroupRecipientMode recipientMode,
+            UUID accountId,
             @NotNull UUID idempotencyKey,
             @NotNull @Min(0) Long groupVersion) {
 
@@ -123,9 +124,21 @@ public final class MailAddressBookDtos {
                 String subject,
                 String body,
                 Classification classification,
+                GroupRecipientMode recipientMode,
                 UUID idempotencyKey,
                 Long groupVersion) {
-            this(subject, body, classification, GroupRecipientMode.TO, idempotencyKey, groupVersion);
+            this(subject, body, classification, recipientMode, null,
+                    idempotencyKey, groupVersion);
+        }
+
+        public GroupMessageRequest(
+                String subject,
+                String body,
+                Classification classification,
+                UUID idempotencyKey,
+                Long groupVersion) {
+            this(subject, body, classification, GroupRecipientMode.TO, null,
+                    idempotencyKey, groupVersion);
         }
     }
 
@@ -134,10 +147,24 @@ public final class MailAddressBookDtos {
             UUID groupId,
             long groupVersion,
             GroupRecipientMode recipientMode,
+            UUID accountId,
             int recipientCount,
             UUID threadId,
             OffsetDateTime acceptedAt,
             String state) {
+
+        public GroupSendReceipt(
+                UUID receiptId,
+                UUID groupId,
+                long groupVersion,
+                GroupRecipientMode recipientMode,
+                int recipientCount,
+                UUID threadId,
+                OffsetDateTime acceptedAt,
+                String state) {
+            this(receiptId, groupId, groupVersion, recipientMode, null,
+                    recipientCount, threadId, acceptedAt, state);
+        }
     }
 
     public record GroupSendResult(

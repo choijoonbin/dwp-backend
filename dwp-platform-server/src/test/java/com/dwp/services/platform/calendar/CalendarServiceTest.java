@@ -1,10 +1,13 @@
 package com.dwp.services.platform.calendar;
 
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoff;
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoffOutboxRepository;
 import com.dwp.services.platform.workplace.WorkplaceRoomAccessPort;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -161,6 +164,40 @@ class CalendarServiceTest {
     }
 
     @Test
+    void emailOnlyAttendeeIsExternalEvenWhenEmailUsesTheLegacyInternalSuffix() {
+        when(repository.policy(1L)).thenReturn(policy(false));
+        OffsetDateTime startsAt = OffsetDateTime.parse("2026-08-20T09:00:00+09:00");
+        CalendarDtos.AttendeeInput emailOnly = new CalendarDtos.AttendeeInput(
+                null, null, "employee@sk.com", "Email only", CalendarTypes.AttendeeType.REQUIRED);
+
+        assertThatThrownBy(() -> service.validateEvent(
+                1L, startsAt, startsAt.plusMinutes(30), "Asia/Seoul",
+                CalendarTypes.EventType.MEETING, "Agenda",
+                CalendarTypes.RecurrencePattern.NONE, null, List.of(emailOnly)))
+                .hasMessageContaining("External attendees are disabled");
+    }
+
+    @Test
+    void authoritativePersonOrUserIdentityClassifiesAttendeeAsInternal() {
+        CalendarRepository.PolicyRow policy = policy(false);
+        when(repository.policy(1L)).thenReturn(policy);
+        OffsetDateTime startsAt = OffsetDateTime.parse("2026-08-20T09:00:00+09:00");
+        List<CalendarDtos.AttendeeInput> internalAttendees = List.of(
+                new CalendarDtos.AttendeeInput(
+                        null, UUID.randomUUID(), "person@external.example", "Person",
+                        CalendarTypes.AttendeeType.REQUIRED),
+                new CalendarDtos.AttendeeInput(
+                        42L, null, "user@external.example", "User",
+                        CalendarTypes.AttendeeType.OPTIONAL));
+
+        assertThat(service.validateEvent(
+                1L, startsAt, startsAt.plusMinutes(30), "Asia/Seoul",
+                CalendarTypes.EventType.MEETING, "Agenda",
+                CalendarTypes.RecurrencePattern.NONE, null, internalAttendees))
+                .isSameAs(policy);
+    }
+
+    @Test
     void unknownOrCrossTenantSchedulingParticipantsFailClosed() {
         UUID currentPersonId = UUID.randomUUID();
         UUID unknownPersonId = UUID.randomUUID();
@@ -184,6 +221,8 @@ class CalendarServiceTest {
                 "BookingSummary decideBooking(Long,Long,UUID,String,String,BookingDecisionRequest):false",
                 "EventSummary create(Long,Long,UUID,String,String,String,CreateEventRequest):false",
                 "EventSummary create(Long,Long,UUID,String,String,String,String,CreateEventRequest):false",
+                "EventSummary create(Long,Long,UUID,String,String,String,String,CreateEventRequest,MailProposalHandoffBinding):false",
+                "EventSummary create(Long,Long,UUID,String,String,String,String,CreateEventRequest,MailProposalHandoffBinding,Binding,Identity):false",
                 "EventSummary respond(Long,Long,UUID,UUID,String,String,RespondRequest):false",
                 "EventSummary respond(Long,Long,UUID,UUID,String,String,String,RespondRequest):false",
                 "EventSummary update(Long,Long,UUID,UUID,String,String,UpdateEventRequest):false",
@@ -415,6 +454,41 @@ class CalendarServiceTest {
     }
 
     @Test
+    void reviewedProposalCommitsTheExactCalendarEventEffect() {
+        UUID personId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        CalendarDtos.CreateEventRequest request = createRequest(UUID.randomUUID(), null);
+        CalendarRepository.EventRow existing = event(
+                eventId, request.startsAt(), request.endsAt(), request.timeZone(),
+                CalendarTypes.RecurrencePattern.NONE, null, 7L, personId);
+        String fingerprint = CalendarRequestFingerprint.create(request);
+        when(repository.eventIdempotency(1L, 7L, request.idempotencyKey()))
+                .thenReturn(Optional.of(new CalendarRepository.IdempotencyRow(eventId, fingerprint)));
+        when(repository.event(1L, 7L, personId, "group-ref", eventId, false))
+                .thenReturn(Optional.of(existing));
+        when(repository.attendees(1L, eventId)).thenReturn(List.of());
+        PlatformDwaionHandoffOutboxRepository outbox =
+                org.mockito.Mockito.mock(PlatformDwaionHandoffOutboxRepository.class);
+        service.setDwaionHandoffs(outbox);
+        var binding = new PlatformDwaionHandoff.Binding(
+                1, UUID.randomUUID(), UUID.randomUUID(), "CALENDAR.EVENT.CREATE", 2);
+        var identity = new PlatformDwaionHandoff.Identity(
+                "session-7", personId, "WORKSPACE_MEMBER", "APP.CALENDAR:CREATE");
+
+        CalendarDtos.EventSummary result = service.create(
+                1L, 7L, personId, "User", "en-US", "corr-owner",
+                "group-ref", request, null, binding, identity);
+
+        ArgumentCaptor<PlatformDwaionHandoff.Effect> effect =
+                ArgumentCaptor.forClass(PlatformDwaionHandoff.Effect.class);
+        verify(outbox).committed(
+                eq(1L), eq(7L), eq(binding), eq(identity), effect.capture(),
+                eq("corr-owner"));
+        assertThat(effect.getValue()).isEqualTo(new PlatformDwaionHandoff.Effect(
+                "CALENDAR", "EVENT_CREATE", eventId, result.version(), "CONFIRMED"));
+    }
+
+    @Test
     void workplaceRoomAuthorizationRunsBeforeEventInsertion() {
         UUID personId = UUID.randomUUID();
         UUID resourceId = UUID.randomUUID();
@@ -549,9 +623,13 @@ class CalendarServiceTest {
     }
 
     private CalendarRepository.PolicyRow policy() {
+        return policy(true);
+    }
+
+    private CalendarRepository.PolicyRow policy(boolean allowExternalAttendees) {
         return new CalendarRepository.PolicyRow(
                 1, LocalTime.of(9, 0), LocalTime.of(18, 0),
                 30, 15, 480, 365, 10, 600, 300,
-                false, true, 0L);
+                false, allowExternalAttendees, 0L);
     }
 }

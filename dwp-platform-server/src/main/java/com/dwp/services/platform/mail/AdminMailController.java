@@ -1,6 +1,7 @@
 package com.dwp.services.platform.mail;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -23,12 +24,14 @@ public class AdminMailController {
     }
 
     @GetMapping("/overview")
+    @Operation(operationId = "getAdminMailOverview")
     public ApiResponse<MailDtos.AdminOverview> overview(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId) {
         return ApiResponse.success(service.adminOverview(tenantId));
     }
 
     @PutMapping("/policy")
+    @Operation(operationId = "updateAdminMailPolicy")
     public ApiResponse<MailDtos.TenantPolicy> updatePolicy(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,

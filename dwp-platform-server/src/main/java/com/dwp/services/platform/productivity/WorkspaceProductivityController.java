@@ -2,6 +2,7 @@ package com.dwp.services.platform.productivity;
 
 import com.dwp.core.common.ApiResponse;
 import jakarta.validation.Valid;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -52,6 +53,18 @@ public class WorkspaceProductivityController {
             @PathVariable UUID connectorId) {
         access.use(permissions);
         return ApiResponse.success(service.beginAuthorization(tenantId, userId, connectorId));
+    }
+
+    @DeleteMapping("/connections/{connectorId}")
+    public ApiResponse<ProductivityDtos.Connection> disconnect(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) Long userId,
+            @RequestHeader(PERMISSIONS) String permissions,
+            @RequestHeader(value = CORRELATION, required = false) String correlationId,
+            @PathVariable UUID connectorId) {
+        access.use(permissions);
+        return ApiResponse.success(service.disconnect(
+                tenantId, userId, correlationId, connectorId));
     }
 
     @PostMapping("/authorization/callback")

@@ -69,12 +69,94 @@ class MailProposalOutcomeService implements MailProposalOutcomePort {
         if (binding == null) return;
         MailQueryRepository.OwnerProposalHandoffRow row =
                 requireBound(tenantId, actorId, owner, binding, true);
+        requireMatchingMutation(owner, row, mutation);
+        if ("EXECUTING".equals(row.ownerState())) {
+            return;
+        }
         if (!"ACCEPTED".equals(row.ownerState())
                 || row.version() != binding.proposalVersion()) {
             throw invalidState(
                     "The Mail proposal is not available for a new owner execution.");
         }
-        requireMatchingMutation(owner, row, mutation);
+        if (commands.reserveProposalExecution(
+                tenantId, actorId, binding.proposalId(), binding.commandId(),
+                row.proposalType(), binding.proposalVersion()) != 1) {
+            throw conflict();
+        }
+        commands.audit(
+                tenantId, actorId, "mail.action.owner-reserved", "MAIL_ACTION_PROPOSAL",
+                binding.proposalId().toString(), null,
+                Map.of("status", row.ownerState(), "version", row.version()),
+                Map.of("status", "EXECUTING", "version", row.version(),
+                        "commandId", row.commandId(), "owner", owner.name()));
+        commands.domainEvent(
+                tenantId, "MAIL_ACTION_PROPOSAL", binding.proposalId(),
+                "mail.action.owner-reserved", Map.of(
+                        "proposalId", binding.proposalId(),
+                        "commandId", row.commandId(),
+                        "status", "EXECUTING",
+                        "owner", owner.name(),
+                        "version", row.version()), null);
+    }
+
+    @Override
+    @Transactional
+    public MailDtos.ProposalHandoff notExecuted(
+            long tenantId,
+            long actorId,
+            Owner owner,
+            MailProposalHandoffBinding binding,
+            String reasonCode,
+            String correlationId) {
+        if (binding == null) return null;
+        MailQueryRepository.OwnerProposalHandoffRow before =
+                requireBound(tenantId, actorId, owner, binding, true);
+        String evidence = "owner-not-executed:" + owner.name() + ":"
+                + normalizeReason(reasonCode);
+        if ("ACCEPTED".equals(before.ownerState())
+                && evidence.equals(before.resultRef())) {
+            return handoff(before);
+        }
+        if (!"EXECUTING".equals(before.ownerState())) {
+            throw invalidState(
+                    "Only a reserved owner execution can be released as not executed.");
+        }
+        if (commands.releaseProposalExecution(
+                tenantId, actorId, binding.proposalId(), binding.commandId(),
+                before.proposalType(), binding.proposalVersion(), evidence) != 1) {
+            throw conflict();
+        }
+        MailQueryRepository.OwnerProposalHandoffRow after = queries
+                .ownerProposalHandoff(tenantId, binding.proposalId(), false)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        commands.audit(
+                tenantId, actorId, "mail.action.owner-not-executed", "MAIL_ACTION_PROPOSAL",
+                binding.proposalId().toString(), correlationId,
+                Map.of("status", before.ownerState(), "version", before.version()),
+                Map.of("status", after.ownerState(), "version", after.version(),
+                        "commandId", after.commandId(), "owner", owner.name(),
+                        "reasonCode", normalizeReason(reasonCode)));
+        commands.domainEvent(
+                tenantId, "MAIL_ACTION_PROPOSAL", binding.proposalId(),
+                "mail.action.owner-not-executed", Map.of(
+                        "proposalId", binding.proposalId(),
+                        "commandId", after.commandId(),
+                        "status", after.ownerState(),
+                        "owner", owner.name(),
+                        "reasonCode", normalizeReason(reasonCode),
+                        "version", after.version()), correlationId);
+        return handoff(after);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public MailDtos.ProposalHandoff status(
+            long tenantId,
+            long actorId,
+            Owner owner,
+            MailProposalHandoffBinding binding) {
+        if (binding == null) return null;
+        return handoff(requireBound(tenantId, actorId, owner, binding, false));
     }
 
     @Override
@@ -94,7 +176,10 @@ class MailProposalOutcomeService implements MailProposalOutcomePort {
                 && normalized.equals(before.resultRef())) {
             return handoff(before);
         }
-        if (!("ACCEPTED".equals(before.ownerState())
+        boolean legacyUnreserved = "ACCEPTED".equals(before.ownerState())
+                && before.resultRef() == null;
+        if (!(legacyUnreserved
+                || "EXECUTING".equals(before.ownerState())
                 || "UNKNOWN".equals(before.ownerState()))) {
             throw invalidState("The Mail proposal owner outcome is already final.");
         }
@@ -156,9 +241,9 @@ class MailProposalOutcomeService implements MailProposalOutcomePort {
                 && resultRef.equals(before.resultRef())) {
             return handoff(before);
         }
-        if (!("ACCEPTED".equals(before.ownerState())
-                || "UNKNOWN".equals(before.ownerState()))) {
-            throw invalidState("The Mail proposal owner outcome is already final.");
+        if (!"ACCEPTED".equals(before.ownerState())) {
+            throw invalidState(
+                    "The owner execution may have started; reconcile its status before cancelling.");
         }
         if (before.version() != proposalVersion
                 || commands.cancelProposalOutcome(
@@ -220,6 +305,16 @@ class MailProposalOutcomeService implements MailProposalOutcomePort {
             case ESCALATE_NOTIFICATION -> throw invalidState(
                     "Notification escalation has no executable owner integration.");
         };
+    }
+
+    private String normalizeReason(String reasonCode) {
+        String normalized = reasonCode == null ? "" : reasonCode.trim();
+        if (!normalized.matches("[A-Z][A-Z0-9_]{0,79}")) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "The owner not-executed reason code is invalid.");
+        }
+        return normalized;
     }
 
     private void requireMatchingMutation(

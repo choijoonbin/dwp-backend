@@ -53,6 +53,7 @@ public class DwaionProposalHandoffOutboxRepository {
                 binding.actionKey(), binding.handoffVersion(), identity.authSessionId(),
                 roles, permissions, correlation);
         if (inserted != 1) throw unavailable();
+        event(binding.handoffId(), actor.tenantId(), "DRAFT_BOUND", "DRAFT", null, 0, null);
     }
 
     /** Opens delivery only after the owning Approval command has committed its final domain state. */
@@ -86,12 +87,13 @@ public class DwaionProposalHandoffOutboxRepository {
                 """, result.status(), result.version(), correlation,
                 actor.tenantId(), requestId, actor.userId());
         if (updated != 1) throw unavailable();
+        eventByRequest(actor.tenantId(), requestId, "DOMAIN_COMMITTED", "PENDING", null, 0, null);
     }
 
     @Transactional
     public List<Delivery> claim(int batchSize, String workerId) {
         if (batchSize < 1 || batchSize > 100 || !canonical(workerId, 160)) throw invalid();
-        return jdbc.query("""
+        List<Delivery> claimed = jdbc.query("""
                 WITH candidates AS (
                     SELECT binding_id
                       FROM apr_dwaion_proposal_handoffs
@@ -113,6 +115,10 @@ public class DwaionProposalHandoffOutboxRepository {
                 )
                 SELECT * FROM claimed ORDER BY created_at,binding_id
                 """, (row, ignored) -> delivery(row), batchSize, workerId);
+        claimed.forEach(delivery -> event(delivery.handoffId(), delivery.tenantId(),
+                "DELIVERY_CLAIMED", "SENDING", delivery.nextObservation(),
+                delivery.attemptCount(), null));
+        return claimed;
     }
 
     @Transactional
@@ -141,6 +147,8 @@ public class DwaionProposalHandoffOutboxRepository {
                     """, observation.version(), observation.receiptId(), delivery.bindingId(),
                     workerId, delivery.attemptCount(), Timestamp.from(delivery.leaseUntil()));
             if (updated != 1) throw unavailable();
+            event(delivery.handoffId(), delivery.tenantId(), "COMPLETION_OBSERVED",
+                    "COMPLETED", state, delivery.attemptCount(), null);
             return Optional.empty();
         }
         if (Set.of("FAILED", "CANCELLED", "COMPENSATED").contains(state)) {
@@ -155,6 +163,8 @@ public class DwaionProposalHandoffOutboxRepository {
                     delivery.bindingId(), workerId, delivery.attemptCount(),
                     Timestamp.from(delivery.leaseUntil()));
             if (updated != 1) throw unavailable();
+            event(delivery.handoffId(), delivery.tenantId(), "TERMINAL_OBSERVED",
+                    "TERMINAL", state, delivery.attemptCount(), "AGENT_TERMINAL_STATE");
             return Optional.empty();
         }
         String next = switch (state) {
@@ -172,22 +182,36 @@ public class DwaionProposalHandoffOutboxRepository {
                 """, observation.version(), next, delivery.bindingId(), workerId,
                 delivery.attemptCount(), Timestamp.from(delivery.leaseUntil()));
         if (updated != 1) throw unavailable();
+        event(delivery.handoffId(), delivery.tenantId(), "OBSERVATION_ACCEPTED",
+                "SENDING", state, delivery.attemptCount(), null);
         return current(delivery.bindingId(), workerId);
     }
 
     @Transactional
-    public void retry(Delivery delivery, String workerId, String error) {
+    public boolean retry(Delivery delivery, String workerId, int maximumAttempts, String error) {
         requireCurrent(delivery, workerId);
+        if (maximumAttempts < 1 || maximumAttempts > 100) throw invalid();
         long delay = Math.min(900L, 1L << Math.min(9, Math.max(1, delivery.attemptCount())));
+        boolean exhausted = delivery.attemptCount() >= maximumAttempts;
+        String failureCode = error != null && error.matches(".*HTTP (4[0-9]{2}).*")
+                ? "AGENT_OBSERVATION_REJECTED" : "AGENT_OBSERVATION_UNAVAILABLE";
         int updated = jdbc.update("""
                 UPDATE apr_dwaion_proposal_handoffs
-                   SET delivery_state='RETRY', available_at=clock_timestamp()+(?*INTERVAL '1 second'),
-                       locked_by=NULL, locked_until=NULL, last_error=?, updated_at=clock_timestamp()
+                   SET delivery_state=?, available_at=clock_timestamp()+(?*INTERVAL '1 second'),
+                       locked_by=NULL, locked_until=NULL, last_error=?, failure_code=?,
+                       dead_lettered_at=CASE WHEN ? THEN clock_timestamp() ELSE NULL END,
+                       updated_at=clock_timestamp()
                  WHERE binding_id=? AND delivery_state='SENDING' AND locked_by=?
                    AND attempt_count=? AND locked_until=? AND locked_until>clock_timestamp()
-                """, delay, truncate(error), delivery.bindingId(), workerId,
+                """, exhausted ? "DEAD" : "RETRY", delay, truncate(error), failureCode,
+                exhausted, delivery.bindingId(), workerId,
                 delivery.attemptCount(), Timestamp.from(delivery.leaseUntil()));
         if (updated != 1) throw unavailable();
+        event(delivery.handoffId(), delivery.tenantId(),
+                exhausted ? "DELIVERY_DEAD_LETTERED" : "DELIVERY_RETRY_SCHEDULED",
+                exhausted ? "DEAD" : "RETRY", delivery.nextObservation(),
+                delivery.attemptCount(), failureCode);
+        return exhausted;
     }
 
     private Optional<Delivery> current(UUID bindingId, String workerId) {
@@ -228,6 +252,29 @@ public class DwaionProposalHandoffOutboxRepository {
             case "COMPLETED" -> 3;
             default -> 0;
         };
+    }
+
+    private void eventByRequest(long tenantId, UUID requestId, String eventType,
+            String deliveryState, String observationState, int attemptCount, String safeErrorCode) {
+        UUID handoffId = jdbc.queryForObject("""
+                SELECT handoff_id FROM apr_dwaion_proposal_handoffs
+                 WHERE tenant_id=? AND request_id=?
+                """, UUID.class, tenantId, requestId);
+        event(handoffId, tenantId, eventType, deliveryState, observationState, attemptCount, safeErrorCode);
+    }
+
+    private void event(UUID handoffId, long tenantId, String eventType,
+            String deliveryState, String observationState, int attemptCount, String safeErrorCode) {
+        int inserted = jdbc.update("""
+                INSERT INTO apr_dwaion_proposal_handoff_events (
+                    event_id,binding_id,tenant_id,event_type,delivery_state,
+                    observation_state,attempt_count,safe_error_code)
+                SELECT ?,binding_id,tenant_id,?,?,?,?,?
+                  FROM apr_dwaion_proposal_handoffs
+                 WHERE handoff_id=? AND tenant_id=?
+                """, UUID.randomUUID(), eventType, deliveryState, observationState,
+                attemptCount, safeErrorCode, handoffId, tenantId);
+        if (inserted != 1) throw unavailable();
     }
 
     private static String tokens(Set<String> values, int maximum) {

@@ -98,6 +98,39 @@ public class HrMailProposalOutcomeClient {
         }
     }
 
+    public void releaseNotExecuted(
+            long tenantId,
+            long actorId,
+            HrMailProposalBinding binding,
+            String reasonCode,
+            String correlationId) {
+        requireConfigured();
+        try {
+            var request = platform.post()
+                    .uri("/internal/v1/mail/proposal-outcomes/not-executed")
+                    .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
+                    .header(SERVICE_TOKEN_HEADER, serviceToken)
+                    .header(SERVICE_IDENTITY_HEADER, SERVICE_IDENTITY)
+                    .header(TENANT_HEADER, Long.toString(tenantId))
+                    .header(USER_HEADER, Long.toString(actorId));
+            if (correlationId != null && !correlationId.isBlank()) {
+                request.header(CORRELATION_HEADER, correlationId.strip());
+            }
+            request.contentType(MediaType.APPLICATION_JSON)
+                    .body(new OwnerExecutionReleaseRequest(
+                            binding.proposalId(), binding.commandId(),
+                            binding.proposalVersion(), reasonCode))
+                    .retrieve()
+                    .toBodilessEntity();
+        } catch (RestClientResponseException exception) {
+            throw new DeliveryException(
+                    exception.getStatusCode().is5xxServerError(),
+                    "Platform Mail proposal reservation release returned HTTP "
+                            + exception.getStatusCode().value(),
+                    exception);
+        }
+    }
+
     private void requireConfigured() {
         if (serviceToken.isBlank()) {
             throw new BaseException(
@@ -156,6 +189,13 @@ public class HrMailProposalOutcomeClient {
                     null,
                     payload);
         }
+    }
+
+    record OwnerExecutionReleaseRequest(
+            UUID proposalId,
+            UUID commandId,
+            long proposalVersion,
+            String reasonCode) {
     }
 
     static final class DeliveryException extends RuntimeException {

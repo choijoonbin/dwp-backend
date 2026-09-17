@@ -1,6 +1,9 @@
 package com.dwp.services.platform.mail;
 
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoff;
+
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -78,6 +81,7 @@ public class MailController {
             @RequestParam(required = false) Boolean unread,
             @RequestParam(required = false) Boolean needsReply,
             @RequestParam(required = false) Boolean hasAttachment,
+            @RequestParam(required = false, defaultValue = "") String importance,
             @RequestParam(required = false, defaultValue = "") String query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int pageSize) {
@@ -85,7 +89,7 @@ public class MailController {
                 tenantId, userId, lane, state, folder, folderId,
                 sharedOnly, query, accountId, scope, sharedInboxId, assignment,
                 sender, recipient, dateFrom, dateTo, unread, needsReply,
-                hasAttachment, page, pageSize));
+                hasAttachment, importance, page, pageSize));
     }
 
     @PostMapping("/messages")
@@ -93,10 +97,16 @@ public class MailController {
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Permissions", required = false) String permissions,
             @Valid @RequestBody MailDtos.ComposeRequest request) {
+        if (request.deliveryMode() == com.dwp.services.platform.mail.MailTypes.DeliveryMode.SEND
+                && !hasPermission(permissions, "APP.MAIL:SEND")) {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.FORBIDDEN,
+                    "APP.MAIL:SEND is required to send a message.");
+        }
         if (workspace != null
-                && request.deliveryMode() == com.dwp.services.platform.mail.MailTypes.DeliveryMode.SEND
-                && request.composeOptions() != null) {
+                && request.deliveryMode() == com.dwp.services.platform.mail.MailTypes.DeliveryMode.SEND) {
             return ApiResponse.success(workspace.compose(
                     tenantId, userId, correlationId, request));
         }
@@ -109,14 +119,22 @@ public class MailController {
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
+            @RequestHeader(value = "X-DWP-Auth-Session-ID", required = false) String authSessionId,
+            @RequestHeader(value = "X-DWP-Roles", required = false) String roles,
+            @RequestHeader(value = "X-DWP-Permissions", required = false) String permissions,
+            @RequestHeader(value = "X-DWP-DWAI-ON-Handoff-ID", required = false) UUID dwaionHandoffId,
+            @RequestHeader(value = "X-DWP-DWAI-ON-Proposal-ID", required = false) UUID dwaionProposalId,
+            @RequestHeader(value = "X-DWP-DWAI-ON-Action-Key", required = false) String dwaionActionKey,
+            @RequestHeader(value = "X-DWP-DWAI-ON-Handoff-Version", required = false) Long dwaionHandoffVersion,
             @Valid @RequestBody MailDtos.DraftSaveRequest request) {
+        PlatformDwaionHandoff.Binding dwaionBinding = PlatformDwaionHandoff.Binding.optional(
+                dwaionHandoffId, dwaionProposalId, dwaionActionKey, dwaionHandoffVersion,
+                "MAIL.DRAFT.CREATE");
         MailDtos.ThreadDetail detail = drafts.create(
-                tenantId, userId, correlationId, request);
-        if (workspace != null && request.composeOptions() != null) {
-            workspace.saveDraftOptions(
-                    tenantId, userId, detail.thread().threadId(), request.composeOptions());
-            detail = workspace.enrichDraft(tenantId, userId, detail);
-        }
+                tenantId, userId, correlationId, request, dwaionBinding,
+                dwaionBinding == null ? null : new PlatformDwaionHandoff.Identity(
+                        authSessionId, personPublicId, roles, permissions));
         return ApiResponse.success(detail);
     }
 
@@ -129,20 +147,24 @@ public class MailController {
             @Valid @RequestBody MailDtos.DraftSaveRequest request) {
         MailDtos.ThreadDetail detail = drafts.save(
                 tenantId, userId, threadId, correlationId, request);
-        if (workspace != null && request.composeOptions() != null) {
-            workspace.saveDraftOptions(tenantId, userId, threadId, request.composeOptions());
-            detail = workspace.enrichDraft(tenantId, userId, detail);
-        }
         return ApiResponse.success(detail);
     }
 
     @PutMapping("/threads/{threadId}/draft")
+    @Operation(operationId = "updateMailDraft")
     public ApiResponse<MailDtos.ThreadDetail> updateDraft(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Permissions", required = false) String permissions,
             @PathVariable UUID threadId,
             @Valid @RequestBody MailDtos.DraftUpdateRequest request) {
+        if (request.deliveryMode() == com.dwp.services.platform.mail.MailTypes.DeliveryMode.SEND
+                && !hasPermission(permissions, "APP.MAIL:SEND")) {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.FORBIDDEN,
+                    "APP.MAIL:SEND is required to send a draft.");
+        }
         if (workspace != null
                 && request.deliveryMode() == com.dwp.services.platform.mail.MailTypes.DeliveryMode.SEND
                 && request.composeOptions() != null) {
@@ -151,6 +173,12 @@ public class MailController {
         }
         return ApiResponse.success(service.updateDraft(
                 tenantId, userId, threadId, correlationId, request));
+    }
+
+    private static boolean hasPermission(String values, String expected) {
+        if (values == null || values.isBlank()) return false;
+        return java.util.Arrays.stream(values.split("[,\\s]+"))
+                .map(String::trim).anyMatch(expected::equalsIgnoreCase);
     }
 
     @GetMapping("/threads/{threadId}")
@@ -252,12 +280,19 @@ public class MailController {
     }
 
     @GetMapping("/proposals")
-    public ApiResponse<java.util.List<MailDtos.ActionProposal>> proposals(
+    public ApiResponse<MailDtos.ActionProposalPage> proposals(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestParam(required = false, defaultValue = "") String status,
-            @RequestParam(required = false, defaultValue = "") String type) {
-        return ApiResponse.success(service.proposals(tenantId, userId, status, type));
+            @RequestParam(required = false, defaultValue = "") String type,
+            @RequestParam(required = false) UUID accountId,
+            @RequestParam(required = false) LocalDate dateFrom,
+            @RequestParam(required = false) LocalDate dateTo,
+            @RequestParam(defaultValue = "0") int page,
+            @RequestParam(defaultValue = "50") int pageSize) {
+        return ApiResponse.success(service.proposals(
+                tenantId, userId, status, type, accountId, dateFrom, dateTo,
+                page, pageSize));
     }
 
     @PutMapping("/proposals/{proposalId}")

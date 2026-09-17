@@ -32,14 +32,20 @@ final class MailProductSurfaceAccessPolicy {
                 || RolePlaneBoundary.isProviderIdentity(evidence.roles())) {
             return Decision.denied("MAIL_ACCESS_MODE_DENIED");
         }
-        if (!evidence.permissions().contains(evidence.binding().resolvedAuthority())) {
+        if (MailProductSurfaceContract.MANAGEMENT_SURFACE_KEY.equals(
+                    evidence.binding().surfaceKey())
+                && !"ELEVATED".equals(evidence.activeAccessMode())) {
+            return Decision.denied("MAIL_MANAGEMENT_ELEVATION_REQUIRED");
+        }
+        if (evidence.binding().acceptedAuthorities().stream()
+                .noneMatch(evidence.permissions()::contains)) {
             return Decision.denied("MAIL_ROUTE_AUTHORITY_DENIED");
         }
         String expectedScope = ProductSurfaceScopeKey.key(
                 evidence.tenantId(), evidence.actorId(),
                 MailProductSurfaceContract.PRODUCT_ID,
-                MailProductSurfaceContract.SURFACE_KEY,
-                "SELF", "SELF");
+                evidence.binding().surfaceKey(),
+                evidence.binding().scopeSource(), evidence.binding().scopeKind());
         if (!constantTimeEquals(expectedScope, evidence.scopeKey())) {
             return Decision.denied("MAIL_SCOPE_INVALID");
         }

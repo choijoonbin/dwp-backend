@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
@@ -197,6 +198,13 @@ class AdminMailDurabilityPostgresTest {
 
         MailWorkspaceDtos.DeliveryExport created = service.createDeliveryExport(
                 fixture.tenantId(), actorId, request);
+        assertThat(created.state()).isEqualTo("PENDING_APPROVAL");
+        MailWorkspaceDtos.DeliveryExport approved = service.approveDeliveryExport(
+                fixture.tenantId(), actorId + 1, created.exportId(),
+                new MailWorkspaceDtos.EvidenceExportApprovalRequest(
+                        "APPROVE", UUID.randomUUID()));
+        assertThat(approved.state()).isEqualTo("READY");
+        assertThat(approved.distinctApproverCount()).isOne();
         String firstDownload = service.deliveryExportJson(
                 fixture.tenantId(), actorId, created.exportId());
 
@@ -246,6 +254,60 @@ class AdminMailDurabilityPostgresTest {
                  WHERE tenant_id = ? AND export_id = ?
                 """, String.class, fixture.tenantId(), created.exportId()))
                 .isEqualTo(firstDownload);
+    }
+
+    @Test
+    void mailEventIdentifierMigrationPreservesRowsAndAcceptsCanonicalHyphenatedSegments() {
+        String schema = "mail_event_identifier_contract";
+        Flyway throughV312 = flyway(schema, "312");
+        throughV312.clean();
+        throughV312.migrate();
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource(schema));
+        long tenantId = connectionFixture(jdbc).tenantId();
+        UUID aggregateId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO mail_audit_events (
+                    tenant_id, actor_user_id, action, target_type, target_id)
+                VALUES (?, 8301, 'mail.audit.before.migration', 'MAIL_TEST', ?)
+                """, tenantId, aggregateId.toString());
+        jdbc.update("""
+                INSERT INTO mail_domain_events (
+                    tenant_id, aggregate_type, aggregate_id, event_type)
+                VALUES (?, 'MAIL_TEST', ?, 'mail.domain.before.migration')
+                """, tenantId, aggregateId);
+
+        flyway(schema, "313").migrate();
+
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM mail_audit_events
+                 WHERE tenant_id = ? AND action = 'mail.audit.before.migration'
+                """, Integer.class, tenantId)).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*) FROM mail_domain_events
+                 WHERE tenant_id = ? AND event_type = 'mail.domain.before.migration'
+                """, Integer.class, tenantId)).isOne();
+        assertThat(jdbc.update("""
+                INSERT INTO mail_audit_events (
+                    tenant_id, actor_user_id, action, target_type, target_id)
+                VALUES (?, 8302, 'mail.evidence-export.approved', 'MAIL_TEST', ?)
+                """, tenantId, UUID.randomUUID().toString())).isOne();
+        assertThat(jdbc.update("""
+                INSERT INTO mail_domain_events (
+                    tenant_id, aggregate_type, aggregate_id, event_type)
+                VALUES (?, 'MAIL_TEST', ?, 'mail.action.owner-not-executed')
+                """, tenantId, UUID.randomUUID())).isOne();
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO mail_audit_events (
+                    tenant_id, actor_user_id, action, target_type, target_id)
+                VALUES (?, 8303, 'mail.-invalid.event', 'MAIL_TEST', ?)
+                """, tenantId, UUID.randomUUID().toString()))
+                .isInstanceOf(DataIntegrityViolationException.class);
+        assertThatThrownBy(() -> jdbc.update("""
+                INSERT INTO mail_domain_events (
+                    tenant_id, aggregate_type, aggregate_id, event_type)
+                VALUES (?, 'MAIL_TEST', ?, 'mail.too-short')
+                """, tenantId, UUID.randomUUID()))
+                .isInstanceOf(DataIntegrityViolationException.class);
     }
 
     private AdminMailCompletionRepository repository(JdbcTemplate jdbc) {
@@ -299,7 +361,7 @@ class AdminMailDurabilityPostgresTest {
     }
 
     private void migrate(String schema) {
-        Flyway flyway = flyway(schema, "291");
+        Flyway flyway = flyway(schema, "313");
         flyway.clean();
         flyway.migrate();
     }

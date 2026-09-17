@@ -242,17 +242,6 @@ final class CalendarSql01 {
            AND status <> 'CANCELLED' AND version = ?
         """;
 
-    static final String RESPOND_UPDATE_CAL_EVENT_ATTENDEES = """
-        UPDATE cal_event_attendees
-           SET response_status = ?, responded_at = CURRENT_TIMESTAMP,
-               updated_at = CURRENT_TIMESTAMP
-         WHERE tenant_id = ? AND event_id = ?
-           AND (
-               attendee_person_public_id = ?
-               OR (attendee_person_public_id IS NULL AND attendee_user_id = ?)
-           )
-        """;
-
     static final String RESOURCES_SELECT_CAL_RESOURCE_BOOKINGS = """
         SELECT resource.resource_id, resource.resource_code,
                CASE WHEN ? THEN resource.name_ko ELSE resource.name_en END AS name,

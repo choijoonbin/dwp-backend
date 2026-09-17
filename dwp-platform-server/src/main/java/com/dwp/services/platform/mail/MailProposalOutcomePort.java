@@ -32,6 +32,26 @@ public interface MailProposalOutcomePort {
             MailProposalHandoffBinding binding,
             OwnerMutation mutation);
 
+    /**
+     * Releases an execution reservation only after the owner transaction has proved that it
+     * rolled back before creating the target resource. A missing callback deliberately leaves
+     * the handoff reserved so user cancellation fails closed and reconciliation remains possible.
+     */
+    MailDtos.ProposalHandoff notExecuted(
+            long tenantId,
+            long actorId,
+            Owner owner,
+            MailProposalHandoffBinding binding,
+            String reasonCode,
+            String correlationId);
+
+    /** Returns the current owner receipt without changing it. */
+    MailDtos.ProposalHandoff status(
+            long tenantId,
+            long actorId,
+            Owner owner,
+            MailProposalHandoffBinding binding);
+
     MailDtos.ProposalHandoff executed(
             long tenantId,
             long actorId,

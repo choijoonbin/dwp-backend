@@ -3,12 +3,15 @@ package com.dwp.services.platform.servicecenter;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoff;
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoffOutboxRepository;
 import com.dwp.services.platform.security.PlatformRoutePredicateEvaluator;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
@@ -26,6 +29,7 @@ import static com.dwp.services.platform.servicecenter.ServiceCenterTypes.Request
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
@@ -42,6 +46,8 @@ class ServiceCenterServiceTest {
     private PlatformAuditService audit;
     @Mock
     private PlatformRoutePredicateEvaluator predicateEvaluator;
+    @Mock
+    private PlatformDwaionHandoffOutboxRepository dwaionHandoffs;
 
     private ServiceCenterService service;
     private JsonNode schema;
@@ -49,6 +55,7 @@ class ServiceCenterServiceTest {
     @BeforeEach
     void setUp() throws Exception {
         service = new ServiceCenterService(repository, audit, predicateEvaluator);
+        service.setDwaionHandoffs(dwaionHandoffs);
         schema = new ObjectMapper().readTree("""
                 {"fields":[
                   {"key":"systemName","type":"TEXT","labelKo":"시스템","labelEn":"System","required":true},
@@ -76,6 +83,42 @@ class ServiceCenterServiceTest {
         assertThat(result.request().status()).isEqualTo(DRAFT);
         verify(repository).addTimeline(
                 7L, created.requestId(), "DRAFT_CREATED", DRAFT, "USER", 11L, null);
+    }
+
+    @Test
+    void reviewedProposalCommitsTheExactServiceRequestEffect() {
+        UUID idempotencyKey = UUID.randomUUID();
+        ServiceCenterRepository.DefinitionRecord definition = definition();
+        ServiceCenterRepository.RequestRecord created = request(SUBMITTED, Map.of(
+                "systemName", "DWP", "issueType", "SIGN_IN"));
+        when(repository.findByIdempotency(7L, 11L, idempotencyKey))
+                .thenReturn(Optional.empty());
+        when(repository.definition(7L, definition.serviceKey()))
+                .thenReturn(Optional.of(definition));
+        when(repository.insertRequest(
+                eq(7L), eq(11L), eq(definition), eq("Need help"), anyMap(),
+                eq(idempotencyKey), eq(true))).thenReturn(created);
+        when(repository.timeline(7L, created.requestId())).thenReturn(List.of());
+        var binding = new PlatformDwaionHandoff.Binding(
+                1, UUID.randomUUID(), UUID.randomUUID(), "SERVICE.REQUEST.CREATE", 2);
+        var identity = new PlatformDwaionHandoff.Identity(
+                "session-11", UUID.randomUUID(), "WORKSPACE_MEMBER", "APP.ASK:VIEW");
+
+        service.createRequest(
+                7L, 11L, "corr-owner", new ServiceCenterDtos.CreateRequest(
+                        definition.serviceKey(), "Need help",
+                        Map.of("systemName", "DWP", "issueType", "SIGN_IN"),
+                        idempotencyKey, true),
+                binding, identity);
+
+        ArgumentCaptor<PlatformDwaionHandoff.Effect> effect =
+                ArgumentCaptor.forClass(PlatformDwaionHandoff.Effect.class);
+        verify(dwaionHandoffs).committed(
+                eq(7L), eq(11L), eq(binding), eq(identity), effect.capture(),
+                eq("corr-owner"));
+        assertThat(effect.getValue()).isEqualTo(new PlatformDwaionHandoff.Effect(
+                "SERVICE", "REQUEST_CREATE", created.requestId(), created.version(),
+                "SUBMITTED"));
     }
 
     @Test

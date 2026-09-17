@@ -1,7 +1,11 @@
 package com.dwp.services.platform.calendar;
 
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.stereotype.Component;
+
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -16,14 +20,24 @@ import java.util.UUID;
 
 import static com.dwp.services.platform.calendar.CalendarTypes.*;
 
+@Component
 final class CalendarOccurrenceProjector {
 
     private static final int MAX_OCCURRENCES = 4000;
 
     private final CalendarRepository repository;
+    private final CalendarOccurrenceRepository occurrenceRepository;
 
     CalendarOccurrenceProjector(CalendarRepository repository) {
+        this(repository, null);
+    }
+
+    @Autowired
+    CalendarOccurrenceProjector(
+            CalendarRepository repository,
+            CalendarOccurrenceRepository occurrenceRepository) {
         this.repository = repository;
+        this.occurrenceRepository = occurrenceRepository;
     }
 
     List<CalendarDtos.EventSummary> summaries(
@@ -45,16 +59,28 @@ final class CalendarOccurrenceProjector {
             OffsetDateTime from,
             OffsetDateTime to,
             String locale) {
-        List<Occurrence> occurrences = occurrences(
-                CalendarRepositoryRouting.visibleEvents(
-                        repository, tenantId, userId, personPublicId,
-                        verifiedGroupRefs, from, to, korean(locale)), from, to);
+        List<CalendarRepository.EventRow> rows = CalendarRepositoryRouting.visibleEvents(
+                repository, tenantId, userId, personPublicId,
+                verifiedGroupRefs, from, to, korean(locale));
+        List<CalendarOccurrenceRepository.OverrideRow> overrides = occurrenceRepository == null
+                ? List.of()
+                : occurrenceRepository.overrides(
+                        tenantId,
+                        rows.stream().map(CalendarRepository.EventRow::eventId).distinct().toList(),
+                        from,
+                        to,
+                        MAX_OCCURRENCES + 1);
+        if (overrides.size() > MAX_OCCURRENCES) {
+            throw new IllegalStateException("Calendar occurrence projection exceeds its limit.");
+        }
+        List<Occurrence> occurrences = occurrences(rows, overrides, from, to);
         Map<OccurrenceKey, Boolean> conflicts = conflictMap(occurrences);
         return occurrences.stream()
                 .map(occurrence -> summary(
                         tenantId, userId, personPublicId, occurrence.row(),
                         conflicts.getOrDefault(occurrence.key(), false), locale,
-                        occurrence.startsAt(), occurrence.endsAt()))
+                        occurrence.startsAt(), occurrence.endsAt(),
+                        occurrence.originalStartsAt(), occurrence.override()))
                 .sorted(Comparator.comparing(CalendarDtos.EventSummary::startsAt)
                         .thenComparing(CalendarDtos.EventSummary::title))
                 .toList();
@@ -69,7 +95,20 @@ final class CalendarOccurrenceProjector {
             String locale) {
         return summary(
                 tenantId, userId, personPublicId, row, conflict, locale,
-                row.startsAt(), row.endsAt());
+                row.startsAt(), row.endsAt(), null, null);
+    }
+
+    CalendarDtos.EventSummary summaryForOccurrence(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            CalendarRepository.EventRow row,
+            String locale,
+            OffsetDateTime originalStartsAt,
+            CalendarOccurrenceRepository.OverrideRow override) {
+        return summary(
+                tenantId, userId, personPublicId, row, false, locale,
+                override.startsAt(), override.endsAt(), originalStartsAt, override);
     }
 
     boolean isOrganizer(
@@ -121,20 +160,31 @@ final class CalendarOccurrenceProjector {
 
     private List<Occurrence> occurrences(
             List<CalendarRepository.EventRow> rows,
+            List<CalendarOccurrenceRepository.OverrideRow> overrides,
             OffsetDateTime from,
             OffsetDateTime to) {
         List<Occurrence> result = new ArrayList<>();
+        Map<OccurrenceKey, CalendarOccurrenceRepository.OverrideRow> overridesByOccurrence =
+                new HashMap<>();
+        overrides.forEach(override -> overridesByOccurrence.put(
+                new OccurrenceKey(override.eventId(), override.originalStartsAt().toInstant()), override));
         for (CalendarRepository.EventRow row : rows) {
             OffsetDateTime startsAt = row.startsAt();
             OffsetDateTime endsAt = row.endsAt();
             if (row.recurrence() == RecurrencePattern.NONE) {
                 if (startsAt.isBefore(to) && endsAt.isAfter(from)) {
-                    result.add(new Occurrence(row, startsAt, endsAt));
+                    result.add(new Occurrence(row, startsAt, startsAt, endsAt, null));
                 }
                 continue;
             }
+            Map<Instant, Boolean> handled = new HashMap<>();
             int guard = 0;
             while (!endsAt.isAfter(from) && guard++ < MAX_OCCURRENCES) {
+                addOccurrence(
+                        result, handled, row, startsAt, startsAt, endsAt,
+                        overridesByOccurrence.get(new OccurrenceKey(
+                                row.eventId(), startsAt.toInstant())),
+                        from, to);
                 OffsetDateTime next = increment(
                         startsAt, row.recurrence(), row.recurrenceInterval(), row.timeZone());
                 endsAt = next.plus(Duration.between(startsAt, endsAt));
@@ -143,14 +193,48 @@ final class CalendarOccurrenceProjector {
             while (startsAt.isBefore(to) && guard++ < MAX_OCCURRENCES) {
                 if (row.recurrenceUntil() != null
                         && startsAt.toLocalDate().isAfter(row.recurrenceUntil())) break;
-                if (endsAt.isAfter(from)) result.add(new Occurrence(row, startsAt, endsAt));
+                addOccurrence(
+                        result, handled, row, startsAt, startsAt, endsAt,
+                        overridesByOccurrence.get(new OccurrenceKey(
+                                row.eventId(), startsAt.toInstant())),
+                        from, to);
                 OffsetDateTime next = increment(
                         startsAt, row.recurrence(), row.recurrenceInterval(), row.timeZone());
                 endsAt = next.plus(Duration.between(startsAt, endsAt));
                 startsAt = next;
             }
+            overrides.stream()
+                    .filter(override -> override.eventId().equals(row.eventId()))
+                    .filter(override -> !handled.containsKey(override.originalStartsAt().toInstant()))
+                    .forEach(override -> addOccurrence(
+                            result, handled, row, override.originalStartsAt(),
+                            override.originalStartsAt(), override.originalStartsAt(),
+                            override, from, to));
         }
         return result;
+    }
+
+    private void addOccurrence(
+            List<Occurrence> result,
+            Map<Instant, Boolean> handled,
+            CalendarRepository.EventRow row,
+            OffsetDateTime originalStartsAt,
+            OffsetDateTime startsAt,
+            OffsetDateTime endsAt,
+            CalendarOccurrenceRepository.OverrideRow override,
+            OffsetDateTime from,
+            OffsetDateTime to) {
+        handled.put(originalStartsAt.toInstant(), true);
+        if (override != null) {
+            if (!"MODIFIED".equals(override.kind())
+                    || override.startsAt() == null
+                    || override.endsAt() == null) return;
+            startsAt = override.startsAt();
+            endsAt = override.endsAt();
+        }
+        if (startsAt.isBefore(to) && endsAt.isAfter(from)) {
+            result.add(new Occurrence(row, originalStartsAt, startsAt, endsAt, override));
+        }
     }
 
     OffsetDateTime increment(
@@ -190,7 +274,9 @@ final class CalendarOccurrenceProjector {
             boolean conflict,
             String locale,
             OffsetDateTime startsAt,
-            OffsetDateTime endsAt) {
+            OffsetDateTime endsAt,
+            OffsetDateTime originalStartsAt,
+            CalendarOccurrenceRepository.OverrideRow override) {
         String organizer = isOrganizer(row, userId, personPublicId)
                 ? (korean(locale) ? "나" : "You") : row.organizerName();
         boolean redacted = row.detailLevel() == EventDetailLevel.FREE_BUSY;
@@ -204,20 +290,36 @@ final class CalendarOccurrenceProjector {
                     null, null, EventStatus.CONFIRMED, EventVisibility.DEFAULT,
                     RecurrencePattern.NONE, 1, null, false, null, List.of(), null,
                     false, EventImportance.NORMAL, EventDetailLevel.FREE_BUSY, true,
-                    false, 0, capabilities, "FREE_BUSY_ONLY", row.version());
+                    false, 0, capabilities, "FREE_BUSY_ONLY", null, row.version());
         }
+        boolean completeOverride = override != null && override.type() != null;
+        String title = completeOverride ? override.title() : row.title();
+        String description = completeOverride ? override.description() : row.description();
+        EventType type = completeOverride ? override.type() : row.type();
+        boolean allDay = completeOverride && override.allDay() != null
+                ? override.allDay() : row.allDay();
+        String location = completeOverride ? override.location() : row.location();
+        String conferenceUrl = completeOverride ? override.conferenceUrl() : row.conferenceUrl();
+        EventVisibility visibility = completeOverride && override.visibility() != null
+                ? override.visibility() : row.visibility();
+        boolean responseRequired = completeOverride && override.responseRequired() != null
+                ? override.responseRequired() : row.responseRequired();
+        EventImportance importance = override != null && override.importance() != null
+                ? override.importance() : row.importance();
         return new CalendarDtos.EventSummary(
                 row.eventId(), row.calendarId(), row.calendarName(), row.calendarColor(),
                 row.organizerPersonPublicId() == null ? row.organizerUserId() : null,
-                row.organizerPersonPublicId(), organizer, row.organizerEmail(), row.title(),
-                row.description(), row.type(), startsAt, endsAt, row.timeZone(), row.allDay(),
-                row.location(), row.conferenceUrl(), row.status(), row.visibility(),
+                row.organizerPersonPublicId(), organizer, row.organizerEmail(), title,
+                description, type, startsAt, endsAt, row.timeZone(), allDay,
+                location, conferenceUrl, row.status(), visibility,
                 row.recurrence(), row.recurrenceInterval(), row.recurrenceUntil(),
-                row.responseRequired(), row.myResponse(),
+                responseRequired, row.myResponse(),
                 attendees(tenantId, row),
                 row.resource() == null ? null : resource(row.resource()), conflict,
-                row.importance(), row.detailLevel(), false, row.starred(),
-                row.preferenceVersion(), capabilities, null, row.version());
+                importance, row.detailLevel(), false, row.starred(),
+                row.preferenceVersion(), capabilities, null,
+                row.recurrence() == RecurrencePattern.NONE ? null : originalStartsAt,
+                row.version());
     }
 
     private List<CalendarDtos.Attendee> attendees(
@@ -279,13 +381,15 @@ final class CalendarOccurrenceProjector {
 
     private record Occurrence(
             CalendarRepository.EventRow row,
+            OffsetDateTime originalStartsAt,
             OffsetDateTime startsAt,
-            OffsetDateTime endsAt) {
+            OffsetDateTime endsAt,
+            CalendarOccurrenceRepository.OverrideRow override) {
         OccurrenceKey key() {
-            return new OccurrenceKey(row.eventId(), startsAt);
+            return new OccurrenceKey(row.eventId(), originalStartsAt.toInstant());
         }
     }
 
-    private record OccurrenceKey(UUID eventId, OffsetDateTime startsAt) {
+    private record OccurrenceKey(UUID eventId, Instant startsAt) {
     }
 }

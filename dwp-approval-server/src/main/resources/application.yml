@@ -79,6 +79,7 @@ dwp:
       identity-signing-secret: ${DWP_AGENT_IDENTITY_SIGNING_SECRET:}
       identity-key-id: ${DWP_AGENT_IDENTITY_KEY_ID:gateway-agent-v1}
       batch-size: ${DWP_APPROVAL_DWAION_HANDOFF_BATCH_SIZE:25}
+      maximum-attempts: ${DWP_APPROVAL_DWAION_HANDOFF_MAXIMUM_ATTEMPTS:10}
       poll-delay-ms: ${DWP_APPROVAL_DWAION_HANDOFF_POLL_DELAY_MS:2000}
       initial-delay-ms: ${DWP_APPROVAL_DWAION_HANDOFF_INITIAL_DELAY_MS:5000}
     step-up:

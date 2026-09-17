@@ -1,6 +1,7 @@
 package com.dwp.services.platform.mail;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.core.io.Resource;
 import org.springframework.http.ContentDisposition;
@@ -198,6 +199,7 @@ public class MailWorkspaceController {
     }
 
     @PostMapping("/deliveries/{deliveryId}/cancel")
+    @Operation(operationId = "cancelMailDelivery")
     public ApiResponse<DeliveryReceipt> cancel(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
@@ -207,6 +209,7 @@ public class MailWorkspaceController {
     }
 
     @PostMapping("/deliveries/{deliveryId}/reconcile")
+    @Operation(operationId = "reconcileMailDelivery")
     public ApiResponse<DeliveryReceipt> reconcile(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,

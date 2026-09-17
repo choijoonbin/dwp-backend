@@ -3,6 +3,7 @@ package com.dwp.services.platform.preference;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.personalsettings.PersonalSettingsOwnerService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -43,16 +44,19 @@ public class PersonalPreferenceService {
     private final ManagedPreferenceRepository managedPreferenceRepository;
     private final ObjectMapper objectMapper;
     private final PlatformAuditService auditService;
+    private final PersonalSettingsOwnerService personalSettingsOwnerService;
 
     public PersonalPreferenceService(
             PersonalPreferenceRepository repository,
             ManagedPreferenceRepository managedPreferenceRepository,
             ObjectMapper objectMapper,
-            PlatformAuditService auditService) {
+            PlatformAuditService auditService,
+            PersonalSettingsOwnerService personalSettingsOwnerService) {
         this.repository = repository;
         this.managedPreferenceRepository = managedPreferenceRepository;
         this.objectMapper = objectMapper;
         this.auditService = auditService;
+        this.personalSettingsOwnerService = personalSettingsOwnerService;
     }
 
     @Transactional(readOnly = true)
@@ -97,6 +101,7 @@ public class PersonalPreferenceService {
                 correlationId,
                 before,
                 snapshot(saved));
+        personalSettingsOwnerService.recordPreferenceChange(tenantId, userId, request.patch());
         return response(saved, managedPreferenceRepository.policy(tenantId));
     }
 
@@ -128,6 +133,7 @@ public class PersonalPreferenceService {
                 correlationId,
                 before,
                 snapshot(null));
+        personalSettingsOwnerService.recordPreferenceReset(tenantId, userId);
         return defaultResponse(managedPreferenceRepository.policy(tenantId));
     }
 

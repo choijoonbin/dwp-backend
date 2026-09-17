@@ -1,6 +1,7 @@
 package com.dwp.services.platform.auditcontrol;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -39,6 +40,7 @@ public class AdminAuditControlController {
     }
 
     @GetMapping("/overview")
+    @Operation(operationId = "getAdminAuditControlOverview")
     public ApiResponse<AuditControlDtos.Overview> overview(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(PERMISSIONS) String permissions,
@@ -246,6 +248,7 @@ public class AdminAuditControlController {
     }
 
     @PutMapping("/policy")
+    @Operation(operationId = "updateAdminAuditRetentionPolicy")
     public ApiResponse<AuditControlDtos.RetentionPolicy> updatePolicy(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) String actorId,

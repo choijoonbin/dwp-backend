@@ -90,6 +90,11 @@ public class HrRepository {
         return absence.createLeaveRequest(tenantId, workerId, request, actorId);
     }
 
+    public Optional<HrDtos.LeaveRequest> leaveRequest(
+            Long tenantId, long workerId, UUID requestId) {
+        return absence.leaveRequest(tenantId, workerId, requestId);
+    }
+
     public Optional<LeaveRequestTarget> leaveRequestTarget(Long tenantId, UUID requestId) {
         return absence.leaveRequestTarget(tenantId, requestId);
     }

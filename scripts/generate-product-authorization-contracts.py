@@ -77,6 +77,9 @@ APPROVAL_RELEASE15_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
 APPROVAL_RELEASE19_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
     "approval-pilot-pep-v19.generated.json"
 )
+APPROVAL_RELEASE31_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
+    "approval-pilot-pep-v31.generated.json"
+)
 PLATFORM_APPROVALS_PEP_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
@@ -121,7 +124,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28)
+BUNDLE_VERSIONS = tuple(range(1, 32))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -211,7 +214,31 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 46, "routes": 779, "PAGE": 118, "DATA": 245, "ACTION": 416},
     28: {"capabilities": 161, "accessPolicies": 22, "entitlementExpressions": 16,
          "predicatePolicies": 46, "routes": 780, "PAGE": 118, "DATA": 245, "ACTION": 417},
+    29: {"capabilities": 183, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 47, "routes": 827, "PAGE": 118, "DATA": 256, "ACTION": 453},
+    30: {"capabilities": 205, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 47, "routes": 888, "PAGE": 118, "DATA": 263, "ACTION": 507},
+    31: {"capabilities": 205, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 47, "routes": 911, "PAGE": 118, "DATA": 274, "ACTION": 519},
 }
+
+V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES = frozenset({
+    "route.dwaion.work.research-audit-download.data",
+    "route.dwaion.work.research-deliveries.data",
+    "route.dwaion.work.research-output.action",
+    "route.dwaion.work.research-plan-create.action",
+    "route.dwaion.work.research-plan-update.action",
+    "route.dwaion.work.research-plans.data",
+    "route.dwaion.work.research-raw-download.data",
+    "route.dwaion.work.research-receipt-download.data",
+    "route.dwaion.work.research-run-command.action",
+    "route.dwaion.work.research-run-execute.action",
+    "route.dwaion.work.research-run-start.action",
+    "route.dwaion.work.research-runs.data",
+})
+V30_RESEARCH_READ_AUTHORITY_UPGRADE_ROUTES = frozenset(
+    key for key in V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES if key.endswith(".data")
+)
 IMMUTABLE_RELEASE_CHECKSUMS = {
     1: "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
     2: "5b634a35472ef98ecdd5ca9efe7a716020d8f3ae0d8f5025d76bbf072692c12c",
@@ -241,6 +268,9 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     26: "b0e355e169233abef1cbcbc39672ec9a66feaa602b8cf8ab6fe4e8b3b97cd278",
     27: "f88e17c65ef95f8a9e1879b48eb093db40eda18b5fc3e077bce9b8abdfe44f6f",
     28: "7e807a353f281a9e0bc6d9d33074c5b1806946d21399bc541682bbf6dcab6f90",
+    29: "aac6b6dfc94b4f4ea2956862ff1aa73ccd3459b29548fb20b3cbc26ae29cdbd8",
+    30: "7c437bd768225db7dfe1c2491bcdb6ff256a2376946bab6a4ba4a62a7f31ce80",
+    31: "be4e1b6db3d3f0b5100182a3c80066a39c64479f9ba88d908fee661efd3335b8",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -1092,7 +1122,8 @@ def _apply_descriptor_enrichments(
             set(patch) <= {
                 "routeContractKey", "authorizationEquivalenceKey",
                 "queryParameterConstraintsByBinding", "projectionBindings",
-                "stepUpCommandBindings", "introducedInVersion"
+                "stepUpCommandBindings", "requiredAccessByProfile",
+                "introducedInVersion"
             },
             f"{key}: invalid route enrichment fields",
         )
@@ -1101,6 +1132,24 @@ def _apply_descriptor_enrichments(
             route["authorizationEquivalenceKey"] = patch["authorizationEquivalenceKey"]
         if "stepUpCommandBindings" in patch:
             route["stepUpCommandBindings"] = copy.deepcopy(patch["stepUpCommandBindings"])
+        required_access = patch.get("requiredAccessByProfile", {})
+        require(
+            isinstance(required_access, dict)
+            and all(
+                isinstance(profile_key, str)
+                and profile_key
+                and isinstance(value, dict)
+                for profile_key, value in required_access.items()
+            ),
+            f"{key}: invalid required access enrichment",
+        )
+        profiles = unique(route["accessProfiles"], "profileKey", f"{key} profiles")
+        require(
+            set(required_access) <= set(profiles),
+            f"{key}: required access enrichment references an unknown profile",
+        )
+        for profile_key, value in required_access.items():
+            profiles[profile_key]["requiredAccess"] = copy.deepcopy(value)
         for binding_key, constraints in patch.get(
             "queryParameterConstraintsByBinding", {}
         ).items():
@@ -1188,6 +1237,23 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
                     == "wire-authority.workplace.work.explore.v1",
                     "v15 Workplace find alias equivalence is required",
                 )
+            if (
+                current["version"] == 30
+                and section == "routes"
+                and _is_v30_research_authority_upgrade(
+                    descriptor_key, prior_descriptor, candidate_descriptor
+                )
+            ):
+                continue
+            if (
+                current["version"] == 30
+                and section == "accessPolicies"
+                and descriptor_key == "dwaion.work-access.v1"
+                and prior_descriptor == candidate_descriptor
+                and candidate_routes
+                == prior_routes - V30_RESEARCH_READ_AUTHORITY_UPGRADE_ROUTES
+            ):
+                continue
             if prior_descriptor != candidate_descriptor or not prior_routes <= candidate_routes:
                 drift.append(descriptor_key)
         require(
@@ -1206,6 +1272,48 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
                 f"v{current['version']}: authority endpoint drift")
 
 
+def _is_v30_research_authority_upgrade(
+    route_key: str,
+    previous: dict[str, Any],
+    current: dict[str, Any],
+) -> bool:
+    if route_key not in V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES:
+        return False
+    expected_capability = (
+        "dwaion.work.research.read"
+        if route_key in V30_RESEARCH_READ_AUTHORITY_UPGRADE_ROUTES
+        else "dwaion.work.research.manage"
+    )
+    expected_access = {
+        "type": "CAPABILITY_EXPRESSION",
+        "mode": "ALL",
+        "capabilityContractKeys": [
+            "dwaion.work.ask.execute",
+            expected_capability,
+        ],
+    }
+    previous_copy = copy.deepcopy(previous)
+    current_copy = copy.deepcopy(current)
+    previous_profiles = unique(
+        previous_copy["accessProfiles"], "profileKey", f"{route_key} previous profiles"
+    )
+    current_profiles = unique(
+        current_copy["accessProfiles"], "profileKey", f"{route_key} current profiles"
+    )
+    if previous_profiles.keys() != current_profiles.keys():
+        return False
+    if any(
+        profile["requiredAccess"] != expected_access
+        for profile in current_profiles.values()
+    ):
+        return False
+    for profile_key in current_profiles:
+        current_profiles[profile_key]["requiredAccess"] = copy.deepcopy(
+            previous_profiles[profile_key]["requiredAccess"]
+        )
+    return previous_copy == current_copy
+
+
 def _validate_release_snapshot(snapshot: dict[str, Any]) -> None:
     version = snapshot["version"]
     expected = EXPECTED_RELEASE_COUNTS[version]
@@ -1213,11 +1321,14 @@ def _validate_release_snapshot(snapshot: dict[str, Any]) -> None:
     for kind in ROUTE_KINDS:
         actual[kind] = sum(route["routeKind"] == kind for route in snapshot["routes"])
     require(actual == expected, f"v{version}: release count drift expected={expected} actual={actual}")
+    if version == 30:
+        _validate_v30_dwaion_authority_closure(snapshot)
     require(snapshot["bundleStatus"] == "DRAFT", f"v{version}: generated seed must remain DRAFT")
     immutable_checksum = IMMUTABLE_RELEASE_CHECKSUMS.get(version)
     if immutable_checksum is not None:
         require(snapshot["checksum"] == immutable_checksum,
                 f"v{version}: immutable release checksum drift")
+
 
     _validate_approval_projection_schema_metadata(snapshot)
     if version >= 7:
@@ -1301,6 +1412,82 @@ def _validate_release_snapshot(snapshot: dict[str, Any]) -> None:
             require(
                 "predicate.hcm-integration-nonsecret-update.v1" in predicate_keys,
                 f"{route['routeContractKey']}: credentialReference deny predicate required",
+            )
+
+
+def _validate_v30_dwaion_authority_closure(snapshot: dict[str, Any]) -> None:
+    capabilities = {
+        item["contractKey"]: item for item in snapshot["capabilities"]
+    }
+    require(
+        capabilities.get("dwaion.work.research.read", {}).get(
+            "resolvedCapabilityCode"
+        ) == "APP.DWAION_RESEARCH:VIEW"
+        and capabilities.get("dwaion.work.research.manage", {}).get(
+            "resolvedCapabilityCode"
+        ) == "APP.DWAION_RESEARCH:MANAGE",
+        "v30: Deep Research capabilities must resolve to grantable VIEW/MANAGE authorities",
+    )
+    require(
+        capabilities.get("dwaion.work.routines.approve", {}).get(
+            "resolvedCapabilityCode"
+        ) == "APP.DWAION_ROUTINES:APPROVE"
+        and capabilities["dwaion.work.routines.approve"].get("scopeResolver")
+        == "APP_RESOURCE_SET:RS_DWAION",
+        "v30: routine checker authority must use the dedicated tenant resource set",
+    )
+    routes = {item["routeContractKey"]: item for item in snapshot["routes"]}
+    research = {
+        key: route
+        for key, route in routes.items()
+        if key.startswith("route.dwaion.work.research-")
+    }
+    require(len(research) == 14, "v30: Deep Research route closure is incomplete")
+    routine_capabilities = {
+        "route.dwaion.work.routine-advanced.data": "dwaion.work.routines.read",
+        "route.dwaion.work.routine-advanced.action": "dwaion.work.routines.manage",
+        "route.dwaion.work.routine-advanced-approval.action": "dwaion.work.routines.approve",
+        "route.dwaion.work.routine-advanced-pending-approvals.data": "dwaion.work.routines.approve",
+    }
+    expected_routes = {
+        **{
+            key: (
+                "dwaion.work.research.read"
+                if route["routeKind"] == "DATA"
+                else "dwaion.work.research.manage"
+            )
+            for key, route in research.items()
+        },
+        **routine_capabilities,
+    }
+    for key, capability in expected_routes.items():
+        expected_access = {
+            "type": "CAPABILITY_EXPRESSION",
+            "mode": "ALL",
+            "capabilityContractKeys": [
+                "dwaion.work.ask.execute",
+                capability,
+            ],
+        }
+        require(
+            all(
+                profile.get("requiredAccess") == expected_access
+                for profile in routes[key]["accessProfiles"]
+            ),
+            f"v30: {key} must require APP.ASK plus its exact domain authority",
+        )
+        if key in {
+            "route.dwaion.work.routine-advanced-approval.action",
+            "route.dwaion.work.routine-advanced-pending-approvals.data",
+        }:
+            require(
+                all(
+                    profile.get("targetBindingKinds") == ["CONFIG_SCOPE"]
+                    and profile.get("predicatePolicyKeys")
+                    == ["predicate.dwaion-management-scope.v1"]
+                    for profile in routes[key]["accessProfiles"]
+                ),
+                f"v30: {key} must be tenant resource-set scoped",
             )
 
 
@@ -2464,6 +2651,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         APPROVAL_RELEASE14_PEP_OUTPUT,
         APPROVAL_RELEASE15_PEP_OUTPUT,
         APPROVAL_RELEASE19_PEP_OUTPUT,
+        APPROVAL_RELEASE31_PEP_OUTPUT,
         PLATFORM_APPROVALS_PEP_OUTPUT,
         LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT,
         LEGACY_PLATFORM_WORKPLACE_PEP_V16_OUTPUT,
@@ -2611,6 +2799,15 @@ def main() -> int:
                 "capabilities": 39, "accessPolicies": 1,
                 "entitlementExpressions": 1, "predicatePolicies": 18,
             }, version=19,
+        )
+        approval_release31_pep = build_approvals_pep(
+            snapshots[30], "approval", "approval-pilot-pep-v31",
+            {
+                "routes": 216, "bindings": 285,
+                "routeKinds": {"ACTION": 112, "DATA": 84, "PAGE": 20},
+                "capabilities": 39, "accessPolicies": 1,
+                "entitlementExpressions": 1, "predicatePolicies": 18,
+            }, version=31,
         )
         platform_approvals_pep = build_approvals_pep(
             snapshots[1],
@@ -2768,6 +2965,7 @@ def main() -> int:
             write_or_check(APPROVAL_RELEASE14_PEP_OUTPUT, render(approval_release14_pep), args.check),
             write_or_check(APPROVAL_RELEASE15_PEP_OUTPUT, render(approval_release15_pep), args.check),
             write_or_check(APPROVAL_RELEASE19_PEP_OUTPUT, render(approval_release19_pep), args.check),
+            write_or_check(APPROVAL_RELEASE31_PEP_OUTPUT, render(approval_release31_pep), args.check),
             write_or_check(
                 PLATFORM_APPROVALS_PEP_OUTPUT,
                 render(platform_approvals_pep),
@@ -2831,6 +3029,7 @@ def main() -> int:
         verify_approvals_pep(APPROVAL_RELEASE14_PEP_OUTPUT, approval_release14_pep)
         verify_approvals_pep(APPROVAL_RELEASE15_PEP_OUTPUT, approval_release15_pep)
         verify_approvals_pep(APPROVAL_RELEASE19_PEP_OUTPUT, approval_release19_pep)
+        verify_approvals_pep(APPROVAL_RELEASE31_PEP_OUTPUT, approval_release31_pep)
         verify_approvals_pep(PLATFORM_APPROVALS_PEP_OUTPUT, platform_approvals_pep)
         verify_approvals_pep(
             LEGACY_PLATFORM_WORKPLACE_PEP_V21_OUTPUT,

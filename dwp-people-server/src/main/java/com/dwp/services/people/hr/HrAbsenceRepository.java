@@ -127,8 +127,13 @@ final class HrAbsenceRepository {
                                AND plan.public_id = ?
                                AND balance.balance_year = EXTRACT(YEAR FROM CURRENT_DATE)::INTEGER
                             """, request.requestedMinutes(), actorId, tenantId, workerId, request.planId());
-                    return leaveRequest(tenantId, publicId);
+                    return leaveRequest(tenantId, workerId, publicId);
                 });
+    }
+
+    Optional<HrDtos.LeaveRequest> leaveRequest(
+            Long tenantId, long workerId, UUID requestId) {
+        return leaveRequest(tenantId, requestId, workerId);
     }
 
     Optional<HrRepository.LeaveRequestTarget> leaveRequestTarget(
@@ -221,7 +226,8 @@ final class HrAbsenceRepository {
         return changed == 1;
     }
 
-    private Optional<HrDtos.LeaveRequest> leaveRequest(Long tenantId, UUID requestId) {
+    private Optional<HrDtos.LeaveRequest> leaveRequest(
+            Long tenantId, UUID requestId, Long workerId) {
         return jdbc.query("""
                 SELECT request.public_id, plan.public_id AS plan_public_id, plan.name,
                        request.start_at, request.end_at, request.requested_minutes,
@@ -233,6 +239,7 @@ final class HrAbsenceRepository {
                     ON plan.tenant_id = request.tenant_id
                    AND plan.leave_plan_id = request.leave_plan_id
                  WHERE request.tenant_id = ? AND request.public_id = ?
+                   AND (? IS NULL OR request.worker_id = ?)
                 """, (result, ignored) -> new HrDtos.LeaveRequest(
                 result.getObject("public_id", UUID.class),
                 result.getObject("plan_public_id", UUID.class), result.getString("name"),
@@ -241,7 +248,7 @@ final class HrAbsenceRepository {
                 result.getString("reason"), instant(result.getTimestamp("submitted_at")),
                 result.getString("decision_note"), instant(result.getTimestamp("cancelled_at")),
                 result.getString("cancellation_note"), result.getLong("version")),
-                tenantId, requestId).stream().findFirst();
+                tenantId, requestId, workerId, workerId).stream().findFirst();
     }
 
     private Instant instant(Timestamp value) {

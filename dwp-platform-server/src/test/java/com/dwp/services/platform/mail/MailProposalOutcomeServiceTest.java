@@ -52,7 +52,7 @@ class MailProposalOutcomeServiceTest {
         var binding = new MailProposalHandoffBinding(proposalId, commandId, 3L);
         var before = row(
                 proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
-                "ACCEPTED", null, 3L);
+                "EXECUTING", null, 3L);
         var after = row(
                 proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
                 "EXECUTED", resultRef, 4L);
@@ -191,6 +191,143 @@ class MailProposalOutcomeServiceTest {
     }
 
     @Test
+    void remotePreflightDurablyReservesExecutionBeforeTheOwnerWrite() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        var binding = new MailProposalHandoffBinding(proposalId, commandId, 3L);
+        var accepted = row(
+                proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                "ACCEPTED", null, 3L);
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                .thenReturn(Optional.of(accepted));
+        when(commands.reserveProposalExecution(
+                TENANT_ID, ACTOR_ID, proposalId, commandId,
+                CREATE_LEAVE_REQUEST, 3L)).thenReturn(1);
+
+        service.validateNewExecution(
+                TENANT_ID, ACTOR_ID, HR, binding,
+                new MailProposalOutcomePort.OwnerMutation(
+                        null, Map.of("durationDays", 1)));
+
+        verify(commands).reserveProposalExecution(
+                TENANT_ID, ACTOR_ID, proposalId, commandId,
+                CREATE_LEAVE_REQUEST, 3L);
+        verify(commands).audit(
+                eq(TENANT_ID), eq(ACTOR_ID), eq("mail.action.owner-reserved"),
+                eq("MAIL_ACTION_PROPOSAL"), eq(proposalId.toString()),
+                eq(null), anyMap(), anyMap());
+    }
+
+    @Test
+    void executingAndUnknownHandoffsAreReconcileOnlyAndCannotBeCancelled() {
+        for (String state : List.of("EXECUTING", "UNKNOWN")) {
+            UUID proposalId = UUID.randomUUID();
+            UUID commandId = UUID.randomUUID();
+            var row = row(
+                    proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                    state, state.equals("UNKNOWN") ? "owner-result-unknown" : null, 3L);
+            when(queries.accounts(TENANT_ID, ACTOR_ID)).thenReturn(List.of(account()));
+            when(queries.proposalHandoff(TENANT_ID, ACTOR_ID, proposalId))
+                    .thenReturn(Optional.of(visible(row)));
+            when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                    .thenReturn(Optional.of(row));
+
+            assertError(ErrorCode.INVALID_STATE, () -> service.cancel(
+                    TENANT_ID, ACTOR_ID, proposalId, commandId, 3L,
+                    "corr-cancel-race"));
+        }
+    }
+
+    @Test
+    void ownerRollbackEvidenceReleasesTheReservationBeforeUserCancellation() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        var binding = new MailProposalHandoffBinding(proposalId, commandId, 3L);
+        var executing = row(
+                proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                "EXECUTING", null, 3L);
+        var released = row(
+                proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                "ACCEPTED", "owner-not-executed:HR:OWNER_TRANSACTION_ROLLED_BACK", 3L);
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                .thenReturn(Optional.of(executing));
+        when(commands.releaseProposalExecution(
+                TENANT_ID, ACTOR_ID, proposalId, commandId,
+                CREATE_LEAVE_REQUEST, 3L,
+                "owner-not-executed:HR:OWNER_TRANSACTION_ROLLED_BACK"))
+                .thenReturn(1);
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, false))
+                .thenReturn(Optional.of(released));
+
+        MailDtos.ProposalHandoff result = service.notExecuted(
+                TENANT_ID, ACTOR_ID, HR, binding,
+                "OWNER_TRANSACTION_ROLLED_BACK", "corr-rollback");
+
+        assertThat(result.status()).isEqualTo(MailDtos.ProposalHandoffStatus.ACCEPTED);
+        assertThat(result.resultRef())
+                .isEqualTo("owner-not-executed:HR:OWNER_TRANSACTION_ROLLED_BACK");
+    }
+
+    @Test
+    void exactNotExecutedReplayReturnsTheExistingReleaseWithoutAnotherMutation() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        var binding = new MailProposalHandoffBinding(proposalId, commandId, 3L);
+        String evidence = "owner-not-executed:HR:OWNER_TRANSACTION_ROLLED_BACK";
+        var released = row(
+                proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                "ACCEPTED", evidence, 3L);
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                .thenReturn(Optional.of(released));
+
+        MailDtos.ProposalHandoff result = service.notExecuted(
+                TENANT_ID, ACTOR_ID, HR, binding,
+                "OWNER_TRANSACTION_ROLLED_BACK", "corr-release-replay");
+
+        assertThat(result.status()).isEqualTo(MailDtos.ProposalHandoffStatus.ACCEPTED);
+        assertThat(result.resultRef()).isEqualTo(evidence);
+        verify(commands, never()).releaseProposalExecution(
+                eq(TENANT_ID), eq(ACTOR_ID), eq(proposalId), eq(commandId),
+                eq(CREATE_LEAVE_REQUEST), eq(3L), eq(evidence));
+        verify(commands, never()).audit(
+                eq(TENANT_ID), eq(ACTOR_ID), eq("mail.action.owner-not-executed"),
+                eq("MAIL_ACTION_PROPOSAL"), eq(proposalId.toString()),
+                eq("corr-release-replay"), anyMap(), anyMap());
+    }
+
+    @Test
+    void unknownOwnerOutcomeCanOnlyReconcileToTheBoundExecutedResult() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        UUID leaveRequestId = UUID.randomUUID();
+        String resultRef = "hr-leave-request:" + leaveRequestId;
+        var binding = new MailProposalHandoffBinding(proposalId, commandId, 3L);
+        var unknown = row(
+                proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                "UNKNOWN", "owner-result-unknown", 3L);
+        var reconciled = row(
+                proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                "EXECUTED", resultRef, 4L);
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                .thenReturn(Optional.of(unknown));
+        when(commands.updateProposalOutcomeFromOwner(
+                TENANT_ID, ACTOR_ID, proposalId, commandId,
+                CREATE_LEAVE_REQUEST, "EXECUTED", resultRef, 3L))
+                .thenReturn(1);
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, false))
+                .thenReturn(Optional.of(reconciled));
+
+        MailDtos.ProposalHandoff result = service.executed(
+                TENANT_ID, ACTOR_ID, HR, binding, resultRef, "corr-reconcile");
+
+        assertThat(result.status()).isEqualTo(MailDtos.ProposalHandoffStatus.EXECUTED);
+        assertThat(result.resultRef()).isEqualTo(resultRef);
+        verify(commands).updateProposalOutcomeFromOwner(
+                TENANT_ID, ACTOR_ID, proposalId, commandId,
+                CREATE_LEAVE_REQUEST, "EXECUTED", resultRef, 3L);
+    }
+
+    @Test
     void visibleProposalStillCannotBeCancelledByANonAcceptingActor() {
         long forgedActor = 19L;
         UUID proposalId = UUID.randomUUID();
@@ -289,6 +426,9 @@ class MailProposalOutcomeServiceTest {
                 OffsetDateTime.parse("2026-09-17T00:00:00Z"), 3L);
         when(queries.ownerProposalHandoff(TENANT_ID, mailProposalId, true))
                 .thenReturn(Optional.of(mail));
+        when(commands.reserveProposalExecution(
+                TENANT_ID, ACTOR_ID, mailProposalId, mailCommandId,
+                MailTypes.ProposalType.DRAFT_REPLY, 3L)).thenReturn(1);
 
         assertError(ErrorCode.INVALID_STATE, () -> service.validateNewExecution(
                 TENANT_ID, ACTOR_ID, MailProposalOutcomePort.Owner.MAIL,

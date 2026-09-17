@@ -1,6 +1,7 @@
 package com.dwp.services.platform.navigation;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -67,6 +68,7 @@ public class AdminNavigationStudioController {
     }
 
     @PostMapping("/drafts/{revisionId}/cancel")
+    @Operation(operationId = "cancelAdminNavigationDraft")
     public ApiResponse<NavigationStudioDtos.Revision> cancel(
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestHeader(USER_HEADER) Long actorId,

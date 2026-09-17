@@ -46,6 +46,19 @@ class MailGroupComposeRepository {
             List<MailAddressBookRepository.Recipient> recipients,
             String correlationId,
             String requestFingerprint) {
+        return compose(tenantId, userId, groupId, request, recipients,
+                correlationId, requestFingerprint, null);
+    }
+
+    ComposeResult compose(
+            Long tenantId,
+            Long userId,
+            UUID groupId,
+            MailAddressBookDtos.GroupMessageRequest request,
+            List<MailAddressBookRepository.Recipient> recipients,
+            String correlationId,
+            String requestFingerprint,
+            UUID requiredAccountId) {
         UUID threadId = UUID.randomUUID();
         UUID messageId = UUID.randomUUID();
         UUID deliveryId = UUID.randomUUID();
@@ -60,12 +73,14 @@ class MailGroupComposeRepository {
         String recipientSnapshotSha256 = MailRecipientSnapshot.fingerprint(participants);
         List<UUID> inserted = jdbc.query("""
                 INSERT INTO mail_threads (
-                    thread_id, tenant_id, account_id, folder_id, provider_thread_ref,
+                    thread_id, tenant_id, account_id, folder_id, shared_inbox_id,
+                    provider_thread_ref,
                     subject, preview, participants, latest_message_at,
                     unread, importance, triage_lane, workflow_state,
                     external_sender, classification, message_count,
                     created_by, updated_by)
-                SELECT ?, account.tenant_id, account.account_id, folder.folder_id, ?,
+                SELECT ?, account.tenant_id, account.account_id, folder.folder_id,
+                       inbox.shared_inbox_id, ?,
                        ?, ?, ?::jsonb, CURRENT_TIMESTAMP,
                        FALSE, 'NORMAL', 'UPDATES', 'OPEN',
                        EXISTS (
@@ -82,8 +97,15 @@ class MailGroupComposeRepository {
                   LEFT JOIN mail_user_preferences preference
                     ON preference.tenant_id = account.tenant_id
                    AND preference.user_id = ?
-                 WHERE account.tenant_id = ? AND account.owner_user_id = ?
-                   AND account.account_kind = 'PERSONAL'
+                  LEFT JOIN mail_shared_inboxes inbox
+                    ON inbox.tenant_id = account.tenant_id
+                   AND inbox.account_id = account.account_id
+                   AND inbox.lifecycle_state = 'ACTIVE'
+                 WHERE account.tenant_id = ?
+                   AND ((?::uuid IS NULL
+                         AND account.account_kind = 'PERSONAL'
+                         AND account.owner_user_id = ?)
+                        OR account.account_id = ?::uuid)
                    AND account.connection_state = 'ACTIVE'
                  ORDER BY CASE
                     WHEN account.account_id = preference.default_account_id THEN 0
@@ -94,7 +116,8 @@ class MailGroupComposeRepository {
                 """, (result, ignored) -> result.getObject("thread_id", UUID.class),
                 threadId, providerRef, request.subject().trim(), preview(request.body()),
                 recipientsJson, recipientsJson, request.classification().name(),
-                userId, userId, userId, tenantId, userId);
+                userId, userId, userId, tenantId,
+                requiredAccountId, userId, requiredAccountId);
         if (inserted.isEmpty()) return null;
         int messageInserted = jdbc.update("""
                 INSERT INTO mail_messages (
@@ -127,11 +150,12 @@ class MailGroupComposeRepository {
         int snapshotInserted = jdbc.update("""
                 INSERT INTO mail_group_recipient_snapshots (
                     delivery_id, tenant_id, owner_user_id, thread_id, message_id,
-                    group_id, group_version, recipient_count, recipients,
+                    group_id, group_version, account_id, recipient_count, recipients,
                     recipients_sha256)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?)
                 """, deliveryId, tenantId, userId, threadId, messageId,
-                groupId, request.groupVersion(), participants.size(),
+                groupId, request.groupVersion(), insertedAccountId(tenantId, threadId),
+                participants.size(),
                 recipientsJson, recipientSnapshotSha256);
         if (snapshotInserted != 1) {
             throw new IllegalStateException("Group mail recipient evidence was not persisted.");
@@ -139,14 +163,14 @@ class MailGroupComposeRepository {
         MailAddressBookDtos.GroupSendReceipt receipt = jdbc.queryForObject("""
                 INSERT INTO mail_group_send_history (
                     receipt_id, tenant_id, owner_user_id, group_id, group_version,
-                    recipient_mode, recipient_count, thread_id, delivery_id,
+                    recipient_mode, account_id, recipient_count, thread_id, delivery_id,
                     receipt_state)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACCEPTED')
-                RETURNING receipt_id, group_id, group_version, recipient_mode,
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACCEPTED')
+                RETURNING receipt_id, group_id, group_version, recipient_mode, account_id,
                           recipient_count, thread_id, accepted_at, receipt_state
                 """, (result, ignored) -> receipt(result), UUID.randomUUID(), tenantId, userId,
                 groupId, request.groupVersion(), request.recipientMode().name(),
-                participants.size(), threadId, deliveryId);
+                insertedAccountId(tenantId, threadId), participants.size(), threadId, deliveryId);
         return new ComposeResult(
                 threadId, 0L, recipientSnapshotSha256, participants.size(), deliveryId, receipt);
     }
@@ -154,7 +178,7 @@ class MailGroupComposeRepository {
     Optional<MailAddressBookDtos.GroupSendReceipt> receipt(
             Long tenantId, Long userId, UUID groupId, UUID threadId) {
         return jdbc.query("""
-                SELECT receipt_id, group_id, group_version, recipient_mode,
+                SELECT receipt_id, group_id, group_version, recipient_mode, account_id,
                        recipient_count, thread_id, accepted_at, receipt_state
                   FROM mail_group_send_history
                  WHERE tenant_id = ? AND owner_user_id = ?
@@ -168,7 +192,7 @@ class MailGroupComposeRepository {
     List<MailAddressBookDtos.GroupSendReceipt> history(
             Long tenantId, Long userId, UUID groupId, int limit) {
         return jdbc.query("""
-                SELECT receipt_id, group_id, group_version, recipient_mode,
+                SELECT receipt_id, group_id, group_version, recipient_mode, account_id,
                        recipient_count, thread_id, accepted_at, receipt_state
                   FROM mail_group_send_history
                  WHERE tenant_id = ? AND owner_user_id = ? AND group_id = ?
@@ -185,10 +209,17 @@ class MailGroupComposeRepository {
                 result.getLong("group_version"),
                 MailAddressBookDtos.GroupRecipientMode.valueOf(
                         result.getString("recipient_mode")),
+                result.getObject("account_id", UUID.class),
                 result.getInt("recipient_count"),
                 result.getObject("thread_id", UUID.class),
                 result.getObject("accepted_at", java.time.OffsetDateTime.class),
                 result.getString("receipt_state"));
+    }
+
+    private UUID insertedAccountId(Long tenantId, UUID threadId) {
+        return jdbc.queryForObject(
+                "SELECT account_id FROM mail_threads WHERE tenant_id = ? AND thread_id = ?",
+                UUID.class, tenantId, threadId);
     }
 
     private Map<String, Object> participant(

@@ -216,7 +216,7 @@ class RoomServiceTest {
                 .thenReturn(Optional.of(roomEvent(eventId, personId, room)));
         CalendarDtos.VersionRequest cancel = new CalendarDtos.VersionRequest(0L);
         CalendarDtos.RespondRequest response = new CalendarDtos.RespondRequest(
-                CalendarTypes.ResponseStatus.ACCEPTED);
+                CalendarTypes.ResponseStatus.ACCEPTED, 0L, UUID.randomUUID());
 
         service.cancelRoomBooking(
                 1L, 7L, personId, eventId, "en-US", "corr-cancel", "group-ref", cancel);

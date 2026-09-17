@@ -23,14 +23,17 @@ public class CalendarCollaborationService {
     private final CalendarCollaborationRepository collaboration;
     private final CalendarRepository calendar;
     private final CalendarRetentionRepository retention;
+    private final CalendarResourceRestoreService resourceRestore;
 
     public CalendarCollaborationService(
             CalendarCollaborationRepository collaboration,
             CalendarRepository calendar,
-            CalendarRetentionRepository retention) {
+            CalendarRetentionRepository retention,
+            CalendarResourceRestoreService resourceRestore) {
         this.collaboration = collaboration;
         this.calendar = calendar;
         this.retention = retention;
+        this.resourceRestore = resourceRestore;
     }
 
     @Transactional(readOnly = true)
@@ -342,7 +345,7 @@ public class CalendarCollaborationService {
                 .orElseThrow(() -> conflict(
                         "The event changed. Refresh and try again."));
         retention.recordTombstone(tenantId, eventId);
-        calendar.cancelBookings(tenantId, actorId, eventId);
+        resourceRestore.cancelBookingsForTrash(tenantId, actorId, eventId);
         calendar.audit(
                 tenantId,
                 actorId,
@@ -362,7 +365,7 @@ public class CalendarCollaborationService {
     }
 
     @Transactional
-    public CalendarDtos.EventCapabilities restoreEvent(
+    public CalendarRecoveryDtos.RestoreEventResponse restoreEvent(
             Long tenantId,
             Long actorId,
             UUID actorPersonPublicId,
@@ -370,41 +373,33 @@ public class CalendarCollaborationService {
             UUID eventId,
             String correlationId,
             CalendarDtos.VersionRequest request) {
-        requireActor(tenantId, actorId, actorPersonPublicId);
-        UUID calendarId = lockEventCalendar(tenantId, eventId);
-        CalendarCollaborationRepository.EventDecision event = requireEventManager(
-                eventDecision(
-                        tenantId, actorId, actorPersonPublicId,
-                        verifiedGroupRefs, eventId));
-        long version = request.version();
-        if (!calendarId.equals(event.calendarId()) || event.deletedAt() == null) {
-            throw conflict("The event is not available for restoration.");
-        }
-        if (event.version() != version) {
-            throw conflict("The event changed. Refresh and try again.");
-        }
-
-        CalendarCollaborationRepository.EventMutation saved = collaboration
-                .restoreEvent(tenantId, actorId, eventId, version)
-                .orElseThrow(() -> conflict(
-                        "The event retention window expired or the event changed."));
-        retention.removeTombstone(tenantId, eventId);
-        calendar.audit(
+        return resourceRestore.restoreEvent(
                 tenantId,
                 actorId,
+                actorPersonPublicId,
+                verifiedGroupRefs,
                 eventId,
-                "calendar.event.restored",
                 correlationId,
-                snapshot(
-                        "deletedAt", event.deletedAt(),
-                        "purgeAfter", event.purgeAfter(),
-                        "legalHold", event.legalHold(),
-                        "version", event.version()),
-                snapshot(
-                        "deletedAt", saved.deletedAt(),
-                        "resourceBookingsRestored", false,
-                        "version", saved.version()));
-        return CalendarCollaborationMapper.eventCapabilities(eventAfter(event, saved));
+                request);
+    }
+
+    @Transactional
+    public CalendarRecoveryDtos.RestoreEventResponse rebookRestoredResource(
+            Long tenantId,
+            Long actorId,
+            UUID actorPersonPublicId,
+            String verifiedGroupRefs,
+            UUID eventId,
+            String correlationId,
+            CalendarRecoveryDtos.RestoreResourceBookingRequest request) {
+        return resourceRestore.rebookResource(
+                tenantId,
+                actorId,
+                actorPersonPublicId,
+                verifiedGroupRefs,
+                eventId,
+                correlationId,
+                request);
     }
 
     private CalendarCollaborationRepository.AccessDecision decision(

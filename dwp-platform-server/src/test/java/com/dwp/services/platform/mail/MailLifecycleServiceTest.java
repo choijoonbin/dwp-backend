@@ -137,6 +137,40 @@ class MailLifecycleServiceTest {
     }
 
     @Test
+    void restorePreviewBindsExecutionToTheCanonicalTargetFolder() {
+        UUID threadId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        UUID previousFolderId = UUID.randomUUID();
+        var before = new MailLifecycleRepository.LifecycleThread(
+                threadId, accountId, UUID.randomUUID(), "TRASH", previousFolderId,
+                "TRASHED", 6L, false, false, false, false);
+        var previous = new MailLifecycleRepository.FolderTarget(
+                previousFolderId, accountId, "CUSTOM", "Customer follow-up");
+        when(lifecycle.visibleThread(1L, 7L, threadId)).thenReturn(Optional.of(before));
+        when(lifecycle.target(1L, 7L, accountId, previousFolderId))
+                .thenReturn(Optional.of(previous));
+
+        MailOrganizationDtos.LifecyclePreview preview = service.preview(
+                1L, 7L, threadId, new MailOrganizationDtos.LifecycleRequest(
+                        LifecycleAction.RESTORE, null, 6L));
+
+        assertThat(preview.targetFolderId()).isEqualTo(previousFolderId);
+        assertThat(preview.targetFolderName()).isEqualTo("Customer follow-up");
+
+        UUID staleTarget = UUID.randomUUID();
+        assertThatThrownBy(() -> service.apply(
+                1L, 7L, threadId, "corr-restore",
+                new MailOrganizationDtos.LifecycleRequest(
+                        LifecycleAction.RESTORE, staleTarget, 6L)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("changed");
+        verify(lifecycle, never()).move(
+                eq(1L), eq(7L), eq(before), org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(), eq(6L));
+    }
+
+    @Test
     void permanentDeleteExecutesOnlyAfterEveryGatePasses() {
         UUID threadId = UUID.randomUUID();
         var before = new MailLifecycleRepository.LifecycleThread(

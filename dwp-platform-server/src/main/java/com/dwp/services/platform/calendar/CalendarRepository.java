@@ -28,11 +28,13 @@ public class CalendarRepository {
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
     private final CalendarRowMapper rows;
+    private final CalendarInvitationResponseRepository invitationResponses;
 
     public CalendarRepository(JdbcTemplate jdbc, ObjectMapper objectMapper) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
         this.rows = new CalendarRowMapper(objectMapper);
+        this.invitationResponses = new CalendarInvitationResponseRepository(jdbc);
     }
 
     PolicyRow policy(Long tenantId) {
@@ -320,13 +322,8 @@ public class CalendarRepository {
                 CalendarVerifiedGroups.databaseArray(verifiedGroupRefs), version);
     }
 
-    int respond(
-            Long tenantId,
-            Long userId,
-            UUID personPublicId,
-            UUID eventId,
-            ResponseStatus response) {
-        return jdbc.update(CalendarSql01.RESPOND_UPDATE_CAL_EVENT_ATTENDEES, response.name(), tenantId, eventId, personPublicId, userId);
+    CalendarInvitationResponseRepository invitationResponses() {
+        return invitationResponses;
     }
 
     List<ResourceRow> resources(

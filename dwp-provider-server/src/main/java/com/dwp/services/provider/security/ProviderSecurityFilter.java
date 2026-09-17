@@ -52,6 +52,7 @@ public class ProviderSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return path.startsWith("/actuator/health")
                 || path.startsWith("/v3/api-docs")
+                || path.startsWith("/v1/tenant/settings")
                 || path.equals(FeatureRolloutInternalEvaluationSecurityFilter.PATH)
                 || path.equals(FeatureRolloutInternalEvaluationSecurityFilter.RECEIPT_PATH)
                 || path.equals("/error");

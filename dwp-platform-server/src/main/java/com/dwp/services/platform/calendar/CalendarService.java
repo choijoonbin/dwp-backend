@@ -4,19 +4,17 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.mail.MailProposalHandoffBinding;
 import com.dwp.services.platform.mail.MailProposalOutcomePort;
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoff;
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoffOutboxRepository;
 import com.dwp.services.platform.workplace.WorkplaceRoomAccessPort;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.DateTimeException;
-import java.time.DayOfWeek;
-import java.time.Duration;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
-import java.time.temporal.TemporalAdjusters;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -24,45 +22,74 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.calendar.CalendarTypes.*;
+
+/**
+ * Owns Calendar transaction boundaries and coordinates repositories and domain collaborators.
+ *
+ * <p>Event and resource validation is delegated to {@link CalendarEventValidation} so command
+ * orchestration stays distinct from policy checks and recurring booking-window projection.
+ * Public methods retain their established transaction semantics and compatibility surface.
+ */
 @Service
 public class CalendarService {
 
-    private static final int MAX_OCCURRENCES = 4000;
-    private static final Duration MAX_QUERY_SPAN = Duration.ofDays(370);
     private final CalendarRepository repository;
     private final CalendarOccurrenceProjector occurrenceProjector;
+    private final CalendarEventValidation eventValidation;
     private final CalendarRoomAccessGuard roomAccessGuard;
     private final CalendarSchedulingEvaluator schedulingEvaluator;
-    private final CalendarSchedulingHorizon schedulingHorizon;
     private final RoomBookingPolicyService roomBookingPolicy;
-    private final MailProposalOutcomePort mailProposalOutcomes;
+    private final CalendarMailProposalBridge mailProposals;
+    private final CalendarOccurrenceCommandService occurrenceCommands;
+    private final CalendarAdministrationOperations administration;
+    private PlatformDwaionHandoffOutboxRepository dwaionHandoffs;
+
+    @Autowired(required = false)
+    void setDwaionHandoffs(PlatformDwaionHandoffOutboxRepository dwaionHandoffs) {
+        this.dwaionHandoffs = dwaionHandoffs;
+    }
 
     public CalendarService(
             CalendarRepository repository,
             WorkplaceRoomAccessPort roomAccess,
             CalendarSchedulingHorizon schedulingHorizon,
             RoomBookingPolicyService roomBookingPolicy) {
-        this(repository, roomAccess, schedulingHorizon, roomBookingPolicy, null);
+        this(repository, roomAccess, schedulingHorizon, roomBookingPolicy, null,
+                new CalendarOccurrenceProjector(repository), null);
     }
 
-    @Autowired
     public CalendarService(
             CalendarRepository repository,
             WorkplaceRoomAccessPort roomAccess,
             CalendarSchedulingHorizon schedulingHorizon,
             RoomBookingPolicyService roomBookingPolicy,
             MailProposalOutcomePort mailProposalOutcomes) {
+        this(repository, roomAccess, schedulingHorizon, roomBookingPolicy, mailProposalOutcomes,
+                new CalendarOccurrenceProjector(repository), null);
+    }
+
+    @Autowired
+    CalendarService(
+            CalendarRepository repository,
+            WorkplaceRoomAccessPort roomAccess,
+            CalendarSchedulingHorizon schedulingHorizon,
+            RoomBookingPolicyService roomBookingPolicy,
+            MailProposalOutcomePort mailProposalOutcomes,
+            CalendarOccurrenceProjector occurrenceProjector,
+            CalendarOccurrenceCommandService occurrenceCommands) {
         this.repository = repository;
-        this.occurrenceProjector = new CalendarOccurrenceProjector(repository);
+        this.occurrenceProjector = occurrenceProjector;
+        this.eventValidation = new CalendarEventValidation(
+                repository, occurrenceProjector, schedulingHorizon);
         this.roomAccessGuard = new CalendarRoomAccessGuard(roomAccess);
         this.schedulingEvaluator = new CalendarSchedulingEvaluator(repository, roomAccessGuard);
-        this.schedulingHorizon = schedulingHorizon;
         this.roomBookingPolicy = roomBookingPolicy;
-        this.mailProposalOutcomes = mailProposalOutcomes;
+        this.mailProposals = new CalendarMailProposalBridge(mailProposalOutcomes);
+        this.occurrenceCommands = occurrenceCommands;
+        this.administration = new CalendarAdministrationOperations(repository);
     }
 
     @Transactional(readOnly = true)
@@ -110,7 +137,7 @@ public class CalendarService {
             OffsetDateTime from,
             OffsetDateTime to,
             String locale) {
-        validateRange(from, to);
+        eventValidation.validateRange(from, to);
         repository.linkIdentity(tenantId, userId, personPublicId);
         return roomAccessGuard.filterViewableEvents(
                 tenantId, userId, verifiedGroupRefs,
@@ -137,7 +164,7 @@ public class CalendarService {
             String timeZone,
             String locale,
             String verifiedGroupRefs) {
-        ZoneId zone = zone(timeZone);
+        ZoneId zone = eventValidation.zone(timeZone);
         repository.linkIdentity(tenantId, userId, personPublicId);
         CalendarRepository.PolicyRow policy = repository.policy(tenantId);
         ZonedDateTime now = ZonedDateTime.now(zone);
@@ -242,7 +269,24 @@ public class CalendarService {
             String verifiedGroupRefs,
             CalendarDtos.CreateEventRequest request,
             MailProposalHandoffBinding proposalBinding) {
-        validateMailProposal(tenantId, userId, proposalBinding);
+        return create(tenantId, userId, personPublicId, organizerName, locale,
+                correlationId, verifiedGroupRefs, request, proposalBinding, null, null);
+    }
+
+    @Transactional
+    public CalendarDtos.EventSummary create(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String organizerName,
+            String locale,
+            String correlationId,
+            String verifiedGroupRefs,
+            CalendarDtos.CreateEventRequest request,
+            MailProposalHandoffBinding proposalBinding,
+            PlatformDwaionHandoff.Binding dwaionBinding,
+            PlatformDwaionHandoff.Identity dwaionIdentity) {
+        mailProposals.validate(tenantId, userId, proposalBinding);
         repository.linkIdentity(tenantId, userId, personPublicId);
         String requestFingerprint = CalendarRequestFingerprint.create(request);
         repository.lockEventIdempotency(tenantId, userId, request.idempotencyKey());
@@ -261,16 +305,18 @@ public class CalendarService {
                     tenantId, userId, verifiedGroupRefs, existing.resource());
             CalendarDtos.EventSummary result = occurrenceProjector.summary(
                     tenantId, userId, personPublicId, existing, false, locale);
-            completeMailProposal(
+            mailProposals.complete(
                     tenantId, userId, result.eventId(), correlationId, proposalBinding);
+            completeDwaion(tenantId, userId, correlationId, result,
+                    dwaionBinding, dwaionIdentity);
             return result;
         }
-        validateNewMailProposal(tenantId, userId, proposalBinding, request);
+        mailProposals.validateNew(tenantId, userId, proposalBinding, request);
         CalendarRepository.PolicyRow policy = validateEvent(
                 tenantId, request.startsAt(), request.endsAt(), request.timeZone(),
                 request.type(), request.description(), request.recurrence(),
                 request.recurrenceUntil(), request.attendees());
-        CalendarRepository.ResourceRow resource = validateResource(
+        CalendarRepository.ResourceRow resource = eventValidation.validateResource(
                 tenantId, request.resourceId(), request.startsAt(), request.endsAt(), null,
                 request.timeZone(), request.recurrence(), request.recurrenceInterval(),
                 request.recurrenceUntil(), locale);
@@ -301,9 +347,27 @@ public class CalendarService {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         CalendarDtos.EventSummary result = occurrenceProjector.summary(
                 tenantId, userId, personPublicId, created, false, locale);
-        completeMailProposal(
+        mailProposals.complete(
                 tenantId, userId, result.eventId(), correlationId, proposalBinding);
+        completeDwaion(tenantId, userId, correlationId, result,
+                dwaionBinding, dwaionIdentity);
         return result;
+    }
+
+    private void completeDwaion(
+            Long tenantId,
+            Long userId,
+            String correlationId,
+            CalendarDtos.EventSummary result,
+            PlatformDwaionHandoff.Binding binding,
+            PlatformDwaionHandoff.Identity identity) {
+        if (binding == null) return;
+        if (dwaionHandoffs == null) throw PlatformDwaionHandoff.unavailable();
+        dwaionHandoffs.committed(
+                tenantId, userId, binding, identity,
+                PlatformDwaionHandoff.Effect.forBinding(
+                        binding, result.eventId(), result.version(), result.status().name()),
+                correlationId);
     }
 
     @Transactional
@@ -330,6 +394,19 @@ public class CalendarService {
             String correlationId,
             String verifiedGroupRefs,
             CalendarDtos.UpdateEventRequest request) {
+        if (request.editScope() == CalendarDtos.RecurrenceEditScope.THIS_OCCURRENCE) {
+            if (occurrenceCommands == null) {
+                throw new BaseException(
+                        ErrorCode.INTERNAL_SERVER_ERROR,
+                        "Calendar occurrence commands are unavailable.");
+            }
+            return occurrenceCommands.updateOccurrence(
+                    tenantId, userId, personPublicId, eventId, locale,
+                    correlationId, verifiedGroupRefs, request);
+        }
+        if (request.originalStartsAt() != null || request.idempotencyKey() != null) {
+            throw invalid("Occurrence command fields require THIS_OCCURRENCE scope.");
+        }
         CalendarRepository.EventRow before = CalendarRepositoryRouting.event(
                         repository, tenantId, userId, personPublicId, verifiedGroupRefs,
                         eventId, korean(locale))
@@ -342,7 +419,7 @@ public class CalendarService {
                 tenantId, request.startsAt(), request.endsAt(), request.timeZone(),
                 request.type(), request.description(), request.recurrence(),
                 request.recurrenceUntil(), request.attendees());
-        CalendarRepository.ResourceRow resource = validateResource(
+        CalendarRepository.ResourceRow resource = eventValidation.validateResource(
                 tenantId, request.resourceId(), request.startsAt(), request.endsAt(), eventId,
                 request.timeZone(), request.recurrence(), request.recurrenceInterval(),
                 request.recurrenceUntil(), locale);
@@ -378,6 +455,9 @@ public class CalendarService {
             repository.rescheduleBooking(
                     tenantId, userId, eventId, request.startsAt(), request.endsAt(),
                     resource.approvalRequired());
+        }
+        if (scheduleChanged && occurrenceCommands != null) {
+            occurrenceCommands.discardOverridesAfterSeriesScheduleChange(tenantId, eventId);
         }
         repository.audit(tenantId, userId, eventId, "calendar.event.updated", correlationId,
                 eventSnapshot(before), Map.of(
@@ -460,26 +540,10 @@ public class CalendarService {
             String correlationId,
             String verifiedGroupRefs,
             CalendarDtos.RespondRequest request) {
-        if (request.response() == ResponseStatus.NEEDS_ACTION) {
-            throw invalid("A final attendance response is required.");
-        }
-        CalendarRepository.EventRow before = CalendarRepositoryRouting.event(
-                        repository, tenantId, userId, personPublicId, verifiedGroupRefs,
-                        eventId, korean(locale))
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        roomAccessGuard.requireView(tenantId, userId, verifiedGroupRefs, before.resource());
-        if (repository.respond(tenantId, userId, personPublicId, eventId, request.response()) == 0) {
-            throw new BaseException(ErrorCode.NOT_FOUND, "The attendee record was not found.");
-        }
-        repository.audit(tenantId, userId, eventId, "calendar.attendee.responded", correlationId,
-                Map.of("response", before.myResponse() == null ? "" : before.myResponse().name()),
-                Map.of("response", request.response().name()));
-        CalendarRepository.EventRow updated = CalendarRepositoryRouting.event(
-                        repository, tenantId, userId, personPublicId, verifiedGroupRefs,
-                        eventId, korean(locale))
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        return occurrenceProjector.summary(
-                tenantId, userId, personPublicId, updated, false, locale);
+        return CalendarInvitationResponseCommand.respond(
+                repository, roomAccessGuard, occurrenceProjector,
+                tenantId, userId, personPublicId, eventId, locale,
+                correlationId, verifiedGroupRefs, request);
     }
 
     @Transactional(readOnly = true)
@@ -488,7 +552,7 @@ public class CalendarService {
             OffsetDateTime from,
             OffsetDateTime to,
             String locale) {
-        validateRange(from, to);
+        eventValidation.validateRange(from, to);
         return repository.resources(tenantId, from, to, korean(locale), false).stream()
                 .map(this::resource)
                 .toList();
@@ -502,7 +566,7 @@ public class CalendarService {
             OffsetDateTime from,
             OffsetDateTime to,
             String locale) {
-        validateRange(from, to);
+        eventValidation.validateRange(from, to);
         return roomAccessGuard.filterViewableResources(
                 tenantId, userId, verifiedGroupRefs,
                 repository.resources(tenantId, from, to, korean(locale), false)).stream()
@@ -521,7 +585,7 @@ public class CalendarService {
             int durationMinutes,
             String timeZone,
             String locale) {
-        validateRange(from, to);
+        eventValidation.validateRange(from, to);
         return schedulingEvaluator.availability(
                 tenantId, currentUserId, currentPersonPublicId, requestedPeople,
                 from, to, durationMinutes, timeZone, locale);
@@ -533,7 +597,7 @@ public class CalendarService {
             String verifiedGroupRefs, List<UUID> requestedPeople,
             OffsetDateTime from, OffsetDateTime to, int durationMinutes,
             String timeZone, String locale) {
-        validateRange(from, to);
+        eventValidation.validateRange(from, to);
         return schedulingEvaluator.availability(
                 tenantId, currentUserId, currentPersonPublicId, verifiedGroupRefs,
                 requestedPeople, from, to, durationMinutes, timeZone, locale);
@@ -547,8 +611,8 @@ public class CalendarService {
             String verifiedGroupRefs,
             String locale,
             CalendarDtos.SchedulingEvaluationRequest request) {
-        validateRange(request.from(), request.to());
-        validateRange(request.roomStartsAt(), request.roomEndsAt());
+        eventValidation.validateRange(request.from(), request.to());
+        eventValidation.validateRange(request.roomStartsAt(), request.roomEndsAt());
         return schedulingEvaluator.evaluate(
                 tenantId, currentUserId, currentPersonPublicId,
                 verifiedGroupRefs, locale, request);
@@ -556,30 +620,17 @@ public class CalendarService {
 
     @Transactional(readOnly = true)
     public CalendarDtos.AdminOverview adminOverview(Long tenantId, String locale) {
-        ZoneId zone = ZoneId.of("Asia/Seoul");
-        LocalDate week = LocalDate.now(zone).with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY));
-        OffsetDateTime from = week.atStartOfDay(zone).toOffsetDateTime();
-        OffsetDateTime to = from.plusDays(7);
-        CalendarRepository.AdminStats stats = repository.adminStats(tenantId, from, to);
-        return new CalendarDtos.AdminOverview(
-                stats.activeResources(), stats.resourcesInMaintenance(), stats.bookingsThisWeek(),
-                stats.pendingBookings(), stats.eventsThisWeek(), stats.conflictedUsers(),
-                policy(repository.policy(tenantId)),
-                repository.resources(tenantId, from, to, korean(locale), true).stream()
-                        .map(this::resource).toList(),
-                OffsetDateTime.now());
+        return administration.adminOverview(tenantId, locale);
     }
 
     @Transactional(readOnly = true)
     public CalendarDtos.Policy policy(Long tenantId) {
-        return policy(repository.policy(tenantId));
+        return administration.policy(tenantId);
     }
 
     @Transactional(readOnly = true)
     public List<CalendarDtos.BookingSummary> pendingBookings(Long tenantId, String locale) {
-        return repository.pendingBookings(tenantId, korean(locale)).stream()
-                .map(this::booking)
-                .toList();
+        return administration.pendingBookings(tenantId, locale);
     }
 
     @Transactional
@@ -590,21 +641,8 @@ public class CalendarService {
             String locale,
             String correlationId,
             CalendarDtos.BookingDecisionRequest request) {
-        String status = "APPROVE".equals(request.decision()) ? "CONFIRMED" : "DECLINED";
-        CalendarRepository.BookingRow saved = repository.decideBooking(
-                tenantId, actorId, bookingId, status, request.note(), request.version(),
-                korean(locale));
-        if (saved == null) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
-                    "The booking changed or was already decided. Refresh and try again.");
-        }
-        repository.audit(tenantId, actorId, saved.eventId(),
-                "calendar.booking." + status.toLowerCase(Locale.ROOT), correlationId,
-                Map.of("status", "PENDING"), Map.of(
-                        "bookingId", bookingId,
-                        "status", status,
-                        "note", request.note() == null ? "" : request.note()));
-        return booking(saved);
+        return administration.decideBooking(
+                tenantId, actorId, bookingId, locale, correlationId, request);
     }
 
     @Transactional
@@ -613,21 +651,7 @@ public class CalendarService {
             Long actorId,
             String correlationId,
             CalendarDtos.PolicyRequest request) {
-        if (!request.workingDayEnd().isAfter(request.workingDayStart())) {
-            throw invalid("Working hours must end after they start.");
-        }
-        if (request.minimumEventMinutes() > request.defaultEventMinutes()
-                || request.defaultEventMinutes() > request.maximumEventMinutes()) {
-            throw invalid("The default duration must be within the minimum and maximum duration.");
-        }
-        CalendarRepository.PolicyRow before = repository.policy(tenantId);
-        if (repository.updatePolicy(tenantId, actorId, request) == 0) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
-                    "The scheduling policy changed. Refresh and try again.");
-        }
-        repository.audit(tenantId, actorId, null, "calendar.policy.updated", correlationId,
-                Map.of("version", before.version()), Map.of("version", before.version() + 1));
-        return policy(repository.policy(tenantId));
+        return administration.updatePolicy(tenantId, actorId, correlationId, request);
     }
 
     @Transactional
@@ -638,7 +662,7 @@ public class CalendarService {
             String locale,
             String correlationId,
             CalendarDtos.ResourceRequest request) {
-        return saveResource(
+        return administration.saveResource(
                 tenantId, actorId, resourceId, locale, correlationId, request, false);
     }
 
@@ -650,78 +674,8 @@ public class CalendarService {
             String locale,
             String correlationId,
             CalendarDtos.ResourceRequest request) {
-        return saveResource(
+        return administration.saveResource(
                 tenantId, actorId, resourceId, locale, correlationId, request, true);
-    }
-
-    private CalendarDtos.ResourceSummary saveResource(
-            Long tenantId,
-            Long actorId,
-            UUID resourceId,
-            String locale,
-            String correlationId,
-            CalendarDtos.ResourceRequest request,
-            boolean workplaceWrite) {
-        if (resourceId != null
-                && !workplaceWrite
-                && repository.isWorkplaceManagedResource(tenantId, resourceId)) {
-            throw new BaseException(
-                    ErrorCode.RESOURCE_CONFLICT,
-                    "This room is managed by Workplace. Update it from Workplace locations.");
-        }
-        CalendarRepository.ResourceRow saved = repository.saveResource(
-                tenantId, actorId, resourceId, request, korean(locale));
-        if (saved == null) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
-                    "The resource changed. Refresh and try again.");
-        }
-        repository.audit(tenantId, actorId, null,
-                resourceId == null ? "calendar.resource.created" : "calendar.resource.updated",
-                correlationId, Map.of(), Map.of(
-                        "resourceId", saved.resourceId(),
-                        "code", saved.code(),
-                        "state", saved.state().name()));
-        return resource(saved);
-    }
-
-    private CalendarRepository.ResourceRow validateResource(
-            Long tenantId,
-            UUID resourceId,
-            OffsetDateTime startsAt,
-            OffsetDateTime endsAt,
-            UUID excludingEventId,
-            String timeZone,
-            RecurrencePattern recurrence,
-            int recurrenceInterval,
-            LocalDate recurrenceUntil,
-            String locale) {
-        if (resourceId == null) return null;
-        CalendarRepository.ResourceRow resource = repository.resource(
-                        tenantId, resourceId, korean(locale))
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND, "The resource was not found."));
-        if (resource.state() != ResourceState.AVAILABLE) {
-            throw new BaseException(ErrorCode.RESOURCE_CONFLICT, "The resource is not available.");
-        }
-        if (repository.isWorkplaceManagedResource(tenantId, resourceId)
-                && !repository.isWorkplaceResourceBookable(tenantId, resourceId)) {
-            throw new BaseException(
-                    ErrorCode.RESOURCE_CONFLICT,
-                    "The Workplace location for this room is not open for booking.");
-        }
-        if (recurrence != RecurrencePattern.NONE && recurrenceUntil == null) {
-            throw invalid("Recurring resource reservations require an end date.");
-        }
-        repository.lockResource(tenantId, resourceId);
-        for (BookingWindow occurrence : bookingWindows(
-                startsAt, endsAt, timeZone, recurrence, recurrenceInterval, recurrenceUntil)) {
-            if (repository.facilityClosureConflict(tenantId, resourceId, occurrence.startsAt(), occurrence.endsAt()) || repository.resourceConflict(
-                    tenantId, resourceId, occurrence.startsAt(), occurrence.endsAt(),
-                    excludingEventId)) {
-                throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
-                        "The resource is unavailable for this reservation period.");
-            }
-        }
-        return resource;
     }
 
     CalendarRepository.PolicyRow validateEvent(
@@ -734,73 +688,9 @@ public class CalendarService {
             RecurrencePattern recurrence,
             LocalDate recurrenceUntil,
             List<CalendarDtos.AttendeeInput> attendees) {
-        ZoneId eventZone = zone(timeZone);
-        if (!endsAt.isAfter(startsAt)) throw invalid("The event must end after it starts.");
-        CalendarRepository.PolicyRow policy = repository.policy(tenantId);
-        long minutes = Duration.between(startsAt, endsAt).toMinutes();
-        if (minutes < policy.minimumEventMinutes() || minutes > policy.maximumEventMinutes()) {
-            throw invalid("The event duration is outside the tenant scheduling policy.");
-        }
-        CalendarSchedulingHorizon.Horizon horizon = schedulingHorizon.evaluate(
-                eventZone, policy.maximumAdvanceDays());
-        if (!horizon.contains(startsAt, eventZone)) {
-            throw invalid("The event is beyond the maximum advance booking window.");
-        }
-        if (policy.enforceMeetingAgenda() && type == EventType.MEETING
-                && (description == null || description.isBlank())) {
-            throw invalid("A meeting agenda is required by tenant policy.");
-        }
-        if (!policy.allowExternalAttendees() && attendees.stream()
-                .anyMatch(attendee -> !attendee.email().toLowerCase(Locale.ROOT).endsWith("@sk.com"))) {
-            throw invalid("External attendees are disabled by tenant policy.");
-        }
-        if (recurrence == RecurrencePattern.NONE && recurrenceUntil != null) {
-            throw invalid("A recurrence end date requires a recurrence pattern.");
-        }
-        LocalDate localStart = startsAt.atZoneSameInstant(eventZone).toLocalDate();
-        if (recurrenceUntil != null && recurrenceUntil.isBefore(localStart)) {
-            throw invalid("The recurrence end date cannot precede the first event.");
-        }
-        if (!horizon.contains(recurrenceUntil)) {
-            throw invalid("The recurrence end date exceeds the advance booking policy.");
-        }
-        return policy;
-    }
-
-    private List<BookingWindow> bookingWindows(
-            OffsetDateTime startsAt,
-            OffsetDateTime endsAt,
-            String timeZone,
-            RecurrencePattern recurrence,
-            int recurrenceInterval,
-            LocalDate recurrenceUntil) {
-        List<BookingWindow> result = new ArrayList<>();
-        Duration duration = Duration.between(startsAt, endsAt);
-        OffsetDateTime current = startsAt;
-        LocalDate lastDate = recurrenceUntil == null
-                ? startsAt.atZoneSameInstant(zone(timeZone)).toLocalDate()
-                : recurrenceUntil;
-        int guard = 0;
-        while (!current.atZoneSameInstant(zone(timeZone)).toLocalDate().isAfter(lastDate)
-                && guard++ < MAX_OCCURRENCES) {
-            result.add(new BookingWindow(current, current.plus(duration)));
-            if (recurrence == RecurrencePattern.NONE) break;
-            current = occurrenceProjector.increment(
-                    current, recurrence, recurrenceInterval, timeZone);
-        }
-        if (result.size() >= MAX_OCCURRENCES) {
-            throw invalid("The recurring reservation exceeds the scheduling policy.");
-        }
-        return result;
-    }
-
-    private void validateRange(OffsetDateTime from, OffsetDateTime to) {
-        if (from == null || to == null || !to.isAfter(from)) {
-            throw invalid("A valid date range is required.");
-        }
-        if (Duration.between(from, to).compareTo(MAX_QUERY_SPAN) > 0) {
-            throw invalid("Calendar queries are limited to 370 days.");
-        }
+        return eventValidation.validateEvent(
+                tenantId, startsAt, endsAt, timeZone, type, description,
+                recurrence, recurrenceUntil, attendees);
     }
 
     /** Sum event minutes only inside the requested reporting interval. */
@@ -814,38 +704,12 @@ public class CalendarService {
         return date.minusDays(delta);
     }
 
-    private ZoneId zone(String value) {
-        try {
-            return ZoneId.of(value == null || value.isBlank() ? "Asia/Seoul" : value);
-        } catch (DateTimeException exception) {
-            throw invalid("The time zone is invalid.");
-        }
-    }
-
     private CalendarDtos.ResourceSummary resource(CalendarRepository.ResourceRow value) {
         return new CalendarDtos.ResourceSummary(
                 value.resourceId(), value.code(), value.name(), value.nameKo(), value.nameEn(),
                 value.type(), value.site(), value.floor(), value.capacity(), value.features(),
                 value.timeZone(), value.approvalRequired(),
                 value.state(), value.available(), value.version());
-    }
-
-    private CalendarDtos.BookingSummary booking(CalendarRepository.BookingRow value) {
-        return new CalendarDtos.BookingSummary(
-                value.bookingId(), value.eventId(), value.resourceId(), value.resourceName(),
-                value.eventTitle(), value.startsAt(), value.endsAt(), value.organizerName(),
-                value.organizerEmail(), value.status(), value.requestedBy(), value.decisionNote(),
-                value.decidedAt(), value.decidedBy(), value.version());
-    }
-
-    private CalendarDtos.Policy policy(CalendarRepository.PolicyRow value) {
-        return new CalendarDtos.Policy(
-                value.weekStart(), value.workingDayStart(), value.workingDayEnd(),
-                value.defaultEventMinutes(), value.minimumEventMinutes(),
-                value.maximumEventMinutes(), value.maximumAdvanceDays(),
-                value.defaultBufferMinutes(), value.weeklyFocusTargetMinutes(),
-                value.dailyMeetingLimitMinutes(), value.enforceMeetingAgenda(),
-                value.allowExternalAttendees(), value.version());
     }
 
     private Map<String, Object> eventSnapshot(CalendarRepository.EventRow value) {
@@ -864,77 +728,6 @@ public class CalendarService {
         return locale != null && locale.toLowerCase(Locale.ROOT).startsWith("ko");
     }
 
-    private void validateMailProposal(
-            long tenantId,
-            long actorId,
-            MailProposalHandoffBinding binding) {
-        if (binding == null) return;
-        if (mailProposalOutcomes == null) {
-            throw new BaseException(
-                    ErrorCode.EXTERNAL_SERVICE_ERROR,
-                    "The Mail proposal owner service is unavailable.");
-        }
-        mailProposalOutcomes.validate(
-                tenantId, actorId, MailProposalOutcomePort.Owner.CALENDAR, binding);
-    }
-
-    private void validateNewMailProposal(
-            long tenantId,
-            long actorId,
-            MailProposalHandoffBinding binding,
-            CalendarDtos.CreateEventRequest request) {
-        if (binding == null) return;
-        mailProposalOutcomes.validateNewExecution(
-                tenantId, actorId, MailProposalOutcomePort.Owner.CALENDAR, binding,
-                new MailProposalOutcomePort.OwnerMutation(
-                        null, calendarProposalPayload(request)));
-    }
-
-    private Map<String, Object> calendarProposalPayload(
-            CalendarDtos.CreateEventRequest request) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("title", request.title());
-        payload.put("description", request.description());
-        payload.put("type", request.type().name());
-        payload.put("startsAt", request.startsAt().toInstant().toString());
-        payload.put("endsAt", request.endsAt().toInstant().toString());
-        payload.put("durationMinutes", Duration.between(
-                request.startsAt(), request.endsAt()).toMinutes());
-        payload.put("timeZone", request.timeZone());
-        payload.put("allDay", request.allDay());
-        payload.put("location", request.location());
-        payload.put("conferenceUrl", request.conferenceUrl());
-        payload.put("visibility", request.visibility().name());
-        payload.put("recurrence", request.recurrence().name());
-        payload.put("recurrenceInterval", request.recurrenceInterval());
-        payload.put("recurrenceUntil", request.recurrenceUntil() == null
-                ? null : request.recurrenceUntil().toString());
-        payload.put("responseRequired", request.responseRequired());
-        payload.put("attendees", request.attendees().stream()
-                .map(CalendarDtos.AttendeeInput::email)
-                .map(email -> email.trim().toLowerCase(Locale.ROOT))
-                .toList());
-        payload.put("resourceId", request.resourceId() == null
-                ? null : request.resourceId().toString());
-        payload.put("calendarId", request.calendarId() == null
-                ? null : request.calendarId().toString());
-        payload.put("importance", request.importance() == null
-                ? null : request.importance().name());
-        return payload;
-    }
-
-    private void completeMailProposal(
-            long tenantId,
-            long actorId,
-            UUID eventId,
-            String correlationId,
-            MailProposalHandoffBinding binding) {
-        if (binding == null) return;
-        mailProposalOutcomes.executed(
-                tenantId, actorId, MailProposalOutcomePort.Owner.CALENDAR, binding,
-                "calendar-event:" + eventId, correlationId);
-    }
-
     private BaseException invalid(String message) {
         return new BaseException(ErrorCode.INVALID_INPUT_VALUE, message);
     }
@@ -943,6 +736,4 @@ public class CalendarService {
         return new BaseException(ErrorCode.RESOURCE_CONFLICT, message);
     }
 
-    private record BookingWindow(OffsetDateTime startsAt, OffsetDateTime endsAt) {
-    }
 }

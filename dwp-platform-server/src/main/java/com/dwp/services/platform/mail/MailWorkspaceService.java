@@ -93,23 +93,30 @@ public class MailWorkspaceService {
 
     @Transactional
     public ComposeContext composeContext(long tenantId, long userId) {
-        List<MailDtos.AccountSummary> accounts = queries.accounts(tenantId, userId);
-        if (accounts.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND, "No mail account is available.");
+        List<MailDtos.AccountSummary> storedAccounts = queries.accounts(tenantId, userId);
+        if (storedAccounts.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND, "No mail account is available.");
         Preferences preferences = effectivePreferences(tenantId, userId);
         int maximumMb = repository.maximumAttachmentMb(tenantId);
-        MailDtos.AccountSummary selected = accounts.stream()
+        MailDtos.AccountSummary selected = storedAccounts.stream()
                 .filter(MailDtos.AccountSummary::defaultAccount)
-                .findFirst().orElse(accounts.get(0));
+                .findFirst().orElse(storedAccounts.get(0));
         String displayName = selected.displayName();
         Map<UUID, ComposeCapabilities> accountCapabilities = new LinkedHashMap<>();
-        for (MailDtos.AccountSummary account : accounts) {
-            accountCapabilities.put(account.accountId(), accountCapabilities(
-                    tenantId, userId, account.accountId(), maximumMb));
+        Map<UUID, MailDtos.AccountReadiness> accountReadiness = new LinkedHashMap<>();
+        List<MailDtos.AccountSummary> accounts = new ArrayList<>();
+        for (MailDtos.AccountSummary account : storedAccounts) {
+            AccountRuntime runtime = accountRuntime(
+                    tenantId, userId, account.accountId(), maximumMb, account.readiness());
+            runtime = withAuthorizationAndFeatureEvidence(account.providerType(), runtime);
+            accountCapabilities.put(account.accountId(), runtime.capabilities());
+            accountReadiness.put(account.accountId(), runtime.readiness());
+            accounts.add(account.withReadiness(runtime.readiness()));
         }
         return new ComposeContext(
                 accounts,
                 accountCapabilities.get(selected.accountId()),
                 Map.copyOf(accountCapabilities),
+                Map.copyOf(accountReadiness),
                 repository.templates(tenantId, userId, false),
                 repository.signatures(tenantId, userId, false),
                 preferences,
@@ -189,7 +196,9 @@ public class MailWorkspaceService {
                 request.subject().trim(), body, request.bodyFormat().name(),
                 attachmentIds.toString(), String.valueOf(requestedSchedule),
                 requestedSchedule == null ? "" : value(request.timeZone()),
-                String.valueOf(request.templateId()), String.valueOf(request.signatureId())));
+                String.valueOf(request.templateId()), String.valueOf(request.signatureId()),
+                request.classification().name(),
+                String.valueOf(request.externalRecipientConfirmed())));
         if (command != null) {
             if (!fingerprint.equals(command.requestFingerprint())) {
                 throw conflict("The idempotency key was already used for a different message.");
@@ -209,11 +218,15 @@ public class MailWorkspaceService {
             throw conflict("Every attachment must be owned by the sender and ready before sending.");
         }
         validateAttachmentTotalSize(tenantId, userId, attachmentIds, null);
+        boolean externalRecipient = validateExternalRecipientPolicy(
+                tenantId, userId, accountId, recipients, request.classification(),
+                request.externalRecipientConfirmed());
         OffsetDateTime scheduledAt = requestedSchedule == null
                 ? preferenceDelay(tenantId, userId) : requestedSchedule;
         var created = repository.createAdvancedCompose(
                 tenantId, userId, accountId, recipients, request.subject(), body,
-                request.bodyFormat(), attachmentIds, scheduledAt, request.idempotencyKey(),
+                request.bodyFormat(), attachmentIds, scheduledAt,
+                request.classification(), externalRecipient, request.idempotencyKey(),
                 fingerprint, correlation(correlationId));
         if (created == null) {
             throw new BaseException(ErrorCode.INVALID_STATE,
@@ -224,7 +237,9 @@ public class MailWorkspaceService {
                         "deliveryId", created.deliveryId(),
                         "scheduled", scheduledAt != null,
                         "recipientCount", recipients.size(),
-                        "attachmentCount", attachmentIds.size()));
+                        "attachmentCount", attachmentIds.size(),
+                        "classification", request.classification().name(),
+                        "externalRecipient", externalRecipient));
         return new AdvancedComposeResult(
                 mail.thread(tenantId, userId, created.threadId()),
                 repository.delivery(tenantId, userId, created.deliveryId()).orElseThrow());
@@ -245,7 +260,8 @@ public class MailWorkspaceService {
                 options == null ? null : options.scheduledAt(),
                 options == null ? null : options.timeZone(),
                 options == null ? null : options.templateId(),
-                options == null ? null : options.signatureId(), request.idempotencyKey());
+                options == null ? null : options.signatureId(), request.classification(),
+                request.externalRecipientConfirmed(), request.idempotencyKey());
         return compose(tenantId, userId, correlationId, advanced).thread();
     }
 
@@ -283,7 +299,9 @@ public class MailWorkspaceService {
                 String.valueOf(requestedSchedule),
                 requestedSchedule == null ? "" : value(options.timeZone()),
                 String.valueOf(options.templateId()),
-                String.valueOf(options.signatureId()), String.valueOf(request.version())));
+                String.valueOf(options.signatureId()), String.valueOf(request.version()),
+                request.classification().name(),
+                String.valueOf(request.externalRecipientConfirmed())));
         if (command != null) {
             if (!fingerprint.equals(command.requestFingerprint())
                     || !threadId.equals(command.threadId())) {
@@ -303,12 +321,16 @@ public class MailWorkspaceService {
             throw conflict("Every attachment must be ready before sending.");
         }
         validateAttachmentTotalSize(tenantId, userId, attachmentIds, threadId);
+        boolean externalRecipient = validateExternalRecipientPolicy(
+                tenantId, userId, accountId, recipients, request.classification(),
+                request.externalRecipientConfirmed());
         OffsetDateTime scheduledAt = requestedSchedule == null
                 ? preferenceDelay(tenantId, userId) : requestedSchedule;
         var created = repository.sendAdvancedDraft(
                 tenantId, userId, threadId, request.version(), accountId, recipients,
                 request.subject(), body, options.bodyFormat(), attachmentIds, scheduledAt,
-                request.idempotencyKey(), fingerprint, correlation(correlationId));
+                request.classification(), externalRecipient, request.idempotencyKey(),
+                fingerprint, correlation(correlationId));
         if (created == null) {
             throw conflict("The draft changed. Refresh before sending it.");
         }
@@ -318,7 +340,9 @@ public class MailWorkspaceService {
                         "deliveryId", created.deliveryId(),
                         "scheduled", scheduledAt != null,
                         "recipientCount", recipients.size(),
-                        "attachmentCount", attachmentIds.size()));
+                        "attachmentCount", attachmentIds.size(),
+                        "classification", request.classification().name(),
+                        "externalRecipient", externalRecipient));
         return mail.thread(tenantId, userId, threadId);
     }
 
@@ -427,7 +451,8 @@ public class MailWorkspaceService {
             throw invalid("The selected mail preference is not supported.");
         }
         if (request.defaultAccountId() != null
-                && !repository.accountAccessible(tenantId, userId, request.defaultAccountId())) {
+                && !repository.accountSendAccessible(
+                        tenantId, userId, request.defaultAccountId())) {
             throw new BaseException(ErrorCode.FORBIDDEN,
                     "The selected default account is not available.");
         }
@@ -585,8 +610,36 @@ public class MailWorkspaceService {
     public void saveDraftOptions(
             long tenantId, long userId, UUID threadId, ComposeOptions options) {
         if (options == null) return;
-        validateComposeOptions(tenantId, userId, threadId, options);
-        repository.saveDraftOptions(tenantId, userId, threadId, options);
+        ComposeOptions normalized = prepareDraftOptions(
+                tenantId, userId, threadId, options);
+        saveValidatedDraftOptions(tenantId, userId, threadId, normalized);
+    }
+
+    ComposeOptions prepareDraftOptions(
+            long tenantId, long userId, UUID threadId, ComposeOptions options) {
+        if (options == null) return null;
+        UUID accountId = repository.composeAccount(tenantId, userId, options.accountId())
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.FORBIDDEN, "The selected sending account is not available."));
+        List<Recipient> recipients = normalizedRecipients(options.recipients());
+        List<UUID> attachments = distinctIds(options.attachmentIds());
+        if (!repository.attachmentsReadyForThread(
+                tenantId, userId, attachments, threadId)) {
+            throw conflict("Every attachment must be ready before it can be added to a draft.");
+        }
+        validateAssetSelection(
+                tenantId, userId, accountId, options.templateId(), options.signatureId());
+        OffsetDateTime scheduledAt = normalizedSchedule(
+                options.scheduledAt(), options.timeZone());
+        return new ComposeOptions(
+                accountId, recipients, options.bodyFormat(), attachments,
+                scheduledAt, scheduledAt == null ? null : options.timeZone().strip(),
+                options.templateId(), options.signatureId());
+    }
+
+    void saveValidatedDraftOptions(
+            long tenantId, long userId, UUID threadId, ComposeOptions options) {
+        if (options != null) repository.saveDraftOptions(tenantId, userId, threadId, options);
     }
 
     @Transactional(readOnly = true)
@@ -596,7 +649,8 @@ public class MailWorkspaceService {
                 tenantId, userId, detail.thread().threadId()).orElse(null);
         return new MailDtos.ThreadDetail(
                 detail.thread(), detail.messages(), detail.internalComments(), detail.proposals(),
-                detail.sharedInboxMembers(), detail.sharedInboxActions(), options,
+                detail.sharedInboxMembers(), detail.sharedInboxActions(),
+                detail.sharedInboxReplyIdentity(), options,
                 repository.draftAttachments(tenantId, userId, detail.thread().threadId()));
     }
 
@@ -612,21 +666,6 @@ public class MailWorkspaceService {
                 stored.density(), "BLOCK", stored.sendDelaySeconds(), stored.keyboardShortcuts(),
                 stored.notifyNewMail(), stored.notifySharedAssignment(), stored.notifyFollowUpDue(),
                 stored.defaultAccountId(), stored.defaultSignatureId(), locks, stored.version());
-    }
-
-    private void validateComposeOptions(
-            long tenantId, long userId, UUID threadId, ComposeOptions options) {
-        UUID accountId = repository.composeAccount(tenantId, userId, options.accountId())
-                .orElseThrow(() -> new BaseException(
-                        ErrorCode.FORBIDDEN, "The selected sending account is not available."));
-        normalizedRecipients(options.recipients());
-        List<UUID> attachments = distinctIds(options.attachmentIds());
-        if (!repository.attachmentsReadyForThread(tenantId, userId, attachments, threadId)) {
-            throw conflict("Every attachment must be ready before it can be added to a draft.");
-        }
-        validateAssetSelection(
-                tenantId, userId, accountId, options.templateId(), options.signatureId());
-        normalizedSchedule(options.scheduledAt(), options.timeZone());
     }
 
     private void validateAssetSelection(
@@ -713,25 +752,58 @@ public class MailWorkspaceService {
 
     private ComposeCapabilities accountCapabilities(
             long tenantId, long userId, UUID accountId, int maximumAttachmentMb) {
+        AccountRuntime runtime = accountRuntime(
+                tenantId, userId, accountId, maximumAttachmentMb, null);
+        MailTypes.ProviderType providerType = repository
+                .composeProviderContext(tenantId, userId, accountId)
+                .map(MailWorkspaceRepository.ComposeProviderContext::providerType)
+                .orElse(null);
+        return providerType == null
+                ? runtime.capabilities()
+                : withAuthorizationAndFeatureEvidence(providerType, runtime).capabilities();
+    }
+
+    private AccountRuntime accountRuntime(
+            long tenantId,
+            long userId,
+            UUID accountId,
+            int maximumAttachmentMb,
+            MailDtos.AccountReadiness storedReadiness) {
         long maximumAttachmentBytes = Math.multiplyExact(
                 (long) maximumAttachmentMb, BYTES_PER_MIB);
         ComposeCapabilities unavailable = new ComposeCapabilities(
-                false, false, false, false, false, false, maximumAttachmentBytes);
+                false, false, false, false, false, false, maximumAttachmentBytes, null);
         MailWorkspaceRepository.ComposeProviderContext provider = repository
                 .composeProviderContext(tenantId, userId, accountId)
                 .orElse(null);
         MailConnectorPort.SenderMode senderMode = repository
                 .composeSenderMode(tenantId, userId, accountId)
                 .orElse(null);
-        if (provider == null || senderMode == null) return unavailable;
-        MailConnectorPort connector = connectors.connector(provider.providerType()).orElse(null);
-        if (connector == null) return unavailable;
-        Set<MailConnectorPort.Capability> capabilities = connector.manifest().capabilities();
-        if (!capabilities.contains(MailConnectorPort.Capability.SEND)
-                || senderMode == MailConnectorPort.SenderMode.SEND_ON_BEHALF
-                && !capabilities.contains(MailConnectorPort.Capability.SEND_ON_BEHALF)) {
-            return unavailable;
+        if (provider == null) {
+            return new AccountRuntime(unavailable, unavailableReadiness(
+                    storedReadiness, "MAIL_ACCOUNT_CONNECTION_UNAVAILABLE",
+                    activationAction(storedReadiness)));
         }
+        boolean credentialConfigured = storedReadiness != null
+                ? storedReadiness.credentialConfigured()
+                : provider.providerType() == MailTypes.ProviderType.DWP_SANDBOX
+                    || provider.credentialReference() != null;
+        if (!credentialConfigured) {
+            return new AccountRuntime(unavailable, new MailDtos.AccountReadiness(
+                    "UNAVAILABLE", "PERSISTED_CONNECTION", nowOffset(),
+                    "MAIL_CREDENTIAL_NOT_CONFIGURED", false,
+                    lastSync(storedReadiness), lastSyncScope(storedReadiness),
+                    "ACTIVATE_EXTERNALLY"));
+        }
+        MailConnectorPort connector = connectors.connector(provider.providerType()).orElse(null);
+        if (connector == null) {
+            return new AccountRuntime(unavailable, new MailDtos.AccountReadiness(
+                    "UNAVAILABLE", "RUNTIME_REGISTRY", nowOffset(),
+                    "MAIL_ADAPTER_NOT_DEPLOYED", credentialConfigured,
+                    lastSync(storedReadiness), lastSyncScope(storedReadiness),
+                    "CONTACT_ADMIN"));
+        }
+        Set<MailConnectorPort.Capability> capabilities = connector.manifest().capabilities();
         try {
             MailConnectorPort.ConnectionContext connection =
                     new MailConnectorPort.ConnectionContext(
@@ -740,23 +812,215 @@ public class MailWorkspaceService {
                                     "mail-compose-capabilities:" + accountId),
                             provider.connectionId(), provider.credentialReference(),
                             provider.mailDomain());
-            if (connector.readiness(connection).state()
-                    != MailConnectorPort.ReadinessState.READY) {
-                return unavailable;
+            MailConnectorPort.Readiness readiness = connector.readiness(connection);
+            OffsetDateTime observedAt = readiness.checkedAt().atOffset(ZoneOffset.UTC);
+            if (readiness.state() != MailConnectorPort.ReadinessState.READY) {
+                String action = readiness.state()
+                        == MailConnectorPort.ReadinessState.CONFIGURATION_REQUIRED
+                        || readiness.state()
+                        == MailConnectorPort.ReadinessState.AUTHENTICATION_REQUIRED
+                        ? "ACTIVATE_EXTERNALLY" : "RETRY";
+                String state = readiness.state() == MailConnectorPort.ReadinessState.DEGRADED
+                        ? "DEGRADED" : "UNAVAILABLE";
+                return new AccountRuntime(unavailable, new MailDtos.AccountReadiness(
+                        state, "CONNECTOR_RUNTIME", observedAt,
+                        readinessError(readiness.errorCode(), readiness.state().name()),
+                        credentialConfigured, lastSync(storedReadiness),
+                        lastSyncScope(storedReadiness), action));
             }
+            if (!capabilities.contains(MailConnectorPort.Capability.SEND)) {
+                return new AccountRuntime(unavailable, new MailDtos.AccountReadiness(
+                        "UNAVAILABLE", "CONNECTOR_RUNTIME", observedAt,
+                        "MAIL_ADAPTER_SEND_NOT_SUPPORTED", credentialConfigured,
+                        lastSync(storedReadiness), lastSyncScope(storedReadiness),
+                        "CONTACT_ADMIN"));
+            }
+            if (senderMode == null) {
+                return new AccountRuntime(unavailable, new MailDtos.AccountReadiness(
+                        "UNAVAILABLE", "ACCESS_POLICY", observedAt,
+                        "MAIL_SEND_ACCESS_UNAVAILABLE", credentialConfigured,
+                        lastSync(storedReadiness), lastSyncScope(storedReadiness),
+                        "REQUEST_ACCESS"));
+            }
+            if (senderMode == MailConnectorPort.SenderMode.SEND_ON_BEHALF
+                    && !capabilities.contains(MailConnectorPort.Capability.SEND_ON_BEHALF)) {
+                return new AccountRuntime(unavailable, new MailDtos.AccountReadiness(
+                        "UNAVAILABLE", "CONNECTOR_RUNTIME", observedAt,
+                        "MAIL_ADAPTER_SEND_ON_BEHALF_NOT_SUPPORTED", credentialConfigured,
+                        lastSync(storedReadiness), lastSyncScope(storedReadiness),
+                        "CONTACT_ADMIN"));
+            }
+            ComposeCapabilities available = new ComposeCapabilities(
+                    true,
+                    true,
+                    capabilities.contains(MailConnectorPort.Capability.BCC),
+                    capabilities.contains(MailConnectorPort.Capability.HTML_BODY),
+                    capabilities.contains(MailConnectorPort.Capability.ATTACHMENTS)
+                            && !attachmentScanners.isEmpty(),
+                    true,
+                    maximumAttachmentBytes,
+                    senderMode);
+            return new AccountRuntime(available, new MailDtos.AccountReadiness(
+                    "READY", "CONNECTOR_RUNTIME", observedAt, null,
+                    credentialConfigured, lastSync(storedReadiness),
+                    lastSyncScope(storedReadiness), "NONE"));
         } catch (RuntimeException failure) {
-            return unavailable;
+            return new AccountRuntime(unavailable, new MailDtos.AccountReadiness(
+                    "UNAVAILABLE", "CONNECTOR_RUNTIME", nowOffset(),
+                    "MAIL_READINESS_CHECK_FAILED", credentialConfigured,
+                    lastSync(storedReadiness), lastSyncScope(storedReadiness),
+                    "RETRY"));
         }
-        return new ComposeCapabilities(
-                true,
-                true,
-                capabilities.contains(MailConnectorPort.Capability.BCC),
-                capabilities.contains(MailConnectorPort.Capability.HTML_BODY),
-                capabilities.contains(MailConnectorPort.Capability.ATTACHMENTS)
-                        && !attachmentScanners.isEmpty(),
-                true,
-                maximumAttachmentBytes);
     }
+
+    private MailDtos.AccountReadiness unavailableReadiness(
+            MailDtos.AccountReadiness stored, String errorCode, String action) {
+        return new MailDtos.AccountReadiness(
+                "UNAVAILABLE", stored == null ? "NO_RUNTIME_ATTESTATION" : stored.source(),
+                nowOffset(), errorCode,
+                stored != null && stored.credentialConfigured(),
+                lastSync(stored), lastSyncScope(stored), action);
+    }
+
+    private AccountRuntime withAuthorizationAndFeatureEvidence(
+            MailTypes.ProviderType providerType, AccountRuntime runtime) {
+        MailDtos.AccountReadiness readiness = runtime.readiness();
+        OffsetDateTime observedAt = readiness.observedAt() == null
+                ? nowOffset() : readiness.observedAt();
+        boolean sandbox = providerType == MailTypes.ProviderType.DWP_SANDBOX;
+        MailDtos.AuthorizationEvidence consent = authorizationEvidence(
+                sandbox, "CONSENT", observedAt);
+        MailDtos.AuthorizationEvidence token = authorizationEvidence(
+                sandbox, "TOKEN", observedAt);
+
+        if (!sandbox && "READY".equals(readiness.state())) {
+            String error = "MAIL_OAUTH_EVIDENCE_UNAVAILABLE";
+            ComposeCapabilities unavailable = new ComposeCapabilities(
+                    false, false, false, false, false, false,
+                    runtime.capabilities().maximumAttachmentBytes(), null);
+            MailDtos.AccountReadiness oauthUnavailable = new MailDtos.AccountReadiness(
+                    "UNAVAILABLE", "NO_OAUTH_ATTESTATION", observedAt, error,
+                    readiness.credentialConfigured(), readiness.lastSuccessfulSyncAt(),
+                    readiness.lastSuccessfulSyncScope(), "ACTIVATE_EXTERNALLY");
+            MailDtos.AccountReadiness unavailableReadiness = new MailDtos.AccountReadiness(
+                    "UNAVAILABLE", "NO_OAUTH_ATTESTATION", observedAt, error,
+                    readiness.credentialConfigured(), readiness.lastSuccessfulSyncAt(),
+                    readiness.lastSuccessfulSyncScope(), "ACTIVATE_EXTERNALLY",
+                    consent, token,
+                    featureEvidence(unavailable, observedAt, error,
+                            "NO_OAUTH_ATTESTATION", "ACTIVATE_EXTERNALLY",
+                            oauthUnavailable));
+            return new AccountRuntime(unavailable, unavailableReadiness);
+        }
+
+        Map<String, MailDtos.FeatureReadiness> features = featureEvidence(
+                runtime.capabilities(), observedAt, readiness.errorCode(),
+                readiness.source(), readiness.action(), readiness);
+        MailDtos.AccountReadiness evidenced = new MailDtos.AccountReadiness(
+                readiness.state(), readiness.source(), readiness.observedAt(),
+                readiness.errorCode(), readiness.credentialConfigured(),
+                readiness.lastSuccessfulSyncAt(), readiness.lastSuccessfulSyncScope(),
+                readiness.action(), consent, token, features);
+        return new AccountRuntime(runtime.capabilities(), evidenced);
+    }
+
+    private MailDtos.AuthorizationEvidence authorizationEvidence(
+            boolean sandbox, String kind, OffsetDateTime observedAt) {
+        if (sandbox) {
+            return new MailDtos.AuthorizationEvidence(
+                    "NOT_REQUIRED", "CONNECTOR_RUNTIME", observedAt,
+                    null, null, "NONE");
+        }
+        return new MailDtos.AuthorizationEvidence(
+                "UNKNOWN", "NO_OAUTH_ATTESTATION", observedAt,
+                null, "MAIL_" + kind + "_EVIDENCE_UNAVAILABLE",
+                "ACTIVATE_EXTERNALLY");
+    }
+
+    private Map<String, MailDtos.FeatureReadiness> featureEvidence(
+            ComposeCapabilities capabilities,
+            OffsetDateTime observedAt,
+            String accountError,
+            String accountSource,
+            String accountAction,
+            MailDtos.AccountReadiness readiness) {
+        boolean accountReady = "READY".equals(readiness.state());
+        Map<String, MailDtos.FeatureReadiness> evidence = new LinkedHashMap<>();
+        evidence.put("SEND", featureEvidence(
+                accountReady && capabilities.multipleRecipients(),
+                accountReady ? "CONNECTOR_RUNTIME" : accountSource,
+                observedAt, accountReady ? "MAIL_ADAPTER_SEND_NOT_SUPPORTED" : accountError,
+                accountReady ? "CONTACT_ADMIN" : accountAction, readiness));
+        evidence.put("BCC", featureEvidence(
+                accountReady && capabilities.bcc(),
+                accountReady ? "CONNECTOR_RUNTIME" : accountSource, observedAt,
+                accountReady ? "MAIL_ADAPTER_BCC_NOT_SUPPORTED" : accountError,
+                accountReady ? "CONTACT_ADMIN" : accountAction, readiness));
+        evidence.put("HTML_BODY", featureEvidence(
+                accountReady && capabilities.html(),
+                accountReady ? "CONNECTOR_RUNTIME" : accountSource, observedAt,
+                accountReady ? "MAIL_ADAPTER_HTML_NOT_SUPPORTED" : accountError,
+                accountReady ? "CONTACT_ADMIN" : accountAction, readiness));
+        evidence.put("ATTACHMENTS", featureEvidence(
+                accountReady && capabilities.attachments(),
+                accountReady ? "CONNECTOR_RUNTIME" : accountSource, observedAt,
+                accountReady ? "MAIL_ATTACHMENTS_UNAVAILABLE" : accountError,
+                accountReady ? "CONTACT_ADMIN" : accountAction, readiness));
+        evidence.put("SCHEDULING", featureEvidence(
+                accountReady && capabilities.scheduling(),
+                accountReady ? "PLATFORM_OUTBOX" : accountSource, observedAt,
+                accountReady ? "MAIL_SCHEDULING_UNAVAILABLE" : accountError,
+                accountReady ? "CONTACT_ADMIN" : accountAction, readiness));
+        return Map.copyOf(evidence);
+    }
+
+    private MailDtos.FeatureReadiness featureEvidence(
+            boolean ready,
+            String source,
+            OffsetDateTime observedAt,
+            String unavailableError,
+            String unavailableAction,
+            MailDtos.AccountReadiness readiness) {
+        return new MailDtos.FeatureReadiness(
+                ready ? "READY" : "UNAVAILABLE", source, observedAt,
+                ready ? null : readinessError(unavailableError, "FEATURE_UNAVAILABLE"),
+                null, "UNAVAILABLE",
+                ready ? "NONE" : normalizedFeatureAction(unavailableAction));
+    }
+
+    private String normalizedFeatureAction(String action) {
+        return Set.of("NONE", "RETRY", "ACTIVATE_EXTERNALLY", "CONTACT_ADMIN",
+                        "REQUEST_ACCESS").contains(action)
+                ? action : "RETRY";
+    }
+
+    private String activationAction(MailDtos.AccountReadiness stored) {
+        return stored != null && "ACTIVATE_EXTERNALLY".equals(stored.action())
+                ? "ACTIVATE_EXTERNALLY" : "RETRY";
+    }
+
+    private OffsetDateTime lastSync(MailDtos.AccountReadiness stored) {
+        return stored == null ? null : stored.lastSuccessfulSyncAt();
+    }
+
+    private String lastSyncScope(MailDtos.AccountReadiness stored) {
+        return stored == null ? null : stored.lastSuccessfulSyncScope();
+    }
+
+    private OffsetDateTime nowOffset() {
+        return OffsetDateTime.now(ZoneOffset.UTC);
+    }
+
+    private String readinessError(String errorCode, String fallback) {
+        if (errorCode == null || !errorCode.matches("[A-Za-z0-9._:-]{1,120}")) {
+            return "MAIL_ADAPTER_" + fallback;
+        }
+        return errorCode;
+    }
+
+    private record AccountRuntime(
+            ComposeCapabilities capabilities,
+            MailDtos.AccountReadiness readiness) { }
 
     private void validateProviderCapabilities(
             long tenantId,
@@ -792,6 +1056,47 @@ public class MailWorkspaceService {
         if (requestedSchedule != null && !capabilities.scheduling()) {
             throw invalid("The selected account provider does not support scheduled sending.");
         }
+    }
+
+    private boolean validateExternalRecipientPolicy(
+            long tenantId,
+            long userId,
+            UUID accountId,
+            List<Recipient> recipients,
+            MailTypes.Classification classification,
+            Boolean externalRecipientConfirmed) {
+        if (classification == null || externalRecipientConfirmed == null) {
+            throw invalid("Message classification and external-recipient confirmation are required.");
+        }
+        String senderDomain = repository.composeAccountDomain(tenantId, userId, accountId)
+                .or(() -> repository.composeProviderContext(tenantId, userId, accountId)
+                        .map(MailWorkspaceRepository.ComposeProviderContext::mailDomain))
+                .map(String::trim)
+                .map(value -> value.toLowerCase(Locale.ROOT))
+                .filter(value -> !value.isBlank())
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.FORBIDDEN,
+                        "The selected sending account is no longer available."));
+        boolean external = recipients.stream()
+                .map(Recipient::email)
+                .map(this::emailDomain)
+                .anyMatch(domain -> !senderDomain.equals(domain));
+        if (external && classification != MailTypes.Classification.PUBLIC
+                && !externalRecipientConfirmed) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Confirm the external recipients before sending non-public content.");
+        }
+        return external;
+    }
+
+    private String emailDomain(String email) {
+        String normalized = value(email).toLowerCase(Locale.ROOT);
+        int separator = normalized.lastIndexOf('@');
+        if (separator < 1 || separator == normalized.length() - 1) {
+            throw invalid("A recipient email address is invalid.");
+        }
+        return normalized.substring(separator + 1);
     }
 
     private void requireAttachmentScanningAvailable(List<UUID> attachmentIds) {

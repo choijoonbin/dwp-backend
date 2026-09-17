@@ -43,6 +43,25 @@ public class EmergencyAccessPrincipal extends BaseEntity {
     @Column(name = "lifecycle_state", nullable = false, length = 20)
     private String lifecycleState;
 
+    @Builder.Default
+    @Column(name = "verification_status", nullable = false, length = 24)
+    private String verificationStatus = "NOT_VERIFIED";
+
+    @Column(name = "verification_method", length = 32)
+    private String verificationMethod;
+
+    @Column(name = "verification_reference", length = 500)
+    private String verificationReference;
+
+    @Column(name = "last_verified_at")
+    private Instant lastVerifiedAt;
+
+    @Column(name = "last_verified_by")
+    private Long lastVerifiedBy;
+
+    @Column(name = "verification_due_at")
+    private Instant verificationDueAt;
+
     @Version
     @Column(nullable = false)
     private Long version;

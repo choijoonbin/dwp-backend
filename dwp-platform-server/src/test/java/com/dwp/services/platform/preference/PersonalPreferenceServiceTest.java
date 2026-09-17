@@ -3,6 +3,7 @@ package com.dwp.services.platform.preference;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.personalsettings.PersonalSettingsOwnerService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.junit.jupiter.api.BeforeEach;
@@ -30,6 +31,8 @@ class PersonalPreferenceServiceTest {
     private ManagedPreferenceRepository managedPreferenceRepository;
     @Mock
     private PlatformAuditService auditService;
+    @Mock
+    private PersonalSettingsOwnerService personalSettingsOwnerService;
 
     private ObjectMapper objectMapper;
     private PersonalPreferenceService service;
@@ -38,7 +41,8 @@ class PersonalPreferenceServiceTest {
     void setUp() {
         objectMapper = new ObjectMapper().findAndRegisterModules();
         service = new PersonalPreferenceService(
-                repository, managedPreferenceRepository, objectMapper, auditService);
+                repository, managedPreferenceRepository, objectMapper, auditService,
+                personalSettingsOwnerService);
         org.mockito.Mockito.lenient()
                 .when(managedPreferenceRepository.policy(org.mockito.ArgumentMatchers.anyLong()))
                 .thenReturn(policy());

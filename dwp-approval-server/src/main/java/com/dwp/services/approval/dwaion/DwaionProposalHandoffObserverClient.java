@@ -4,6 +4,7 @@ import com.dwp.services.approval.dwaion.DwaionProposalHandoffOutboxRepository.De
 import com.dwp.services.approval.dwaion.DwaionProposalHandoffOutboxRepository.ObservationSnapshot;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -41,6 +42,7 @@ public class DwaionProposalHandoffObserverClient {
     private final Clock clock;
     private final Supplier<UUID> nonce;
 
+    @Autowired
     public DwaionProposalHandoffObserverClient(
             ObjectMapper json,
             @Value("${dwp.approval.dwaion-handoff.agent-url:http://localhost:8010}") String agentUrl,
@@ -53,7 +55,7 @@ public class DwaionProposalHandoffObserverClient {
                 Clock.systemUTC(), UUID::randomUUID);
     }
 
-    DwaionProposalHandoffObserverClient(
+    public DwaionProposalHandoffObserverClient(
             HttpClient http,
             ObjectMapper json,
             String agentUrl,
@@ -85,14 +87,18 @@ public class DwaionProposalHandoffObserverClient {
         body.put("expectedVersion", delivery.handoffVersion());
         body.put("state", state);
         if ("COMPLETED".equals(state)) {
-            body.put("receipt", Map.of(
-                    "domain", "APPROVAL",
-                    "operation", "REQUEST_SUBMIT",
-                    "requestId", delivery.requestId().toString(),
-                    "requestVersion", delivery.domainVersion(),
-                    "status", delivery.domainStatus(),
-                    "committedAt", delivery.domainCommittedAt().toString(),
-                    "correlationId", delivery.correlationId()));
+            body.put("receipt", Map.ofEntries(
+                    Map.entry("domain", "APPROVAL"),
+                    Map.entry("operation", "REQUEST_SUBMIT"),
+                    Map.entry("handoffId", delivery.handoffId().toString()),
+                    Map.entry("proposalId", delivery.proposalId().toString()),
+                    Map.entry("actionKey", delivery.actionKey()),
+                    Map.entry("handoffVersion", delivery.handoffVersion()),
+                    Map.entry("requestId", delivery.requestId().toString()),
+                    Map.entry("requestVersion", delivery.domainVersion()),
+                    Map.entry("status", delivery.domainStatus()),
+                    Map.entry("committedAt", delivery.domainCommittedAt().toString()),
+                    Map.entry("correlationId", delivery.correlationId())));
         }
         try {
             byte[] encoded = json.writeValueAsBytes(body);
@@ -113,9 +119,7 @@ public class DwaionProposalHandoffObserverClient {
             if (delivery.personPublicId() != null) {
                 builder.header("X-DWP-Person-Public-ID", delivery.personPublicId().toString());
             }
-            if (identitySecret.length > 0) {
-                builder.header("X-DWP-Delegated-Identity", assertion(delivery, path));
-            }
+            builder.header("X-DWP-Delegated-Identity", assertion(delivery, path));
             HttpResponse<String> response = http.send(
                     builder.POST(HttpRequest.BodyPublishers.ofByteArray(encoded)).build(),
                     HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
@@ -183,7 +187,7 @@ public class DwaionProposalHandoffObserverClient {
     }
 
     private void requireConfigured() {
-        if (serviceToken.isBlank() || workerToken.isBlank()
+        if (serviceToken.isBlank() || workerToken.isBlank() || identitySecret.length < 24
                 || identityKeyId.isBlank() || identityKeyId.length() > 80) {
             throw new IllegalStateException("DWAI-ON Agent observation identity is not configured");
         }

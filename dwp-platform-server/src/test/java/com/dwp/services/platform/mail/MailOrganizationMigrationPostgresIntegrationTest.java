@@ -156,7 +156,7 @@ class MailOrganizationMigrationPostgresIntegrationTest {
         assertThat(preview.plannedApplicationCount()).isOne();
 
         var request = new MailRuleBackfillDtos.Request(
-                UUID.randomUUID(), preview.previewFingerprint());
+                UUID.randomUUID(), preview.previewFingerprint(), preview.continuationToken());
         MailRuleBackfillRepository.Claim claim = transaction.execute(
                 ignored -> transactions.claim(tenantId, userId, accountId, request));
         MailRuleBackfillDtos.Result result = transaction.execute(
@@ -194,7 +194,8 @@ class MailOrganizationMigrationPostgresIntegrationTest {
                 ignored -> transactions.preview(tenantId, userId, accountId));
         assertThat(noChangePreview).isNotNull();
         var noChangeRequest = new MailRuleBackfillDtos.Request(
-                UUID.randomUUID(), noChangePreview.previewFingerprint());
+                UUID.randomUUID(), noChangePreview.previewFingerprint(),
+                noChangePreview.continuationToken());
         MailRuleBackfillRepository.Claim noChangeClaim = transaction.execute(
                 ignored -> transactions.claim(tenantId, userId, accountId, noChangeRequest));
         MailRuleBackfillDtos.Result noChangeResult = transaction.execute(
@@ -228,7 +229,7 @@ class MailOrganizationMigrationPostgresIntegrationTest {
     }
 
     @Test
-    void truncatedBackfillIsRejectedBeforeExecutionClaim() {
+    void boundedBackfillContinuesAcrossTheEntireStableMailboxSnapshot() {
         String schema = "mail_rule_backfill_truncated";
         Flyway flyway = flyway(schema, null);
         flyway.clean();
@@ -267,6 +268,20 @@ class MailOrganizationMigrationPostgresIntegrationTest {
                        TRUE, 'NORMAL', 'PRIORITY', 'OPEN', 1, ?, ?
                   FROM generate_series(1, 501) candidate
                 """, tenantId, accountId, folderId, userId, userId);
+        jdbc.update("""
+                UPDATE mail_rules
+                   SET lifecycle_state = 'ARCHIVED', enabled = FALSE
+                 WHERE tenant_id = ? AND account_id = ?
+                """, tenantId, accountId);
+        jdbc.update("""
+                INSERT INTO mail_rules (
+                    rule_id, tenant_id, account_id, owner_user_id, display_name,
+                    priority, match_mode, conditions, actions, stop_processing,
+                    enabled, created_by, updated_by)
+                VALUES (?, ?, ?, ?, 'Continuation rule', 10, 'ALL',
+                        '[{"field":"SUBJECT","operator":"CONTAINS","value":"Truncated backfill"}]'::jsonb,
+                        '[{"type":"MARK_READ"}]'::jsonb, TRUE, TRUE, ?, ?)
+                """, UUID.randomUUID(), tenantId, accountId, userId, userId, userId);
 
         MailJsonCodec json = new MailJsonCodec(new ObjectMapper().findAndRegisterModules());
         MailOrganizationQueryRepository queries = new MailOrganizationQueryRepository(jdbc, json);
@@ -278,21 +293,38 @@ class MailOrganizationMigrationPostgresIntegrationTest {
                 new MailRuleBackfillFingerprint(),
                 new MailCommandRepository(jdbc, json));
         MailRuleBackfillService service = new MailRuleBackfillService(transactions);
-        MailRuleBackfillDtos.Preview preview = service.preview(tenantId, userId, accountId);
+        MailRuleBackfillDtos.Preview firstPreview = service.preview(tenantId, userId, accountId);
         int executionCount = jdbc.queryForObject(
                 "SELECT COUNT(*) FROM mail_rule_backfill_executions", Integer.class);
 
-        assertThat(preview.truncated()).isTrue();
-        assertThat(preview.scannedCount()).isEqualTo(500);
-        assertThatThrownBy(() -> service.run(
-                tenantId, userId, accountId, "truncated-backfill",
+        assertThat(firstPreview.truncated()).isTrue();
+        assertThat(firstPreview.scannedCount()).isEqualTo(500);
+        assertThat(firstPreview.continuationToken()).isNotBlank();
+        assertThat(firstPreview.nextContinuationToken()).isNotBlank();
+        MailRuleBackfillDtos.Result firstResult = service.run(
+                tenantId, userId, accountId, "continued-backfill-first",
                 new MailRuleBackfillDtos.Request(
-                        UUID.randomUUID(), preview.previewFingerprint())))
-                .isInstanceOf(BaseException.class)
-                .hasMessageContaining("truncated");
+                        UUID.randomUUID(), firstPreview.previewFingerprint(),
+                        firstPreview.continuationToken()));
+        assertThat(firstResult.scannedCount()).isEqualTo(500);
+
+        MailRuleBackfillDtos.Preview secondPreview = service.preview(
+                tenantId, userId, accountId, firstPreview.nextContinuationToken());
+        assertThat(secondPreview.scannedCount()).isPositive();
+        assertThat(secondPreview.truncated()).isFalse();
+        assertThat(secondPreview.continuationToken())
+                .isEqualTo(firstPreview.nextContinuationToken());
+        MailRuleBackfillDtos.Result secondResult = service.run(
+                tenantId, userId, accountId, "continued-backfill-second",
+                new MailRuleBackfillDtos.Request(
+                        UUID.randomUUID(), secondPreview.previewFingerprint(),
+                        secondPreview.continuationToken()));
+
+        assertThat(firstResult.scannedCount() + secondResult.scannedCount())
+                .isGreaterThanOrEqualTo(501);
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM mail_rule_backfill_executions", Integer.class))
-                .isEqualTo(executionCount);
+                .isEqualTo(executionCount + 2);
     }
 
     private void assertLatestSchema(String schema) {

@@ -1,11 +1,11 @@
 {
   "bundleKey": "product-surfaces",
-  "indexChecksum": "d69c28035317c553dcdc609f47ada53f09225c0c3b119f9b50c5dbcd1e118c86",
+  "indexChecksum": "1eaba46a2b6f61c8b6d0f0d174d0ff5551c8bd85b2e05e0ea4b7449de2325907",
   "indexChecksumAlgorithm": "SHA-256",
-  "latestArtifact": "product-surfaces-v1.bundle-v28.json",
-  "latestAuthSeedArtifact": "product-surfaces-v1.bundle-v28.generated.json",
-  "latestChecksum": "7e807a353f281a9e0bc6d9d33074c5b1806946d21399bc541682bbf6dcab6f90",
-  "latestVersion": 28,
+  "latestArtifact": "product-surfaces-v1.bundle-v31.json",
+  "latestAuthSeedArtifact": "product-surfaces-v1.bundle-v31.generated.json",
+  "latestChecksum": "be4e1b6db3d3f0b5100182a3c80066a39c64479f9ba88d908fee661efd3335b8",
+  "latestVersion": 31,
   "schemaVersion": 1,
   "versions": [
     {
@@ -399,6 +399,48 @@
         "routes": 780
       },
       "version": 28
+    },
+    {
+      "artifact": "product-surfaces-v1.bundle-v29.json",
+      "authSeedArtifact": "product-surfaces-v1.bundle-v29.generated.json",
+      "bundleStatus": "DRAFT",
+      "checksum": "aac6b6dfc94b4f4ea2956862ff1aa73ccd3459b29548fb20b3cbc26ae29cdbd8",
+      "counts": {
+        "accessPolicies": 22,
+        "capabilities": 183,
+        "entitlementExpressions": 16,
+        "predicatePolicies": 47,
+        "routes": 827
+      },
+      "version": 29
+    },
+    {
+      "artifact": "product-surfaces-v1.bundle-v30.json",
+      "authSeedArtifact": "product-surfaces-v1.bundle-v30.generated.json",
+      "bundleStatus": "DRAFT",
+      "checksum": "7c437bd768225db7dfe1c2491bcdb6ff256a2376946bab6a4ba4a62a7f31ce80",
+      "counts": {
+        "accessPolicies": 22,
+        "capabilities": 205,
+        "entitlementExpressions": 16,
+        "predicatePolicies": 47,
+        "routes": 888
+      },
+      "version": 30
+    },
+    {
+      "artifact": "product-surfaces-v1.bundle-v31.json",
+      "authSeedArtifact": "product-surfaces-v1.bundle-v31.generated.json",
+      "bundleStatus": "DRAFT",
+      "checksum": "be4e1b6db3d3f0b5100182a3c80066a39c64479f9ba88d908fee661efd3335b8",
+      "counts": {
+        "accessPolicies": 22,
+        "capabilities": 205,
+        "entitlementExpressions": 16,
+        "predicatePolicies": 47,
+        "routes": 911
+      },
+      "version": 31
     }
   ]
 }

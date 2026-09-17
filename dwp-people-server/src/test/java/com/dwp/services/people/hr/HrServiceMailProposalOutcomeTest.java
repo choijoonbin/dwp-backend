@@ -51,6 +51,8 @@ class HrServiceMailProposalOutcomeTest {
         arrangeActor();
         HrDtos.CreateLeaveRequest request = request();
         HrMailProposalBinding binding = binding();
+        when(outcomes.claimExecution(TENANT_ID, ACTOR_ID, binding, request))
+                .thenReturn(acquired(binding, request));
         org.mockito.Mockito.doThrow(new BaseException(
                         ErrorCode.RESOURCE_CONFLICT, "stale binding"))
                 .when(outcomes).preflight(TENANT_ID, ACTOR_ID, binding, request);
@@ -65,7 +67,58 @@ class HrServiceMailProposalOutcomeTest {
                 eq(TENANT_ID), eq(WORKER_ID), any(), eq(ACTOR_ID));
         verify(outcomes, never()).enqueueExecuted(anyLong(), anyLong(),
                 any(), any(), any());
+        verify(outcomes).releaseNotExecuted(
+                TENANT_ID, ACTOR_ID, binding,
+                "OWNER_TRANSACTION_ROLLED_BACK", "corr-preflight");
         verify(audit, never()).record(any(AuditEvent.class));
+    }
+
+    @Test
+    void duplicateClaimConflictNeverReleasesTheWinnersReservation() {
+        arrangeActor();
+        HrDtos.CreateLeaveRequest request = request();
+        HrMailProposalBinding binding = binding();
+        org.mockito.Mockito.doThrow(new BaseException(
+                        ErrorCode.RESOURCE_CONFLICT, "owner execution in progress"))
+                .when(outcomes).claimExecution(TENANT_ID, ACTOR_ID, binding, request);
+
+        assertThatThrownBy(() -> service.createLeaveRequest(
+                request, "corr-loser", binding))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+
+        verify(outcomes, never()).preflight(anyLong(), anyLong(), any(), any());
+        verify(outcomes, never()).releaseNotExecuted(
+                anyLong(), anyLong(), any(), any(), any());
+        verify(repository, never()).createLeaveRequest(
+                anyLong(), anyLong(), any(), anyLong());
+    }
+
+    @Test
+    void failedOwnerTransactionReleasesTheReservationBeforeReturningTheError() {
+        arrangeActor();
+        HrDtos.CreateLeaveRequest request = request();
+        HrMailProposalBinding binding = binding();
+        when(outcomes.claimExecution(TENANT_ID, ACTOR_ID, binding, request))
+                .thenReturn(acquired(binding, request));
+        when(repository.createLeaveRequest(TENANT_ID, WORKER_ID, request, ACTOR_ID))
+                .thenReturn(Optional.empty());
+
+        assertThatThrownBy(() -> service.createLeaveRequest(
+                request, "corr-rollback", binding))
+                .isInstanceOf(BaseException.class);
+
+        var order = inOrder(outcomes, repository);
+        order.verify(outcomes).claimExecution(TENANT_ID, ACTOR_ID, binding, request);
+        order.verify(outcomes).preflight(TENANT_ID, ACTOR_ID, binding, request);
+        order.verify(repository).createLeaveRequest(
+                TENANT_ID, WORKER_ID, request, ACTOR_ID);
+        order.verify(outcomes).releaseNotExecuted(
+                TENANT_ID, ACTOR_ID, binding,
+                "OWNER_TRANSACTION_ROLLED_BACK", "corr-rollback");
+        verify(outcomes, never()).enqueueExecuted(
+                anyLong(), anyLong(), any(), any(), any());
     }
 
     @Test
@@ -73,6 +126,9 @@ class HrServiceMailProposalOutcomeTest {
         arrangeActor();
         HrDtos.CreateLeaveRequest request = request();
         HrMailProposalBinding binding = binding();
+        HrMailProposalExecutionRepository.Claim claim = acquired(binding, request);
+        when(outcomes.claimExecution(TENANT_ID, ACTOR_ID, binding, request))
+                .thenReturn(claim);
         UUID requestId = UUID.randomUUID();
         HrDtos.LeaveRequest created = new HrDtos.LeaveRequest(
                 requestId,
@@ -96,11 +152,41 @@ class HrServiceMailProposalOutcomeTest {
 
         assertThat(result).isEqualTo(created);
         var order = inOrder(outcomes, repository, audit);
+        order.verify(outcomes).claimExecution(TENANT_ID, ACTOR_ID, binding, request);
         order.verify(outcomes).preflight(TENANT_ID, ACTOR_ID, binding, request);
         order.verify(repository).createLeaveRequest(TENANT_ID, WORKER_ID, request, ACTOR_ID);
         order.verify(outcomes).enqueueExecuted(
                 TENANT_ID, ACTOR_ID, binding, requestId, "corr-success");
         order.verify(audit).record(any(AuditEvent.class));
+        order.verify(outcomes).completeExecution(
+                TENANT_ID, ACTOR_ID, binding, claim.requestFingerprint(), requestId);
+    }
+
+    @Test
+    void lostResponseRetryReturnsTheCompletedOwnerReceiptWithoutAnotherWrite() {
+        arrangeActor();
+        HrDtos.CreateLeaveRequest request = request();
+        HrMailProposalBinding binding = binding();
+        UUID requestId = UUID.randomUUID();
+        HrDtos.LeaveRequest created = leaveRequest(requestId, request);
+        String fingerprint = HrMailProposalExecutionRepository.fingerprint(binding, request);
+        when(outcomes.claimExecution(TENANT_ID, ACTOR_ID, binding, request))
+                .thenReturn(new HrMailProposalExecutionRepository.Claim(
+                        HrMailProposalExecutionRepository.ClaimStatus.COMPLETED,
+                        requestId, "hr-leave-request:" + requestId, fingerprint));
+        when(repository.leaveRequest(TENANT_ID, WORKER_ID, requestId))
+                .thenReturn(Optional.of(created));
+
+        assertThat(service.createLeaveRequest(
+                request, "corr-retry", binding)).isEqualTo(created);
+
+        verify(outcomes, never()).preflight(anyLong(), anyLong(), any(), any());
+        verify(repository, never()).createLeaveRequest(
+                anyLong(), anyLong(), any(), anyLong());
+        verify(outcomes, never()).releaseNotExecuted(
+                anyLong(), anyLong(), any(), any(), any());
+        verify(outcomes, never()).enqueueExecuted(
+                anyLong(), anyLong(), any(), any(), any());
     }
 
     private void arrangeActor() {
@@ -119,6 +205,26 @@ class HrServiceMailProposalOutcomeTest {
         Instant start = Instant.parse("2026-10-05T00:00:00Z");
         return new HrDtos.CreateLeaveRequest(
                 UUID.randomUUID(), start, start.plusSeconds(28_800), 480, "Annual leave");
+    }
+
+    private HrMailProposalExecutionRepository.Claim acquired(
+            HrMailProposalBinding binding,
+            HrDtos.CreateLeaveRequest request) {
+        return new HrMailProposalExecutionRepository.Claim(
+                HrMailProposalExecutionRepository.ClaimStatus.ACQUIRED,
+                null, null,
+                HrMailProposalExecutionRepository.fingerprint(binding, request));
+    }
+
+    private HrDtos.LeaveRequest leaveRequest(
+            UUID requestId,
+            HrDtos.CreateLeaveRequest request) {
+        return new HrDtos.LeaveRequest(
+                requestId, request.planId(), "Annual leave",
+                request.startAt(), request.endAt(), request.requestedMinutes(),
+                "SUBMITTED", request.reason(),
+                Instant.parse("2026-09-17T01:00:00Z"),
+                null, null, null, 0L);
     }
 
     private HrMailProposalBinding binding() {

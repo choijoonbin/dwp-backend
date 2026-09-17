@@ -6,6 +6,7 @@ import org.springframework.stereotype.Repository;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.dwp.services.platform.mail.MailTypes.*;
@@ -265,7 +266,7 @@ class MailCommandRepository {
                            'name', ?, 'email', LOWER(?))), CURRENT_TIMESTAMP,
                        FALSE, 'NORMAL', 'UPDATES', ?,
                        SPLIT_PART(LOWER(?), '@', 2) <> SPLIT_PART(account.email_address, '@', 2),
-                       'INTERNAL', 1, ?, ?
+                       ?, 1, ?, ?
                   FROM mail_accounts account
                   JOIN mail_folders folder
                     ON folder.tenant_id = account.tenant_id
@@ -287,7 +288,8 @@ class MailCommandRepository {
                 """, (result, ignored) -> result.getObject("thread_id", UUID.class),
                 UUID.randomUUID(), providerRef, requestFingerprint, request.subject().trim(),
                 preview(request.body()), recipientName(request), request.toEmail().trim(),
-                workflowState, request.toEmail().trim(), userId, userId,
+                workflowState, request.toEmail().trim(), request.classification().name(),
+                userId, userId,
                 folderType, userId, tenantId, userId);
         if (threadIds.isEmpty()) {
             ComposeResult concurrent = composedThread(tenantId, userId, providerRef);
@@ -319,6 +321,30 @@ class MailCommandRepository {
             throw new IllegalStateException("Composed message projection is missing.");
         }
         return new ComposeResult(threadId, true, requestFingerprint);
+    }
+
+    ComposeResult composeCommand(
+            Long tenantId, Long userId, UUID idempotencyKey) {
+        return composedThread(
+                tenantId, userId, "dwp:compose:" + idempotencyKey);
+    }
+
+    Optional<String> defaultComposeSenderEmail(Long tenantId, Long userId) {
+        return jdbc.query("""
+                SELECT account.email_address
+                  FROM mail_accounts account
+                  LEFT JOIN mail_user_preferences preference
+                    ON preference.tenant_id = account.tenant_id
+                   AND preference.user_id = ?
+                 WHERE account.tenant_id = ? AND account.owner_user_id = ?
+                   AND account.connection_state = 'ACTIVE'
+                 ORDER BY CASE
+                    WHEN account.account_id = preference.default_account_id THEN 0
+                    WHEN account.is_default THEN 1 ELSE 2 END,
+                    account.account_id
+                 LIMIT 1
+                """, (result, ignored) -> result.getString("email_address"),
+                userId, tenantId, userId).stream().findFirst();
     }
 
     private ComposeResult composedThread(
@@ -411,6 +437,7 @@ class MailCommandRepository {
                        workflow_state = ?, snoozed_until = NULL,
                        external_sender = SPLIT_PART(LOWER(?), '@', 2)
                            <> SPLIT_PART(account.email_address, '@', 2),
+                       classification = ?,
                        version = thread.version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
                   FROM mail_accounts account, mail_folders folder
@@ -426,7 +453,7 @@ class MailCommandRepository {
                    AND thread.version = ?
                 """, request.subject().trim(), preview(request.body()),
                 recipientName(request.toName(), request.toEmail()), request.toEmail().trim(),
-                workflowState, request.toEmail().trim(), userId,
+                workflowState, request.toEmail().trim(), request.classification().name(), userId,
                 tenantId, threadId, userId, folderType, request.version());
         if (updated == 0) return 0;
         int messageUpdated = jdbc.update("""
@@ -507,7 +534,9 @@ class MailCommandRepository {
                    AND proposal.owner_command_id = ?
                    AND proposal.version = ?
                    AND proposal.proposal_status IN ('ACCEPTED', 'EXECUTED')
-                   AND proposal.owner_state IN ('ACCEPTED', 'UNKNOWN')
+                   AND (proposal.owner_state IN ('EXECUTING', 'UNKNOWN')
+                        OR (proposal.owner_state = 'ACCEPTED'
+                            AND proposal.result_ref IS NULL))
                    AND thread.tenant_id = proposal.tenant_id
                    AND thread.thread_id = proposal.thread_id
                 """ + MailAccessSql.THREAD_MANAGE_ACCESS,
@@ -535,9 +564,53 @@ class MailCommandRepository {
                    AND owner_command_id = ? AND proposal_type = ?
                    AND decided_by = ? AND version = ?
                    AND proposal_status IN ('ACCEPTED', 'EXECUTED')
-                   AND owner_state IN ('ACCEPTED', 'UNKNOWN')
+                   AND (owner_state IN ('EXECUTING', 'UNKNOWN')
+                        OR (owner_state = 'ACCEPTED' AND result_ref IS NULL))
                 """, proposalStatus, outcome, resultRef, actorId,
                 tenantId, proposalId, commandId, proposalType.name(), actorId, version);
+    }
+
+    int reserveProposalExecution(
+            long tenantId,
+            long actorId,
+            UUID proposalId,
+            UUID commandId,
+            ProposalType proposalType,
+            long version) {
+        return jdbc.update("""
+                UPDATE mail_action_proposals
+                   SET owner_state = 'EXECUTING', result_ref = NULL,
+                       owner_updated_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                 WHERE tenant_id = ? AND proposal_id = ?
+                   AND owner_command_id = ? AND proposal_type = ?
+                   AND decided_by = ? AND version = ?
+                   AND proposal_status = 'ACCEPTED'
+                   AND owner_state = 'ACCEPTED'
+                """, actorId, tenantId, proposalId, commandId,
+                proposalType.name(), actorId, version);
+    }
+
+    int releaseProposalExecution(
+            long tenantId,
+            long actorId,
+            UUID proposalId,
+            UUID commandId,
+            ProposalType proposalType,
+            long version,
+            String evidence) {
+        return jdbc.update("""
+                UPDATE mail_action_proposals
+                   SET owner_state = 'ACCEPTED', result_ref = ?,
+                       owner_updated_at = CURRENT_TIMESTAMP,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                 WHERE tenant_id = ? AND proposal_id = ?
+                   AND owner_command_id = ? AND proposal_type = ?
+                   AND decided_by = ? AND version = ?
+                   AND proposal_status = 'ACCEPTED'
+                   AND owner_state = 'EXECUTING'
+                """, evidence, actorId, tenantId, proposalId, commandId,
+                proposalType.name(), actorId, version);
     }
 
     int cancelProposalOutcome(
@@ -556,7 +629,7 @@ class MailCommandRepository {
                  WHERE tenant_id = ? AND proposal_id = ?
                    AND owner_command_id = ? AND decided_by = ? AND version = ?
                    AND proposal_status = 'ACCEPTED'
-                   AND owner_state IN ('ACCEPTED', 'UNKNOWN')
+                   AND owner_state = 'ACCEPTED'
                 """, resultRef, actorId, tenantId, proposalId,
                 commandId, actorId, version);
     }

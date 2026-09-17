@@ -6,6 +6,7 @@ import com.dwp.services.platform.audit.PlatformAuditService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
@@ -237,6 +238,38 @@ public class ProductivityService {
         URI authorizationUri = graph.authorizationUri(connector, state, challenge);
         return new ProductivityDtos.AuthorizationStart(
                 transaction.transactionId(), authorizationUri.toString(), expiresAt);
+    }
+
+    @Transactional
+    public ProductivityDtos.Connection disconnect(
+            Long tenantId,
+            Long userId,
+            String correlationId,
+            UUID connectorId) {
+        ProductivityRepository.ConnectorRecord connector = requireConnector(tenantId, connectorId);
+        ProductivityRepository.SubjectRecord before = repository.subject(
+                tenantId, connectorId, userId).orElse(null);
+        if (before != null) {
+            repository.revokeSubject(tenantId, userId, connectorId);
+            audit.success(
+                    tenantId,
+                    userId,
+                    "productivity.subject.revoked",
+                    "PRODUCTIVITY_SUBJECT",
+                    before.subjectId().toString(),
+                    correlationId,
+                    Map.of(
+                            "connectorId", connectorId,
+                            "consentState", before.consentState(),
+                            "grantedScopes", before.grantedScopes()),
+                    Map.of(
+                            "connectorId", connectorId,
+                            "consentState", ConsentState.REVOKED,
+                            "grantedScopes", List.of()));
+        }
+        return connection(
+                connector,
+                repository.subject(tenantId, connectorId, userId).orElse(null));
     }
 
     public ProductivityDtos.Connection completeAuthorization(

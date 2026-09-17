@@ -7,6 +7,7 @@ import argparse
 import copy
 import json
 import os
+import re
 import sys
 from collections import deque
 import urllib.error
@@ -19,12 +20,13 @@ from typing import Any, Callable
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
-AGENT_AI_CONTROL_SNAPSHOT = CONTRACT_ROOT / "agent-ai-control.json"
+AGENT_PUBLIC_SNAPSHOT = CONTRACT_ROOT / "agent-public.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v28.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v31.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 28
+PRODUCT_AUTHORIZATION_VERSION = 31
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
+PATH_PARAMETER_PATTERN = re.compile(r"\{[^{}]+}")
 TELEMETRY_PUBLIC_PATH = "/api/platform/v1/observability/product-surface-events"
 TELEMETRY_TRUSTED_HEADERS = {"X-DWP-Tenant-ID", "X-DWP-Rollout-Cohort"}
 PUBLIC_COMMAND_PROOF_HEADERS = {
@@ -210,8 +212,34 @@ SERVICES = (
     ServiceContract("notification", 8008, prefixed("/api/notifications")),
     ServiceContract("meeting", 8009, prefixed("/api/meetings")),
 )
-AGENT_AI_CONTROL_SERVICE = ServiceContract("agent", 8010, prefixed("/api/agent"))
-GATEWAY_SERVICES = (*SERVICES, AGENT_AI_CONTROL_SERVICE)
+AGENT_PUBLIC_SERVICE = ServiceContract("agent", 8010, prefixed("/api/agent"))
+GATEWAY_SERVICES = (*SERVICES, AGENT_PUBLIC_SERVICE)
+
+
+def validate_unique_operation_ids(document: dict[str, Any], contract_name: str) -> None:
+    operation_ids: dict[str, list[str]] = {}
+    for path, path_item in document.get("paths", {}).items():
+        for method, operation in path_item.items():
+            if method not in HTTP_METHODS or not isinstance(operation, dict):
+                continue
+            operation_id = operation.get("operationId")
+            if not isinstance(operation_id, str) or not operation_id.strip():
+                raise RuntimeError(
+                    f"{contract_name} operation has no stable operationId: "
+                    f"{method.upper()} {path}"
+                )
+            operation_ids.setdefault(operation_id, []).append(
+                f"{method.upper()} {path}"
+            )
+    duplicates = {
+        operation_id: locations
+        for operation_id, locations in operation_ids.items()
+        if len(locations) > 1
+    }
+    if duplicates:
+        raise RuntimeError(
+            f"{contract_name} publishes duplicate operationIds: {duplicates}"
+        )
 
 
 def fetch_contract(service: ServiceContract) -> dict[str, Any]:
@@ -229,6 +257,7 @@ def fetch_contract(service: ServiceContract) -> dict[str, Any]:
     if not document.get("paths"):
         raise RuntimeError(f"{service.name} published an empty OpenAPI path registry")
     document.pop("servers", None)
+    validate_unique_operation_ids(document, service.name)
     if service.name == "approval":
         validate_approval_signature_operations(document)
     return document
@@ -244,6 +273,7 @@ def load_snapshot(service: ServiceContract) -> dict[str, Any]:
         ) from error
     if not str(document.get("openapi", "")).startswith("3.") or not document.get("paths"):
         raise RuntimeError(f"{service.name} approved OpenAPI snapshot is invalid")
+    validate_unique_operation_ids(document, service.name)
     if service.name == "approval":
         validate_approval_signature_operations(document)
     return document
@@ -284,19 +314,20 @@ def load_gateway_owned_snapshot() -> dict[str, Any]:
         ) from error
     if not str(document.get("openapi", "")).startswith("3.") or not document.get("paths"):
         raise RuntimeError("Gateway-owned OpenAPI snapshot is invalid")
+    validate_unique_operation_ids(document, "gateway-owned")
     for path in document["paths"]:
         if not path.startswith("/api/") or path.startswith("/api/internal/"):
             raise RuntimeError(f"Gateway-owned contract contains a non-public path: {path}")
     return document
 
 
-def load_agent_ai_control_snapshot() -> dict[str, Any]:
+def load_agent_public_snapshot() -> dict[str, Any]:
     try:
-        document = json.loads(AGENT_AI_CONTROL_SNAPSHOT.read_text(encoding="utf-8"))
+        document = json.loads(AGENT_PUBLIC_SNAPSHOT.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
         raise RuntimeError(
-            f"Unable to read Agent AI-control OpenAPI snapshot at "
-            f"{AGENT_AI_CONTROL_SNAPSHOT}: {error}"
+            f"Unable to read Agent public OpenAPI snapshot at "
+            f"{AGENT_PUBLIC_SNAPSHOT}: {error}"
         ) from error
     expected = {
         "/v1/admin/ai-control": {"get"},
@@ -304,12 +335,17 @@ def load_agent_ai_control_snapshot() -> dict[str, Any]:
         "/v1/admin/ai-control/policy": {"put"},
         "/v1/admin/ai-control/emergency": {"post"},
     }
-    actual = {
-        path: {method for method in path_item if method in HTTP_METHODS}
-        for path, path_item in document.get("paths", {}).items()
-    }
-    if not str(document.get("openapi", "")).startswith("3.") or actual != expected:
-        raise RuntimeError("Agent AI-control approved OpenAPI snapshot is invalid")
+    actual = document.get("paths", {})
+    if (
+        not str(document.get("openapi", "")).startswith("3.")
+        or not actual
+        or any(actual.get(path) is None
+               or {method for method in actual[path] if method in HTTP_METHODS} != methods
+               for path, methods in expected.items())
+        or any(path.startswith("/internal/") for path in actual)
+    ):
+        raise RuntimeError("Agent public approved OpenAPI snapshot is invalid")
+    validate_unique_operation_ids(document, "agent")
     return document
 
 
@@ -566,19 +602,42 @@ def product_governed_operations() -> dict[tuple[str, str], bool]:
     return operations
 
 
+def governed_operation(
+        document: dict[str, Any], path: str, method: str
+) -> tuple[str, dict[str, Any]] | None:
+    exact = document.get("paths", {}).get(path, {}).get(method)
+    if isinstance(exact, dict):
+        return path, exact
+    expected_shape = PATH_PARAMETER_PATTERN.sub("{}", path)
+    matches = [
+        (candidate_path, path_item[method])
+        for candidate_path, path_item in document.get("paths", {}).items()
+        if PATH_PARAMETER_PATTERN.sub("{}", candidate_path) == expected_shape
+        and isinstance(path_item.get(method), dict)
+    ]
+    if len(matches) > 1:
+        raise RuntimeError(
+            f"Gateway product binding is structurally ambiguous: "
+            f"{method.upper()} {path}"
+        )
+    return matches[0] if matches else None
+
+
 def add_product_governance_contract(document: dict[str, Any]) -> None:
     injected = 0
     revision_injected = 0
     for (path, method), state_changing in sorted(product_governed_operations().items()):
-        operation = document.get("paths", {}).get(path, {}).get(method)
-        if not isinstance(operation, dict):
+        resolved = governed_operation(document, path, method)
+        if resolved is None:
             # The DRAFT registry also contains fail-closed bindings for service
             # routes that are not yet exported as public OpenAPI operations.
             continue
+        actual_path, operation = resolved
         parameters = operation.setdefault("parameters", [])
         if not isinstance(parameters, list):
             raise RuntimeError(
-                f"Gateway operation parameters are invalid: {method.upper()} {path}"
+                f"Gateway operation parameters are invalid: "
+                f"{method.upper()} {actual_path}"
             )
         collisions = [
             parameter
@@ -589,7 +648,8 @@ def add_product_governance_contract(document: dict[str, Any]) -> None:
         ]
         if collisions:
             raise RuntimeError(
-                f"Gateway scope selection parameter collision: {method.upper()} {path}"
+                f"Gateway scope selection parameter collision: "
+                f"{method.upper()} {actual_path}"
             )
         parameters.append(copy.deepcopy(SCOPE_SELECTION_PARAMETER))
         injected += 1
@@ -605,10 +665,10 @@ def add_product_governance_contract(document: dict[str, Any]) -> None:
             if len(revision_collisions) > 1:
                 raise RuntimeError(
                     f"Gateway expected-decision revision parameter collision: "
-                    f"{method.upper()} {path}"
+                    f"{method.upper()} {actual_path}"
                 )
             canonical_revision = copy.deepcopy(EXPECTED_DECISION_REVISION_PARAMETER)
-            if path in HOME_RUNTIME_MUTATION_PATHS:
+            if actual_path in HOME_RUNTIME_MUTATION_PATHS:
                 canonical_revision["description"] = (
                     "Required and fail-closed for the Home Runtime authority states "
                     "100/110/111; state 000 never enters the Home Runtime owner contract."
@@ -621,7 +681,7 @@ def add_product_governance_contract(document: dict[str, Any]) -> None:
             else:
                 parameters.append(canonical_revision)
             revision_injected += 1
-        if path in HOME_RUNTIME_PATHS:
+        if actual_path in HOME_RUNTIME_PATHS:
             for status, response in operation.get("responses", {}).items():
                 if status not in {"200", "202", "204", "304"} \
                         or not isinstance(response, dict):
@@ -630,7 +690,7 @@ def add_product_governance_contract(document: dict[str, Any]) -> None:
                 if "X-DWP-Decision-Revision" in headers:
                     raise RuntimeError(
                         f"Gateway decision revision response header collision: "
-                        f"{method.upper()} {path} {status}"
+                        f"{method.upper()} {actual_path} {status}"
                     )
                 headers["X-DWP-Decision-Revision"] = copy.deepcopy(
                     RESPONSE_DECISION_REVISION_HEADER
@@ -730,13 +790,14 @@ def main() -> int:
         service.name: fetch_contract(service) if service.name in selected else load_snapshot(service)
         for service in SERVICES
     }
-    documents[AGENT_AI_CONTROL_SERVICE.name] = load_agent_ai_control_snapshot()
+    documents[AGENT_PUBLIC_SERVICE.name] = load_agent_public_snapshot()
     gateway_owned = load_gateway_owned_snapshot()
     outputs = {
         f"{service.name}.json": documents[service.name] for service in SERVICES
     }
     outputs["gateway-owned.json"] = gateway_owned
     outputs["gateway-public.json"] = gateway_contract(documents, gateway_owned)
+    validate_unique_operation_ids(outputs["gateway-public.json"], "gateway-public")
     validate_platform_device_identity(outputs["platform.json"])
     validate_platform_device_identity(outputs["gateway-public.json"], gateway=True)
     validate_approval_signature_operations(outputs["gateway-public.json"], gateway=True)

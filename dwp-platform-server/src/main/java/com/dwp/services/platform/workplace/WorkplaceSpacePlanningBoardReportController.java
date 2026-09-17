@@ -54,6 +54,7 @@ public class WorkplaceSpacePlanningBoardReportController {
     }
 
     @PostMapping("/reports:preview")
+    @Operation(operationId = "previewWorkplaceSpacePlanningReport")
     public ApiResponse<ReportPreview> preview(
             @RequestHeader(TENANT) long tenantId,
             @RequestHeader(USER) long actorId,

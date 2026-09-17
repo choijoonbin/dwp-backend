@@ -16,7 +16,8 @@ class ApprovalRelease19PepContractTest {
     private static final Set<String> UPDATE = Set.of("ACTION.APPROVAL_REQUEST:UPDATE");
 
     private final ApprovalPilotPepRegistry registry =
-            new ApprovalPilotPepRegistry(new ObjectMapper().findAndRegisterModules());
+            new ApprovalPilotPepRegistry(new ObjectMapper().findAndRegisterModules(),
+                    java.time.Clock.systemUTC(), 19);
 
     @Test
     void preflightHasAnIndependentExactOwnerMutationBinding() {

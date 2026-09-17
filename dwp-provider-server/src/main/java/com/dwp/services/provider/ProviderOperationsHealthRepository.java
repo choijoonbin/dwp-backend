@@ -42,7 +42,8 @@ final class ProviderOperationsHealthRepository {
                          WHERE severity = 'SEV1' AND lifecycle_state NOT IN ('RESOLVED', 'CLOSED')
                         """) > 0;
         boolean attention = !actions.isEmpty()
-                || services.stream().anyMatch(item -> item.degradedInstances() > 0);
+                || services.stream().anyMatch(item ->
+                        item.pendingInstances() > 0 || item.degradedInstances() > 0);
         String state = critical ? "CRITICAL" : attention ? "ATTENTION" : "HEALTHY";
         return new ProviderDtos.CommandCenter(
                 Instant.now(), state, estate, incidents, expiring, actions, services, cells, recentActivity());

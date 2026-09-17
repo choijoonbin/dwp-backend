@@ -20,10 +20,12 @@ import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.mock;
@@ -47,16 +49,19 @@ class CalendarProductSurfacePepEvidenceTest {
     private static final String ROLLOUT_REVISION =
             "rollout-" + "0123456789abcdef".repeat(4);
     private static final String CONTEXT_KEY = "psc-" + "a".repeat(64);
+    private static final UUID PERSON_ID = UUID.fromString(
+            "00ba0853-02a8-7499-b6d8-009251e6a464");
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final CalendarService service = mock(CalendarService.class);
+    private final CalendarInsightsService insightsService = mock(CalendarInsightsService.class);
     private final CalendarProductSurfaceContract contract =
             new CalendarProductSurfaceContract();
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
-        reset(service);
+        reset(service, insightsService);
         mvc = mockMvc(true);
     }
 
@@ -73,9 +78,46 @@ class CalendarProductSurfacePepEvidenceTest {
                 contract,
                 new CalendarProductSurfaceAccessPolicy(),
                 objectMapper);
-        return MockMvcBuilders.standaloneSetup(new CalendarController(service))
+        return MockMvcBuilders.standaloneSetup(new CalendarController(service, insightsService))
                 .addFilters(platformSecurity, calendarPep)
                 .build();
+    }
+
+    @Test
+    void protectedHomeRouteCarriesAnExactInsightWindowWithoutOpeningANewOwnerPath()
+            throws Exception {
+        CalendarDtos.HomeResponse home = mock(CalendarDtos.HomeResponse.class);
+        CalendarInsightsDtos.Response insights = mock(CalendarInsightsDtos.Response.class);
+        CalendarDtos.HomeResponse combined = mock(CalendarDtos.HomeResponse.class);
+        org.mockito.Mockito.when(service.home(
+                        TENANT_ID, ACTOR_ID, PERSON_ID, "Asia/Seoul", null, null))
+                .thenReturn(home);
+        org.mockito.Mockito.when(insightsService.insights(
+                        new CalendarSettingsAccess.Actor(TENANT_ID, ACTOR_ID, PERSON_ID),
+                        null, 8, "Asia/Seoul", null))
+                .thenReturn(insights);
+        org.mockito.Mockito.when(home.withInsights(insights)).thenReturn(combined);
+
+        mvc.perform(exactPage(scope(TENANT_ID, ACTOR_ID, "SELF"))
+                        .param("insightWeeks", "8"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        CalendarProductSurfacePepFilter.RESPONSE_REVISION_HEADER,
+                        CURRENT_REVISION));
+
+        verify(insightsService).insights(
+                new CalendarSettingsAccess.Actor(TENANT_ID, ACTOR_ID, PERSON_ID),
+                null, 8, "Asia/Seoul", null);
+    }
+
+    @Test
+    void unsupportedInsightWindowIsRejectedBeforeAnyHomeQuery() throws Exception {
+        assertThatThrownBy(() -> mvc.perform(
+                exactPage(scope(TENANT_ID, ACTOR_ID, "SELF"))
+                        .param("insightWeeks", "6")))
+                .hasRootCauseInstanceOf(com.dwp.core.exception.BaseException.class);
+
+        verifyNoInteractions(service, insightsService);
     }
 
     @Test
@@ -399,7 +441,7 @@ class CalendarProductSurfacePepEvidenceTest {
         verify(service).events(
                 anyLong(), anyLong(), any(), any(), any(), any(), any());
         verify(service).create(
-                anyLong(), anyLong(), any(), any(), any(), any(), any(), any());
+                anyLong(), anyLong(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -586,6 +628,7 @@ class CalendarProductSurfacePepEvidenceTest {
                 .header("X-DWP-Service-Token", "trusted")
                 .header("X-DWP-User-ID", Long.toString(ACTOR_ID))
                 .header("X-DWP-Tenant-ID", Long.toString(TENANT_ID))
+                .header("X-DWP-Person-Public-ID", PERSON_ID.toString())
                 .header("X-DWP-Roles", "WORKSPACE_MEMBER")
                 .header("X-DWP-Permissions", permissions)
                 .header(CalendarProductSurfacePepFilter.ROLLOUT_STATE_HEADER, "110")

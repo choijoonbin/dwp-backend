@@ -1,8 +1,11 @@
 package com.dwp.services.platform.mail;
 
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoff;
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoffOutboxRepository;
 import jakarta.validation.Validation;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
 import java.time.OffsetDateTime;
 import java.util.List;
@@ -20,6 +23,7 @@ import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.mockito.Mockito.inOrder;
 
 class MailDraftServiceTest {
 
@@ -52,7 +56,7 @@ class MailDraftServiceTest {
 
         assertThatThrownBy(() -> service.create(1L, 7L, "corr-empty", request))
                 .isInstanceOf(BaseException.class)
-                .hasMessageContaining("recipient, subject, or message body");
+                .hasMessageContaining("message content or compose options");
 
         verifyNoInteractions(mail, drafts, evidence);
     }
@@ -88,6 +92,39 @@ class MailDraftServiceTest {
                 eq(threadId.toString()), eq("corr-replay"), anyMap(), anyMap());
         verify(receipts).complete(
                 1L, 7L, CREATE, idempotencyKey, fingerprint, threadId, 0L);
+    }
+
+    @Test
+    void reviewedProposalCommitsTheExactMailDraftEffect() {
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        var request = new MailDtos.DraftSaveRequest(
+                null, null, "Reviewed draft", "Reviewed body", idempotencyKey, null);
+        MailDtos.ThreadDetail detail = detail(threadId, 0L);
+        String fingerprint = fingerprints.create(request);
+        when(receipts.reserve(1L, 7L, CREATE, idempotencyKey, fingerprint))
+                .thenReturn(new MailDraftCommandReceiptRepository.Receipt(
+                        fingerprint, null, null, "IN_PROGRESS", true));
+        when(drafts.create(1L, 7L, request))
+                .thenReturn(new MailDraftRepository.CreateResult(threadId, true));
+        when(mail.thread(1L, 7L, threadId)).thenReturn(detail);
+        PlatformDwaionHandoffOutboxRepository outbox =
+                mock(PlatformDwaionHandoffOutboxRepository.class);
+        service.setDwaionHandoffs(outbox);
+        var binding = new PlatformDwaionHandoff.Binding(
+                1, UUID.randomUUID(), UUID.randomUUID(), "MAIL.DRAFT.CREATE", 2);
+        var identity = new PlatformDwaionHandoff.Identity(
+                "session-7", UUID.randomUUID(), "WORKSPACE_MEMBER", "APP.ASK:VIEW");
+
+        service.create(1L, 7L, "corr-owner", request, binding, identity);
+
+        ArgumentCaptor<PlatformDwaionHandoff.Effect> effect =
+                ArgumentCaptor.forClass(PlatformDwaionHandoff.Effect.class);
+        verify(outbox).committed(
+                eq(1L), eq(7L), eq(binding), eq(identity), effect.capture(),
+                eq("corr-owner"));
+        assertThat(effect.getValue()).isEqualTo(new PlatformDwaionHandoff.Effect(
+                "MAIL", "DRAFT_CREATE", threadId, 0, "DRAFT"));
     }
 
     @Test
@@ -150,6 +187,128 @@ class MailDraftServiceTest {
 
         verify(drafts, never()).save(1L, 7L, threadId, request);
         verifyNoInteractions(evidence);
+    }
+
+    @Test
+    void draftFingerprintBindsEveryAdvancedComposeOption() {
+        UUID key = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        UUID attachmentId = UUID.randomUUID();
+        var firstOptions = new MailWorkspaceDtos.ComposeOptions(
+                accountId,
+                List.of(new MailWorkspaceDtos.Recipient(
+                        MailWorkspaceDtos.RecipientType.TO, "Jordan", "jordan@example.com")),
+                MailWorkspaceDtos.BodyFormat.HTML,
+                List.of(attachmentId), OffsetDateTime.now().plusHours(1), "Asia/Seoul",
+                UUID.randomUUID(), UUID.randomUUID());
+        var first = new MailDtos.DraftSaveRequest(
+                "jordan@example.com", "Jordan", "Subject", "<p>Body</p>",
+                Classification.INTERNAL, false, key, null, firstOptions);
+        var second = new MailDtos.DraftSaveRequest(
+                "jordan@example.com", "Jordan", "Subject", "<p>Body</p>",
+                Classification.INTERNAL, false, key, null,
+                new MailWorkspaceDtos.ComposeOptions(
+                        UUID.randomUUID(), firstOptions.recipients(), firstOptions.bodyFormat(),
+                        firstOptions.attachmentIds(), firstOptions.scheduledAt(),
+                        firstOptions.timeZone(), firstOptions.templateId(),
+                        firstOptions.signatureId()));
+
+        assertThat(fingerprints.create(first)).isNotEqualTo(fingerprints.create(second));
+    }
+
+    @Test
+    void advancedDraftPersistsCoreAccountAndOptionsInsideOneServiceCommand() {
+        UUID accountId = UUID.randomUUID();
+        UUID threadId = UUID.randomUUID();
+        UUID key = UUID.randomUUID();
+        MailWorkspaceService workspace = mock(MailWorkspaceService.class);
+        MailDraftService advanced = new MailDraftService(
+                mail, drafts, receipts, evidence, workspace);
+        var options = new MailWorkspaceDtos.ComposeOptions(
+                accountId,
+                List.of(new MailWorkspaceDtos.Recipient(
+                        MailWorkspaceDtos.RecipientType.TO, "Jordan", "jordan@example.com")),
+                MailWorkspaceDtos.BodyFormat.TEXT, List.of(), null, null, null, null);
+        var request = new MailDtos.DraftSaveRequest(
+                "jordan@example.com", "Jordan", "Subject", "Body",
+                Classification.INTERNAL, false, key, null, options);
+        String fingerprint = fingerprints.create(request);
+        MailDtos.ThreadDetail detail = detail(threadId, 0L);
+        when(workspace.prepareDraftOptions(1L, 7L, null, options)).thenReturn(options);
+        when(receipts.reserve(1L, 7L, CREATE, key, fingerprint)).thenReturn(
+                new MailDraftCommandReceiptRepository.Receipt(
+                        fingerprint, null, null, "IN_PROGRESS", true));
+        when(drafts.create(1L, 7L, request, accountId)).thenReturn(
+                new MailDraftRepository.CreateResult(threadId, true));
+        when(mail.thread(1L, 7L, threadId)).thenReturn(detail);
+        when(workspace.enrichDraft(1L, 7L, detail)).thenReturn(detail);
+
+        assertThat(advanced.create(1L, 7L, "corr", request)).isEqualTo(detail);
+
+        var order = inOrder(drafts, workspace, receipts);
+        order.verify(drafts).create(1L, 7L, request, accountId);
+        order.verify(workspace).saveValidatedDraftOptions(1L, 7L, threadId, options);
+        order.verify(receipts).complete(
+                1L, 7L, CREATE, key, fingerprint, threadId, 0L);
+    }
+
+    @Test
+    void optionsOnlyDraftIsAcceptedAndSavedAtomically() {
+        UUID accountId = UUID.randomUUID();
+        UUID threadId = UUID.randomUUID();
+        UUID key = UUID.randomUUID();
+        MailWorkspaceService workspace = mock(MailWorkspaceService.class);
+        MailDraftService advanced = new MailDraftService(
+                mail, drafts, receipts, evidence, workspace);
+        var options = new MailWorkspaceDtos.ComposeOptions(
+                accountId, List.of(), MailWorkspaceDtos.BodyFormat.HTML,
+                List.of(), null, null, null, null);
+        var request = new MailDtos.DraftSaveRequest(
+                null, null, null, null, Classification.INTERNAL, false,
+                key, null, options);
+        String fingerprint = fingerprints.create(request);
+        MailDtos.ThreadDetail detail = detail(threadId, 0L);
+        when(workspace.prepareDraftOptions(1L, 7L, null, options)).thenReturn(options);
+        when(receipts.reserve(1L, 7L, CREATE, key, fingerprint)).thenReturn(
+                new MailDraftCommandReceiptRepository.Receipt(
+                        fingerprint, null, null, "IN_PROGRESS", true));
+        when(drafts.create(1L, 7L, request, accountId)).thenReturn(
+                new MailDraftRepository.CreateResult(threadId, true));
+        when(mail.thread(1L, 7L, threadId)).thenReturn(detail);
+        when(workspace.enrichDraft(1L, 7L, detail)).thenReturn(detail);
+
+        assertThat(advanced.create(1L, 7L, "corr-options", request)).isEqualTo(detail);
+
+        var order = inOrder(drafts, workspace, receipts);
+        order.verify(drafts).create(1L, 7L, request, accountId);
+        order.verify(workspace).saveValidatedDraftOptions(1L, 7L, threadId, options);
+        order.verify(receipts).complete(
+                1L, 7L, CREATE, key, fingerprint, threadId, 0L);
+    }
+
+    @Test
+    void invalidAdvancedOptionsFailBeforeCoreDraftOrReceiptMutation() {
+        UUID key = UUID.randomUUID();
+        MailWorkspaceService workspace = mock(MailWorkspaceService.class);
+        MailDraftService advanced = new MailDraftService(
+                mail, drafts, receipts, evidence, workspace);
+        var options = new MailWorkspaceDtos.ComposeOptions(
+                UUID.randomUUID(),
+                List.of(new MailWorkspaceDtos.Recipient(
+                        MailWorkspaceDtos.RecipientType.TO, "Jordan", "jordan@example.com")),
+                MailWorkspaceDtos.BodyFormat.TEXT, List.of(), null, null, null, null);
+        var request = new MailDtos.DraftSaveRequest(
+                "jordan@example.com", "Jordan", "Subject", "Body",
+                Classification.INTERNAL, false, key, null, options);
+        when(workspace.prepareDraftOptions(1L, 7L, null, options))
+                .thenThrow(new BaseException(
+                        com.dwp.core.common.ErrorCode.FORBIDDEN,
+                        "The selected sending account is not available."));
+
+        assertThatThrownBy(() -> advanced.create(1L, 7L, "corr", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("selected sending account");
+        verifyNoInteractions(drafts, receipts, evidence);
     }
 
     private MailDtos.ThreadDetail detail(UUID threadId, long version) {

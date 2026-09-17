@@ -1,6 +1,7 @@
 package com.dwp.services.platform.catalog;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -32,6 +33,7 @@ public class AdminCatalogController {
     }
 
     @GetMapping
+    @Operation(operationId = "getAdminCatalogOverview")
     public ApiResponse<CatalogDtos.Overview> overview(
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestParam(required = false) String query,
@@ -91,6 +93,7 @@ public class AdminCatalogController {
     }
 
     @PostMapping("/relations/{relationId}/retire")
+    @Operation(operationId = "retireCatalogRelation")
     public ApiResponse<CatalogDtos.Relation> retire(
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestHeader(USER_HEADER) Long actorId,

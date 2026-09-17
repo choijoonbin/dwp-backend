@@ -12,5 +12,9 @@ public interface EmergencyAccessPrincipalRepository
 
     Optional<EmergencyAccessPrincipal> findByTenantIdAndUserId(Long tenantId, Long userId);
 
+    Optional<EmergencyAccessPrincipal> findByEmergencyAccessPrincipalIdAndTenantId(
+            UUID emergencyAccessPrincipalId,
+            Long tenantId);
+
     List<EmergencyAccessPrincipal> findByTenantIdOrderByReviewDueAtAsc(Long tenantId);
 }

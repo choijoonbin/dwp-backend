@@ -251,13 +251,19 @@ class ProductAuthorizationContractValidatorTest {
                 generatedDocument("product-surfaces-v1.bundle-v27.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionTwentyEight = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v28.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(28);
-        assertThat(index.latestChecksum()).isEqualTo(versionTwentyEight.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionTwentyNine = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v29.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionThirty = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v30.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionThirtyOne = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v31.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(31);
+        assertThat(index.latestChecksum()).isEqualTo(versionThirtyOne.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L,
-                        26L, 27L, 28L);
+                        26L, 27L, 28L, 29L, 30L, 31L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -449,6 +455,59 @@ class ProductAuthorizationContractValidatorTest {
                 .containsAll(versionTwentySeven.routes())
                 .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
                 .contains("route.workplace.work.home-shadow-receipt.action");
+        assertStrictCapabilitySuperset(versionTwentyEight, versionTwentyNine);
+        assertThat(versionTwentyNine.capabilities()).hasSize(183);
+        assertThat(versionTwentyNine.routes()).hasSize(827)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionTwentyEight.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.mail.work.message-advanced-send.action",
+                        "route.mail.work.proposal-decision.action",
+                        "route.admin.mail.retention.purge-execute.action");
+        assertStrictCapabilitySuperset(versionTwentyNine, versionThirty);
+        assertThat(versionThirty.capabilities()).hasSize(205)
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .contains(
+                        "dwaion.work.routines.approve",
+                        "mail.work.address-book.manage",
+                        "mail.work.delivery.manage",
+                        "mail.work.folder.manage",
+                        "mail.work.rule.manage");
+        assertThat(versionThirty.routes()).hasSize(888)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionTwentyNine.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.dwaion.work.proposal-handoff-draft.action",
+                        "route.dwaion.work.research-pdf-download.data",
+                        "route.dwaion.work.research-recovery.action",
+                        "route.dwaion.work.routine-advanced.action",
+                        "route.dwaion.work.routine-advanced-pending-approvals.data",
+                        "route.dwaion.work.artifact-collaboration-remediation.action",
+                        "route.dwaion.work.personal-deletion-evidence.action",
+                        "route.mail.work.folder-create.action",
+                        "route.mail.work.rule-order.action",
+                        "route.admin.mail.connection-test-send.action");
+        assertThat(versionThirtyOne.capabilities())
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionThirty.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertThat(versionThirtyOne.routes()).hasSize(911)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionThirty.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.approvals.admin.audit-export-verify.action",
+                        "route.approvals.admin.deployment-canary-control.action",
+                        "route.approvals.admin.form-studio-field-update.action",
+                        "route.approvals.admin.policy-governance-publish.action",
+                        "route.approvals.admin.workflow-studio-retire.action",
+                        "route.approvals.work.workflow-template.data");
         assertThat(versionSix.routes()).filteredOn(value -> value.routeContractKey().equals(
                 "route.services.work.request-information-response.action"))
                 .singleElement().satisfies(route -> {

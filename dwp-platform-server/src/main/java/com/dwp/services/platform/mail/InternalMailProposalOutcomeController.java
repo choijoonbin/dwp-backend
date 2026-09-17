@@ -43,6 +43,32 @@ public final class InternalMailProposalOutcomeController {
         return ApiResponse.success(true);
     }
 
+    @PostMapping("/status")
+    public ApiResponse<MailDtos.ProposalHandoff> status(
+            @RequestHeader("X-DWP-Service-Identity") String serviceIdentity,
+            @RequestHeader("X-DWP-Tenant-ID") long tenantId,
+            @RequestHeader("X-DWP-User-ID") long actorId,
+            @Valid @RequestBody OwnerBindingRequest request) {
+        requirePeopleService(serviceIdentity);
+        return ApiResponse.success(outcomes.status(
+                tenantId, actorId, MailProposalOutcomePort.Owner.HR,
+                request.binding()));
+    }
+
+    @PostMapping("/not-executed")
+    public ApiResponse<MailDtos.ProposalHandoff> notExecuted(
+            @RequestHeader("X-DWP-Service-Identity") String serviceIdentity,
+            @RequestHeader("X-DWP-Tenant-ID") long tenantId,
+            @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = "X-Correlation-ID", required = false)
+            String correlationId,
+            @Valid @RequestBody OwnerExecutionReleaseRequest request) {
+        requirePeopleService(serviceIdentity);
+        return ApiResponse.success(outcomes.notExecuted(
+                tenantId, actorId, MailProposalOutcomePort.Owner.HR,
+                request.binding(), request.reasonCode(), correlationId));
+    }
+
     @PostMapping
     public ApiResponse<MailDtos.ProposalHandoff> record(
             @RequestHeader("X-DWP-Service-Identity") String serviceIdentity,
@@ -71,6 +97,29 @@ public final class InternalMailProposalOutcomeController {
             @NotNull @Min(0) Long proposalVersion,
             @Size(max = 500) String resultRef,
             Map<String, Object> ownerPayload) {
+
+        MailProposalHandoffBinding binding() {
+            return new MailProposalHandoffBinding(
+                    proposalId, commandId, proposalVersion);
+        }
+    }
+
+    public record OwnerBindingRequest(
+            @NotNull UUID proposalId,
+            @NotNull UUID commandId,
+            @NotNull @Min(0) Long proposalVersion) {
+
+        MailProposalHandoffBinding binding() {
+            return new MailProposalHandoffBinding(
+                    proposalId, commandId, proposalVersion);
+        }
+    }
+
+    public record OwnerExecutionReleaseRequest(
+            @NotNull UUID proposalId,
+            @NotNull UUID commandId,
+            @NotNull @Min(0) Long proposalVersion,
+            @NotBlank @Size(max = 80) String reasonCode) {
 
         MailProposalHandoffBinding binding() {
             return new MailProposalHandoffBinding(

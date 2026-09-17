@@ -567,10 +567,15 @@ class PlatformSecurityFilterTest {
                 {"PUT", "/v1/admin/mail/connections/00000000-0000-0000-0000-000000000001", "CONNECTION_MANAGE"},
                 {"POST", "/v1/admin/mail/shared-inboxes/00000000-0000-0000-0000-000000000001/members", "SHARED_INBOX_MANAGE"},
                 {"POST", "/v1/admin/mail/retention/holds", "HOLD_MANAGE"},
-                {"POST", "/v1/admin/mail/retention/purge-previews", "PURGE_AUTHORIZE"},
+                {"PUT", "/v1/admin/mail/retention/holds/00000000-0000-0000-0000-000000000001", "HOLD_MANAGE"},
+                {"POST", "/v1/admin/mail/retention/holds/00000000-0000-0000-0000-000000000001/release-previews", "HOLD_MANAGE"},
+                {"GET", "/v1/admin/mail/retention/hold-release-previews/00000000-0000-0000-0000-000000000002", "HOLD_MANAGE"},
+                {"POST", "/v1/admin/mail/retention/hold-release-previews/00000000-0000-0000-0000-000000000002/approvals", "HOLD_MANAGE"},
+                {"POST", "/v1/admin/mail/retention/hold-release-previews/00000000-0000-0000-0000-000000000002/execute", "HOLD_MANAGE"},
+                {"POST", "/v1/admin/mail/retention/purge-previews", "PURGE_PREVIEW"},
                 {"POST", "/v1/admin/mail/retention/purges/00000000-0000-0000-0000-000000000001/execute", "PURGE_EXECUTE"},
-                {"POST", "/v1/admin/mail/delivery-audit/00000000-0000-0000-0000-000000000001/retry", "RECOVERY"},
-                {"POST", "/v1/admin/mail/delivery-audit/exports", "EXPORT"},
+                {"POST", "/v1/admin/mail/delivery-audit/00000000-0000-0000-0000-000000000001/retry", "DELIVERY_RETRY"},
+                {"POST", "/v1/admin/mail/delivery-audit/exports", "EVIDENCE_EXPORT"},
                 {"POST", "/v1/admin/mail/writing-assets/SIGNATURE/drafts", "WRITING_ASSET_EDIT"},
                 {"POST", "/v1/admin/mail/writing-assets/SIGNATURE/00000000-0000-0000-0000-000000000001/submit", "WRITING_ASSET_SUBMIT"},
                 {"POST", "/v1/admin/mail/writing-assets/SIGNATURE/00000000-0000-0000-0000-000000000001/approve", "WRITING_ASSET_APPROVE"},
@@ -595,6 +600,47 @@ class PlatformSecurityFilterTest {
                     .as("%s must authorize %s %s", value[2], value[0], value[1])
                     .isEqualTo(200);
         }
+    }
+
+    @Test
+    void allowsOnlyPurposeBoundOperatorsToReadRedactedMailRecoveryCandidates()
+            throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+        String[] purgeAuthorities = {
+                "PURGE_PREVIEW", "PURGE_AUTHORIZE", "PURGE_EXECUTE"
+        };
+        for (String authority : purgeAuthorities) {
+            MockHttpServletRequest preview = mailAdminRequest(
+                    "GET", "/v1/admin/mail/retention/purge-previews",
+                    "ADMIN.MAIL:" + authority);
+            MockHttpServletResponse previewResponse = new MockHttpServletResponse();
+            filter.doFilter(preview, previewResponse, new MockFilterChain());
+            assertThat(previewResponse.getStatus()).as(authority).isEqualTo(200);
+
+            MockHttpServletRequest job = mailAdminRequest(
+                    "GET", "/v1/admin/mail/retention/purge-jobs/"
+                            + "00000000-0000-0000-0000-000000000001",
+                    "ADMIN.MAIL:" + authority);
+            MockHttpServletResponse jobResponse = new MockHttpServletResponse();
+            filter.doFilter(job, jobResponse, new MockFilterChain());
+            assertThat(jobResponse.getStatus()).as(authority).isEqualTo(200);
+        }
+
+        for (String authority : new String[]{
+                "AUDIT_READ", "DELIVERY_RECONCILE", "DELIVERY_RETRY", "DELIVERY_CANCEL"}) {
+            MockHttpServletRequest audit = mailAdminRequest(
+                    "GET", "/v1/admin/mail/delivery-audit", "ADMIN.MAIL:" + authority);
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            filter.doFilter(audit, response, new MockFilterChain());
+            assertThat(response.getStatus()).as(authority).isEqualTo(200);
+        }
+
+        MockHttpServletRequest denied = mailAdminRequest(
+                "GET", "/v1/admin/mail/delivery-audit", "ADMIN.MAIL:VIEW");
+        MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+        filter.doFilter(denied, deniedResponse, new MockFilterChain());
+        assertThat(deniedResponse.getStatus()).isEqualTo(403);
     }
 
     @Test

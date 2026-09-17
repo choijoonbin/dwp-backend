@@ -20,6 +20,14 @@ class MailDraftRepository {
     }
 
     CreateResult create(Long tenantId, Long userId, MailDtos.DraftSaveRequest request) {
+        return create(tenantId, userId, request, null);
+    }
+
+    CreateResult create(
+            Long tenantId,
+            Long userId,
+            MailDtos.DraftSaveRequest request,
+            UUID selectedAccountId) {
         String email = email(request.toEmail());
         String name = recipientName(request.toName(), email);
         String subject = value(request.subject());
@@ -30,12 +38,14 @@ class MailDraftRepository {
 
         List<UUID> threadIds = jdbc.query("""
                 INSERT INTO mail_threads (
-                    thread_id, tenant_id, account_id, folder_id, provider_thread_ref,
+                    thread_id, tenant_id, account_id, folder_id, shared_inbox_id,
+                    provider_thread_ref,
                     subject, preview, participants, latest_message_at,
                     unread, importance, triage_lane, workflow_state,
                     external_sender, classification, message_count,
                     created_by, updated_by)
-                SELECT ?, account.tenant_id, account.account_id, folder.folder_id, ?,
+                SELECT ?, account.tenant_id, account.account_id, folder.folder_id,
+                       inbox.shared_inbox_id, ?,
                        ?, ?, CASE WHEN ? = '' THEN '[]'::jsonb
                            ELSE jsonb_build_array(jsonb_build_object(
                                'name', ?, 'email', LOWER(?))) END,
@@ -43,7 +53,7 @@ class MailDraftRepository {
                        CASE WHEN ? = '' THEN FALSE
                            ELSE SPLIT_PART(LOWER(?), '@', 2)
                                <> SPLIT_PART(account.email_address, '@', 2) END,
-                       'INTERNAL', 1, ?, ?
+                       ?, 1, ?, ?
                   FROM mail_accounts account
                   JOIN mail_folders folder
                     ON folder.tenant_id = account.tenant_id
@@ -53,8 +63,15 @@ class MailDraftRepository {
                   LEFT JOIN mail_user_preferences preference
                     ON preference.tenant_id = account.tenant_id
                    AND preference.user_id = ?
-                 WHERE account.tenant_id = ? AND account.owner_user_id = ?
-                   AND account.account_kind = 'PERSONAL'
+                  LEFT JOIN mail_shared_inboxes inbox
+                    ON inbox.tenant_id = account.tenant_id
+                   AND inbox.account_id = account.account_id
+                   AND inbox.lifecycle_state = 'ACTIVE'
+                 WHERE account.tenant_id = ?
+                   AND ((?::uuid IS NULL
+                         AND account.account_kind = 'PERSONAL'
+                         AND account.owner_user_id = ?)
+                        OR account.account_id = ?::uuid)
                    AND account.connection_state = 'ACTIVE'
                  ORDER BY CASE
                     WHEN account.account_id = preference.default_account_id THEN 0
@@ -65,8 +82,8 @@ class MailDraftRepository {
                 RETURNING thread_id
                 """, (result, ignored) -> result.getObject("thread_id", UUID.class),
                 UUID.randomUUID(), providerRef, subject, preview(body),
-                email, name, email, email, email, userId, userId,
-                userId, tenantId, userId);
+                email, name, email, email, email, request.classification().name(), userId, userId,
+                userId, tenantId, selectedAccountId, userId, selectedAccountId);
         if (threadIds.isEmpty()) {
             UUID concurrent = threadByProviderReference(tenantId, userId, providerRef);
             if (concurrent == null) return null;
@@ -90,7 +107,7 @@ class MailDraftRepository {
                     ON account.tenant_id = thread.tenant_id
                    AND account.account_id = thread.account_id
                  WHERE thread.tenant_id = ? AND thread.thread_id = ?
-                   AND account.owner_user_id = ?
+                   AND thread.created_by = ?
                 ON CONFLICT (thread_id, provider_message_ref) DO NOTHING
                 """, UUID.randomUUID(), providerRef + ":message",
                 email, name, email, body, userId, tenantId, threadId, userId);
@@ -105,55 +122,80 @@ class MailDraftRepository {
             Long userId,
             UUID threadId,
             MailDtos.DraftSaveRequest request) {
+        return save(tenantId, userId, threadId, request, null);
+    }
+
+    int save(
+            Long tenantId,
+            Long userId,
+            UUID threadId,
+            MailDtos.DraftSaveRequest request,
+            UUID selectedAccountId) {
         String email = email(request.toEmail());
         String name = recipientName(request.toName(), email);
         String subject = value(request.subject());
         String body = value(request.body());
         int updated = jdbc.update("""
                 UPDATE mail_threads thread
-                   SET subject = ?, preview = ?,
+                   SET account_id = target.account_id,
+                       folder_id = folder.folder_id,
+                       shared_inbox_id = inbox.shared_inbox_id,
+                       subject = ?, preview = ?,
                        participants = CASE WHEN ? = '' THEN '[]'::jsonb
                            ELSE jsonb_build_array(jsonb_build_object(
                                'name', ?, 'email', LOWER(?))) END,
                        latest_message_at = CURRENT_TIMESTAMP,
                        external_sender = CASE WHEN ? = '' THEN FALSE
                            ELSE SPLIT_PART(LOWER(?), '@', 2)
-                               <> SPLIT_PART(account.email_address, '@', 2) END,
+                               <> SPLIT_PART(target.email_address, '@', 2) END,
+                       classification = ?,
                        version = thread.version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                  FROM mail_accounts account, mail_folders folder
-                 WHERE thread.tenant_id = ? AND thread.thread_id = ?
-                   AND account.tenant_id = thread.tenant_id
-                   AND account.account_id = thread.account_id
-                   AND account.account_kind = 'PERSONAL'
-                   AND account.owner_user_id = ?
-                   AND folder.tenant_id = thread.tenant_id
-                   AND folder.account_id = thread.account_id
-                   AND folder.folder_id = thread.folder_id
+                  FROM mail_accounts target
+                  JOIN mail_folders folder
+                    ON folder.tenant_id = target.tenant_id
+                   AND folder.account_id = target.account_id
                    AND folder.folder_type = 'DRAFTS'
                    AND folder.lifecycle_state = 'ACTIVE'
+                  LEFT JOIN mail_shared_inboxes inbox
+                    ON inbox.tenant_id = target.tenant_id
+                   AND inbox.account_id = target.account_id
+                   AND inbox.lifecycle_state = 'ACTIVE'
+                 WHERE thread.tenant_id = ? AND thread.thread_id = ?
+                   AND thread.created_by = ?
+                   AND target.tenant_id = thread.tenant_id
+                   AND target.account_id = COALESCE(?::uuid, thread.account_id)
+                   AND target.connection_state = 'ACTIVE'
                    AND thread.workflow_state = 'DRAFT'
                    AND thread.version = ?
                 """, subject, preview(body), email, name, email,
-                email, email, userId, tenantId, threadId, userId, request.version());
+                email, email, request.classification().name(), userId,
+                tenantId, threadId, userId, selectedAccountId, request.version());
         if (updated == 0) return 0;
 
         int messageUpdated = jdbc.update("""
-                UPDATE mail_messages
+                UPDATE mail_messages message
                    SET provider_message_ref = ?,
+                       sender_email = account.email_address,
+                       sender_name = account.display_name,
                        recipients = CASE WHEN ? = '' THEN '[]'::jsonb
                            ELSE jsonb_build_array(jsonb_build_object(
                                'name', ?, 'email', LOWER(?), 'type', 'TO')) END,
                        body_content = ?, sent_at = CURRENT_TIMESTAMP
-                 WHERE message_id = (
+                  FROM mail_threads thread
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
+                 WHERE message.message_id = (
                        SELECT message_id
                          FROM mail_messages
                         WHERE tenant_id = ? AND thread_id = ?
                           AND message_direction = 'DRAFT'
                         ORDER BY sent_at, message_id
                         LIMIT 1)
+                   AND thread.tenant_id = ? AND thread.thread_id = ?
                 """, saveReference(request.idempotencyKey()), email, name, email,
-                body, tenantId, threadId);
+                body, tenantId, threadId, tenantId, threadId);
         if (messageUpdated != 1) {
             throw new IllegalStateException("Draft message projection is missing.");
         }
@@ -169,8 +211,7 @@ class MailDraftRepository {
                     ON account.tenant_id = thread.tenant_id
                    AND account.account_id = thread.account_id
                  WHERE thread.tenant_id = ? AND thread.provider_thread_ref = ?
-                   AND account.account_kind = 'PERSONAL'
-                   AND account.owner_user_id = ?
+                   AND thread.created_by = ?
                  ORDER BY thread.created_at DESC
                  LIMIT 1
                 """, (result, ignored) -> result.getObject("thread_id", UUID.class),

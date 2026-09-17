@@ -12,6 +12,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -82,6 +83,88 @@ class CalendarRoomsSecurityContextMockMvcTest {
 
         verify(service).create(
                 eq(3L), eq(17L), eq(null), eq(null), eq("en-US"), eq(null),
-                eq("group-a,group-b"), any(CalendarDtos.CreateEventRequest.class));
+                eq("group-a,group-b"), any(CalendarDtos.CreateEventRequest.class), eq(null));
+    }
+
+    @Test
+    void calendarResponseRejectsAnIncompleteConcurrencyContractBeforeServiceInvocation()
+            throws Exception {
+        CalendarService service = mock(CalendarService.class);
+        MockMvc mvc = standaloneSetup(new CalendarController(service)).build();
+
+        mvc.perform(post("/v1/calendar/events/{eventId}/response", UUID.randomUUID())
+                        .header("X-DWP-Tenant-ID", "3")
+                        .header("X-DWP-User-ID", "17")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"response":"ACCEPTED"}
+                                """))
+                .andExpect(status().isBadRequest());
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void calendarResponseForwardsTheVersionedIdempotentIntent() throws Exception {
+        CalendarService service = mock(CalendarService.class);
+        MockMvc mvc = standaloneSetup(new CalendarController(service)).build();
+        UUID personId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID key = UUID.randomUUID();
+        CalendarDtos.RespondRequest request = new CalendarDtos.RespondRequest(
+                CalendarTypes.ResponseStatus.ACCEPTED, 12L, key);
+
+        mvc.perform(post("/v1/calendar/events/{eventId}/response", eventId)
+                        .header("X-DWP-Tenant-ID", "3")
+                        .header("X-DWP-User-ID", "17")
+                        .header("X-DWP-Person-Public-ID", personId)
+                        .header("X-DWP-Group-Refs", "group-a,group-b")
+                        .header("Accept-Language", "en-US")
+                        .header("X-Correlation-ID", "corr-response")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "response": "ACCEPTED",
+                                  "expectedVersion": 12,
+                                  "idempotencyKey": "%s"
+                                }
+                                """.formatted(key)))
+                .andExpect(status().isOk());
+
+        verify(service).respond(
+                3L, 17L, personId, eventId, "en-US", "corr-response",
+                "group-a,group-b", request);
+    }
+
+    @Test
+    void roomResponseForwardsTheSameVersionedIdempotentIntent() throws Exception {
+        RoomService service = mock(RoomService.class);
+        MockMvc mvc = standaloneSetup(new RoomsController(service)).build();
+        UUID personId = UUID.randomUUID();
+        UUID eventId = UUID.randomUUID();
+        UUID key = UUID.randomUUID();
+        CalendarDtos.RespondRequest request = new CalendarDtos.RespondRequest(
+                CalendarTypes.ResponseStatus.TENTATIVE, 8L, key);
+
+        mvc.perform(post("/v1/rooms/bookings/{eventId}/response", eventId)
+                        .header("X-DWP-Tenant-ID", "3")
+                        .header("X-DWP-User-ID", "17")
+                        .header("X-DWP-Person-Public-ID", personId)
+                        .header("X-DWP-Group-Refs", "group-a,group-b")
+                        .header("Accept-Language", "ko-KR")
+                        .header("X-Correlation-ID", "corr-room-response")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "response": "TENTATIVE",
+                                  "expectedVersion": 8,
+                                  "idempotencyKey": "%s"
+                                }
+                                """.formatted(key)))
+                .andExpect(status().isOk());
+
+        verify(service).respondRoomBooking(
+                3L, 17L, personId, eventId, "ko-KR", "corr-room-response",
+                "group-a,group-b", request);
     }
 }

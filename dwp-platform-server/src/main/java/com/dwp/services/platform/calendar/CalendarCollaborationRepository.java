@@ -580,4 +580,5 @@ public class CalendarCollaborationRepository {
             boolean legalHold,
             long version) {
     }
+
 }

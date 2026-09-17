@@ -69,6 +69,21 @@ class MailWorkspaceRepository {
         return count != null && count > 0;
     }
 
+    boolean accountSendAccessible(long tenantId, long userId, UUID accountId) {
+        Integer count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM mail_accounts account
+                  JOIN mail_provider_connections connection
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
+                 WHERE account.tenant_id = ? AND account.account_id = ?
+                   AND account.connection_state = 'ACTIVE'
+                   AND connection.connection_state = 'ACTIVE'
+                """ + MailAccessSql.ACCOUNT_SEND_ACCESS, Integer.class,
+                tenantId, accountId, userId, userId);
+        return count != null && count > 0;
+    }
+
     int maximumAttachmentMb(long tenantId) {
         Integer size = jdbc.queryForObject("""
                 SELECT maximum_attachment_mb
@@ -765,12 +780,19 @@ class MailWorkspaceRepository {
         return jdbc.query("""
                 SELECT account.account_id
                   FROM mail_accounts account
+                  JOIN mail_provider_connections connection
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
                   LEFT JOIN mail_user_preferences preference
                     ON preference.tenant_id = account.tenant_id
                    AND preference.user_id = ?
                  WHERE account.tenant_id = ?
                    AND (?::uuid IS NULL OR account.account_id = ?::uuid)
+                   AND (?::uuid IS NOT NULL
+                        OR preference.default_account_id IS NULL
+                        OR account.account_id = preference.default_account_id)
                    AND account.connection_state = 'ACTIVE'
+                   AND connection.connection_state = 'ACTIVE'
                 """ + MailAccessSql.ACCOUNT_SEND_ACCESS + """
                  ORDER BY CASE WHEN account.account_id = ?::uuid THEN 0
                                WHEN ?::uuid IS NULL
@@ -780,6 +802,7 @@ class MailWorkspaceRepository {
                  LIMIT 1
                 """, (result, ignored) -> result.getObject(1, UUID.class),
                 userId, tenantId, requestedAccountId, requestedAccountId,
+                requestedAccountId,
                 userId, userId, requestedAccountId, requestedAccountId).stream().findFirst();
     }
 
@@ -805,6 +828,56 @@ class MailWorkspaceRepository {
                         result.getString("mail_domain"),
                         result.getString("provider_account_ref")),
                 tenantId, accountId, userId, userId).stream().findFirst();
+    }
+
+    Optional<ComposeProviderContext> defaultPersonalComposeProviderContext(
+            long tenantId, long userId) {
+        return jdbc.query("""
+                SELECT account.account_id, connection.provider_type,
+                       connection.connection_id, connection.credential_ref,
+                       connection.mail_domain, account.provider_account_ref
+                  FROM mail_accounts account
+                  JOIN mail_provider_connections connection
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
+                  LEFT JOIN mail_user_preferences preference
+                    ON preference.tenant_id = account.tenant_id
+                   AND preference.user_id = ?
+                 WHERE account.tenant_id = ? AND account.owner_user_id = ?
+                   AND account.account_kind = 'PERSONAL'
+                   AND account.connection_state = 'ACTIVE'
+                   AND connection.connection_state = 'ACTIVE'
+                 ORDER BY CASE
+                    WHEN account.account_id = preference.default_account_id THEN 0
+                    WHEN account.is_default THEN 1 ELSE 2 END,
+                    account.account_id
+                 LIMIT 1
+                """, (result, ignored) -> new ComposeProviderContext(
+                        result.getObject("account_id", UUID.class),
+                        MailTypes.ProviderType.valueOf(result.getString("provider_type")),
+                        result.getObject("connection_id", UUID.class),
+                        uri(result.getString("credential_ref")),
+                        result.getString("mail_domain"),
+                        result.getString("provider_account_ref")),
+                userId, tenantId, userId).stream().findFirst();
+    }
+
+    Optional<String> composeAccountDomain(
+            long tenantId, long userId, UUID accountId) {
+        return jdbc.query("""
+                SELECT LOWER(SPLIT_PART(account.email_address, '@', 2)) AS sender_domain
+                  FROM mail_accounts account
+                  JOIN mail_provider_connections connection
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
+                 WHERE account.tenant_id = ? AND account.account_id = ?
+                   AND account.connection_state = 'ACTIVE'
+                   AND connection.connection_state = 'ACTIVE'
+                """ + MailAccessSql.ACCOUNT_SEND_ACCESS,
+                (result, ignored) -> result.getString("sender_domain"),
+                tenantId, accountId, userId, userId).stream()
+                .filter(domain -> domain != null && !domain.isBlank())
+                .findFirst();
     }
 
     Optional<MailConnectorPort.SenderMode> composeSenderMode(
@@ -917,6 +990,27 @@ class MailWorkspaceRepository {
             UUID idempotencyKey,
             String fingerprint,
             String correlationId) {
+        return createAdvancedCompose(
+                tenantId, userId, accountId, recipients, subject, body, bodyFormat,
+                attachmentIds, scheduledAt, MailTypes.Classification.INTERNAL, false,
+                idempotencyKey, fingerprint, correlationId);
+    }
+
+    AdvancedComposeCreated createAdvancedCompose(
+            long tenantId,
+            long userId,
+            UUID accountId,
+            List<Recipient> recipients,
+            String subject,
+            String body,
+            BodyFormat bodyFormat,
+            List<UUID> attachmentIds,
+            OffsetDateTime scheduledAt,
+            MailTypes.Classification classification,
+            boolean externalRecipient,
+            UUID idempotencyKey,
+            String fingerprint,
+            String correlationId) {
         UUID threadId = UUID.randomUUID();
         UUID messageId = UUID.randomUUID();
         UUID deliveryId = UUID.randomUUID();
@@ -941,7 +1035,7 @@ class MailWorkspaceRepository {
                     created_by, updated_by)
                 SELECT ?, account.tenant_id, account.account_id, folder.folder_id, ?, ?,
                        ?, ?, ?::jsonb, CURRENT_TIMESTAMP, FALSE, 'NORMAL', 'UPDATES', 'OPEN',
-                       ?, FALSE, 'INTERNAL', 1, ?, ?
+                       ?, ?, ?, 1, ?, ?
                   FROM mail_accounts account
                   JOIN mail_folders folder
                     ON folder.tenant_id = account.tenant_id
@@ -952,7 +1046,8 @@ class MailWorkspaceRepository {
                    AND account.connection_state = 'ACTIVE'
                 """ + MailAccessSql.ACCOUNT_SEND_ACCESS,
                 threadId, providerReference, fingerprint, subject.trim(), preview,
-                participantJson, !attachmentIds.isEmpty(), userId, userId,
+                participantJson, !attachmentIds.isEmpty(), externalRecipient,
+                classification.name(), userId, userId,
                 tenantId, accountId, userId, userId);
         if (threadInserted != 1) return null;
         jdbc.update("""
@@ -1002,6 +1097,8 @@ class MailWorkspaceRepository {
             BodyFormat bodyFormat,
             List<UUID> attachmentIds,
             OffsetDateTime scheduledAt,
+            MailTypes.Classification classification,
+            boolean externalRecipient,
             UUID idempotencyKey,
             String fingerprint,
             String correlationId) {
@@ -1024,7 +1121,8 @@ class MailWorkspaceRepository {
                        provider_thread_ref = ?, compose_request_fingerprint = ?,
                        subject = ?, preview = ?, participants = ?::jsonb,
                        latest_message_at = CURRENT_TIMESTAMP, workflow_state = 'OPEN',
-                       has_attachments = ?, message_count = 1,
+                       has_attachments = ?, external_sender = ?, classification = ?,
+                       message_count = 1,
                        version = thread.version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
                   FROM mail_accounts current_account,
@@ -1043,7 +1141,8 @@ class MailWorkspaceRepository {
                    AND sent.folder_type = 'SENT' AND sent.lifecycle_state = 'ACTIVE'
                 """ + MailAccessSql.ACCOUNT_SEND_ACCESS,
                 "dwp:advanced:" + idempotencyKey, fingerprint,
-                subject.trim(), preview, participantJson, !attachmentIds.isEmpty(), userId,
+                subject.trim(), preview, participantJson, !attachmentIds.isEmpty(),
+                externalRecipient, classification.name(), userId,
                 tenantId, threadId, expectedVersion, userId, accountId, userId, userId);
         if (updated != 1) return null;
         List<UUID> messages = jdbc.query("""
@@ -1089,7 +1188,7 @@ class MailWorkspaceRepository {
                     ON account.tenant_id = thread.tenant_id
                    AND account.account_id = thread.account_id
                  WHERE thread.tenant_id = ? AND thread.thread_id = ?
-                   AND account.owner_user_id = ? AND thread.workflow_state = 'DRAFT'
+                   AND thread.created_by = ? AND thread.workflow_state = 'DRAFT'
                 ON CONFLICT (thread_id) DO UPDATE SET
                     account_id = EXCLUDED.account_id,
                     recipients = EXCLUDED.recipients,

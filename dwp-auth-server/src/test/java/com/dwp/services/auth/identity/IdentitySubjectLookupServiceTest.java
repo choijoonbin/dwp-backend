@@ -10,6 +10,7 @@ import com.dwp.services.auth.repository.DirectoryGroupRepository;
 import com.dwp.services.auth.repository.RoleMemberRepository;
 import com.dwp.services.auth.repository.RoleRepository;
 import com.dwp.services.auth.repository.UserRepository;
+import com.dwp.services.auth.repository.OrganizationUnitRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
@@ -47,6 +48,9 @@ class IdentitySubjectLookupServiceTest {
 
     @Mock
     private EffectivePermissionKeyResolver permissionKeys;
+
+    @Mock
+    private OrganizationUnitRepository organizationUnits;
 
     @Test
     void returnsOnlyTheRequestedTenantUser() {
@@ -278,6 +282,7 @@ class IdentitySubjectLookupServiceTest {
 
     private IdentitySubjectLookupService service() {
         return new IdentitySubjectLookupService(
-                users, roleMembers, roles, groupMembers, groups, permissionKeys);
+                users, roleMembers, roles, groupMembers, groups, permissionKeys,
+                organizationUnits);
     }
 }

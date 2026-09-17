@@ -3,6 +3,7 @@ package com.dwp.services.auth.identity;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.auth.entity.User;
+import com.dwp.services.auth.repository.OrganizationUnitRepository;
 import com.dwp.services.auth.repository.DirectoryGroupMemberRepository;
 import com.dwp.services.auth.repository.DirectoryGroupRepository;
 import com.dwp.services.auth.repository.RoleMemberRepository;
@@ -25,6 +26,7 @@ public class IdentitySubjectLookupService {
     private final DirectoryGroupMemberRepository groupMembers;
     private final DirectoryGroupRepository groups;
     private final EffectivePermissionKeyResolver permissionKeys;
+    private final OrganizationUnitRepository organizationUnits;
 
     public IdentitySubjectLookupService(
             UserRepository users,
@@ -32,13 +34,15 @@ public class IdentitySubjectLookupService {
             RoleRepository roles,
             DirectoryGroupMemberRepository groupMembers,
             DirectoryGroupRepository groups,
-            EffectivePermissionKeyResolver permissionKeys) {
+            EffectivePermissionKeyResolver permissionKeys,
+            OrganizationUnitRepository organizationUnits) {
         this.users = users;
         this.roleMembers = roleMembers;
         this.roles = roles;
         this.groupMembers = groupMembers;
         this.groups = groups;
         this.permissionKeys = permissionKeys;
+        this.organizationUnits = organizationUnits;
     }
 
     /**
@@ -54,7 +58,7 @@ public class IdentitySubjectLookupService {
         return new Subject(
                 user.getTenantId(), user.getUserId(), user.getPublicId(),
                 user.getPersonPublicId(), user.getDisplayName(), user.getEmail(),
-                user.getJobTitle(), user.getStatus(), user.getIdentityPlane(),
+                user.getJobTitle(), department(user), user.getStatus(), user.getIdentityPlane(),
                 roleCodes(tenantId, userId), groupRefs(tenantId, userId),
                 permissionKeys.resolve(tenantId, userId));
     }
@@ -76,7 +80,7 @@ public class IdentitySubjectLookupService {
                 .map(user -> new DirectorySubject(
                         user.getTenantId(), user.getUserId(), user.getPublicId(),
                         user.getPersonPublicId(), user.getDisplayName(), user.getEmail(),
-                        user.getJobTitle(), user.getStatus(), user.getIdentityPlane(),
+                        user.getJobTitle(), department(user), user.getStatus(), user.getIdentityPlane(),
                         roleCodes(tenantId, user.getUserId()),
                         groupRefs(tenantId, user.getUserId()),
                         permissionKeys.resolve(tenantId, user.getUserId())))
@@ -107,6 +111,7 @@ public class IdentitySubjectLookupService {
             String displayName,
             String email,
             String jobTitle,
+            String department,
             String status,
             String identityPlane,
             List<String> roles,
@@ -121,6 +126,7 @@ public class IdentitySubjectLookupService {
             String displayName,
             String email,
             String jobTitle,
+            String department,
             String status,
             String identityPlane,
             List<String> roles,
@@ -169,5 +175,15 @@ public class IdentitySubjectLookupService {
     private boolean isDirectoryEligibleStatus(User user, boolean activeOnly) {
         if ("ACTIVE".equalsIgnoreCase(user.getStatus())) return true;
         return !activeOnly && "INACTIVE".equalsIgnoreCase(user.getStatus());
+    }
+
+    private String department(User user) {
+        if (user.getPrimaryOrgUnitId() == null) return null;
+        return organizationUnits.findByOrgUnitIdAndTenantId(
+                        user.getPrimaryOrgUnitId(), user.getTenantId())
+                .filter(unit -> "ACTIVE".equalsIgnoreCase(unit.getStatus()))
+                .map(unit -> unit.getName() == null ? null : unit.getName().strip())
+                .filter(name -> name != null && !name.isBlank())
+                .orElse(null);
     }
 }

@@ -78,6 +78,43 @@ class InternalMailProposalOutcomeControllerTest {
     }
 
     @Test
+    void peopleServiceCanReadAndReleaseOnlyItsReservedExecution() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        var binding = new MailProposalHandoffBinding(proposalId, commandId, 5L);
+        var executing = new MailDtos.ProposalHandoff(
+                proposalId, commandId, "/hr/absence?action=create",
+                "/mail/actions?proposalId=" + proposalId,
+                "mail-proposal-" + proposalId,
+                MailDtos.ProposalHandoffStatus.EXECUTING,
+                null, OffsetDateTime.parse("2026-09-17T00:00:00Z"), 5L);
+        var released = new MailDtos.ProposalHandoff(
+                proposalId, commandId, "/hr/absence?action=create",
+                "/mail/actions?proposalId=" + proposalId,
+                "mail-proposal-" + proposalId,
+                MailDtos.ProposalHandoffStatus.ACCEPTED,
+                "owner-not-executed:HR:OWNER_TRANSACTION_ROLLED_BACK",
+                OffsetDateTime.parse("2026-09-17T00:01:00Z"), 5L);
+        when(outcomes.status(3L, 17L, HR, binding)).thenReturn(executing);
+        when(outcomes.notExecuted(
+                3L, 17L, HR, binding,
+                "OWNER_TRANSACTION_ROLLED_BACK", "corr-rollback"))
+                .thenReturn(released);
+
+        assertThat(controller.status(
+                "dwp-people-server", 3L, 17L,
+                new InternalMailProposalOutcomeController.OwnerBindingRequest(
+                        proposalId, commandId, 5L)).getData())
+                .isEqualTo(executing);
+        assertThat(controller.notExecuted(
+                "dwp-people-server", 3L, 17L, "corr-rollback",
+                new InternalMailProposalOutcomeController.OwnerExecutionReleaseRequest(
+                        proposalId, commandId, 5L,
+                        "OWNER_TRANSACTION_ROLLED_BACK")).getData())
+                .isEqualTo(released);
+    }
+
+    @Test
     void forgedServiceIdentityCannotPreflightOrRecordAnHrOutcome() {
         var request = request(
                 UUID.randomUUID(), UUID.randomUUID(), 5L,
@@ -87,6 +124,15 @@ class InternalMailProposalOutcomeControllerTest {
                 "browser-client", 3L, 17L, request));
         assertForbidden(() -> controller.record(
                 "dwp-platform-server", 3L, 17L, "corr-forged", request));
+        assertForbidden(() -> controller.status(
+                "browser-client", 3L, 17L,
+                new InternalMailProposalOutcomeController.OwnerBindingRequest(
+                        request.proposalId(), request.commandId(), request.proposalVersion())));
+        assertForbidden(() -> controller.notExecuted(
+                "browser-client", 3L, 17L, "corr-forged",
+                new InternalMailProposalOutcomeController.OwnerExecutionReleaseRequest(
+                        request.proposalId(), request.commandId(), request.proposalVersion(),
+                        "OWNER_TRANSACTION_ROLLED_BACK")));
 
         verifyNoInteractions(outcomes);
     }

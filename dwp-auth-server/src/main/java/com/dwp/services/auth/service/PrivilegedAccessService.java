@@ -540,6 +540,61 @@ public class PrivilegedAccessService {
         return emergencySummary(principal, user);
     }
 
+    @Transactional
+    public PrivilegedAccessDtos.EmergencyPrincipalSummary verifyEmergencyPrincipal(
+            Long tenantId,
+            Long actorId,
+            String correlationId,
+            UUID principalId,
+            PrivilegedAccessDtos.VerifyEmergencyPrincipalRequest request) {
+        EmergencyAccessPrincipal principal = emergencyPrincipalRepository
+                .findByEmergencyAccessPrincipalIdAndTenantId(principalId, tenantId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        if (!ACTIVE.equals(principal.getLifecycleState())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Only an active recovery account can be verified.");
+        }
+        if (Objects.equals(actorId, principal.getUserId())) {
+            auditService.denied(
+                    tenantId, actorId, "access.emergency-principal.verified",
+                    "EMERGENCY_ACCESS_PRINCIPAL", principalId.toString(), correlationId,
+                    "RECOVERY_PRINCIPAL_CANNOT_VERIFY_SELF",
+                    Map.of("method", request.method(), "version", request.version()));
+            throw new BaseException(
+                    ErrorCode.SOD_CONFLICT,
+                    "A recovery account cannot verify itself.");
+        }
+        if (!Objects.equals(valueOrZero(principal.getVersion()), request.version())) {
+            throw new BaseException(ErrorCode.OBJECT_VERSION_CONFLICT);
+        }
+        Instant now = Instant.now();
+        Map<String, Object> before = Map.of(
+                "verificationStatus", verificationStatus(principal, now),
+                "version", valueOrZero(principal.getVersion()));
+        principal.setVerificationStatus("VERIFIED");
+        principal.setVerificationMethod(request.method());
+        principal.setVerificationReference(request.evidenceReference().trim());
+        principal.setLastVerifiedAt(now);
+        principal.setLastVerifiedBy(actorId);
+        principal.setVerificationDueAt(request.nextVerificationDueAt());
+        principal.setUpdatedBy(actorId);
+        principal = emergencyPrincipalRepository.saveAndFlush(principal);
+        auditService.success(
+                tenantId, actorId, "access.emergency-principal.verified",
+                "EMERGENCY_ACCESS_PRINCIPAL", principalId.toString(), correlationId,
+                before, Map.of(
+                        "verificationStatus", "VERIFIED",
+                        "verificationMethod", principal.getVerificationMethod(),
+                        "verificationReference", principal.getVerificationReference(),
+                        "lastVerifiedAt", principal.getLastVerifiedAt(),
+                        "verificationDueAt", principal.getVerificationDueAt(),
+                        "version", valueOrZero(principal.getVersion())));
+        User user = userRepository.findByUserIdAndTenantId(principal.getUserId(), tenantId)
+                .orElse(null);
+        return emergencySummary(principal, user);
+    }
+
     private PrivilegedAccessRequest activate(
             PrivilegedAccessRequest request,
             Long actorId,
@@ -858,7 +913,17 @@ public class PrivilegedAccessService {
         return new PrivilegedAccessDtos.EmergencyPrincipalSummary(
                 principal.getEmergencyAccessPrincipalId(), principal.getUserId(),
                 displayName(user), principal.getJustification(), principal.getReviewDueAt(),
-                principal.getLifecycleState(), valueOrZero(principal.getVersion()));
+                principal.getLifecycleState(), verificationStatus(principal, Instant.now()),
+                principal.getVerificationMethod(), principal.getVerificationReference(),
+                principal.getLastVerifiedAt(), principal.getLastVerifiedBy(),
+                principal.getVerificationDueAt(), valueOrZero(principal.getVersion()));
+    }
+
+    private String verificationStatus(EmergencyAccessPrincipal principal, Instant now) {
+        if (principal.getLastVerifiedAt() == null) return "NOT_VERIFIED";
+        if (principal.getVerificationDueAt() != null
+                && !principal.getVerificationDueAt().isAfter(now)) return "OVERDUE";
+        return "VERIFIED";
     }
 
     private Map<Long, Role> rolesById(Long tenantId, Collection<Long> roleIds) {

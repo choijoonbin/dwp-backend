@@ -61,7 +61,8 @@ public final class MailProductSurfacePepFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return contract.resolveOwner(request.getMethod(), request.getRequestURI()).isEmpty();
+        return !contract.requiresOwnerEnforcement(
+                request.getMethod(), request.getRequestURI());
     }
 
     @Override

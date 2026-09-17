@@ -307,40 +307,88 @@ public class HrService {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
                     "The requested leave minutes cannot exceed the selected interval.");
         }
-        if (repository.hasOverlappingLeaveRequest(
-                context.actor().tenantId(), context.worker().workerId(),
-                request.startAt(), request.endAt())) {
-            throw conflict("The selected interval overlaps an existing submitted or approved leave request.");
-        }
+        HrMailProposalExecutionRepository.Claim executionClaim = null;
         if (mailProposalBinding != null) {
-            mailProposalOutcomes.preflight(
+            executionClaim = mailProposalOutcomes.claimExecution(
                     context.actor().tenantId(), context.actor().userId(),
                     mailProposalBinding, request);
+            if (executionClaim.status()
+                    == HrMailProposalExecutionRepository.ClaimStatus.COMPLETED) {
+                UUID completedRequestId = executionClaim.leaveRequestId();
+                return repository.leaveRequest(
+                                context.actor().tenantId(), context.worker().workerId(),
+                                completedRequestId)
+                        .orElseThrow(() -> conflict(
+                                "The completed Mail proposal owner receipt cannot be reconciled to its leave request."));
+            }
         }
-        HrDtos.LeaveRequest created;
+        boolean reservationAttempted = false;
         try {
-            created = repository.createLeaveRequest(
+            if (repository.hasOverlappingLeaveRequest(
+                    context.actor().tenantId(), context.worker().workerId(),
+                    request.startAt(), request.endAt())) {
+                throw conflict(
+                        "The selected interval overlaps an existing submitted or approved leave request.");
+            }
+            if (mailProposalBinding != null) {
+                reservationAttempted = true;
+                mailProposalOutcomes.preflight(
+                        context.actor().tenantId(), context.actor().userId(),
+                        mailProposalBinding, request);
+            }
+            HrDtos.LeaveRequest created = repository.createLeaveRequest(
                     context.actor().tenantId(), context.worker().workerId(), request,
                     context.actor().userId())
                     .orElseThrow(() -> conflict(
                             "The leave plan is unavailable or the requested duration exceeds the available balance."));
+            if (mailProposalBinding != null) {
+                mailProposalOutcomes.enqueueExecuted(
+                        context.actor().tenantId(), context.actor().userId(), mailProposalBinding,
+                        created.requestId(), correlationId);
+            }
+            record(context.actor(), "hr.leave-request.submitted", "LEAVE_REQUEST",
+                    created.requestId(), correlationId,
+                    Map.of("planId", request.planId(), "requestedMinutes", request.requestedMinutes()),
+                    "EXTENDED");
+            if (mailProposalBinding != null) {
+                mailProposalOutcomes.completeExecution(
+                        context.actor().tenantId(), context.actor().userId(),
+                        mailProposalBinding, executionClaim.requestFingerprint(),
+                        created.requestId());
+            }
+            return created;
         } catch (DataIntegrityViolationException exception) {
+            if (reservationAttempted) {
+                releaseMailProposalReservation(
+                        context, mailProposalBinding, correlationId, exception);
+            }
             if (causedByConstraint(exception, "ex_abs_leave_request_active_overlap")) {
                 throw conflict(
                         "The selected interval overlaps an existing submitted or approved leave request.");
             }
             throw exception;
+        } catch (RuntimeException exception) {
+            if (reservationAttempted) {
+                releaseMailProposalReservation(
+                        context, mailProposalBinding, correlationId, exception);
+            }
+            throw exception;
         }
-        if (mailProposalBinding != null) {
-            mailProposalOutcomes.enqueueExecuted(
-                    context.actor().tenantId(), context.actor().userId(), mailProposalBinding,
-                    created.requestId(), correlationId);
+    }
+
+    private void releaseMailProposalReservation(
+            Context context,
+            HrMailProposalBinding binding,
+            String correlationId,
+            RuntimeException ownerFailure) {
+        if (binding == null) return;
+        try {
+            mailProposalOutcomes.releaseNotExecuted(
+                    context.actor().tenantId(), context.actor().userId(), binding,
+                    "OWNER_TRANSACTION_ROLLED_BACK", correlationId);
+        } catch (RuntimeException releaseFailure) {
+            ownerFailure.addSuppressed(releaseFailure);
         }
-        record(context.actor(), "hr.leave-request.submitted", "LEAVE_REQUEST",
-                created.requestId(), correlationId,
-                Map.of("planId", request.planId(), "requestedMinutes", request.requestedMinutes()),
-                "EXTENDED");
-        return created;
     }
 
     @Transactional

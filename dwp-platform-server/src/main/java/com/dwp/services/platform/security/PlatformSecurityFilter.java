@@ -518,6 +518,14 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 .anyMatch(expected::equals);
     }
 
+    private boolean hasAnyAuthority(
+            String permissionsHeader,
+            String resourceKey,
+            String... permissionCodes) {
+        return Arrays.stream(permissionCodes)
+                .anyMatch(code -> hasAuthority(permissionsHeader, resourceKey, code));
+    }
+
     private boolean hasCalendarAuthority(HttpServletRequest request) {
         String requiredPermission = switch (request.getMethod()) {
             case "GET", "HEAD" -> "VIEW";
@@ -646,20 +654,54 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         String requiredPermission = switch (request.getMethod()) {
             case "GET", "HEAD" -> "VIEW";
-            case "POST" -> path.endsWith("/replies") || path.endsWith("/messages")
-                    ? "CREATE" : "UPDATE";
-            case "PUT", "PATCH", "DELETE" -> "UPDATE";
+            case "POST" -> path.equals("/v1/mail/messages") ? "CREATE"
+                    : path.endsWith("/replies")
+                    || path.endsWith("/messages/advanced")
+                    || path.matches(".*/contact-groups/[^/]+/messages$")
+                    || path.endsWith("/retry") ? "SEND"
+                    : path.matches(".*/proposals/[^/]+/(decision|handoff/cancel)$") ? "DECIDE"
+                    : isMailCreatePath(path) ? "CREATE" : "UPDATE";
+            case "DELETE" -> "DELETE";
+            case "PUT", "PATCH" -> "UPDATE";
             default -> "VIEW";
         };
         return hasAuthority(
                 request.getHeader(PERMISSIONS_HEADER), "APP.MAIL", requiredPermission);
     }
 
+    private boolean isMailCreatePath(String path) {
+        return path.equals("/v1/mail/drafts")
+                || path.equals("/v1/mail/saved-views")
+                || path.equals("/v1/mail/templates")
+                || path.equals("/v1/mail/signatures")
+                || path.equals("/v1/mail/organization/folders")
+                || path.equals("/v1/mail/organization/rules");
+    }
+
     private boolean hasMailAdminAuthority(HttpServletRequest request) {
+        String method = request.getMethod();
+        String path = request.getRequestURI();
+        String permissions = request.getHeader(PERMISSIONS_HEADER);
+        if (("GET".equals(method) || "HEAD".equals(method))
+                && path.startsWith("/v1/admin/mail/retention/purge-previews")) {
+            return hasAnyAuthority(permissions, "ADMIN.MAIL",
+                    "PURGE_PREVIEW", "PURGE_AUTHORIZE", "PURGE_EXECUTE");
+        }
+        if (("GET".equals(method) || "HEAD".equals(method))
+                && path.startsWith("/v1/admin/mail/retention/purge-jobs")) {
+            return hasAnyAuthority(permissions, "ADMIN.MAIL",
+                    "PURGE_PREVIEW", "PURGE_AUTHORIZE", "PURGE_EXECUTE");
+        }
+        if (("GET".equals(method) || "HEAD".equals(method))
+                && path.equals("/v1/admin/mail/delivery-audit")) {
+            return hasAnyAuthority(permissions, "ADMIN.MAIL",
+                    "AUDIT_READ", "DELIVERY_RECONCILE", "DELIVERY_RETRY",
+                    "DELIVERY_CANCEL");
+        }
         String requiredPermission = mailAdminPermission(
-                request.getMethod(), request.getRequestURI());
+                method, path);
         return hasAuthority(
-                request.getHeader(PERMISSIONS_HEADER), "ADMIN.MAIL", requiredPermission);
+                permissions, "ADMIN.MAIL", requiredPermission);
     }
 
     private String mailAdminPermission(String method, String path) {
@@ -672,19 +714,30 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             return "WRITING_ASSET_EDIT";
         }
         if (path.startsWith("/v1/admin/mail/delivery-audit")) {
-            if (path.contains("/exports")) return "EXPORT";
+            if (path.contains("/exports")) return "EVIDENCE_EXPORT";
             if ("GET".equals(method) || "HEAD".equals(method)) return "AUDIT_READ";
-            return "RECOVERY";
+            if (path.endsWith("/reconcile")) return "DELIVERY_RECONCILE";
+            if (path.endsWith("/retry")) return "DELIVERY_RETRY";
+            if (path.endsWith("/cancel")) return "DELIVERY_CANCEL";
+            return "AUDIT_READ";
         }
         if (path.startsWith("/v1/admin/mail/retention/holds")) {
             return "GET".equals(method) || "HEAD".equals(method)
                     ? "VIEW" : "HOLD_MANAGE";
         }
-        if (path.startsWith("/v1/admin/mail/retention/purge-previews")
-                || path.contains("/retention/purges/") && path.endsWith("/approvals")
-                || path.startsWith("/v1/admin/mail/retention/purge-jobs")) {
+        if (path.startsWith("/v1/admin/mail/retention/hold-release-previews")) {
+            return "HOLD_MANAGE";
+        }
+        if (path.startsWith("/v1/admin/mail/retention/evidence-exports")) {
+            return "EVIDENCE_EXPORT";
+        }
+        if (path.startsWith("/v1/admin/mail/retention/purge-previews")) {
+            return "PURGE_PREVIEW";
+        }
+        if (path.contains("/retention/purges/") && path.endsWith("/approvals")) {
             return "PURGE_AUTHORIZE";
         }
+        if (path.startsWith("/v1/admin/mail/retention/purge-jobs")) return "PURGE_EXECUTE";
         if (path.contains("/retention/purges/") && path.endsWith("/execute")) {
             return "PURGE_EXECUTE";
         }
@@ -693,6 +746,9 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                     ? "VIEW" : "CONNECTION_MANAGE";
         }
         if (path.startsWith("/v1/admin/mail/shared-inboxes")) {
+            if (path.equals("/v1/admin/mail/shared-inboxes/member-candidates")) {
+                return "SHARED_INBOX_MANAGE";
+            }
             return "GET".equals(method) || "HEAD".equals(method)
                     ? "VIEW" : "SHARED_INBOX_MANAGE";
         }

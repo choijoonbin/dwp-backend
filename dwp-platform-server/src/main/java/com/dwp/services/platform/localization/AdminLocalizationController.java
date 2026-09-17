@@ -1,6 +1,7 @@
 package com.dwp.services.platform.localization;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -51,6 +52,7 @@ public class AdminLocalizationController {
     }
 
     @PostMapping("/bundles/{bundleId}/drafts")
+    @Operation(operationId = "createLocalizationBundleDraft")
     public ApiResponse<LocalizationDtos.Revision> createDraft(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long actorId,
@@ -94,6 +96,7 @@ public class AdminLocalizationController {
     }
 
     @PostMapping("/revisions/{revisionId}/submit")
+    @Operation(operationId = "submitLocalizationRevision")
     public ApiResponse<LocalizationDtos.Revision> submit(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long actorId,
@@ -116,6 +119,7 @@ public class AdminLocalizationController {
     }
 
     @PostMapping("/revisions/{revisionId}/publish")
+    @Operation(operationId = "publishLocalizationRevision")
     public ApiResponse<LocalizationDtos.Revision> publish(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long actorId,

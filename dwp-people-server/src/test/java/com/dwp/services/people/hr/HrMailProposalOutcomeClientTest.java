@@ -104,6 +104,40 @@ class HrMailProposalOutcomeClientTest {
     }
 
     @Test
+    void rolledBackOwnerTransactionReleasesTheExactReservation() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("https://platform.test");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        HrMailProposalOutcomeClient client = new HrMailProposalOutcomeClient(
+                builder.build(), "platform-token");
+        HrMailProposalBinding binding = new HrMailProposalBinding(
+                UUID.randomUUID(), UUID.randomUUID(), 6L);
+
+        server.expect(once(), requestTo(
+                        "https://platform.test/internal/v1/mail/proposal-outcomes/not-executed"))
+                .andExpect(method(HttpMethod.POST))
+                .andExpect(header("X-DWP-Service-Token", "platform-token"))
+                .andExpect(header("X-DWP-Service-Identity", "dwp-people-server"))
+                .andExpect(header("X-DWP-Tenant-ID", "3"))
+                .andExpect(header("X-DWP-User-ID", "17"))
+                .andExpect(header("X-Correlation-ID", "corr-rollback"))
+                .andExpect(content().json("""
+                        {
+                          "proposalId": "%s",
+                          "commandId": "%s",
+                          "proposalVersion": 6,
+                          "reasonCode": "OWNER_TRANSACTION_ROLLED_BACK"
+                        }
+                        """.formatted(binding.proposalId(), binding.commandId())))
+                .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
+
+        client.releaseNotExecuted(
+                3L, 17L, binding,
+                "OWNER_TRANSACTION_ROLLED_BACK", "corr-rollback");
+
+        server.verify();
+    }
+
+    @Test
     void platformConflictIsClassifiedAsPermanentReconciliationEvidence() {
         RestClient.Builder builder = RestClient.builder().baseUrl("https://platform.test");
         MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();

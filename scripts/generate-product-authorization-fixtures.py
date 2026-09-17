@@ -52,7 +52,7 @@ ALLOWED_OVERRIDE_REFS = {
 RESERVED_CONTRACTS = {"hcm.reference.publish", "hcm.integration.rotate-secret"}
 REGISTRY_VERSIONS = (
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28,
+    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31,
 )
 FIXED_GROUP_VERSIONS = {"CANARY": 1, "APPROVALS": 2, "HCM": 3}
 PRESERVED_V7_CATALOG_HASHES = {
@@ -69,6 +69,23 @@ DESCRIPTOR_SECTIONS = {
     "predicatePolicyKeys": ("predicatePolicies", "predicatePolicyKey"),
     "routeContractKeys": ("routes", "routeContractKey"),
 }
+V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES = frozenset({
+    "route.dwaion.work.research-audit-download.data",
+    "route.dwaion.work.research-deliveries.data",
+    "route.dwaion.work.research-output.action",
+    "route.dwaion.work.research-plan-create.action",
+    "route.dwaion.work.research-plan-update.action",
+    "route.dwaion.work.research-plans.data",
+    "route.dwaion.work.research-raw-download.data",
+    "route.dwaion.work.research-receipt-download.data",
+    "route.dwaion.work.research-run-command.action",
+    "route.dwaion.work.research-run-execute.action",
+    "route.dwaion.work.research-run-start.action",
+    "route.dwaion.work.research-runs.data",
+})
+V30_RESEARCH_READ_AUTHORITY_UPGRADE_ROUTES = frozenset(
+    key for key in V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES if key.endswith(".data")
+)
 
 STEP_UP_PUBLIC_KEY_PEM = """-----BEGIN PUBLIC KEY-----
 MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAs0T79NDWWfUnO4qfn3rq
@@ -462,7 +479,10 @@ def validate_registry_index(index: dict[str, Any]) -> None:
     if not isinstance(versions, list) or [
         entry.get("version") for entry in versions if isinstance(entry, dict)
     ] != list(REGISTRY_VERSIONS):
-        raise ContractError("Registry lineage must contain the declared versions 1 through 28")
+        raise ContractError(
+            f"Registry lineage must contain the declared versions "
+            f"{REGISTRY_VERSIONS[0]} through {REGISTRY_VERSIONS[-1]}"
+        )
 
 
 def validate_registry_entry(
@@ -521,6 +541,49 @@ def validate_monotonic_registry_lineage(
             and monotonic_contains(current_descriptor, inherited_descriptor)
         )
 
+    def is_v30_research_authority_upgrade(
+        version: int,
+        identity: tuple[str, str],
+        current: dict[str, Any],
+        inherited: dict[str, Any],
+    ) -> bool:
+        if version != 30:
+            return False
+        section, key = identity
+        candidate = copy.deepcopy(current)
+        if section == "accessPolicies" and key == "dwaion.work-access.v1":
+            candidate["routeContractKeys"] = sorted(
+                set(candidate.get("routeContractKeys", []))
+                | V30_RESEARCH_READ_AUTHORITY_UPGRADE_ROUTES
+            )
+            return descriptor_monotonic_contains(candidate, inherited)
+        if section != "routes" or key not in V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES:
+            return False
+        capability = (
+            "dwaion.work.research.read"
+            if key in V30_RESEARCH_READ_AUTHORITY_UPGRADE_ROUTES
+            else "dwaion.work.research.manage"
+        )
+        expected = {
+            "type": "CAPABILITY_EXPRESSION",
+            "mode": "ALL",
+            "capabilityContractKeys": ["dwaion.work.ask.execute", capability],
+        }
+        inherited_profiles = {
+            profile["profileKey"]: profile
+            for profile in inherited.get("accessProfiles", [])
+        }
+        for profile in candidate.get("accessProfiles", []):
+            if (
+                profile.get("profileKey") not in inherited_profiles
+                or profile.get("requiredAccess") != expected
+            ):
+                return False
+            profile["requiredAccess"] = copy.deepcopy(
+                inherited_profiles[profile["profileKey"]]["requiredAccess"]
+            )
+        return descriptor_monotonic_contains(candidate, inherited)
+
     keyed_sections = list(DESCRIPTOR_SECTIONS.values()) + [
         ("authorityEndpoints", "endpointKey")
     ]
@@ -537,7 +600,12 @@ def validate_monotonic_registry_lineage(
                 current[identity] = record
         if any(
             identity not in current
-            or not descriptor_monotonic_contains(current[identity], record)
+            or (
+                not descriptor_monotonic_contains(current[identity], record)
+                and not is_v30_research_authority_upgrade(
+                    version, identity, current[identity], record
+                )
+            )
             for identity, record in previous.items()
         ):
             raise ContractError(f"Registry v{version} is not an exact monotonic superset")

@@ -295,6 +295,15 @@ spring:
                   - X-Correlation-ID
                   - X-Content-SHA256
                   - X-Content-Type-Options
+                  - ETag
+                  - Vary
+                  - X-DWP-Decision-Revision
+                  - X-DWP-Home-Runtime-Mode
+                  - X-DWP-Home-Runtime-State
+                  - X-DWP-Home-Rollout-Ring
+                  - X-DWP-Home-Rollout-Revision
+                  - X-DWP-Home-Commands-Enabled
+                  - X-DWP-Widget-Registry-Authoritative
                 allow-credentials: true
                 max-age: 3600
 

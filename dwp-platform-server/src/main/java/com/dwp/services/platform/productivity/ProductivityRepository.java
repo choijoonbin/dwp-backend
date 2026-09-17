@@ -255,6 +255,36 @@ public class ProductivityRepository {
                 .addValue("errorCode", errorCode));
     }
 
+    public boolean revokeSubject(Long tenantId, Long userId, UUID connectorId) {
+        Optional<SubjectRecord> subject = subject(tenantId, connectorId, userId);
+        if (subject.isEmpty()) return false;
+        UUID subjectId = subject.get().subjectId();
+        jdbc.update("""
+                DELETE FROM int_productivity_sync_streams
+                 WHERE tenant_id = :tenantId
+                   AND productivity_subject_id = :subjectId
+                """, new MapSqlParameterSource("tenantId", tenantId)
+                .addValue("subjectId", subjectId));
+        return jdbc.update("""
+                UPDATE int_productivity_subjects SET
+                    provider_subject_ref_hash = NULL,
+                    encrypted_refresh_token = NULL,
+                    granted_scopes = '[]'::jsonb,
+                    consent_state = 'REVOKED',
+                    token_expires_at = NULL,
+                    last_successful_sync_at = NULL,
+                    last_error_code = NULL,
+                    version = version + 1,
+                    updated_at = CURRENT_TIMESTAMP,
+                    updated_by = :userId
+                WHERE tenant_id = :tenantId
+                  AND productivity_connector_id = :connectorId
+                  AND user_id = :userId
+                """, new MapSqlParameterSource("tenantId", tenantId)
+                .addValue("connectorId", connectorId)
+                .addValue("userId", userId)) == 1;
+    }
+
     public OAuthTransaction createOAuthTransaction(
             Long tenantId,
             Long userId,

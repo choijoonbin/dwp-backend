@@ -282,7 +282,7 @@ class MailAddressBookPostgresIntegrationTest {
                 .locations(
                         "filesystem:src/main/resources/db/migration",
                         "filesystem:../dwp-core/src/main/resources/db/migration")
-                .target("282")
+                .target("311")
                 .cleanDisabled(false)
                 .load();
         flyway.clean();

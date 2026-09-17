@@ -4,6 +4,7 @@ import com.dwp.services.platform.audit.PlatformAuditService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -20,6 +21,7 @@ class ProductivityServiceTest {
     private ProductivityRepository repository;
     private ProductivityCrypto crypto;
     private ProductivityCredentialResolver credentials;
+    private PlatformAuditService audit;
     private ProductivityService service;
 
     @BeforeEach
@@ -27,12 +29,13 @@ class ProductivityServiceTest {
         repository = mock(ProductivityRepository.class);
         crypto = mock(ProductivityCrypto.class);
         credentials = mock(ProductivityCredentialResolver.class);
+        audit = mock(PlatformAuditService.class);
         service = new ProductivityService(
                 repository,
                 crypto,
                 credentials,
                 mock(MicrosoftGraphClient.class),
-                mock(PlatformAuditService.class),
+                audit,
                 10);
         when(crypto.available()).thenReturn(true);
         when(credentials.validReference(anyString())).thenReturn(true);
@@ -76,6 +79,47 @@ class ProductivityServiceTest {
         verify(repository).configurationResult(
                 eq(1L), eq(connectorId), eq(ConnectorHealth.DEGRADED),
                 eq("AWAITING_FIRST_SUCCESSFUL_SYNC"), any());
+    }
+
+    @Test
+    void disconnectRevokesDelegatedCredentialAndReturnsAuthoritativeState() {
+        UUID connectorId = UUID.randomUUID();
+        UUID subjectId = UUID.randomUUID();
+        ProductivityRepository.ConnectorRecord connector = new ProductivityRepository.ConnectorRecord(
+                connectorId, 1L, "MICROSOFT_365", "Microsoft 365",
+                ProviderType.MICROSOFT_GRAPH, AuthMode.DELEGATED,
+                "organizations", "11111111-1111-1111-1111-111111111111",
+                "env:DWP_MS_GRAPH_CLIENT_SECRET", "https://localhost/callback",
+                List.of("openid", "offline_access", "Mail.ReadBasic"),
+                List.of("DELTA_SYNC"), ConnectorLifecycle.ACTIVE,
+                ConnectorHealth.HEALTHY, PolicyState.APPROVED,
+                null, Instant.parse("2026-09-17T00:00:00Z"),
+                Instant.parse("2026-09-17T00:05:00Z"), 0, 4);
+        ProductivityRepository.SubjectRecord connected = new ProductivityRepository.SubjectRecord(
+                subjectId, 1L, connectorId, 42L, "subject-hash", "encrypted-token",
+                List.of("Mail.ReadBasic"), ConsentState.CONNECTED,
+                Instant.parse("2026-09-17T01:00:00Z"),
+                Instant.parse("2026-09-17T00:05:00Z"), null, 3);
+        ProductivityRepository.SubjectRecord revoked = new ProductivityRepository.SubjectRecord(
+                subjectId, 1L, connectorId, 42L, null, null,
+                List.of(), ConsentState.REVOKED, null, null, null, 4);
+        when(repository.connector(1L, connectorId)).thenReturn(Optional.of(connector));
+        when(repository.subject(1L, connectorId, 42L))
+                .thenReturn(Optional.of(connected), Optional.of(revoked));
+        when(repository.revokeSubject(1L, 42L, connectorId)).thenReturn(true);
+
+        ProductivityDtos.Connection result = service.disconnect(
+                1L, 42L, "correlation-1", connectorId);
+
+        assertThat(result.consentState()).isEqualTo(ConsentState.REVOKED);
+        assertThat(result.grantedScopes()).isEmpty();
+        assertThat(result.lastSuccessfulSyncAt()).isNull();
+        assertThat(result.actionRequiredCode()).isEqualTo("REVOKED");
+        verify(repository).revokeSubject(1L, 42L, connectorId);
+        verify(audit).success(
+                eq(1L), eq(42L), eq("productivity.subject.revoked"),
+                eq("PRODUCTIVITY_SUBJECT"), eq(subjectId.toString()),
+                eq("correlation-1"), anyMap(), anyMap());
     }
 
     private ProductivityRepository.ConnectorRecord connector(

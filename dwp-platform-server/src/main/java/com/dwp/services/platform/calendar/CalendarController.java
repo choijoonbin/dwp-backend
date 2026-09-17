@@ -2,8 +2,11 @@ package com.dwp.services.platform.calendar;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.services.platform.mail.MailProposalHandoffBinding;
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoff;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,9 +28,16 @@ import java.util.UUID;
 public class CalendarController {
 
     private final CalendarService service;
+    private final CalendarInsightsService insightsService;
 
     public CalendarController(CalendarService service) {
+        this(service, null);
+    }
+
+    @Autowired
+    CalendarController(CalendarService service, CalendarInsightsService insightsService) {
         this.service = service;
+        this.insightsService = insightsService;
     }
 
     @GetMapping("/home")
@@ -37,9 +47,18 @@ public class CalendarController {
             @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
             @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
-            @RequestParam(defaultValue = "Asia/Seoul") String timeZone) {
-        return ApiResponse.success(service.home(
-                tenantId, userId, personPublicId, timeZone, locale, groupRefs));
+            @RequestParam(defaultValue = "Asia/Seoul") String timeZone,
+            @RequestParam(required = false) Integer insightWeeks) {
+        if (insightWeeks != null) {
+            if (personPublicId == null || insightsService == null) throw CalendarSettingsAccess.denied();
+            CalendarInsightsService.validateWeeks(insightWeeks);
+        }
+        CalendarDtos.HomeResponse home = service.home(
+                tenantId, userId, personPublicId, timeZone, locale, groupRefs);
+        if (insightWeeks == null) return ApiResponse.success(home);
+        return ApiResponse.success(home.withInsights(insightsService.insights(
+                new CalendarSettingsAccess.Actor(tenantId, userId, personPublicId),
+                groupRefs, insightWeeks, timeZone, locale)));
     }
 
     @GetMapping("/calendars")
@@ -78,12 +97,25 @@ public class CalendarController {
             @RequestHeader(value = "X-DWP-Mail-Proposal-ID", required = false) UUID mailProposalId,
             @RequestHeader(value = "X-DWP-Mail-Command-ID", required = false) UUID mailCommandId,
             @RequestHeader(value = "X-DWP-Mail-Proposal-Version", required = false) Long mailProposalVersion,
+            @RequestHeader(value = "X-DWP-Auth-Session-ID", required = false) String authSessionId,
+            @RequestHeader(value = "X-DWP-Roles", required = false) String roles,
+            @RequestHeader(value = "X-DWP-Permissions", required = false) String permissions,
+            @RequestHeader(value = "X-DWP-DWAI-ON-Handoff-ID", required = false) UUID dwaionHandoffId,
+            @RequestHeader(value = "X-DWP-DWAI-ON-Proposal-ID", required = false) UUID dwaionProposalId,
+            @RequestHeader(value = "X-DWP-DWAI-ON-Action-Key", required = false) String dwaionActionKey,
+            @RequestHeader(value = "X-DWP-DWAI-ON-Handoff-Version", required = false) Long dwaionHandoffVersion,
             @Valid @RequestBody CalendarDtos.CreateEventRequest request) {
+        PlatformDwaionHandoff.Binding dwaionBinding = PlatformDwaionHandoff.Binding.optional(
+                dwaionHandoffId, dwaionProposalId, dwaionActionKey, dwaionHandoffVersion,
+                "CALENDAR.EVENT.CREATE");
         return ApiResponse.success(service.create(
                 tenantId, userId, personPublicId, decoded(displayName),
                 locale, correlationId, groupRefs, request,
                 MailProposalHandoffBinding.optional(
-                        mailProposalId, mailCommandId, mailProposalVersion)));
+                        mailProposalId, mailCommandId, mailProposalVersion),
+                dwaionBinding,
+                dwaionBinding == null ? null : new PlatformDwaionHandoff.Identity(
+                        authSessionId, personPublicId, roles, permissions)));
     }
 
     @PutMapping("/events/{eventId}")
@@ -117,6 +149,7 @@ public class CalendarController {
     }
 
     @PostMapping("/events/{eventId}/cancel")
+    @Operation(operationId = "cancelCalendarEvent")
     public ApiResponse<Void> cancel(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,

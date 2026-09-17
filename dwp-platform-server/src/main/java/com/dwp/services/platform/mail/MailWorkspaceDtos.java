@@ -1,5 +1,6 @@
 package com.dwp.services.platform.mail;
 
+import com.dwp.platform.contract.MailConnectorPort;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
@@ -48,13 +49,15 @@ public final class MailWorkspaceDtos {
             boolean html,
             boolean attachments,
             boolean scheduling,
-            long maximumAttachmentBytes) {
+            long maximumAttachmentBytes,
+            MailConnectorPort.SenderMode senderMode) {
     }
 
     public record ComposeContext(
             List<MailDtos.AccountSummary> accounts,
             ComposeCapabilities capabilities,
             Map<UUID, ComposeCapabilities> accountCapabilities,
+            Map<UUID, MailDtos.AccountReadiness> accountReadiness,
             List<Template> templates,
             List<Signature> signatures,
             Preferences preferences,
@@ -84,7 +87,26 @@ public final class MailWorkspaceDtos {
             @Size(max = 80) String timeZone,
             UUID templateId,
             UUID signatureId,
+            @NotNull MailTypes.Classification classification,
+            @NotNull Boolean externalRecipientConfirmed,
             @NotNull UUID idempotencyKey) {
+
+        public AdvancedComposeRequest(
+                UUID accountId,
+                List<Recipient> recipients,
+                String subject,
+                String body,
+                BodyFormat bodyFormat,
+                List<UUID> attachmentIds,
+                OffsetDateTime scheduleAt,
+                String timeZone,
+                UUID templateId,
+                UUID signatureId,
+                UUID idempotencyKey) {
+            this(accountId, recipients, subject, body, bodyFormat, attachmentIds,
+                    scheduleAt, timeZone, templateId, signatureId,
+                    MailTypes.Classification.INTERNAL, false, idempotencyKey);
+        }
     }
 
     public record AdvancedComposeResult(
@@ -419,6 +441,13 @@ public final class MailWorkspaceDtos {
             AccessImpact impact) {
     }
 
+    public record SharedInboxMemberCandidate(
+            Long userId,
+            String displayName,
+            String department,
+            String email) {
+    }
+
     public record AccessImpact(int activeAssignments, int openDrafts,
                                int pendingCommands, boolean providerRevocationRequired) {
     }
@@ -435,9 +464,27 @@ public final class MailWorkspaceDtos {
     }
 
     public record SharedInboxMemberRevokeRequest(
+            @NotNull UUID previewId,
+            @NotBlank @Size(min = 64, max = 64) String fingerprint,
             boolean impactAcknowledged,
             @NotNull UUID idempotencyKey,
             @NotNull @Min(0) Long version) {
+    }
+
+    public record SharedInboxMemberRevokePreviewRequest(
+            @NotNull @Min(0) Long memberVersion) {
+    }
+
+    public record SharedInboxMemberRevokePreview(
+            UUID previewId,
+            String fingerprint,
+            int activeAssignments,
+            int openDrafts,
+            int pendingCommands,
+            boolean providerRevocationRequired,
+            long memberVersion,
+            OffsetDateTime generatedAt,
+            OffsetDateTime expiresAt) {
     }
 
     public record PolicyEvidenceRow(
@@ -448,7 +495,27 @@ public final class MailWorkspaceDtos {
             String scope,
             String evidenceSource,
             OffsetDateTime evidenceAt,
-            String errorCode) {
+            String errorCode,
+            String domain,
+            String contentKind,
+            String inheritanceState,
+            Boolean locked,
+            String lockSource,
+            Integer exceptionCount,
+            String exceptionState,
+            List<String> targetApps,
+            List<String> dataScopes,
+            String externalTransferState,
+            String reviewRequirement) {
+        public PolicyEvidenceRow(
+                String policyKey, String configuredValue, String effectiveValue,
+                String effectiveState, String scope, String evidenceSource,
+                OffsetDateTime evidenceAt, String errorCode) {
+            this(policyKey, configuredValue, effectiveValue, effectiveState, scope,
+                    evidenceSource, evidenceAt, errorCode, "GENERAL", "POLICY",
+                    "TENANT_DIRECT", false, null, null, "UNAVAILABLE",
+                    List.of(), List.of(), "UNAVAILABLE", "UNAVAILABLE");
+        }
     }
 
     public record PolicyHistory(
@@ -458,14 +525,57 @@ public final class MailWorkspaceDtos {
             OffsetDateTime changedAt,
             String diffSummary,
             String result,
-            String correlationId) {
+            String correlationId,
+            String requestedBy,
+            String approvedBy,
+            OffsetDateTime appliedAt,
+            String failureCode,
+            String recoveryState,
+            String recoveryRef) {
+        public PolicyHistory(
+                UUID historyId, long version, String changedBy,
+                OffsetDateTime changedAt, String diffSummary,
+                String result, String correlationId) {
+            this(historyId, version, changedBy, changedAt, diffSummary, result,
+                    correlationId, changedBy, null,
+                    "APPLIED".equals(result) ? changedAt : null,
+                    "APPLIED".equals(result) ? null : result,
+                    "UNAVAILABLE", null);
+        }
+    }
+
+    public record PolicyApprovalEvidence(
+            UUID evidenceId,
+            long policyVersion,
+            String state,
+            String requestedBy,
+            String approvedBy,
+            OffsetDateTime decidedAt,
+            String evidenceSource) {
+    }
+
+    public record PolicyRecoveryEvidence(
+            UUID historyId,
+            long policyVersion,
+            String state,
+            String failureCode,
+            String recoveryRef,
+            OffsetDateTime observedAt) {
     }
 
     public record PolicyGovernance(
             OffsetDateTime generatedAt,
             long policyVersion,
             List<PolicyEvidenceRow> rows,
-            List<PolicyHistory> history) {
+            List<PolicyHistory> history,
+            Map<String, List<PolicyEvidenceRow>> domains,
+            List<PolicyApprovalEvidence> approvalEvidence,
+            List<PolicyRecoveryEvidence> recoveryHistory) {
+        public PolicyGovernance(
+                OffsetDateTime generatedAt, long policyVersion,
+                List<PolicyEvidenceRow> rows, List<PolicyHistory> history) {
+            this(generatedAt, policyVersion, rows, history, Map.of(), List.of(), List.of());
+        }
     }
 
     public record ResourceRetentionPolicy(
@@ -497,9 +607,74 @@ public final class MailWorkspaceDtos {
             @Min(0) Long version) {
     }
 
-    public record LegalHoldReleaseRequest(
+    public record LegalHoldReleasePreviewRequest(
             @NotNull UUID idempotencyKey,
-            @NotNull @Min(0) Long version) {
+            @NotNull @Min(0) Long holdVersion,
+            @NotNull @Min(0) Long policyVersion) {
+    }
+
+    public record LegalHoldReleaseImpact(
+            Map<String, Long> affectedResourceCounts,
+            Map<String, Long> currentlyHeldResourceCounts,
+            Map<String, Long> purgeSafeAfterReleaseResourceCounts,
+            Map<String, Long> stillProtectedAfterReleaseResourceCounts,
+            Map<String, Long> providerCapabilityRequiredResourceCounts) {
+    }
+
+    public record LegalHoldReleaseApproval(
+            UUID approvalId,
+            UUID releasePreviewId,
+            long approverUserId,
+            String decision,
+            long holdVersion,
+            long policyVersion,
+            OffsetDateTime decidedAt) {
+    }
+
+    public record LegalHoldReleasePreview(
+            UUID releasePreviewId,
+            UUID holdId,
+            long requesterUserId,
+            long holdVersion,
+            long policyVersion,
+            Map<String, Object> holdScope,
+            OffsetDateTime retentionBoundary,
+            String fingerprint,
+            LegalHoldReleaseImpact impact,
+            String state,
+            int distinctApproverCount,
+            List<LegalHoldReleaseApproval> approvals,
+            OffsetDateTime generatedAt,
+            OffsetDateTime expiresAt) {
+    }
+
+    public record LegalHoldReleaseApprovalRequest(
+            @NotBlank String decision,
+            @NotNull UUID idempotencyKey,
+            @NotBlank @Size(min = 64, max = 64) String fingerprint,
+            @NotNull @Min(0) Long holdVersion,
+            @NotNull @Min(0) Long policyVersion) {
+    }
+
+    public record LegalHoldReleaseExecuteRequest(
+            @NotNull UUID idempotencyKey,
+            @NotBlank @Size(min = 64, max = 64) String fingerprint,
+            @NotNull @Min(0) Long holdVersion,
+            @NotNull @Min(0) Long policyVersion) {
+    }
+
+    public record LegalHoldReleaseExecution(
+            UUID executionId,
+            UUID releasePreviewId,
+            UUID holdId,
+            long requesterUserId,
+            long approvedByUserId,
+            long executedByUserId,
+            long policyVersion,
+            String fingerprint,
+            LegalHold hold,
+            OffsetDateTime executedAt,
+            boolean replayed) {
     }
 
     public record PurgeJob(
@@ -540,7 +715,14 @@ public final class MailWorkspaceDtos {
             List<String> partialSources,
             OffsetDateTime generatedAt,
             OffsetDateTime expiresAt,
-            long policyVersion) {
+            long policyVersion,
+            int distinctApproverCount,
+            Map<String, Long> resourceCounts,
+            List<String> resourceTypes,
+            Map<String, Object> scope,
+            OffsetDateTime before,
+            Map<String, Long> heldResourceCounts,
+            Map<String, Long> exclusionReasonCounts) {
     }
 
     public record PurgeApprovalRequest(
@@ -611,15 +793,55 @@ public final class MailWorkspaceDtos {
             @NotNull UUID idempotencyKey) {
     }
 
+    public record EvidenceExportApprovalRequest(
+            @NotBlank String decision,
+            @NotNull UUID idempotencyKey) {
+    }
+
+    public record EvidenceExportApproval(
+            UUID approvalId,
+            long approverUserId,
+            String decision,
+            OffsetDateTime decidedAt) {
+    }
+
     public record DeliveryExport(
             UUID exportId,
             String state,
+            Map<String, Object> filters,
             OffsetDateTime expiresAt,
             String watermark,
             Integer itemCount,
             Boolean truncated,
             String payloadSha256,
             OffsetDateTime snapshotCutoff,
-            String downloadUrl) {
+            String downloadUrl,
+            String approvalState,
+            int requiredApprovals,
+            int distinctApproverCount,
+            List<EvidenceExportApproval> approvals) {
+    }
+
+    public record RetentionEvidenceExportRequest(
+            @NotNull Map<String, Object> scope,
+            @NotBlank @Size(max = 500) String purpose,
+            @NotNull @Min(0) Long policyVersion,
+            @NotNull UUID idempotencyKey) {
+    }
+
+    public record RetentionEvidenceExport(
+            UUID exportId,
+            String state,
+            Map<String, Object> scope,
+            long policyVersion,
+            OffsetDateTime expiresAt,
+            String watermark,
+            String payloadSha256,
+            OffsetDateTime snapshotCutoff,
+            String downloadUrl,
+            String approvalState,
+            int requiredApprovals,
+            int distinctApproverCount,
+            List<EvidenceExportApproval> approvals) {
     }
 }

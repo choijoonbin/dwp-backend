@@ -1,6 +1,7 @@
 package com.dwp.services.platform.calendar;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -25,6 +26,7 @@ public class AdminCalendarController {
     }
 
     @GetMapping("/overview")
+    @Operation(operationId = "getAdminCalendarOverview")
     public ApiResponse<CalendarDtos.AdminOverview> overview(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader(value = "Accept-Language", required = false) String locale) {
@@ -38,6 +40,7 @@ public class AdminCalendarController {
     }
 
     @PutMapping("/policy")
+    @Operation(operationId = "updateAdminCalendarPolicy")
     public ApiResponse<CalendarDtos.Policy> updatePolicy(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,

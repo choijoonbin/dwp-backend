@@ -11,6 +11,20 @@ from scripts import devctl
 
 
 class AgentLocalEnvironmentTest(unittest.TestCase):
+    def test_local_home_runtime_enables_all_three_product_modes(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            platform = devctl.service_environment("platform")
+            frontend = devctl.service_environment("frontend")
+
+        self.assertEqual(platform["DWP_HOME_MODE_V4_ACTIVATION_ENABLED"], "true")
+        self.assertEqual(platform["DWP_HOME_FLOW_ENABLED"], "true")
+        self.assertEqual(platform["DWP_HOME_MZ_ENABLED"], "true")
+        self.assertEqual(platform["DWP_HOME_PERSONALIZATION_V2_ENABLED"], "true")
+        self.assertEqual(platform["DWP_HOME_VIEWS_DUAL_WRITE_ENABLED"], "true")
+        self.assertEqual(platform["DWP_HOME_VIEWS_SHADOW_COMPARE_ENABLED"], "true")
+        self.assertEqual(platform["DWP_HOME_VIEWS_READ_ENABLED"], "true")
+        self.assertEqual(frontend["VITE_HOME_PERSONALIZATION_V2_ENABLED"], "true")
+
     def test_spring_services_wait_for_readiness_instead_of_optional_dependency_health(
         self,
     ) -> None:

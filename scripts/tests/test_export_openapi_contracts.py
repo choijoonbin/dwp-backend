@@ -446,7 +446,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected"):
             EXPORTER["validate_approval_signature_operations"](unexpected)
 
-    def test_gateway_openapi_projection_consumes_append_only_v28_registry(self) -> None:
+    def test_gateway_openapi_projection_consumes_append_only_v31_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -455,16 +455,107 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 28)
-        self.assertEqual(registry["version"], 28)
-        self.assertEqual(len(dwaion_routes), 145)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 31)
+        self.assertEqual(registry["version"], 31)
+        self.assertEqual(len(dwaion_routes), 160)
         self.assertEqual(
-            sum(route["routeKind"] == "ACTION" for route in dwaion_routes), 85
+            sum(route["routeKind"] == "ACTION" for route in dwaion_routes), 93
         )
         approval_routes = [route for route in registry["routes"]
                            if route["subject"].get("productKey") == "approvals"]
-        self.assertEqual(len(approval_routes), 195)
-        self.assertEqual(sum(route["routeKind"] == "ACTION" for route in approval_routes), 101)
+        self.assertEqual(len(approval_routes), 218)
+        self.assertEqual(sum(route["routeKind"] == "ACTION" for route in approval_routes), 113)
+
+        previous = json.loads(
+            (ROOT / "contracts/product-authorization/product-surfaces-v1.bundle-v30.json")
+            .read_text(encoding="utf-8")
+        )
+        previous_keys = {route["routeContractKey"] for route in previous["routes"]}
+        added = [
+            (route, binding)
+            for route in approval_routes
+            if route["routeContractKey"] not in previous_keys
+            for binding in route["gatewayApiBindings"]
+        ]
+        self.assertEqual(len(added), 38)
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+        for route, binding in added:
+            resolved = EXPORTER["governed_operation"](
+                gateway, binding["path"], binding["method"].lower()
+            )
+            self.assertIsNotNone(resolved, binding)
+            _, operation = resolved
+            parameters = {
+                (parameter.get("in"), parameter.get("name"))
+                for parameter in operation.get("parameters", [])
+                if isinstance(parameter, dict)
+            }
+            self.assertIn(("query", "contextScopeKey"), parameters)
+            if route["routeKind"] == "ACTION":
+                self.assertIn(
+                    ("header", "X-DWP-Expected-Decision-Revision"), parameters
+                )
+
+    def test_gateway_projects_full_agent_contract_and_v31_governance(self) -> None:
+        registry = json.loads(
+            EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"].read_text(encoding="utf-8")
+        )
+        previous = json.loads(
+            (ROOT / "contracts/product-authorization/product-surfaces-v1.bundle-v28.json")
+            .read_text(encoding="utf-8")
+        )
+        agent = json.loads(
+            (ROOT / "contracts/openapi/agent-public.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+        expected_agent_operations = {
+            (method, f"/api/agent{path}")
+            for path, path_item in agent["paths"].items()
+            if path.startswith("/v1/")
+            for method in path_item
+            if method in EXPORTER["HTTP_METHODS"]
+        }
+        projected_agent_operations = {
+            (method, path)
+            for path, path_item in gateway["paths"].items()
+            if path.startswith("/api/agent/v1/")
+            for method in path_item
+            if method in EXPORTER["HTTP_METHODS"]
+        }
+        self.assertEqual(expected_agent_operations, projected_agent_operations)
+
+        previous_keys = {route["routeContractKey"] for route in previous["routes"]}
+        latest_agent_bindings = [
+            (route, binding)
+            for route in registry["routes"]
+            if route["routeContractKey"] not in previous_keys
+            for binding in route["gatewayApiBindings"]
+            if binding["path"].startswith("/api/agent/")
+        ]
+        self.assertEqual(len(latest_agent_bindings), 18)
+        for route, binding in latest_agent_bindings:
+            resolved = EXPORTER["governed_operation"](
+                gateway, binding["path"], binding["method"].lower()
+            )
+            self.assertIsNotNone(resolved)
+            _, operation = resolved
+            parameters = {
+                (parameter.get("in"), parameter.get("name"))
+                for parameter in operation.get("parameters", [])
+                if isinstance(parameter, dict)
+            }
+            self.assertIn(("query", "contextScopeKey"), parameters)
+            if route["routeKind"] == "ACTION" and not route.get(
+                "sideEffectFree", False
+            ):
+                self.assertIn(
+                    ("header", "X-DWP-Expected-Decision-Revision"),
+                    parameters,
+                )
 
     def test_gateway_exports_exact_ai_control_methods_and_action_revision_headers(self) -> None:
         gateway = json.loads(
@@ -568,20 +659,23 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             "/v1/admin/operations/analytics",
             "/v1/admin/operations/deployments",
         )
-        exposed = {
-            (method.upper(), path)
-            for path, path_item in owner["paths"].items()
-            if path.startswith(prefixes)
-            for method in path_item
-            if method in {"get", "post", "put", "patch", "delete"}
-        }
         registered = {
             (binding["method"], binding["path"])
             for route in appended
             for binding in route["servicePepBindings"]
         }
-        self.assertEqual(len(exposed), 89)
-        self.assertEqual(registered, exposed)
+        # This is a historical v15 release closure test. The same controller
+        # prefixes now also contain later runtime operations, so compare the
+        # immutable v15 binding set to the exact current owner operations it
+        # names instead of treating a shared prefix as a release boundary.
+        exposed_v15 = {
+            (method, path)
+            for method, path in registered
+            if path.startswith(prefixes)
+            and method.lower() in owner["paths"].get(path, {})
+        }
+        self.assertEqual(len(registered), 89)
+        self.assertEqual(registered, exposed_v15)
 
     def test_apr23_external_attestation_openapi_uses_signed_trusted_attestor_contract(self) -> None:
         approval = json.loads(
@@ -950,6 +1044,88 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         self.assertTrue(operations[(
             "/api/platform/v2/home/widget-actions:execute", "post"
         )])
+
+    def test_mail_release_and_readiness_contracts_are_current(self) -> None:
+        platform = json.loads(
+            (ROOT / "contracts/openapi/platform.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        old_path = "/v1/admin/mail/retention/holds/{holdId}/release"
+        self.assertNotIn(old_path, platform["paths"])
+        self.assertNotIn(f"/api/platform{old_path}", gateway["paths"])
+
+        operations = {
+            "/v1/admin/mail/retention/holds/{holdId}/release-previews": "post",
+            "/v1/admin/mail/retention/hold-release-previews/{previewId}": "get",
+            "/v1/admin/mail/retention/hold-release-previews/{previewId}/approvals": "post",
+            "/v1/admin/mail/retention/hold-release-previews/{previewId}/execute": "post",
+        }
+        for path, method in operations.items():
+            self.assertIn(method, platform["paths"][path])
+            self.assertIn(method, gateway["paths"][f"/api/platform{path}"])
+
+        stable_mail_operation_ids = {
+            "/v1/admin/mail/writing-assets/{kind}/drafts":
+                ("post", "createAdminMailWritingAssetDraft"),
+            "/v1/admin/mail/writing-assets/{kind}/drafts/{assetId}":
+                ("put", "updateAdminMailWritingAssetDraft"),
+            "/v1/admin/mail/writing-assets/{kind}/{assetId}/submit":
+                ("post", "submitAdminMailWritingAsset"),
+            "/v1/admin/mail/writing-assets/{kind}/{assetId}/approve":
+                ("post", "approveAdminMailWritingAsset"),
+            "/v1/admin/mail/writing-assets/{kind}/{assetId}/publish":
+                ("post", "publishAdminMailWritingAsset"),
+            "/v1/admin/mail/writing-assets/{kind}/{assetId}/retire":
+                ("post", "retireAdminMailWritingAsset"),
+            "/v1/mail/deliveries/{deliveryId}/cancel":
+                ("post", "cancelMailDelivery"),
+            "/v1/mail/deliveries/{deliveryId}/reconcile":
+                ("post", "reconcileMailDelivery"),
+            "/v1/admin/mail/operations": ("get", "listAdminMailOperations"),
+            "/v1/admin/mail/overview": ("get", "getAdminMailOverview"),
+            "/v1/mail/threads/{threadId}/lifecycle/preview":
+                ("post", "previewMailThreadLifecycle"),
+            "/v1/mail/threads/{threadId}/draft": ("put", "updateMailDraft"),
+            "/v1/admin/mail/policy": ("put", "updateAdminMailPolicy"),
+        }
+        for path, (method, operation_id) in stable_mail_operation_ids.items():
+            self.assertEqual(
+                operation_id,
+                platform["paths"][path][method]["operationId"],
+            )
+
+        gateway_operation_ids = [
+            operation["operationId"]
+            for path_item in gateway["paths"].values()
+            for method, operation in path_item.items()
+            if method in EXPORTER["HTTP_METHODS"]
+            and isinstance(operation, dict)
+            and "operationId" in operation
+        ]
+        self.assertEqual(len(gateway_operation_ids), len(set(gateway_operation_ids)))
+
+        schemas = platform["components"]["schemas"]
+        self.assertEqual(
+            set(schemas["AccountReadiness"]["properties"]),
+            {
+                "state", "source", "observedAt", "credentialConfigured",
+                "lastSuccessfulSyncAt", "lastSuccessfulSyncScope", "errorCode",
+                "action", "consentEvidence", "tokenEvidence", "featureReadiness",
+            },
+        )
+        self.assertEqual(
+            set(schemas["FeatureReadiness"]["properties"]),
+            {
+                "state", "source", "observedAt", "errorCode",
+                "lastSuccessfulAt", "lastSuccessfulScope", "action",
+            },
+        )
+        self.assertIn("accountId", schemas["GroupMessageRequest"]["properties"])
+        self.assertIn("accountId", schemas["GroupSendReceipt"]["properties"])
 
 
 if __name__ == "__main__":

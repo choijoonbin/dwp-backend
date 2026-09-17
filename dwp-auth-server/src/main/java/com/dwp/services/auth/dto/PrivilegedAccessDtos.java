@@ -6,6 +6,7 @@ import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.PositiveOrZero;
 import jakarta.validation.constraints.Size;
 
 import java.time.Instant;
@@ -140,7 +141,21 @@ public final class PrivilegedAccessDtos {
             String justification,
             Instant reviewDueAt,
             String lifecycleState,
+            String verificationStatus,
+            String verificationMethod,
+            String verificationReference,
+            Instant lastVerifiedAt,
+            Long lastVerifiedBy,
+            Instant verificationDueAt,
             long version) {
+    }
+
+    public record VerifyEmergencyPrincipalRequest(
+            @NotNull @PositiveOrZero Long version,
+            @NotBlank @Pattern(regexp = "OPERATOR_ATTESTED|RECOVERY_DRILL_COMPLETED")
+                    String method,
+            @NotBlank @Size(min = 10, max = 500) String evidenceReference,
+            @NotNull @Future Instant nextVerificationDueAt) {
     }
 
     public record CreateDelegatedScopeRequest(

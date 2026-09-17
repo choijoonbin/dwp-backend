@@ -48,7 +48,8 @@ final class MailAddressBookCommandFingerprint {
                 value(request.subject()),
                 value(request.body()),
                 request.classification().name(),
-                request.recipientMode().name()));
+                request.recipientMode().name(),
+                string(request.accountId())));
     }
 
     private String digest(List<String> values) {

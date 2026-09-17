@@ -3,6 +3,7 @@ package com.dwp.services.platform.workplace;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -35,6 +36,7 @@ public class WorkplaceFacilityClosureImpactAdminController {
     }
 
     @PostMapping("/resources/{resourceId}/closure-impact-previews")
+    @Operation(operationId = "previewWorkplaceFacilityClosureImpact")
     public ApiResponse<ImpactPreview> preview(
             @RequestHeader("X-DWP-Tenant-ID") Long tenant,
             @RequestHeader("X-DWP-User-ID") Long actor,
@@ -109,6 +111,7 @@ public class WorkplaceFacilityClosureImpactAdminController {
     }
 
     @PostMapping("/closure-commands/{commandId}/notifications/reconcile")
+    @Operation(operationId = "reconcileWorkplaceClosureNotification")
     public ApiResponse<ClosureCommand> reconcile(
             @RequestHeader("X-DWP-Tenant-ID") Long tenant,
             @RequestHeader("X-DWP-User-ID") Long actor,

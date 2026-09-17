@@ -128,15 +128,26 @@ public class MailLifecycleService {
             if (!List.of("ARCHIVE", "TRASH", "SPAM").contains(before.folderType())) {
                 throw new BaseException(ErrorCode.INVALID_STATE, "This mail is not restorable.");
             }
+            MailLifecycleRepository.FolderTarget restoreTarget = null;
             if (before.previousFolderId() != null) {
                 var previous = lifecycle.target(
                         tenantId, userId, before.accountId(), before.previousFolderId());
                 if (previous.isPresent()
                         && List.of("INBOX", "SENT", "CUSTOM").contains(previous.get().folderType())) {
-                    return previous.get();
+                    restoreTarget = previous.get();
                 }
             }
-            folderType = "INBOX";
+            if (restoreTarget == null) {
+                restoreTarget = lifecycle.systemTarget(
+                        tenantId, userId, before.accountId(), "INBOX")
+                        .orElseThrow(() -> new BaseException(
+                                ErrorCode.INVALID_STATE,
+                                "The required system folder is unavailable."));
+            }
+            if (targetFolderId != null && !targetFolderId.equals(restoreTarget.folderId())) {
+                conflict();
+            }
+            return restoreTarget;
         }
         return lifecycle.systemTarget(tenantId, userId, before.accountId(), folderType)
                 .orElseThrow(() -> new BaseException(

@@ -101,7 +101,7 @@ class MailProductSurfacePepEvidenceTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(composeBody()),
                 MailProductSurfaceContract.MESSAGE_CREATE_ACTION_ROUTE,
-                "APP.MAIL:VIEW,APP.MAIL:CREATE",
+                "APP.MAIL:VIEW,APP.MAIL:CREATE,APP.MAIL:SEND",
                 scope(TENANT_ID, ACTOR_ID, "SELF"));
         request.header(MailProductSurfacePepFilter.EXPECTED_REVISION_HEADER,
                 "psr-" + "f".repeat(64));
@@ -187,6 +187,56 @@ class MailProductSurfacePepEvidenceTest {
     }
 
     @Test
+    void proposalHandoffCancellationUsesTheExactDecisionCapabilityAndRevisionFence()
+            throws Exception {
+        String proposalId = "11111111-1111-4111-8111-111111111111";
+        MailProductSurfaceContract.Binding binding = contract.resolveOwner(
+                        "POST",
+                        "/v1/mail/proposals/" + proposalId + "/handoff/cancel")
+                .orElseThrow();
+
+        assertThat(binding.routeContractKey())
+                .isEqualTo("route.mail.work.proposal-handoff-cancel.action");
+        assertThat(binding.accessContractKey()).isEqualTo("mail.work.proposal.decide");
+        assertThat(binding.resolvedAuthority()).isEqualTo("APP.MAIL:DECIDE");
+        assertThat(binding.routeKind())
+                .isEqualTo(MailProductSurfaceContract.RouteKind.ACTION);
+
+        MockHttpServletRequestBuilder request = exact(
+                post("/v1/mail/proposals/" + proposalId + "/handoff/cancel")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {
+                                  "commandId": "22222222-2222-4222-8222-222222222222",
+                                  "version": 3
+                                }
+                                """),
+                binding.routeContractKey(),
+                "APP.MAIL:DECIDE",
+                scope(TENANT_ID, ACTOR_ID, "SELF"));
+        request.header(
+                MailProductSurfacePepFilter.EXPECTED_REVISION_HEADER,
+                "psr-" + "f".repeat(64));
+
+        mvc.perform(request).andExpect(status().isConflict());
+    }
+
+    @Test
+    void unregisteredCanonicalMailMutationFailsClosedBeforeControllerDispatch()
+            throws Exception {
+        mvc.perform(exact(
+                        post("/v1/mail/future-command"),
+                        "route.mail.work.future-command.action",
+                        "APP.MAIL:UPDATE",
+                        scope(TENANT_ID, ACTOR_ID, "SELF"))
+                        .header(MailProductSurfacePepFilter.EXPECTED_REVISION_HEADER,
+                                CURRENT_REVISION))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(service, drafts);
+    }
+
+    @Test
     void pageDataAndActionExecuteThroughPlatformSecurityAndMailOwnerPep() throws Exception {
         mvc.perform(exactPage(scope(TENANT_ID, ACTOR_ID, "SELF")))
                 .andExpect(status().isOk())
@@ -206,7 +256,7 @@ class MailProductSurfacePepEvidenceTest {
                                 .contentType(MediaType.APPLICATION_JSON)
                                 .content(composeBody()),
                         MailProductSurfaceContract.MESSAGE_CREATE_ACTION_ROUTE,
-                        "APP.MAIL:VIEW,APP.MAIL:CREATE",
+                        "APP.MAIL:VIEW,APP.MAIL:CREATE,APP.MAIL:SEND",
                         scope(TENANT_ID, ACTOR_ID, "SELF"))
                         .header(MailProductSurfacePepFilter.EXPECTED_REVISION_HEADER,
                                 CURRENT_REVISION))
@@ -216,15 +266,15 @@ class MailProductSurfacePepEvidenceTest {
         verify(service).threadsAdvanced(
                 anyLong(), anyLong(), any(), any(), any(), any(),
                 anyBoolean(), any(), any(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), anyInt(), anyInt());
+                any(), any(), any(), any(), any(), any(), anyInt(), anyInt());
         verify(service).compose(anyLong(), anyLong(), any(), any());
     }
 
     @Test
-    void v4DraftContractExposesExactMailConsumerMetadata() throws Exception {
-        JsonNode bundle = v4DraftArtifact();
+    void latestContractExposesEveryExactMailOwnerBinding() throws Exception {
+        JsonNode bundle = contractArtifact(30);
         assertThat(bundle.path("bundleKey").asText()).isEqualTo("product-surfaces");
-        assertThat(bundle.path("version").asInt()).isEqualTo(4);
+        assertThat(bundle.path("version").asInt()).isEqualTo(30);
         assertThat(bundle.path("bundleStatus").asText()).isEqualTo("DRAFT");
         assertThat(bundle.path("checksum").asText()).matches("[a-f0-9]{64}");
 
@@ -257,7 +307,7 @@ class MailProductSurfacePepEvidenceTest {
                 .isEqualTo("APP.MAIL:CREATE");
         assertThat(capability.path("routeContractKeys"))
                 .extracting(JsonNode::asText)
-                .containsExactly(MailProductSurfaceContract.MESSAGE_CREATE_ACTION_ROUTE);
+                .contains(MailProductSurfaceContract.MESSAGE_CREATE_ACTION_ROUTE);
 
         JsonNode predicate = exactNode(
                 bundle.path("predicatePolicies"),
@@ -268,6 +318,48 @@ class MailProductSurfacePepEvidenceTest {
         assertThat(predicate.path("targetBindingKinds"))
                 .extracting(JsonNode::asText)
                 .containsExactly("SELF");
+
+        JsonNode managementPredicate = exactNode(
+                bundle.path("predicatePolicies"), "predicatePolicyKey",
+                "predicate.mail-management-scope.v1");
+        assertThat(managementPredicate.path("targetBindingKinds"))
+                .extracting(JsonNode::asText)
+                .containsExactly("CONFIG_SCOPE");
+
+        bundle.path("capabilities").forEach(item -> {
+            if ("mail.management".equals(item.path("surfaceKey").asText())) {
+                assertThat(item.path("requiresProductEntitlement").asBoolean()).isFalse();
+            }
+        });
+    }
+
+    @Test
+    void dynamicBindingsMatchOneCanonicalSegmentAndRejectAmbiguousPaths() {
+        String threadId = "11111111-1111-1111-1111-111111111111";
+        assertThat(contract.resolveOwner("PUT", "/v1/mail/drafts/" + threadId))
+                .get().extracting(MailProductSurfaceContract.Binding::routeContractKey)
+                .isEqualTo("route.mail.work.draft-update.action");
+        assertThat(contract.resolveOwner(
+                "PUT", "/v1/mail/threads/" + threadId + "/draft"))
+                .get().extracting(MailProductSurfaceContract.Binding::routeContractKey)
+                .isEqualTo("route.mail.work.thread-draft-update.action");
+        assertThat(contract.resolveOwner(
+                "PUT", "/v1/admin/mail/retention/holds/" + threadId))
+                .get().extracting(MailProductSurfaceContract.Binding::routeContractKey)
+                .isEqualTo("route.admin.mail.retention.hold-update.action");
+        assertThat(contract.resolveOwner("POST",
+                "/v1/admin/mail/retention/holds/" + threadId + "/release-previews"))
+                .get().extracting(MailProductSurfaceContract.Binding::routeContractKey)
+                .isEqualTo("route.admin.mail.retention.hold-release-preview-create.action");
+
+        assertThat(contract.resolveOwner("GET", "/v1/mail/drafts/" + threadId)).isEmpty();
+        assertThat(contract.resolveOwner("PUT", "/v1/mail/drafts/" + threadId + "/extra")).isEmpty();
+        assertThat(contract.resolveOwner("PUT", "/v1/mail/drafts/" + threadId + "/")).isEmpty();
+        assertThat(contract.resolveOwner("PUT", "/v1/mail/drafts/%2e%2e")).isEmpty();
+        assertThat(contract.resolveOwner("PUT", "/v1/mail/drafts/a%2Fb")).isEmpty();
+        assertThat(contract.resolveOwner("PUT", "/v1/mail/drafts/..")).isEmpty();
+        assertThat(contract.requiresOwnerEnforcement(
+                "PUT", "/v1/mail/drafts/" + threadId + "/")).isTrue();
     }
 
     private void assertRoute(
@@ -291,12 +383,18 @@ class MailProductSurfacePepEvidenceTest {
 
         JsonNode profile = route.path("accessProfiles").get(0);
         assertThat(profile.path("readOnly").asBoolean()).isEqualTo(binding.readOnly());
-        assertThat(profile.path("activeAccessModes"))
-                .extracting(JsonNode::asText)
-                .containsExactlyInAnyOrder("NORMAL", "ELEVATED");
-        assertThat(profile.path("targetBindingKinds"))
-                .extracting(JsonNode::asText)
-                .containsExactly("SELF");
+        if (MailProductSurfaceContract.MANAGEMENT_SURFACE_KEY.equals(binding.surfaceKey())) {
+            assertThat(profile.path("activeAccessModes"))
+                    .extracting(JsonNode::asText).containsExactly("ELEVATED");
+            assertThat(profile.path("targetBindingKinds"))
+                    .extracting(JsonNode::asText).containsExactly("CONFIG_SCOPE");
+        } else {
+            assertThat(profile.path("activeAccessModes"))
+                    .extracting(JsonNode::asText)
+                    .containsExactlyInAnyOrder("NORMAL", "ELEVATED");
+            assertThat(profile.path("targetBindingKinds"))
+                    .extracting(JsonNode::asText).containsExactly("SELF");
+        }
         JsonNode requiredAccess = profile.path("requiredAccess");
         assertThat(requiredAccess.path("type").asText())
                 .isEqualTo(binding.accessContractType().name());
@@ -312,9 +410,7 @@ class MailProductSurfacePepEvidenceTest {
         bundle.path("routes").forEach(route -> {
             JsonNode subject = route.path("subject");
             if (MailProductSurfaceContract.PRODUCT_ID.equals(
-                    subject.path("productKey").asText())
-                    && MailProductSurfaceContract.SURFACE_KEY.equals(
-                    subject.path("surfaceKey").asText())) {
+                    subject.path("productKey").asText())) {
                 routes.put(route.path("routeContractKey").asText(), route);
             }
         });
@@ -333,9 +429,9 @@ class MailProductSurfacePepEvidenceTest {
         return match;
     }
 
-    private JsonNode v4DraftArtifact() throws IOException {
+    private JsonNode contractArtifact(int version) throws IOException {
         return objectMapper.readTree(Files.readString(contractArtifact(
-                "contracts/product-authorization/product-surfaces-v1.bundle-v4.json")));
+                "contracts/product-authorization/product-surfaces-v1.bundle-v" + version + ".json")));
     }
 
     private Path contractArtifact(String relativePath) {
@@ -397,6 +493,8 @@ class MailProductSurfacePepEvidenceTest {
                   "subject": "PEP protected mail",
                   "body": "Owner-service evidence",
                   "deliveryMode": "SEND",
+                  "classification": "INTERNAL",
+                  "externalRecipientConfirmed": true,
                   "idempotencyKey": "22222222-2222-2222-2222-222222222222"
                 }
                 """;

@@ -24,6 +24,50 @@
         },
         "type": "object"
       },
+      "AddFieldRequest": {
+        "properties": {
+          "compatibilityMode": {
+            "minLength": 1,
+            "pattern": "STRICT|BACKWARD_COMPATIBLE|BREAKING",
+            "type": "string"
+          },
+          "expectedWorkspaceVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "field": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "index": {
+            "format": "int32",
+            "maximum": 300,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "pageKey": {
+            "minLength": 1,
+            "pattern": "[a-z][A-Za-z0-9_]{1,79}",
+            "type": "string"
+          },
+          "sectionKey": {
+            "minLength": 1,
+            "pattern": "[a-z][A-Za-z0-9_]{1,79}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "compatibilityMode",
+          "expectedWorkspaceVersion",
+          "field",
+          "index",
+          "pageKey",
+          "sectionKey"
+        ],
+        "type": "object"
+      },
       "AdminPulse": {
         "properties": {
           "activeRequests": {
@@ -1300,6 +1344,33 @@
         },
         "type": "object"
       },
+      "ApiResponseCanaryView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CanaryView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseCatalogPage": {
         "properties": {
           "correlationId": {
@@ -1415,6 +1486,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/Dashboard"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseDelegationKillSwitchView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DelegationKillSwitchView"
           },
           "errorCode": {
             "type": "string"
@@ -1651,6 +1749,33 @@
         },
         "type": "object"
       },
+      "ApiResponseDryRunResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DryRunResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseEvaluation": {
         "properties": {
           "correlationId": {
@@ -1739,6 +1864,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/FormDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseFreezeState": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FreezeState"
           },
           "errorCode": {
             "type": "string"
@@ -1867,6 +2019,33 @@
         },
         "type": "object"
       },
+      "ApiResponseIncidentReport": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/IncidentReport"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseIncidentView": {
         "properties": {
           "correlationId": {
@@ -1901,6 +2080,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/Installation"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseLedgerView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LedgerView"
           },
           "errorCode": {
             "type": "string"
@@ -1989,6 +2195,66 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/ConnectorView"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListDeadLetterView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/DeadLetterView"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListDelegationAuditEvent": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/DelegationAuditEvent"
             },
             "type": "array"
           },
@@ -2199,6 +2465,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/GroupView"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListIncidentReport": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/IncidentReport"
             },
             "type": "array"
           },
@@ -2491,6 +2787,36 @@
         },
         "type": "object"
       },
+      "ApiResponseListReviewReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ReviewReceipt"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListSavedView": {
         "properties": {
           "correlationId": {
@@ -2529,6 +2855,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/TaskSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListVerificationReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/VerificationReceipt"
             },
             "type": "array"
           },
@@ -2615,6 +2971,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/PackageDiff"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePackageImport": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PackageImport"
           },
           "errorCode": {
             "type": "string"
@@ -2750,6 +3133,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/PlanView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePolicyExport": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PolicyExport"
           },
           "errorCode": {
             "type": "string"
@@ -3013,6 +3423,33 @@
         },
         "type": "object"
       },
+      "ApiResponseRequestPreflight": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RequestPreflight"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseRequestSummary": {
         "properties": {
           "correlationId": {
@@ -3202,6 +3639,87 @@
         },
         "type": "object"
       },
+      "ApiResponseRetirement": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Retirement"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseReviewReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReviewReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseRevisionDiff": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RevisionDiff"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseRollbackFeasibility": {
         "properties": {
           "correlationId": {
@@ -3310,6 +3828,33 @@
         },
         "type": "object"
       },
+      "ApiResponseSimulationReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SimulationReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseTaskDetail": {
         "properties": {
           "correlationId": {
@@ -3344,6 +3889,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/Template"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTemplatePreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TemplatePreview"
           },
           "errorCode": {
             "type": "string"
@@ -3418,6 +3990,60 @@
         },
         "type": "object"
       },
+      "ApiResponseVerificationReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/VerificationReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseVersionDiff": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/VersionDiff"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseWorkflowDetail": {
         "properties": {
           "correlationId": {
@@ -3425,6 +4051,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/WorkflowDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseWorkflowDiff": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkflowDiff"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseWorkflowStudio": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/WorkflowStudio"
           },
           "errorCode": {
             "type": "string"
@@ -4049,6 +4729,23 @@
         ],
         "type": "object"
       },
+      "ApprovalAuditExportVerification": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedExportVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "verificationId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "verificationId"
+        ],
+        "type": "object"
+      },
       "ApprovalAuditExternalAttestation": {
         "additionalProperties": false,
         "properties": {
@@ -4385,6 +5082,78 @@
           "assetVersion",
           "contentSha256",
           "rollbackDisposition"
+        ],
+        "type": "object"
+      },
+      "ApprovalDeploymentCanaryControl": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedControlVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expectedPromotionVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "RUNNING",
+              "PAUSED"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason",
+          "state"
+        ],
+        "type": "object"
+      },
+      "ApprovalDeploymentCanaryTelemetry": {
+        "additionalProperties": false,
+        "properties": {
+          "canaryWeight": {
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/ApprovalDeploymentExternalEvidence"
+          },
+          "expectedPromotionVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "metrics": {
+            "additionalProperties": {},
+            "minProperties": 1,
+            "type": "object"
+          },
+          "stableWeight": {
+            "format": "int32",
+            "maximum": 100,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "telemetryId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidence",
+          "metrics",
+          "telemetryId"
         ],
         "type": "object"
       },
@@ -5863,9 +6632,6 @@
           },
           "reviewContentDigest": {
             "type": "string"
-          },
-          "reviewRequest": {
-            "$ref": "#/components/schemas/ApprovalFormPublishReviewRequest"
           },
           "schemaSha256": {
             "type": "string"
@@ -10796,6 +11562,57 @@
         },
         "type": "object"
       },
+      "CanaryControl": {
+        "properties": {
+          "changedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "changedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "promotionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "RUNNING",
+              "PAUSED"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CanaryView": {
+        "properties": {
+          "control": {
+            "$ref": "#/components/schemas/CanaryControl"
+          },
+          "latestTelemetry": {
+            "$ref": "#/components/schemas/TelemetryObservation"
+          },
+          "promotion": {
+            "$ref": "#/components/schemas/Promotion"
+          },
+          "telemetry": {
+            "items": {
+              "$ref": "#/components/schemas/TelemetryObservation"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "Candidate": {
         "properties": {
           "authorityRevision": {
@@ -10813,6 +11630,39 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "CanvasDryRun": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "expectedVersion"
+        ],
+        "type": "object"
+      },
+      "CanvasSave": {
+        "properties": {
+          "definition": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "definition",
+          "expectedVersion"
+        ],
         "type": "object"
       },
       "CatalogPage": {
@@ -11031,6 +11881,39 @@
           "nameKo",
           "ownerGroupRef",
           "templateKey"
+        ],
+        "type": "object"
+      },
+      "CloneFieldRequest": {
+        "properties": {
+          "compatibilityMode": {
+            "minLength": 1,
+            "pattern": "STRICT|BACKWARD_COMPATIBLE|BREAKING",
+            "type": "string"
+          },
+          "expectedWorkspaceVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "index": {
+            "format": "int32",
+            "maximum": 300,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "targetFieldKey": {
+            "minLength": 1,
+            "pattern": "[a-z][A-Za-z0-9_]{1,79}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "compatibilityMode",
+          "expectedWorkspaceVersion",
+          "index",
+          "targetFieldKey"
         ],
         "type": "object"
       },
@@ -11610,6 +12493,9 @@
       },
       "CreateRequest": {
         "properties": {
+          "dwaionProposalHandoff": {
+            "$ref": "#/components/schemas/DwaionProposalHandoffBinding"
+          },
           "formId": {
             "format": "uuid",
             "type": "string"
@@ -11768,6 +12654,62 @@
         },
         "type": "object"
       },
+      "DeadLetterView": {
+        "properties": {
+          "attemptCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "availableAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "canonicalReplayPath": {
+            "type": "string"
+          },
+          "errorSha256": {
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "lockedUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "manualRetryCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "outboxId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "recoveryAssignmentState": {
+            "type": "string"
+          },
+          "requestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "DecisionInsight": {
         "properties": {
           "detailEn": {
@@ -11819,6 +12761,55 @@
         ],
         "type": "object"
       },
+      "DelegationAuditEvent": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "actorUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "afterState": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "beforeState": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "commandSha256": {
+            "type": "string"
+          },
+          "delegationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "resultingVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "DelegationCandidate": {
         "properties": {
           "displayName": {
@@ -11835,6 +12826,134 @@
             "type": "string"
           },
           "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DelegationDraft": {
+        "properties": {
+          "delegateUserId": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "delegatedRoleCodes": {
+            "items": {
+              "pattern": "[A-Z][A-Z0-9_]{1,79}",
+              "type": "string"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "type": "array"
+          },
+          "delegationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "delegatorUserId": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "scopeType": {
+            "minLength": 1,
+            "pattern": "ALL|WORKFLOW",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "workflowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workflowKey": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "delegateUserId",
+          "delegatedRoleCodes",
+          "delegationId",
+          "delegatorUserId",
+          "endsAt",
+          "expectedVersion",
+          "reason",
+          "scopeType",
+          "startsAt"
+        ],
+        "type": "object"
+      },
+      "DelegationKillSwitchCommand": {
+        "properties": {
+          "expectedControlVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "killSwitchId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedControlVersion",
+          "killSwitchId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "DelegationKillSwitchView": {
+        "properties": {
+          "controlVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "invokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "invokedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "killSwitchId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "resourceSetKey": {
+            "type": "string"
+          },
+          "revokedDelegations": {
             "format": "int64",
             "type": "integer"
           }
@@ -11989,6 +13108,26 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "DelegationStateCommand": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "reason"
+        ],
         "type": "object"
       },
       "DelegationSummary": {
@@ -12179,6 +13318,26 @@
         },
         "type": "object"
       },
+      "DeleteFieldRequest": {
+        "properties": {
+          "compatibilityMode": {
+            "minLength": 1,
+            "pattern": "STRICT|BACKWARD_COMPATIBLE|BREAKING",
+            "type": "string"
+          },
+          "expectedWorkspaceVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "compatibilityMode",
+          "expectedWorkspaceVersion"
+        ],
+        "type": "object"
+      },
       "DeliveryBatchCommand": {
         "properties": {
           "items": {
@@ -12239,6 +13398,34 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "DependencyRequest": {
+        "properties": {
+          "key": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_.:-]{1,159}",
+            "type": "string"
+          },
+          "kind": {
+            "minLength": 1,
+            "pattern": "CATEGORY_KEY|WORKFLOW_KEY|DATA_SOURCE_PROVIDER|ROLE_CODE",
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "versionConstraint": {
+            "minLength": 1,
+            "pattern": "CURRENT|[1-9][0-9]{0,8}|>=[1-9][0-9]{0,8}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "kind",
+          "versionConstraint"
+        ],
         "type": "object"
       },
       "DeploymentDashboard": {
@@ -12500,6 +13687,80 @@
         },
         "type": "object"
       },
+      "DryRunResult": {
+        "properties": {
+          "definitionSha256": {
+            "type": "string"
+          },
+          "runtimeSimulationEndpoint": {
+            "type": "string"
+          },
+          "runtimeSimulationRequired": {
+            "type": "boolean"
+          },
+          "structurallyValid": {
+            "type": "boolean"
+          },
+          "topologicalStageKeys": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "workflowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workflowRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workflowSlaMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "workflowVersionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DwaionProposalHandoffBinding": {
+        "properties": {
+          "actionKey": {
+            "pattern": "APPROVAL\\.REQUEST\\.CREATE",
+            "type": "string"
+          },
+          "handoffId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "handoffVersion": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "proposalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int32",
+            "maximum": 1,
+            "minimum": 1,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "actionKey",
+          "handoffId",
+          "handoffVersion",
+          "proposalId",
+          "version"
+        ],
+        "type": "object"
+      },
       "EnvironmentHead": {
         "properties": {
           "activePackageId": {
@@ -12656,6 +13917,30 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "ExportCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "exportId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revisionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "exportId",
+          "revisionId"
+        ],
         "type": "object"
       },
       "ExportEntry": {
@@ -13043,6 +14328,60 @@
         },
         "type": "object"
       },
+      "FreezeCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 2000,
+            "minLength": 10,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
+        "type": "object"
+      },
+      "FreezeState": {
+        "properties": {
+          "active": {
+            "type": "boolean"
+          },
+          "changedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "changedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "GroupDraft": {
         "properties": {
           "description": {
@@ -13199,6 +14538,138 @@
         },
         "type": "object"
       },
+      "ImportPackageRequest": {
+        "properties": {
+          "categoryKey": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{1,99}",
+            "type": "string"
+          },
+          "changeSummaryEn": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "changeSummaryKo": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "defaultWorkflowKey": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{1,99}",
+            "type": "string"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/DependencyRequest"
+            },
+            "maxItems": 50,
+            "minItems": 0,
+            "type": "array"
+          },
+          "descriptionEn": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "descriptionKo": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "expectedTemplateVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "filterMetadata": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "locales": {
+            "items": {
+              "pattern": "ko|en",
+              "type": "string"
+            },
+            "maxItems": 8,
+            "minItems": 2,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "nameEn": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "nameKo": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "ownerGroupRef": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_.:-]{1,159}",
+            "type": "string"
+          },
+          "packageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "packageSha256": {
+            "minLength": 1,
+            "pattern": "[a-f0-9]{64}",
+            "type": "string"
+          },
+          "packageVersion": {
+            "minLength": 1,
+            "pattern": "[A-Za-z0-9][A-Za-z0-9._+-]{0,79}",
+            "type": "string"
+          },
+          "schema": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "tags": {
+            "items": {
+              "pattern": "[a-z0-9][a-z0-9-]{0,39}",
+              "type": "string"
+            },
+            "maxItems": 20,
+            "minItems": 0,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "templateKey": {
+            "minLength": 1,
+            "pattern": "[A-Z][A-Z0-9_]{1,99}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "categoryKey",
+          "changeSummaryEn",
+          "changeSummaryKo",
+          "defaultWorkflowKey",
+          "dependencies",
+          "descriptionEn",
+          "descriptionKo",
+          "expectedTemplateVersion",
+          "filterMetadata",
+          "locales",
+          "nameEn",
+          "nameKo",
+          "ownerGroupRef",
+          "packageId",
+          "packageSha256",
+          "packageVersion",
+          "schema",
+          "tags",
+          "templateKey"
+        ],
+        "type": "object"
+      },
       "IncidentDetail": {
         "properties": {
           "diagnostics": {
@@ -13224,6 +14695,44 @@
               "$ref": "#/components/schemas/TimelineEntry"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "IncidentReport": {
+        "properties": {
+          "format": {
+            "enum": [
+              "EVIDENCE_JSON"
+            ],
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "generatedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "incidentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "incidentVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "reportId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reportSha256": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -13485,6 +14994,65 @@
           },
           "targetId": {
             "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LedgerEntry": {
+        "properties": {
+          "actorUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entrySha256": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "journalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "payload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "previousSha256": {
+            "type": "string"
+          },
+          "sequence": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "LedgerView": {
+        "properties": {
+          "assuranceLevel": {
+            "type": "string"
+          },
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerEntry"
+            },
+            "type": "array"
+          },
+          "promotionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "rootSha256": {
+            "type": "string"
+          },
+          "verifiedAt": {
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -13865,6 +15433,27 @@
         },
         "type": "object"
       },
+      "PackageImport": {
+        "properties": {
+          "imported": {
+            "type": "boolean"
+          },
+          "packageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "packageSha256": {
+            "type": "string"
+          },
+          "packageVersion": {
+            "type": "string"
+          },
+          "template": {
+            "$ref": "#/components/schemas/Template"
+          }
+        },
+        "type": "object"
+      },
       "PackageRecord": {
         "properties": {
           "assets": {
@@ -14122,6 +15711,42 @@
               "$ref": "#/components/schemas/Reminder"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyExport": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "exportId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "manifest": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "manifestSha256": {
+            "type": "string"
+          },
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "revisionId": {
+            "format": "uuid",
+            "type": "string"
           }
         },
         "type": "object"
@@ -14916,6 +16541,62 @@
         },
         "type": "object"
       },
+      "ReorderFieldsRequest": {
+        "properties": {
+          "expectedWorkspaceVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "fieldKeys": {
+            "items": {
+              "pattern": "[a-z][A-Za-z0-9_]{1,79}",
+              "type": "string"
+            },
+            "maxItems": 80,
+            "minItems": 1,
+            "type": "array"
+          },
+          "pageKey": {
+            "minLength": 1,
+            "pattern": "[a-z][A-Za-z0-9_]{1,79}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedWorkspaceVersion",
+          "fieldKeys",
+          "pageKey"
+        ],
+        "type": "object"
+      },
+      "ReportCommand": {
+        "properties": {
+          "deadLetterIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "expectedIncidentVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "format": {
+            "enum": [
+              "EVIDENCE_JSON"
+            ],
+            "type": "string"
+          },
+          "reportId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Representative": {
         "properties": {
           "completedAt": {
@@ -15031,6 +16712,53 @@
           },
           "retention": {
             "$ref": "#/components/schemas/RetentionLinkage"
+          }
+        },
+        "type": "object"
+      },
+      "RequestPreflight": {
+        "properties": {
+          "checks": {
+            "items": {
+              "$ref": "#/components/schemas/RequestPreflightCheck"
+            },
+            "type": "array"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "ready": {
+            "type": "boolean"
+          },
+          "requestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "workflowContract": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RequestPreflightCheck": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "detail": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -15370,6 +17098,51 @@
         },
         "type": "object"
       },
+      "RetireWorkflow": {
+        "properties": {
+          "acknowledgedActiveReferences": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "acknowledgedActiveReferences",
+          "expectedVersion"
+        ],
+        "type": "object"
+      },
+      "Retirement": {
+        "properties": {
+          "activeReferences": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "retiredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "workflowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workflowRevision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "RetirementCommand": {
         "properties": {
           "acknowledgedImpact": {
@@ -15405,6 +17178,143 @@
               "RECOVERY_EVIDENCE_INCOMPLETE",
               "SEPARATION_OF_DUTIES"
             ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReviewCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "comment": {
+            "maxLength": 2000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "disposition": {
+            "enum": [
+              "APPROVED",
+              "CHANGES_REQUESTED",
+              "REJECTED"
+            ],
+            "type": "string"
+          },
+          "evidenceSha256": {
+            "minLength": 1,
+            "pattern": "[0-9a-f]{64}",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "reviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revisionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "comment",
+          "disposition",
+          "evidenceSha256",
+          "reviewId",
+          "revisionId"
+        ],
+        "type": "object"
+      },
+      "ReviewReceipt": {
+        "properties": {
+          "checkerPersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "checkerUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "comment": {
+            "type": "string"
+          },
+          "committedPolicyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "disposition": {
+            "enum": [
+              "APPROVED",
+              "CHANGES_REQUESTED",
+              "REJECTED"
+            ],
+            "type": "string"
+          },
+          "evidenceSha256": {
+            "type": "string"
+          },
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewedPolicyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "revisionId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RevisionDiff": {
+        "properties": {
+          "changedFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "fromDefinition": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "fromDefinitionSha256": {
+            "type": "string"
+          },
+          "fromRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "toDefinition": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "toDefinitionSha256": {
+            "type": "string"
+          },
+          "toRevisionId": {
+            "format": "uuid",
             "type": "string"
           }
         },
@@ -15617,6 +17527,87 @@
           },
           "evidenceSignatureBase64Url": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SimulationCommand": {
+        "additionalProperties": false,
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "revisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scenario": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "simulationId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "revisionId",
+          "scenario",
+          "simulationId"
+        ],
+        "type": "object"
+      },
+      "SimulationReceipt": {
+        "properties": {
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "definitionSha256": {
+            "type": "string"
+          },
+          "outcome": {
+            "enum": [
+              "PASS",
+              "WARNING",
+              "BLOCKED"
+            ],
+            "type": "string"
+          },
+          "policyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "result": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "revisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "simulationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -16054,6 +18045,62 @@
         },
         "type": "object"
       },
+      "TelemetryObservation": {
+        "properties": {
+          "canaryWeight": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "metrics": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "outcome": {
+            "enum": [
+              "HEALTHY",
+              "DEGRADED",
+              "UNKNOWN",
+              "FAILED"
+            ],
+            "type": "string"
+          },
+          "payloadSha256": {
+            "type": "string"
+          },
+          "promotionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "promotionVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "recordedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recordedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sourceGeneratedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "stableWeight": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "telemetryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "verificationReference": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Template": {
         "properties": {
           "categoryKey": {
@@ -16099,6 +18146,45 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TemplatePreview": {
+        "properties": {
+          "fieldCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pageCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "schema": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "schemaSha256": {
+            "type": "string"
+          },
+          "sectionCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "templateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "templateVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "versionNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "viewport": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -16359,6 +18445,31 @@
           "summary",
           "title",
           "workflowId"
+        ],
+        "type": "object"
+      },
+      "UpdateFieldPropertiesRequest": {
+        "properties": {
+          "compatibilityMode": {
+            "minLength": 1,
+            "pattern": "STRICT|BACKWARD_COMPATIBLE|BREAKING",
+            "type": "string"
+          },
+          "expectedWorkspaceVersion": {
+            "format": "int64",
+            "maximum": 9007199254740991,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "properties": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "compatibilityMode",
+          "expectedWorkspaceVersion",
+          "properties"
         ],
         "type": "object"
       },
@@ -16638,6 +18749,40 @@
         ],
         "type": "object"
       },
+      "VerificationReceipt": {
+        "properties": {
+          "exportId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "exportVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "manifestSha256": {
+            "type": "string"
+          },
+          "recomputedSha256": {
+            "type": "string"
+          },
+          "result": {
+            "type": "string"
+          },
+          "verificationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "verifiedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "verifiedBy": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "Version": {
         "properties": {
           "baseSchemaSha256": {
@@ -16674,6 +18819,50 @@
             "type": "string"
           },
           "versionNumber": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "VersionDiff": {
+        "properties": {
+          "addedFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "changes": {
+            "items": {
+              "$ref": "#/components/schemas/CompatibilityChange"
+            },
+            "type": "array"
+          },
+          "compatible": {
+            "type": "boolean"
+          },
+          "formId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "fromSchemaSha256": {
+            "type": "string"
+          },
+          "fromVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "removedFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "toSchemaSha256": {
+            "type": "string"
+          },
+          "toVersion": {
             "format": "int32",
             "type": "integer"
           }
@@ -16731,6 +18920,47 @@
           },
           "workflow": {
             "$ref": "#/components/schemas/WorkflowSummary"
+          }
+        },
+        "type": "object"
+      },
+      "WorkflowDiff": {
+        "properties": {
+          "addedStages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "changedStages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "fromSha256": {
+            "type": "string"
+          },
+          "fromVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "removedStages": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "toSha256": {
+            "type": "string"
+          },
+          "toVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "workflowId": {
+            "format": "uuid",
+            "type": "string"
           }
         },
         "type": "object"
@@ -16813,6 +19043,50 @@
         ],
         "type": "object"
       },
+      "WorkflowStudio": {
+        "properties": {
+          "current": {
+            "$ref": "#/components/schemas/WorkflowVersion"
+          },
+          "currentVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "publishEndpoint": {
+            "type": "string"
+          },
+          "runtimeSimulationEndpoint": {
+            "type": "string"
+          },
+          "slaMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workflowId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workflowKey": {
+            "type": "string"
+          },
+          "workflowRevision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "WorkflowSummary": {
         "properties": {
           "allowSelfApproval": {
@@ -16863,6 +19137,37 @@
             "type": "string"
           },
           "workflowKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "WorkflowVersion": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "definition": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "definitionSha256": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "versionNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "workflowVersionId": {
+            "format": "uuid",
             "type": "string"
           }
         },
@@ -18012,9 +20317,201 @@
         ]
       }
     },
+    "/v1/admin/forms/studio-v3/{formId}/fields": {
+      "post": {
+        "operationId": "addField",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AddFieldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Append a field through the immutable Form V3 editor",
+        "tags": [
+          "Approval Form Studio V3"
+        ]
+      }
+    },
+    "/v1/admin/forms/studio-v3/{formId}/fields/{fieldKey}": {
+      "delete": {
+        "operationId": "deleteField",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "fieldKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteFieldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Delete a field through the immutable Form V3 editor",
+        "tags": [
+          "Approval Form Studio V3"
+        ]
+      }
+    },
+    "/v1/admin/forms/studio-v3/{formId}/fields/{fieldKey}/clone": {
+      "post": {
+        "operationId": "cloneField",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "fieldKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CloneFieldRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Clone a field through the immutable Form V3 editor",
+        "tags": [
+          "Approval Form Studio V3"
+        ]
+      }
+    },
+    "/v1/admin/forms/studio-v3/{formId}/fields/{fieldKey}/properties": {
+      "put": {
+        "operationId": "updateFieldProperties",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "fieldKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFieldPropertiesRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Update governed field properties through the immutable Form V3 editor",
+        "tags": [
+          "Approval Form Studio V3"
+        ]
+      }
+    },
     "/v1/admin/forms/studio-v3/{formId}/review": {
       "post": {
-        "operationId": "review",
+        "operationId": "review_1",
         "parameters": [
           {
             "in": "path",
@@ -18039,6 +20536,56 @@
           }
         },
         "summary": "Review a draft without publishing or changing lifecycle state",
+        "tags": [
+          "Approval Form Studio V3"
+        ]
+      }
+    },
+    "/v1/admin/forms/studio-v3/{formId}/sections/{sectionKey}/field-order": {
+      "put": {
+        "operationId": "reorderFields",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "sectionKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReorderFieldsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Reorder every field in a Form V3 section",
         "tags": [
           "Approval Form Studio V3"
         ]
@@ -18081,6 +20628,56 @@
           }
         },
         "summary": "Read immutable Form V3 version history",
+        "tags": [
+          "Approval Form Studio V3"
+        ]
+      }
+    },
+    "/v1/admin/forms/studio-v3/{formId}/versions/diff": {
+      "get": {
+        "operationId": "diff_4",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "formId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fromVersion",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "toVersion",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVersionDiff"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Compare two immutable Form V3 versions",
         "tags": [
           "Approval Form Studio V3"
         ]
@@ -18240,6 +20837,60 @@
         ]
       }
     },
+    "/v1/admin/forms/templates/packages/import": {
+      "post": {
+        "description": "The package is immutable evidence and never publishes or activates the imported template.",
+        "operationId": "importPackage",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "maximum": 0,
+              "minimum": 0,
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ImportPackageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePackageImport"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Validate and import a signed-hash template package as a tenant draft",
+        "tags": [
+          "Approval form templates"
+        ]
+      }
+    },
     "/v1/admin/forms/templates/versions/{templateVersionId}/install": {
       "post": {
         "description": "This operation never publishes or activates a form.",
@@ -18298,6 +20949,47 @@
           }
         },
         "summary": "Install one immutable released template version as a Form V3 draft",
+        "tags": [
+          "Approval form templates"
+        ]
+      }
+    },
+    "/v1/admin/forms/templates/versions/{templateVersionId}/preview": {
+      "get": {
+        "operationId": "preview_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "templateVersionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "viewport",
+            "required": false,
+            "schema": {
+              "default": "DESKTOP",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTemplatePreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Preview one immutable template version for a governed viewport",
         "tags": [
           "Approval form templates"
         ]
@@ -18478,7 +21170,7 @@
     },
     "/v1/admin/forms/{formId}/diff": {
       "get": {
-        "operationId": "diff_1",
+        "operationId": "diff_3",
         "parameters": [
           {
             "in": "path",
@@ -18713,7 +21405,7 @@
     },
     "/v1/admin/forms/{formId}/publish-review": {
       "get": {
-        "operationId": "review_1",
+        "operationId": "review_2",
         "parameters": [
           {
             "in": "path",
@@ -19006,7 +21698,7 @@
     },
     "/v1/admin/forms/{formId}/retire": {
       "post": {
-        "operationId": "retire_1",
+        "operationId": "retire_2",
         "parameters": [
           {
             "in": "header",
@@ -19788,7 +22480,7 @@
     },
     "/v1/admin/operations/audit-records/exports/{exportId}": {
       "get": {
-        "operationId": "export",
+        "operationId": "export_1",
         "parameters": [
           {
             "in": "path",
@@ -19888,6 +22580,111 @@
           }
         },
         "summary": "Link exact externally verified export-integrity evidence",
+        "tags": [
+          "Approval audit records"
+        ]
+      }
+    },
+    "/v1/admin/operations/audit-records/exports/{exportId}/verifications": {
+      "get": {
+        "operationId": "verifications",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exportId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListVerificationReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "List durable digest-recomputation receipts for an audit export",
+        "tags": [
+          "Approval audit records"
+        ]
+      },
+      "post": {
+        "operationId": "verifyExport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exportId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalAuditExportVerification"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVerificationReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Independently recompute and seal an audit export digest",
         "tags": [
           "Approval audit records"
         ]
@@ -20097,7 +22894,7 @@
     },
     "/v1/admin/operations/connectors/{connectorId}/draft": {
       "put": {
-        "operationId": "save_1",
+        "operationId": "save_2",
         "parameters": [
           {
             "in": "path",
@@ -20803,7 +23600,7 @@
     },
     "/v1/admin/operations/deployments/package-diff": {
       "get": {
-        "operationId": "diff",
+        "operationId": "diff_2",
         "parameters": [
           {
             "in": "query",
@@ -21320,6 +24117,220 @@
         "summary": "Maker-checker approve a promotion with command-bound step-up",
         "tags": [
           "Approval asset deployments"
+        ]
+      }
+    },
+    "/v1/admin/operations/deployments/promotions/{promotionId}/canary": {
+      "get": {
+        "operationId": "canary",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "promotionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCanaryView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Read canary control and externally verified telemetry",
+        "tags": [
+          "Approval deployment canary governance"
+        ]
+      }
+    },
+    "/v1/admin/operations/deployments/promotions/{promotionId}/canary/control": {
+      "post": {
+        "operationId": "control",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "promotionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalDeploymentCanaryControl"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCanaryView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Pause or resume a version-fenced canary",
+        "tags": [
+          "Approval deployment canary governance"
+        ]
+      }
+    },
+    "/v1/admin/operations/deployments/promotions/{promotionId}/canary/telemetry": {
+      "post": {
+        "operationId": "telemetry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "promotionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ApprovalDeploymentCanaryTelemetry"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCanaryView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Record signed canary telemetry and auto-pause non-healthy observations",
+        "tags": [
+          "Approval deployment canary governance"
+        ]
+      }
+    },
+    "/v1/admin/operations/deployments/promotions/{promotionId}/ledger": {
+      "get": {
+        "operationId": "ledger",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "promotionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLedgerView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Verify the append-only deployment journal as a SHA-256 hash chain",
+        "tags": [
+          "Approval deployment canary governance"
         ]
       }
     },
@@ -21957,6 +24968,39 @@
         ]
       }
     },
+    "/v1/admin/operations/incidents/dead-letters": {
+      "get": {
+        "operationId": "deadLetters",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListDeadLetterView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "List scoped dead-letter metadata without exposing raw payloads",
+        "tags": [
+          "Approval incidents and recovery"
+        ]
+      }
+    },
     "/v1/admin/operations/incidents/{incidentId}": {
       "get": {
         "operationId": "incident",
@@ -22257,7 +25301,7 @@
     },
     "/v1/admin/operations/incidents/{incidentId}/recovery-plans/{planId}/dry-run": {
       "post": {
-        "operationId": "dryRun",
+        "operationId": "dryRun_1",
         "parameters": [
           {
             "in": "path",
@@ -22604,6 +25648,152 @@
           }
         },
         "summary": "Start the next eligible idempotent recovery stage",
+        "tags": [
+          "Approval incidents and recovery"
+        ]
+      }
+    },
+    "/v1/admin/operations/incidents/{incidentId}/reports": {
+      "get": {
+        "operationId": "reports",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incidentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListIncidentReport"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "List immutable evidence reports for an incident",
+        "tags": [
+          "Approval incidents and recovery"
+        ]
+      },
+      "post": {
+        "operationId": "createReport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incidentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReportCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseIncidentReport"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Seal a version-bound incident evidence and dead-letter report",
+        "tags": [
+          "Approval incidents and recovery"
+        ]
+      }
+    },
+    "/v1/admin/operations/incidents/{incidentId}/reports/{reportId}": {
+      "get": {
+        "operationId": "report",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incidentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "reportId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseIncidentReport"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Read one immutable incident evidence report",
         "tags": [
           "Approval incidents and recovery"
         ]
@@ -23320,6 +26510,169 @@
         "tags": [
           "Approval policy automation"
         ]
+      },
+      "post": {
+        "operationId": "createDelegation_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegationDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDelegationView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Create a version-fenced governed delegation",
+        "tags": [
+          "Approval policy automation"
+        ]
+      }
+    },
+    "/v1/admin/policies/automation/delegations/audit": {
+      "get": {
+        "operationId": "delegationAudit_1",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListDelegationAuditEvent"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Read the append-only delegation command ledger in the selected scope",
+        "tags": [
+          "Approval policy automation"
+        ]
+      }
+    },
+    "/v1/admin/policies/automation/delegations/kill-switch": {
+      "post": {
+        "operationId": "killSwitch",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegationKillSwitchCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDelegationKillSwitchView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Revoke every active delegation in the selected scope with step-up",
+        "tags": [
+          "Approval policy automation"
+        ]
       }
     },
     "/v1/admin/policies/automation/delegations/{delegationId}": {
@@ -23349,6 +26702,121 @@
           }
         },
         "summary": "Read one scoped delegation and its latest review",
+        "tags": [
+          "Approval policy automation"
+        ]
+      },
+      "put": {
+        "operationId": "updateDelegation_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "delegationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegationDraft"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDelegationView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Edit a version-fenced governed delegation",
+        "tags": [
+          "Approval policy automation"
+        ]
+      }
+    },
+    "/v1/admin/policies/automation/delegations/{delegationId}/audit": {
+      "get": {
+        "operationId": "delegationAudit",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "delegationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListDelegationAuditEvent"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Read the append-only administrative command ledger for one delegation",
         "tags": [
           "Approval policy automation"
         ]
@@ -23459,6 +26927,156 @@
         ]
       }
     },
+    "/v1/admin/policies/automation/delegations/{delegationId}/revoke": {
+      "post": {
+        "operationId": "revokeDelegation_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "delegationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegationStateCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDelegationView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Revoke a version-fenced delegation immediately",
+        "tags": [
+          "Approval policy automation"
+        ]
+      }
+    },
+    "/v1/admin/policies/automation/delegations/{delegationId}/scheduled-cancel": {
+      "post": {
+        "operationId": "cancelScheduledDelegation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "delegationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DelegationStateCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDelegationView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Cancel a future scheduled delegation",
+        "tags": [
+          "Approval policy automation"
+        ]
+      }
+    },
     "/v1/admin/policies/automation/rules": {
       "get": {
         "operationId": "policies_1",
@@ -23509,6 +27127,56 @@
         "summary": "Read a reminder and escalation policy",
         "tags": [
           "Approval policy automation"
+        ]
+      }
+    },
+    "/v1/admin/policies/automation/rules/{policyId}/diff": {
+      "get": {
+        "operationId": "diff_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fromRevisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "toRevisionId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRevisionDiff"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Diff two immutable policy revisions",
+        "tags": [
+          "Approval policy governance"
         ]
       }
     },
@@ -23587,6 +27255,186 @@
         ]
       }
     },
+    "/v1/admin/policies/automation/rules/{policyId}/exports": {
+      "post": {
+        "operationId": "export",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePolicyExport"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Seal an immutable policy evidence export",
+        "tags": [
+          "Approval policy governance"
+        ]
+      }
+    },
+    "/v1/admin/policies/automation/rules/{policyId}/freeze": {
+      "get": {
+        "operationId": "freeze",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFreezeState"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Read the policy freeze state",
+        "tags": [
+          "Approval policy governance"
+        ]
+      },
+      "post": {
+        "operationId": "setFreeze",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FreezeCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFreezeState"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Freeze or unfreeze a policy with exact command evidence",
+        "tags": [
+          "Approval policy governance"
+        ]
+      }
+    },
     "/v1/admin/policies/automation/rules/{policyId}/publish": {
       "post": {
         "operationId": "publish_2",
@@ -23659,6 +27507,186 @@
         "summary": "Publish a reviewed policy with maker-checker enforcement",
         "tags": [
           "Approval policy automation"
+        ]
+      }
+    },
+    "/v1/admin/policies/automation/rules/{policyId}/reviews": {
+      "get": {
+        "operationId": "reviews",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListReviewReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "List independent policy reviews",
+        "tags": [
+          "Approval policy governance"
+        ]
+      },
+      "post": {
+        "operationId": "review",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReviewCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReviewReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Record an independent policy review",
+        "tags": [
+          "Approval policy governance"
+        ]
+      }
+    },
+    "/v1/admin/policies/automation/rules/{policyId}/simulations": {
+      "post": {
+        "operationId": "simulate_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "policyId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SimulationCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSimulationReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Run and persist an exact policy simulation",
+        "tags": [
+          "Approval policy governance"
         ]
       }
     },
@@ -24515,7 +28543,7 @@
     },
     "/v1/admin/signatures/policies/{policyId}/draft": {
       "put": {
-        "operationId": "save",
+        "operationId": "save_1",
         "parameters": [
           {
             "in": "path",
@@ -25088,7 +29116,7 @@
     },
     "/v1/admin/workflows/routing-directory/groups/{groupId}/retire": {
       "post": {
-        "operationId": "retire",
+        "operationId": "retire_1",
         "parameters": [
           {
             "in": "path",
@@ -25730,6 +29758,314 @@
         },
         "tags": [
           "approval-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/workflows/{workflowId}/studio-v3": {
+      "get": {
+        "operationId": "studio",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflowId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkflowStudio"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Read the current typed workflow canvas and canonical command links",
+        "tags": [
+          "Approval Workflow Studio"
+        ]
+      }
+    },
+    "/v1/admin/workflows/{workflowId}/studio-v3/canvas": {
+      "put": {
+        "operationId": "save",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflowId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CanvasSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkflowStudio"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Append a version-fenced typed workflow canvas version",
+        "tags": [
+          "Approval Workflow Studio"
+        ]
+      }
+    },
+    "/v1/admin/workflows/{workflowId}/studio-v3/dry-run": {
+      "post": {
+        "description": "Dynamic form and policy evaluation remains on the canonical version simulation endpoint.",
+        "operationId": "dryRun",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflowId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CanvasDryRun"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDryRunResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Persist a structural dry-run over the current canonical stage graph",
+        "tags": [
+          "Approval Workflow Studio"
+        ]
+      }
+    },
+    "/v1/admin/workflows/{workflowId}/studio-v3/retire": {
+      "post": {
+        "operationId": "retire",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflowId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetireWorkflow"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRetirement"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Retire a workflow after exact zero-reference acknowledgement",
+        "tags": [
+          "Approval Workflow Studio"
+        ]
+      }
+    },
+    "/v1/admin/workflows/{workflowId}/studio-v3/versions/diff": {
+      "get": {
+        "operationId": "diff",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workflowId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "fromVersion",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "toVersion",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkflowDiff"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Diff two immutable workflow canvas versions",
+        "tags": [
+          "Approval Workflow Studio"
         ]
       }
     },
@@ -26695,6 +31031,14 @@
           {
             "in": "header",
             "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Auth-Session-ID",
             "required": false,
             "schema": {
               "type": "string"
@@ -27847,6 +32191,48 @@
         ]
       }
     },
+    "/v1/requests/{requestId}/preflight": {
+      "post": {
+        "operationId": "preflight",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRequestPreflight"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Evaluate the exact owned draft and current approver authority without submitting",
+        "tags": [
+          "approval-controller"
+        ]
+      }
+    },
     "/v1/requests/{requestId}/resubmit-draft": {
       "post": {
         "operationId": "resubmitDraft",
@@ -28950,6 +33336,10 @@
     {
       "description": "Global and tenant template catalog; all writes remain draft-only",
       "name": "Approval form templates"
+    },
+    {
+      "description": "Append-only typed stage-canvas governance",
+      "name": "Approval Workflow Studio"
     }
   ]
 }

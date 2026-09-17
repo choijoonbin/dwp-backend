@@ -1,6 +1,7 @@
 package com.dwp.services.platform.announcement;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -54,6 +55,7 @@ public class AdminAnnouncementController {
     }
 
     @PostMapping("/{announcementId}/publish")
+    @Operation(operationId = "publishAdminAnnouncement")
     public ApiResponse<AnnouncementDtos.AnnouncementResponse> publish(
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestHeader(USER_HEADER) Long actorId,

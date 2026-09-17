@@ -188,6 +188,23 @@ public class PrivilegedAccessController {
                 correlationId, request));
     }
 
+    @PostMapping("/emergency-principals/{principalId}/verification")
+    public ApiResponse<PrivilegedAccessDtos.EmergencyPrincipalSummary>
+            verifyEmergencyPrincipal(
+                    Authentication authentication,
+                    @RequestHeader(value = TENANT_HEADER, required = false)
+                            String tenantHeader,
+                    @RequestHeader(value = CORRELATION_HEADER, required = false)
+                            String correlationId,
+                    @PathVariable UUID principalId,
+                    @Valid @RequestBody
+                            PrivilegedAccessDtos.VerifyEmergencyPrincipalRequest request) {
+        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        return ApiResponse.success(service.verifyEmergencyPrincipal(
+                tenantId, AuthenticatedUserResolver.requireUserId(authentication),
+                correlationId, principalId, request));
+    }
+
     @GetMapping("/delegated-scopes")
     public ApiResponse<List<PrivilegedAccessDtos.DelegatedScopeSummary>> delegatedScopes(
             Authentication authentication,

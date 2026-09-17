@@ -1,6 +1,7 @@
 package com.dwp.services.platform.workplace.safetyoperations;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
@@ -70,6 +71,7 @@ public class SafetyEmergencyContactAdminController {
     }
 
     @PostMapping("/incidents/{incidentId}/emergency-handoffs:preview")
+    @Operation(operationId = "previewWorkplaceEmergencyHandoff")
     public ResponseEntity<ApiResponse<EmergencyHandoffPreviewResult>> preview(
             @RequestHeader(TENANT) long tenantId,
             @RequestHeader(USER) long actorId,
@@ -126,6 +128,7 @@ public class SafetyEmergencyContactAdminController {
     }
 
     @PostMapping("/incidents/{incidentId}/emergency-handoffs/{commandId}:reconcile")
+    @Operation(operationId = "reconcileWorkplaceEmergencyHandoff")
     public ResponseEntity<ApiResponse<EmergencyHandoffReceipt>> reconcile(
             @RequestHeader(TENANT) long tenantId,
             @RequestHeader(USER) long actorId,

@@ -21,15 +21,18 @@ public class DwaionProposalHandoffRelay {
     private final DwaionProposalHandoffOutboxRepository outbox;
     private final DwaionProposalHandoffObserverClient observer;
     private final int batchSize;
+    private final int maximumAttempts;
     private final String workerId = "approval-dwaion-" + UUID.randomUUID();
 
     public DwaionProposalHandoffRelay(
             DwaionProposalHandoffOutboxRepository outbox,
             DwaionProposalHandoffObserverClient observer,
-            @Value("${dwp.approval.dwaion-handoff.batch-size:25}") int batchSize) {
+            @Value("${dwp.approval.dwaion-handoff.batch-size:25}") int batchSize,
+            @Value("${dwp.approval.dwaion-handoff.maximum-attempts:10}") int maximumAttempts) {
         this.outbox = outbox;
         this.observer = observer;
         this.batchSize = Math.max(1, Math.min(batchSize, 100));
+        this.maximumAttempts = Math.max(1, Math.min(maximumAttempts, 100));
     }
 
     @Scheduled(
@@ -49,14 +52,21 @@ public class DwaionProposalHandoffRelay {
             }
             throw new IllegalStateException("DWAI-ON handoff exceeded its bounded observation sequence");
         } catch (RuntimeException exception) {
+            final boolean deadLettered;
             try {
-                outbox.retry(current, workerId, exception.getMessage());
+                deadLettered = outbox.retry(
+                        current, workerId, maximumAttempts, exception.getMessage());
             } catch (RuntimeException leaseLost) {
                 log.warn("DWAI-ON Approval handoff lease changed for {}", current.handoffId());
                 return;
             }
-            log.warn("DWAI-ON Approval handoff delivery will retry for {} on attempt {}",
-                    current.handoffId(), current.attemptCount());
+            if (deadLettered) {
+                log.warn("DWAI-ON Approval handoff delivery was dead-lettered for {} on attempt {}",
+                        current.handoffId(), current.attemptCount());
+            } else {
+                log.warn("DWAI-ON Approval handoff delivery will retry for {} on attempt {}",
+                        current.handoffId(), current.attemptCount());
+            }
         }
     }
 }

@@ -12,6 +12,10 @@ final class CalendarAccessPolicy {
     private CalendarAccessPolicy() {
     }
 
+    static CalendarDtos.CalendarCapabilities ownerCalendarCapabilities() {
+        return new CalendarDtos.CalendarCapabilities(true, true, true, true, true, true);
+    }
+
     static CalendarDtos.CalendarCapabilities calendarCapabilities(
             CalendarRepository.CalendarRow row) {
         CalendarAccessLevel level = row.accessLevel();

@@ -59,6 +59,7 @@ public class AdminHomeExperienceController {
     }
 
     @PostMapping(path = "/publish", consumes = "multipart/form-data")
+    @Operation(operationId = "publishAdminHomeExperience")
     public ApiResponse<HomeExperienceDtos.HomeExperienceResponse> publish(
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestHeader(USER_HEADER) Long actorId,

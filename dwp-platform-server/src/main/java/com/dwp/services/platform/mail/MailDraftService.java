@@ -2,8 +2,11 @@ package com.dwp.services.platform.mail;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoff;
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoffOutboxRepository;
 
 import java.util.Map;
 import java.util.UUID;
@@ -20,17 +23,35 @@ public class MailDraftService {
     private final MailDraftCommandReceiptRepository receipts;
     private final MailDraftCommandFingerprint fingerprints;
     private final MailCommandRepository evidence;
+    private final MailWorkspaceService workspace;
+    private PlatformDwaionHandoffOutboxRepository dwaionHandoffs;
 
+    @Autowired(required = false)
+    void setDwaionHandoffs(PlatformDwaionHandoffOutboxRepository dwaionHandoffs) {
+        this.dwaionHandoffs = dwaionHandoffs;
+    }
+
+    @Autowired
     public MailDraftService(
             MailService mail,
             MailDraftRepository drafts,
             MailDraftCommandReceiptRepository receipts,
-            MailCommandRepository evidence) {
+            MailCommandRepository evidence,
+            MailWorkspaceService workspace) {
         this.mail = mail;
         this.drafts = drafts;
         this.receipts = receipts;
         this.fingerprints = new MailDraftCommandFingerprint();
         this.evidence = evidence;
+        this.workspace = workspace;
+    }
+
+    MailDraftService(
+            MailService mail,
+            MailDraftRepository drafts,
+            MailDraftCommandReceiptRepository receipts,
+            MailCommandRepository evidence) {
+        this(mail, drafts, receipts, evidence, null);
     }
 
     @Transactional
@@ -39,36 +60,83 @@ public class MailDraftService {
             Long userId,
             String correlationId,
             MailDtos.DraftSaveRequest request) {
+        return create(tenantId, userId, correlationId, request, null, null);
+    }
+
+    @Transactional
+    public MailDtos.ThreadDetail create(
+            Long tenantId,
+            Long userId,
+            String correlationId,
+            MailDtos.DraftSaveRequest request,
+            PlatformDwaionHandoff.Binding dwaionBinding,
+            PlatformDwaionHandoff.Identity dwaionIdentity) {
         requireContent(request);
         if (request.version() != null) {
             throw new BaseException(
                     ErrorCode.INVALID_INPUT_VALUE,
                     "A new draft must not include a version.");
         }
-        String fingerprint = fingerprints.create(request);
+        MailDtos.DraftSaveRequest canonical = canonicalRequest(
+                tenantId, userId, null, request);
+        String fingerprint = fingerprints.create(canonical);
         MailDraftCommandReceiptRepository.Receipt receipt = receipts.reserve(
-                tenantId, userId, CREATE, request.idempotencyKey(), fingerprint);
+                tenantId, userId, CREATE, canonical.idempotencyKey(), fingerprint);
         requireMatchingReceipt(receipt, fingerprint);
         if (receipt.completed()) {
-            return mail.thread(tenantId, userId, requireThreadId(receipt));
+            MailDtos.ThreadDetail replay = enrich(tenantId, userId,
+                    mail.thread(tenantId, userId, requireThreadId(receipt)),
+                    canonical.composeOptions());
+            completeDwaion(tenantId, userId, correlationId, replay,
+                    dwaionBinding, dwaionIdentity);
+            return replay;
         }
         requireNewReservation(receipt);
-        MailDraftRepository.CreateResult result = drafts.create(tenantId, userId, request);
+        MailDraftRepository.CreateResult result = canonical.composeOptions() == null
+                ? drafts.create(tenantId, userId, canonical)
+                : drafts.create(tenantId, userId, canonical,
+                        canonical.composeOptions().accountId());
         if (result == null) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
                     "No active default personal mail account is available.");
         }
         MailDtos.ThreadDetail detail = mail.thread(tenantId, userId, result.threadId());
+        if (canonical.composeOptions() != null) {
+            workspace.saveValidatedDraftOptions(
+                    tenantId, userId, result.threadId(), canonical.composeOptions());
+            detail = workspace.enrichDraft(tenantId, userId, detail);
+        }
         if (result.created()) {
             record(
                     tenantId, userId, result.threadId(), correlationId,
-                    Map.of(), detail.thread(), request.idempotencyKey());
+                    Map.of(), detail.thread(), canonical.idempotencyKey());
         }
         receipts.complete(
-                tenantId, userId, CREATE, request.idempotencyKey(), fingerprint,
+                tenantId, userId, CREATE, canonical.idempotencyKey(), fingerprint,
                 result.threadId(), detail.thread().version());
+        completeDwaion(tenantId, userId, correlationId, detail,
+                dwaionBinding, dwaionIdentity);
         return detail;
+    }
+
+    private void completeDwaion(
+            Long tenantId,
+            Long userId,
+            String correlationId,
+            MailDtos.ThreadDetail detail,
+            PlatformDwaionHandoff.Binding binding,
+            PlatformDwaionHandoff.Identity identity) {
+        if (binding == null) return;
+        if (dwaionHandoffs == null || detail == null || detail.thread() == null
+                || detail.thread().workflowState() != WorkflowState.DRAFT) {
+            throw PlatformDwaionHandoff.unavailable();
+        }
+        dwaionHandoffs.committed(
+                tenantId, userId, binding, identity,
+                PlatformDwaionHandoff.Effect.forBinding(
+                        binding, detail.thread().threadId(), detail.thread().version(), "DRAFT"),
+                correlationId);
     }
 
     @Transactional
@@ -86,21 +154,34 @@ public class MailDraftService {
         }
         MailDtos.ThreadDetail before = mail.thread(tenantId, userId, threadId);
         requireEditable(before.thread());
-        String fingerprint = fingerprints.save(threadId, request);
+        MailDtos.DraftSaveRequest canonical = canonicalRequest(
+                tenantId, userId, threadId, request);
+        String fingerprint = fingerprints.save(threadId, canonical);
         MailDraftCommandReceiptRepository.Receipt receipt = receipts.reserve(
-                tenantId, userId, SAVE, request.idempotencyKey(), fingerprint);
+                tenantId, userId, SAVE, canonical.idempotencyKey(), fingerprint);
         requireMatchingReceipt(receipt, fingerprint);
-        if (receipt.completed()) return mail.thread(tenantId, userId, requireThreadId(receipt));
+        if (receipt.completed()) return enrich(
+                tenantId, userId, mail.thread(tenantId, userId, requireThreadId(receipt)),
+                canonical.composeOptions());
         requireNewReservation(receipt);
-        if (drafts.save(tenantId, userId, threadId, request) == 0) {
+        int updated = canonical.composeOptions() == null
+                ? drafts.save(tenantId, userId, threadId, canonical)
+                : drafts.save(tenantId, userId, threadId, canonical,
+                        canonical.composeOptions().accountId());
+        if (updated == 0) {
             throw conflict();
         }
         MailDtos.ThreadDetail after = mail.thread(tenantId, userId, threadId);
+        if (canonical.composeOptions() != null) {
+            workspace.saveValidatedDraftOptions(
+                    tenantId, userId, threadId, canonical.composeOptions());
+            after = workspace.enrichDraft(tenantId, userId, after);
+        }
         record(
                 tenantId, userId, threadId, correlationId,
-                state(before.thread()), after.thread(), request.idempotencyKey());
+                state(before.thread()), after.thread(), canonical.idempotencyKey());
         receipts.complete(
-                tenantId, userId, SAVE, request.idempotencyKey(), fingerprint,
+                tenantId, userId, SAVE, canonical.idempotencyKey(), fingerprint,
                 threadId, after.thread().version());
         return after;
     }
@@ -133,21 +214,56 @@ public class MailDraftService {
     private void requireContent(MailDtos.DraftSaveRequest request) {
         if (value(request.toEmail()).isBlank()
                 && value(request.subject()).isBlank()
-                && value(request.body()).isBlank()) {
+                && value(request.body()).isBlank()
+                && !meaningfulOptions(request.composeOptions())) {
             throw new BaseException(
                     ErrorCode.INVALID_INPUT_VALUE,
-                    "A draft must contain a recipient, subject, or message body.");
+                    "A draft must contain message content or compose options.");
         }
+    }
+
+    private boolean meaningfulOptions(MailWorkspaceDtos.ComposeOptions options) {
+        if (options == null) return false;
+        return options.accountId() != null
+                || options.recipients() != null && !options.recipients().isEmpty()
+                || options.bodyFormat() == MailWorkspaceDtos.BodyFormat.HTML
+                || options.attachmentIds() != null && !options.attachmentIds().isEmpty()
+                || options.scheduledAt() != null
+                || !value(options.timeZone()).isBlank()
+                || options.templateId() != null
+                || options.signatureId() != null;
     }
 
     private void requireEditable(MailDtos.ThreadSummary thread) {
         if (!"DRAFTS".equals(thread.folderType())
-                || thread.workflowState() != WorkflowState.DRAFT
-                || thread.sharedInboxId() != null) {
+                || thread.workflowState() != WorkflowState.DRAFT) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
                     "Only a personal draft can be saved.");
         }
+    }
+
+    private MailDtos.DraftSaveRequest canonicalRequest(
+            long tenantId,
+            long userId,
+            UUID threadId,
+            MailDtos.DraftSaveRequest request) {
+        if (workspace == null || request.composeOptions() == null) return request;
+        MailWorkspaceDtos.ComposeOptions options = workspace.prepareDraftOptions(
+                tenantId, userId, threadId, request.composeOptions());
+        return new MailDtos.DraftSaveRequest(
+                request.toEmail(), request.toName(), request.subject(), request.body(),
+                request.classification(), request.externalRecipientConfirmed(),
+                request.idempotencyKey(), request.version(), options);
+    }
+
+    private MailDtos.ThreadDetail enrich(
+            long tenantId,
+            long userId,
+            MailDtos.ThreadDetail detail,
+            MailWorkspaceDtos.ComposeOptions options) {
+        return workspace != null && options != null
+                ? workspace.enrichDraft(tenantId, userId, detail) : detail;
     }
 
     private void record(

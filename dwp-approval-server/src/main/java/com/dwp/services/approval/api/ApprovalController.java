@@ -124,6 +124,14 @@ public class ApprovalController {
         return ApiResponse.success(drafts.create(request, idempotencyKey, correlationId, identity));
     }
 
+    /** Source-compatible direct invocation for non-HTTP callers and legacy tests. */
+    public ApiResponse<ApprovalDtos.RequestSummary> create(
+            ApprovalDtos.CreateRequest request,
+            String idempotencyKey,
+            String correlationId) {
+        return ApiResponse.success(drafts.create(request, idempotencyKey, correlationId));
+    }
+
     @PostMapping("/requests/{requestId}/resubmit-draft")
     @Operation(
             summary = "Create an owned resubmission draft from a terminal request",

@@ -31,6 +31,7 @@ public class ProductSurfaceInternalSecurityConfig {
             "X-DWP-Meeting-Followup-Authority-Token";
     public static final String SERVICE_IDENTITY_HEADER = "X-DWP-Service-Identity";
     static final String GATEWAY_SERVICE_IDENTITY = "dwp-gateway";
+    static final String PLATFORM_SERVICE_IDENTITY = "dwp-platform-server";
     static final String MEETING_SERVICE_IDENTITY = "dwp-meeting-server";
     static final String MEETING_FOLLOWUP_PATH =
             "/internal/auth/v1/meeting-followup-authority/evaluate";
@@ -90,7 +91,8 @@ public class ProductSurfaceInternalSecurityConfig {
             String productSurfaceToken = exactHeader(request, TOKEN_HEADER);
             String meetingFollowupToken = exactHeader(
                     request, MEETING_FOLLOWUP_TOKEN_HEADER);
-            boolean gateway = GATEWAY_SERVICE_IDENTITY.equals(identity)
+            boolean productSurfaceCaller = (GATEWAY_SERVICE_IDENTITY.equals(identity)
+                    || PLATFORM_SERVICE_IDENTITY.equals(identity))
                     && !MEETING_FOLLOWUP_PATH.equals(request.getRequestURI())
                     && absentHeader(request, MEETING_FOLLOWUP_TOKEN_HEADER)
                     && matches(expectedToken, productSurfaceToken);
@@ -99,7 +101,7 @@ public class ProductSurfaceInternalSecurityConfig {
                     && MEETING_FOLLOWUP_PATH.equals(request.getRequestURI())
                     && absentHeader(request, TOKEN_HEADER)
                     && matches(expectedMeetingFollowupToken, meetingFollowupToken);
-            if (!gateway && !meeting) {
+            if (!productSurfaceCaller && !meeting) {
                 response.setStatus(ErrorCode.UNAUTHORIZED.getHttpStatus().value());
                 response.setContentType(MediaType.APPLICATION_JSON_VALUE);
                 objectMapper.writeValue(response.getOutputStream(), ApiResponse.error(

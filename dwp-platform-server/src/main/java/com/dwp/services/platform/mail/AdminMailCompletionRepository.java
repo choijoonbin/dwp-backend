@@ -12,6 +12,7 @@ import java.sql.Array;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -501,6 +502,52 @@ class AdminMailCompletionRepository {
                 tenantId, inboxId, assignee, assignee);
     }
 
+    UUID insertMemberRevokePreview(
+            long tenantId, UUID inboxId, UUID memberId, long actorId, long memberVersion,
+            ImpactRow impact, boolean providerRevocationRequired, String fingerprint,
+            OffsetDateTime expiresAt) {
+        return jdbc.queryForObject("""
+                INSERT INTO mail_shared_member_revoke_previews (
+                    tenant_id, shared_inbox_id, member_id, actor_user_id, member_version,
+                    active_assignments, open_drafts, pending_commands,
+                    provider_revocation_required, snapshot_fingerprint, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING preview_id
+                """, UUID.class, tenantId, inboxId, memberId, actorId, memberVersion,
+                impact.activeAssignments(), impact.openDrafts(), impact.pendingCommands(),
+                providerRevocationRequired, fingerprint, expiresAt);
+    }
+
+    Optional<MemberRevokePreviewRow> memberRevokePreview(
+            long tenantId, UUID previewId, UUID inboxId, UUID memberId, long actorId) {
+        return one("""
+                SELECT preview_id, shared_inbox_id, member_id, actor_user_id,
+                       member_version, active_assignments, open_drafts, pending_commands,
+                       provider_revocation_required, snapshot_fingerprint,
+                       created_at, expires_at, consumed_at
+                  FROM mail_shared_member_revoke_previews
+                 WHERE tenant_id = ? AND preview_id = ? AND shared_inbox_id = ?
+                   AND member_id = ? AND actor_user_id = ?
+                """, (rs, ignored) -> new MemberRevokePreviewRow(
+                uuid(rs, "preview_id"), uuid(rs, "shared_inbox_id"),
+                uuid(rs, "member_id"), rs.getLong("actor_user_id"),
+                rs.getLong("member_version"), rs.getInt("active_assignments"),
+                rs.getInt("open_drafts"), rs.getInt("pending_commands"),
+                rs.getBoolean("provider_revocation_required"),
+                rs.getString("snapshot_fingerprint"), offset(rs, "created_at"),
+                offset(rs, "expires_at"), offset(rs, "consumed_at")),
+                tenantId, previewId, inboxId, memberId, actorId);
+    }
+
+    int consumeMemberRevokePreview(long tenantId, UUID previewId, long actorId) {
+        return jdbc.update("""
+                UPDATE mail_shared_member_revoke_previews
+                   SET consumed_at = CURRENT_TIMESTAMP
+                 WHERE tenant_id = ? AND preview_id = ? AND actor_user_id = ?
+                   AND consumed_at IS NULL AND expires_at > CURRENT_TIMESTAMP
+                """, tenantId, previewId, actorId);
+    }
+
     UUID insertAccessGrant(
             long tenantId, UUID inboxId, long userId, String displayName, String department,
             OffsetDateTime expiresAt, boolean read, boolean sendAs, boolean sendOnBehalf,
@@ -704,6 +751,115 @@ class AdminMailCompletionRepository {
                 """, actorId, tenantId, holdId, version);
     }
 
+    Optional<LegalHoldReleasePreviewRow> legalHoldReleasePreviewByCommand(
+            long tenantId, long requesterId, UUID key) {
+        return one(LEGAL_HOLD_RELEASE_PREVIEW_BY
+                        + " AND requester_user_id = ? AND idempotency_key = ?",
+                LEGAL_HOLD_RELEASE_PREVIEW, tenantId, requesterId, key);
+    }
+
+    Optional<LegalHoldReleasePreviewRow> legalHoldReleasePreview(
+            long tenantId, UUID previewId) {
+        return one(LEGAL_HOLD_RELEASE_PREVIEW_BY + " AND release_preview_id = ?",
+                LEGAL_HOLD_RELEASE_PREVIEW, tenantId, previewId);
+    }
+
+    UUID insertLegalHoldReleasePreview(
+            long tenantId, UUID holdId, long requesterId, long holdVersion,
+            long policyVersion, Map<String, Object> holdScope,
+            OffsetDateTime retentionBoundary, String snapshotFingerprint,
+            String requestFingerprint, Map<String, Long> affectedCounts,
+            Map<String, Long> currentlyHeldCounts, Map<String, Long> purgeSafeCounts,
+            Map<String, Long> protectedCounts, Map<String, Long> providerRequiredCounts,
+            UUID key, OffsetDateTime expiresAt) {
+        return jdbc.queryForObject("""
+                INSERT INTO mail_legal_hold_release_previews (
+                    tenant_id, hold_id, requester_user_id, hold_version, policy_version,
+                    hold_scope, retention_boundary, snapshot_fingerprint,
+                    request_fingerprint, affected_resource_counts,
+                    currently_held_resource_counts,
+                    purge_safe_after_release_resource_counts,
+                    still_protected_after_release_resource_counts,
+                    provider_capability_required_resource_counts,
+                    idempotency_key, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?::jsonb, ?::jsonb,
+                        ?::jsonb, ?::jsonb, ?::jsonb, ?, ?)
+                RETURNING release_preview_id
+                """, UUID.class, tenantId, holdId, requesterId, holdVersion,
+                policyVersion, json(holdScope), retentionBoundary, snapshotFingerprint,
+                requestFingerprint, json(affectedCounts), json(currentlyHeldCounts),
+                json(purgeSafeCounts), json(protectedCounts), json(providerRequiredCounts),
+                key, expiresAt);
+    }
+
+    List<LegalHoldReleaseApprovalRow> legalHoldReleaseApprovals(
+            long tenantId, UUID previewId) {
+        return jdbc.query("""
+                SELECT approval_id, release_preview_id, approver_user_id, decision,
+                       hold_version, policy_version, preview_fingerprint,
+                       request_fingerprint, idempotency_key, decided_at
+                  FROM mail_legal_hold_release_approvals
+                 WHERE tenant_id = ? AND release_preview_id = ?
+                 ORDER BY decided_at, approval_id
+                """, LEGAL_HOLD_RELEASE_APPROVAL, tenantId, previewId);
+    }
+
+    Optional<LegalHoldReleaseApprovalRow> legalHoldReleaseApprovalByCommand(
+            long tenantId, long approverId, UUID key) {
+        return one("""
+                SELECT approval_id, release_preview_id, approver_user_id, decision,
+                       hold_version, policy_version, preview_fingerprint,
+                       request_fingerprint, idempotency_key, decided_at
+                  FROM mail_legal_hold_release_approvals
+                 WHERE tenant_id = ? AND approver_user_id = ? AND idempotency_key = ?
+                """, LEGAL_HOLD_RELEASE_APPROVAL, tenantId, approverId, key);
+    }
+
+    UUID insertLegalHoldReleaseApproval(
+            long tenantId, UUID previewId, long approverId, String decision,
+            long holdVersion, long policyVersion, String previewFingerprint,
+            String requestFingerprint, UUID key) {
+        return jdbc.queryForObject("""
+                INSERT INTO mail_legal_hold_release_approvals (
+                    tenant_id, release_preview_id, approver_user_id, decision,
+                    hold_version, policy_version, preview_fingerprint,
+                    request_fingerprint, idempotency_key)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING approval_id
+                """, UUID.class, tenantId, previewId, approverId, decision,
+                holdVersion, policyVersion, previewFingerprint, requestFingerprint, key);
+    }
+
+    Optional<LegalHoldReleaseExecutionRow> legalHoldReleaseExecutionByCommand(
+            long tenantId, long executorId, UUID key) {
+        return one(LEGAL_HOLD_RELEASE_EXECUTION_BY
+                        + " AND executed_by_user_id = ? AND idempotency_key = ?",
+                LEGAL_HOLD_RELEASE_EXECUTION, tenantId, executorId, key);
+    }
+
+    Optional<LegalHoldReleaseExecutionRow> legalHoldReleaseExecutionByPreview(
+            long tenantId, UUID previewId) {
+        return one(LEGAL_HOLD_RELEASE_EXECUTION_BY + " AND release_preview_id = ?",
+                LEGAL_HOLD_RELEASE_EXECUTION, tenantId, previewId);
+    }
+
+    UUID insertLegalHoldReleaseExecution(
+            long tenantId, UUID previewId, UUID holdId, long requesterId,
+            long approvedById, long executorId, long holdVersion, long policyVersion,
+            String previewFingerprint, String requestFingerprint, UUID key) {
+        return jdbc.queryForObject("""
+                INSERT INTO mail_legal_hold_release_executions (
+                    tenant_id, release_preview_id, hold_id, requester_user_id,
+                    approved_by_user_id, executed_by_user_id, hold_version_before,
+                    hold_version_after, policy_version, preview_fingerprint,
+                    request_fingerprint, idempotency_key)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                RETURNING execution_id
+                """, UUID.class, tenantId, previewId, holdId, requesterId,
+                approvedById, executorId, holdVersion, holdVersion + 1,
+                policyVersion, previewFingerprint, requestFingerprint, key);
+    }
+
     int activeHoldCount(long tenantId) {
         Integer count = jdbc.queryForObject("""
                 SELECT count(*) FROM mail_legal_holds
@@ -714,12 +870,30 @@ class AdminMailCompletionRepository {
         return count == null ? 0 : count;
     }
 
+    List<LegalHoldRow> activeLegalHolds(long tenantId) {
+        return jdbc.query("""
+                SELECT hold_id, display_name, safe_case_reference, hold_scope,
+                       hold_status, starts_at, expires_at, version
+                  FROM mail_legal_holds
+                 WHERE tenant_id = ? AND hold_status = 'ACTIVE'
+                   AND starts_at <= CURRENT_TIMESTAMP
+                   AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+                 ORDER BY hold_id
+                """, LEGAL_HOLD, tenantId);
+    }
+
     CandidateSet purgeCandidates(long tenantId, OffsetDateTime before) {
         List<CandidateRow> rows = jdbc.query("""
-                SELECT thread.thread_id,
+                SELECT thread.thread_id, thread.account_id,
                        (SELECT count(*) FROM mail_messages message
                          WHERE message.tenant_id = thread.tenant_id
                            AND message.thread_id = thread.thread_id) message_count,
+                       (SELECT count(*) FROM mail_compose_attachments attachment
+                         WHERE attachment.tenant_id = thread.tenant_id
+                           AND attachment.thread_id = thread.thread_id) attachment_count,
+                       (SELECT count(*) FROM mail_draft_options draft
+                         WHERE draft.tenant_id = thread.tenant_id
+                           AND draft.thread_id = thread.thread_id) draft_count,
                        connection.provider_type,
                        (%s) immutable_evidence_blocked
                   FROM mail_threads thread
@@ -734,7 +908,9 @@ class AdminMailCompletionRepository {
                  ORDER BY thread.thread_id
                 """.formatted(PURGE_IMMUTABLE_EVIDENCE_EXISTS),
                 (rs, ignored) -> new CandidateRow(
-                uuid(rs, "thread_id"), rs.getInt("message_count"),
+                uuid(rs, "thread_id"), uuid(rs, "account_id"),
+                rs.getInt("message_count"), rs.getInt("attachment_count"),
+                rs.getInt("draft_count"),
                 rs.getString("provider_type"),
                 rs.getBoolean("immutable_evidence_blocked")), tenantId, before);
         return new CandidateSet(rows);
@@ -748,6 +924,23 @@ class AdminMailCompletionRepository {
     Optional<PurgePreviewRow> purgePreview(long tenantId, UUID snapshotId) {
         return one(PURGE_PREVIEW_BY + " AND candidate_snapshot_id = ?",
                 PURGE_PREVIEW, tenantId, snapshotId);
+    }
+
+    List<PurgePreviewRow> activePurgePreviews(long tenantId, int limit) {
+        return jdbc.query(PURGE_PREVIEW_BY + """
+                 AND policy_version = (
+                     SELECT policy.version
+                       FROM mail_tenant_policies policy
+                      WHERE policy.tenant_id = mail_purge_previews.tenant_id)
+                 AND expires_at > CURRENT_TIMESTAMP
+                 AND NOT EXISTS (
+                     SELECT 1
+                       FROM mail_purge_jobs job
+                      WHERE job.tenant_id = mail_purge_previews.tenant_id
+                        AND job.candidate_snapshot_id = mail_purge_previews.candidate_snapshot_id)
+                 ORDER BY created_at DESC, candidate_snapshot_id DESC
+                 LIMIT ?
+                """, PURGE_PREVIEW, tenantId, limit);
     }
 
     UUID insertPurgePreview(
@@ -765,6 +958,39 @@ class AdminMailCompletionRepository {
                 """, UUID.class, tenantId, actorId, json(scope), json(resourceTypes),
                 before, fingerprint, total, held, eligible, json(partialSources),
                 policyVersion, key, expiresAt);
+    }
+
+    void insertPurgeCandidateRows(
+            long tenantId, UUID snapshotId, List<PurgeCandidateSnapshotRow> rows) {
+        for (PurgeCandidateSnapshotRow row : rows) {
+            jdbc.update("""
+                    INSERT INTO mail_purge_candidate_snapshot_rows (
+                        candidate_snapshot_id, tenant_id, thread_id, account_id,
+                        message_count, attachment_count, draft_count, provider_type,
+                        held, hold_ids, evidence)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?::jsonb)
+                    """, snapshotId, tenantId, row.threadId(), row.accountId(),
+                    row.messageCount(), row.attachmentCount(), row.draftCount(),
+                    row.providerType(), row.held(),
+                    json(row.holdIds().stream().map(UUID::toString).toList()),
+                    json(row.evidence()));
+        }
+    }
+
+    List<PurgeCandidateSnapshotRow> purgeCandidateRows(long tenantId, UUID snapshotId) {
+        return jdbc.query("""
+                SELECT thread_id, account_id, message_count, attachment_count,
+                       draft_count, provider_type, held, hold_ids, evidence
+                  FROM mail_purge_candidate_snapshot_rows
+                 WHERE tenant_id = ? AND candidate_snapshot_id = ?
+                 ORDER BY thread_id
+                """, (rs, ignored) -> new PurgeCandidateSnapshotRow(
+                uuid(rs, "thread_id"), uuid(rs, "account_id"),
+                rs.getInt("message_count"), rs.getInt("attachment_count"),
+                rs.getInt("draft_count"), rs.getString("provider_type"),
+                rs.getBoolean("held"), strings(rs.getString("hold_ids")).stream()
+                        .map(UUID::fromString).toList(),
+                map(rs.getString("evidence"))), tenantId, snapshotId);
     }
 
     Optional<PurgeApprovalRow> purgeApprovalByCommand(long tenantId, long actorId, UUID key) {
@@ -816,13 +1042,174 @@ class AdminMailCompletionRepository {
     }
 
     UUID insertPurgeJob(long tenantId, UUID snapshotId, long actorId, UUID key) {
+        return insertPurgeJob(tenantId, snapshotId, actorId, key, List.of());
+    }
+
+    UUID insertPurgeJob(
+            long tenantId, UUID snapshotId, long actorId, UUID key,
+            List<UUID> candidateThreadIds) {
+        return insertPurgeJob(
+                tenantId, snapshotId, actorId, key, candidateThreadIds, List.of());
+    }
+
+    UUID insertPurgeJob(
+            long tenantId, UUID snapshotId, long actorId, UUID key,
+            List<UUID> candidateThreadIds, List<Map<String, Object>> initialSteps) {
         return jdbc.queryForObject("""
                 INSERT INTO mail_purge_jobs (
                     tenant_id, candidate_snapshot_id, actor_user_id,
-                    job_state, verification_state, idempotency_key)
-                VALUES (?, ?, ?, 'RUNNING', 'PENDING', ?)
+                    job_state, verification_state, idempotency_key, candidate_thread_ids,
+                    step_results, current_step)
+                VALUES (?, ?, ?, 'ACCEPTED', 'PENDING', ?, ?::jsonb, ?::jsonb, 'ACCEPTED')
                 RETURNING job_id
-                """, UUID.class, tenantId, snapshotId, actorId, key);
+                """, UUID.class, tenantId, snapshotId, actorId, key,
+                json(candidateThreadIds.stream().map(UUID::toString).toList()),
+                json(initialSteps));
+    }
+
+    int completeLeasedPurgeJob(
+            long tenantId, UUID jobId, String workerId, String state,
+            DeleteCounts counts, List<Map<String, Object>> steps,
+            String verification, String errorCode) {
+        return jdbc.update("""
+                UPDATE mail_purge_jobs
+                   SET job_state = ?, deleted_threads = ?, deleted_messages = ?,
+                       step_results = ?::jsonb, verification_state = ?, error_code = ?,
+                       completed_at = CASE WHEN ? IN ('SUCCEEDED', 'FAILED')
+                                           THEN CURRENT_TIMESTAMP ELSE NULL END,
+                       current_step = CASE WHEN ? IN ('SUCCEEDED', 'FAILED')
+                                           THEN 'COMPLETED' ELSE 'RETRY_PENDING' END,
+                       lease_owner = NULL,
+                       lease_expires_at = NULL, updated_at = CURRENT_TIMESTAMP
+                 WHERE tenant_id = ? AND job_id = ? AND job_state = 'RUNNING'
+                   AND lease_owner = ? AND lease_expires_at > CURRENT_TIMESTAMP
+                """, state, counts.threads(), counts.messages(), json(steps), verification,
+                errorCode, state, state, tenantId, jobId, workerId);
+    }
+
+    int releaseExpiredPurgeLeases(int maximumAttempts) {
+        return jdbc.update("""
+                UPDATE mail_purge_jobs
+                   SET job_state = CASE WHEN attempt_count >= ? THEN 'FAILED' ELSE 'UNKNOWN' END,
+                       verification_state = 'UNKNOWN',
+                       error_code = 'PURGE_WORKER_LEASE_EXPIRED',
+                       current_step = 'LEASE_EXPIRED',
+                       step_results = step_results || jsonb_build_array(jsonb_build_object(
+                           'step', current_step, 'state', 'UNKNOWN',
+                           'errorCode', 'PURGE_WORKER_LEASE_EXPIRED',
+                           'at', CURRENT_TIMESTAMP)),
+                       lease_owner = NULL, lease_expires_at = NULL,
+                       completed_at = CASE WHEN attempt_count >= ?
+                                           THEN CURRENT_TIMESTAMP ELSE NULL END,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE job_state = 'RUNNING' AND lease_expires_at < CURRENT_TIMESTAMP
+                """, maximumAttempts, maximumAttempts);
+    }
+
+    List<PurgeLeaseRow> claimPurgeJobs(
+            String workerId, int limit, int leaseSeconds, int maximumAttempts) {
+        return jdbc.query("""
+                WITH candidates AS (
+                    SELECT job_id, current_step previous_step,
+                           deleted_threads previous_deleted_threads,
+                           deleted_messages previous_deleted_messages,
+                           started_at
+                      FROM mail_purge_jobs
+                     WHERE job_state IN ('ACCEPTED', 'PARTIAL', 'UNKNOWN')
+                       AND attempt_count < ?
+                     ORDER BY started_at, job_id
+                     FOR UPDATE SKIP LOCKED
+                     LIMIT ?
+                )
+                UPDATE mail_purge_jobs job
+                   SET job_state = 'RUNNING', lease_owner = ?,
+                       lease_expires_at = CURRENT_TIMESTAMP + (? * INTERVAL '1 second'),
+                       attempt_count = attempt_count + 1,
+                       current_step = 'LEASED', error_code = NULL,
+                       completed_at = NULL, updated_at = CURRENT_TIMESTAMP
+                  FROM candidates
+                 WHERE job.job_id = candidates.job_id
+                RETURNING job.job_id, job.tenant_id, job.candidate_snapshot_id,
+                          job.actor_user_id, job.candidate_thread_ids,
+                          job.step_results, job.attempt_count,
+                          candidates.previous_step,
+                          candidates.previous_deleted_threads,
+                          candidates.previous_deleted_messages,
+                          candidates.started_at
+                """, (rs, ignored) -> new PurgeLeaseRow(
+                uuid(rs, "job_id"), rs.getLong("tenant_id"),
+                uuid(rs, "candidate_snapshot_id"), rs.getLong("actor_user_id"),
+                strings(rs.getString("candidate_thread_ids")).stream()
+                        .map(UUID::fromString).toList(),
+                maps(rs.getString("step_results")), rs.getInt("attempt_count"),
+                rs.getString("previous_step"),
+                rs.getInt("previous_deleted_threads"),
+                rs.getInt("previous_deleted_messages"),
+                offset(rs, "started_at")),
+                maximumAttempts, limit, workerId, leaseSeconds);
+    }
+
+    int checkpointPurgeJob(
+            long tenantId, UUID jobId, String workerId, String step,
+            List<Map<String, Object>> steps, DeleteCounts counts) {
+        return jdbc.update("""
+                UPDATE mail_purge_jobs
+                   SET current_step = ?, step_results = ?::jsonb,
+                       deleted_threads = ?, deleted_messages = ?,
+                       updated_at = CURRENT_TIMESTAMP,
+                       lease_expires_at = CURRENT_TIMESTAMP + INTERVAL '30 seconds'
+                 WHERE tenant_id = ? AND job_id = ? AND job_state = 'RUNNING'
+                   AND lease_owner = ? AND lease_expires_at > CURRENT_TIMESTAMP
+                """, step, json(steps), counts.threads(), counts.messages(),
+                tenantId, jobId, workerId);
+    }
+
+    PurgeEventEvidence ensurePurgeCompletionEvent(
+            long tenantId, UUID jobId, long actorId, DeleteCounts counts) {
+        UUID eventId = UUID.nameUUIDFromBytes(
+                ("mail-purge:" + tenantId + ':' + jobId).getBytes(java.nio.charset.StandardCharsets.UTF_8));
+        return ensurePurgeCompletionEvent(tenantId, jobId, actorId, counts, eventId);
+    }
+
+    PurgeEventEvidence ensurePurgeCompletionEvent(
+            long tenantId, UUID jobId, long actorId, DeleteCounts counts, UUID eventId) {
+        jdbc.update("""
+                INSERT INTO mail_domain_events (
+                    domain_event_id, tenant_id, aggregate_type, aggregate_id,
+                    event_type, payload)
+                VALUES (?, ?, 'MAIL_PURGE_JOB', ?, 'mail.purge.completed', ?::jsonb)
+                ON CONFLICT (tenant_id, aggregate_id, event_type)
+                    WHERE aggregate_type = 'MAIL_PURGE_JOB'
+                      AND event_type = 'mail.purge.completed'
+                DO NOTHING
+                """, eventId, tenantId, jobId, json(Map.of(
+                "jobId", jobId, "actorId", actorId,
+                "deletedThreads", counts.threads(), "deletedMessages", counts.messages())));
+        jdbc.update("""
+                UPDATE mail_domain_events event
+                   SET published_at = outbox.published_at,
+                       publish_attempts = outbox.attempt_count
+                  FROM sys_domain_event_outbox outbox
+                 WHERE event.tenant_id = ?
+                   AND event.aggregate_type = 'MAIL_PURGE_JOB'
+                   AND event.aggregate_id = ?
+                   AND event.event_type = 'mail.purge.completed'
+                   AND outbox.event_id = event.domain_event_id
+                """, tenantId, jobId);
+        return jdbc.queryForObject("""
+                SELECT event.domain_event_id, event.occurred_at,
+                       outbox.published_at, outbox.attempt_count publish_attempts,
+                       outbox.status, outbox.last_error
+                  FROM mail_domain_events event
+                  JOIN sys_domain_event_outbox outbox
+                    ON outbox.event_id = event.domain_event_id
+                 WHERE event.tenant_id = ? AND event.aggregate_type = 'MAIL_PURGE_JOB'
+                   AND event.aggregate_id = ? AND event.event_type = 'mail.purge.completed'
+                """, (rs, ignored) -> new PurgeEventEvidence(
+                uuid(rs, "domain_event_id"), offset(rs, "occurred_at"),
+                offset(rs, "published_at"), rs.getInt("publish_attempts"),
+                rs.getString("status"), rs.getString("last_error")),
+                tenantId, jobId);
     }
 
     DeleteCounts deletePurgeCandidates(long tenantId, OffsetDateTime before) {
@@ -856,8 +1243,9 @@ class AdminMailCompletionRepository {
                    AND thread.updated_at < ?
                    AND NOT (%s)
                 """.formatted(PURGE_IMMUTABLE_EVIDENCE_EXISTS), tenantId, before);
+        int cleanupCommands = 0;
         for (String storageReference : attachmentStorageReferences) {
-            jdbc.update("""
+            cleanupCommands += jdbc.update("""
                     INSERT INTO sys_tenant_media_cleanup_outbox (
                         tenant_id, storage_key, cleanup_reason)
                     SELECT ?, ?, 'MAIL_RETENTION_PURGE'
@@ -869,7 +1257,156 @@ class AdminMailCompletionRepository {
                     ON CONFLICT DO NOTHING
                     """, tenantId, storageReference, tenantId, storageReference);
         }
-        return new DeleteCounts(threads, messages == null ? 0 : messages);
+        return new DeleteCounts(threads, messages == null ? 0 : messages, cleanupCommands);
+    }
+
+    DeleteCounts deletePurgeCandidates(long tenantId, List<UUID> threadIds) {
+        if (threadIds.isEmpty()) return new DeleteCounts(0, 0);
+        String placeholders = String.join(", ", java.util.Collections.nCopies(threadIds.size(), "?"));
+        Object[] parameters = new Object[threadIds.size() + 1];
+        parameters[0] = tenantId;
+        for (int index = 0; index < threadIds.size(); index++) {
+            parameters[index + 1] = threadIds.get(index);
+        }
+        List<String> attachmentStorageReferences = jdbc.queryForList("""
+                SELECT DISTINCT storage_reference
+                  FROM mail_compose_attachments
+                 WHERE tenant_id = ? AND thread_id IN (%s)
+                """.formatted(placeholders), String.class, parameters);
+        Integer messages = jdbc.queryForObject("""
+                SELECT count(*) FROM mail_messages
+                 WHERE tenant_id = ? AND thread_id IN (%s)
+                """.formatted(placeholders), Integer.class, parameters);
+        int threads = jdbc.update("""
+                DELETE FROM mail_threads
+                 WHERE tenant_id = ? AND thread_id IN (%s)
+                """.formatted(placeholders), parameters);
+        int cleanupCommands = 0;
+        for (String storageReference : attachmentStorageReferences) {
+            cleanupCommands += jdbc.update("""
+                    INSERT INTO sys_tenant_media_cleanup_outbox (
+                        tenant_id, storage_key, cleanup_reason)
+                    SELECT ?, ?, 'MAIL_RETENTION_PURGE'
+                     WHERE NOT EXISTS (
+                         SELECT 1 FROM mail_compose_attachments
+                          WHERE tenant_id = ? AND storage_reference = ?)
+                    ON CONFLICT DO NOTHING
+                    """, tenantId, storageReference, tenantId, storageReference);
+        }
+        return new DeleteCounts(threads, messages == null ? 0 : messages, cleanupCommands);
+    }
+
+    java.util.Set<UUID> purgeDeletionReceiptIds(long tenantId, UUID jobId) {
+        return java.util.Set.copyOf(jdbc.queryForList("""
+                SELECT thread_id
+                  FROM mail_purge_deleted_candidate_receipts
+                 WHERE tenant_id = ? AND job_id = ?
+                """, UUID.class, tenantId, jobId));
+    }
+
+    DeleteCounts purgeDeletionReceiptCounts(long tenantId, UUID jobId) {
+        return jdbc.queryForObject("""
+                SELECT count(*) deleted_threads,
+                       COALESCE(sum(message_count), 0) deleted_messages
+                  FROM mail_purge_deleted_candidate_receipts
+                 WHERE tenant_id = ? AND job_id = ?
+                """, (rs, ignored) -> new DeleteCounts(
+                rs.getInt("deleted_threads"), rs.getInt("deleted_messages")),
+                tenantId, jobId);
+    }
+
+    DeleteCounts deleteEligiblePurgeCandidates(
+            PurgeLeaseRow job, OffsetDateTime before) {
+        java.util.Set<UUID> completed = purgeDeletionReceiptIds(job.tenantId(), job.id());
+        List<UUID> pending = job.candidateThreadIds().stream()
+                .filter(id -> !completed.contains(id)).toList();
+        if (pending.isEmpty()) return purgeDeletionReceiptCounts(job.tenantId(), job.id());
+
+        String placeholders = String.join(", ",
+                java.util.Collections.nCopies(pending.size(), "?"));
+        Object[] parameters = new Object[pending.size() + 2];
+        parameters[0] = job.tenantId();
+        for (int index = 0; index < pending.size(); index++) {
+            parameters[index + 1] = pending.get(index);
+        }
+        parameters[parameters.length - 1] = before;
+        List<UUID> lockedEligible = jdbc.queryForList("""
+                SELECT thread.thread_id
+                  FROM mail_threads thread
+                 WHERE thread.tenant_id = ?
+                   AND thread.thread_id IN (%s)
+                   AND thread.workflow_state = 'TRASHED'
+                   AND thread.updated_at < ?
+                   AND NOT (%s)
+                 ORDER BY thread.thread_id
+                 FOR UPDATE
+                """.formatted(placeholders, PURGE_IMMUTABLE_EVIDENCE_EXISTS),
+                UUID.class, parameters);
+        if (!java.util.Set.copyOf(lockedEligible).equals(java.util.Set.copyOf(pending))) {
+            throw new AdminMailPurgeGuard.PurgeBlockedException(
+                    "PURGE_CANDIDATE_NO_LONGER_ELIGIBLE");
+        }
+
+        Object[] lockedParameters = new Object[lockedEligible.size() + 2];
+        lockedParameters[0] = job.tenantId();
+        for (int index = 0; index < lockedEligible.size(); index++) {
+            lockedParameters[index + 1] = lockedEligible.get(index);
+        }
+        lockedParameters[lockedParameters.length - 1] = before;
+        List<String> attachmentStorageReferences = jdbc.queryForList("""
+                SELECT DISTINCT attachment.storage_reference
+                  FROM mail_compose_attachments attachment
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = attachment.tenant_id
+                   AND thread.thread_id = attachment.thread_id
+                 WHERE thread.tenant_id = ? AND thread.thread_id IN (%s)
+                   AND thread.workflow_state = 'TRASHED'
+                   AND thread.updated_at < ?
+                """.formatted(placeholders), String.class, lockedParameters);
+        List<UUID> deleted = jdbc.queryForList("""
+                DELETE FROM mail_threads thread
+                 WHERE thread.tenant_id = ? AND thread.thread_id IN (%s)
+                   AND thread.workflow_state = 'TRASHED'
+                   AND thread.updated_at < ?
+                   AND NOT (%s)
+                RETURNING thread.thread_id
+                """.formatted(placeholders, PURGE_IMMUTABLE_EVIDENCE_EXISTS),
+                UUID.class, lockedParameters);
+        if (!java.util.Set.copyOf(deleted).equals(java.util.Set.copyOf(pending))) {
+            throw new AdminMailPurgeGuard.PurgeBlockedException(
+                    "PURGE_DELETE_ELIGIBILITY_RACE");
+        }
+        for (UUID threadId : deleted) {
+            if (jdbc.update("""
+                    INSERT INTO mail_purge_deleted_candidate_receipts (
+                        job_id, candidate_snapshot_id, tenant_id, thread_id,
+                        message_count, attachment_count, draft_count)
+                    SELECT ?, candidate_snapshot_id, tenant_id, thread_id,
+                           message_count, attachment_count, draft_count
+                      FROM mail_purge_candidate_snapshot_rows
+                     WHERE tenant_id = ? AND candidate_snapshot_id = ? AND thread_id = ?
+                    ON CONFLICT (job_id, thread_id) DO NOTHING
+                    """, job.id(), job.tenantId(), job.snapshotId(), threadId) != 1) {
+                throw new AdminMailPurgeGuard.PurgeBlockedException(
+                        "PURGE_DELETE_RECEIPT_NOT_RECORDED");
+            }
+        }
+        int cleanupCommands = 0;
+        for (String storageReference : attachmentStorageReferences) {
+            cleanupCommands += jdbc.update("""
+                    INSERT INTO sys_tenant_media_cleanup_outbox (
+                        tenant_id, storage_key, cleanup_reason)
+                    SELECT ?, ?, 'MAIL_RETENTION_PURGE'
+                     WHERE NOT EXISTS (
+                         SELECT 1 FROM mail_compose_attachments
+                          WHERE tenant_id = ? AND storage_reference = ?)
+                    ON CONFLICT DO NOTHING
+                    """, job.tenantId(), storageReference,
+                    job.tenantId(), storageReference);
+        }
+        DeleteCounts cumulative = purgeDeletionReceiptCounts(job.tenantId(), job.id());
+        return new DeleteCounts(
+                cumulative.threads(), cumulative.messages(), cleanupCommands);
     }
 
     void completePurgeJob(
@@ -879,7 +1416,9 @@ class AdminMailCompletionRepository {
                 UPDATE mail_purge_jobs
                    SET job_state = ?, deleted_threads = ?, deleted_messages = ?,
                        step_results = ?::jsonb, verification_state = ?, error_code = ?,
-                       completed_at = CURRENT_TIMESTAMP
+                       completed_at = CURRENT_TIMESTAMP, current_step = 'COMPLETED',
+                       lease_owner = NULL, lease_expires_at = NULL,
+                       updated_at = CURRENT_TIMESTAMP
                  WHERE tenant_id = ? AND job_id = ?
                 """, state, counts.threads(), counts.messages(), json(steps), verification,
                 errorCode, tenantId, jobId);
@@ -897,10 +1436,34 @@ class AdminMailCompletionRepository {
         return count == null ? 0 : count;
     }
 
+    long remainingPurgeCandidates(long tenantId, List<UUID> threadIds) {
+        if (threadIds.isEmpty()) return 0;
+        String placeholders = String.join(", ", java.util.Collections.nCopies(threadIds.size(), "?"));
+        Object[] parameters = new Object[threadIds.size() + 1];
+        parameters[0] = tenantId;
+        for (int index = 0; index < threadIds.size(); index++) {
+            parameters[index + 1] = threadIds.get(index);
+        }
+        Long count = jdbc.queryForObject("""
+                SELECT count(*) FROM mail_threads
+                 WHERE tenant_id = ? AND thread_id IN (%s)
+                """.formatted(placeholders), Long.class, parameters);
+        return count == null ? 0 : count;
+    }
+
     List<DeliveryRow> deliveries(
             long tenantId, String state, String query, int limit, int offset) {
+        return deliveries(tenantId, state, query, null, "", "", null, null, limit, offset);
+    }
+
+    List<DeliveryRow> deliveries(
+            long tenantId, String state, String query, UUID accountId,
+            String provider, String command, LocalDate dateFrom, LocalDate dateTo,
+            int limit, int offset) {
         String normalizedState = state == null ? "" : state.trim().toUpperCase();
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase();
+        String normalizedProvider = provider == null ? "" : provider.trim().toUpperCase();
+        String normalizedCommand = command == null ? "" : command.trim().toUpperCase();
         return jdbc.query("""
                 SELECT delivery.delivery_id, delivery.thread_id, delivery.message_id,
                        delivery.delivery_status, delivery.attempt_count,
@@ -912,32 +1475,119 @@ class AdminMailCompletionRepository {
                        delivery.version, account.display_name account_name,
                        connection.provider_type
                   FROM mail_delivery_outbox delivery
-                  JOIN mail_threads thread ON thread.thread_id = delivery.thread_id
-                  JOIN mail_accounts account ON account.account_id = thread.account_id
+                  JOIN mail_threads thread ON thread.tenant_id = delivery.tenant_id
+                                          AND thread.thread_id = delivery.thread_id
+                  JOIN mail_accounts account ON account.tenant_id = thread.tenant_id
+                                            AND account.account_id = thread.account_id
                   JOIN mail_provider_connections connection
-                    ON connection.connection_id = account.connection_id
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
                  WHERE delivery.tenant_id = ?
                    AND (? = '' OR delivery.delivery_status = ?)
                    AND (? = '' OR lower(delivery.delivery_id::text) LIKE '%' || ? || '%'
                         OR lower(delivery.correlation_id) LIKE '%' || ? || '%')
+                   AND (?::uuid IS NULL OR account.account_id = ?::uuid)
+                   AND (? = '' OR connection.provider_type = ?)
+                   AND (? = '' OR ? = 'SEND')
+                   AND (?::date IS NULL OR delivery.created_at >= ?::date)
+                   AND (?::date IS NULL OR delivery.created_at < (?::date + INTERVAL '1 day'))
                  ORDER BY delivery.updated_at DESC
                  LIMIT ? OFFSET ?
                 """, DELIVERY, tenantId, normalizedState, normalizedState,
-                normalizedQuery, normalizedQuery, normalizedQuery, limit, offset);
+                normalizedQuery, normalizedQuery, normalizedQuery,
+                accountId, accountId, normalizedProvider, normalizedProvider,
+                normalizedCommand, normalizedCommand,
+                dateFrom, dateFrom, dateTo, dateTo, limit, offset);
     }
 
     long deliveryCount(long tenantId, String state, String query) {
+        return deliveryCount(tenantId, state, query, null, "", "", null, null);
+    }
+
+    long deliveryCount(
+            long tenantId, String state, String query, UUID accountId,
+            String provider, String command, LocalDate dateFrom, LocalDate dateTo) {
         String normalizedState = state == null ? "" : state.trim().toUpperCase();
         String normalizedQuery = query == null ? "" : query.trim().toLowerCase();
+        String normalizedProvider = provider == null ? "" : provider.trim().toUpperCase();
+        String normalizedCommand = command == null ? "" : command.trim().toUpperCase();
         Long count = jdbc.queryForObject("""
-                SELECT count(*) FROM mail_delivery_outbox delivery
+                SELECT count(*)
+                  FROM mail_delivery_outbox delivery
+                  JOIN mail_threads thread ON thread.tenant_id = delivery.tenant_id
+                                          AND thread.thread_id = delivery.thread_id
+                  JOIN mail_accounts account ON account.tenant_id = thread.tenant_id
+                                            AND account.account_id = thread.account_id
+                  JOIN mail_provider_connections connection
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
                  WHERE delivery.tenant_id = ?
                    AND (? = '' OR delivery.delivery_status = ?)
                    AND (? = '' OR lower(delivery.delivery_id::text) LIKE '%' || ? || '%'
                         OR lower(delivery.correlation_id) LIKE '%' || ? || '%')
+                   AND (?::uuid IS NULL OR account.account_id = ?::uuid)
+                   AND (? = '' OR connection.provider_type = ?)
+                   AND (? = '' OR ? = 'SEND')
+                   AND (?::date IS NULL OR delivery.created_at >= ?::date)
+                   AND (?::date IS NULL OR delivery.created_at < (?::date + INTERVAL '1 day'))
                 """, Long.class, tenantId, normalizedState, normalizedState,
-                normalizedQuery, normalizedQuery, normalizedQuery);
+                normalizedQuery, normalizedQuery, normalizedQuery,
+                accountId, accountId, normalizedProvider, normalizedProvider,
+                normalizedCommand, normalizedCommand,
+                dateFrom, dateFrom, dateTo, dateTo);
         return count == null ? 0 : count;
+    }
+
+    List<DeliveryEvidenceRow> deliveryEvidence(long tenantId, DeliveryRow delivery) {
+        List<DeliveryEvidenceRow> evidence = new ArrayList<>();
+        jdbc.query("""
+                SELECT event_type, occurred_at, published_at, publish_attempts
+                  FROM mail_domain_events
+                 WHERE tenant_id = ?
+                   AND (aggregate_id IN (?, ?, ?)
+                        OR (? <> '' AND correlation_id = ?))
+                 ORDER BY occurred_at, domain_event_id
+                """, rs -> {
+                    OffsetDateTime occurredAt = offset(rs, "occurred_at");
+                    OffsetDateTime publishedAt = offset(rs, "published_at");
+                    String eventType = rs.getString("event_type");
+                    evidence.add(new DeliveryEvidenceRow(
+                            "DOMAIN_EVENT_RECORDED", "SUCCEEDED", eventType, occurredAt,
+                            "mail_domain_events", "VERIFIED"));
+                    evidence.add(new DeliveryEvidenceRow(
+                            "DOMAIN_EVENT_PUBLISHED",
+                            publishedAt == null ? "UNKNOWN" : "SUCCEEDED",
+                            publishedAt == null
+                                    ? "UNPUBLISHED_ATTEMPTS_" + rs.getInt("publish_attempts")
+                                    : eventType,
+                            publishedAt == null ? occurredAt : publishedAt,
+                            "mail_domain_events.published_at",
+                            publishedAt == null ? "UNAVAILABLE" : "VERIFIED"));
+                    evidence.add(new DeliveryEvidenceRow(
+                            "DOMAIN_EVENT_CONSUMED", "UNKNOWN",
+                            "CONSUMER_RECEIPT_NOT_AVAILABLE",
+                            publishedAt == null ? occurredAt : publishedAt,
+                            "NO_CONSUMER_RECEIPT_SOURCE", "UNAVAILABLE"));
+                },
+                tenantId, delivery.id(), delivery.threadId(), delivery.messageId(),
+                delivery.correlationId() == null ? "" : delivery.correlationId(),
+                delivery.correlationId() == null ? "" : delivery.correlationId());
+        evidence.addAll(jdbc.query("""
+                SELECT action, occurred_at
+                  FROM mail_audit_events
+                 WHERE tenant_id = ?
+                   AND (target_id IN (?, ?, ?)
+                        OR (? <> '' AND correlation_id = ?))
+                 ORDER BY occurred_at, audit_event_id
+                """, (rs, ignored) -> new DeliveryEvidenceRow(
+                "AUDIT_RECORDED", "SUCCEEDED", rs.getString("action"),
+                offset(rs, "occurred_at"), "mail_audit_events", "VERIFIED"),
+                tenantId, delivery.id().toString(), delivery.threadId().toString(),
+                delivery.messageId().toString(),
+                delivery.correlationId() == null ? "" : delivery.correlationId(),
+                delivery.correlationId() == null ? "" : delivery.correlationId()));
+        return evidence.stream().sorted(java.util.Comparator.comparing(DeliveryEvidenceRow::at))
+                .toList();
     }
 
     Optional<DeliveryRow> delivery(long tenantId, UUID deliveryId) {
@@ -958,6 +1608,87 @@ class AdminMailCompletionRepository {
                     ON connection.connection_id = account.connection_id
                  WHERE delivery.tenant_id = ? AND delivery.delivery_id = ?
                 """, DELIVERY, tenantId, deliveryId);
+    }
+
+    Optional<DeliveryAuthorizationRow> deliveryAuthorization(
+            long tenantId, UUID deliveryId) {
+        return jdbc.query("""
+                SELECT account.account_id, connection.connection_id,
+                       connection.provider_type, connection.credential_ref,
+                       connection.mail_domain, delivery.created_by,
+                       CASE
+                           WHEN account.account_kind = 'PERSONAL' THEN 'ACCOUNT'
+                           WHEN access_grant.can_send_as THEN 'SEND_AS'
+                           ELSE 'SEND_ON_BEHALF'
+                       END sender_mode,
+                       message.body_format,
+                       EXISTS (
+                           SELECT 1
+                             FROM jsonb_array_elements(
+                                      COALESCE(snapshot.recipients, message.recipients,
+                                               '[]'::jsonb)) recipient
+                            WHERE UPPER(TRIM(COALESCE(recipient ->> 'type', 'TO'))) = 'BCC'
+                       ) has_bcc,
+                       jsonb_array_length(COALESCE(message.attachments, '[]'::jsonb))
+                           attachment_count
+                  FROM mail_delivery_outbox delivery
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = delivery.tenant_id
+                   AND thread.thread_id = delivery.thread_id
+                  JOIN mail_messages message
+                    ON message.tenant_id = delivery.tenant_id
+                   AND message.thread_id = delivery.thread_id
+                   AND message.message_id = delivery.message_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
+                  JOIN mail_provider_connections connection
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
+                  LEFT JOIN mail_group_recipient_snapshots snapshot
+                    ON snapshot.tenant_id = delivery.tenant_id
+                   AND snapshot.delivery_id = delivery.delivery_id
+                  LEFT JOIN mail_tenant_policies policy
+                    ON policy.tenant_id = account.tenant_id
+                  LEFT JOIN mail_shared_inboxes inbox
+                    ON inbox.tenant_id = account.tenant_id
+                   AND inbox.account_id = account.account_id
+                   AND inbox.lifecycle_state = 'ACTIVE'
+                  LEFT JOIN mail_shared_inbox_members membership
+                    ON membership.tenant_id = inbox.tenant_id
+                   AND membership.account_id = inbox.account_id
+                   AND membership.shared_inbox_id = inbox.shared_inbox_id
+                   AND membership.user_id = delivery.created_by
+                   AND membership.lifecycle_state = 'ACTIVE'
+                  LEFT JOIN mail_shared_inbox_access_grants access_grant
+                    ON access_grant.tenant_id = membership.tenant_id
+                   AND access_grant.shared_inbox_id = membership.shared_inbox_id
+                   AND access_grant.user_id = membership.user_id
+                   AND access_grant.member_state = 'ACTIVE'
+                 WHERE delivery.tenant_id = ? AND delivery.delivery_id = ?
+                   AND connection.connection_state = 'ACTIVE'
+                   AND account.connection_state = 'ACTIVE'
+                   AND (
+                       (account.account_kind = 'PERSONAL'
+                            AND account.owner_user_id = delivery.created_by)
+                       OR (
+                           account.account_kind = 'SHARED'
+                           AND policy.allow_shared_inboxes = TRUE
+                           AND membership.user_id IS NOT NULL
+                           AND access_grant.can_read = TRUE
+                           AND (access_grant.can_send_as = TRUE
+                                OR access_grant.can_send_on_behalf = TRUE)
+                           AND (access_grant.expires_at IS NULL
+                                OR access_grant.expires_at > CURRENT_TIMESTAMP)
+                       )
+                   )
+                """, (rs, ignored) -> new DeliveryAuthorizationRow(
+                uuid(rs, "account_id"), uuid(rs, "connection_id"),
+                rs.getString("provider_type"), rs.getString("credential_ref"),
+                rs.getString("mail_domain"), rs.getLong("created_by"),
+                rs.getString("sender_mode"), rs.getString("body_format"),
+                rs.getBoolean("has_bcc"), rs.getInt("attachment_count")),
+                tenantId, deliveryId).stream().findFirst();
     }
 
     List<RecoveryRow> recoveryEvents(long tenantId, UUID deliveryId) {
@@ -1016,6 +1747,21 @@ class AdminMailCompletionRepository {
                 """, tenantId, deliveryId, version);
     }
 
+    int blockDeliveryAccess(
+            long tenantId, UUID deliveryId, long version, String errorCode) {
+        return jdbc.update("""
+                UPDATE mail_delivery_outbox
+                   SET delivery_status = 'FAILED', next_attempt_at = CURRENT_TIMESTAMP,
+                       lease_owner = NULL, lease_expires_at = NULL,
+                       last_error_code = ?, version = version + 1,
+                       updated_at = CURRENT_TIMESTAMP
+                 WHERE tenant_id = ? AND delivery_id = ? AND version = ?
+                   AND delivery_status IN ('QUEUED', 'RETRY_WAIT', 'LEASED', 'FAILED')
+                   AND accepted_at IS NULL AND provider_message_ref IS NULL
+                   AND provider_thread_ref IS NULL
+                """, errorCode, tenantId, deliveryId, version);
+    }
+
     int cancelDelivery(long tenantId, UUID deliveryId, long version) {
         return jdbc.update("""
                 UPDATE mail_delivery_outbox
@@ -1052,6 +1798,14 @@ class AdminMailCompletionRepository {
                 EXPORT, tenantId, actorId, exportId);
     }
 
+    Optional<ExportRow> export(long tenantId, UUID exportId) {
+        return one(EXPORT_BY + " AND export_id = ?", EXPORT, tenantId, exportId);
+    }
+
+    Optional<ExportRow> exportForUpdate(long tenantId, UUID exportId) {
+        return one(EXPORT_BY + " AND export_id = ? FOR UPDATE", EXPORT, tenantId, exportId);
+    }
+
     Optional<UUID> insertExport(
             UUID exportId,
             long tenantId,
@@ -1066,19 +1820,97 @@ class AdminMailCompletionRepository {
             int itemCount,
             boolean truncated,
             OffsetDateTime snapshotCutoff) {
+        return insertExport(
+                exportId, tenantId, actorId, filters, purpose, watermark, key,
+                expiresAt, snapshotPayload, payloadSha256, itemCount, truncated,
+                snapshotCutoff, "DELIVERY_AUDIT", Map.of(), null, null);
+    }
+
+    Optional<UUID> insertExport(
+            UUID exportId,
+            long tenantId,
+            long actorId,
+            Map<String, Object> filters,
+            String purpose,
+            String watermark,
+            UUID key,
+            OffsetDateTime expiresAt,
+            String snapshotPayload,
+            String payloadSha256,
+            int itemCount,
+            boolean truncated,
+            OffsetDateTime snapshotCutoff,
+            String exportKind,
+            Map<String, Object> exportScope,
+            Long policyVersion,
+            String requestFingerprint) {
         return jdbc.query("""
                 INSERT INTO mail_delivery_audit_exports (
                     export_id, tenant_id, actor_user_id, filters, purpose, export_state,
                     storage_reference, watermark, idempotency_key, expires_at,
-                    snapshot_payload, payload_sha256, item_count, truncated, snapshot_cutoff)
-                VALUES (?, ?, ?, ?::jsonb, ?, 'READY', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    snapshot_payload, payload_sha256, item_count, truncated, snapshot_cutoff,
+                    export_kind, export_scope, policy_version, required_approvals,
+                    request_fingerprint)
+                VALUES (?, ?, ?, ?::jsonb, ?, 'PENDING_APPROVAL', ?, ?, ?, ?, ?, ?, ?, ?, ?,
+                        ?, ?::jsonb, ?, 1, ?)
                 ON CONFLICT (tenant_id, actor_user_id, idempotency_key) DO NOTHING
                 RETURNING export_id
                 """, (result, ignored) -> uuid(result, "export_id"),
                 exportId, tenantId, actorId, json(filters), purpose,
                 "DATABASE_SNAPSHOT:" + payloadSha256, watermark, key, expiresAt,
-                snapshotPayload, payloadSha256, itemCount, truncated, snapshotCutoff)
+                snapshotPayload, payloadSha256, itemCount, truncated, snapshotCutoff,
+                exportKind, json(exportScope), policyVersion, requestFingerprint)
                 .stream().findFirst();
+    }
+
+    Optional<ExportApprovalRow> exportApprovalByCommand(
+            long tenantId, long actorId, UUID idempotencyKey) {
+        return one("""
+                SELECT approval_id, export_id, approver_user_id, decision,
+                       request_fingerprint, decided_at
+                  FROM mail_evidence_export_approvals
+                 WHERE tenant_id = ? AND approver_user_id = ? AND idempotency_key = ?
+                """, EXPORT_APPROVAL, tenantId, actorId, idempotencyKey);
+    }
+
+    Optional<UUID> insertExportApproval(
+            long tenantId, UUID exportId, long actorId, UUID idempotencyKey,
+            String requestFingerprint) {
+        return jdbc.query("""
+                INSERT INTO mail_evidence_export_approvals (
+                    tenant_id, export_id, approver_user_id, decision,
+                    idempotency_key, request_fingerprint)
+                VALUES (?, ?, ?, 'APPROVED', ?, ?)
+                ON CONFLICT DO NOTHING
+                RETURNING approval_id
+                """, (result, ignored) -> uuid(result, "approval_id"),
+                tenantId, exportId, actorId, idempotencyKey, requestFingerprint)
+                .stream().findFirst();
+    }
+
+    List<ExportApprovalRow> exportApprovals(long tenantId, UUID exportId) {
+        return jdbc.query("""
+                SELECT approval_id, export_id, approver_user_id, decision,
+                       request_fingerprint, decided_at
+                  FROM mail_evidence_export_approvals
+                 WHERE tenant_id = ? AND export_id = ?
+                 ORDER BY decided_at, approver_user_id
+                """, EXPORT_APPROVAL, tenantId, exportId);
+    }
+
+    int markExportReady(long tenantId, UUID exportId) {
+        return jdbc.update("""
+                UPDATE mail_delivery_audit_exports target
+                   SET export_state = 'READY'
+                 WHERE tenant_id = ? AND export_id = ?
+                   AND export_state = 'PENDING_APPROVAL'
+                   AND expires_at > CURRENT_TIMESTAMP
+                   AND (SELECT count(DISTINCT approval.approver_user_id)
+                          FROM mail_evidence_export_approvals approval
+                         WHERE approval.tenant_id = target.tenant_id
+                           AND approval.export_id = target.export_id
+                           AND approval.decision = 'APPROVED') >= target.required_approvals
+                """, tenantId, exportId);
     }
 
     void audit(
@@ -1181,6 +2013,61 @@ class AdminMailCompletionRepository {
             rs.getString("hold_status"), offset(rs, "starts_at"),
             offset(rs, "expires_at"), rs.getLong("version"));
 
+    private static final String LEGAL_HOLD_RELEASE_PREVIEW_BY = """
+            SELECT release_preview_id, hold_id, requester_user_id, hold_version,
+                   policy_version, hold_scope, retention_boundary, snapshot_fingerprint,
+                   request_fingerprint, affected_resource_counts,
+                   currently_held_resource_counts,
+                   purge_safe_after_release_resource_counts,
+                   still_protected_after_release_resource_counts,
+                   provider_capability_required_resource_counts,
+                   idempotency_key, generated_at, expires_at
+              FROM mail_legal_hold_release_previews WHERE tenant_id = ?
+            """;
+
+    private final RowMapper<LegalHoldReleasePreviewRow> LEGAL_HOLD_RELEASE_PREVIEW =
+            (rs, ignored) -> new LegalHoldReleasePreviewRow(
+                    uuid(rs, "release_preview_id"), uuid(rs, "hold_id"),
+                    rs.getLong("requester_user_id"), rs.getLong("hold_version"),
+                    rs.getLong("policy_version"), map(rs.getString("hold_scope")),
+                    offset(rs, "retention_boundary"),
+                    rs.getString("snapshot_fingerprint"),
+                    rs.getString("request_fingerprint"),
+                    map(rs.getString("affected_resource_counts")),
+                    map(rs.getString("currently_held_resource_counts")),
+                    map(rs.getString("purge_safe_after_release_resource_counts")),
+                    map(rs.getString("still_protected_after_release_resource_counts")),
+                    map(rs.getString("provider_capability_required_resource_counts")),
+                    uuid(rs, "idempotency_key"), offset(rs, "generated_at"),
+                    offset(rs, "expires_at"));
+
+    private static final RowMapper<LegalHoldReleaseApprovalRow> LEGAL_HOLD_RELEASE_APPROVAL =
+            (rs, ignored) -> new LegalHoldReleaseApprovalRow(
+                    uuid(rs, "approval_id"), uuid(rs, "release_preview_id"),
+                    rs.getLong("approver_user_id"), rs.getString("decision"),
+                    rs.getLong("hold_version"), rs.getLong("policy_version"),
+                    rs.getString("preview_fingerprint"),
+                    rs.getString("request_fingerprint"), uuid(rs, "idempotency_key"),
+                    offset(rs, "decided_at"));
+
+    private static final String LEGAL_HOLD_RELEASE_EXECUTION_BY = """
+            SELECT execution_id, release_preview_id, hold_id, requester_user_id,
+                   approved_by_user_id, executed_by_user_id, hold_version_before,
+                   hold_version_after, policy_version, preview_fingerprint,
+                   request_fingerprint, idempotency_key, executed_at
+              FROM mail_legal_hold_release_executions WHERE tenant_id = ?
+            """;
+
+    private static final RowMapper<LegalHoldReleaseExecutionRow> LEGAL_HOLD_RELEASE_EXECUTION =
+            (rs, ignored) -> new LegalHoldReleaseExecutionRow(
+                    uuid(rs, "execution_id"), uuid(rs, "release_preview_id"),
+                    uuid(rs, "hold_id"), rs.getLong("requester_user_id"),
+                    rs.getLong("approved_by_user_id"), rs.getLong("executed_by_user_id"),
+                    rs.getLong("hold_version_before"), rs.getLong("hold_version_after"),
+                    rs.getLong("policy_version"), rs.getString("preview_fingerprint"),
+                    rs.getString("request_fingerprint"), uuid(rs, "idempotency_key"),
+                    offset(rs, "executed_at"));
+
     private static final String PURGE_PREVIEW_BY = """
             SELECT candidate_snapshot_id, actor_user_id, purge_scope, resource_types,
                    before_at, snapshot_fingerprint, total_candidates, held_count,
@@ -1234,7 +2121,9 @@ class AdminMailCompletionRepository {
     private static final String EXPORT_BY = """
             SELECT export_id, actor_user_id, filters, purpose, export_state,
                    storage_reference, watermark, idempotency_key, created_at, expires_at,
-                   snapshot_payload, payload_sha256, item_count, truncated, snapshot_cutoff
+                   snapshot_payload, payload_sha256, item_count, truncated, snapshot_cutoff,
+                   export_kind, export_scope, policy_version, required_approvals,
+                   request_fingerprint
               FROM mail_delivery_audit_exports WHERE tenant_id = ?
             """;
 
@@ -1247,7 +2136,16 @@ class AdminMailCompletionRepository {
             rs.getString("snapshot_payload"), rs.getString("payload_sha256"),
             rs.getObject("item_count", Integer.class),
             rs.getObject("truncated", Boolean.class),
-            offset(rs, "snapshot_cutoff"));
+            offset(rs, "snapshot_cutoff"), rs.getString("export_kind"),
+            map(rs.getString("export_scope")),
+            rs.getObject("policy_version", Long.class),
+            rs.getInt("required_approvals"), rs.getString("request_fingerprint"));
+
+    private static final RowMapper<ExportApprovalRow> EXPORT_APPROVAL = (rs, ignored) ->
+            new ExportApprovalRow(
+                    uuid(rs, "approval_id"), uuid(rs, "export_id"),
+                    rs.getLong("approver_user_id"), rs.getString("decision"),
+                    rs.getString("request_fingerprint"), offset(rs, "decided_at"));
 
     record SourceStamp(String sourceId, OffsetDateTime observedAt) { }
     record ExceptionRow(String kind, String severity, String resourceRef, int impactCount,
@@ -1306,6 +2204,11 @@ class AdminMailCompletionRepository {
     record ImpactRow(int activeAssignments, int openDrafts, int pendingCommands) {
         boolean hasImpact() { return activeAssignments + openDrafts + pendingCommands > 0; }
     }
+    record MemberRevokePreviewRow(
+            UUID id, UUID inboxId, UUID memberId, long actorId, long memberVersion,
+            int activeAssignments, int openDrafts, int pendingCommands,
+            boolean providerRevocationRequired, String fingerprint,
+            OffsetDateTime createdAt, OffsetDateTime expiresAt, OffsetDateTime consumedAt) { }
     record AdminReceiptRow(String commandKind, String fingerprint, String aggregateType,
                            UUID aggregateId, OffsetDateTime completedAt, String correlationId) { }
     record PolicyRow(boolean externalBanner, boolean blockRemoteImages,
@@ -1318,9 +2221,29 @@ class AdminMailCompletionRepository {
     record LegalHoldRow(UUID id, String name, String caseRef, Map<String, Object> scope,
                         String status, OffsetDateTime startsAt, OffsetDateTime expiresAt,
                         long version) { }
+    record LegalHoldReleasePreviewRow(
+            UUID id, UUID holdId, long requesterId, long holdVersion, long policyVersion,
+            Map<String, Object> holdScope, OffsetDateTime retentionBoundary,
+            String fingerprint, String requestFingerprint,
+            Map<String, Object> affectedCounts, Map<String, Object> currentlyHeldCounts,
+            Map<String, Object> purgeSafeCounts, Map<String, Object> protectedCounts,
+            Map<String, Object> providerRequiredCounts, UUID idempotencyKey,
+            OffsetDateTime generatedAt, OffsetDateTime expiresAt) { }
+    record LegalHoldReleaseApprovalRow(
+            UUID id, UUID previewId, long approverId, String decision,
+            long holdVersion, long policyVersion, String previewFingerprint,
+            String requestFingerprint, UUID idempotencyKey, OffsetDateTime decidedAt) { }
+    record LegalHoldReleaseExecutionRow(
+            UUID id, UUID previewId, UUID holdId, long requesterId, long approvedById,
+            long executorId, long holdVersionBefore, long holdVersionAfter,
+            long policyVersion, String previewFingerprint, String requestFingerprint,
+            UUID idempotencyKey, OffsetDateTime executedAt) { }
     record CandidateRow(
             UUID threadId,
+            UUID accountId,
             int messageCount,
+            int attachmentCount,
+            int draftCount,
             String providerType,
             boolean immutableEvidenceBlocked) { }
     record CandidateSet(List<CandidateRow> rows) {
@@ -1354,6 +2277,10 @@ class AdminMailCompletionRepository {
                     .map(CandidateRow::threadId).toList();
         }
     }
+    record PurgeCandidateSnapshotRow(
+            UUID threadId, UUID accountId, int messageCount, int attachmentCount,
+            int draftCount, String providerType, boolean held, List<UUID> holdIds,
+            Map<String, Object> evidence) { }
     record PurgePreviewRow(UUID id, long actorId, Map<String, Object> scope,
                            List<String> resourceTypes, OffsetDateTime before,
                            String fingerprint, int total, int held, int eligible,
@@ -1367,7 +2294,35 @@ class AdminMailCompletionRepository {
                        List<Map<String, Object>> steps, String verification,
                        String errorCode, UUID idempotencyKey,
                        OffsetDateTime startedAt, OffsetDateTime completedAt) { }
-    record DeleteCounts(int threads, int messages) { }
+    record PurgeLeaseRow(
+            UUID id, long tenantId, UUID snapshotId, long actorId,
+            List<UUID> candidateThreadIds, List<Map<String, Object>> steps,
+            int attemptCount, String previousStep,
+            int previousDeletedThreads, int previousDeletedMessages,
+            OffsetDateTime startedAt) {
+        PurgeLeaseRow(
+                UUID id, long tenantId, UUID snapshotId, long actorId,
+                List<UUID> candidateThreadIds, List<Map<String, Object>> steps,
+                int attemptCount) {
+            this(id, tenantId, snapshotId, actorId, candidateThreadIds, steps,
+                    attemptCount, "ACCEPTED", 0, 0, OffsetDateTime.now());
+        }
+    }
+    record PurgeEventEvidence(
+            UUID eventId, OffsetDateTime occurredAt, OffsetDateTime publishedAt,
+            int publishAttempts, String deliveryState, String lastError) {
+        PurgeEventEvidence(
+                UUID eventId, OffsetDateTime occurredAt, OffsetDateTime publishedAt,
+                int publishAttempts) {
+            this(eventId, occurredAt, publishedAt, publishAttempts,
+                    publishedAt == null ? "PENDING" : "PUBLISHED", null);
+        }
+    }
+    record DeleteCounts(int threads, int messages, int attachmentCleanupCommands) {
+        DeleteCounts(int threads, int messages) {
+            this(threads, messages, 0);
+        }
+    }
     record DeliveryRow(UUID id, UUID threadId, UUID messageId, String status,
                        int attemptCount, OffsetDateTime nextAttemptAt, String leaseOwner,
                        OffsetDateTime leaseExpiresAt, String providerMessageRef,
@@ -1375,8 +2330,20 @@ class AdminMailCompletionRepository {
                        OffsetDateTime acceptedAt, OffsetDateTime createdAt, long actorId,
                        OffsetDateTime updatedAt, long version, String accountName,
                        String providerType) { }
+    record DeliveryAuthorizationRow(
+            UUID accountId, UUID connectionId, String providerType,
+            String credentialReference, String mailDomain, long senderId,
+            String senderMode, String bodyFormat, boolean hasBcc,
+            int attachmentCount) {
+        java.net.URI secretReference() {
+            return credentialReference == null || credentialReference.isBlank()
+                    ? null : java.net.URI.create(credentialReference);
+        }
+    }
     record RecoveryRow(UUID id, String action, String result, Map<String, Object> evidence,
                        String correlationId, OffsetDateTime occurredAt) { }
+    record DeliveryEvidenceRow(String stage, String state, String code, OffsetDateTime at,
+                               String source, String evidenceState) { }
     record RecoveryCommandRow(UUID id, UUID deliveryId, String action,
                               String result, String fingerprint) { }
     record ExportRow(UUID id, long actorId, Map<String, Object> filters, String purpose,
@@ -1384,5 +2351,23 @@ class AdminMailCompletionRepository {
                      UUID idempotencyKey, OffsetDateTime createdAt,
                      OffsetDateTime expiresAt, String snapshotPayload,
                      String payloadSha256, Integer itemCount, Boolean truncated,
-                     OffsetDateTime snapshotCutoff) { }
+                     OffsetDateTime snapshotCutoff, String exportKind,
+                     Map<String, Object> exportScope, Long policyVersion,
+                     int requiredApprovals, String requestFingerprint) {
+        ExportRow(
+                UUID id, long actorId, Map<String, Object> filters, String purpose,
+                String state, String storageReference, String watermark,
+                UUID idempotencyKey, OffsetDateTime createdAt,
+                OffsetDateTime expiresAt, String snapshotPayload,
+                String payloadSha256, Integer itemCount, Boolean truncated,
+                OffsetDateTime snapshotCutoff) {
+            this(id, actorId, filters, purpose, state, storageReference, watermark,
+                    idempotencyKey, createdAt, expiresAt, snapshotPayload,
+                    payloadSha256, itemCount, truncated, snapshotCutoff,
+                    "DELIVERY_AUDIT", Map.of(), null, 1, null);
+        }
+    }
+    record ExportApprovalRow(UUID id, UUID exportId, long approverUserId,
+                             String decision, String requestFingerprint,
+                             OffsetDateTime decidedAt) { }
 }

@@ -169,7 +169,7 @@ public class CalendarCollaborationController {
     }
 
     @PostMapping("/events/{eventId}/restore")
-    public ApiResponse<CalendarDtos.EventCapabilities> restoreEvent(
+    public ApiResponse<CalendarRecoveryDtos.RestoreEventResponse> restoreEvent(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long userId,
             @RequestHeader(value = PERSON, required = false) UUID personPublicId,
@@ -178,6 +178,25 @@ public class CalendarCollaborationController {
             @PathVariable UUID eventId,
             @Valid @RequestBody CalendarDtos.VersionRequest request) {
         return ApiResponse.success(service.restoreEvent(
+                tenantId,
+                userId,
+                personPublicId,
+                groupRefs,
+                eventId,
+                correlationId,
+                request));
+    }
+
+    @PostMapping("/events/{eventId}/resource-rebook")
+    public ApiResponse<CalendarRecoveryDtos.RestoreEventResponse> rebookRestoredResource(
+            @RequestHeader(TENANT) Long tenantId,
+            @RequestHeader(USER) Long userId,
+            @RequestHeader(value = PERSON, required = false) UUID personPublicId,
+            @RequestHeader(value = GROUPS, required = false) String groupRefs,
+            @RequestHeader(value = CORRELATION, required = false) String correlationId,
+            @PathVariable UUID eventId,
+            @Valid @RequestBody CalendarRecoveryDtos.RestoreResourceBookingRequest request) {
+        return ApiResponse.success(service.rebookRestoredResource(
                 tenantId,
                 userId,
                 personPublicId,

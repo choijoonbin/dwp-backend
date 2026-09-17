@@ -1,6 +1,7 @@
 package com.dwp.services.platform.servicecenter;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoff;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -53,9 +54,22 @@ public class ServiceCenterController {
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Person-Public-ID", required = false) UUID personPublicId,
+            @RequestHeader(value = "X-DWP-Auth-Session-ID", required = false) String authSessionId,
+            @RequestHeader(value = "X-DWP-Roles", required = false) String roles,
+            @RequestHeader(value = "X-DWP-Permissions", required = false) String permissions,
+            @RequestHeader(value = "X-DWP-DWAI-ON-Handoff-ID", required = false) UUID dwaionHandoffId,
+            @RequestHeader(value = "X-DWP-DWAI-ON-Proposal-ID", required = false) UUID dwaionProposalId,
+            @RequestHeader(value = "X-DWP-DWAI-ON-Action-Key", required = false) String dwaionActionKey,
+            @RequestHeader(value = "X-DWP-DWAI-ON-Handoff-Version", required = false) Long dwaionHandoffVersion,
             @Valid @RequestBody ServiceCenterDtos.CreateRequest request) {
+        PlatformDwaionHandoff.Binding dwaionBinding = PlatformDwaionHandoff.Binding.optional(
+                dwaionHandoffId, dwaionProposalId, dwaionActionKey, dwaionHandoffVersion,
+                "SERVICE.REQUEST.CREATE");
         return ApiResponse.success(service.createRequest(
-                tenantId, userId, correlationId, request));
+                tenantId, userId, correlationId, request, dwaionBinding,
+                dwaionBinding == null ? null : new PlatformDwaionHandoff.Identity(
+                        authSessionId, personPublicId, roles, permissions)));
     }
 
     @PutMapping("/requests/{requestId}/draft")

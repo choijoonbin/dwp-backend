@@ -27,4 +27,28 @@ class ApprovalAttachmentCorsConfigurationTest {
         assertThat(exposedHeaders)
                 .contains("X-Correlation-ID", "X-Content-SHA256", "X-Content-Type-Options");
     }
+
+    @Test
+    void exposesHomeRuntimeTrustHeadersToBrowserClients() {
+        YamlPropertiesFactoryBean loader = new YamlPropertiesFactoryBean();
+        loader.setResources(new ClassPathResource("application.yml"));
+        Properties properties = loader.getObject();
+
+        assertThat(properties).isNotNull();
+        Set<String> exposedHeaders = properties.stringPropertyNames().stream()
+                .filter(key -> key.contains("globalcors") && key.contains("exposed-headers"))
+                .map(properties::getProperty)
+                .collect(Collectors.toSet());
+
+        assertThat(exposedHeaders).contains(
+                "ETag",
+                "Vary",
+                "X-DWP-Decision-Revision",
+                "X-DWP-Home-Runtime-Mode",
+                "X-DWP-Home-Runtime-State",
+                "X-DWP-Home-Rollout-Ring",
+                "X-DWP-Home-Rollout-Revision",
+                "X-DWP-Home-Commands-Enabled",
+                "X-DWP-Widget-Registry-Authoritative");
+    }
 }

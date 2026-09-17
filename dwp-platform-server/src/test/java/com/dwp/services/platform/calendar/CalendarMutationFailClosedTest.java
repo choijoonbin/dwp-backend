@@ -53,6 +53,9 @@ class CalendarMutationFailClosedTest {
     @Mock
     private CalendarRetentionRepository retentionRepository;
 
+    @Mock
+    private CalendarRestoreRepository restoreRepository;
+
     private CalendarService service;
     private CalendarCollaborationService collaborationService;
 
@@ -65,7 +68,15 @@ class CalendarMutationFailClosedTest {
                         Instant.parse("2026-08-19T00:00:00Z"), ZoneOffset.UTC)),
                 roomBookingPolicy);
         collaborationService = new CalendarCollaborationService(
-                collaborationRepository, repository, retentionRepository);
+                collaborationRepository,
+                repository,
+                retentionRepository,
+                new CalendarResourceRestoreService(
+                        collaborationRepository,
+                        restoreRepository,
+                        repository,
+                        retentionRepository,
+                        roomAccess));
     }
 
     @Test
@@ -133,6 +144,8 @@ class CalendarMutationFailClosedTest {
 
         verify(collaborationRepository, never()).trashEvent(
                 any(), any(), any(), anyString(), any(long.class));
+        verify(restoreRepository, never()).cancelResourceBookingsForTrash(
+                any(), any(), any());
         verify(repository, never()).cancelBookings(any(), any(), any());
         verify(repository, never()).audit(any(), any(), any(), any(), any(), any(), any());
     }

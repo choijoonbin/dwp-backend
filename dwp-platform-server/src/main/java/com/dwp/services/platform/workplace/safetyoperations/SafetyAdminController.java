@@ -3,6 +3,7 @@ package com.dwp.services.platform.workplace.safetyoperations;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import org.springframework.http.ContentDisposition;
@@ -49,6 +50,7 @@ public class SafetyAdminController {
     }
 
     @PostMapping("/incidents:preview")
+    @Operation(operationId = "previewWorkplaceSafetyIncidentActivation")
     public ResponseEntity<ApiResponse<ActivationPreviewResult>> preview(
             @RequestHeader(TENANT) long tenantId,
             @RequestHeader(USER) long actorId,

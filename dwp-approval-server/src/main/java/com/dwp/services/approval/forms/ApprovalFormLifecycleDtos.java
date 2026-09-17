@@ -1,5 +1,6 @@
 package com.dwp.services.approval.forms;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
@@ -99,7 +100,7 @@ public final class ApprovalFormLifecycleDtos {
             UUID draftFormVersionId, UUID basePublishedVersionId, String schemaSha256,
             String reviewContentDigest, Long makerUserId, Long lastEditorUserId,
             boolean independentCheckerEligible, OffsetDateTime authorityValidUntil,
-            PublishReviewRequest reviewRequest) { }
+            @JsonIgnore @Schema(hidden=true) PublishReviewRequest reviewRequest) { }
     @Schema(name="ApprovalFormLifecycleChange", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)
     public record Change(String path, Object before, Object after) { }
     @Schema(name="ApprovalFormLifecycleDiff", additionalProperties=Schema.AdditionalPropertiesValue.FALSE)

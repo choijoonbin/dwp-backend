@@ -41,7 +41,7 @@ class ApprovalFormLifecycleOpenApiPostgresTest {
             Map.entry("ApprovalFormLifecyclePublishReviewed", fields("draftFormVersionId basePublishedVersionId expectedFormRevision expectedWorkspaceRevision schemaSha256 reviewContentDigest reviewRequestId expectedReviewRequestVersion reviewComment")),
             Map.entry("ApprovalFormLifecycleVersion", fields("formVersionId versionNumber lifecycleState sourceVersionId basePublishedVersionId schema schemaSha256 metadata route materialDigest metadataProvenance capturedAt capturedBy createdAt createdBy publishedAt publishedBy")),
             Map.entry("ApprovalFormLifecycleWorkspace", fields("formId formRevision workspaceRevision catalogAvailability published workingDraft lastEditorUserId catalogPolicyEligible observedAt")),
-            Map.entry("ApprovalFormLifecycleReview", fields("formId formRevision workspaceRevision draftFormVersionId basePublishedVersionId schemaSha256 reviewContentDigest makerUserId lastEditorUserId independentCheckerEligible authorityValidUntil reviewRequest")),
+            Map.entry("ApprovalFormLifecycleReview", fields("formId formRevision workspaceRevision draftFormVersionId basePublishedVersionId schemaSha256 reviewContentDigest makerUserId lastEditorUserId independentCheckerEligible authorityValidUntil")),
             Map.entry("ApprovalFormLifecycleChange", fields("path before after")),
             Map.entry("ApprovalFormLifecycleDiff", fields("fromVersionId toVersionId fromSchemaSha256 toSchemaSha256 changes complete fromMetadataProvenance toMetadataProvenance")),
             Map.entry("ApprovalFormLifecycleHistory", fields("versions mayBeTruncated")),

@@ -30,7 +30,79 @@ public final class MailDtos {
             ProviderType providerType,
             String connectionState,
             String synchronizationState,
-            boolean defaultAccount) {
+            boolean defaultAccount,
+            AccountReadiness readiness) {
+
+        public AccountSummary(
+                UUID accountId,
+                String emailAddress,
+                String displayName,
+                String accountKind,
+                ProviderType providerType,
+                String connectionState,
+                String synchronizationState,
+                boolean defaultAccount) {
+            this(accountId, emailAddress, displayName, accountKind, providerType,
+                    connectionState, synchronizationState, defaultAccount, null);
+        }
+
+        AccountSummary withReadiness(AccountReadiness evidence) {
+            return new AccountSummary(
+                    accountId, emailAddress, displayName, accountKind, providerType,
+                    connectionState, synchronizationState, defaultAccount, evidence);
+        }
+    }
+
+    public record AccountReadiness(
+            String state,
+            String source,
+            OffsetDateTime observedAt,
+            String errorCode,
+            boolean credentialConfigured,
+            OffsetDateTime lastSuccessfulSyncAt,
+            String lastSuccessfulSyncScope,
+            String action,
+            AuthorizationEvidence consentEvidence,
+            AuthorizationEvidence tokenEvidence,
+            Map<String, FeatureReadiness> featureReadiness) {
+
+        public AccountReadiness(
+                String state,
+                String source,
+                OffsetDateTime observedAt,
+                String errorCode,
+                boolean credentialConfigured,
+                OffsetDateTime lastSuccessfulSyncAt,
+                String lastSuccessfulSyncScope,
+                String action) {
+            this(state, source, observedAt, errorCode, credentialConfigured,
+                    lastSuccessfulSyncAt, lastSuccessfulSyncScope, action,
+                    null, null, Map.of());
+        }
+
+        public AccountReadiness {
+            featureReadiness = featureReadiness == null
+                    ? Map.of() : Map.copyOf(featureReadiness);
+        }
+    }
+
+    public record AuthorizationEvidence(
+            String state,
+            String source,
+            OffsetDateTime observedAt,
+            OffsetDateTime expiresAt,
+            String errorCode,
+            String action) {
+    }
+
+    public record FeatureReadiness(
+            String state,
+            String source,
+            OffsetDateTime observedAt,
+            String errorCode,
+            OffsetDateTime lastSuccessfulAt,
+            String lastSuccessfulScope,
+            String action) {
     }
 
     public record Participant(String name, String email) {
@@ -105,6 +177,13 @@ public final class MailDtos {
             long version) {
     }
 
+    public record ActionProposalPage(
+            List<ActionProposal> items,
+            long total,
+            int page,
+            int pageSize) {
+    }
+
     public record ThreadDetail(
             ThreadSummary thread,
             List<Message> messages,
@@ -112,6 +191,7 @@ public final class MailDtos {
             List<ActionProposal> proposals,
             List<SharedInboxMember> sharedInboxMembers,
             List<String> sharedInboxActions,
+            SharedInboxReplyIdentity sharedInboxReplyIdentity,
             MailWorkspaceDtos.ComposeOptions draftOptions,
             List<MailWorkspaceDtos.Attachment> draftAttachments) {
 
@@ -122,8 +202,19 @@ public final class MailDtos {
                 List<ActionProposal> proposals,
                 List<SharedInboxMember> sharedInboxMembers) {
             this(thread, messages, internalComments, proposals, sharedInboxMembers,
-                    List.of(), null, List.of());
+                    List.of(), null, null, List.of());
         }
+    }
+
+    public enum SharedInboxReplySenderMode {
+        SEND_AS,
+        ON_BEHALF_OF
+    }
+
+    public record SharedInboxReplyIdentity(
+            String displayName,
+            String emailAddress,
+            SharedInboxReplySenderMode senderMode) {
     }
 
     public record SharedInboxMember(
@@ -210,14 +301,25 @@ public final class MailDtos {
             @Size(max = 160) String toName,
             @NotBlank @Size(max = 500) String subject,
             @NotBlank @Size(max = 100_000) String body,
+            @NotNull Classification classification,
+            @NotNull Boolean externalRecipientConfirmed,
             @NotNull DeliveryMode deliveryMode,
             @NotNull UUID idempotencyKey,
             @Valid MailWorkspaceDtos.ComposeOptions composeOptions) {
 
         public ComposeRequest(
                 String toEmail, String toName, String subject, String body,
+                DeliveryMode deliveryMode, UUID idempotencyKey,
+                MailWorkspaceDtos.ComposeOptions composeOptions) {
+            this(toEmail, toName, subject, body, Classification.INTERNAL, false,
+                    deliveryMode, idempotencyKey, composeOptions);
+        }
+
+        public ComposeRequest(
+                String toEmail, String toName, String subject, String body,
                 DeliveryMode deliveryMode, UUID idempotencyKey) {
-            this(toEmail, toName, subject, body, deliveryMode, idempotencyKey, null);
+            this(toEmail, toName, subject, body, Classification.INTERNAL, false,
+                    deliveryMode, idempotencyKey, null);
         }
     }
 
@@ -226,6 +328,8 @@ public final class MailDtos {
             @Size(max = 160) String toName,
             @NotBlank @Size(max = 500) String subject,
             @NotBlank @Size(max = 100_000) String body,
+            @NotNull Classification classification,
+            @NotNull Boolean externalRecipientConfirmed,
             @NotNull DeliveryMode deliveryMode,
             @NotNull UUID idempotencyKey,
             @NotNull @Min(0) Long version,
@@ -233,8 +337,17 @@ public final class MailDtos {
 
         public DraftUpdateRequest(
                 String toEmail, String toName, String subject, String body,
+                DeliveryMode deliveryMode, UUID idempotencyKey, Long version,
+                MailWorkspaceDtos.ComposeOptions composeOptions) {
+            this(toEmail, toName, subject, body, Classification.INTERNAL, false,
+                    deliveryMode, idempotencyKey, version, composeOptions);
+        }
+
+        public DraftUpdateRequest(
+                String toEmail, String toName, String subject, String body,
                 DeliveryMode deliveryMode, UUID idempotencyKey, Long version) {
-            this(toEmail, toName, subject, body, deliveryMode, idempotencyKey, version, null);
+            this(toEmail, toName, subject, body, Classification.INTERNAL, false,
+                    deliveryMode, idempotencyKey, version, null);
         }
     }
 
@@ -243,14 +356,25 @@ public final class MailDtos {
             @Size(max = 160) String toName,
             @Size(max = 500) String subject,
             @Size(max = 100_000) String body,
+            @NotNull Classification classification,
+            @NotNull Boolean externalRecipientConfirmed,
             @NotNull UUID idempotencyKey,
             @Min(0) Long version,
             @Valid MailWorkspaceDtos.ComposeOptions composeOptions) {
 
         public DraftSaveRequest(
                 String toEmail, String toName, String subject, String body,
+                UUID idempotencyKey, Long version,
+                MailWorkspaceDtos.ComposeOptions composeOptions) {
+            this(toEmail, toName, subject, body, Classification.INTERNAL, false,
+                    idempotencyKey, version, composeOptions);
+        }
+
+        public DraftSaveRequest(
+                String toEmail, String toName, String subject, String body,
                 UUID idempotencyKey, Long version) {
-            this(toEmail, toName, subject, body, idempotencyKey, version, null);
+            this(toEmail, toName, subject, body, Classification.INTERNAL, false,
+                    idempotencyKey, version, null);
         }
     }
 
@@ -266,6 +390,7 @@ public final class MailDtos {
 
     public enum ProposalHandoffStatus {
         ACCEPTED,
+        EXECUTING,
         EXECUTED,
         CANCELLED,
         FAILED,

@@ -12,6 +12,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.mock.web.MockMultipartFile;
 
+import java.net.URI;
 import java.time.OffsetDateTime;
 import java.time.Instant;
 import java.nio.charset.StandardCharsets;
@@ -174,6 +175,107 @@ class MailWorkspaceServiceTest {
             assertThat(capabilities.bcc()).isFalse();
             assertThat(capabilities.attachments()).isFalse();
             assertThat(capabilities.scheduling()).isFalse();
+        });
+        assertThat(context.accountReadiness().get(sandboxAccountId)).satisfies(readiness -> {
+            assertThat(readiness.state()).isEqualTo("READY");
+            assertThat(readiness.source()).isEqualTo("CONNECTOR_RUNTIME");
+            assertThat(readiness.observedAt()).isNotNull();
+            assertThat(readiness.errorCode()).isNull();
+            assertThat(readiness.credentialConfigured()).isTrue();
+            assertThat(readiness.action()).isEqualTo("NONE");
+            assertThat(readiness.consentEvidence().state()).isEqualTo("NOT_REQUIRED");
+            assertThat(readiness.tokenEvidence().state()).isEqualTo("NOT_REQUIRED");
+            assertThat(readiness.featureReadiness()).containsOnlyKeys(
+                    "SEND", "BCC", "HTML_BODY", "ATTACHMENTS", "SCHEDULING");
+            assertThat(readiness.featureReadiness().get("BCC").state()).isEqualTo("READY");
+        });
+        assertThat(context.accounts()).filteredOn(account ->
+                        account.accountId().equals(sandboxAccountId))
+                .singleElement()
+                .extracting(MailDtos.AccountSummary::readiness)
+                .isEqualTo(context.accountReadiness().get(sandboxAccountId));
+        assertThat(context.accountReadiness().get(undeployedGraphAccountId)).satisfies(readiness -> {
+            assertThat(readiness.state()).isEqualTo("UNAVAILABLE");
+            assertThat(readiness.errorCode()).isEqualTo("MAIL_CREDENTIAL_NOT_CONFIGURED");
+            assertThat(readiness.credentialConfigured()).isFalse();
+            assertThat(readiness.action()).isEqualTo("ACTIVATE_EXTERNALLY");
+        });
+    }
+
+    @Test
+    void externalComposeFeaturesFailClosedWithoutConsentAndTokenEvidence() {
+        UUID accountId = UUID.randomUUID();
+        MailConnectorPort connector = mock(MailConnectorPort.class);
+        when(connector.manifest()).thenReturn(new MailConnectorPort.Manifest(
+                MailConnectorPort.ProviderFamily.MICROSOFT_GRAPH, "graph", "graph",
+                Set.of(MailConnectorPort.Capability.SEND,
+                        MailConnectorPort.Capability.BCC,
+                        MailConnectorPort.Capability.HTML_BODY,
+                        MailConnectorPort.Capability.ATTACHMENTS)));
+        when(connector.readiness(any())).thenReturn(new MailConnectorPort.Readiness(
+                MailConnectorPort.ReadinessState.READY, Instant.now(), null, null));
+        MailWorkspaceService externalService = new MailWorkspaceService(
+                repository, queries, mail, storage, List.of(attachmentScanner),
+                new MailConnectorRegistry(List.of(connector)));
+        when(queries.accounts(1L, 7L)).thenReturn(List.of(new MailDtos.AccountSummary(
+                accountId, "sender@example.com", "Sender", "PERSONAL",
+                MailTypes.ProviderType.MICROSOFT_GRAPH, "ACTIVE", "CURRENT", true)));
+        when(repository.preferences(1L, 7L)).thenReturn(preferences());
+        when(repository.maximumAttachmentMb(1L)).thenReturn(25);
+        when(repository.templates(1L, 7L, false)).thenReturn(List.of());
+        when(repository.signatures(1L, 7L, false)).thenReturn(List.of());
+        when(repository.composeProviderContext(1L, 7L, accountId)).thenReturn(Optional.of(
+                new MailWorkspaceRepository.ComposeProviderContext(
+                        accountId, MailTypes.ProviderType.MICROSOFT_GRAPH,
+                        UUID.randomUUID(), URI.create("secret://graph-credential"),
+                        "example.com", "graph-account")));
+
+        MailWorkspaceDtos.ComposeContext context = externalService.composeContext(1L, 7L);
+
+        assertThat(context.accountCapabilities().get(accountId)).satisfies(capabilities -> {
+            assertThat(capabilities.multipleRecipients()).isFalse();
+            assertThat(capabilities.bcc()).isFalse();
+            assertThat(capabilities.html()).isFalse();
+            assertThat(capabilities.attachments()).isFalse();
+            assertThat(capabilities.scheduling()).isFalse();
+        });
+        assertThat(context.accountReadiness().get(accountId)).satisfies(readiness -> {
+            assertThat(readiness.state()).isEqualTo("UNAVAILABLE");
+            assertThat(readiness.errorCode()).isEqualTo("MAIL_OAUTH_EVIDENCE_UNAVAILABLE");
+            assertThat(readiness.consentEvidence().state()).isEqualTo("UNKNOWN");
+            assertThat(readiness.tokenEvidence().state()).isEqualTo("UNKNOWN");
+            assertThat(readiness.featureReadiness().values())
+                    .allMatch(feature -> "UNAVAILABLE".equals(feature.state()));
+        });
+    }
+
+    @Test
+    void composeContextPreservesSafeLastSuccessfulSyncEvidence() {
+        UUID accountId = UUID.randomUUID();
+        OffsetDateTime lastSync = OffsetDateTime.parse("2026-09-17T01:02:03Z");
+        MailDtos.AccountReadiness stored = new MailDtos.AccountReadiness(
+                "UNAVAILABLE", "NO_RUNTIME_ATTESTATION",
+                OffsetDateTime.parse("2026-09-17T01:03:03Z"),
+                "OLD_SAFE_CODE", true, lastSync, "ACCOUNT", "RETRY");
+        when(queries.accounts(1L, 7L)).thenReturn(List.of(new MailDtos.AccountSummary(
+                accountId, "sender@example.com", "Sender", "PERSONAL",
+                MailTypes.ProviderType.DWP_SANDBOX, "ACTIVE", "CURRENT", true, stored)));
+        when(repository.preferences(1L, 7L)).thenReturn(preferences());
+        when(repository.maximumAttachmentMb(1L)).thenReturn(25);
+        when(repository.templates(1L, 7L, false)).thenReturn(List.of());
+        when(repository.signatures(1L, 7L, false)).thenReturn(List.of());
+
+        MailDtos.AccountReadiness runtime = service.composeContext(1L, 7L)
+                .accountReadiness().get(accountId);
+
+        assertThat(runtime.state()).isEqualTo("READY");
+        assertThat(runtime.source()).isEqualTo("CONNECTOR_RUNTIME");
+        assertThat(runtime.lastSuccessfulSyncAt()).isEqualTo(lastSync);
+        assertThat(runtime.lastSuccessfulSyncScope()).isEqualTo("ACCOUNT");
+        assertThat(runtime.errorCode()).isNull();
+        assertThat(runtime.featureReadiness().values()).allSatisfy(feature -> {
+            assertThat(feature.lastSuccessfulAt()).isNull();
+            assertThat(feature.lastSuccessfulScope()).isEqualTo("UNAVAILABLE");
         });
     }
 
@@ -544,7 +646,8 @@ class MailWorkspaceServiceTest {
                 request.subject().trim(), request.body().trim(), request.bodyFormat().name(),
                 request.attachmentIds().toString(), String.valueOf(request.scheduleAt()),
                 request.timeZone(), String.valueOf(request.templateId()),
-                String.valueOf(request.signatureId()));
+                String.valueOf(request.signatureId()), request.classification().name(),
+                String.valueOf(request.externalRecipientConfirmed()));
         try {
             return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                     .digest(value.getBytes(StandardCharsets.UTF_8)));

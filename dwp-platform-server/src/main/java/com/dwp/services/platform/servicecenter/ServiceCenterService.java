@@ -4,9 +4,12 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.security.PlatformRoutePredicateEvaluator;
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoff;
+import com.dwp.services.platform.dwaion.PlatformDwaionHandoffOutboxRepository;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
@@ -28,6 +31,12 @@ public class ServiceCenterService {
     private final ServiceCenterRepository repository;
     private final PlatformAuditService audit;
     private final PlatformRoutePredicateEvaluator predicateEvaluator;
+    private PlatformDwaionHandoffOutboxRepository dwaionHandoffs;
+
+    @Autowired(required = false)
+    void setDwaionHandoffs(PlatformDwaionHandoffOutboxRepository dwaionHandoffs) {
+        this.dwaionHandoffs = dwaionHandoffs;
+    }
 
     public ServiceCenterService(
             ServiceCenterRepository repository,
@@ -76,8 +85,24 @@ public class ServiceCenterService {
             Long userId,
             String correlationId,
             ServiceCenterDtos.CreateRequest request) {
+        return createRequest(tenantId, userId, correlationId, request, null, null);
+    }
+
+    @Transactional
+    public ServiceCenterDtos.RequestDetail createRequest(
+            Long tenantId,
+            Long userId,
+            String correlationId,
+            ServiceCenterDtos.CreateRequest request,
+            PlatformDwaionHandoff.Binding dwaionBinding,
+            PlatformDwaionHandoff.Identity dwaionIdentity) {
         var existing = repository.findByIdempotency(tenantId, userId, request.idempotencyKey());
-        if (existing.isPresent()) return detail(tenantId, existing.get());
+        if (existing.isPresent()) {
+            ServiceCenterDtos.RequestDetail replay = detail(tenantId, existing.get());
+            completeDwaion(tenantId, userId, correlationId, replay,
+                    dwaionBinding, dwaionIdentity);
+            return replay;
+        }
         var definition = repository.definition(tenantId, request.serviceKey())
                 .filter(value -> value.lifecycleState() == CatalogLifecycle.ACTIVE)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
@@ -99,7 +124,31 @@ public class ServiceCenterService {
                 "SERVICE_REQUEST", created.requestId().toString(), correlationId, null,
                 Map.of("requestNumber", created.requestNumber(), "serviceKey", created.serviceKey(),
                         "status", created.status().name()));
-        return detail(tenantId, created);
+        ServiceCenterDtos.RequestDetail result = detail(tenantId, created);
+        completeDwaion(tenantId, userId, correlationId, result,
+                dwaionBinding, dwaionIdentity);
+        return result;
+    }
+
+    private void completeDwaion(
+            Long tenantId,
+            Long userId,
+            String correlationId,
+            ServiceCenterDtos.RequestDetail detail,
+            PlatformDwaionHandoff.Binding binding,
+            PlatformDwaionHandoff.Identity identity) {
+        if (binding == null) return;
+        if (dwaionHandoffs == null || detail == null || detail.request() == null
+                || !Set.of(RequestStatus.DRAFT, RequestStatus.SUBMITTED)
+                        .contains(detail.request().status())) {
+            throw PlatformDwaionHandoff.unavailable();
+        }
+        dwaionHandoffs.committed(
+                tenantId, userId, binding, identity,
+                PlatformDwaionHandoff.Effect.forBinding(
+                        binding, detail.request().requestId(), detail.request().version(),
+                        detail.request().status().name()),
+                correlationId);
     }
 
     @Transactional

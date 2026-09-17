@@ -436,7 +436,7 @@ class MailServiceTest {
                 DeliveryMode.SEND, idempotencyKey);
         String changedFingerprint = sendFingerprints.compose(7L, changed);
         when(queries.accounts(1L, 7L)).thenReturn(List.of(account()));
-        when(commands.compose(1L, 7L, changed, changedFingerprint)).thenReturn(
+        when(commands.composeCommand(1L, 7L, idempotencyKey)).thenReturn(
                 new MailCommandRepository.ComposeResult(
                         threadId, false, sendFingerprints.compose(7L, original)));
 
@@ -789,6 +789,10 @@ class MailServiceTest {
         when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
         when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
         when(queries.sharedInboxMembers(1L, sharedInboxId)).thenReturn(List.of());
+        when(queries.sharedInboxReplyIdentity(1L, 7L, threadId)).thenReturn(Optional.of(
+                new MailDtos.SharedInboxReplyIdentity(
+                        "People Help", "people-help@example.com",
+                        MailDtos.SharedInboxReplySenderMode.SEND_AS)));
         when(queries.hasSharedInboxPermission(
                 1L, sharedInboxId, 7L,
                 MailQueryRepository.SharedInboxPermission.ASSIGN)).thenReturn(true);

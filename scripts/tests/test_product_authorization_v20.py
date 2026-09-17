@@ -69,6 +69,7 @@ WORKPLACE_PAGE_KEYS = {
 DEVICE_BINDINGS = {
     "POST /v1/device/workplace/devices/{deviceId}/heartbeat",
     "GET /v1/device/workplace/devices/{deviceId}/projection",
+    "POST /v1/device/workplace/devices/{deviceId}/access-pass:pair",
     "POST /v1/device/workplace/devices:register",
     "POST /v1/workplace/kiosk/devices/{deviceId}:heartbeat",
     "POST /v1/workplace/kiosk/devices/{deviceId}:help",
@@ -137,7 +138,7 @@ class ProductAuthorizationV20Test(unittest.TestCase):
                 checked += 1
         self.assertEqual(38, checked)
 
-    def test_v20_is_pinned_and_exactly_closes_the_current_human_inventory(self):
+    def test_v20_is_pinned_and_its_human_inventory_remains_governed(self):
         self.assertEqual(20, self.v20["version"])
         self.assertEqual(
             "1acbce34c450c650aa3e8f1c11995b831f177ee4a6139dd8217ea5bdd22e7a60",
@@ -157,10 +158,8 @@ class ProductAuthorizationV20Test(unittest.TestCase):
         )
 
         current = openapi_workplace_bindings()
-        self.assertEqual(279, len(current))
         self.assertTrue(DEVICE_BINDINGS <= current)
         human = current - DEVICE_BINDINGS
-        self.assertEqual(270, len(human))
         projection = service_bindings(self.v20)
         strict_projection = {
             binding for binding in projection
@@ -170,7 +169,15 @@ class ProductAuthorizationV20Test(unittest.TestCase):
             binding for binding in projection
             if " /v1/rooms/" in binding or " /v1/admin/rooms/" in binding
         }
-        self.assertEqual(human, strict_projection)
+        latest_projection = service_bindings(self.snapshots[-1])
+        latest_strict_projection = {
+            binding for binding in latest_projection
+            if " /v1/workplace/" in binding or " /v1/admin/workplace/" in binding
+        }
+        self.assertEqual(DEVICE_BINDINGS, current - latest_strict_projection)
+        self.assertEqual(human, latest_strict_projection)
+        self.assertEqual(270, len(strict_projection))
+        self.assertTrue(strict_projection <= human)
         self.assertEqual(ROOM_BINDINGS, room_projection)
         self.assertEqual(284, len(projection))
         self.assertFalse(projection & DEVICE_BINDINGS)

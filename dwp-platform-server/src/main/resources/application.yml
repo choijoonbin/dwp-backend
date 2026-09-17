@@ -160,6 +160,17 @@ dwp:
     service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}
     runtime-service-token: ${DWP_PLATFORM_RUNTIME_SERVICE_TOKEN:}
     widget-registry-provider-token: ${DWP_WIDGET_REGISTRY_PROVIDER_TOKEN:}
+    dwaion-handoff:
+      enabled: ${DWP_PLATFORM_DWAION_HANDOFF_ENABLED:true}
+      agent-url: ${SERVICE_AGENT_URL:http://localhost:8010}
+      service-token: ${DWP_AGENT_SERVICE_TOKEN:}
+      worker-token: ${DWP_WORKFLOW_WORKER_TOKEN:}
+      identity-signing-secret: ${DWP_AGENT_IDENTITY_SIGNING_SECRET:}
+      identity-key-id: ${DWP_AGENT_IDENTITY_KEY_ID:gateway-agent-v1}
+      batch-size: ${DWP_PLATFORM_DWAION_HANDOFF_BATCH_SIZE:25}
+      maximum-attempts: ${DWP_PLATFORM_DWAION_HANDOFF_MAXIMUM_ATTEMPTS:10}
+      poll-delay-ms: ${DWP_PLATFORM_DWAION_HANDOFF_POLL_DELAY_MS:2000}
+      initial-delay-ms: ${DWP_PLATFORM_DWAION_HANDOFF_INITIAL_DELAY_MS:5000}
     activity:
       # Local UI evidence stays SAMPLE and is invisible unless the server is explicitly opted in.
       local-fixtures-enabled: ${DWP_ACTIVITY_LOCAL_FIXTURES_ENABLED:false}

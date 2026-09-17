@@ -56,6 +56,12 @@ class MailQueryRepository {
                 SELECT account.account_id, account.email_address, account.display_name,
                        account.account_kind, connection.provider_type,
                        account.connection_state, account.synchronization_state,
+                       connection.connection_state AS provider_connection_state,
+                       (connection.provider_type = 'DWP_SANDBOX'
+                           OR connection.credential_ref IS NOT NULL) AS credential_configured,
+                       connection.last_synchronized_at,
+                       connection.last_error_code,
+                       connection.updated_at AS readiness_observed_at,
                        CASE WHEN preference.default_account_id IS NOT NULL
                             THEN account.account_id = preference.default_account_id
                             ELSE account.is_default END AS is_default
@@ -77,7 +83,69 @@ class MailQueryRepository {
                 ProviderType.valueOf(result.getString("provider_type")),
                 result.getString("connection_state"),
                 result.getString("synchronization_state"),
-                result.getBoolean("is_default")), userId, tenantId, userId, userId);
+                result.getBoolean("is_default"),
+                persistedAccountReadiness(result)), userId, tenantId, userId, userId);
+    }
+
+    private MailDtos.AccountReadiness persistedAccountReadiness(ResultSet result)
+            throws SQLException {
+        boolean credentialConfigured = result.getBoolean("credential_configured");
+        String accountState = result.getString("connection_state");
+        String providerState = result.getString("provider_connection_state");
+        String errorCode = result.getString("last_error_code");
+        String action;
+        if (!credentialConfigured || "CONFIGURATION_REQUIRED".equals(providerState)
+                || "REAUTHENTICATION_REQUIRED".equals(accountState)) {
+            action = "ACTIVATE_EXTERNALLY";
+        } else if ("SUSPENDED".equals(accountState) || "SUSPENDED".equals(providerState)) {
+            action = "CONTACT_ADMIN";
+        } else {
+            action = "RETRY";
+        }
+        OffsetDateTime lastSync = result.getObject(
+                "last_synchronized_at", OffsetDateTime.class);
+        OffsetDateTime observedAt = result.getObject(
+                "readiness_observed_at", OffsetDateTime.class);
+        boolean sandbox = "DWP_SANDBOX".equals(result.getString("provider_type"));
+        MailDtos.AuthorizationEvidence consent = persistedAuthorizationEvidence(
+                sandbox, "CONSENT", observedAt);
+        MailDtos.AuthorizationEvidence token = persistedAuthorizationEvidence(
+                sandbox, "TOKEN", observedAt);
+        String readinessError = errorCode == null || errorCode.isBlank()
+                ? "RUNTIME_READINESS_NOT_CHECKED" : errorCode;
+        return new MailDtos.AccountReadiness(
+                "UNAVAILABLE", "NO_RUNTIME_ATTESTATION",
+                observedAt, readinessError, credentialConfigured, lastSync,
+                lastSync == null ? null : "ACCOUNT", action, consent, token,
+                unavailableFeatureEvidence(
+                        observedAt, readinessError, action));
+    }
+
+    private MailDtos.AuthorizationEvidence persistedAuthorizationEvidence(
+            boolean sandbox, String kind, OffsetDateTime observedAt) {
+        return sandbox
+                ? new MailDtos.AuthorizationEvidence(
+                        "NOT_REQUIRED", "PERSISTED_CONNECTION", observedAt,
+                        null, null, "NONE")
+                : new MailDtos.AuthorizationEvidence(
+                        "UNKNOWN", "NO_OAUTH_ATTESTATION", observedAt,
+                        null, "MAIL_" + kind + "_EVIDENCE_UNAVAILABLE",
+                        "ACTIVATE_EXTERNALLY");
+    }
+
+    private Map<String, MailDtos.FeatureReadiness> unavailableFeatureEvidence(
+            OffsetDateTime observedAt,
+            String errorCode,
+            String action) {
+        MailDtos.FeatureReadiness unavailable = new MailDtos.FeatureReadiness(
+                "UNAVAILABLE", "NO_RUNTIME_ATTESTATION", observedAt,
+                errorCode, null, "UNAVAILABLE", action);
+        return Map.of(
+                "SEND", unavailable,
+                "BCC", unavailable,
+                "HTML_BODY", unavailable,
+                "ATTACHMENTS", unavailable,
+                "SCHEDULING", unavailable);
     }
 
     List<MailDtos.ThreadSummary> threads(
@@ -176,6 +244,7 @@ class MailQueryRepository {
             Boolean unread,
             Boolean needsReply,
             Boolean hasAttachment,
+            String importance,
             int page,
             int pageSize) {
         return jdbc.query(threadSelect() + MailAccessSql.THREAD_ACCESS
@@ -190,7 +259,7 @@ class MailQueryRepository {
                 advancedThreadParameters(
                         tenantId, userId, lane, state, folder, folderId, sharedOnly, search,
                         accountId, scope, sharedInboxId, assignment, sender, recipient,
-                        dateFrom, dateTo, unread, needsReply, hasAttachment,
+                        dateFrom, dateTo, unread, needsReply, hasAttachment, importance,
                         pageSize, page * pageSize));
     }
 
@@ -213,14 +282,15 @@ class MailQueryRepository {
             LocalDate dateTo,
             Boolean unread,
             Boolean needsReply,
-            Boolean hasAttachment) {
+            Boolean hasAttachment,
+            String importance) {
         String sql = "SELECT COUNT(*) FROM (" + threadSelect()
                 + MailAccessSql.THREAD_ACCESS + advancedThreadFilters() + ") visible_threads";
         Long count = jdbc.queryForObject(sql, Long.class,
                 advancedThreadParameters(
                         tenantId, userId, lane, state, folder, folderId, sharedOnly, search,
                         accountId, scope, sharedInboxId, assignment, sender, recipient,
-                        dateFrom, dateTo, unread, needsReply, hasAttachment));
+                        dateFrom, dateTo, unread, needsReply, hasAttachment, importance));
         return count == null ? 0 : count;
     }
 
@@ -247,7 +317,14 @@ class MailQueryRepository {
                    AND (?::uuid IS NULL OR thread.shared_inbox_id = ?::uuid)
                    AND (? = ''
                         OR (? = 'MINE' AND thread.assigned_user_id = ?)
-                        OR (? = 'UNASSIGNED' AND thread.assigned_user_id IS NULL))
+                        OR (? = 'UNASSIGNED' AND thread.assigned_user_id IS NULL)
+                        OR (? = 'OVERDUE'
+                            AND thread.shared_inbox_id IS NOT NULL
+                            AND inbox.lifecycle_state = 'ACTIVE'
+                            AND thread.workflow_state = 'OPEN'
+                            AND thread.latest_message_at
+                                < CURRENT_TIMESTAMP
+                                  - inbox.service_target_minutes * INTERVAL '1 minute'))
                    AND (? = '' OR EXISTS (
                        SELECT 1 FROM mail_messages searched_sender
                         WHERE searched_sender.tenant_id = thread.tenant_id
@@ -267,6 +344,7 @@ class MailQueryRepository {
                    AND (?::boolean IS NULL OR thread.unread = ?::boolean)
                    AND (?::boolean IS NULL OR ?::boolean = FALSE OR thread.triage_lane = 'NEEDS_REPLY')
                    AND (?::boolean IS NULL OR thread.has_attachments = ?::boolean)
+                   AND (? = '' OR thread.importance = ?)
                 """;
     }
 
@@ -290,6 +368,7 @@ class MailQueryRepository {
             Boolean unread,
             Boolean needsReply,
             Boolean hasAttachment,
+            String importance,
             Object... tail) {
         String accountKind = switch (scope) {
             case "PERSONAL" -> "PERSONAL";
@@ -308,7 +387,7 @@ class MailQueryRepository {
                 accountId, accountId,
                 accountKind, accountKind,
                 sharedInboxId, sharedInboxId,
-                assignment, assignment, userId, assignment,
+                assignment, assignment, userId, assignment, assignment,
                 sender, pattern(sender),
                 recipient, pattern(recipient));
         values.add(dateFrom);
@@ -321,6 +400,8 @@ class MailQueryRepository {
         values.add(needsReply);
         values.add(hasAttachment);
         values.add(hasAttachment);
+        values.add(importance);
+        values.add(importance);
         java.util.Collections.addAll(values, tail);
         return values.toArray();
     }
@@ -562,6 +643,55 @@ class MailQueryRepository {
         return count != null && count > 0;
     }
 
+    Optional<MailDtos.SharedInboxReplyIdentity> sharedInboxReplyIdentity(
+            Long tenantId, Long userId, UUID threadId) {
+        return jdbc.query("""
+                SELECT account.display_name, account.email_address,
+                       CASE WHEN access_grant.can_send_as = TRUE
+                            THEN 'SEND_AS' ELSE 'ON_BEHALF_OF' END AS sender_mode
+                  FROM mail_threads thread
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
+                   AND account.account_kind = 'SHARED'
+                   AND account.connection_state = 'ACTIVE'
+                  JOIN mail_provider_connections connection
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
+                   AND connection.connection_state = 'ACTIVE'
+                  JOIN mail_tenant_policies policy
+                    ON policy.tenant_id = thread.tenant_id
+                   AND policy.allow_shared_inboxes = TRUE
+                  JOIN mail_shared_inboxes inbox
+                    ON inbox.tenant_id = thread.tenant_id
+                   AND inbox.shared_inbox_id = thread.shared_inbox_id
+                   AND inbox.account_id = thread.account_id
+                   AND inbox.lifecycle_state = 'ACTIVE'
+                  JOIN mail_shared_inbox_members membership
+                    ON membership.tenant_id = inbox.tenant_id
+                   AND membership.account_id = inbox.account_id
+                   AND membership.shared_inbox_id = inbox.shared_inbox_id
+                   AND membership.user_id = ?
+                   AND membership.lifecycle_state = 'ACTIVE'
+                  JOIN mail_shared_inbox_access_grants access_grant
+                    ON access_grant.tenant_id = membership.tenant_id
+                   AND access_grant.shared_inbox_id = membership.shared_inbox_id
+                   AND access_grant.user_id = membership.user_id
+                   AND access_grant.member_state = 'ACTIVE'
+                   AND access_grant.can_read = TRUE
+                   AND (access_grant.can_send_as = TRUE
+                        OR access_grant.can_send_on_behalf = TRUE)
+                   AND (access_grant.expires_at IS NULL
+                        OR access_grant.expires_at > CURRENT_TIMESTAMP)
+                 WHERE thread.tenant_id = ? AND thread.thread_id = ?
+                """, (result, ignored) -> new MailDtos.SharedInboxReplyIdentity(
+                        result.getString("display_name"),
+                        result.getString("email_address"),
+                        MailDtos.SharedInboxReplySenderMode.valueOf(
+                                result.getString("sender_mode"))),
+                userId, tenantId, threadId).stream().findFirst();
+    }
+
     List<MailDtos.SharedInboxMember> sharedInboxMembers(
             Long tenantId, UUID sharedInboxId) {
         return jdbc.query("""
@@ -630,10 +760,29 @@ class MailQueryRepository {
             String status,
             String type,
             int limit) {
+        return proposalsFiltered(
+                tenantId, userId, accountId, status, type,
+                null, null, 0, limit);
+    }
+
+    List<MailDtos.ActionProposal> proposalsFiltered(
+            Long tenantId,
+            Long userId,
+            UUID accountId,
+            String status,
+            String type,
+            LocalDate dateFrom,
+            LocalDate dateTo,
+            int page,
+            int pageSize) {
         return jdbc.query("""
                 SELECT proposal.proposal_id, proposal.thread_id, proposal.proposal_type,
                        proposal.action_contract_version,
-                       proposal.proposal_status, proposal.title, proposal.summary,
+                       CASE WHEN proposal.proposal_status = 'PROPOSED'
+                                      AND proposal.expires_at IS NOT NULL
+                                      AND proposal.expires_at <= CURRENT_TIMESTAMP
+                            THEN 'EXPIRED' ELSE proposal.proposal_status END AS proposal_status,
+                       proposal.title, proposal.summary,
                        proposal.evidence::text, proposal.proposed_payload::text,
                        proposal.confidence, proposal.risk_level,
                        proposal.required_resource_key, proposal.required_permission_code,
@@ -647,18 +796,54 @@ class MailQueryRepository {
                    AND account.account_id = thread.account_id
                  WHERE proposal.tenant_id = ?
                    AND (?::uuid IS NULL OR thread.account_id = ?::uuid)
-                   AND (? = '' OR proposal.proposal_status = ?)
+                   AND (? = '' OR (CASE WHEN proposal.proposal_status = 'PROPOSED'
+                                                   AND proposal.expires_at IS NOT NULL
+                                                   AND proposal.expires_at <= CURRENT_TIMESTAMP
+                                         THEN 'EXPIRED' ELSE proposal.proposal_status END) = ?)
                    AND (? = '' OR proposal.proposal_type = ?)
-                   AND (proposal.expires_at IS NULL OR proposal.expires_at > CURRENT_TIMESTAMP
-                        OR proposal.proposal_status <> 'PROPOSED')
+                   AND (?::date IS NULL OR proposal.created_at >= ?::date)
+                   AND (?::date IS NULL OR proposal.created_at < (?::date + INTERVAL '1 day'))
                 """ + MailAccessSql.THREAD_ACCESS + """
                  ORDER BY
                        CASE proposal.risk_level WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 ELSE 2 END,
                        proposal.created_at DESC, proposal.proposal_id
-                 LIMIT ?
+                 LIMIT ? OFFSET ?
                 """, (result, ignored) -> proposal(result),
                 tenantId, accountId, accountId, status, status, type, type,
-                userId, userId, limit);
+                dateFrom, dateFrom, dateTo, dateTo,
+                userId, userId, pageSize, page * pageSize);
+    }
+
+    long proposalCountFiltered(
+            Long tenantId,
+            Long userId,
+            UUID accountId,
+            String status,
+            String type,
+            LocalDate dateFrom,
+            LocalDate dateTo) {
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM mail_action_proposals proposal
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = proposal.tenant_id
+                   AND thread.thread_id = proposal.thread_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
+                 WHERE proposal.tenant_id = ?
+                   AND (?::uuid IS NULL OR thread.account_id = ?::uuid)
+                   AND (? = '' OR (CASE WHEN proposal.proposal_status = 'PROPOSED'
+                                                   AND proposal.expires_at IS NOT NULL
+                                                   AND proposal.expires_at <= CURRENT_TIMESTAMP
+                                         THEN 'EXPIRED' ELSE proposal.proposal_status END) = ?)
+                   AND (? = '' OR proposal.proposal_type = ?)
+                   AND (?::date IS NULL OR proposal.created_at >= ?::date)
+                   AND (?::date IS NULL OR proposal.created_at < (?::date + INTERVAL '1 day'))
+                """ + MailAccessSql.THREAD_ACCESS,
+                Long.class, tenantId, accountId, accountId, status, status, type, type,
+                dateFrom, dateFrom, dateTo, dateTo, userId, userId);
+        return count == null ? 0 : count;
     }
 
     int updateProposalPayload(
@@ -685,7 +870,11 @@ class MailQueryRepository {
         return jdbc.query("""
                 SELECT proposal.proposal_id, proposal.thread_id, proposal.proposal_type,
                        proposal.action_contract_version,
-                       proposal.proposal_status, proposal.title, proposal.summary,
+                       CASE WHEN proposal.proposal_status = 'PROPOSED'
+                                      AND proposal.expires_at IS NOT NULL
+                                      AND proposal.expires_at <= CURRENT_TIMESTAMP
+                            THEN 'EXPIRED' ELSE proposal.proposal_status END AS proposal_status,
+                       proposal.title, proposal.summary,
                        proposal.evidence::text, proposal.proposed_payload::text,
                        proposal.confidence, proposal.risk_level,
                        proposal.required_resource_key, proposal.required_permission_code,

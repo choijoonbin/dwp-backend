@@ -1,6 +1,7 @@
 package com.dwp.services.platform.productivity;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -35,6 +36,7 @@ public class AdminProductivityController {
     }
 
     @GetMapping("/overview")
+    @Operation(operationId = "getAdminProductivityOverview")
     public ApiResponse<ProductivityDtos.Overview> overview(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(PERMISSIONS) String permissions) {

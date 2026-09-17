@@ -690,6 +690,49 @@
         ],
         "type": "object"
       },
+      "AccountReadiness": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "consentEvidence": {
+            "$ref": "#/components/schemas/AuthorizationEvidence"
+          },
+          "credentialConfigured": {
+            "type": "boolean"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "featureReadiness": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/FeatureReadiness"
+            },
+            "type": "object"
+          },
+          "lastSuccessfulSyncAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastSuccessfulSyncScope": {
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "tokenEvidence": {
+            "$ref": "#/components/schemas/AuthorizationEvidence"
+          }
+        },
+        "type": "object"
+      },
       "AccountSummary": {
         "properties": {
           "accountId": {
@@ -721,6 +764,9 @@
               "IMAP_SMTP"
             ],
             "type": "string"
+          },
+          "readiness": {
+            "$ref": "#/components/schemas/AccountReadiness"
           },
           "synchronizationState": {
             "type": "string"
@@ -829,6 +875,29 @@
             "type": "string"
           },
           "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ActionProposalPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ActionProposal"
+            },
+            "type": "array"
+          },
+          "page": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pageSize": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "total": {
             "format": "int64",
             "type": "integer"
           }
@@ -1811,6 +1880,18 @@
             ],
             "type": "string"
           },
+          "classification": {
+            "enum": [
+              "PUBLIC",
+              "INTERNAL",
+              "CONFIDENTIAL",
+              "RESTRICTED"
+            ],
+            "type": "string"
+          },
+          "externalRecipientConfirmed": {
+            "type": "boolean"
+          },
           "idempotencyKey": {
             "format": "uuid",
             "type": "string"
@@ -1850,6 +1931,8 @@
           "attachmentIds",
           "body",
           "bodyFormat",
+          "classification",
+          "externalRecipientConfirmed",
           "idempotencyKey",
           "recipients",
           "subject"
@@ -2576,6 +2659,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/ActionProposal"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseActionProposalPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ActionProposalPage"
           },
           "errorCode": {
             "type": "string"
@@ -4702,6 +4812,33 @@
         },
         "type": "object"
       },
+      "ApiResponseDelegation": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Delegation"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseDeleteHomeViewResponse": {
         "properties": {
           "correlationId": {
@@ -6619,6 +6756,87 @@
         },
         "type": "object"
       },
+      "ApiResponseLegalHoldReleaseApproval": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LegalHoldReleaseApproval"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseLegalHoldReleaseExecution": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LegalHoldReleaseExecution"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseLegalHoldReleasePreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LegalHoldReleasePreview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseLifecyclePreview": {
         "properties": {
           "correlationId": {
@@ -6765,36 +6983,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/AccessZone"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListActionProposal": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/ActionProposal"
             },
             "type": "array"
           },
@@ -7275,6 +7463,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/CustodyCandidate"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListDelegation": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Delegation"
             },
             "type": "array"
           },
@@ -8227,6 +8445,36 @@
         },
         "type": "object"
       },
+      "ApiResponseListPurgePreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PurgePreview"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListReleaseWindow": {
         "properties": {
           "correlationId": {
@@ -8505,6 +8753,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/ScenarioView"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListSharedInboxMemberCandidate": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/SharedInboxMemberCandidate"
             },
             "type": "array"
           },
@@ -10738,6 +11016,33 @@
         },
         "type": "object"
       },
+      "ApiResponseRestoreEventResponse": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RestoreEventResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseResult": {
         "properties": {
           "correlationId": {
@@ -10745,6 +11050,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/Result"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseRetentionEvidenceExport": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/RetentionEvidenceExport"
           },
           "errorCode": {
             "type": "string"
@@ -11548,6 +11880,33 @@
         },
         "type": "object"
       },
+      "ApiResponseSettings": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Settings"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseShadowReceiptResponse": {
         "properties": {
           "correlationId": {
@@ -11582,6 +11941,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/SharedInboxAccess"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSharedInboxMemberRevokePreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SharedInboxMemberRevokePreview"
           },
           "errorCode": {
             "type": "string"
@@ -15132,6 +15518,31 @@
         ],
         "type": "object"
       },
+      "AuthorizationEvidence": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AuthorizationStart": {
         "properties": {
           "authorizationUrl": {
@@ -18155,6 +18566,14 @@
           },
           "scheduling": {
             "type": "boolean"
+          },
+          "senderMode": {
+            "enum": [
+              "ACCOUNT",
+              "SEND_AS",
+              "SEND_ON_BEHALF"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -18164,6 +18583,12 @@
           "accountCapabilities": {
             "additionalProperties": {
               "$ref": "#/components/schemas/ComposeCapabilities"
+            },
+            "type": "object"
+          },
+          "accountReadiness": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/AccountReadiness"
             },
             "type": "object"
           },
@@ -18266,6 +18691,15 @@
             "minLength": 0,
             "type": "string"
           },
+          "classification": {
+            "enum": [
+              "PUBLIC",
+              "INTERNAL",
+              "CONFIDENTIAL",
+              "RESTRICTED"
+            ],
+            "type": "string"
+          },
           "composeOptions": {
             "$ref": "#/components/schemas/ComposeOptions"
           },
@@ -18275,6 +18709,9 @@
               "DRAFT"
             ],
             "type": "string"
+          },
+          "externalRecipientConfirmed": {
+            "type": "boolean"
           },
           "idempotencyKey": {
             "format": "uuid",
@@ -18299,7 +18736,9 @@
         },
         "required": [
           "body",
+          "classification",
           "deliveryMode",
+          "externalRecipientConfirmed",
           "idempotencyKey",
           "subject",
           "toEmail"
@@ -19757,6 +20196,42 @@
         ],
         "type": "object"
       },
+      "CreateDelegationRequest": {
+        "properties": {
+          "delegatePersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "enum": [
+                "RESPOND",
+                "EDIT_SCHEDULE",
+                "CREATE"
+              ],
+              "type": "string"
+            },
+            "maxItems": 3,
+            "minItems": 0,
+            "type": "array"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "delegatePersonPublicId",
+          "scopes",
+          "validFrom",
+          "validUntil"
+        ],
+        "type": "object"
+      },
       "CreateDraftRequest": {
         "properties": {
           "changeSummary": {
@@ -20914,6 +21389,63 @@
         ],
         "type": "object"
       },
+      "Delegation": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "delegatePersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "delegationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "ownerPersonPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scopes": {
+            "items": {
+              "enum": [
+                "RESPOND",
+                "EDIT_SCHEDULE",
+                "CREATE"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "SCHEDULED",
+              "ACTIVE",
+              "EXPIRED",
+              "REVOKED"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validUntil": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "DelegationChangeRequest": {
         "properties": {
           "confirmed": {
@@ -21061,6 +21593,19 @@
       },
       "DeliveryExport": {
         "properties": {
+          "approvalState": {
+            "type": "string"
+          },
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceExportApproval"
+            },
+            "type": "array"
+          },
+          "distinctApproverCount": {
+            "format": "int32",
+            "type": "integer"
+          },
           "downloadUrl": {
             "type": "string"
           },
@@ -21072,12 +21617,20 @@
             "format": "uuid",
             "type": "string"
           },
+          "filters": {
+            "additionalProperties": {},
+            "type": "object"
+          },
           "itemCount": {
             "format": "int32",
             "type": "integer"
           },
           "payloadSha256": {
             "type": "string"
+          },
+          "requiredApprovals": {
+            "format": "int32",
+            "type": "integer"
           },
           "snapshotCutoff": {
             "format": "date-time",
@@ -22050,8 +22603,20 @@
             "minLength": 0,
             "type": "string"
           },
+          "classification": {
+            "enum": [
+              "PUBLIC",
+              "INTERNAL",
+              "CONFIDENTIAL",
+              "RESTRICTED"
+            ],
+            "type": "string"
+          },
           "composeOptions": {
             "$ref": "#/components/schemas/ComposeOptions"
+          },
+          "externalRecipientConfirmed": {
+            "type": "boolean"
           },
           "idempotencyKey": {
             "format": "uuid",
@@ -22080,6 +22645,8 @@
           }
         },
         "required": [
+          "classification",
+          "externalRecipientConfirmed",
           "idempotencyKey"
         ],
         "type": "object"
@@ -22091,6 +22658,15 @@
             "minLength": 0,
             "type": "string"
           },
+          "classification": {
+            "enum": [
+              "PUBLIC",
+              "INTERNAL",
+              "CONFIDENTIAL",
+              "RESTRICTED"
+            ],
+            "type": "string"
+          },
           "composeOptions": {
             "$ref": "#/components/schemas/ComposeOptions"
           },
@@ -22100,6 +22676,9 @@
               "DRAFT"
             ],
             "type": "string"
+          },
+          "externalRecipientConfirmed": {
+            "type": "boolean"
           },
           "idempotencyKey": {
             "format": "uuid",
@@ -22129,7 +22708,9 @@
         },
         "required": [
           "body",
+          "classification",
           "deliveryMode",
+          "externalRecipientConfirmed",
           "idempotencyKey",
           "subject",
           "toEmail",
@@ -23243,6 +23824,10 @@
             ],
             "type": "string"
           },
+          "recurrenceId": {
+            "format": "date-time",
+            "type": "string"
+          },
           "recurrenceInterval": {
             "format": "int32",
             "type": "integer"
@@ -23371,6 +23956,43 @@
           "manifestHash",
           "reasonCode",
           "reasonText"
+        ],
+        "type": "object"
+      },
+      "EvidenceExportApproval": {
+        "properties": {
+          "approvalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "approverUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "decidedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "EvidenceExportApprovalRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "decision",
+          "idempotencyKey"
         ],
         "type": "object"
       },
@@ -24057,6 +24679,34 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "FeatureReadiness": {
+        "properties": {
+          "action": {
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "lastSuccessfulAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastSuccessfulScope": {
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -25286,6 +25936,10 @@
       },
       "GroupMessageRequest": {
         "properties": {
+          "accountId": {
+            "format": "uuid",
+            "type": "string"
+          },
           "body": {
             "maxLength": 100000,
             "minLength": 0,
@@ -25336,6 +25990,10 @@
         "properties": {
           "acceptedAt": {
             "format": "date-time",
+            "type": "string"
+          },
+          "accountId": {
+            "format": "uuid",
             "type": "string"
           },
           "groupId": {
@@ -27776,21 +28434,270 @@
         },
         "type": "object"
       },
-      "LegalHoldReleaseRequest": {
+      "LegalHoldReleaseApproval": {
         "properties": {
+          "approvalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "approverUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "decidedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "holdVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "releasePreviewId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LegalHoldReleaseApprovalRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "fingerprint": {
+            "maxLength": 64,
+            "minLength": 64,
+            "type": "string"
+          },
+          "holdVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
           "idempotencyKey": {
             "format": "uuid",
             "type": "string"
           },
-          "version": {
+          "policyVersion": {
             "format": "int64",
             "minimum": 0,
             "type": "integer"
           }
         },
         "required": [
+          "decision",
+          "fingerprint",
+          "holdVersion",
           "idempotencyKey",
-          "version"
+          "policyVersion"
+        ],
+        "type": "object"
+      },
+      "LegalHoldReleaseExecuteRequest": {
+        "properties": {
+          "fingerprint": {
+            "maxLength": 64,
+            "minLength": 64,
+            "type": "string"
+          },
+          "holdVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "fingerprint",
+          "holdVersion",
+          "idempotencyKey",
+          "policyVersion"
+        ],
+        "type": "object"
+      },
+      "LegalHoldReleaseExecution": {
+        "properties": {
+          "approvedByUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "executedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "executedByUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "executionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "hold": {
+            "$ref": "#/components/schemas/LegalHold"
+          },
+          "holdId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "releasePreviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "replayed": {
+            "type": "boolean"
+          },
+          "requesterUserId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "LegalHoldReleaseImpact": {
+        "properties": {
+          "affectedResourceCounts": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "currentlyHeldResourceCounts": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "providerCapabilityRequiredResourceCounts": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "purgeSafeAfterReleaseResourceCounts": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "stillProtectedAfterReleaseResourceCounts": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          }
+        },
+        "type": "object"
+      },
+      "LegalHoldReleasePreview": {
+        "properties": {
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/LegalHoldReleaseApproval"
+            },
+            "type": "array"
+          },
+          "distinctApproverCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "holdId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "holdScope": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "holdVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "impact": {
+            "$ref": "#/components/schemas/LegalHoldReleaseImpact"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "releasePreviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requesterUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "retentionBoundary": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LegalHoldReleasePreviewRequest": {
+        "properties": {
+          "holdVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "holdVersion",
+          "idempotencyKey",
+          "policyVersion"
         ],
         "type": "object"
       },
@@ -28993,6 +29900,58 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "OwnerBindingRequest": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "proposalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "proposalVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "commandId",
+          "proposalId",
+          "proposalVersion"
+        ],
+        "type": "object"
+      },
+      "OwnerExecutionReleaseRequest": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "proposalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "proposalVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reasonCode": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "commandId",
+          "proposalId",
+          "proposalVersion",
+          "reasonCode"
+        ],
         "type": "object"
       },
       "OwnerOutcomeRequest": {
@@ -30342,6 +31301,35 @@
         },
         "type": "object"
       },
+      "PolicyApprovalEvidence": {
+        "properties": {
+          "approvedBy": {
+            "type": "string"
+          },
+          "decidedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "evidenceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "evidenceSource": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requestedBy": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "PolicyChanges": {
         "properties": {
           "autoReleaseMinutes": {
@@ -30413,6 +31401,18 @@
           "configuredValue": {
             "type": "string"
           },
+          "contentKind": {
+            "type": "string"
+          },
+          "dataScopes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "domain": {
+            "type": "string"
+          },
           "effectiveState": {
             "type": "string"
           },
@@ -30429,11 +31429,39 @@
           "evidenceSource": {
             "type": "string"
           },
+          "exceptionCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "exceptionState": {
+            "type": "string"
+          },
+          "externalTransferState": {
+            "type": "string"
+          },
+          "inheritanceState": {
+            "type": "string"
+          },
+          "lockSource": {
+            "type": "string"
+          },
+          "locked": {
+            "type": "boolean"
+          },
           "policyKey": {
+            "type": "string"
+          },
+          "reviewRequirement": {
             "type": "string"
           },
           "scope": {
             "type": "string"
+          },
+          "targetApps": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -30468,6 +31496,21 @@
       },
       "PolicyGovernance": {
         "properties": {
+          "approvalEvidence": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyApprovalEvidence"
+            },
+            "type": "array"
+          },
+          "domains": {
+            "additionalProperties": {
+              "items": {
+                "$ref": "#/components/schemas/PolicyEvidenceRow"
+              },
+              "type": "array"
+            },
+            "type": "object"
+          },
           "generatedAt": {
             "format": "date-time",
             "type": "string"
@@ -30482,6 +31525,12 @@
             "format": "int64",
             "type": "integer"
           },
+          "recoveryHistory": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyRecoveryEvidence"
+            },
+            "type": "array"
+          },
           "rows": {
             "items": {
               "$ref": "#/components/schemas/PolicyEvidenceRow"
@@ -30493,6 +31542,13 @@
       },
       "PolicyHistory": {
         "properties": {
+          "appliedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvedBy": {
+            "type": "string"
+          },
           "changedAt": {
             "format": "date-time",
             "type": "string"
@@ -30506,8 +31562,20 @@
           "diffSummary": {
             "type": "string"
           },
+          "failureCode": {
+            "type": "string"
+          },
           "historyId": {
             "format": "uuid",
+            "type": "string"
+          },
+          "recoveryRef": {
+            "type": "string"
+          },
+          "recoveryState": {
+            "type": "string"
+          },
+          "requestedBy": {
             "type": "string"
           },
           "result": {
@@ -30682,6 +31750,32 @@
           "scopeType",
           "state"
         ],
+        "type": "object"
+      },
+      "PolicyRecoveryEvidence": {
+        "properties": {
+          "failureCode": {
+            "type": "string"
+          },
+          "historyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "recoveryRef": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "PolicyRequest": {
@@ -31598,6 +32692,7 @@
           "status": {
             "enum": [
               "ACCEPTED",
+              "EXECUTING",
               "EXECUTED",
               "CANCELLED",
               "FAILED",
@@ -32349,13 +33444,28 @@
       },
       "PurgePreview": {
         "properties": {
+          "before": {
+            "format": "date-time",
+            "type": "string"
+          },
           "candidateSnapshotId": {
             "format": "uuid",
             "type": "string"
           },
+          "distinctApproverCount": {
+            "format": "int32",
+            "type": "integer"
+          },
           "eligibleCount": {
             "format": "int32",
             "type": "integer"
+          },
+          "exclusionReasonCounts": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
           },
           "expiresAt": {
             "format": "date-time",
@@ -32372,6 +33482,13 @@
             "format": "int32",
             "type": "integer"
           },
+          "heldResourceCounts": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
           "partialSources": {
             "items": {
               "type": "string"
@@ -32381,6 +33498,23 @@
           "policyVersion": {
             "format": "int64",
             "type": "integer"
+          },
+          "resourceCounts": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "resourceTypes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "scope": {
+            "additionalProperties": {},
+            "type": "object"
           },
           "totalCandidates": {
             "format": "int32",
@@ -34045,6 +35179,18 @@
         ],
         "type": "object"
       },
+      "ResetSettingsRequest": {
+        "properties": {
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version"
+        ],
+        "type": "object"
+      },
       "ResourceOccupancy": {
         "properties": {
           "bookingStatus": {
@@ -34364,6 +35510,15 @@
       },
       "RespondRequest": {
         "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
           "response": {
             "enum": [
               "NEEDS_ACTION",
@@ -34375,6 +35530,8 @@
           }
         },
         "required": [
+          "expectedVersion",
+          "idempotencyKey",
           "response"
         ],
         "type": "object"
@@ -34407,6 +35564,67 @@
         },
         "type": "object"
       },
+      "RestoreEventResponse": {
+        "properties": {
+          "canDelete": {
+            "type": "boolean"
+          },
+          "canEdit": {
+            "type": "boolean"
+          },
+          "canRespond": {
+            "type": "boolean"
+          },
+          "canRestore": {
+            "type": "boolean"
+          },
+          "canStar": {
+            "type": "boolean"
+          },
+          "canViewDetails": {
+            "type": "boolean"
+          },
+          "eventVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "outcome": {
+            "enum": [
+              "EVENT_AND_RESOURCES_RESTORED",
+              "EVENT_AND_RESOURCES_PARTIALLY_RESTORED",
+              "EVENT_AND_RESOURCE_REBOOK_REQUESTED",
+              "EVENT_ONLY_RESOURCE_REBOOK_REQUIRED",
+              "EVENT_ONLY_RESOURCE_CONFLICT",
+              "EVENT_ONLY_RESOURCE_ACCESS_REVOKED",
+              "EVENT_ONLY_RESOURCE_UNAVAILABLE",
+              "EVENT_ONLY_NO_PRIOR_RESOURCE"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "RESOURCE_REBOOKED",
+              "RESOURCE_APPROVAL_REQUIRED",
+              "ADDITIONAL_RESOURCES_REQUIRE_REBOOK",
+              "EXPLICIT_REBOOK_REQUIRED",
+              "RESOURCE_TIME_CONFLICT",
+              "RESOURCE_ACCESS_REVOKED",
+              "RESOURCE_NOT_AVAILABLE",
+              "RESOURCE_POLICY_BLOCKED",
+              "EVENT_TIME_IS_PAST",
+              "NO_PRIOR_RESOURCE"
+            ],
+            "type": "string"
+          },
+          "resources": {
+            "items": {
+              "$ref": "#/components/schemas/RestoreResourceResult"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "RestoreRequest": {
         "properties": {
           "changeSummary": {
@@ -34418,6 +35636,79 @@
         "required": [
           "changeSummary"
         ],
+        "type": "object"
+      },
+      "RestoreResourceBookingRequest": {
+        "properties": {
+          "bookingVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "eventVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "bookingVersion",
+          "eventVersion",
+          "idempotencyKey",
+          "resourceId"
+        ],
+        "type": "object"
+      },
+      "RestoreResourceResult": {
+        "properties": {
+          "bookingVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "canRebook": {
+            "type": "boolean"
+          },
+          "outcome": {
+            "enum": [
+              "EVENT_AND_RESOURCES_RESTORED",
+              "EVENT_AND_RESOURCES_PARTIALLY_RESTORED",
+              "EVENT_AND_RESOURCE_REBOOK_REQUESTED",
+              "EVENT_ONLY_RESOURCE_REBOOK_REQUIRED",
+              "EVENT_ONLY_RESOURCE_CONFLICT",
+              "EVENT_ONLY_RESOURCE_ACCESS_REVOKED",
+              "EVENT_ONLY_RESOURCE_UNAVAILABLE",
+              "EVENT_ONLY_NO_PRIOR_RESOURCE"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "enum": [
+              "RESOURCE_REBOOKED",
+              "RESOURCE_APPROVAL_REQUIRED",
+              "ADDITIONAL_RESOURCES_REQUIRE_REBOOK",
+              "EXPLICIT_REBOOK_REQUIRED",
+              "RESOURCE_TIME_CONFLICT",
+              "RESOURCE_ACCESS_REVOKED",
+              "RESOURCE_NOT_AVAILABLE",
+              "RESOURCE_POLICY_BLOCKED",
+              "EVENT_TIME_IS_PAST",
+              "NO_PRIOR_RESOURCE"
+            ],
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "Result": {
@@ -34465,6 +35756,89 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "RetentionEvidenceExport": {
+        "properties": {
+          "approvalState": {
+            "type": "string"
+          },
+          "approvals": {
+            "items": {
+              "$ref": "#/components/schemas/EvidenceExportApproval"
+            },
+            "type": "array"
+          },
+          "distinctApproverCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "downloadUrl": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "exportId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "payloadSha256": {
+            "type": "string"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requiredApprovals": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "scope": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "snapshotCutoff": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "watermark": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "RetentionEvidenceExportRequest": {
+        "properties": {
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "purpose": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scope": {
+            "additionalProperties": {},
+            "type": "object"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "policyVersion",
+          "purpose",
+          "scope"
+        ],
         "type": "object"
       },
       "RetentionPolicy": {
@@ -34688,6 +36062,18 @@
         },
         "required": [
           "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "RevokeDelegationRequest": {
+        "properties": {
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
           "version"
         ],
         "type": "object"
@@ -37393,6 +38779,125 @@
         },
         "type": "object"
       },
+      "SettingGovernance": {
+        "properties": {
+          "inherited": {
+            "type": "boolean"
+          },
+          "key": {
+            "enum": [
+              "WORKING_DAYS",
+              "WORKING_DAY_START",
+              "WORKING_DAY_END",
+              "TIME_ZONE",
+              "WEEK_START",
+              "DEFAULT_EVENT_MINUTES",
+              "SPEEDY_MEETING_MODE",
+              "DEFAULT_BUFFER_MINUTES",
+              "DEFAULT_VISIBILITY",
+              "DEFAULT_REMINDER_MINUTES"
+            ],
+            "type": "string"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "managed": {
+            "type": "boolean"
+          },
+          "source": {
+            "enum": [
+              "USER",
+              "TENANT_POLICY",
+              "SYSTEM_DEFAULT"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Settings": {
+        "properties": {
+          "defaultBufferMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "defaultEventMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "defaultReminderMinutes": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "defaultVisibility": {
+            "enum": [
+              "FREE_BUSY",
+              "DETAILS",
+              "PRIVATE"
+            ],
+            "type": "string"
+          },
+          "governance": {
+            "items": {
+              "$ref": "#/components/schemas/SettingGovernance"
+            },
+            "type": "array"
+          },
+          "speedyMeetingMode": {
+            "enum": [
+              "STANDARD",
+              "FIVE_TEN"
+            ],
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "weekStart": {
+            "enum": [
+              "MONDAY",
+              "TUESDAY",
+              "WEDNESDAY",
+              "THURSDAY",
+              "FRIDAY",
+              "SATURDAY",
+              "SUNDAY"
+            ],
+            "type": "string"
+          },
+          "workingDayEnd": {
+            "type": "string"
+          },
+          "workingDayStart": {
+            "type": "string"
+          },
+          "workingDays": {
+            "items": {
+              "enum": [
+                "MONDAY",
+                "TUESDAY",
+                "WEDNESDAY",
+                "THURSDAY",
+                "FRIDAY",
+                "SATURDAY",
+                "SUNDAY"
+              ],
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "ShadowReceiptRequest": {
         "properties": {
           "deviceClass": {
@@ -37574,6 +39079,24 @@
         },
         "type": "object"
       },
+      "SharedInboxMemberCandidate": {
+        "properties": {
+          "department": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "SharedInboxMemberRequest": {
         "properties": {
           "department": {
@@ -37618,14 +39141,75 @@
         ],
         "type": "object"
       },
+      "SharedInboxMemberRevokePreview": {
+        "properties": {
+          "activeAssignments": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fingerprint": {
+            "type": "string"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "memberVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "openDrafts": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "pendingCommands": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "previewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "providerRevocationRequired": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "SharedInboxMemberRevokePreviewRequest": {
+        "properties": {
+          "memberVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "memberVersion"
+        ],
+        "type": "object"
+      },
       "SharedInboxMemberRevokeRequest": {
         "properties": {
+          "fingerprint": {
+            "maxLength": 64,
+            "minLength": 64,
+            "type": "string"
+          },
           "idempotencyKey": {
             "format": "uuid",
             "type": "string"
           },
           "impactAcknowledged": {
             "type": "boolean"
+          },
+          "previewId": {
+            "format": "uuid",
+            "type": "string"
           },
           "version": {
             "format": "int64",
@@ -37634,7 +39218,9 @@
           }
         },
         "required": [
+          "fingerprint",
           "idempotencyKey",
+          "previewId",
           "version"
         ],
         "type": "object"
@@ -37666,6 +39252,24 @@
           "unassignedCount": {
             "format": "int32",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SharedInboxReplyIdentity": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "emailAddress": {
+            "type": "string"
+          },
+          "senderMode": {
+            "enum": [
+              "SEND_AS",
+              "ON_BEHALF_OF"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -39254,6 +40858,9 @@
             },
             "type": "array"
           },
+          "sharedInboxReplyIdentity": {
+            "$ref": "#/components/schemas/SharedInboxReplyIdentity"
+          },
           "thread": {
             "$ref": "#/components/schemas/ThreadSummary"
           }
@@ -39690,8 +41297,19 @@
             "minLength": 0,
             "type": "string"
           },
+          "editScope": {
+            "enum": [
+              "SERIES",
+              "THIS_OCCURRENCE"
+            ],
+            "type": "string"
+          },
           "endsAt": {
             "format": "date-time",
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
             "type": "string"
           },
           "importance": {
@@ -39705,6 +41323,10 @@
           "location": {
             "maxLength": 240,
             "minLength": 0,
+            "type": "string"
+          },
+          "originalStartsAt": {
+            "format": "date-time",
             "type": "string"
           },
           "recurrence": {
@@ -40170,6 +41792,98 @@
         "required": [
           "name",
           "version"
+        ],
+        "type": "object"
+      },
+      "UpdateSettingsRequest": {
+        "properties": {
+          "defaultBufferMinutes": {
+            "format": "int32",
+            "maximum": 120,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "defaultEventMinutes": {
+            "format": "int32",
+            "maximum": 1440,
+            "minimum": 5,
+            "type": "integer"
+          },
+          "defaultReminderMinutes": {
+            "format": "int32",
+            "maximum": 10080,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "defaultVisibility": {
+            "enum": [
+              "FREE_BUSY",
+              "DETAILS",
+              "PRIVATE"
+            ],
+            "type": "string"
+          },
+          "speedyMeetingMode": {
+            "enum": [
+              "STANDARD",
+              "FIVE_TEN"
+            ],
+            "type": "string"
+          },
+          "timeZone": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "weekStart": {
+            "enum": [
+              "MONDAY",
+              "TUESDAY",
+              "WEDNESDAY",
+              "THURSDAY",
+              "FRIDAY",
+              "SATURDAY",
+              "SUNDAY"
+            ],
+            "type": "string"
+          },
+          "workingDayEnd": {
+            "type": "string"
+          },
+          "workingDayStart": {
+            "type": "string"
+          },
+          "workingDays": {
+            "items": {
+              "enum": [
+                "MONDAY",
+                "TUESDAY",
+                "WEDNESDAY",
+                "THURSDAY",
+                "FRIDAY",
+                "SATURDAY",
+                "SUNDAY"
+              ],
+              "type": "string"
+            },
+            "maxItems": 7,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "defaultVisibility",
+          "speedyMeetingMode",
+          "timeZone",
+          "version",
+          "weekStart",
+          "workingDayEnd",
+          "workingDayStart",
+          "workingDays"
         ],
         "type": "object"
       },
@@ -48019,6 +49733,46 @@
         ]
       }
     },
+    "/internal/v1/mail/proposal-outcomes/not-executed": {
+      "post": {
+        "operationId": "notExecuted",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerExecutionReleaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseProposalHandoff"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "internal-mail-proposal-outcome-controller"
+        ]
+      }
+    },
     "/internal/v1/mail/proposal-outcomes/preflight": {
       "post": {
         "operationId": "preflight",
@@ -48039,6 +49793,37 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseBoolean"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "internal-mail-proposal-outcome-controller"
+        ]
+      }
+    },
+    "/internal/v1/mail/proposal-outcomes/status": {
+      "post": {
+        "operationId": "status_1",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OwnerBindingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseProposalHandoff"
                 }
               }
             },
@@ -48209,7 +49994,7 @@
     },
     "/v1/admin/announcements/{announcementId}/publish": {
       "post": {
-        "operationId": "publish_7",
+        "operationId": "publishAdminAnnouncement",
         "parameters": [
           {
             "in": "header",
@@ -48387,7 +50172,7 @@
     },
     "/v1/admin/api-history/overview": {
       "get": {
-        "operationId": "overview_9",
+        "operationId": "overview_4",
         "parameters": [
           {
             "in": "query",
@@ -49492,7 +51277,7 @@
     },
     "/v1/admin/audit-control/overview": {
       "get": {
-        "operationId": "overview_8",
+        "operationId": "getAdminAuditControlOverview",
         "parameters": [
           {
             "in": "query",
@@ -49548,7 +51333,7 @@
         ]
       },
       "put": {
-        "operationId": "updatePolicy_3",
+        "operationId": "updateAdminAuditRetentionPolicy",
         "parameters": [],
         "requestBody": {
           "content": {
@@ -50415,7 +52200,7 @@
     },
     "/v1/admin/calendar/overview": {
       "get": {
-        "operationId": "overview_7",
+        "operationId": "getAdminCalendarOverview",
         "parameters": [
           {
             "in": "header",
@@ -50464,7 +52249,7 @@
         ]
       },
       "put": {
-        "operationId": "updatePolicy_2",
+        "operationId": "updateAdminCalendarPolicy",
         "parameters": [
           {
             "in": "header",
@@ -50609,7 +52394,7 @@
     },
     "/v1/admin/catalog": {
       "get": {
-        "operationId": "overview_6",
+        "operationId": "getAdminCatalogOverview",
         "parameters": [
           {
             "in": "query",
@@ -50876,7 +52661,7 @@
     },
     "/v1/admin/catalog/relations/{relationId}/retire": {
       "post": {
-        "operationId": "retire_4",
+        "operationId": "retireCatalogRelation",
         "parameters": [
           {
             "in": "header",
@@ -51608,7 +53393,7 @@
     },
     "/v1/admin/home-experience/publish": {
       "post": {
-        "operationId": "publish_6",
+        "operationId": "publishAdminHomeExperience",
         "parameters": [
           {
             "in": "header",
@@ -51982,7 +53767,7 @@
     },
     "/v1/admin/integrations/productivity/overview": {
       "get": {
-        "operationId": "overview_5",
+        "operationId": "getAdminProductivityOverview",
         "parameters": [],
         "responses": {
           "200": {
@@ -52128,7 +53913,7 @@
     },
     "/v1/admin/localization/bundles/{bundleId}/drafts": {
       "post": {
-        "operationId": "createDraft_3",
+        "operationId": "createLocalizationBundleDraft",
         "parameters": [
           {
             "in": "header",
@@ -52366,7 +54151,7 @@
     },
     "/v1/admin/localization/revisions/{revisionId}/preview": {
       "get": {
-        "operationId": "preview_16",
+        "operationId": "preview_11",
         "parameters": [
           {
             "in": "path",
@@ -52397,7 +54182,7 @@
     },
     "/v1/admin/localization/revisions/{revisionId}/publish": {
       "post": {
-        "operationId": "publish_5",
+        "operationId": "publishLocalizationRevision",
         "parameters": [
           {
             "in": "header",
@@ -52495,7 +54280,7 @@
     },
     "/v1/admin/localization/revisions/{revisionId}/submit": {
       "post": {
-        "operationId": "submit_4",
+        "operationId": "submitLocalizationRevision",
         "parameters": [
           {
             "in": "header",
@@ -52771,6 +54556,51 @@
           },
           {
             "in": "query",
+            "name": "accountId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "provider",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "command",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "page",
             "required": false,
             "schema": {
@@ -52816,6 +54646,78 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/DeliveryExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDeliveryExport"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-completion-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/delivery-audit/exports/{exportId}": {
+      "get": {
+        "operationId": "deliveryExport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exportId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDeliveryExport"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-completion-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/delivery-audit/exports/{exportId}/approvals": {
+      "post": {
+        "operationId": "approveDeliveryExport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exportId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceExportApprovalRequest"
               }
             }
           },
@@ -53019,7 +54921,7 @@
     },
     "/v1/admin/mail/operations": {
       "get": {
-        "operationId": "operations_1",
+        "operationId": "listAdminMailOperations",
         "parameters": [],
         "responses": {
           "200": {
@@ -53040,7 +54942,7 @@
     },
     "/v1/admin/mail/overview": {
       "get": {
-        "operationId": "overview_4",
+        "operationId": "getAdminMailOverview",
         "parameters": [],
         "responses": {
           "200": {
@@ -53061,7 +54963,7 @@
     },
     "/v1/admin/mail/policy": {
       "put": {
-        "operationId": "updatePolicy_1",
+        "operationId": "updateAdminMailPolicy",
         "parameters": [
           {
             "in": "header",
@@ -53139,6 +55041,270 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseRetentionSnapshot"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-completion-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/retention/evidence-exports": {
+      "post": {
+        "operationId": "createRetentionEvidenceExport",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetentionEvidenceExportRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRetentionEvidenceExport"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-completion-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/retention/evidence-exports/{exportId}": {
+      "get": {
+        "operationId": "retentionEvidenceExport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exportId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRetentionEvidenceExport"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-completion-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/retention/evidence-exports/{exportId}/approvals": {
+      "post": {
+        "operationId": "approveRetentionEvidenceExport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exportId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EvidenceExportApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRetentionEvidenceExport"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-completion-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/retention/evidence-exports/{exportId}/download": {
+      "get": {
+        "operationId": "downloadRetentionEvidenceExport",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "exportId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "byte",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-completion-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/retention/hold-release-previews/{previewId}": {
+      "get": {
+        "operationId": "legalHoldReleasePreview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLegalHoldReleasePreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-completion-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/retention/hold-release-previews/{previewId}/approvals": {
+      "post": {
+        "operationId": "approveLegalHoldRelease",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegalHoldReleaseApprovalRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLegalHoldReleaseApproval"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-completion-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/retention/hold-release-previews/{previewId}/execute": {
+      "post": {
+        "operationId": "executeLegalHoldRelease",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LegalHoldReleaseExecuteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLegalHoldReleaseExecution"
                 }
               }
             },
@@ -53239,9 +55405,9 @@
         ]
       }
     },
-    "/v1/admin/mail/retention/holds/{holdId}/release": {
+    "/v1/admin/mail/retention/holds/{holdId}/release-previews": {
       "post": {
-        "operationId": "releaseLegalHold",
+        "operationId": "previewLegalHoldRelease",
         "parameters": [
           {
             "in": "header",
@@ -53265,7 +55431,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/LegalHoldReleaseRequest"
+                "$ref": "#/components/schemas/LegalHoldReleasePreviewRequest"
               }
             }
           },
@@ -53276,7 +55442,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseLegalHold"
+                  "$ref": "#/components/schemas/ApiResponseLegalHoldReleasePreview"
                 }
               }
             },
@@ -53320,6 +55486,25 @@
       }
     },
     "/v1/admin/mail/retention/purge-previews": {
+      "get": {
+        "operationId": "activePurgePreviews",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListPurgePreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-completion-controller"
+        ]
+      },
       "post": {
         "operationId": "previewPurge",
         "parameters": [],
@@ -53333,6 +55518,37 @@
           },
           "required": true
         },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePurgePreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-completion-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/retention/purge-previews/{snapshotId}": {
+      "get": {
+        "operationId": "purgePreview",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "snapshotId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -53429,6 +55645,47 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponsePurgeJob"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-completion-controller"
+        ]
+      }
+    },
+    "/v1/admin/mail/shared-inboxes/member-candidates": {
+      "get": {
+        "operationId": "sharedInboxMemberCandidates",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListSharedInboxMemberCandidate"
                 }
               }
             },
@@ -53634,6 +55891,56 @@
         ]
       }
     },
+    "/v1/admin/mail/shared-inboxes/{inboxId}/members/{memberId}/revoke-preview": {
+      "post": {
+        "operationId": "previewSharedInboxMemberRevoke",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "inboxId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "memberId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedInboxMemberRevokePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSharedInboxMemberRevokePreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "admin-mail-completion-controller"
+        ]
+      }
+    },
     "/v1/admin/mail/shared-inboxes/{sharedInboxId}": {
       "put": {
         "operationId": "updateSharedInbox",
@@ -53737,7 +56044,7 @@
     },
     "/v1/admin/mail/writing-assets/{kind}/drafts": {
       "post": {
-        "operationId": "createDraft_2",
+        "operationId": "createAdminMailWritingAssetDraft",
         "parameters": [
           {
             "in": "header",
@@ -53798,7 +56105,7 @@
     },
     "/v1/admin/mail/writing-assets/{kind}/drafts/{assetId}": {
       "put": {
-        "operationId": "updateDraft_2",
+        "operationId": "updateAdminMailWritingAssetDraft",
         "parameters": [
           {
             "in": "header",
@@ -53868,7 +56175,7 @@
     },
     "/v1/admin/mail/writing-assets/{kind}/{assetId}/approve": {
       "post": {
-        "operationId": "approve_3",
+        "operationId": "approveAdminMailWritingAsset",
         "parameters": [
           {
             "in": "header",
@@ -53938,7 +56245,7 @@
     },
     "/v1/admin/mail/writing-assets/{kind}/{assetId}/publish": {
       "post": {
-        "operationId": "publish_4",
+        "operationId": "publishAdminMailWritingAsset",
         "parameters": [
           {
             "in": "header",
@@ -54008,7 +56315,7 @@
     },
     "/v1/admin/mail/writing-assets/{kind}/{assetId}/retire": {
       "post": {
-        "operationId": "retire_3",
+        "operationId": "retireAdminMailWritingAsset",
         "parameters": [
           {
             "in": "header",
@@ -54078,7 +56385,7 @@
     },
     "/v1/admin/mail/writing-assets/{kind}/{assetId}/submit": {
       "post": {
-        "operationId": "submit_3",
+        "operationId": "submitAdminMailWritingAsset",
         "parameters": [
           {
             "in": "header",
@@ -54357,7 +56664,7 @@
     },
     "/v1/admin/navigation/studio/drafts/{revisionId}/cancel": {
       "post": {
-        "operationId": "cancel_8",
+        "operationId": "cancelAdminNavigationDraft",
         "parameters": [
           {
             "in": "header",
@@ -56203,7 +58510,7 @@
     },
     "/v1/admin/saved-view-ownership/preview": {
       "post": {
-        "operationId": "preview_12",
+        "operationId": "preview_7",
         "parameters": [],
         "requestBody": {
           "content": {
@@ -59835,7 +62142,7 @@
     },
     "/v1/admin/workplace/connectors/{kind}/replays:preview": {
       "post": {
-        "operationId": "preview_11",
+        "operationId": "preview_6",
         "parameters": [
           {
             "in": "header",
@@ -60618,7 +62925,7 @@
     },
     "/v1/admin/workplace/exceptions/{exceptionId}/recovery:preview": {
       "post": {
-        "operationId": "preview_10",
+        "operationId": "preview_5",
         "parameters": [
           {
             "in": "header",
@@ -61858,7 +64165,7 @@
     },
     "/v1/admin/workplace/experience/facilities/closure-commands/{commandId}/notifications/reconcile": {
       "post": {
-        "operationId": "reconcile_3",
+        "operationId": "reconcileWorkplaceClosureNotification",
         "parameters": [
           {
             "in": "header",
@@ -62014,7 +64321,7 @@
     },
     "/v1/admin/workplace/experience/facilities/closure-impact-previews/{previewId}": {
       "get": {
-        "operationId": "preview_15",
+        "operationId": "preview_10",
         "parameters": [
           {
             "in": "query",
@@ -62446,7 +64753,7 @@
     },
     "/v1/admin/workplace/experience/facilities/resources/{resourceId}/closure-impact-previews": {
       "post": {
-        "operationId": "preview_9",
+        "operationId": "previewWorkplaceFacilityClosureImpact",
         "parameters": [
           {
             "in": "header",
@@ -66007,7 +68314,7 @@
     },
     "/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoff-previews/{previewId}": {
       "get": {
-        "operationId": "preview_14",
+        "operationId": "preview_9",
         "parameters": [
           {
             "in": "path",
@@ -66144,7 +68451,7 @@
     },
     "/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs/{commandId}:reconcile": {
       "post": {
-        "operationId": "reconcile_2",
+        "operationId": "reconcileWorkplaceEmergencyHandoff",
         "parameters": [
           {
             "in": "header",
@@ -66210,7 +68517,7 @@
     },
     "/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs:preview": {
       "post": {
-        "operationId": "preview_8",
+        "operationId": "previewWorkplaceEmergencyHandoff",
         "parameters": [
           {
             "in": "header",
@@ -66595,7 +68902,7 @@
     },
     "/v1/admin/workplace/safety/incidents:preview": {
       "post": {
-        "operationId": "preview_7",
+        "operationId": "previewWorkplaceSafetyIncidentActivation",
         "parameters": [
           {
             "in": "header",
@@ -68654,7 +70961,7 @@
     },
     "/v1/admin/workplace/space-planning/reports:preview": {
       "post": {
-        "operationId": "preview_6",
+        "operationId": "previewWorkplaceSpacePlanningReport",
         "parameters": [
           {
             "in": "header",
@@ -70297,7 +72604,7 @@
     },
     "/v1/calendar/events/{eventId}/cancel": {
       "post": {
-        "operationId": "cancel_7",
+        "operationId": "cancelCalendarEvent",
         "parameters": [
           {
             "in": "header",
@@ -70432,6 +72739,55 @@
         ]
       }
     },
+    "/v1/calendar/events/{eventId}/resource-rebook": {
+      "post": {
+        "operationId": "rebookRestoredResource",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RestoreResourceBookingRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRestoreEventResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-collaboration-controller"
+        ]
+      }
+    },
     "/v1/calendar/events/{eventId}/response": {
       "post": {
         "operationId": "respond_1",
@@ -70526,7 +72882,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseEventCapabilities"
+                  "$ref": "#/components/schemas/ApiResponseRestoreEventResponse"
                 }
               }
             },
@@ -70606,6 +72962,15 @@
             "schema": {
               "default": "Asia/Seoul",
               "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "insightWeeks",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
             }
           }
         ],
@@ -70732,6 +73097,173 @@
         },
         "tags": [
           "calendar-controller"
+        ]
+      }
+    },
+    "/v1/calendar/settings": {
+      "get": {
+        "operationId": "settings",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSettings"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-settings-controller"
+        ]
+      },
+      "put": {
+        "operationId": "updateSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSettings"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-settings-controller"
+        ]
+      }
+    },
+    "/v1/calendar/settings/delegations": {
+      "get": {
+        "operationId": "delegations",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListDelegation"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-settings-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createDelegation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDelegationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDelegation"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-settings-controller"
+        ]
+      }
+    },
+    "/v1/calendar/settings/delegations/{delegationId}/revoke": {
+      "post": {
+        "operationId": "revokeDelegation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "delegationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RevokeDelegationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDelegation"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-settings-controller"
+        ]
+      }
+    },
+    "/v1/calendar/settings/reset": {
+      "post": {
+        "operationId": "resetSettings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetSettingsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSettings"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "calendar-settings-controller"
         ]
       }
     },
@@ -74861,7 +77393,7 @@
     },
     "/v1/mail/deliveries/{deliveryId}/cancel": {
       "post": {
-        "operationId": "cancel_6",
+        "operationId": "cancelMailDelivery",
         "parameters": [
           {
             "in": "path",
@@ -74902,7 +77434,7 @@
     },
     "/v1/mail/deliveries/{deliveryId}/reconcile": {
       "post": {
-        "operationId": "reconcile_1",
+        "operationId": "reconcileMailDelivery",
         "parameters": [
           {
             "in": "path",
@@ -75867,6 +78399,53 @@
               "default": "",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "accountId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateFrom",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dateTo",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "pageSize",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -75874,7 +78453,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListActionProposal"
+                  "$ref": "#/components/schemas/ApiResponseActionProposalPage"
                 }
               }
             },
@@ -76560,6 +79139,15 @@
           },
           {
             "in": "query",
+            "name": "importance",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "query",
             "required": false,
             "schema": {
@@ -76785,7 +79373,7 @@
     },
     "/v1/mail/threads/{threadId}/draft": {
       "put": {
-        "operationId": "updateDraft_1",
+        "operationId": "updateMailDraft",
         "parameters": [
           {
             "in": "header",
@@ -76924,7 +79512,7 @@
     },
     "/v1/mail/threads/{threadId}/lifecycle/preview": {
       "post": {
-        "operationId": "preview_5",
+        "operationId": "previewMailThreadLifecycle",
         "parameters": [
           {
             "in": "path",
@@ -79575,7 +82163,7 @@
     },
     "/v1/workplace/bookings/{bookingId}/resource-command-previews/{previewId}": {
       "get": {
-        "operationId": "preview_13",
+        "operationId": "preview_8",
         "parameters": [
           {
             "in": "path",
@@ -83881,6 +86469,45 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/ApiResponseListConnection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "workspace-productivity-controller"
+        ]
+      }
+    },
+    "/v1/workspace/productivity/connections/{connectorId}": {
+      "delete": {
+        "operationId": "disconnect",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "connectorId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConnection"
                 }
               }
             },

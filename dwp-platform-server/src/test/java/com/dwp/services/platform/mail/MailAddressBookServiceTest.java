@@ -1,11 +1,15 @@
 package com.dwp.services.platform.mail;
 
 import com.dwp.core.exception.BaseException;
+import com.dwp.platform.contract.MailConnectorPort;
 import jakarta.validation.Validation;
 import org.junit.jupiter.api.Test;
 
 import java.time.OffsetDateTime;
+import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.mail.MailAddressBookCommandReceiptRepository.CommandType.GROUP_MESSAGE_SEND;
@@ -158,6 +162,111 @@ class MailAddressBookServiceTest {
                 .hasMessageContaining("Group BCC delivery is unavailable");
 
         verifyNoInteractions(addressBook, receipts, groupCompose, mail, evidence);
+    }
+
+    @Test
+    void selectedReadyBccAccountIsSnapshottedAndUsedForCompose() {
+        UUID accountId = UUID.randomUUID();
+        UUID connectionId = UUID.randomUUID();
+        UUID groupId = UUID.randomUUID();
+        UUID threadId = UUID.randomUUID();
+        UUID key = UUID.randomUUID();
+        MailWorkspaceRepository workspace = mock(MailWorkspaceRepository.class);
+        MailConnectorPort connector = connector(Set.of(
+                MailConnectorPort.Capability.SEND,
+                MailConnectorPort.Capability.BCC), MailConnectorPort.ReadinessState.READY);
+        MailAddressBookService bccService = new MailAddressBookService(
+                addressBook, receipts, groupCompose, mail, evidence, workspace,
+                new MailConnectorRegistry(List.of(connector)));
+        var request = new MailAddressBookDtos.GroupMessageRequest(
+                "Private update", "Body", INTERNAL,
+                MailAddressBookDtos.GroupRecipientMode.BCC, accountId, key, 3L);
+        String fingerprint = fingerprints.groupMessage(groupId, request);
+        var recipient = new MailAddressBookRepository.Recipient(
+                UUID.randomUUID(), "Kim", "kim@example.com");
+        var detail = detail(threadId);
+        var sendReceipt = new MailAddressBookDtos.GroupSendReceipt(
+                UUID.randomUUID(), groupId, 3L,
+                MailAddressBookDtos.GroupRecipientMode.BCC, accountId,
+                1, threadId, OffsetDateTime.now(), "ACCEPTED");
+        when(workspace.composeAccount(1L, 7L, accountId)).thenReturn(Optional.of(accountId));
+        when(workspace.composeProviderContext(1L, 7L, accountId)).thenReturn(Optional.of(
+                new MailWorkspaceRepository.ComposeProviderContext(
+                        accountId, MailTypes.ProviderType.DWP_SANDBOX, connectionId,
+                        null, "example.com", "sandbox-account")));
+        when(receipts.reserve(1L, 7L, GROUP_MESSAGE_SEND, key, fingerprint))
+                .thenReturn(new MailAddressBookCommandReceiptRepository.Receipt(
+                        fingerprint, null, null, "IN_PROGRESS", true));
+        when(addressBook.lockGroup(1L, 7L, groupId, 3L)).thenReturn(true);
+        when(addressBook.recipients(1L, 7L, groupId)).thenReturn(List.of(recipient));
+        when(groupCompose.compose(
+                1L, 7L, groupId, request, List.of(recipient), "corr-bcc",
+                fingerprint, accountId))
+                .thenReturn(new MailGroupComposeRepository.ComposeResult(
+                        threadId, 0L, "a".repeat(64), 1, UUID.randomUUID(), sendReceipt));
+        when(mail.thread(1L, 7L, threadId)).thenReturn(detail);
+
+        MailAddressBookDtos.GroupSendResult result = bccService.sendGroupMessage(
+                1L, 7L, groupId, "corr-bcc", request);
+
+        assertThat(result.receipt().accountId()).isEqualTo(accountId);
+        verify(groupCompose).compose(
+                1L, 7L, groupId, request, List.of(recipient), "corr-bcc",
+                fingerprint, accountId);
+    }
+
+    @Test
+    void selectedBccAccountWithoutCapabilityFailsBeforeReceiptOrCompose() {
+        UUID accountId = UUID.randomUUID();
+        MailWorkspaceRepository workspace = mock(MailWorkspaceRepository.class);
+        MailConnectorPort connector = connector(
+                Set.of(MailConnectorPort.Capability.SEND),
+                MailConnectorPort.ReadinessState.READY);
+        MailAddressBookService bccService = new MailAddressBookService(
+                addressBook, receipts, groupCompose, mail, evidence, workspace,
+                new MailConnectorRegistry(List.of(connector)));
+        when(workspace.composeAccount(1L, 7L, accountId)).thenReturn(Optional.of(accountId));
+        when(workspace.composeProviderContext(1L, 7L, accountId)).thenReturn(Optional.of(
+                new MailWorkspaceRepository.ComposeProviderContext(
+                        accountId, MailTypes.ProviderType.DWP_SANDBOX, UUID.randomUUID(),
+                        null, "example.com", "sandbox-account")));
+        var request = new MailAddressBookDtos.GroupMessageRequest(
+                "Private update", "Body", INTERNAL,
+                MailAddressBookDtos.GroupRecipientMode.BCC, accountId,
+                UUID.randomUUID(), 3L);
+
+        assertThatThrownBy(() -> bccService.sendGroupMessage(
+                1L, 7L, UUID.randomUUID(), "corr-bcc", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("selected account");
+        verifyNoInteractions(receipts, groupCompose);
+    }
+
+    @Test
+    void groupSendFingerprintBindsTheSelectedAccount() {
+        UUID groupId = UUID.randomUUID();
+        UUID key = UUID.randomUUID();
+        var first = new MailAddressBookDtos.GroupMessageRequest(
+                "Subject", "Body", INTERNAL,
+                MailAddressBookDtos.GroupRecipientMode.TO, UUID.randomUUID(), key, 3L);
+        var second = new MailAddressBookDtos.GroupMessageRequest(
+                "Subject", "Body", INTERNAL,
+                MailAddressBookDtos.GroupRecipientMode.TO, UUID.randomUUID(), key, 3L);
+
+        assertThat(fingerprints.groupMessage(groupId, first))
+                .isNotEqualTo(fingerprints.groupMessage(groupId, second));
+    }
+
+    private MailConnectorPort connector(
+            Set<MailConnectorPort.Capability> capabilities,
+            MailConnectorPort.ReadinessState readiness) {
+        MailConnectorPort connector = mock(MailConnectorPort.class);
+        when(connector.manifest()).thenReturn(new MailConnectorPort.Manifest(
+                MailConnectorPort.ProviderFamily.DWP_SANDBOX,
+                "test", "test", capabilities));
+        when(connector.readiness(org.mockito.ArgumentMatchers.any())).thenReturn(
+                new MailConnectorPort.Readiness(readiness, Instant.now(), null, null));
+        return connector;
     }
 
     private MailAddressBookDtos.Contact contact(UUID contactId, String email, long version) {

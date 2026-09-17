@@ -1,6 +1,7 @@
 package com.dwp.services.platform.mail;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -36,6 +37,7 @@ public class AdminMailWritingAssetController {
     }
 
     @PostMapping("/{kind}/drafts")
+    @Operation(operationId = "createAdminMailWritingAssetDraft")
     public ApiResponse<OrganizationAsset> createDraft(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
@@ -50,6 +52,7 @@ public class AdminMailWritingAssetController {
     }
 
     @PutMapping("/{kind}/drafts/{assetId}")
+    @Operation(operationId = "updateAdminMailWritingAssetDraft")
     public ApiResponse<OrganizationAsset> updateDraft(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
@@ -66,6 +69,7 @@ public class AdminMailWritingAssetController {
     }
 
     @PostMapping("/{kind}/{assetId}/submit")
+    @Operation(operationId = "submitAdminMailWritingAsset")
     public ApiResponse<OrganizationAsset> submit(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
@@ -82,6 +86,7 @@ public class AdminMailWritingAssetController {
     }
 
     @PostMapping("/{kind}/{assetId}/approve")
+    @Operation(operationId = "approveAdminMailWritingAsset")
     public ApiResponse<OrganizationAsset> approve(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
@@ -98,6 +103,7 @@ public class AdminMailWritingAssetController {
     }
 
     @PostMapping("/{kind}/{assetId}/publish")
+    @Operation(operationId = "publishAdminMailWritingAsset")
     public ApiResponse<OrganizationAsset> publish(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
@@ -114,6 +120,7 @@ public class AdminMailWritingAssetController {
     }
 
     @PostMapping("/{kind}/{assetId}/retire")
+    @Operation(operationId = "retireAdminMailWritingAsset")
     public ApiResponse<OrganizationAsset> retire(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,

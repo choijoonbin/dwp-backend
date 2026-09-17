@@ -2,6 +2,9 @@ package com.dwp.services.platform.mail;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.platform.contract.ExecutionContext;
+import com.dwp.platform.contract.MailConnectorPort;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -10,6 +13,7 @@ import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.mail.MailAddressBookCommandReceiptRepository.CommandType.CONTACT_CREATE;
@@ -28,19 +32,35 @@ public class MailAddressBookService {
     private final MailGroupComposeRepository groupCompose;
     private final MailService mail;
     private final MailCommandRepository evidence;
+    private final MailWorkspaceRepository workspace;
+    private final MailConnectorRegistry connectors;
 
+    @Autowired
     public MailAddressBookService(
             MailAddressBookRepository addressBook,
             MailAddressBookCommandReceiptRepository receipts,
             MailGroupComposeRepository groupCompose,
             MailService mail,
-            MailCommandRepository evidence) {
+            MailCommandRepository evidence,
+            MailWorkspaceRepository workspace,
+            MailConnectorRegistry connectors) {
         this.addressBook = addressBook;
         this.receipts = receipts;
         this.fingerprints = new MailAddressBookCommandFingerprint();
         this.groupCompose = groupCompose;
         this.mail = mail;
         this.evidence = evidence;
+        this.workspace = workspace;
+        this.connectors = connectors;
+    }
+
+    MailAddressBookService(
+            MailAddressBookRepository addressBook,
+            MailAddressBookCommandReceiptRepository receipts,
+            MailGroupComposeRepository groupCompose,
+            MailService mail,
+            MailCommandRepository evidence) {
+        this(addressBook, receipts, groupCompose, mail, evidence, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -244,16 +264,19 @@ public class MailAddressBookService {
             UUID groupId,
             String correlationId,
             MailAddressBookDtos.GroupMessageRequest request) {
-        if (request.recipientMode() == MailAddressBookDtos.GroupRecipientMode.BCC) {
-            throw new BaseException(
-                    ErrorCode.INVALID_STATE,
-                    "Group BCC delivery is unavailable until the active provider supplies "
-                            + "per-recipient privacy and delivery evidence.");
-        }
-        String fingerprint = fingerprints.groupMessage(groupId, request);
+        boolean bcc = request.recipientMode() == MailAddressBookDtos.GroupRecipientMode.BCC;
+        UUID requiredAccountId = requireReadyAccount(
+                tenantId, userId, request.accountId(), bcc, correlationId);
+        MailAddressBookDtos.GroupMessageRequest effective = requiredAccountId == null
+                ? request
+                : new MailAddressBookDtos.GroupMessageRequest(
+                        request.subject(), request.body(), request.classification(),
+                        request.recipientMode(), requiredAccountId,
+                        request.idempotencyKey(), request.groupVersion());
+        String fingerprint = fingerprints.groupMessage(groupId, effective);
         var receipt = receipts.reserve(
                 tenantId, userId, GROUP_MESSAGE_SEND,
-                request.idempotencyKey(), fingerprint);
+                effective.idempotencyKey(), fingerprint);
         requireMatchingReceipt(receipt, fingerprint);
         if (receipt.completed()) {
             UUID threadId = target(receipt);
@@ -264,7 +287,7 @@ public class MailAddressBookService {
                                     "The completed group send receipt is unavailable.")));
         }
         requireNewReservation(receipt);
-        if (!addressBook.lockGroup(tenantId, userId, groupId, request.groupVersion())) {
+        if (!addressBook.lockGroup(tenantId, userId, groupId, effective.groupVersion())) {
             throw conflict("The group changed. Review its recipients before sending.");
         }
         List<MailAddressBookRepository.Recipient> recipients =
@@ -277,8 +300,13 @@ public class MailAddressBookService {
                     ErrorCode.INVALID_STATE,
                     "The group exceeds the current 100-recipient safety limit.");
         }
-        MailGroupComposeRepository.ComposeResult result = groupCompose.compose(
-                tenantId, userId, groupId, request, recipients, correlationId, fingerprint);
+        MailGroupComposeRepository.ComposeResult result = requiredAccountId == null
+                ? groupCompose.compose(
+                        tenantId, userId, groupId, effective, recipients,
+                        correlationId, fingerprint)
+                : groupCompose.compose(
+                        tenantId, userId, groupId, effective, recipients,
+                        correlationId, fingerprint, requiredAccountId);
         if (result == null) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
@@ -287,20 +315,21 @@ public class MailAddressBookService {
         MailDtos.ThreadDetail detail = mail.thread(tenantId, userId, result.threadId());
         receipts.complete(
                 tenantId, userId, GROUP_MESSAGE_SEND,
-                request.idempotencyKey(), fingerprint, result.threadId(), result.version());
+                effective.idempotencyKey(), fingerprint, result.threadId(), result.version());
         MailAddressBookDtos.GroupSendReceipt sendReceipt = result.receipt() != null
                 ? result.receipt()
                 : groupCompose.receipt(tenantId, userId, groupId, result.threadId())
                         .orElseThrow(() -> conflict("The group send receipt is unavailable."));
-        Map<String, Object> state = Map.of(
-                "groupId", groupId,
-                "groupVersion", request.groupVersion(),
-                "recipientMode", request.recipientMode().name(),
-                "recipientCount", result.recipientCount(),
-                "receiptId", sendReceipt.receiptId(),
-                "recipientSnapshotSha256", result.recipientSnapshotSha256(),
-                "classification", request.classification().name(),
-                "queued", true);
+        Map<String, Object> state = new LinkedHashMap<>();
+        state.put("groupId", groupId);
+        state.put("groupVersion", effective.groupVersion());
+        state.put("recipientMode", effective.recipientMode().name());
+        if (sendReceipt.accountId() != null) state.put("accountId", sendReceipt.accountId());
+        state.put("recipientCount", result.recipientCount());
+        state.put("receiptId", sendReceipt.receiptId());
+        state.put("recipientSnapshotSha256", result.recipientSnapshotSha256());
+        state.put("classification", effective.classification().name());
+        state.put("queued", true);
         record(
                 tenantId, userId, "mail.contact.group.message.queued", "MAIL_THREAD",
                 result.threadId(), correlationId, Map.of(), state);
@@ -317,6 +346,62 @@ public class MailAddressBookService {
     private MailAddressBookDtos.Contact contact(Long tenantId, Long userId, UUID contactId) {
         return addressBook.contact(tenantId, userId, contactId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    private UUID requireReadyAccount(
+            long tenantId,
+            long userId,
+            UUID requestedAccountId,
+            boolean requireBcc,
+            String correlationId) {
+        if (workspace == null || connectors == null) {
+            if (requireBcc || requestedAccountId != null) {
+                throw accountUnavailable(requireBcc);
+            }
+            return null;
+        }
+        try {
+            UUID accountId = workspace.composeAccount(
+                            tenantId, userId, requestedAccountId)
+                    .orElseThrow(() -> accountUnavailable(requireBcc));
+            MailWorkspaceRepository.ComposeProviderContext provider = workspace
+                    .composeProviderContext(tenantId, userId, accountId)
+                    .orElseThrow(() -> accountUnavailable(requireBcc));
+            MailConnectorPort connector = connectors.connector(provider.providerType())
+                    .orElseThrow(() -> accountUnavailable(requireBcc));
+            Set<MailConnectorPort.Capability> capabilities =
+                    connector.manifest().capabilities();
+            if (!capabilities.contains(MailConnectorPort.Capability.SEND)
+                    || requireBcc
+                    && !capabilities.contains(MailConnectorPort.Capability.BCC)) {
+                throw accountUnavailable(requireBcc);
+            }
+            MailConnectorPort.ConnectionContext context =
+                    new MailConnectorPort.ConnectionContext(
+                            new ExecutionContext(
+                                    Long.toString(tenantId), Long.toString(userId), Set.of(),
+                                    correlationId == null || correlationId.isBlank()
+                                            ? "mail-group-send" : correlationId.strip()),
+                            provider.connectionId(), provider.credentialReference(),
+                            provider.mailDomain());
+            if (connector.readiness(context).state()
+                    != MailConnectorPort.ReadinessState.READY) {
+                throw accountUnavailable(requireBcc);
+            }
+            return provider.accountId();
+        } catch (BaseException rejected) {
+            throw rejected;
+        } catch (RuntimeException unavailable) {
+            throw accountUnavailable(requireBcc);
+        }
+    }
+
+    private BaseException accountUnavailable(boolean requireBcc) {
+        return new BaseException(
+                ErrorCode.INVALID_STATE,
+                requireBcc
+                        ? "Group BCC delivery is unavailable for the selected account."
+                        : "The selected account provider is not ready for group delivery.");
     }
 
     private MailAddressBookDtos.ContactGroup group(Long tenantId, Long userId, UUID groupId) {

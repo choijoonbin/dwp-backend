@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -29,10 +31,13 @@ final class MailDraftCommandFingerprint {
             try (DataOutputStream canonical = new DataOutputStream(bytes)) {
                 write(canonical, commandType);
                 write(canonical, threadId == null ? null : threadId.toString());
+                write(canonical, request.classification().name());
+                write(canonical, String.valueOf(request.externalRecipientConfirmed()));
                 write(canonical, email(request.toEmail()));
                 write(canonical, recipientName(request.toName(), request.toEmail()));
                 write(canonical, value(request.subject()));
                 write(canonical, value(request.body()));
+                writeComposeOptions(canonical, request.composeOptions());
                 write(canonical, request.version() == null ? null : request.version().toString());
             }
             return HexFormat.of().formatHex(
@@ -40,6 +45,42 @@ final class MailDraftCommandFingerprint {
         } catch (IOException | NoSuchAlgorithmException exception) {
             throw new IllegalStateException("Unable to fingerprint the mail draft command.", exception);
         }
+    }
+
+    private void writeComposeOptions(
+            DataOutputStream canonical,
+            MailWorkspaceDtos.ComposeOptions options) throws IOException {
+        if (options == null) {
+            canonical.writeBoolean(false);
+            return;
+        }
+        canonical.writeBoolean(true);
+        write(canonical, options.accountId() == null ? null : options.accountId().toString());
+        List<MailWorkspaceDtos.Recipient> recipients = options.recipients().stream()
+                .sorted(Comparator
+                        .comparing((MailWorkspaceDtos.Recipient recipient) ->
+                                recipient.type().name())
+                        .thenComparing(recipient -> email(recipient.email()))
+                        .thenComparing(recipient -> value(recipient.name())))
+                .toList();
+        canonical.writeInt(recipients.size());
+        for (MailWorkspaceDtos.Recipient recipient : recipients) {
+            write(canonical, recipient.type().name());
+            write(canonical, email(recipient.email()));
+            write(canonical, value(recipient.name()));
+        }
+        write(canonical, options.bodyFormat().name());
+        List<UUID> attachments = options.attachmentIds().stream()
+                .distinct().sorted().toList();
+        canonical.writeInt(attachments.size());
+        for (UUID attachment : attachments) write(canonical, attachment.toString());
+        write(canonical, options.scheduledAt() == null
+                ? null : options.scheduledAt().toInstant().toString());
+        write(canonical, value(options.timeZone()));
+        write(canonical, options.templateId() == null
+                ? null : options.templateId().toString());
+        write(canonical, options.signatureId() == null
+                ? null : options.signatureId().toString());
     }
 
     private void write(DataOutputStream canonical, String value) throws IOException {
