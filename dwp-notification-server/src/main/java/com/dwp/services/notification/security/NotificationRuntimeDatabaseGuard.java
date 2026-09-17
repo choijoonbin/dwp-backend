@@ -19,6 +19,16 @@ public class NotificationRuntimeDatabaseGuard implements ApplicationRunner {
                    pg_has_role(current_user, 'dwp_notification_api', 'MEMBER'),
                    pg_has_role(current_user, 'dwp_notification_worker', 'MEMBER'),
                    pg_has_role(current_user, 'dwp_notification_audit_relay', 'MEMBER'),
+                   pg_has_role(
+                       current_user,
+                       'dwp_notification_attention_audit_relay',
+                       'MEMBER'
+                   ) AS attention_audit_relay_member,
+                   NOT pg_has_role(
+                       current_user,
+                       'dwp_notification_attention_audit_retention',
+                       'MEMBER'
+                   ) AS attention_audit_retention_isolated,
                    (
                        SELECT COUNT(*)
                          FROM pg_class relation
@@ -58,6 +68,72 @@ public class NotificationRuntimeDatabaseGuard implements ApplicationRunner {
                          FROM pg_roles relay
                         WHERE relay.rolname = 'dwp_notification_audit_relay'
                    ), FALSE) AS audit_relay_safe
+                   , COALESCE((
+                       SELECT relation.relrowsecurity AND relation.relforcerowsecurity
+                         FROM pg_class relation
+                         JOIN pg_namespace namespace
+                           ON namespace.oid = relation.relnamespace
+                        WHERE namespace.nspname = 'public'
+                          AND relation.relname = 'ntf_attention_rule_audit_outbox'
+                   ), FALSE) AS attention_audit_rls_forced
+                   , (
+                       SELECT COUNT(*)
+                         FROM information_schema.role_table_grants grant_row
+                        WHERE grant_row.table_schema = 'public'
+                          AND grant_row.table_name = 'ntf_attention_rule_audit_outbox'
+                          AND grant_row.grantee IN (role.rolname, 'dwp_notification_worker')
+                   ) AS broad_attention_audit_grants
+                   , COALESCE((
+                       SELECT NOT relay.rolsuper
+                              AND NOT relay.rolcreaterole
+                              AND NOT relay.rolcreatedb
+                              AND NOT relay.rolreplication
+                              AND NOT relay.rolbypassrls
+                         FROM pg_roles relay
+                        WHERE relay.rolname = 'dwp_notification_attention_audit_relay'
+                   ), FALSE) AS attention_audit_relay_safe
+                   , has_table_privilege(
+                       'dwp_notification_attention_audit_relay',
+                       'ntf_attention_rule_audit_outbox',
+                       'SELECT'
+                   ) AS attention_audit_relay_select
+                   , NOT has_table_privilege(
+                       'dwp_notification_attention_audit_relay',
+                       'ntf_attention_rule_audit_outbox',
+                       'INSERT'
+                   )
+                     AND NOT has_table_privilege(
+                       'dwp_notification_attention_audit_relay',
+                       'ntf_attention_rule_audit_outbox',
+                       'DELETE'
+                   )
+                     AND NOT has_table_privilege(
+                       'dwp_notification_attention_audit_relay',
+                       'ntf_attention_rule_audit_outbox',
+                       'TRUNCATE'
+                   )
+                     AND NOT has_table_privilege(
+                       'dwp_notification_attention_audit_relay',
+                       'ntf_attention_rule_audit_outbox',
+                       'REFERENCES'
+                   )
+                     AND NOT has_table_privilege(
+                       'dwp_notification_attention_audit_relay',
+                       'ntf_attention_rule_audit_outbox',
+                       'TRIGGER'
+                   ) AS attention_audit_relay_no_broad_write
+                   , has_column_privilege(
+                       'dwp_notification_attention_audit_relay',
+                       'ntf_attention_rule_audit_outbox',
+                       'published_at',
+                       'UPDATE'
+                   ) AS attention_audit_relay_state_update
+                   , NOT has_column_privilege(
+                       'dwp_notification_attention_audit_relay',
+                       'ntf_attention_rule_audit_outbox',
+                       'event_type',
+                       'UPDATE'
+                   ) AS attention_audit_evidence_immutable
               FROM pg_roles role
              WHERE role.rolname = current_user
             """;
@@ -86,11 +162,20 @@ public class NotificationRuntimeDatabaseGuard implements ApplicationRunner {
                         resultSet.getBoolean(7),
                         resultSet.getBoolean(8),
                         resultSet.getBoolean(9),
+                        resultSet.getBoolean("attention_audit_relay_member"),
+                        resultSet.getBoolean("attention_audit_retention_isolated"),
                         resultSet.getLong("owned_objects"),
                         resultSet.getBoolean("audit_rls_forced"),
                         resultSet.getLong("direct_audit_grants"),
                         resultSet.getLong("worker_audit_grants"),
-                        resultSet.getBoolean("audit_relay_safe")));
+                        resultSet.getBoolean("audit_relay_safe"),
+                        resultSet.getBoolean("attention_audit_rls_forced"),
+                        resultSet.getLong("broad_attention_audit_grants"),
+                        resultSet.getBoolean("attention_audit_relay_safe"),
+                        resultSet.getBoolean("attention_audit_relay_select"),
+                        resultSet.getBoolean("attention_audit_relay_no_broad_write"),
+                        resultSet.getBoolean("attention_audit_relay_state_update"),
+                        resultSet.getBoolean("attention_audit_evidence_immutable")));
         validate(expectedRole, identity);
     }
 
@@ -111,7 +196,11 @@ public class NotificationRuntimeDatabaseGuard implements ApplicationRunner {
             throw new IllegalStateException(
                     "Notification runtime database role must not own application objects.");
         }
-        if (!identity.apiMember() || !identity.workerMember() || !identity.auditRelayMember()) {
+        if (!identity.apiMember()
+                || !identity.workerMember()
+                || !identity.auditRelayMember()
+                || !identity.attentionAuditRelayMember()
+                || !identity.attentionAuditRetentionIsolated()) {
             throw new IllegalStateException(
                     "Notification runtime database role is missing governed scope roles.");
         }
@@ -121,6 +210,16 @@ public class NotificationRuntimeDatabaseGuard implements ApplicationRunner {
                 || !identity.auditRelaySafe()) {
             throw new IllegalStateException(
                     "Notification audit outbox database isolation is unsafe.");
+        }
+        if (!identity.attentionAuditRlsForced()
+                || identity.broadAttentionAuditGrants() > 0
+                || !identity.attentionAuditRelaySafe()
+                || !identity.attentionAuditRelaySelect()
+                || !identity.attentionAuditRelayNoBroadWrite()
+                || !identity.attentionAuditRelayStateUpdate()
+                || !identity.attentionAuditEvidenceImmutable()) {
+            throw new IllegalStateException(
+                    "Notification attention audit outbox database isolation is unsafe.");
         }
     }
 
@@ -134,10 +233,19 @@ public class NotificationRuntimeDatabaseGuard implements ApplicationRunner {
             boolean apiMember,
             boolean workerMember,
             boolean auditRelayMember,
+            boolean attentionAuditRelayMember,
+            boolean attentionAuditRetentionIsolated,
             long ownedObjects,
             boolean auditRlsForced,
             long directAuditGrants,
             long workerAuditGrants,
-            boolean auditRelaySafe) {
+            boolean auditRelaySafe,
+            boolean attentionAuditRlsForced,
+            long broadAttentionAuditGrants,
+            boolean attentionAuditRelaySafe,
+            boolean attentionAuditRelaySelect,
+            boolean attentionAuditRelayNoBroadWrite,
+            boolean attentionAuditRelayStateUpdate,
+            boolean attentionAuditEvidenceImmutable) {
     }
 }

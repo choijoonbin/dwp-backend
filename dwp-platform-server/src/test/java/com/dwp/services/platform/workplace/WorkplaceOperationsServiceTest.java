@@ -175,11 +175,42 @@ class WorkplaceOperationsServiceTest {
         verify(workplace).validateBookable(
                 eq(1L), eq(target), eq(7L), eq(null), eq(null),
                 any(), eq(site), eq(floor), eq(policy));
-        verify(operations).audit(
+        verify(bookings).auditCommand(
                 eq(1L), eq(7L), eq("workplace.booking.relocated"),
                 eq(bookingId), eq("corr-move"), anyMap());
         verify(domainEvents).bookingChanged(
                 eq(WorkplaceDomainEvents.RELOCATED), eq(1L), eq("corr-move"), any());
+    }
+
+    @Test
+    void relocateExactReplayReturnsTheStoredSnapshotWithoutMovingAgain() {
+        UUID bookingId = UUID.randomUUID();
+        UUID currentResourceId = UUID.randomUUID();
+        UUID targetResourceId = UUID.randomUUID();
+        OffsetDateTime startsAt = OffsetDateTime.now().plusDays(2).withNano(0);
+        WorkplaceBookingRepository.BookingRow current = bookingRow(
+                bookingId, currentResourceId, BookingStatus.RESERVED, 4L);
+        WorkplaceDtos.Booking snapshot = booking(bookingId, targetResourceId);
+        WorkplaceOperationsDtos.RelocateBookingRequest request =
+                new WorkplaceOperationsDtos.RelocateBookingRequest(
+                        targetResourceId, startsAt, startsAt.plusHours(1), "Move", 4L);
+        String fingerprint = WorkplaceBookingCommandCoordinator.fingerprint(
+                WorkplaceBookingCommandCoordinator.RELOCATE, bookingId,
+                List.of(targetResourceId, startsAt, startsAt.plusHours(1), "Move", 4L));
+        when(bookings.bookingCommand(1L, 7L, "relocate-key")).thenReturn(Optional.of(
+                new WorkplaceBookingRepository.BookingCommandRow(
+                        UUID.randomUUID(), bookingId,
+                        WorkplaceBookingCommandCoordinator.RELOCATE,
+                        fingerprint, snapshot, UUID.randomUUID())));
+        when(bookings.booking(1L, 7L, bookingId, false)).thenReturn(Optional.of(current));
+
+        assertThat(service.relocateBooking(
+                1L, 7L, null, bookingId, "en-US", "corr", "group-a",
+                "relocate-key", request)).isSameAs(snapshot);
+
+        verify(workplace).requireBookingBookAccess(1L, 7L, "group-a", current);
+        verify(operations, never()).relocate(
+                any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     @Test

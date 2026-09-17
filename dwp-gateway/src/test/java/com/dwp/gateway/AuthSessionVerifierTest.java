@@ -31,10 +31,8 @@ class AuthSessionVerifierTest {
                 .get("/api/platform/v1/home-experience/background")
                 .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
                 .build();
-
         assertThat(verifier.verify(request).block()).isNotNull();
         assertThat(verifier.verify(request).block()).isNotNull();
-
         assertThat(calls).hasValue(1);
     }
 
@@ -46,10 +44,8 @@ class AuthSessionVerifierTest {
                 .get("/api/platform/v1/admin/audit-control/events")
                 .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
                 .build();
-
         verifier.verify(request).block();
         verifier.verify(request).block();
-
         assertThat(calls).hasValue(2);
     }
 
@@ -61,10 +57,8 @@ class AuthSessionVerifierTest {
                 .post("/api/platform/v1/reference-data/WORK_STATUS")
                 .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
                 .build();
-
         verifier.verify(request).block();
         verifier.verify(request).block();
-
         assertThat(calls).hasValue(2);
     }
 
@@ -72,7 +66,6 @@ class AuthSessionVerifierTest {
     void isolatesCachedReadsByTenantAssertion() {
         AtomicInteger calls = new AtomicInteger();
         AuthSessionVerifier verifier = verifierCountingSuccessfulCalls(calls);
-
         verifier.verify(MockServerHttpRequest
                 .get("/api/platform/v1/tenant-branding")
                 .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
@@ -83,7 +76,6 @@ class AuthSessionVerifierTest {
                 .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
                 .header("X-Tenant-ID", "2")
                 .build()).block();
-
         assertThat(calls).hasValue(2);
     }
 
@@ -94,9 +86,7 @@ class AuthSessionVerifierTest {
                 .get("/api/platform/v1/home-experience/background")
                 .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
                 .build();
-
         VerifiedIdentity identity = verifier.verify(request).block();
-
         assertThat(identity).isNotNull();
         assertThat(identity.tenantId()).isEqualTo("1");
     }
@@ -109,7 +99,6 @@ class AuthSessionVerifierTest {
                 .header("X-Tenant-ID", "2")
                 .header(HttpHeaders.COOKIE, "DWP_SESSION=session-token")
                 .build();
-
         assertThat(verifier.verify(request).block()).isNull();
     }
 
@@ -123,7 +112,6 @@ class AuthSessionVerifierTest {
                 {"success":true,"data":{"userId":900001,"tenantId":1,
                 "identityPlane":"PROVIDER","roles":[]}}
                 """).verify(MockServerHttpRequest.get("/api/provider/v1/tenants").build()).block();
-
         assertThat(tenant).isNotNull();
         assertThat(tenant.identityPlane()).isEqualTo("TENANT");
         assertThat(provider).isNotNull();
@@ -170,7 +158,6 @@ class AuthSessionVerifierTest {
                 "identityPlane":"PROVIDER","roles":["PROVIDER_ADMIN","TENANT_ADMIN"]}}
                 """)) {
             AuthSessionVerifier verifier = verifierReturningBody(body);
-
             assertThatThrownBy(() -> verifier.verify(MockServerHttpRequest
                     .get("/api/agent/v1/plans/preview")
                     .build()).block())
@@ -189,10 +176,8 @@ class AuthSessionVerifierTest {
         MockServerWebExchange exchange = MockServerWebExchange.from(MockServerHttpRequest
                 .get("/api/agent/v1/plans/preview")
                 .build());
-
         filter.filter(exchange, ignored -> Mono.error(
                 new AssertionError("invalid identity must not be forwarded"))).block();
-
         assertThat(exchange.getResponse().getStatusCode())
                 .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
     }
@@ -214,9 +199,7 @@ class AuthSessionVerifierTest {
                 .get("/api/platform/v1/admin/api-history/overview")
                 .header("traceparent", traceParent)
                 .build();
-
         verifier.verify(request).block();
-
         assertThat(captured.get().headers().getFirst("traceparent")).isEqualTo(traceParent);
     }
 
@@ -241,9 +224,7 @@ class AuthSessionVerifierTest {
         MockServerHttpRequest request = MockServerHttpRequest
                 .get("/api/platform/v1/admin/audit-control/events")
                 .build();
-
         VerifiedIdentity identity = verifier.verify(request).block();
-
         assertThat(captured.get().url().getQuery())
                 .isEqualTo("permissionPrefix=ADMIN.AUDIT_");
         assertThat(identity).isNotNull();
@@ -268,11 +249,9 @@ class AuthSessionVerifierTest {
         });
         AuthSessionVerifier verifier = new AuthSessionVerifier(
                 builder, "http://auth.test", Duration.ofSeconds(1));
-
         VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
                 .get("/api/platform/v1/workspace/work-items")
                 .build()).block();
-
         assertThat(captured.get().url().getQuery()).isEqualTo("permissionPrefix=APP.");
         assertThat(identity).isNotNull();
         assertThat(identity.permissions()).containsExactly("APP.WORK:UPDATE", "APP.WORK:VIEW");
@@ -298,11 +277,9 @@ class AuthSessionVerifierTest {
         });
         AuthSessionVerifier verifier = new AuthSessionVerifier(
                 builder, "http://auth.test", Duration.ofSeconds(1));
-
         VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
                 .get("/api/platform/v1/home/overview")
                 .build()).block();
-
         assertThat(captured.get().url().getQuery())
                 .isEqualTo("permissionPrefix=APP.WORK,APP.ACTIVITY,APP.CALENDAR,APP.COMMUNICATIONS");
         assertThat(identity).isNotNull();
@@ -331,11 +308,9 @@ class AuthSessionVerifierTest {
         });
         AuthSessionVerifier verifier = new AuthSessionVerifier(
                 builder, "http://auth.test", Duration.ofSeconds(1));
-
         VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
                 .post("/api/platform/v1/home-templates")
                 .build()).block();
-
         assertThat(captured.get().url().getQuery())
                 .isEqualTo("permissionPrefix=ADMIN.HOME_TEMPLATE");
         assertThat(identity).isNotNull();
@@ -360,11 +335,9 @@ class AuthSessionVerifierTest {
         });
         AuthSessionVerifier verifier = new AuthSessionVerifier(
                 builder, "http://auth.test", Duration.ofSeconds(1));
-
         VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
                 .get("/api/people/v1/hr/home")
                 .build()).block();
-
         assertThat(captured.get().url().getQuery())
                 .isEqualTo("permissionPrefix=APP.HCM,APP.HRIS,DATA.HR_");
         assertThat(identity).isNotNull();
@@ -403,7 +376,6 @@ class AuthSessionVerifierTest {
                     new AtomicReference<>();
             MockServerWebExchange exchange = MockServerWebExchange.from(
                     MockServerHttpRequest.get(path).build());
-
             filter.filter(exchange, filteredExchange -> {
                 forwarded.set(filteredExchange.getRequest());
                 return Mono.empty();

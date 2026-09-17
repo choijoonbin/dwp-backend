@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -72,7 +73,7 @@ class ApprovalRelease14PepContractTest {
         assertEquals(149, current.path("projectedRouteContractCount").asInt());
         assertEquals(157, current.path("bindingPairCount").asInt());
 
-        ApprovalPilotPepRegistry registry = new ApprovalPilotPepRegistry(json);
+        ApprovalPilotPepRegistry registry = new ApprovalPilotPepRegistry(json, Clock.systemUTC(), 14);
         assertEquals(157, registry.bindingContracts().size());
         assertTrue(registry.bindingContracts().stream().map(
                 ApprovalPilotPepRegistry.BindingContract::routeContractKey)

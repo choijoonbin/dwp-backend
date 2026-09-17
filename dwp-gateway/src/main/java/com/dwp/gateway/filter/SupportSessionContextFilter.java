@@ -79,6 +79,10 @@ public class SupportSessionContextFilter implements GlobalFilter, Ordered {
         ServerHttpRequest sanitized = sanitize(request, !providerRequest);
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitized).build();
 
+        if (DeviceIdentityPlaneFilter.verified(exchange)) {
+            return chain.filter(sanitizedExchange);
+        }
+
         if (token == null || !requiresSupportResolution(request)) {
             return chain.filter(sanitizedExchange);
         }

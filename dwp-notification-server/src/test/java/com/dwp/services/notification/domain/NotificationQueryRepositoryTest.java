@@ -30,6 +30,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -160,8 +161,193 @@ class NotificationQueryRepositoryTest {
         verifyNoInteractions(jdbc);
     }
 
+    @Test
+    @SuppressWarnings("unchecked")
+    void prioritizedAttentionUsesOnlyTheMaterializedRecipientDecision() {
+        InboxFilters filters = new InboxFilters(
+                null, null, null, null, null, "PRIORITIZE",
+                List.of(), List.of(), null, null);
+
+        repository.inbox(ACTOR, InboxView.ALL, filters, 30, null);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> params =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).query(sql.capture(), params.capture(), any(RowMapper.class));
+        assertThat(sql.getValue())
+                .contains("user_notification.attention_effect = :attentionEffect")
+                .doesNotContain("actor_ref = :attentionEffect");
+        assertThat(params.getValue().getValue("attentionEffect")).isEqualTo("PRIORITIZE");
+    }
+
+    @Test
+    void invalidAttentionEffectFailsBeforeAnyQuery() {
+        assertThatThrownBy(() -> new InboxFilters(
+                null, null, null, null, null, "VIP_ACTOR",
+                List.of(), List.of(), null, null))
+                .isInstanceOfSatisfying(NotificationException.class, exception ->
+                        assertThat(exception.errorCode()).isEqualTo(NotificationErrorCode.INVALID_INPUT));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void inboxTotalReusesTheExactTenantUserAndFacetPredicates() {
+        when(jdbc.queryForObject(anyString(), any(MapSqlParameterSource.class), eq(Long.class)))
+                .thenReturn(7L);
+        InboxFilters filters = new InboxFilters(
+                null, "messaging", null, "UNREAD", null, "PRIORITIZE",
+                List.of("MENTION"), List.of(), null, null);
+
+        assertThat(repository.inboxTotal(ACTOR, InboxView.ALL, filters)).isEqualTo(7L);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> params =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).queryForObject(sql.capture(), params.capture(), eq(Long.class));
+        assertThat(sql.getValue())
+                .contains("COUNT(*)")
+                .contains("user_notification.tenant_id = :tenantId")
+                .contains("user_notification.user_id = :userId")
+                .contains("type.owner_app_key = :appKey")
+                .contains("user_notification.read_at IS NULL")
+                .contains("user_notification.attention_effect = :attentionEffect")
+                .contains("UPPER(user_notification.reason_code) IN (:includedReasonCodes)");
+        assertThat(params.getValue().getValue("tenantId")).isEqualTo(42L);
+        assertThat(params.getValue().getValue("userId")).isEqualTo(900018L);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void includedTypesUseCanonicalBoundedOrReasonAliases() {
+        InboxFilters filters = new InboxFilters(
+                null, null, null, null, null,
+                List.of("ASSIGNED", "DIRECT"), List.of(), null, null);
+
+        repository.inbox(ACTOR, InboxView.ALL, filters, 30, null);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> params =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).query(sql.capture(), params.capture(), any(RowMapper.class));
+        assertThat(sql.getValue())
+                .contains("user_notification.tenant_id = :tenantId")
+                .contains("user_notification.user_id = :userId")
+                .contains("UPPER(user_notification.reason_code) IN (:includedReasonCodes)");
+        assertThat((List<String>) params.getValue().getValue("includedReasonCodes"))
+                .containsExactly("DIRECT", "DIRECT_RECIPIENT", "ROLE");
+    }
+
+    @Test
+    void invalidDuplicateOrOversizedIncludedTypesFailBeforeQuery() {
+        assertThatThrownBy(() -> new InboxFilters(
+                null, null, null, null, null,
+                List.of("DIRECT", "DIRECT"), List.of(), null, null))
+                .isInstanceOf(NotificationException.class);
+        assertThatThrownBy(() -> new InboxFilters(
+                null, null, null, null, null,
+                List.of("UNKNOWN"), List.of(), null, null))
+                .isInstanceOf(NotificationException.class);
+        assertThatThrownBy(() -> new InboxFilters(
+                null, null, null, null, null,
+                List.of("DIRECT", "MENTION", "ASSIGNED", "SUBSCRIPTION", "MANDATORY_POLICY", "DIRECT"),
+                List.of(), null, null))
+                .isInstanceOf(NotificationException.class);
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void contextFilterMatchesOnlyExactRecipientOwnedReferences() {
+        InboxFilters filters = new InboxFilters(
+                null, null, null, null, null,
+                List.of(),
+                List.of(new NotificationQueryRepository.InboxContextFilter(
+                        "THREAD", "conversation:42")), null, null);
+
+        repository.inbox(ACTOR, InboxView.ALL, filters, 30, null);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> params =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).query(sql.capture(), params.capture(), any(RowMapper.class));
+        assertThat(sql.getValue())
+                .contains("notification.thread_key = :contextKey0")
+                .contains("context.tenant_id = user_notification.tenant_id")
+                .contains("context.user_id = user_notification.user_id")
+                .contains("context.kind IN ('CONVERSATION', 'THREAD', 'CHANNEL')")
+                .doesNotContain("LIKE :contextKey0");
+        assertThat(params.getValue().getValue("contextKey0")).isEqualTo("conversation:42");
+        assertThat(params.getValue().getValue("contextKeyHash0"))
+                .isEqualTo(NotificationAttentionScope.sha256("conversation:42"));
+    }
+
+    @Test
+    @SuppressWarnings("unchecked")
+    void contextFiltersUseOrWithinKindAndAndAcrossKinds() {
+        InboxFilters filters = new InboxFilters(
+                null, null, null, null, null,
+                List.of(),
+                List.of(
+                        new NotificationQueryRepository.InboxContextFilter("RESOURCE", "project:renewal"),
+                        new NotificationQueryRepository.InboxContextFilter("ACTOR", "user:84"),
+                        new NotificationQueryRepository.InboxContextFilter("ACTOR", "user:42")),
+                null, null);
+
+        repository.inbox(ACTOR, InboxView.ALL, filters, 30, null);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> params =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).query(sql.capture(), params.capture(), any(RowMapper.class));
+        assertThat(sql.getValue())
+                .contains("user_notification.actor_ref = :contextKey0")
+                .contains(" OR\n  ((user_notification.actor_ref = :contextKey1)")
+                .contains(":contextKey2 IN (user_notification.subject_ref, user_notification.target_ref)")
+                .doesNotContain("LIKE :contextKey");
+        assertThat(params.getValue().getValue("contextKey0")).isEqualTo("user:42");
+        assertThat(params.getValue().getValue("contextKey1")).isEqualTo("user:84");
+        assertThat(params.getValue().getValue("contextKey2")).isEqualTo("project:renewal");
+    }
+
+    @Test
+    void incompleteOrNonCanonicalContextFilterFailsBeforeQuery() {
+        assertThatThrownBy(() -> repository.inbox(
+                ACTOR,
+                InboxView.ALL,
+                new InboxFilters(
+                        null, null, null, null, null,
+                        List.of(),
+                        List.of(new NotificationQueryRepository.InboxContextFilter(
+                                "THREAD", " conversation:42")), null, null),
+                30,
+                null))
+                .isInstanceOfSatisfying(NotificationException.class, exception ->
+                        assertThat(exception.errorCode()).isEqualTo(
+                                NotificationErrorCode.INVALID_INPUT));
+        verifyNoInteractions(jdbc);
+    }
+
+    @Test
+    void duplicateOrOversizedContextFiltersFailBeforeQuery() {
+        var duplicate = new NotificationQueryRepository.InboxContextFilter("ACTOR", "user:42");
+        assertThatThrownBy(() -> new InboxFilters(
+                null, null, null, null, null, List.of(), List.of(duplicate, duplicate), null, null))
+                .isInstanceOf(NotificationException.class);
+        assertThatThrownBy(() -> new InboxFilters(
+                null, null, null, null, null,
+                List.of(),
+                java.util.stream.IntStream.range(0, 6)
+                        .mapToObj(index -> new NotificationQueryRepository.InboxContextFilter(
+                                "THREAD", "thread:" + index))
+                        .toList(),
+                null, null))
+                .isInstanceOf(NotificationException.class);
+        verifyNoInteractions(jdbc);
+    }
+
     private InboxFilters filters(String readState, String reason) {
-        return new InboxFilters(null, null, null, readState, reason, null, null);
+        return new InboxFilters(
+                null, null, null, readState, reason, List.of(), List.of(), null, null);
     }
 
     private static Stream<Arguments> knownReasons() {

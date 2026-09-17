@@ -1,0 +1,402 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" tests="15" skipped="0" failures="0" errors="0" timestamp="2026-09-16T08:15:55" hostname="MacBook-Pro" time="5.646">
+  <properties/>
+  <testcase name="waitlistPersistsNotApplicablePricingAndRejectsInventedManagedPrice()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.515"/>
+  <testcase name="autoConfirmUsesOwnerAndPersistsResultUnknownForRequery()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.806"/>
+  <testcase name="teamPlacementIsActuallyValidatedAndMeterDistanceFailsClosedWithoutScale()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.213"/>
+  <testcase name="flexibleWindowIsUsedAndExposedWhenRequestedWindowIsOccupied()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.275"/>
+  <testcase name="expiredOfferReleasesExactHoldAndWritesLifecycleEvidence()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.431"/>
+  <testcase name="groupDelegationIsBlockedWhenMembershipCannotBeAuthoritativelyRevalidated()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.238"/>
+  <testcase name="compositeForeignKeysRejectCrossTenantAndCrossIntentAggregateLinks()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.416"/>
+  <testcase name="previewAndHoldAreTenantScopedIdempotentAuditedAndOutboxed()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.325"/>
+  <testcase name="maintenancePromotesActiveWaitlistIntoExactHoldAndOfferOnlyOnce()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.403"/>
+  <testcase name="aggregateAuditAndOutboxRollbackAsOneTransaction()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.252"/>
+  <testcase name="activeHoldBlocksUnownedBookingAndBatchedHoldOnlyAuthorizesExactWindow()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.317"/>
+  <testcase name="delegatedBeneficiaryIsAuthoritativeAndLineageSurvivesPreview()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.173"/>
+  <testcase name="governedDistanceFailsClosedWithExplicitAuditedDecision()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.33"/>
+  <testcase name="batchResultUnknownIsDurableAndRecoveredByStatusInsteadOfCommandReplay()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.621"/>
+  <testcase name="concurrentMaintenanceCreatesSingleActiveOffer()" classname="com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest" time="0.319"/>
+  <system-out><![CDATA[17:15:41.525 [Test worker] INFO tc.postgres:16-alpine -- Creating container for image: postgres:16-alpine
+17:15:41.659 [Test worker] INFO tc.postgres:16-alpine -- Container postgres:16-alpine is starting: 9550f781da9c1245b1c46083b5384e60ba10ef8e11648170964f9fa4c2077e40
+17:15:43.739 [Test worker] INFO tc.postgres:16-alpine -- Container postgres:16-alpine started in PT2.213628S
+17:15:43.748 [Test worker] INFO tc.postgres:16-alpine -- Container is started (JDBC URL: jdbc:postgresql://localhost:52611/test?loggerLevel=OFF)
+17:15:44.355 [Test worker] INFO org.flywaydb.core.FlywayExecutor -- Database: jdbc:postgresql://localhost:52611/test?adaptiveFetch=false&adaptiveFetchMaximum=-1&adaptiveFetchMinimum=0&allowEncodingChanges=false&ApplicationName=PostgreSQL+JDBC+Driver&autosave=never&binaryTransfer=true&binaryTransferDisable=&binaryTransferEnable=&cancelSignalTimeout=10&channelBinding=prefer&cleanupSavepoints=false&connectTimeout=10&convertBooleanToNumeric=false&databaseMetadataCacheFields=65536&databaseMetadataCacheFieldsMiB=5&defaultRowFetchSize=0&disableColumnSanitiser=false&escapeSyntaxCallMode=select&groupStartupParameters=false&gssEncMode=allow&gsslib=auto&gssResponseTimeout=5000&gssUseDefaultCreds=false&hideUnprivilegedObjects=false&hostRecheckSeconds=10&jaasApplicationName=pgjdbc&jaasLogin=true&loadBalanceHosts=false&loggerLevel=OFF&loginTimeout=0&logServerErrorDetail=true&logUnclosedConnections=false&maxSendBufferSize=8192&pemKeyAlgorithm=RSA&preferQueryMode=extended&preparedStatementCacheQueries=256&preparedStatementCacheSizeMiB=5&prepareThreshold=5&protocolVersion=3&queryTimeout=0&quoteReturningIdentifiers=true&readOnly=false&readOnlyMode=transaction&receiveBufferSize=-1&reWriteBatchedInserts=false&scramMaxIterations=100000&sendBufferSize=-1&socketTimeout=0&sslfactory=org.postgresql.ssl.LibPQFactory&sslNegotiation=postgres&sslResponseTimeout=5000&sspiServiceClass=POSTGRES&targetServerType=any&tcpKeepAlive=false&tcpNoDelay=true&unknownLength=2147483647&useSpnego=false&xmlFactoryFactory= (PostgreSQL 16.15)
+17:15:44.646 [Test worker] INFO org.flywaydb.core.internal.schemahistory.JdbcTableSchemaHistory -- Schema history table "public"."flyway_schema_history" does not exist yet
+17:15:44.654 [Test worker] INFO org.flywaydb.core.internal.command.DbValidate -- Successfully validated 211 migrations (execution time 00:00.223s)
+17:15:44.684 [Test worker] INFO org.flywaydb.core.internal.schemahistory.JdbcTableSchemaHistory -- Creating Schema History table "public"."flyway_schema_history" ...
+17:15:44.786 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Current version of schema "public": << Empty Schema >>
+17:15:44.799 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "1 - create platform control plane"
+17:15:44.875 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "2 - create product registry"
+17:15:44.916 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "3 - add tenant home experience"
+17:15:44.955 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "4 - add branding home preferences and announcements"
+17:15:45.003 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "5 - add navigation localization and admin command foundation"
+17:15:45.095 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "6 - create personal preferences"
+17:15:45.120 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "7 - seed default runtime navigation"
+17:15:45.146 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "8 - seed default app registry"
+17:15:45.170 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "9 - create partitioned api history"
+17:15:45.190 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +----------------------------------+
+| sys_ensure_api_history_partition |
++----------------------------------+
+|                                  |
++----------------------------------+
+
+17:15:45.195 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +----------------------------------+
+| sys_ensure_api_history_partition |
++----------------------------------+
+|                                  |
++----------------------------------+
+
+17:15:45.201 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +----------------------------------+
+| sys_ensure_api_history_partition |
++----------------------------------+
+|                                  |
++----------------------------------+
+
+17:15:45.241 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "10 - add provider tenant registry"
+17:15:45.275 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "11 - create enterprise audit control plane"
+17:15:45.298 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +----------------------------------+
+| sys_ensure_audit_event_partition |
++----------------------------------+
+|                                  |
++----------------------------------+
+
+17:15:45.307 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +----------------------------------+
+| sys_ensure_audit_event_partition |
++----------------------------------+
+|                                  |
++----------------------------------+
+
+17:15:45.315 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +----------------------------------+
+| sys_ensure_audit_event_partition |
++----------------------------------+
+|                                  |
++----------------------------------+
+
+17:15:45.458 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "12 - apply skax demo branding"
+17:15:45.501 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "13 - add audit investigation workspace"
+17:15:45.560 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "14 - add system code contract registry"
+17:15:45.631 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "15 - register complete system code contracts"
+17:15:45.749 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "16 - register api and json code contracts"
+17:15:45.780 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "17 - register role catalog internal contracts"
+17:15:45.804 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "18 - close typed code contract gaps and revisioning"
+17:15:45.835 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "19 - govern system code runtime visibility"
+17:15:45.868 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "20 - register people and workforce applications"
+17:15:45.893 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "21 - restrict workforce approval role contract"
+17:15:45.911 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "22 - seed skax reference data catalog"
+17:15:45.956 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "23 - register product catalog read permission"
+17:15:45.984 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "24 - register role delegation code contracts"
+17:15:46.018 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "25 - register data governance code contracts"
+17:15:46.065 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "26 - create workspace runtime"
+17:15:46.209 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "27 - align workspace capability descriptions"
+17:15:46.246 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "28 - register workspace runtime code contracts"
+17:15:46.279 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "29 - register access review code contracts"
+17:15:46.308 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "30 - create governed saved views"
+17:15:46.350 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "31 - create productivity connector control plane"
+17:15:46.447 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "32 - index cross domain audit projection"
+17:15:46.492 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "33 - register hris operational code contracts"
+17:15:46.515 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "34 - register productivity code contracts"
+17:15:46.535 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "35 - register productivity typed contracts"
+17:15:46.553 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "36 - register governed ask agent"
+17:15:46.566 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "37 - backfill governed ask agent for service tenants"
+17:15:46.583 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "38 - create audit case closure reports"
+17:15:46.611 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "39 - enforce closed audit case immutability"
+17:15:46.633 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "40 - complete closed audit finding guard"
+17:15:46.651 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "41 - create announcement engagement evidence"
+17:15:46.669 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "42 - create experience studio revisions"
+17:15:46.694 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "43 - register wave2 code contracts"
+17:15:46.710 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "44 - create tenant catalog relationships"
+17:15:46.742 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "45 - create navigation studio revisions"
+17:15:46.767 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "46 - create workspace app access requests"
+17:15:46.798 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "47 - evolve personal preferences v2"
+17:15:46.819 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "48 - expire workspace app access requests"
+17:15:46.846 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "49 - add audit policy revision governance"
+17:15:46.904 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "50 - add catalog assurance governance"
+17:15:46.967 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "51 - govern managed preference exceptions"
+17:15:47.052 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "52 - create localization revision studio"
+17:15:47.118 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "53 - govern team saved view ownership"
+17:15:47.186 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "54 - register workforce and event code contracts"
+17:15:47.223 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "55 - register wave3 governance code contracts"
+17:15:47.286 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "56 - register domain event typed contracts"
+17:15:47.314 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "57 - unify people experience under hr"
+17:15:47.357 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "58 - name hris product surface"
+17:15:47.385 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "59 - complete app access fulfilment lifecycle"
+17:15:47.437 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "60 - create enterprise communications experience"
+17:15:47.493 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "61 - harden communications governance and reactions"
+17:15:47.526 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "62 - create employee service center"
+17:15:47.593 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "63 - harden and seed service operations"
+17:15:47.624 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "64 - register scoped admin communications and service contracts"
+17:15:47.656 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "65 - reconcile announcement and support access contracts"
+17:15:47.673 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "66 - project delegated and control plane roles"
+17:15:47.688 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "67 - evolve personal home surfaces"
+17:15:47.716 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "68 - register tenant authorization template contracts"
+17:15:47.746 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "69 - create enterprise calendar"
+17:15:47.874 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "70 - register approval home and workspace app"
+17:15:47.903 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "71 - harden calendar identity and booking governance"
+17:15:47.947 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "72 - enforce calendar resource booking integrity"
+17:15:48.297 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "73 - expand people service catalog"
+17:15:48.340 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "74 - seed complete skax calendar workforce"
+17:15:48.621 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "75 - separate skax calendar reminders"
+17:15:48.649 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "76 - align skax absence and room schedules"
+17:15:48.670 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "77 - govern home launchpad configuration"
+17:15:48.693 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "78 - adopt dwp hcm product contract"
+17:15:48.738 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "90 - personalize workspace home work items"
+17:15:48.786 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "91 - govern home recommendations and widget metadata"
+17:15:48.814 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "92 - stabilize calendar person ownership"
+17:15:48.859 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "93 - normalize calendar identity references"
+17:15:48.894 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "94 - register hcm calendar home and approval code contracts"
+17:15:48.971 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "95 - exclude retired code sets from registry health"
+17:15:48.999 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "96 - project calendar approval and hcm roles"
+17:15:49.020 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "97 - register home overview section status contract"
+17:15:49.054 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "98 - retire unowned platform placeholders"
+17:15:49.137 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "99 - register hr home domain state contracts"
+17:15:49.164 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "100 - promote shared classification and risk contracts"
+17:15:49.214 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "101 - separate fixed home zones from personal widgets"
+17:15:49.239 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "102 - add fractional home widget footprints"
+17:15:49.270 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "103 - govern tenant home composition"
+17:15:49.310 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "104 - enrich joonbin personal home seed"
+17:15:49.359 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "105 - assign distinct communication cover images"
+17:15:49.382 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "106 - optimize communication cover image formats"
+17:15:49.416 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "107 - restore personal workspace tools"
+17:15:49.459 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "108 - govern home widget heights"
+17:15:49.492 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "120 - create enterprise mail domain"
+17:15:49.629 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "121 - seed skax enterprise mail"
+17:15:49.674 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "122 - promote native mail application"
+17:15:49.689 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "123 - register enterprise spaces"
+17:15:49.710 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "124 - backfill skax mail for all active members"
+17:15:49.782 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "125 - complete skax shared mail collaboration"
+17:15:49.808 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "126 - register enterprise space code contracts"
+17:15:49.857 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "127 - register space operations code contracts"
+17:15:49.893 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "128 - version governed mail action contracts"
+17:15:49.912 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "129 - register space owner recovery policy type"
+17:15:49.936 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "130 - complete space owner recovery code contract"
+17:15:49.960 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "140 - harden governed mail action invariants"
+17:15:49.989 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "141 - operationalize mail delivery outbox"
+17:15:50.021 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "142 - support mail thread folder membership"
+17:15:50.057 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "143 - unify dwaion product identity"
+17:15:50.077 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "144 - register enterprise rooms"
+17:15:50.098 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "145 - adopt dwaion workspace route"
+17:15:50.120 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "146 - create enterprise workplace"
+17:15:50.224 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "147 - enforce workplace tenant relations"
+17:15:50.267 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "148 - harden workplace booking invariants"
+17:15:50.300 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "149 - register enterprise messaging"
+17:15:50.319 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "150 - register governed approval expert"
+17:15:50.334 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "151 - register notification center"
+17:15:50.351 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "152 - complete workplace booking lifecycle"
+17:15:50.373 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "153 - require workplace assignee identity"
+17:15:50.396 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "154 - publish dwaion navigation identity"
+17:15:50.422 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "155 - register governed reference planner"
+17:15:50.442 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "156 - harden workplace booking operations"
+17:15:50.473 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "157 - add workplace spatial governance"
+17:15:50.698 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "158 - operationalize tenant media cleanup"
+17:15:50.733 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "159 - govern workplace audit and privacy"
+17:15:50.782 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "160 - govern assigned workspace release windows"
+17:15:50.806 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "161 - make workplace release windows idempotent"
+17:15:50.838 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "162 - harden workplace transaction privacy media lifecycle"
+17:15:50.964 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "163 - harden calendar event idempotency"
+17:15:50.992 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "164 - canonicalize workplace policy hash and media reconciliation"
+17:15:51.045 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "165 - register recent database check contracts"
+17:15:51.119 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "166 - project recent governed roles"
+17:15:51.143 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "167 - align privileged role projection"
+17:15:51.163 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "168 - register notification audit outbox contract"
+17:15:51.187 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "169 - register notification database check contracts"
+17:15:51.253 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "170 - project notification template approver role"
+17:15:51.285 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "171 - create bounded home personalization"
+17:15:51.417 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "172 - harden home composer undo"
+17:15:51.458 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "173 - harden home personalization integrity"
+17:15:51.502 [Test worker] INFO org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: constraint "ck_usr_home_composer_expiry" of relation "usr_home_composer_proposals" does not exist, skipping
+17:15:51.569 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "174 - finalize home personalization cutover safety"
+17:15:51.675 [Test worker] INFO org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: constraint "ck_usr_home_view_integrity_state" of relation "usr_home_views" does not exist, skipping
+17:15:51.675 [Test worker] INFO org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: constraint "ck_usr_home_view_layout_size" of relation "usr_home_views" does not exist, skipping
+17:15:51.683 [Test worker] INFO org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: constraint "ck_usr_home_view_revision_snapshot_size" of relation "usr_home_view_revisions" does not exist, skipping
+17:15:51.687 [Test worker] INFO org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: constraint "ck_usr_home_device_overlay_size" of relation "usr_home_view_device_layouts" does not exist, skipping
+17:15:51.693 [Test worker] INFO org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: constraint "ck_usr_home_widget_configuration_size" of relation "usr_home_widget_configurations" does not exist, skipping
+17:15:51.698 [Test worker] INFO org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: constraint "ck_adm_home_template_layout_size" of relation "adm_home_templates" does not exist, skipping
+17:15:51.701 [Test worker] INFO org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: constraint "ck_adm_home_template_revision_snapshot_size" of relation "adm_home_template_revisions" does not exist, skipping
+17:15:51.705 [Test worker] INFO org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: constraint "ck_usr_home_composer_before_size" of relation "usr_home_composer_proposals" does not exist, skipping
+17:15:51.706 [Test worker] INFO org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: constraint "ck_usr_home_composer_proposed_size" of relation "usr_home_composer_proposals" does not exist, skipping
+17:15:51.706 [Test worker] INFO org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: constraint "ck_usr_home_composer_changes_size" of relation "usr_home_composer_proposals" does not exist, skipping
+17:15:51.708 [Test worker] INFO org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: constraint "ck_usr_home_command_receipt_response_size" of relation "usr_home_command_receipts" does not exist, skipping
+17:15:51.732 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "175 - widen home command receipt response type"
+17:15:51.749 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "176 - preserve home view customization state"
+17:15:51.773 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "177 - allow compact home response hub"
+17:15:51.809 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "178 - classify workspace home projection"
+17:15:51.873 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "179 - create product surface ux telemetry"
+17:15:51.915 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "180 - add review workspace work items"
+17:15:51.940 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "181 - align product surface scope kind telemetry"
+17:15:51.961 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "182 - register product authorization operations contracts"
+17:15:51.984 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "183 - register enterprise video meetings"
+17:15:52.008 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "184 - complete saved view custody lifecycle"
+17:15:52.045 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "185 - fence workplace media cleanup"
+17:15:52.068 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "186 - enhance home experience presentation"
+17:15:52.097 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "187 - align provider audit event category contract"
+17:15:52.120 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "190 - reconcile database check contract registry"
+17:15:52.169 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "191 - receipt provider tenant commands"
+17:15:52.197 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "192 - govern calendar sharing and personalization"
+17:15:52.323 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "193 - register latest database check contracts"
+17:15:52.362 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "194 - reconcile calendar and people receipt check contracts"
+17:15:52.401 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "195 - project meeting administrator role"
+17:15:52.419 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "196 - converge calendar sharing governance"
+17:15:52.430 [Test worker] WARN org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: relation "uk_cal_grants_tenant_principal" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+17:15:52.432 [Test worker] WARN org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: relation "uk_cal_grants_person_principal" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+17:15:52.433 [Test worker] WARN org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: relation "uk_cal_grants_group_principal" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+17:15:52.435 [Test worker] WARN org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: relation "idx_cal_grants_person_lookup" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+17:15:52.436 [Test worker] WARN org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: relation "idx_cal_grants_group_lookup" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+17:15:52.437 [Test worker] WARN org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: relation "idx_cal_subscriptions_favorite" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+17:15:52.439 [Test worker] WARN org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: relation "idx_cal_event_preferences_starred" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+17:15:52.440 [Test worker] WARN org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: relation "uk_cal_event_tombstones_source" already exists, skipping (SQL State: 42P07 - Error Code: 0)
+17:15:52.457 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "197 - project publish permission action"
+17:15:52.472 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "198 - govern latest java enum contracts"
+17:15:52.519 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "199 - snapshot saved view lifecycle evidence"
+17:15:52.545 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "200 - align legacy home content with background position"
+17:15:52.565 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "202 - reconcile support containment and mail check contracts"
+17:15:52.610 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "203 - complete personal mail organization"
+17:15:52.698 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "204 - align authority containment origin check contracts"
+17:15:52.700 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:52.835 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "205 - govern meeting and mail organization code contracts"
+17:15:52.839 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:53.018 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "206 - govern widget registry command target contract"
+17:15:53.023 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:53.084 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "207 - reconcile widget registry ingress failure contract"
+17:15:53.089 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:53.137 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "208 - fence mail rule execution and access"
+17:15:53.212 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "209 - reconcile fresh service check contracts"
+17:15:53.213 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:53.283 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "210 - govern latest product surface and meeting enums"
+17:15:53.285 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:53.338 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "211 - fence mail tenant relations"
+17:15:53.433 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "212 - govern room booking eligibility reason"
+17:15:53.435 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:53.456 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "213 - register meeting media runtime check contracts"
+17:15:53.459 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:53.492 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "214 - govern mail draft receipt and meeting webhook enums"
+17:15:53.494 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:53.543 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "215 - retire unsupported meeting climate signals"
+17:15:53.545 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:53.565 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "216 - register meeting recording check contracts"
+17:15:53.567 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:53.598 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "217 - bind meeting recording typed contracts"
+17:15:53.600 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:53.623 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "218 - register meeting transcript retention check contracts"
+17:15:53.626 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:53.659 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "219 - bind meeting transcript deletion typed contract"
+17:15:53.661 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:53.688 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "220 - create personal mail address book"
+17:15:53.759 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "221 - register flow home calendar insight widgets"
+17:15:53.777 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "222 - establish verified activity history"
+17:15:53.842 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "223 - create personal work runtime"
+17:15:53.890 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "224 - create work calendar references"
+17:15:53.914 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "225 - launch workplace at home"
+17:15:53.933 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "226 - create work assignments"
+17:15:53.973 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "227 - record service requester information responses"
+17:15:53.990 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "228 - extend personal work checklists sources and deletion"
+17:15:54.012 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "229 - bind personal work commands to activity"
+17:15:54.036 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +----------------------------------------+
+| project_personal_work_command_activity |
++----------------------------------------+
+| No rows returned                       |
++----------------------------------------+
+
+17:15:54.050 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "230 - publish governed agent catalog profiles"
+17:15:54.064 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "231 - register approval superseded task status"
+17:15:54.066 [Test worker] INFO org.flywaydb.core.internal.sqlscript.DefaultSqlScriptExecutor -- +-----------------------+
+| pg_advisory_xact_lock |
++-----------------------+
+|                       |
++-----------------------+
+
+17:15:54.083 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "247 - persist workplace experience collaboration"
+17:15:54.123 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "248 - align workplace zero minute auto release snapshot"
+17:15:54.140 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "249 - persist workplace facility closures and requests"
+17:15:54.170 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "250 - bridge native room facility closures"
+17:15:54.187 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "251 - govern native facility record retention"
+17:15:54.213 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "252 - add workplace floor access overlay"
+17:15:54.254 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "253 - restrict workplace delegated admin floor scope"
+17:15:54.280 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "253.1 - widen calendar event titles for work handoff"
+17:15:54.292 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "254 - register workplace data source connectors"
+17:15:54.307 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "255 - persist workplace facility work order metadata"
+17:15:54.328 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "256 - persist workplace connector runtime truth"
+17:15:54.382 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "257 - orchestrate workplace booking intents"
+17:15:54.499 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" to version "258 - orchestrate workplace reservation services"
+17:15:54.615 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Migrating schema "public" with repeatable migration "create domain event delivery ledger"
+17:15:54.621 [Test worker] WARN org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: column "lock_token" of relation "sys_domain_event_outbox" already exists, skipping (SQL State: 42701 - Error Code: 0)
+17:15:54.623 [Test worker] INFO org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: constraint "uq_domain_event_outbox_aggregate_sequence" of relation "sys_domain_event_outbox" does not exist, skipping
+17:15:54.644 [Test worker] WARN org.flywaydb.core.internal.proprietaryStubs.ErrorOverridesSupportStub -- DB: column "tenant_id" of relation "sys_domain_event_offsets" already exists, skipping (SQL State: 42701 - Error Code: 0)
+17:15:54.685 [Test worker] INFO org.flywaydb.core.internal.command.DbMigrate -- Successfully applied 211 migrations to schema "public", now at version v258 (execution time 00:06.298s)
+]]></system-out>
+  <system-err><![CDATA[Mockito is currently self-attaching to enable the inline-mock-maker. This will no longer work in future releases of the JDK. Please add Mockito as an agent to your build as described in Mockito's documentation: https://javadoc.io/doc/org.mockito/mockito-core/latest/org.mockito/org/mockito/Mockito.html#0.3
+WARNING: A Java agent has been loaded dynamically (/Users/a10697/.gradle/caches/modules-2/files-2.1/net.bytebuddy/byte-buddy-agent/1.17.8/f09415827a71be7ed621c7bd02550678f28bc81c/byte-buddy-agent-1.17.8.jar)
+WARNING: If a serviceability tool is in use, please run with -XX:+EnableDynamicAgentLoading to hide this warning
+WARNING: If a serviceability tool is not in use, please run with -Djdk.instrument.traceUsage for more information
+WARNING: Dynamic loading of agents will be disallowed by default in a future release
+]]></system-err>
+</testsuite>

@@ -62,6 +62,8 @@ class NotificationRetentionServiceTest {
         verify(scope).applyWorker(7);
         verify(repository).cleanupAdmissionHistory(
                 7, now.minus(Duration.ofDays(7)), now.minus(Duration.ofDays(2)), 100);
+        verify(repository).cleanupQualityFacts(
+                7, now.minus(Duration.ofDays(180)), 100);
         verify(repository).cleanupBulkUndoReceipts(7, now, 100);
         verify(publisher).publishAfterCommit(
                 eq(List.of(signal)), eq(NotificationChangeCause.SYSTEM_RECONCILIATION));

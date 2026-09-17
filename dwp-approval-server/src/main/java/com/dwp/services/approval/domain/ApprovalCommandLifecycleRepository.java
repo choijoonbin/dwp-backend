@@ -121,28 +121,8 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
             UUID requestId,
             long expectedVersion,
             String correlationId) {
-        if (quorumWorkflow(actor.tenantId(), requestId) != null) throw new BaseException(
-                ErrorCode.INVALID_STATE, "Tagged workflows require the durable quorum submit path.");
-        RequestRuntime request = ownedRequest(actor, requestId);
-        if (!"DRAFT".equals(request.status())) throw new BaseException(ErrorCode.INVALID_STATE);
-        if (request.title() == null || request.title().isBlank()) {
-            throw new BaseException(
-                    ErrorCode.INVALID_INPUT_VALUE,
-                    "Approval title is required before submission.");
-        }
-        Map<String, Object> normalizedPayload = normalizeRequestPayload(actor, requestId, request.formSchema(), request.payload(), true, expectedVersion);
-        if (payloadSupport.isTypedFormSchema(request.formSchema())
-                && !ApprovalFormSchemaV2Canonical.freeze(request.payload()).equals(normalizedPayload)) {
-            throw new BaseException(ErrorCode.INVALID_STATE, "Stored typed payload is not bound to its normalized revision.");
-        }
-        if ("CONDITIONAL".equals(request.bindingType())
-                && !matchesRouteCondition(request.bindingCondition(), request.payload(), request.formSchema())) {
-            throw new BaseException(
-                    ErrorCode.INVALID_STATE,
-                    "The selected approval route does not match this request.");
-        }
+        RequestRuntime request = prepareLegacySubmit(actor, requestId, expectedVersion);
         List<ApprovalCommandRepository.RuntimeStep> steps = request.steps();
-        attachmentLifecycleBinding().requireSealedForSubmit(requestId, expectedVersion);
         ApprovalCommandRepository.RuntimeStep firstStep = steps.get(0);
         UUID firstStepId = UUID.randomUUID();
         UUID firstTaskId = UUID.randomUUID();
@@ -194,6 +174,42 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
                         "stepCount", steps.size()));
     }
 
+    public void preflightLegacySubmit(
+            ApprovalRequestContext.Actor actor,
+            UUID requestId,
+            long expectedVersion) {
+        prepareLegacySubmit(actor, requestId, expectedVersion);
+    }
+
+    private RequestRuntime prepareLegacySubmit(
+            ApprovalRequestContext.Actor actor,
+            UUID requestId,
+            long expectedVersion) {
+        if (quorumWorkflow(actor.tenantId(), requestId) != null) throw new BaseException(
+                ErrorCode.INVALID_STATE, "Tagged workflows require the durable quorum submit path.");
+        RequestRuntime request = ownedRequest(actor, requestId);
+        if (request.version() != expectedVersion) throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
+        if (!"DRAFT".equals(request.status())) throw new BaseException(ErrorCode.INVALID_STATE);
+        if (request.title() == null || request.title().isBlank()) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Approval title is required before submission.");
+        }
+        Map<String, Object> normalizedPayload = normalizeRequestPayload(actor, requestId, request.formSchema(), request.payload(), true, expectedVersion);
+        if (payloadSupport.isTypedFormSchema(request.formSchema())
+                && !ApprovalFormSchemaV2Canonical.freeze(request.payload()).equals(normalizedPayload)) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "Stored typed payload is not bound to its normalized revision.");
+        }
+        if ("CONDITIONAL".equals(request.bindingType())
+                && !matchesRouteCondition(request.bindingCondition(), request.payload(), request.formSchema())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "The selected approval route does not match this request.");
+        }
+        attachmentLifecycleBinding().requireSealedForSubmit(requestId, expectedVersion);
+        return request;
+    }
+
     public ApprovalWorkflowQuorumDefinition prepareQuorumSubmit(ApprovalRequestContext.Actor actor, UUID requestId) {
         Long version = jdbc.queryForObject("SELECT version FROM apr_requests WHERE tenant_id=:tenantId "
                 + "AND request_id=:requestId AND requester_user_id=:userId", identityParams(actor).addValue("requestId", requestId), Long.class);
@@ -205,6 +221,7 @@ class ApprovalCommandLifecycleRepository extends ApprovalCommandJdbcRepository {
         var definition = quorumWorkflow(actor.tenantId(), requestId);
         if (definition == null) throw new BaseException(ErrorCode.INVALID_STATE);
         RequestRuntime request = ownedRequest(actor, requestId);
+        if (request.version() != expectedVersion) throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
         if (!"DRAFT".equals(request.status())) throw new BaseException(ErrorCode.INVALID_STATE);
         if (request.title() == null || request.title().isBlank()) throw new BaseException(
                 ErrorCode.INVALID_INPUT_VALUE, "Approval title is required before submission.");

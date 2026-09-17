@@ -22,7 +22,14 @@ final class ProductAuthorizationReleaseLineage {
             Map.entry(11L, "e9a32c9312feb325db1294e3c00d34a110474a48fba16399eb1fc52b39fc9043"),
             Map.entry(12L, "65155dcc88f454a0ad2530518f8ec9b0c070afd31d583a19f980dd3d10f78a74"),
             Map.entry(13L, "3bd67d7b145c5b7c845788c70f8884c8afadedd9920de419ecd1e1d0e8a4c8b0"),
-            Map.entry(14L, "7ee0bac12ddfbc72dda55a5014c67b0798caa68a5ffc73b4be479d06a4590336"));
+            Map.entry(14L, "7ee0bac12ddfbc72dda55a5014c67b0798caa68a5ffc73b4be479d06a4590336"),
+            Map.entry(15L, "a9eab001b26d6488de0f7f176fa1d70fea2c9792a230769f645eb53ba90cf89f"),
+            Map.entry(16L, "a677d2ad662d8791a09cdf4ad592f3483aa3dbf068ed2785c648351e8f2a20d0"),
+            Map.entry(17L, "cdd1e671c8df1bbd63cab442acf175ee22c645cac071b79a3598f498c9947239"),
+            Map.entry(18L, "ce5ce0e2058ab33998c0bf19ace2ff54ace06c8c0bda4dc4dca3554b06926fc5"),
+            Map.entry(19L, "32bec6d3fb912af6072139aec72228281597c5b4fbb15f8b4af947c20721644c"),
+            Map.entry(20L, "1acbce34c450c650aa3e8f1c11995b831f177ee4a6139dd8217ea5bdd22e7a60"),
+            Map.entry(21L, "4cd1732df91d197cc47fca94699b0fb702ab1f6f2c557d3d17ce0e069d65af85"));
     private static final Map<Long, Map<String, Integer>> COUNTS = Map.ofEntries(
             Map.entry(1L, counts(10, 5, 2, 6, 35)),
             Map.entry(2L, counts(34, 6, 3, 13, 76)),
@@ -37,7 +44,14 @@ final class ProductAuthorizationReleaseLineage {
             Map.entry(11L, counts(132, 22, 16, 46, 323)),
             Map.entry(12L, counts(134, 22, 16, 46, 352)),
             Map.entry(13L, counts(134, 22, 16, 46, 355)),
-            Map.entry(14L, counts(134, 22, 16, 46, 360)));
+            Map.entry(14L, counts(134, 22, 16, 46, 360)),
+            Map.entry(15L, counts(136, 22, 16, 46, 411)),
+            Map.entry(16L, counts(137, 22, 16, 46, 425)),
+            Map.entry(17L, counts(139, 22, 16, 46, 446)),
+            Map.entry(18L, counts(139, 22, 16, 46, 459)),
+            Map.entry(19L, counts(139, 22, 16, 46, 460)),
+            Map.entry(20L, counts(159, 22, 16, 46, 686)),
+            Map.entry(21L, counts(159, 22, 16, 46, 709)));
 
     private ProductAuthorizationReleaseLineage() { }
 
@@ -86,9 +100,9 @@ final class ProductAuthorizationReleaseLineage {
         require(index.schemaVersion() == 1, "Unsupported registry seed index schemaVersion.");
         require("product-surfaces".equals(index.bundleKey()), "Unexpected registry seed index bundleKey.");
         require("SHA-256".equals(index.indexChecksumAlgorithm()), "Only SHA-256 index checksums are supported.");
-        require(index.latestVersion() == 14, "Registry latest version must be 14.");
-        require(index.versions() != null && index.versions().size() == 14,
-                "Registry index must contain only versions 1 through 14.");
+        require(index.latestVersion() == 21, "Registry latest version must be 21.");
+        require(index.versions() != null && index.versions().size() == 21,
+                "Registry index must contain only versions 1 through 21.");
         long expectedVersion = 1;
         Set<String> checksums = new HashSet<>();
         for (ProductAuthorizationContractDtos.SeedIndexEntry entry : index.versions()) {

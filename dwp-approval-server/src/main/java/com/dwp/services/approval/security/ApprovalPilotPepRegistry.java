@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 
 import static com.dwp.services.approval.security.ApprovalPepProjectionJson.*;
 
-/** Exact release14 PEP, with every prior immutable projection validated at startup. */
+/** Exact release19 PEP, with every prior Approval projection validated at startup. */
 @Component
 public final class ApprovalPilotPepRegistry {
 
@@ -50,6 +50,10 @@ public final class ApprovalPilotPepRegistry {
             "product-authorization/approval-pilot-pep-v13.generated.json";
     static final String V14_RESOURCE =
             "product-authorization/approval-pilot-pep-v14.generated.json";
+    static final String V15_RESOURCE =
+            "product-authorization/approval-pilot-pep-v15.generated.json";
+    static final String V19_RESOURCE =
+            "product-authorization/approval-pilot-pep-v19.generated.json";
 
     private final ObjectMapper objectMapper;
     private final Clock clock;
@@ -65,7 +69,7 @@ public final class ApprovalPilotPepRegistry {
     }
 
     ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock) {
-        this(objectMapper, clock, 14);
+        this(objectMapper, clock, 19);
     }
 
     ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock, boolean baselineOnly) {
@@ -75,7 +79,7 @@ public final class ApprovalPilotPepRegistry {
     ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock, int version) {
         this.objectMapper = objectMapper;
         this.clock = clock;
-        require(Set.of(2L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L).contains((long) version),
+        require(Set.of(2L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 19L).contains((long) version),
                 "Unsupported Approval PEP version");
         if (version != 2) {
             new ApprovalPilotPepRegistry(objectMapper, clock, 2);
@@ -90,6 +94,8 @@ public final class ApprovalPilotPepRegistry {
             case 12 -> V12_RESOURCE;
             case 13 -> V13_RESOURCE;
             case 14 -> V14_RESOURCE;
+            case 15 -> V15_RESOURCE;
+            case 19 -> V19_RESOURCE;
             default -> throw new IllegalStateException("Unsupported Approval PEP version");
         });
         ApprovalPepProjectionLineage.validateEnvelope(objectMapper, projection, version);
@@ -130,6 +136,18 @@ public final class ApprovalPilotPepRegistry {
         if (version == 14) {
             new ApprovalPilotPepRegistry(objectMapper, clock, 13);
             ApprovalPepProjectionLineage.validateSuperset(readProjection(V13_RESOURCE), projection);
+            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
+            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
+        }
+        if (version == 15) {
+            new ApprovalPilotPepRegistry(objectMapper, clock, 14);
+            ApprovalPepProjectionLineage.validateSuperset(readProjection(V14_RESOURCE), projection);
+            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
+            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
+        }
+        if (version == 19) {
+            new ApprovalPilotPepRegistry(objectMapper, clock, 15);
+            ApprovalPepProjectionLineage.validateSuperset(readProjection(V15_RESOURCE), projection);
             ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
             ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
         }
@@ -432,7 +450,7 @@ public final class ApprovalPilotPepRegistry {
             case 8 -> 28;
             case 9 -> 32;
             case 10, 11 -> 37;
-            case 12, 13, 14 -> 39;
+            case 12, 13, 14, 15, 19 -> 39;
             default -> throw new IllegalStateException("Unsupported Approval PEP version");
         };
         int expectedPredicates = switch (version) {
@@ -441,7 +459,7 @@ public final class ApprovalPilotPepRegistry {
             case 8 -> 10;
             case 9 -> 13;
             case 10 -> 16;
-            case 11, 12, 13, 14 -> 18;
+            case 11, 12, 13, 14, 15, 19 -> 18;
             default -> throw new IllegalStateException("Unsupported Approval PEP version");
         };
         require(capabilities.size() == expectedCapabilities && policies.size() == 1

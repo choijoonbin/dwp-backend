@@ -57,6 +57,7 @@ public final class NotificationModels {
             String actorLabel,
             String priority,
             String interruptionLevel,
+            String attentionEffect,
             NotificationReason reason,
             Instant receivedAt,
             Instant lastActivityAt,
@@ -516,7 +517,51 @@ public final class NotificationModels {
             Instant occurredAt,
             Instant dueAt,
             boolean actionRequired,
+            @NotNull @Size(max = 20) List<@Valid MaterializationContext> contexts,
             @NotNull Map<String, Object> variables) {
+
+        public DirectMaterializationRequest(
+                UUID sourceEventId,
+                String sourceEventType,
+                int sourceSchemaVersion,
+                String typeKey,
+                List<Long> recipientUserIds,
+                String threadKey,
+                String locale,
+                String reasonCode,
+                String actorReference,
+                String subjectReference,
+                String targetReference,
+                Instant occurredAt,
+                Instant dueAt,
+                boolean actionRequired,
+                Map<String, Object> variables) {
+            this(sourceEventId, sourceEventType, sourceSchemaVersion, typeKey,
+                    recipientUserIds, threadKey, locale, reasonCode, actorReference,
+                    subjectReference, targetReference, occurredAt, dueAt,
+                    actionRequired, List.of(), variables);
+        }
+
+        public DirectMaterializationRequest {
+            contexts = contexts == null ? List.of() : List.copyOf(contexts);
+        }
+    }
+
+    public record MaterializationContext(
+            @NotNull MaterializationContextKind kind,
+            @NotBlank @Size(max = 300) String key,
+            @Size(max = 160) String displayHint,
+            boolean matchable) {
+    }
+
+    public enum MaterializationContextKind {
+        PERSON,
+        CONVERSATION,
+        THREAD,
+        CHANNEL,
+        PROJECT,
+        WORK_ITEM,
+        TOPIC
     }
 
     public record MaterializationResult(

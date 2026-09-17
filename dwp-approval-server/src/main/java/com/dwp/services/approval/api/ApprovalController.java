@@ -162,6 +162,14 @@ public class ApprovalController {
         return ApiResponse.success(service.submit(requestId, request.expectedVersion(), correlationId));
     }
 
+    @PostMapping("/requests/{requestId}/preflight")
+    @Operation(summary = "Evaluate the exact owned draft and current approver authority without submitting")
+    public ApiResponse<ApprovalDtos.RequestPreflight> preflight(
+            @PathVariable UUID requestId,
+            @Valid @RequestBody ApprovalDtos.VersionedActionRequest request) {
+        return ApiResponse.success(service.preflight(requestId, request.expectedVersion()));
+    }
+
     @PostMapping("/requests/{requestId}/information-response")
     @Operation(parameters = @Parameter(name = "Idempotency-Key", in = ParameterIn.HEADER,
             description = "Original command identity is required for visible USER references in the immutable published typed form. Never replace it on retry.",

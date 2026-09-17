@@ -156,6 +156,19 @@ public class NotificationRetentionRepository {
                 .addValue("batchSize", batchSize));
     }
 
+    public int cleanupQualityFacts(
+            long tenantId,
+            Instant cutoff,
+            int batchSize) {
+        Integer deleted = jdbc.queryForObject("""
+                SELECT ntf_purge_notification_quality_facts(
+                    :tenantId, :cutoff, :batchSize)
+                """, tenant(tenantId)
+                .addValue("cutoff", Timestamp.from(cutoff))
+                .addValue("batchSize", batchSize), Integer.class);
+        return deleted == null ? 0 : deleted;
+    }
+
     private List<UUID> deleteProjections(
             long tenantId,
             long userId,

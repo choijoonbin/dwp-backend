@@ -170,6 +170,11 @@ class WorkplaceExperienceCollaborationPostgresTest {
         ConnectorStatus status = write(() -> service.saveConnector(f.tenant(), OWNER, ConnectorKind.ACTUAL_PRESENCE,
                 new ConnectorRequest("badge-adapter", true, "tenant-config/badge", 0L, "Configure adapter", true), null));
         assertThat(status.status()).isEqualTo(ConnectionState.CONFIGURED_UNVERIFIED); assertThat(status.lastVerifiedAt()).isNull();
+        assertThat(service.governanceOverview(f.tenant()).connectors())
+                .extracting(ConnectorStatus::kind)
+                .containsExactly(ConnectorKind.CALENDAR, ConnectorKind.ACTUAL_PRESENCE,
+                        ConnectorKind.ACCESS_CONTROL, ConnectorKind.SIGNAGE, ConnectorKind.VISITOR,
+                        ConnectorKind.VEHICLE, ConnectorKind.FACILITY_WORK_ORDER);
         assertThat(overview(f, VIEWER, null).actualPresence().configurationReference()).isNull();
         assertThatThrownBy(() -> write(() -> service.saveConnector(f.tenant(), OWNER, ConnectorKind.CALENDAR,
                 new ConnectorRequest("bad provider", true, "http://127.0.0.1:9000", 0L, "Bad", true), null))).isInstanceOf(BaseException.class);

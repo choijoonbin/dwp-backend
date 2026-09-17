@@ -182,6 +182,25 @@ public final class ApprovalDtos {
         }
     }
 
+    public record RequestPreflightCheck(
+            String code,
+            String status,
+            String detail) {
+    }
+
+    public record RequestPreflight(
+            UUID requestId,
+            long expectedVersion,
+            boolean ready,
+            String workflowContract,
+            List<RequestPreflightCheck> checks,
+            Instant evaluatedAt,
+            Instant validUntil) {
+        public RequestPreflight {
+            checks = List.copyOf(checks);
+        }
+    }
+
     public record StageMetric(String stage, int count, int atRisk) {
     }
 

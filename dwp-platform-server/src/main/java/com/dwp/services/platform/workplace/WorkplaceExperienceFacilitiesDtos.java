@@ -15,6 +15,7 @@ public final class WorkplaceExperienceFacilitiesDtos {
     public enum ClosureStatus { ACTIVE, CANCELLED }
     public enum Category { REPAIR, CLEANING, ACCESS, OTHER }
     public enum RequestStatus { OPEN, IN_PROGRESS, RESOLVED, CANCELLED }
+    public enum RequestPriority { LOW, NORMAL, HIGH, CRITICAL }
 
     public record CreateClosure(@NotNull OffsetDateTime startsAt, @NotNull OffsetDateTime endsAt,
                                 @NotNull @Min(0) Long version,
@@ -42,10 +43,21 @@ public final class WorkplaceExperienceFacilitiesDtos {
                                 @NotBlank @Size(max = 2000) String description) { }
     public record ChangeRequestStatus(@NotNull RequestStatus status,
                                       @NotNull @Min(0) Long version,
-                                      @NotBlank @Size(max = 500) String reason, boolean confirmed) { }
+                                      @NotBlank @Size(max = 500) String reason, boolean confirmed,
+                                      RequestPriority priority,
+                                      @Size(max = 160) String assignedTo,
+                                      @Size(max = 160) String serviceProvider,
+                                      @Size(max = 160) String externalWorkOrderReference,
+                                      OffsetDateTime slaDueAt, boolean clearSla) {
+        public ChangeRequestStatus(RequestStatus status, Long version, String reason, boolean confirmed) {
+            this(status, version, reason, confirmed, null, null, null, null, null, false);
+        }
+    }
     public record FacilityRequest(UUID requestId, UUID resourceId, UUID siteId, UUID floorId,
                                   String resourceName, Category category, String description,
-                                  RequestStatus status, String statusReason, long version,
+                                  RequestStatus status, String statusReason, RequestPriority priority,
+                                  String assignedTo, String serviceProvider, String externalWorkOrderReference,
+                                  OffsetDateTime slaDueAt, long version,
                                   OffsetDateTime createdAt, OffsetDateTime updatedAt,
                                   String owner) { }
     public record RequestPage(List<FacilityRequest> content, int page, int size, long totalElements,

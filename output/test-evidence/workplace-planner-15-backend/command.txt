@@ -1,0 +1,1 @@
+./gradlew :dwp-platform-server:test --tests 'com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationPostgresTest' --no-daemon

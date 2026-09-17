@@ -8,14 +8,42 @@ import os
 import urllib.error
 import urllib.request
 
+from smoke_url_policy import (
+    RejectRedirects,
+    different_positive_tenant_id,
+    smoke_proxy_handler,
+    validate_smoke_base_url,
+)
+from smoke_result import SmokeResult
 
-BASE_URL = os.getenv("DWP_GATEWAY_URL", "http://localhost:8080").rstrip("/")
-TENANT_ID = os.getenv("DWP_SMOKE_TENANT_ID", "1")
-EMAIL = os.getenv("DWP_SMOKE_EMAIL", "joonbin@sk.com")
-PASSWORD = os.getenv("DWP_SMOKE_PASSWORD", "admin1234!")
+
+BASE_URL = validate_smoke_base_url(os.getenv("DWP_GATEWAY_URL", "http://localhost:8080"))
+
+
+def required_environment(name: str) -> str:
+    value = os.getenv(name)
+    if not value:
+        raise RuntimeError(f"Missing required environment variable: {name}")
+    return value
+
+
+TENANT_ID = required_environment("DWP_SMOKE_TENANT_ID")
+EMAIL = required_environment("DWP_SMOKE_EMAIL")
+PASSWORD = required_environment("DWP_SMOKE_PASSWORD")
+CORRELATION_ID = required_environment("DWP_SMOKE_CORRELATION_ID")
+EXPECTED_ROLES = {
+    role for role in required_environment("DWP_SMOKE_EXPECTED_ROLES").split(",") if role
+}
+if not EXPECTED_ROLES:
+    raise RuntimeError("DWP_SMOKE_EXPECTED_ROLES must contain at least one role")
+RESULT = SmokeResult("gateway-runtime")
 
 cookies = http.cookiejar.CookieJar()
-client = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(cookies))
+client = urllib.request.build_opener(
+    smoke_proxy_handler(BASE_URL, os.getenv("DWP_SMOKE_ALLOW_PROXY") == "true"),
+    urllib.request.HTTPCookieProcessor(cookies),
+    RejectRedirects(),
+)
 
 
 def request(
@@ -27,7 +55,11 @@ def request(
     expected: int = 200,
 ) -> tuple[object | None, urllib.response.addinfourl]:
     encoded = None if body is None else json.dumps(body).encode("utf-8")
-    request_headers = {"Accept": "application/json", "X-Tenant-ID": TENANT_ID}
+    request_headers = {
+        "Accept": "application/json",
+        "X-Tenant-ID": TENANT_ID,
+        "X-Correlation-ID": CORRELATION_ID,
+    }
     if encoded is not None:
         request_headers["Content-Type"] = "application/json"
     request_headers.update(headers or {})
@@ -45,7 +77,19 @@ def request(
         response = error
         status = error.code
         payload_bytes = error.read()
+    except (urllib.error.URLError, TimeoutError) as error:
+        RESULT.observe(method, path, expected, -1, error_class=type(error).__name__)
+        RESULT.finish("FAIL", "NETWORK_ERROR")
+        raise
+    RESULT.observe(
+        method,
+        path,
+        expected,
+        status,
+        response.headers.get("X-Correlation-ID"),
+    )
     if status != expected:
+        RESULT.finish("FAIL", "UNEXPECTED_HTTP_STATUS")
         details = payload_bytes.decode("utf-8", errors="replace")[:500]
         raise AssertionError(
             f"{method} {path}: expected {expected}, received {status}; response={details}"
@@ -64,6 +108,7 @@ csrf = csrf_payload["data"]
 csrf_header = csrf["headerName"]
 csrf_token = csrf["token"]
 require(any(cookie.name == "XSRF-TOKEN" for cookie in cookies), "CSRF cookie was not issued")
+RESULT.mark_assertion("csrf-cookie-issued")
 
 _, login_response = request(
     "POST",
@@ -72,6 +117,7 @@ _, login_response = request(
     headers={csrf_header: csrf_token},
 )
 require(any(cookie.name == "DWP_SESSION" for cookie in cookies), "Session cookie was not issued")
+RESULT.mark_assertion("session-cookie-issued")
 
 # Spring Security rotates the CSRF token when authentication changes. Browser
 # clients perform the same refresh before their first authenticated mutation.
@@ -83,8 +129,12 @@ csrf_token = csrf["token"]
 me_payload, me_response = request("GET", "/api/auth/me")
 identity = me_payload["data"]
 require(identity["email"].lower() == EMAIL.lower(), "Authenticated email does not match")
+RESULT.mark_assertion("identity-email-matched")
 require(str(identity["tenantId"]) == TENANT_ID, "Authenticated tenant does not match")
-require("TENANT_ADMIN" in identity["roles"], "Smoke persona is missing TENANT_ADMIN")
+RESULT.mark_assertion("identity-tenant-matched")
+require(EXPECTED_ROLES.issubset(set(identity["roles"])), "Smoke persona is missing expected roles")
+RESULT.mark_expected_roles_verified()
+RESULT.mark_assertion("expected-roles-verified")
 
 security_headers = {name.lower(): value for name, value in me_response.headers.items()}
 for required_header in (
@@ -95,6 +145,7 @@ for required_header in (
     "x-frame-options",
 ):
     require(required_header in security_headers, f"Gateway response is missing {required_header}")
+RESULT.mark_assertion("security-headers-present")
 
 # Authenticated auth reads can rotate Spring Security's CSRF repository.
 csrf_payload, _ = request("GET", "/api/auth/csrf")
@@ -116,6 +167,7 @@ request(
     headers={csrf_header: csrf_token},
     expected=202,
 )
+RESULT.mark_assertion("telemetry-accepted")
 
 # Exercise the saved-view custody audit route through the authenticated Gateway.
 # An empty list is valid in a clean local database; route and authorization reachability are not.
@@ -124,15 +176,18 @@ custody_actions, _ = request(
     "/api/platform/v1/admin/saved-view-ownership/orphaned/actions?limit=1",
 )
 require(isinstance(custody_actions["data"], list), "Saved-view custody actions must be a list")
+RESULT.mark_assertion("custody-audit-payload-valid")
 
+MISMATCH_TENANT_ID = different_positive_tenant_id(TENANT_ID)
 request(
     "GET",
     "/api/auth/me",
-    headers={"X-Tenant-ID": "2"},
+    headers={"X-Tenant-ID": MISMATCH_TENANT_ID},
     # Reject a mismatched tenant assertion at the Gateway identity boundary
     # before the request can be forwarded to a downstream authorization layer.
     expected=401,
 )
+RESULT.mark_assertion("tenant-mismatch-rejected")
 
 # The rejected auth request clears the CSRF cookie; refresh it before logout.
 csrf_payload, _ = request("GET", "/api/auth/csrf")
@@ -141,6 +196,8 @@ csrf_header = csrf["headerName"]
 csrf_token = csrf["token"]
 request("POST", "/api/auth/logout", headers={csrf_header: csrf_token})
 request("GET", "/api/auth/me", expected=401)
+RESULT.mark_assertion("logout-invalidated-session")
+RESULT.finish("PASS")
 
 print(
     "PASS runtime smoke: Gateway CSRF, login, tenant isolation, telemetry, "

@@ -118,7 +118,7 @@ public class ApprovalOperationsAuthority {
 
     DeliveryObservation observeDelivery(
             Current current,
-            ApprovalOperationsRepository.DeliveryRow delivery) {
+            DeliverySnapshot delivery) {
         requireRecoveryEvidence(current, delivery);
         ApprovalRecoveryAuditorResolver.Assignment assignment;
         try {
@@ -148,7 +148,7 @@ public class ApprovalOperationsAuthority {
 
     TaskObservation observeTask(
             Current current,
-            ApprovalOperationsRepository.TaskRow task,
+            TaskSnapshot task,
             long assigneeUserId,
             UUID assigneePersonPublicId) {
         if (current.actor().userId() == task.requesterUserId()
@@ -233,7 +233,7 @@ public class ApprovalOperationsAuthority {
 
     private void requireRecoveryEvidence(
             Current current,
-            ApprovalOperationsRepository.DeliveryRow delivery) {
+            DeliverySnapshot delivery) {
         if (delivery.requestId() == null
                 || delivery.originatorUserId() == null
                 || delivery.auditorUserId() == null
@@ -266,6 +266,34 @@ public class ApprovalOperationsAuthority {
             ApprovalManagementScopeContext.Evidence scope,
             ApprovalDecisionRevisionContext.Evidence decision,
             String activationPolicy) {
+    }
+
+    interface DeliverySnapshot {
+        UUID targetId();
+
+        UUID requestId();
+
+        Long originatorUserId();
+
+        Long auditorUserId();
+
+        String managementScope();
+
+        String assignmentState();
+
+        String recoveryScope();
+
+        String assignmentRevision();
+
+        Instant assignedAt();
+    }
+
+    interface TaskSnapshot {
+        Long assigneeUserId();
+
+        long requesterUserId();
+
+        String stepCandidateRole();
     }
 
     record DeliveryObservation(

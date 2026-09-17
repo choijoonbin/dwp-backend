@@ -14,7 +14,23 @@ public final class WorkplaceExperienceCollaborationDtos {
 
     public enum PlanMode { OFFICE, REMOTE, OFF }
     public enum Visibility { PRIVATE, SITE, FLOOR, RESOURCE }
-    public enum ConnectorKind { CALENDAR, ACTUAL_PRESENCE, SIGNAGE, VISITOR, VEHICLE }
+    /**
+     * External authorities that can contribute data to the Workplace experience.
+     *
+     * <p>The connector configuration is deliberately provider neutral.  A configured
+     * connector remains unverified until an approved adapter owns the runtime signal;
+     * adding the source here only makes its configuration and ownership visible to an
+     * administrator.</p>
+     */
+    public enum ConnectorKind {
+        CALENDAR,
+        ACTUAL_PRESENCE,
+        ACCESS_CONTROL,
+        SIGNAGE,
+        VISITOR,
+        VEHICLE,
+        FACILITY_WORK_ORDER
+    }
     public enum ConnectionState { NOT_CONFIGURED, DISABLED, CONFIGURED_UNVERIFIED }
 
     public record WorkPlan(UUID planId, LocalDate planDate, PlanMode mode, UUID siteId,

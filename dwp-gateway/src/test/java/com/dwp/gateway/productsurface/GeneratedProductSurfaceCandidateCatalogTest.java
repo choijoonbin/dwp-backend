@@ -29,6 +29,7 @@ class GeneratedProductSurfaceCandidateCatalogTest {
                 candidate("calendar", "calendar.work"),
                 candidate("communications", "communications.management"),
                 candidate("communications", "communications.work"),
+                candidate("dwaion", "dwaion.management"),
                 candidate("dwaion", "dwaion.work"),
                 candidate("hcm", "hcm.management"),
                 candidate("hcm", "hcm.operations"),
@@ -41,6 +42,7 @@ class GeneratedProductSurfaceCandidateCatalogTest {
                 candidate("services", "services.management"),
                 candidate("services", "services.work"),
                 candidate("spaces", "spaces.work"),
+                candidate("workplace", "workplace.management"),
                 candidate("workplace", "workplace.work"));
         assertThat(catalog.activeCandidates().stream()
                         .map(ProductSurfaceContextDtos.ProductCandidate::productKey)

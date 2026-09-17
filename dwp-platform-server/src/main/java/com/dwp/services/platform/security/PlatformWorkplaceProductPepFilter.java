@@ -37,23 +37,24 @@ public final class PlatformWorkplaceProductPepFilter extends OncePerRequestFilte
             "eligible-50", "eligible-90");
     private static final Set<String> TENANT_ACCESS_MODES = Set.of("NORMAL", "ELEVATED");
 
-    private final boolean productAuthorizationV4Enabled;
+    private final boolean productAuthorizationEnabled;
     private final PlatformWorkplaceProductPepRegistry registry;
     private final ObjectMapper objectMapper;
 
     public PlatformWorkplaceProductPepFilter(
             @Value("${dwp.platform.product-authorization-workplace-v4-enabled:false}")
-            boolean productAuthorizationV4Enabled,
+            boolean productAuthorizationEnabled,
             PlatformWorkplaceProductPepRegistry registry,
             ObjectMapper objectMapper) {
-        this.productAuthorizationV4Enabled = productAuthorizationV4Enabled;
+        this.productAuthorizationEnabled = productAuthorizationEnabled;
         this.registry = registry;
         this.objectMapper = objectMapper;
     }
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !registry.ownsOwner(request.getMethod(), request.getRequestURI());
+        return PlatformDeviceIdentity.owns(request.getMethod(), request.getRequestURI())
+                || !registry.ownsOwner(request.getMethod(), request.getRequestURI());
     }
 
     @Override
@@ -65,7 +66,7 @@ public final class PlatformWorkplaceProductPepFilter extends OncePerRequestFilte
                 PlatformSecurityFilter.ROLLOUT_STATE_HEADER) != null;
         String rolloutState = exactHeader(
                 request, PlatformSecurityFilter.ROLLOUT_STATE_HEADER);
-        if (!rolloutHeaderPresent && !productAuthorizationV4Enabled) {
+        if (!rolloutHeaderPresent && !productAuthorizationEnabled) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -81,9 +82,9 @@ public final class PlatformWorkplaceProductPepFilter extends OncePerRequestFilte
             filterChain.doFilter(request, response);
             return;
         }
-        if (!productAuthorizationV4Enabled) {
+        if (!productAuthorizationEnabled) {
             writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
-                    "Workplace product authorization v4 is not ready for enforcement.");
+                    "Workplace product authorization is not ready for enforcement.");
             return;
         }
 
@@ -111,7 +112,8 @@ public final class PlatformWorkplaceProductPepFilter extends OncePerRequestFilte
                 exactHeader(request, PlatformSecurityFilter.ROUTE_CONTRACT_HEADER),
                 request.getMethod(),
                 request.getRequestURI(),
-                upperValues(request.getHeader(PlatformSecurityFilter.PERMISSIONS_HEADER)));
+                upperValues(request.getHeader(PlatformSecurityFilter.PERMISSIONS_HEADER)),
+                accessMode);
         if (!decision.allowed()
                 || !scopeMatches(tenantId, actorId, scope, decision.binding().surfaceKey())
                 || !responsibilityMatches(request, decision.binding().surfaceKey())) {

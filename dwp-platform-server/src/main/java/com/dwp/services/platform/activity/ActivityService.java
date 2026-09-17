@@ -6,6 +6,7 @@ import com.dwp.services.platform.workspace.WorkspaceDtos;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
@@ -61,12 +62,20 @@ public class ActivityService {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
     }
 
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
     public WorkspaceDtos.ExecutionSummary summary(Long tenant, Long user, String permissions) {
+        return summary(tenant, user, permissions, null);
+    }
+
+    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
+    public WorkspaceDtos.ExecutionSummary summary(
+            Long tenant, Long user, String permissions, String locale) {
         Set<String> access = require(tenant, user, permissions);
         long[] counts = repository.executionCounts(tenant, user, access);
         return new WorkspaceDtos.ExecutionSummary(counts[0], counts[1], counts[2], counts[3],
                 counts[4], counts[5], counts[6], 0, OffsetDateTime.now(),
-                coverage(access, false, false, List.of("LEGACY", "SAMPLE", "QUARANTINED")));
+                coverage(access, false, false, List.of("LEGACY", "SAMPLE", "QUARANTINED")),
+                repository.currentAttention(tenant, user, access, korean(locale), 5));
     }
 
     static WorkspaceDtos.ActivityCoverage coverage(

@@ -1,0 +1,5 @@
+79762caede2c820f02b100ebefccf82fa13f004df350c5bed13452ce384a666b  contracts/openapi/platform.json
+62ab8291d9610b3960debddcaa897744c23ddae78f2f650c949dbbd01c0e564e  contracts/openapi/gateway-public.json
+642fdaed9137b294ff26fa4f5fe23701572016097f4ca1b8b4424e6cdad23bb7  contracts/product-authorization/product-surfaces-v1.bundle-v16.json
+642fdaed9137b294ff26fa4f5fe23701572016097f4ca1b8b4424e6cdad23bb7  contracts/product-authorization/product-surfaces-v1.json
+11028a76b46e9dc2d670f24513f74ad0eeca36d239134cbe4294e851e0d8f6b5  dwp-platform-server/src/main/resources/product-authorization/platform-workplace-pep-v16.generated.json

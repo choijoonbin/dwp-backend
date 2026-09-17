@@ -25,7 +25,9 @@ import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -34,6 +36,8 @@ import java.util.regex.Pattern;
 
 @Repository
 public class NotificationQueryRepository {
+
+    static final String INBOX_SELECT = NotificationInboxFilterSql.INBOX_SELECT;
 
     private static final Pattern ENCODED_AUTHORITY_SEPARATOR =
             Pattern.compile("(?i)(^/%2f|%5c)");
@@ -48,54 +52,6 @@ public class NotificationQueryRepository {
             "ORGANIZATION", List.of("ORGANIZATION", "ORG"),
             "SUBSCRIPTION", List.of("SUBSCRIPTION", "SUBSCRIBED"),
             "MANDATORY_POLICY", List.of("MANDATORY_POLICY", "MANDATORY"));
-
-    static final String INBOX_SELECT = """
-            SELECT user_notification.notification_id,
-                   notification.thread_key,
-                   user_notification.first_activity_at,
-                   user_notification.occurrence_count,
-                   user_notification.actor_ref,
-                   user_notification.action_payload::text AS action_payload,
-                   user_notification.safe_body,
-                   user_notification.target_ref,
-                   user_notification.target_state,
-                   user_notification.target_state_reason,
-                   notification.expires_at,
-                   type.type_key,
-                   type.owner_app_key,
-                   type_version.data_classification,
-                   user_notification.safe_title,
-                   user_notification.safe_preview,
-                   user_notification.reason_code,
-                   user_notification.effective_priority,
-                   CASE UPPER(COALESCE(
-                       NULLIF(type_version.contract_payload ->> 'interruptionLevel', ''),
-                       'ACTIVE'
-                   ))
-                       WHEN 'PASSIVE' THEN 'PASSIVE'
-                       WHEN 'ACTIVE' THEN 'ACTIVE'
-                       WHEN 'TIME_SENSITIVE' THEN 'TIME_SENSITIVE'
-                       WHEN 'CRITICAL' THEN 'CRITICAL'
-                       ELSE 'ACTIVE'
-                   END AS interruption_level,
-                   user_notification.action_required,
-                   user_notification.read_at,
-                   user_notification.saved_at,
-                   user_notification.completed_at,
-                   user_notification.snoozed_until,
-                   user_notification.due_at,
-                   user_notification.last_activity_at,
-                   user_notification.change_version,
-                   user_notification.version
-              FROM ntf_user_notifications user_notification
-              JOIN ntf_notifications notification
-                ON notification.tenant_id = user_notification.tenant_id
-               AND notification.notification_id = user_notification.notification_id
-              JOIN ntf_notification_type_versions type_version
-                ON type_version.type_version_id = notification.type_version_id
-              JOIN ntf_notification_types type
-                ON type.type_id = type_version.type_id
-            """;
 
     private static final List<String> CHANNELS =
             List.of("IN_APP", "EMAIL", "WEB_PUSH", "MOBILE_PUSH", "TEAMS", "SLACK");
@@ -184,7 +140,7 @@ public class NotificationQueryRepository {
                     """);
         }
         appendFilters(predicates, params, filters);
-        String sql = INBOX_SELECT + """
+        String sql = NotificationInboxFilterSql.INBOX_SELECT + """
                  WHERE user_notification.tenant_id = :tenantId
                    AND user_notification.user_id = :userId
                 """ + predicates + """
@@ -195,8 +151,32 @@ public class NotificationQueryRepository {
         return jdbc.query(sql, params, this::mapInboxRow);
     }
 
+    public long inboxTotal(
+            NotificationRequestContext.Actor actor,
+            InboxView view,
+            InboxFilters filters) {
+        MapSqlParameterSource params = actorParams(actor)
+                .addValue("mentionReasons", REASON_ALIASES.get("MENTION"));
+        StringBuilder predicates = new StringBuilder(viewPredicate(view));
+        appendFilters(predicates, params, filters);
+        Long total = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM ntf_user_notifications user_notification
+                  JOIN ntf_notifications notification
+                    ON notification.tenant_id = user_notification.tenant_id
+                   AND notification.notification_id = user_notification.notification_id
+                  JOIN ntf_notification_type_versions type_version
+                    ON type_version.type_version_id = notification.type_version_id
+                  JOIN ntf_notification_types type
+                    ON type.type_id = type_version.type_id
+                 WHERE user_notification.tenant_id = :tenantId
+                   AND user_notification.user_id = :userId
+                """ + predicates, params, Long.class);
+        return total == null ? 0 : total;
+    }
+
     public Detail detail(NotificationRequestContext.Actor actor, UUID notificationId) {
-        List<Detail> details = jdbc.query(INBOX_SELECT + """
+        List<Detail> details = jdbc.query(NotificationInboxFilterSql.INBOX_SELECT + """
                  WHERE user_notification.tenant_id = :tenantId
                    AND user_notification.user_id = :userId
                    AND user_notification.notification_id = :notificationId
@@ -211,7 +191,7 @@ public class NotificationQueryRepository {
     public TargetResolution resolveTarget(
             NotificationRequestContext.Actor actor,
             UUID notificationId) {
-        List<TargetRow> rows = jdbc.query(INBOX_SELECT + """
+        List<TargetRow> rows = jdbc.query(NotificationInboxFilterSql.INBOX_SELECT + """
                  WHERE user_notification.tenant_id = :tenantId
                    AND user_notification.user_id = :userId
                    AND user_notification.notification_id = :notificationId
@@ -342,6 +322,7 @@ public class NotificationQueryRepository {
                 actorLabel,
                 resultSet.getString("effective_priority"),
                 resultSet.getString("interruption_level"),
+                resultSet.getString("attention_effect"),
                 reason(reasonCode),
                 instant(resultSet, "first_activity_at"),
                 instant(resultSet, "last_activity_at"),
@@ -389,6 +370,13 @@ public class NotificationQueryRepository {
                 params.addValue("reason", filters.reason());
             }
         }
+        if (filters.attentionEffect() != null) {
+            predicates.append(" AND user_notification.attention_effect = :attentionEffect\n");
+            params.addValue("attentionEffect", filters.attentionEffect());
+        }
+        NotificationInboxFilterSql.appendIncludedTypes(
+                predicates, params, filters.includedTypes());
+        NotificationInboxFilterSql.appendContexts(predicates, params, filters.contexts());
         if (filters.from() != null) {
             predicates.append(" AND user_notification.last_activity_at >= :fromTime\n");
             params.addValue("fromTime", Timestamp.from(filters.from()));
@@ -594,14 +582,72 @@ public class NotificationQueryRepository {
             String priority,
             String readState,
             String reason,
+            String attentionEffect,
+            List<String> includedTypes,
+            List<InboxContextFilter> contexts,
             Instant from,
             Instant to) {
+        public InboxFilters(
+                String query,
+                String appKey,
+                String priority,
+                String readState,
+                String reason,
+                List<String> includedTypes,
+                List<InboxContextFilter> contexts,
+                Instant from,
+                Instant to) {
+            this(query, appKey, priority, readState, reason, null, includedTypes, contexts, from, to);
+        }
+
         public InboxFilters {
             if (readState != null && !List.of("ALL", "UNREAD", "READ").contains(readState)) {
                 throw new NotificationException(
                         NotificationErrorCode.INVALID_INPUT,
                         "readState must be ALL, UNREAD or READ.");
             }
+            if (attentionEffect != null && !"PRIORITIZE".equals(attentionEffect)) {
+                throw new NotificationException(
+                        NotificationErrorCode.INVALID_INPUT,
+                        "attentionEffect must be PRIORITIZE.");
+            }
+            includedTypes = NotificationInboxFilterSql.canonicalIncludedTypes(includedTypes);
+            contexts = contexts == null ? List.of() : List.copyOf(contexts);
+            if (contexts.size() > 5) {
+                throw new NotificationException(
+                        NotificationErrorCode.INVALID_INPUT,
+                        "Notification context filters are limited to five.");
+            }
+            LinkedHashSet<InboxContextFilter> unique = new LinkedHashSet<>(contexts);
+            if (unique.size() != contexts.size()) {
+                throw new NotificationException(
+                        NotificationErrorCode.INVALID_INPUT,
+                        "Notification context filters must be unique.");
+            }
+            contexts = unique.stream().sorted(Comparator
+                    .comparingInt((InboxContextFilter context) -> context.kindOrder())
+                    .thenComparing(InboxContextFilter::key)).toList();
+        }
+    }
+
+    public record InboxContextFilter(String kind, String key) {
+        public InboxContextFilter {
+            if (!List.of("ACTOR", "THREAD", "RESOURCE", "TOPIC_TOKEN").contains(kind)) {
+                throw new NotificationException(
+                        NotificationErrorCode.INVALID_INPUT,
+                        "Unsupported notification context kind.");
+            }
+            try {
+                NotificationAttentionScope.canonical(kind, key);
+            } catch (IllegalArgumentException exception) {
+                throw new NotificationException(
+                        NotificationErrorCode.INVALID_INPUT,
+                        "The notification context key is not canonical.");
+            }
+        }
+
+        private int kindOrder() {
+            return List.of("ACTOR", "THREAD", "RESOURCE", "TOPIC_TOKEN").indexOf(kind);
         }
     }
 

@@ -6,6 +6,7 @@ import org.springframework.stereotype.Repository;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
+import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -15,6 +16,8 @@ import static com.dwp.services.platform.mail.MailTypes.*;
 
 @Repository
 class MailQueryRepository {
+
+    enum SharedInboxPermission { READ, SEND, ASSIGN, MANAGE }
 
     private final JdbcTemplate jdbc;
     private final MailJsonCodec json;
@@ -117,6 +120,166 @@ class MailQueryRepository {
                 sharedOnly,
                 search, pattern(search), pattern(search), pattern(search),
                 pageSize, page * pageSize);
+    }
+
+    List<MailDtos.ThreadSummary> threadsAdvanced(
+            Long tenantId,
+            Long userId,
+            String lane,
+            String state,
+            String folder,
+            UUID folderId,
+            boolean sharedOnly,
+            String search,
+            UUID accountId,
+            String scope,
+            UUID sharedInboxId,
+            String assignment,
+            String sender,
+            String recipient,
+            LocalDate dateFrom,
+            LocalDate dateTo,
+            Boolean unread,
+            Boolean needsReply,
+            Boolean hasAttachment,
+            int page,
+            int pageSize) {
+        return jdbc.query(threadSelect() + MailAccessSql.THREAD_ACCESS
+                        + advancedThreadFilters() + """
+                 ORDER BY
+                       CASE thread.importance
+                           WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1
+                           WHEN 'NORMAL' THEN 2 ELSE 3 END,
+                       thread.unread DESC, thread.latest_message_at DESC, thread.thread_id
+                 LIMIT ? OFFSET ?
+                """, (result, ignored) -> thread(result),
+                advancedThreadParameters(
+                        tenantId, userId, lane, state, folder, folderId, sharedOnly, search,
+                        accountId, scope, sharedInboxId, assignment, sender, recipient,
+                        dateFrom, dateTo, unread, needsReply, hasAttachment,
+                        pageSize, page * pageSize));
+    }
+
+    long threadCountAdvanced(
+            Long tenantId,
+            Long userId,
+            String lane,
+            String state,
+            String folder,
+            UUID folderId,
+            boolean sharedOnly,
+            String search,
+            UUID accountId,
+            String scope,
+            UUID sharedInboxId,
+            String assignment,
+            String sender,
+            String recipient,
+            LocalDate dateFrom,
+            LocalDate dateTo,
+            Boolean unread,
+            Boolean needsReply,
+            Boolean hasAttachment) {
+        String sql = "SELECT COUNT(*) FROM (" + threadSelect()
+                + MailAccessSql.THREAD_ACCESS + advancedThreadFilters() + ") visible_threads";
+        Long count = jdbc.queryForObject(sql, Long.class,
+                advancedThreadParameters(
+                        tenantId, userId, lane, state, folder, folderId, sharedOnly, search,
+                        accountId, scope, sharedInboxId, assignment, sender, recipient,
+                        dateFrom, dateTo, unread, needsReply, hasAttachment));
+        return count == null ? 0 : count;
+    }
+
+    private String advancedThreadFilters() {
+        return """
+                   AND (? = '' OR thread.triage_lane = ?)
+                """ + MailAccessSql.WORKFLOW_FILTER + """
+                   AND (? = '' OR folder.folder_type = ?)
+                   AND (?::uuid IS NULL OR EXISTS (
+                       SELECT 1 FROM mail_thread_folders selected_membership
+                        WHERE selected_membership.tenant_id = thread.tenant_id
+                          AND selected_membership.thread_id = thread.thread_id
+                          AND selected_membership.folder_id = ?::uuid))
+                   AND (? = FALSE OR thread.shared_inbox_id IS NOT NULL)
+                   AND (? = '' OR LOWER(thread.subject) LIKE ? OR LOWER(thread.preview) LIKE ?
+                        OR LOWER(thread.participants::text) LIKE ?)
+                   AND (?::uuid IS NULL OR thread.account_id = ?::uuid)
+                   AND (? = '' OR account.account_kind = ?)
+                   AND (?::uuid IS NULL OR thread.shared_inbox_id = ?::uuid)
+                   AND (? = ''
+                        OR (? = 'MINE' AND thread.assigned_user_id = ?)
+                        OR (? = 'UNASSIGNED' AND thread.assigned_user_id IS NULL))
+                   AND (? = '' OR EXISTS (
+                       SELECT 1 FROM mail_messages searched_sender
+                        WHERE searched_sender.tenant_id = thread.tenant_id
+                          AND searched_sender.thread_id = thread.thread_id
+                          AND LOWER(searched_sender.sender_email) LIKE ?))
+                   AND (? = '' OR EXISTS (
+                       SELECT 1 FROM mail_messages searched_recipient
+                        WHERE searched_recipient.tenant_id = thread.tenant_id
+                          AND searched_recipient.thread_id = thread.thread_id
+                          AND LOWER(searched_recipient.recipients::text) LIKE ?))
+                   AND (?::date IS NULL OR thread.latest_message_at >= ?::date)
+                   AND (?::date IS NULL OR thread.latest_message_at < (?::date + INTERVAL '1 day'))
+                   AND (?::boolean IS NULL OR thread.unread = ?::boolean)
+                   AND (?::boolean IS NULL OR ?::boolean = FALSE OR thread.triage_lane = 'NEEDS_REPLY')
+                   AND (?::boolean IS NULL OR thread.has_attachments = ?::boolean)
+                """;
+    }
+
+    private Object[] advancedThreadParameters(
+            Long tenantId,
+            Long userId,
+            String lane,
+            String state,
+            String folder,
+            UUID folderId,
+            boolean sharedOnly,
+            String search,
+            UUID accountId,
+            String scope,
+            UUID sharedInboxId,
+            String assignment,
+            String sender,
+            String recipient,
+            LocalDate dateFrom,
+            LocalDate dateTo,
+            Boolean unread,
+            Boolean needsReply,
+            Boolean hasAttachment,
+            Object... tail) {
+        String accountKind = switch (scope) {
+            case "PERSONAL" -> "PERSONAL";
+            case "SHARED" -> "SHARED";
+            default -> "";
+        };
+        List<Object> values = new java.util.ArrayList<>();
+        java.util.Collections.addAll(values,
+                tenantId, userId, userId,
+                lane, lane,
+                state, state, state,
+                folder, folder,
+                folderId, folderId,
+                sharedOnly,
+                search, pattern(search), pattern(search), pattern(search),
+                accountId, accountId,
+                accountKind, accountKind,
+                sharedInboxId, sharedInboxId,
+                assignment, assignment, userId, assignment,
+                sender, pattern(sender),
+                recipient, pattern(recipient));
+        values.add(dateFrom);
+        values.add(dateFrom);
+        values.add(dateTo);
+        values.add(dateTo);
+        values.add(unread);
+        values.add(unread);
+        values.add(needsReply);
+        values.add(needsReply);
+        values.add(hasAttachment);
+        values.add(hasAttachment);
+        java.util.Collections.addAll(values, tail);
+        return values.toArray();
     }
 
     long threadCount(
@@ -230,7 +393,9 @@ class MailQueryRepository {
                 result.getObject("message_id", UUID.class),
                 result.getString("sender_email"),
                 result.getString("sender_name"),
-                json.mapList(result.getString("recipients")),
+                visibleRecipients(
+                        result.getString("message_direction"),
+                        result.getString("recipients")),
                 result.getString("message_direction"),
                 result.getString("body_format"),
                 result.getString("body_content"),
@@ -239,6 +404,18 @@ class MailQueryRepository {
                 DeliveryState.valueOf(result.getString("delivery_state")),
                 result.getObject("accepted_at", OffsetDateTime.class),
                 result.getString("last_error_code")), tenantId, threadId, userId, userId);
+    }
+
+    List<Map<String, Object>> visibleRecipients(String direction, String recipientsJson) {
+        List<Map<String, Object>> recipients = json.mapList(recipientsJson);
+        if (!"INBOUND".equalsIgnoreCase(direction)) return recipients;
+        return recipients.stream()
+                .filter(recipient -> recipient.entrySet().stream().noneMatch(entry ->
+                        "type".equalsIgnoreCase(entry.getKey())
+                                && entry.getValue() != null
+                                && "BCC".equalsIgnoreCase(
+                                String.valueOf(entry.getValue()).trim())))
+                .toList();
     }
 
     List<MailDtos.InternalComment> comments(Long tenantId, Long userId, UUID threadId) {
@@ -279,8 +456,52 @@ class MailQueryRepository {
                    AND membership.shared_inbox_id = inbox.shared_inbox_id
                    AND membership.user_id = ?
                    AND membership.lifecycle_state = 'ACTIVE'
+                  JOIN mail_shared_inbox_access_grants access_grant
+                    ON access_grant.tenant_id = membership.tenant_id
+                   AND access_grant.shared_inbox_id = membership.shared_inbox_id
+                   AND access_grant.user_id = membership.user_id
+                   AND access_grant.member_state = 'ACTIVE'
+                   AND access_grant.can_read = TRUE
+                   AND (access_grant.expires_at IS NULL
+                        OR access_grant.expires_at > CURRENT_TIMESTAMP)
                  WHERE policy.tenant_id = ? AND policy.allow_shared_inboxes = TRUE
                 """, Long.class, sharedInboxId, userId, tenantId);
+        return count != null && count > 0;
+    }
+
+    boolean hasSharedInboxPermission(
+            Long tenantId, UUID sharedInboxId, Long userId,
+            SharedInboxPermission permission) {
+        String permissionPredicate = switch (permission) {
+            case READ -> "access_grant.can_read = TRUE";
+            case SEND -> "(access_grant.can_send_as = TRUE OR access_grant.can_send_on_behalf = TRUE)";
+            case ASSIGN -> "access_grant.can_assign = TRUE";
+            case MANAGE -> "access_grant.can_manage = TRUE";
+        };
+        Long count = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM mail_tenant_policies policy
+                  JOIN mail_shared_inboxes inbox
+                    ON inbox.tenant_id = policy.tenant_id
+                   AND inbox.shared_inbox_id = ?
+                   AND inbox.lifecycle_state = 'ACTIVE'
+                  JOIN mail_shared_inbox_members membership
+                    ON membership.tenant_id = inbox.tenant_id
+                   AND membership.account_id = inbox.account_id
+                   AND membership.shared_inbox_id = inbox.shared_inbox_id
+                   AND membership.user_id = ?
+                   AND membership.lifecycle_state = 'ACTIVE'
+                  JOIN mail_shared_inbox_access_grants access_grant
+                    ON access_grant.tenant_id = membership.tenant_id
+                   AND access_grant.shared_inbox_id = membership.shared_inbox_id
+                   AND access_grant.user_id = membership.user_id
+                   AND access_grant.member_state = 'ACTIVE'
+                   AND (access_grant.expires_at IS NULL
+                        OR access_grant.expires_at > CURRENT_TIMESTAMP)
+                 WHERE policy.tenant_id = ? AND policy.allow_shared_inboxes = TRUE
+                   AND %s
+                """.formatted(permissionPredicate), Long.class,
+                sharedInboxId, userId, tenantId);
         return count != null && count > 0;
     }
 
@@ -345,6 +566,63 @@ class MailQueryRepository {
                 tenantId, threadId, threadId, userId, userId, limit);
     }
 
+    List<MailDtos.ActionProposal> proposalsFiltered(
+            Long tenantId,
+            Long userId,
+            UUID accountId,
+            String status,
+            String type,
+            int limit) {
+        return jdbc.query("""
+                SELECT proposal.proposal_id, proposal.thread_id, proposal.proposal_type,
+                       proposal.action_contract_version,
+                       proposal.proposal_status, proposal.title, proposal.summary,
+                       proposal.evidence::text, proposal.proposed_payload::text,
+                       proposal.confidence, proposal.risk_level,
+                       proposal.required_resource_key, proposal.required_permission_code,
+                       proposal.target_route, proposal.expires_at, proposal.version
+                  FROM mail_action_proposals proposal
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = proposal.tenant_id
+                   AND thread.thread_id = proposal.thread_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
+                 WHERE proposal.tenant_id = ?
+                   AND (?::uuid IS NULL OR thread.account_id = ?::uuid)
+                   AND (? = '' OR proposal.proposal_status = ?)
+                   AND (? = '' OR proposal.proposal_type = ?)
+                   AND (proposal.expires_at IS NULL OR proposal.expires_at > CURRENT_TIMESTAMP
+                        OR proposal.proposal_status <> 'PROPOSED')
+                """ + MailAccessSql.THREAD_ACCESS + """
+                 ORDER BY
+                       CASE proposal.risk_level WHEN 'HIGH' THEN 0 WHEN 'MEDIUM' THEN 1 ELSE 2 END,
+                       proposal.created_at DESC, proposal.proposal_id
+                 LIMIT ?
+                """, (result, ignored) -> proposal(result),
+                tenantId, accountId, accountId, status, status, type, type,
+                userId, userId, limit);
+    }
+
+    int updateProposalPayload(
+            Long tenantId,
+            Long userId,
+            UUID proposalId,
+            Map<String, Object> payload,
+            long version) {
+        return jdbc.update("""
+                UPDATE mail_action_proposals proposal
+                   SET proposed_payload = ?::jsonb, version = proposal.version + 1,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                  FROM mail_threads thread, mail_accounts account
+                 WHERE proposal.tenant_id = ? AND proposal.proposal_id = ?
+                   AND proposal.proposal_status = 'PROPOSED' AND proposal.version = ?
+                   AND thread.tenant_id = proposal.tenant_id
+                   AND thread.thread_id = proposal.thread_id
+                """ + MailAccessSql.THREAD_ACCESS,
+                json.write(payload), userId, tenantId, proposalId, version, userId, userId);
+    }
+
     Optional<MailDtos.ActionProposal> proposal(
             Long tenantId, Long userId, UUID proposalId) {
         return jdbc.query("""
@@ -369,6 +647,10 @@ class MailQueryRepository {
     }
 
     MailDtos.HomeMetrics metrics(Long tenantId, Long userId) {
+        return metrics(tenantId, userId, null);
+    }
+
+    MailDtos.HomeMetrics metrics(Long tenantId, Long userId, UUID accountId) {
         return jdbc.query("""
                 WITH visible_threads AS (
                     SELECT thread.*
@@ -378,6 +660,7 @@ class MailQueryRepository {
                        AND account.account_id = thread.account_id
                      WHERE thread.tenant_id = ?
                 """ + MailAccessSql.THREAD_ACCESS + """
+                       AND (?::uuid IS NULL OR thread.account_id = ?::uuid)
                 ), visible_proposals AS (
                     SELECT proposal.proposal_id
                       FROM mail_action_proposals proposal
@@ -416,10 +699,15 @@ class MailQueryRepository {
                             result.getInt("unread"), result.getInt("urgent"),
                             result.getInt("needs_reply"), result.getInt("assigned"),
                             result.getInt("snoozed"), result.getInt("active_proposals"));
-                }, tenantId, userId, userId, tenantId, userId);
+                }, tenantId, userId, userId, accountId, accountId, tenantId, userId);
     }
 
     List<MailDtos.SharedInboxPulse> sharedInboxPulse(Long tenantId, Long userId) {
+        return sharedInboxPulse(tenantId, userId, null);
+    }
+
+    List<MailDtos.SharedInboxPulse> sharedInboxPulse(
+            Long tenantId, Long userId, UUID accountId) {
         return jdbc.query("""
                 SELECT inbox.shared_inbox_id, inbox.display_name,
                        account.email_address, inbox.service_target_minutes,
@@ -442,6 +730,7 @@ class MailQueryRepository {
                    AND thread.tenant_id = inbox.tenant_id
                    AND thread.account_id = inbox.account_id
                  WHERE inbox.tenant_id = ? AND inbox.lifecycle_state = 'ACTIVE'
+                   AND (?::uuid IS NULL OR account.account_id = ?::uuid)
                 """ + MailAccessSql.ACCOUNT_ACCESS + """
                  GROUP BY inbox.shared_inbox_id, inbox.display_name,
                           account.email_address, inbox.service_target_minutes
@@ -453,7 +742,8 @@ class MailQueryRepository {
                 result.getInt("open_count"),
                 result.getInt("unassigned_count"),
                 result.getInt("overdue_count"),
-                result.getInt("service_target_minutes")), tenantId, userId, userId);
+                result.getInt("service_target_minutes")),
+                tenantId, accountId, accountId, userId, userId);
     }
 
     MailDtos.TenantPolicy policy(Long tenantId) {

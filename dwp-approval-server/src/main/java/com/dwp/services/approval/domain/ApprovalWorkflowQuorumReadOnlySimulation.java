@@ -5,6 +5,7 @@ import static com.dwp.services.approval.domain.ApprovalWorkflowQuorumRuntimeStor
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -33,6 +34,15 @@ public final class ApprovalWorkflowQuorumReadOnlySimulation {
 
     ApprovalWorkflowQuorumSimulation.Result simulate(long tenant, UUID request, ApprovalWorkflowQuorumSimulation.Input input,
             Runnable ownerValidation) {
+        return evaluate(tenant, request, input, ownerValidation);
+    }
+
+    ApprovalWorkflowQuorumSimulation.Result preflight(long tenant, UUID request, Runnable ownerValidation) {
+        return evaluate(tenant, request, null, ownerValidation);
+    }
+
+    private ApprovalWorkflowQuorumSimulation.Result evaluate(long tenant, UUID request,
+            ApprovalWorkflowQuorumSimulation.Input suppliedInput, Runnable ownerValidation) {
         return readOnly.execute(status -> {
             ownerValidation.run();
             var p = store.scope(tenant, request);
@@ -45,9 +55,14 @@ public final class ApprovalWorkflowQuorumReadOnlySimulation {
                     """, p, String.class);
             var definition = ApprovalWorkflowQuorumDefinition.compile(rawDefinition);
             Context context = store.context(tenant, request, definition, store.policy(tenant, request, false), false);
+            var input = suppliedInput == null
+                    ? new ApprovalWorkflowQuorumSimulation.Input(context.pins(), context.requesterUserId(),
+                            context.requesterPersonId(), context.payloadRevision(), context.payloadSha256(), List.of())
+                    : suppliedInput;
             if (!context.pins().equals(input.expectedPins()) || context.requesterUserId() != input.requesterUserId()
                     || !context.requesterPersonId().equals(input.requesterPersonPublicId())
-                    || context.payloadRevision() != input.payloadRevision() || !context.payloadSha256().equals(input.payloadSha256())) throw conflict();
+                    || context.payloadRevision() != input.payloadRevision()
+                    || !context.payloadSha256().equals(input.payloadSha256())) throw conflict();
             Map<String, CandidatePool> pools = new HashMap<>();
             Instant now = store.now();
             var resolver = new ApprovalWorkflowQuorumSimulation.AuthorityResolver() {

@@ -24,7 +24,7 @@ class ApprovalRelease10ProjectionSchemaContractTest {
             var old = new ApprovalPilotPepRegistry(json, Clock.systemUTC(), version);
             assertTrue(current.bindingContracts().containsAll(old.bindingContracts()));
         }
-        assertThrows(IllegalStateException.class, () -> new ApprovalPilotPepRegistry(json, Clock.systemUTC(), 15));
+        assertThrows(IllegalStateException.class, () -> new ApprovalPilotPepRegistry(json, Clock.systemUTC(), 16));
     }
     @Test void actualResponseOnlyGraphAndAllEightProjectionsMatch() throws Exception {
         var document = document();

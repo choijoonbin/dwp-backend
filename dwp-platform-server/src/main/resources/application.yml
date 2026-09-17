@@ -28,8 +28,8 @@ spring:
         compression.type: zstd
   servlet:
     multipart:
-      max-file-size: ${DWP_HOME_ASSET_MAX_FILE_SIZE:10MB}
-      max-request-size: ${DWP_HOME_ASSET_MAX_REQUEST_SIZE:11MB}
+      max-file-size: ${DWP_PLATFORM_MULTIPART_MAX_FILE_SIZE:25MB}
+      max-request-size: ${DWP_PLATFORM_MULTIPART_MAX_REQUEST_SIZE:26MB}
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${PLATFORM_DB_NAME:dwp_platform}
     username: ${DB_USERNAME:dwp_user}
@@ -49,6 +49,83 @@ spring:
     validate-on-migrate: true
 
 dwp:
+  workplace:
+    provider-integration:
+      http:
+        # Production relay is opt-in and fails startup unless its HTTPS host/provider allowlists
+        # are explicit. Credentials remain opaque secret-manager references owned by an injected
+        # WorkplaceProviderSecretOwner implementation.
+        enabled: ${DWP_WORKPLACE_PROVIDER_HTTP_ENABLED:false}
+        base-url: ${DWP_WORKPLACE_PROVIDER_HTTP_BASE_URL:}
+        allowed-hosts: ${DWP_WORKPLACE_PROVIDER_HTTP_ALLOWED_HOSTS:}
+        allowed-providers: ${DWP_WORKPLACE_PROVIDER_HTTP_ALLOWED_PROVIDERS:}
+        allow-insecure-localhost: ${DWP_WORKPLACE_PROVIDER_HTTP_ALLOW_INSECURE_LOCALHOST:false}
+    visits:
+      provider-relay:
+        # Comma separated PROVIDER@VERSION=secret-manager://opaque/reference bindings. Keeping
+        # older version references enables safe status reconciliation after configuration changes.
+        # Raw credentials are leased by WorkplaceProviderSecretOwner and are never stored here.
+        credential-references: ${DWP_WORKPLACE_VISIT_PROVIDER_CREDENTIAL_REFERENCES:}
+        guest-provider-code: ${DWP_WORKPLACE_VISIT_GUEST_PROVIDER_CODE:}
+        guest-provider-configuration-version: ${DWP_WORKPLACE_VISIT_GUEST_PROVIDER_CONFIGURATION_VERSION:0}
+        guest-reference-prefixes: ${DWP_WORKPLACE_VISIT_GUEST_REFERENCE_PREFIXES:}
+      provider-worker:
+        enabled: ${DWP_WORKPLACE_VISIT_PROVIDER_WORKER_ENABLED:true}
+        batch-size: ${DWP_WORKPLACE_VISIT_PROVIDER_WORKER_BATCH_SIZE:50}
+        processing-timeout: ${DWP_WORKPLACE_VISIT_PROVIDER_PROCESSING_TIMEOUT:PT2M}
+        poll-delay-ms: ${DWP_WORKPLACE_VISIT_PROVIDER_POLL_DELAY_MS:2000}
+    services:
+      provider-relay:
+        # Explicit adapter allowlist. Provider profiles persist only an opaque
+        # secret-manager:// reference captured with each accepted operation.
+        adapter-types: ${DWP_WORKPLACE_SERVICE_PROVIDER_ADAPTER_TYPES:}
+      provider-worker:
+        enabled: ${DWP_WORKPLACE_SERVICE_PROVIDER_WORKER_ENABLED:true}
+        batch-size: ${DWP_WORKPLACE_SERVICE_PROVIDER_WORKER_BATCH_SIZE:50}
+        poll-delay-ms: ${DWP_WORKPLACE_SERVICE_PROVIDER_POLL_DELAY_MS:5000}
+    navigation:
+      device-provider:
+        # Comma separated PROVIDER@VERSION=secret-manager://opaque/reference bindings.
+        # Retain older version references while an accepted command may still be reconciled.
+        credential-references: ${DWP_WORKPLACE_NAVIGATION_DEVICE_PROVIDER_CREDENTIAL_REFERENCES:}
+      command-worker:
+        enabled: ${DWP_WORKPLACE_NAVIGATION_COMMAND_WORKER_ENABLED:true}
+        batch-size: ${DWP_WORKPLACE_NAVIGATION_COMMAND_WORKER_BATCH_SIZE:20}
+        processing-timeout: ${DWP_WORKPLACE_NAVIGATION_COMMAND_PROCESSING_TIMEOUT:PT2M}
+        poll-delay-ms: ${DWP_WORKPLACE_NAVIGATION_COMMAND_POLL_DELAY_MS:2000}
+      provider-observation:
+        enabled: ${DWP_WORKPLACE_NAVIGATION_PROVIDER_OBSERVATION_ENABLED:true}
+        batch-size: ${DWP_WORKPLACE_NAVIGATION_PROVIDER_OBSERVATION_BATCH_SIZE:50}
+        poll-delay-ms: ${DWP_WORKPLACE_NAVIGATION_PROVIDER_OBSERVATION_POLL_DELAY_MS:60000}
+    safety:
+      provider-relay:
+        # PROVIDER@VERSION=secret-manager://opaque/reference entries retain old versions so
+        # crash recovery always returns to the provider configuration captured at dispatch.
+        credential-references: ${DWP_WORKPLACE_SAFETY_PROVIDER_CREDENTIAL_REFERENCES:}
+        # APP_PUSH=PROVIDER@VERSION,SMS=...,EMAIL=...; EBS/BLE use their governed connector row.
+        channel-bindings: ${DWP_WORKPLACE_SAFETY_PROVIDER_CHANNEL_BINDINGS:}
+      dispatch-worker-enabled: ${DWP_WORKPLACE_SAFETY_DISPATCH_WORKER_ENABLED:true}
+      dispatch-worker-batch-size: ${DWP_WORKPLACE_SAFETY_DISPATCH_WORKER_BATCH_SIZE:50}
+      dispatch-worker-delay-ms: ${DWP_WORKPLACE_SAFETY_DISPATCH_WORKER_DELAY_MS:2000}
+      dispatch-processing-timeout: ${DWP_WORKPLACE_SAFETY_DISPATCH_PROCESSING_TIMEOUT:PT2M}
+      connector-freshness: ${DWP_WORKPLACE_SAFETY_CONNECTOR_FRESHNESS:PT5M}
+      connector-observation-producer-enabled: ${DWP_WORKPLACE_SAFETY_CONNECTOR_OBSERVATION_PRODUCER_ENABLED:false}
+      connector-observation-batch-size: ${DWP_WORKPLACE_SAFETY_CONNECTOR_OBSERVATION_BATCH_SIZE:50}
+      connector-observation-delay-ms: ${DWP_WORKPLACE_SAFETY_CONNECTOR_OBSERVATION_DELAY_MS:60000}
+    connector-runtime:
+      freshness: ${DWP_WORKPLACE_CONNECTOR_RUNTIME_FRESHNESS:PT5M}
+      replay-preview-ttl: ${DWP_WORKPLACE_CONNECTOR_REPLAY_PREVIEW_TTL:PT10M}
+      replay-worker-enabled: ${DWP_WORKPLACE_CONNECTOR_REPLAY_WORKER_ENABLED:true}
+      replay-worker-batch-size: ${DWP_WORKPLACE_CONNECTOR_REPLAY_WORKER_BATCH_SIZE:20}
+      replay-worker-delay-ms: ${DWP_WORKPLACE_CONNECTOR_REPLAY_WORKER_DELAY_MS:2000}
+      observation-consumer-enabled: ${DWP_WORKPLACE_CONNECTOR_OBSERVATION_CONSUMER_ENABLED:false}
+      observation-producer-enabled: ${DWP_WORKPLACE_CONNECTOR_OBSERVATION_PRODUCER_ENABLED:false}
+      observation-producer-batch-size: ${DWP_WORKPLACE_CONNECTOR_OBSERVATION_PRODUCER_BATCH_SIZE:50}
+      observation-producer-delay-ms: ${DWP_WORKPLACE_CONNECTOR_OBSERVATION_PRODUCER_DELAY_MS:60000}
+      sensitive-payload-retention: ${DWP_WORKPLACE_CONNECTOR_SENSITIVE_RETENTION:PT2160H}
+      retention-enabled: ${DWP_WORKPLACE_CONNECTOR_RETENTION_ENABLED:true}
+      retention-batch-size: ${DWP_WORKPLACE_CONNECTOR_RETENTION_BATCH_SIZE:200}
+      retention-cron: ${DWP_WORKPLACE_CONNECTOR_RETENTION_CRON:0 37 2 * * *}
   workspace:
     # Requires approved Kafka consumer onboarding; queue projection remains off by default.
     identity-governance-consumer-enabled: ${DWP_IDENTITY_GOVERNANCE_CONSUMER_ENABLED:false}

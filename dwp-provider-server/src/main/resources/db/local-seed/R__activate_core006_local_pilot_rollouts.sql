@@ -1,7 +1,7 @@
 -- Local-only CORE-006 pilot state. This location is opt-in from devctl and is
 -- rejected by production readiness before the application context starts.
 -- Runtime composition uses global S plus product-scoped E_p/U_p: the four exact
--- v3 products are 111 and the eight inventory-only products are 100. The legacy
+-- local products are 111 and the remaining inventory-only products are 100. The legacy
 -- global E row remains enabled only as compatibility history and is composition-inert.
 
 CREATE TEMP TABLE tmp_core006_local_context (
@@ -126,7 +126,7 @@ INSERT INTO tmp_core006_local_rollouts VALUES
     ('access.product-surfaces.capability-enforcement.workplace.v1',
      'c0061000-0000-4000-8000-000000000211',
      'c0062000-0000-4000-8000-000000000211',
-     'c0063000-0000-4000-8000-000000000211', FALSE),
+     'c0063000-0000-4000-8000-000000000211', TRUE),
     ('ux.product-surfaces.communications.v1',
      'c0061000-0000-4000-8000-000000000103',
      'c0062000-0000-4000-8000-000000000103',
@@ -158,7 +158,7 @@ INSERT INTO tmp_core006_local_rollouts VALUES
     ('ux.product-surfaces.workplace.v1',
      'c0061000-0000-4000-8000-000000000110',
      'c0062000-0000-4000-8000-000000000110',
-     'c0063000-0000-4000-8000-000000000110', FALSE),
+     'c0063000-0000-4000-8000-000000000110', TRUE),
     ('ux.product-surfaces.mail.v1',
      'c0061000-0000-4000-8000-000000000111',
      'c0062000-0000-4000-8000-000000000111',
@@ -179,9 +179,9 @@ INSERT INTO tmp_core006_local_rollouts VALUES
 DO $$
 BEGIN
     IF (SELECT COUNT(*) FROM tmp_core006_local_rollouts) <> 26
-       OR (SELECT COUNT(*) FROM tmp_core006_local_rollouts WHERE enabled) <> 10
-       OR (SELECT COUNT(*) FROM tmp_core006_local_rollouts WHERE NOT enabled) <> 16 THEN
-        RAISE EXCEPTION 'CORE-006 local rollout truth table must remain 10 enabled and 16 disabled';
+       OR (SELECT COUNT(*) FROM tmp_core006_local_rollouts WHERE enabled) <> 12
+       OR (SELECT COUNT(*) FROM tmp_core006_local_rollouts WHERE NOT enabled) <> 14 THEN
+        RAISE EXCEPTION 'CORE-006 local rollout truth table must remain 12 enabled and 14 disabled';
     END IF;
     IF (SELECT COUNT(*)
           FROM prv_feature_flags flag
@@ -322,7 +322,15 @@ ON CONFLICT (rollout_approval_id) DO UPDATE SET
     decision_reason = EXCLUDED.decision_reason;
 
 UPDATE prv_feature_rollout_decision_revision decision
-   SET opaque_revision = GREATEST(decision.opaque_revision, 1),
+   SET opaque_revision = GREATEST(
+           decision.opaque_revision,
+           CASE
+               WHEN flag.feature_key IN (
+                   'access.product-surfaces.capability-enforcement.workplace.v1',
+                   'ux.product-surfaces.workplace.v1')
+               THEN 2
+               ELSE 1
+           END),
        updated_at = CURRENT_TIMESTAMP
   FROM prv_feature_flags flag
   JOIN tmp_core006_local_rollouts seed USING (feature_key)

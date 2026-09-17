@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -110,7 +111,7 @@ public class MailAddressBookController {
     }
 
     @PostMapping("/contact-groups/{groupId}/messages")
-    public ApiResponse<MailDtos.ThreadDetail> sendGroupMessage(
+    public ApiResponse<MailAddressBookDtos.GroupSendResult> sendGroupMessage(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
@@ -118,5 +119,13 @@ public class MailAddressBookController {
             @Valid @RequestBody MailAddressBookDtos.GroupMessageRequest request) {
         return ApiResponse.success(service.sendGroupMessage(
                 tenantId, userId, groupId, correlationId, request));
+    }
+
+    @GetMapping("/contact-groups/{groupId}/messages/history")
+    public ApiResponse<List<MailAddressBookDtos.GroupSendReceipt>> groupMessageHistory(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @PathVariable UUID groupId) {
+        return ApiResponse.success(service.groupMessageHistory(tenantId, userId, groupId));
     }
 }

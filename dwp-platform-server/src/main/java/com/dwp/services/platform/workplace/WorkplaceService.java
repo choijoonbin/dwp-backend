@@ -34,6 +34,7 @@ public class WorkplaceService {
     private final WorkplaceCatalogAdminService catalogAdmin;
     private final WorkplaceBookingPolicyService bookingPolicy;
     private final WorkplaceBookingAccessGuard bookingAccess;
+    private final WorkplaceBookingLifecycleService bookingLifecycle;
 
     public WorkplaceService(
             WorkplaceCatalogRepository catalog,
@@ -57,6 +58,8 @@ public class WorkplaceService {
         this.bookingPolicy = new WorkplaceBookingPolicyService(
                 bookings, releaseWindows, runtimeGovernance);
         this.bookingAccess = new WorkplaceBookingAccessGuard(catalog, runtimeGovernance);
+        this.bookingLifecycle = new WorkplaceBookingLifecycleService(
+                catalog, bookings, bookingAccess, domainEvents);
     }
 
     @Transactional(readOnly = true)
@@ -213,34 +216,19 @@ public class WorkplaceService {
             String correlationId,
             String verifiedGroupRefs,
             WorkplaceDtos.VersionRequest request) {
-        WorkplaceBookingRepository.BookingRow current = requireBookingRow(
-                tenantId, userId, bookingId, locale);
-        bookingAccess.requireBook(tenantId, userId, verifiedGroupRefs, current);
-        OffsetDateTime now = OffsetDateTime.now();
-        if (!current.requireCheckIn() || current.status() != BookingStatus.RESERVED) {
-            throw invalid("This reservation is not eligible for check-in.");
-        }
-        OffsetDateTime opens = current.startsAt().minusMinutes(current.checkInLeadMinutes());
-        OffsetDateTime closes = current.startsAt().plusMinutes(current.autoReleaseMinutes());
-        if (!withinCheckInWindow(now, opens, closes, current.endsAt())) {
-            throw invalid("Check-in is outside the allowed arrival window.");
-        }
-        if (bookings.checkIn(tenantId, userId, bookingId, request.version(), now) == 0) {
-            throw conflict("The reservation changed. Refresh and try again.");
-        }
-        bookings.audit(tenantId, userId, "workplace.booking.checked_in", "BOOKING",
-                bookingId, correlationId, Map.of("checkedInAt", now));
-        WorkplaceBookingRepository.BookingRow saved = requireBookingRow(
-                tenantId, userId, bookingId, locale);
-        recordBookingEvent(
-                WorkplaceDomainEvents.CHECKED_IN,
-                tenantId,
-                correlationId,
-                saved,
-                null,
-                null,
-                "MEMBER_CHECKED_IN");
-        return booking(saved, null, now);
+        return bookingLifecycle.checkInOnce(
+                tenantId, userId, bookingId, locale, correlationId,
+                verifiedGroupRefs, request);
+    }
+
+    @Transactional
+    public WorkplaceDtos.Booking checkIn(
+            Long tenantId, Long userId, UUID bookingId, String locale,
+            String correlationId, String verifiedGroupRefs, String idempotencyKey,
+            WorkplaceDtos.VersionRequest request) {
+        return bookingLifecycle.checkIn(
+                tenantId, userId, bookingId, locale, correlationId,
+                verifiedGroupRefs, idempotencyKey, request);
     }
 
     static boolean withinCheckInWindow(
@@ -248,9 +236,8 @@ public class WorkplaceService {
             OffsetDateTime opens,
             OffsetDateTime closes,
             OffsetDateTime endsAt) {
-        return !now.isBefore(opens)
-                && !now.isAfter(closes)
-                && now.isBefore(endsAt);
+        return WorkplaceBookingLifecycleService.withinCheckInWindow(
+                now, opens, closes, endsAt);
     }
 
     @Transactional
@@ -262,29 +249,19 @@ public class WorkplaceService {
             String correlationId,
             String verifiedGroupRefs,
             WorkplaceDtos.VersionRequest request) {
-        WorkplaceBookingRepository.BookingRow current = requireBookingRow(
-                tenantId, userId, bookingId, locale);
-        bookingAccess.requireBook(tenantId, userId, verifiedGroupRefs, current);
-        OffsetDateTime now = OffsetDateTime.now();
-        if (current.status() != BookingStatus.RESERVED || !now.isBefore(current.startsAt())) {
-            throw invalid("Only a future reserved booking can be cancelled.");
-        }
-        if (bookings.cancel(tenantId, userId, bookingId, request.version(), now) == 0) {
-            throw conflict("The reservation changed. Refresh and try again.");
-        }
-        bookings.audit(tenantId, userId, "workplace.booking.cancelled", "BOOKING",
-                bookingId, correlationId, Map.of("cancelledAt", now));
-        WorkplaceBookingRepository.BookingRow saved = requireBookingRow(
-                tenantId, userId, bookingId, locale);
-        recordBookingEvent(
-                WorkplaceDomainEvents.CANCELLED,
-                tenantId,
-                correlationId,
-                saved,
-                null,
-                null,
-                "MEMBER_CANCELLED");
-        return booking(saved, null, now);
+        return bookingLifecycle.cancelOnce(
+                tenantId, userId, bookingId, locale, correlationId,
+                verifiedGroupRefs, request);
+    }
+
+    @Transactional
+    public WorkplaceDtos.Booking cancelBooking(
+            Long tenantId, Long userId, UUID bookingId, String locale,
+            String correlationId, String verifiedGroupRefs, String idempotencyKey,
+            WorkplaceDtos.VersionRequest request) {
+        return bookingLifecycle.cancel(
+                tenantId, userId, bookingId, locale, correlationId,
+                verifiedGroupRefs, idempotencyKey, request);
     }
 
     @Transactional
@@ -296,31 +273,19 @@ public class WorkplaceService {
             String correlationId,
             String verifiedGroupRefs,
             WorkplaceDtos.VersionRequest request) {
-        WorkplaceBookingRepository.BookingRow current = requireBookingRow(
-                tenantId, userId, bookingId, locale);
-        bookingAccess.requireBook(tenantId, userId, verifiedGroupRefs, current);
-        OffsetDateTime now = OffsetDateTime.now();
-        boolean active = current.status() == BookingStatus.RESERVED
-                || current.status() == BookingStatus.CHECKED_IN;
-        if (!active || now.isBefore(current.startsAt()) || !now.isBefore(current.endsAt())) {
-            throw invalid("Only an active booking can be released after it starts.");
-        }
-        if (bookings.release(tenantId, userId, bookingId, request.version(), now) == 0) {
-            throw conflict("The reservation changed. Refresh and try again.");
-        }
-        bookings.audit(tenantId, userId, "workplace.booking.released", "BOOKING",
-                bookingId, correlationId, Map.of("releasedAt", now));
-        WorkplaceBookingRepository.BookingRow saved = requireBookingRow(
-                tenantId, userId, bookingId, locale);
-        recordBookingEvent(
-                WorkplaceDomainEvents.RELEASED,
-                tenantId,
-                correlationId,
-                saved,
-                null,
-                null,
-                "MEMBER_RELEASED");
-        return booking(saved, null, now);
+        return bookingLifecycle.releaseOnce(
+                tenantId, userId, bookingId, locale, correlationId,
+                verifiedGroupRefs, request);
+    }
+
+    @Transactional
+    public WorkplaceDtos.Booking releaseBooking(
+            Long tenantId, Long userId, UUID bookingId, String locale,
+            String correlationId, String verifiedGroupRefs, String idempotencyKey,
+            WorkplaceDtos.VersionRequest request) {
+        return bookingLifecycle.release(
+                tenantId, userId, bookingId, locale, correlationId,
+                verifiedGroupRefs, idempotencyKey, request);
     }
 
     @Transactional(readOnly = true)
@@ -586,28 +551,7 @@ public class WorkplaceService {
             WorkplaceBookingRepository.BookingRow value,
             WorkplaceCatalogRepository.PolicyRow policy,
             OffsetDateTime now) {
-        OffsetDateTime checkInOpensAt = value.startsAt()
-                .minusMinutes(value.checkInLeadMinutes());
-        OffsetDateTime checkInClosesAt = value.startsAt()
-                .plusMinutes(value.autoReleaseMinutes());
-        boolean active = value.status() == BookingStatus.RESERVED
-                || value.status() == BookingStatus.CHECKED_IN;
-        boolean canCheckIn = value.requireCheckIn()
-                && value.status() == BookingStatus.RESERVED
-                && !now.isBefore(checkInOpensAt)
-                && !now.isAfter(checkInClosesAt)
-                && now.isBefore(value.endsAt());
-        boolean canCancel = value.status() == BookingStatus.RESERVED
-                && now.isBefore(value.startsAt());
-        boolean canRelease = active
-                && !now.isBefore(value.startsAt())
-                && now.isBefore(value.endsAt());
-        return new WorkplaceDtos.Booking(
-                value.bookingId(), value.resourceId(), value.resourceName(), value.resourceType(),
-                value.siteName(), value.floorName(), value.purpose(), value.startsAt(), value.endsAt(),
-                value.status(), value.visibleToColleagues(), value.checkedInAt(),
-                value.releasedAt(), canCheckIn, canCancel, canRelease,
-                checkInOpensAt, checkInClosesAt, value.version());
+        return WorkplaceBookingViewMapper.toBooking(value, now);
     }
 
     @Transactional

@@ -304,6 +304,47 @@ class ApprovalServiceTest {
     }
 
     @Test
+    void reportsAnOwnedLegacyDraftReadyOnlyAfterAuthoritativeServerChecks() {
+        UUID requestId = UUID.randomUUID();
+        when(queries.requestCandidateRoles(ApprovalRequestContext.require(), requestId))
+                .thenReturn(List.of("FINANCE_APPROVERS"));
+        when(identities.requireRole(42L, "FINANCE_APPROVERS"))
+                .thenReturn(new ApprovalIdentityDirectory.RoleEligibility(
+                        42L, "FINANCE_APPROVERS", "ACTIVE", 2, true));
+
+        ApprovalDtos.RequestPreflight result = service.preflight(requestId, 7L);
+
+        assertThat(result.ready()).isTrue();
+        assertThat(result.expectedVersion()).isEqualTo(7L);
+        assertThat(result.workflowContract()).isEqualTo("LEGACY_SEQUENTIAL");
+        assertThat(result.checks())
+                .extracting(ApprovalDtos.RequestPreflightCheck::code)
+                .containsExactly(
+                        "OWNED_DRAFT",
+                        "CONCURRENCY",
+                        "FORM_SCHEMA_AND_ROUTE",
+                        "ATTACHMENT_EVIDENCE",
+                        "CANDIDATE_AUTHORITY");
+        verify(commands).preflightLegacySubmit(
+                ApprovalRequestContext.require(), requestId, 7L);
+    }
+
+    @Test
+    void failsClosedWhenTheDraftVersionChangesBeforePreflight() {
+        UUID requestId = UUID.randomUUID();
+        org.mockito.Mockito.doThrow(new com.dwp.core.exception.BaseException(
+                        com.dwp.core.common.ErrorCode.RESOURCE_CONFLICT))
+                .when(commands)
+                .preflightLegacySubmit(ApprovalRequestContext.require(), requestId, 7L);
+
+        assertThatThrownBy(() -> service.preflight(requestId, 7L))
+                .isInstanceOf(com.dwp.core.exception.BaseException.class);
+
+        verify(queries, never()).requestCandidateRoles(
+                ApprovalRequestContext.require(), requestId);
+    }
+
+    @Test
     void retriesAnIsolatedIntegrationDeliveryWithExtendedAuditEvidence() {
         UUID outboxId = UUID.randomUUID();
         when(queries.adminPulse(42L)).thenReturn(new ApprovalDtos.AdminPulse(

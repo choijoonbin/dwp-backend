@@ -32,6 +32,7 @@ public class WorkplaceOperationsService {
     private final WorkplaceOperationsRepository operations;
     private final WorkplaceService workplace;
     private final WorkplaceDomainEvents domainEvents;
+    private final WorkplaceBookingCommandCoordinator bookingCommands;
 
     public WorkplaceOperationsService(
             WorkplaceCatalogRepository catalog,
@@ -44,6 +45,7 @@ public class WorkplaceOperationsService {
         this.operations = operations;
         this.workplace = workplace;
         this.domainEvents = domainEvents;
+        this.bookingCommands = new WorkplaceBookingCommandCoordinator(bookings);
     }
 
     @Transactional
@@ -81,6 +83,46 @@ public class WorkplaceOperationsService {
 
     @Transactional
     public WorkplaceDtos.Booking relocateBooking(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            UUID bookingId,
+            String locale,
+            String correlationId,
+            String verifiedGroupRefs,
+            WorkplaceOperationsDtos.RelocateBookingRequest request) {
+        return relocateOnce(
+                tenantId, userId, personPublicId, bookingId, locale,
+                correlationId, verifiedGroupRefs, request).result();
+    }
+
+    @Transactional
+    public WorkplaceDtos.Booking relocateBooking(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            UUID bookingId,
+            String locale,
+            String correlationId,
+            String verifiedGroupRefs,
+            String idempotencyKey,
+            WorkplaceOperationsDtos.RelocateBookingRequest request) {
+        return bookingCommands.execute(
+                tenantId, userId, bookingId,
+                WorkplaceBookingCommandCoordinator.RELOCATE,
+                idempotencyKey, correlationId,
+                java.util.Arrays.asList(
+                        request.resourceId(), request.startsAt(), request.endsAt(),
+                        WorkplaceBookingCommandCoordinator.normalizedText(request.reason()),
+                        request.version()),
+                () -> authorizeBookingReplay(
+                        tenantId, userId, bookingId, locale, verifiedGroupRefs),
+                () -> relocateOnce(
+                        tenantId, userId, personPublicId, bookingId, locale,
+                        correlationId, verifiedGroupRefs, request));
+    }
+
+    private WorkplaceBookingCommandCoordinator.Completion relocateOnce(
             Long tenantId,
             Long userId,
             UUID personPublicId,
@@ -160,7 +202,8 @@ public class WorkplaceOperationsService {
         snapshot.put("startsAt", request.startsAt());
         snapshot.put("endsAt", request.endsAt());
         snapshot.put("reason", blank(request.reason()));
-        operations.audit(tenantId, userId, "workplace.booking.relocated",
+        UUID auditEventId = bookings.auditCommand(
+                tenantId, userId, "workplace.booking.relocated",
                 bookingId, correlationId, snapshot);
         domainEvents.bookingChanged(
                 WorkplaceDomainEvents.RELOCATED,
@@ -177,7 +220,8 @@ public class WorkplaceOperationsService {
                         request.endsAt(),
                         "MEMBER_RELOCATED",
                         current.version() + 1));
-        return bookingById(tenantId, userId, bookingId, locale);
+        return new WorkplaceBookingCommandCoordinator.Completion(
+                bookingById(tenantId, userId, bookingId, locale), auditEventId);
     }
 
     @Transactional(readOnly = true)
@@ -357,6 +401,19 @@ public class WorkplaceOperationsService {
                 .booking(tenantId, userId, bookingId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         return workplace.booking(row, catalog.policy(tenantId), OffsetDateTime.now());
+    }
+
+    private void authorizeBookingReplay(
+            Long tenantId,
+            Long userId,
+            UUID bookingId,
+            String locale,
+            String verifiedGroupRefs) {
+        WorkplaceBookingRepository.BookingRow row = bookings
+                .booking(tenantId, userId, bookingId, korean(locale))
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        workplace.requireBookingBookAccess(
+                tenantId, userId, verifiedGroupRefs, row);
     }
 
     private String normalizeIdempotencyKey(String value) {

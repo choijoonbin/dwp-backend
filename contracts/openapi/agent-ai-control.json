@@ -1,0 +1,1143 @@
+{
+  "components": {
+    "schemas": {
+      "AIControlOverview": {
+        "additionalProperties": false,
+        "properties": {
+          "controlScope": {
+            "const": "ASK_RUNTIME",
+            "default": "ASK_RUNTIME",
+            "title": "Controlscope",
+            "type": "string"
+          },
+          "enforcementActivationState": {
+            "$ref": "#/components/schemas/EnforcementActivationState"
+          },
+          "policy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TenantAIExecutionPolicy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "runtimeControlState": {
+            "$ref": "#/components/schemas/RuntimeControlState"
+          },
+          "toolEnforcementState": {
+            "$ref": "#/components/schemas/ToolEnforcementState",
+            "default": "NOT_CONNECTED"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/AIUsageObservation"
+          },
+          "warnings": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 20,
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enforcementActivationState",
+          "runtimeControlState",
+          "usage"
+        ],
+        "title": "AIControlOverview",
+        "type": "object"
+      },
+      "AIControlOverviewEnvelope": {
+        "additionalProperties": false,
+        "properties": {
+          "data": {
+            "$ref": "#/components/schemas/AIControlOverview"
+          },
+          "message": {
+            "default": "DWAI-ON AI runtime control loaded.",
+            "title": "Message",
+            "type": "string"
+          },
+          "status": {
+            "default": "SUCCESS",
+            "title": "Status",
+            "type": "string"
+          },
+          "success": {
+            "default": true,
+            "title": "Success",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "data"
+        ],
+        "title": "AIControlOverviewEnvelope",
+        "type": "object"
+      },
+      "AIUsageObservation": {
+        "additionalProperties": false,
+        "properties": {
+          "billedCostMinor": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Billedcostminor"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "estimatedCostMinor": {
+            "anyOf": [
+              {
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Estimatedcostminor"
+          },
+          "measuredInputTokens": {
+            "minimum": 0.0,
+            "title": "Measuredinputtokens",
+            "type": "integer"
+          },
+          "measuredOutputTokens": {
+            "minimum": 0.0,
+            "title": "Measuredoutputtokens",
+            "type": "integer"
+          },
+          "measuredTotalTokens": {
+            "minimum": 0.0,
+            "title": "Measuredtotaltokens",
+            "type": "integer"
+          },
+          "measurementFreshness": {
+            "$ref": "#/components/schemas/MeasurementFreshness"
+          },
+          "measurementObservedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Measurementobservedat"
+          },
+          "periodEnd": {
+            "format": "date-time",
+            "title": "Periodend",
+            "type": "string"
+          },
+          "periodStart": {
+            "format": "date-time",
+            "title": "Periodstart",
+            "type": "string"
+          },
+          "providerBillingState": {
+            "$ref": "#/components/schemas/ExternalDataState",
+            "default": "UNAVAILABLE"
+          },
+          "providerPricingState": {
+            "$ref": "#/components/schemas/ExternalDataState",
+            "default": "UNAVAILABLE"
+          },
+          "providerUsageState": {
+            "$ref": "#/components/schemas/ExternalDataState",
+            "default": "UNAVAILABLE"
+          },
+          "reservedTokens": {
+            "minimum": 0.0,
+            "title": "Reservedtokens",
+            "type": "integer"
+          },
+          "unmeasuredReservedTokens": {
+            "default": 0,
+            "minimum": 0.0,
+            "title": "Unmeasuredreservedtokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "periodStart",
+          "periodEnd",
+          "measuredInputTokens",
+          "measuredOutputTokens",
+          "measuredTotalTokens",
+          "reservedTokens",
+          "measurementFreshness"
+        ],
+        "title": "AIUsageObservation",
+        "type": "object"
+      },
+      "BootstrapAIExecutionPolicyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "alertThresholdPercent": {
+            "default": 80,
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Alertthresholdpercent",
+            "type": "integer"
+          },
+          "allowedKnowledgeSources": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Allowedknowledgesources",
+            "type": "array"
+          },
+          "allowedModelRoutes": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRoutePolicy"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Allowedmodelroutes",
+            "type": "array"
+          },
+          "allowedToolKeys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowedtoolkeys",
+            "type": "array"
+          },
+          "budgetEnforcementMode": {
+            "$ref": "#/components/schemas/BudgetEnforcementMode",
+            "default": "ALERT_ONLY"
+          },
+          "changeReason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "title": "Changereason",
+            "type": "string"
+          },
+          "evaluationGateStatus": {
+            "$ref": "#/components/schemas/EvaluationGateStatus",
+            "default": "NOT_REQUIRED"
+          },
+          "evaluationObservedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluationobservedat"
+          },
+          "evaluationPolicyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluationpolicyversion"
+          },
+          "expectedExistingCount": {
+            "maximum": 1.0,
+            "minimum": 0.0,
+            "title": "Expectedexistingcount",
+            "type": "integer"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "title": "Idempotencykey",
+            "type": "string"
+          },
+          "maxOutputTokensPerRequest": {
+            "default": 900,
+            "maximum": 4096.0,
+            "minimum": 128.0,
+            "title": "Maxoutputtokensperrequest",
+            "type": "integer"
+          },
+          "periodTokenLimit": {
+            "anyOf": [
+              {
+                "maximum": 10000000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Periodtokenlimit"
+          },
+          "requireEvaluationPass": {
+            "default": false,
+            "title": "Requireevaluationpass",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "expectedExistingCount",
+          "allowedModelRoutes",
+          "changeReason"
+        ],
+        "title": "BootstrapAIExecutionPolicyRequest",
+        "type": "object"
+      },
+      "BudgetEnforcementMode": {
+        "enum": [
+          "ALERT_ONLY",
+          "ENFORCED"
+        ],
+        "title": "BudgetEnforcementMode",
+        "type": "string"
+      },
+      "EnforcementActivationState": {
+        "enum": [
+          "DISABLED",
+          "ENABLED"
+        ],
+        "title": "EnforcementActivationState",
+        "type": "string"
+      },
+      "EvaluationEvidenceState": {
+        "enum": [
+          "VERIFIED",
+          "STALE",
+          "UNAVAILABLE"
+        ],
+        "title": "EvaluationEvidenceState",
+        "type": "string"
+      },
+      "EvaluationGateStatus": {
+        "enum": [
+          "NOT_REQUIRED",
+          "PENDING",
+          "PASSED",
+          "FAILED",
+          "STALE"
+        ],
+        "title": "EvaluationGateStatus",
+        "type": "string"
+      },
+      "ExternalDataState": {
+        "enum": [
+          "VERIFIED",
+          "STALE",
+          "UNAVAILABLE",
+          "UNVERIFIED"
+        ],
+        "title": "ExternalDataState",
+        "type": "string"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "MeasurementFreshness": {
+        "enum": [
+          "CURRENT",
+          "STALE",
+          "UNAVAILABLE"
+        ],
+        "title": "MeasurementFreshness",
+        "type": "string"
+      },
+      "ModelRoutePolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "availabilityObservedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availabilityobservedat"
+          },
+          "availabilityState": {
+            "$ref": "#/components/schemas/ExternalDataState",
+            "default": "UNVERIFIED"
+          },
+          "model": {
+            "maxLength": 160,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "maxLength": 40,
+            "minLength": 2,
+            "pattern": "^[A-Z][A-Z0-9_]*$",
+            "title": "Provider",
+            "type": "string"
+          },
+          "region": {
+            "anyOf": [
+              {
+                "maxLength": 80,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Region"
+          }
+        },
+        "required": [
+          "provider",
+          "model"
+        ],
+        "title": "ModelRoutePolicy",
+        "type": "object"
+      },
+      "RuntimeControlState": {
+        "enum": [
+          "ENABLED",
+          "EMERGENCY_DISABLED",
+          "POLICY_NOT_CONFIGURED",
+          "CONTROL_UNAVAILABLE"
+        ],
+        "title": "RuntimeControlState",
+        "type": "string"
+      },
+      "SetAIEmergencyDisableRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "changeReason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "title": "Changereason",
+            "type": "string"
+          },
+          "disabled": {
+            "title": "Disabled",
+            "type": "boolean"
+          },
+          "expectedVersion": {
+            "minimum": 1.0,
+            "title": "Expectedversion",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "disabled",
+          "expectedVersion",
+          "changeReason"
+        ],
+        "title": "SetAIEmergencyDisableRequest",
+        "type": "object"
+      },
+      "TenantAIExecutionPolicy": {
+        "additionalProperties": false,
+        "properties": {
+          "alertThresholdPercent": {
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Alertthresholdpercent",
+            "type": "integer"
+          },
+          "allowedKnowledgeSources": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Allowedknowledgesources",
+            "type": "array"
+          },
+          "allowedModelRoutes": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRoutePolicy"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Allowedmodelroutes",
+            "type": "array"
+          },
+          "allowedToolKeys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowedtoolkeys",
+            "type": "array"
+          },
+          "budgetEnforcementMode": {
+            "$ref": "#/components/schemas/BudgetEnforcementMode"
+          },
+          "emergencyDisabled": {
+            "title": "Emergencydisabled",
+            "type": "boolean"
+          },
+          "evaluationEvidenceState": {
+            "$ref": "#/components/schemas/EvaluationEvidenceState",
+            "default": "UNAVAILABLE"
+          },
+          "evaluationGateStatus": {
+            "$ref": "#/components/schemas/EvaluationGateStatus"
+          },
+          "evaluationObservedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluationobservedat"
+          },
+          "evaluationPolicyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluationpolicyversion"
+          },
+          "maxOutputTokensPerRequest": {
+            "maximum": 4096.0,
+            "minimum": 128.0,
+            "title": "Maxoutputtokensperrequest",
+            "type": "integer"
+          },
+          "periodTokenLimit": {
+            "anyOf": [
+              {
+                "maximum": 10000000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Periodtokenlimit"
+          },
+          "policyVersion": {
+            "minimum": 1.0,
+            "title": "Policyversion",
+            "type": "integer"
+          },
+          "requireEvaluationPass": {
+            "title": "Requireevaluationpass",
+            "type": "boolean"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "title": "Updatedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "emergencyDisabled",
+          "allowedModelRoutes",
+          "maxOutputTokensPerRequest",
+          "budgetEnforcementMode",
+          "alertThresholdPercent",
+          "requireEvaluationPass",
+          "evaluationGateStatus",
+          "policyVersion",
+          "updatedAt"
+        ],
+        "title": "TenantAIExecutionPolicy",
+        "type": "object"
+      },
+      "ToolEnforcementState": {
+        "enum": [
+          "NOT_CONNECTED"
+        ],
+        "title": "ToolEnforcementState",
+        "type": "string"
+      },
+      "UpdateAIExecutionPolicyRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "alertThresholdPercent": {
+            "maximum": 100.0,
+            "minimum": 1.0,
+            "title": "Alertthresholdpercent",
+            "type": "integer"
+          },
+          "allowedKnowledgeSources": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 50,
+            "title": "Allowedknowledgesources",
+            "type": "array"
+          },
+          "allowedModelRoutes": {
+            "items": {
+              "$ref": "#/components/schemas/ModelRoutePolicy"
+            },
+            "maxItems": 50,
+            "minItems": 1,
+            "title": "Allowedmodelroutes",
+            "type": "array"
+          },
+          "allowedToolKeys": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowedtoolkeys",
+            "type": "array"
+          },
+          "budgetEnforcementMode": {
+            "$ref": "#/components/schemas/BudgetEnforcementMode"
+          },
+          "changeReason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "title": "Changereason",
+            "type": "string"
+          },
+          "evaluationGateStatus": {
+            "$ref": "#/components/schemas/EvaluationGateStatus"
+          },
+          "evaluationObservedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluationobservedat"
+          },
+          "evaluationPolicyVersion": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaluationpolicyversion"
+          },
+          "expectedVersion": {
+            "minimum": 1.0,
+            "title": "Expectedversion",
+            "type": "integer"
+          },
+          "maxOutputTokensPerRequest": {
+            "maximum": 4096.0,
+            "minimum": 128.0,
+            "title": "Maxoutputtokensperrequest",
+            "type": "integer"
+          },
+          "periodTokenLimit": {
+            "anyOf": [
+              {
+                "maximum": 10000000000.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Periodtokenlimit"
+          },
+          "requireEvaluationPass": {
+            "title": "Requireevaluationpass",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "allowedModelRoutes",
+          "maxOutputTokensPerRequest",
+          "budgetEnforcementMode",
+          "alertThresholdPercent",
+          "requireEvaluationPass",
+          "evaluationGateStatus",
+          "expectedVersion",
+          "changeReason"
+        ],
+        "title": "UpdateAIExecutionPolicyRequest",
+        "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "DWP Agent Runtime",
+    "version": "0.2.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/admin/ai-control": {
+      "get": {
+        "operationId": "get_ai_control_overview_v1_admin_ai_control_get",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "X-Dwp-Tenant-Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Permissions",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dwp-Permissions"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIControlOverviewEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Ai Control Overview",
+        "tags": [
+          "administration"
+        ]
+      }
+    },
+    "/v1/admin/ai-control/bootstrap": {
+      "post": {
+        "operationId": "bootstrap_ai_control_v1_admin_ai_control_bootstrap_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "X-Dwp-Tenant-Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "X-Dwp-User-Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "X-Correlation-Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Permissions",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dwp-Permissions"
+            }
+          },
+          {
+            "description": "Required for product-authorization rollout states 110/111. The gateway rejects a missing or stale value before the state-changing request reaches the Agent owner service; rollout states 000/100 ignore it.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dwp-Expected-Decision-Revision"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BootstrapAIExecutionPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIControlOverviewEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Bootstrap Ai Control",
+        "tags": [
+          "administration"
+        ]
+      }
+    },
+    "/v1/admin/ai-control/emergency": {
+      "post": {
+        "operationId": "set_ai_emergency_control_v1_admin_ai_control_emergency_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "X-Dwp-Tenant-Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "X-Dwp-User-Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "X-Correlation-Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Permissions",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dwp-Permissions"
+            }
+          },
+          {
+            "description": "Required for product-authorization rollout states 110/111. The gateway rejects a missing or stale value before the state-changing request reaches the Agent owner service; rollout states 000/100 ignore it.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dwp-Expected-Decision-Revision"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetAIEmergencyDisableRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIControlOverviewEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Ai Emergency Control",
+        "tags": [
+          "administration"
+        ]
+      }
+    },
+    "/v1/admin/ai-control/policy": {
+      "put": {
+        "operationId": "update_ai_control_policy_v1_admin_ai_control_policy_put",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-DWP-Tenant-ID",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "X-Dwp-Tenant-Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-User-ID",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "X-Dwp-User-Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "title": "X-Correlation-Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Permissions",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dwp-Permissions"
+            }
+          },
+          {
+            "description": "Required for product-authorization rollout states 110/111. The gateway rejects a missing or stale value before the state-changing request reaches the Agent owner service; rollout states 000/100 ignore it.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Dwp-Expected-Decision-Revision"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateAIExecutionPolicyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIControlOverviewEnvelope"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Ai Control Policy",
+        "tags": [
+          "administration"
+        ]
+      }
+    }
+  }
+}

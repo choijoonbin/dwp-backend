@@ -66,7 +66,7 @@ class Core006LocalPilotRolloutSeedPostgresTest {
             }
             return counts;
         });
-        assertThat(values).containsEntry(true, 10).containsEntry(false, 16);
+        assertThat(values).containsEntry(true, 12).containsEntry(false, 14);
 
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*)
@@ -113,11 +113,13 @@ class Core006LocalPilotRolloutSeedPostgresTest {
                 "access.product-surfaces.capability-enforcement.hcm.v1",
                 "access.product-surfaces.capability-enforcement.services.v1",
                 "access.product-surfaces.capability-enforcement.v1",
+                "access.product-surfaces.capability-enforcement.workplace.v1",
                 "access.product-surfaces.context-shadow.v1",
                 "ux.product-surfaces.approvals.v1",
                 "ux.product-surfaces.communications.v1",
                 "ux.product-surfaces.hcm.v1",
-                "ux.product-surfaces.services.v1");
+                "ux.product-surfaces.services.v1",
+                "ux.product-surfaces.workplace.v1");
 
         assertThat(jdbc.queryForList("""
                 WITH decisions AS (
@@ -161,7 +163,20 @@ class Core006LocalPilotRolloutSeedPostgresTest {
                 "notifications=100",
                 "services=111",
                 "spaces=100",
-                "workplace=100");
+                "workplace=111");
+
+        assertThat(jdbc.queryForList("""
+                SELECT CONCAT(flag.feature_key, '=', decision.opaque_revision)
+                  FROM prv_feature_rollout_decision_revision decision
+                  JOIN prv_feature_flags flag
+                    ON flag.feature_flag_id = decision.feature_flag_id
+                 WHERE flag.feature_key IN (
+                       'access.product-surfaces.capability-enforcement.workplace.v1',
+                       'ux.product-surfaces.workplace.v1')
+                 ORDER BY flag.feature_key
+                """, String.class)).containsExactly(
+                "access.product-surfaces.capability-enforcement.workplace.v1=2",
+                "ux.product-surfaces.workplace.v1=2");
     }
 
     @Test
@@ -197,6 +212,7 @@ class Core006LocalPilotRolloutSeedPostgresTest {
 
     @Test
     void repeatableSeedIsIdempotentWhenExecutedAgain() throws Exception {
+        Map<String, Long> revisionsBefore = workplaceDecisionRevisions();
         try (Connection connection = dataSource.getConnection()) {
             connection.setAutoCommit(false);
             ScriptUtils.executeSqlScript(
@@ -225,6 +241,27 @@ class Core006LocalPilotRolloutSeedPostgresTest {
                 SELECT COUNT(*) FROM prv_feature_rollout_approvals
                  WHERE rollout_approval_id::text LIKE 'c0063000-%'
                 """, Integer.class)).isEqualTo(26);
+        assertThat(workplaceDecisionRevisions()).isEqualTo(revisionsBefore);
+    }
+
+    private Map<String, Long> workplaceDecisionRevisions() {
+        return jdbc.query("""
+                SELECT flag.feature_key, decision.opaque_revision
+                  FROM prv_feature_rollout_decision_revision decision
+                  JOIN prv_feature_flags flag
+                    ON flag.feature_flag_id = decision.feature_flag_id
+                 WHERE flag.feature_key IN (
+                       'access.product-surfaces.capability-enforcement.workplace.v1',
+                       'ux.product-surfaces.workplace.v1')
+                 ORDER BY flag.feature_key
+                """, result -> {
+            java.util.LinkedHashMap<String, Long> revisions = new java.util.LinkedHashMap<>();
+            while (result.next()) {
+                revisions.put(result.getString("feature_key"),
+                        result.getLong("opaque_revision"));
+            }
+            return revisions;
+        });
     }
 
     @Test

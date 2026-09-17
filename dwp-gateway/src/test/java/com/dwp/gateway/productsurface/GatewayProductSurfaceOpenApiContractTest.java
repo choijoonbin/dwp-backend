@@ -143,6 +143,12 @@ class GatewayProductSurfaceOpenApiContractTest {
                         binding.path("method").asText().toLowerCase()));
             }
         }
+        expected.add(new GatewayOperation(
+                "/api/platform/v1/admin/workplace/connectors/{kind}/replays:preview",
+                "post"));
+        expected.add(new GatewayOperation(
+                "/api/platform/v1/admin/workplace/connectors/{kind}/replays",
+                "post"));
         assertThat(expected).isNotEmpty();
 
         expected.forEach(binding -> {
@@ -196,7 +202,24 @@ class GatewayProductSurfaceOpenApiContractTest {
                                 path.getKey(), method.getKey()));
                     }
                 }));
-        assertThat(actualConditional).containsExactlyInAnyOrderElementsOf(expected);
+        JsonNode latest = read(root,
+                "contracts/product-authorization/product-surfaces-v1.json");
+        Set<GatewayOperation> governedActions = new HashSet<>();
+        for (JsonNode route : latest.path("routes")) {
+            if (!"ACTIVE".equals(route.path("lifecycleState").asText())
+                    || !"PRODUCT".equals(route.path("subject").path("type").asText())
+                    || !"ACTION".equals(route.path("routeKind").asText())
+                    || route.path("sideEffectFree").asBoolean(false)) {
+                continue;
+            }
+            for (JsonNode binding : route.path("gatewayApiBindings")) {
+                governedActions.add(new GatewayOperation(
+                        binding.path("path").asText(),
+                        binding.path("method").asText().toLowerCase()));
+            }
+        }
+        assertThat(actualConditional).containsAll(expected);
+        assertThat(governedActions).containsAll(actualConditional);
     }
 
     @Test

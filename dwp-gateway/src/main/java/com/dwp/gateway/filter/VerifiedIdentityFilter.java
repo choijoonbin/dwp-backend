@@ -33,6 +33,7 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
     public static final String RESOURCE_ROLES_HEADER = "X-DWP-Resource-Roles";
     public static final String PERSON_PUBLIC_ID_HEADER = "X-DWP-Person-Public-ID";
     public static final String DISPLAY_NAME_HEADER = "X-DWP-Display-Name-B64";
+    public static final String LEGACY_DISPLAY_NAME_HEADER = "X-DWP-User-Display-Name";
     public static final String AUTH_SESSION_ID_HEADER = "X-DWP-Auth-Session-ID";
     public static final String IDENTITY_PLANE_HEADER = "X-DWP-Identity-Plane";
     public static final String LEGACY_ROLE_FALLBACK_HEADER =
@@ -56,6 +57,9 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        if (DeviceIdentityPlaneFilter.verified(exchange)) {
+            return chain.filter(exchange);
+        }
         ServerHttpRequest sanitizedRequest = exchange.getRequest().mutate()
                 .headers(headers -> {
                     headers.remove(USER_HEADER);
@@ -66,6 +70,7 @@ public class VerifiedIdentityFilter implements GlobalFilter, Ordered {
                     headers.remove(RESOURCE_ROLES_HEADER);
                     headers.remove(PERSON_PUBLIC_ID_HEADER);
                     headers.remove(DISPLAY_NAME_HEADER);
+                    headers.remove(LEGACY_DISPLAY_NAME_HEADER);
                     headers.remove(AUTH_SESSION_ID_HEADER);
                     headers.remove(IDENTITY_PLANE_HEADER);
                     headers.remove(LEGACY_ROLE_FALLBACK_HEADER);

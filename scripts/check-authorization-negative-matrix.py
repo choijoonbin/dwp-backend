@@ -307,7 +307,7 @@ ROUTED_PRODUCT_PEPS = {
         "fullChainTestReference": (
             "dwp-platform-server/src/test/java/com/dwp/services/platform/security/"
             "WorkplaceProductSurfacePepContractTest.java"
-            "#v4DraftPageDataAndActionBindingsReachActualWorkplaceRoutes"
+            "#v20PageDataAndActionBindingsReachActualWorkplaceRoutes"
         ),
         "chainInvariant": {
             "kind": "MOCK_MVC_FILTER_CHAIN",

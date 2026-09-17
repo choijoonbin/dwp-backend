@@ -31,6 +31,7 @@ import com.dwp.services.notification.domain.NotificationQueryRepository.ChangedP
 import com.dwp.services.notification.domain.NotificationQueryRepository.CatalogType;
 import com.dwp.services.notification.domain.NotificationQueryRepository.CounterSnapshot;
 import com.dwp.services.notification.domain.NotificationQueryRepository.InboxFilters;
+import com.dwp.services.notification.domain.NotificationQueryRepository.InboxContextFilter;
 import com.dwp.services.notification.domain.NotificationQueryRepository.InboxRow;
 import com.dwp.services.notification.domain.NotificationQueryRepository.ViewCounts;
 import com.dwp.services.notification.domain.NotificationEffectivePolicyRepository.EffectivePolicy;
@@ -108,7 +109,9 @@ public class NotificationService {
             String viewValue,
             int limit,
             String cursorToken) {
-        return inbox(actor, viewValue, limit, cursorToken, null, null, null, null, null, null, null);
+        return inbox(
+                actor, viewValue, limit, cursorToken,
+                null, null, null, null, null, null, List.of(), List.of(), List.of(), null, null);
     }
 
     @Transactional(readOnly = true)
@@ -122,6 +125,10 @@ public class NotificationService {
             String priority,
             String readState,
             String reason,
+            String attentionEffect,
+            List<String> includedTypes,
+            List<String> contextKinds,
+            List<String> contextKeys,
             String from,
             String to) {
         databaseScope.applyUser(actor);
@@ -129,19 +136,20 @@ public class NotificationService {
         InboxCursor cursor = cursorToken == null || cursorToken.isBlank()
                 ? null
                 : cursorCodec.decodeInbox(actor, cursorToken);
-        List<InboxRow> rows = queryRepository.inbox(
-                actor,
-                InboxView.from(viewValue),
-                new InboxFilters(
+        InboxView view = InboxView.from(viewValue);
+        InboxFilters filters = new InboxFilters(
                         blankToNull(query),
                         blankToNull(appKey),
                         blankToNull(priority),
                         blankToNull(readState),
                         blankToNull(reason),
+                        blankToNull(attentionEffect),
+                        includedTypes,
+                        contextFilters(contextKinds, contextKeys),
                         parseInstant(from),
-                        parseInstant(to)),
-                boundedLimit + 1,
-                cursor);
+                        parseInstant(to));
+        List<InboxRow> rows = queryRepository.inbox(
+                actor, view, filters, boundedLimit + 1, cursor);
         boolean hasMore = rows.size() > boundedLimit;
         List<InboxRow> pageRows = hasMore
                 ? List.copyOf(rows.subList(0, boundedLimit))
@@ -160,7 +168,7 @@ public class NotificationService {
                 items,
                 nextCursor,
                 hasMore,
-                null,
+                queryRepository.inboxTotal(actor, view, filters),
                 summary.changeVersion());
     }
 
@@ -639,6 +647,22 @@ public class NotificationService {
         if (trimmed.isEmpty()) return null;
         if ("ALL".equalsIgnoreCase(trimmed)) return null;
         return trimmed;
+    }
+
+    private List<InboxContextFilter> contextFilters(
+            List<String> kinds,
+            List<String> keys) {
+        List<String> suppliedKinds = kinds == null ? List.of() : List.copyOf(kinds);
+        List<String> suppliedKeys = keys == null ? List.of() : List.copyOf(keys);
+        if (suppliedKinds.size() != suppliedKeys.size()) {
+            throw new NotificationException(
+                    NotificationErrorCode.INVALID_INPUT,
+                    "Each notification context kind requires one exact key.");
+        }
+        return java.util.stream.IntStream.range(0, suppliedKinds.size())
+                .mapToObj(index -> new InboxContextFilter(
+                        suppliedKinds.get(index), suppliedKeys.get(index)))
+                .toList();
     }
 
     private long decodeChangeVersion(String value) {

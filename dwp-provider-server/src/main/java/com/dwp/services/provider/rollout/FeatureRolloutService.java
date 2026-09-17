@@ -302,7 +302,15 @@ public class FeatureRolloutService {
     @Transactional
     public FeatureRolloutDtos.Evaluation evaluate(String featureKey, UUID tenantId) {
         ProviderRequestContext.requirePermission(READ);
-        return evaluateDecision(featureKey, tenantId);
+        return evaluateDecision(featureKey, tenantId, true);
+    }
+
+    @Transactional(readOnly = true)
+    public FeatureRolloutDtos.Evaluation resolveEffectiveValue(
+            String featureKey,
+            UUID tenantId) {
+        ProviderRequestContext.requirePermission(READ);
+        return evaluateDecision(featureKey, tenantId, false);
     }
 
     FeatureRolloutDtos.Evaluation evaluateProductSurfaceFlag(
@@ -314,10 +322,13 @@ public class FeatureRolloutService {
         UUID tenantId = repository.tenantByAuthTenantId(authTenantId)
                 .map(FeatureRolloutRepository.TenantRow::tenantId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        return evaluateDecision(featureKey, tenantId);
+        return evaluateDecision(featureKey, tenantId, true);
     }
 
-    private FeatureRolloutDtos.Evaluation evaluateDecision(String featureKey, UUID tenantId) {
+    private FeatureRolloutDtos.Evaluation evaluateDecision(
+            String featureKey,
+            UUID tenantId,
+            boolean recordEvaluation) {
         FeatureRolloutRepository.FlagRow flag = repository.flag(featureKey)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         FeatureRolloutRepository.TenantRow tenant = repository.tenant(tenantId)
@@ -344,13 +355,15 @@ public class FeatureRolloutService {
             break;
         }
         String variantHash = hash(value.toString());
-        repository.recordEvaluation(
-                flag.flagId(),
-                selected == null ? null : selected.rolloutId(),
-                tenantId,
-                reason,
-                exposure,
-                variantHash);
+        if (recordEvaluation) {
+            repository.recordEvaluation(
+                    flag.flagId(),
+                    selected == null ? null : selected.rolloutId(),
+                    tenantId,
+                    reason,
+                    exposure,
+                    variantHash);
+        }
         return new FeatureRolloutDtos.Evaluation(
                 featureKey,
                 tenantId,

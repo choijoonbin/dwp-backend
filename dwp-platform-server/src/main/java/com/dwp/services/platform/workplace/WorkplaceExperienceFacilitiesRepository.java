@@ -205,14 +205,31 @@ class WorkplaceExperienceFacilitiesRepository {
     }
 
     boolean updateRequest(Long tenant, Long actor, UUID id, ChangeRequestStatus request) {
+        String assignedTo = trimToNull(request.assignedTo());
+        String serviceProvider = trimToNull(request.serviceProvider());
+        String workOrderReference = trimToNull(request.externalWorkOrderReference());
         return jdbc.update("""
                 UPDATE wp_experience_facility_requests SET request_status = :status,
-                  status_reason = :reason, version = version + 1,
+                  status_reason = :reason,
+                  priority = COALESCE(:priority, priority),
+                  assigned_to = CASE WHEN :assignedToSupplied THEN :assignedTo ELSE assigned_to END,
+                  service_provider = CASE WHEN :serviceProviderSupplied THEN :serviceProvider ELSE service_provider END,
+                  external_work_order_reference = CASE WHEN :workOrderReferenceSupplied
+                    THEN :workOrderReference ELSE external_work_order_reference END,
+                  sla_due_at = CASE WHEN :clearSla THEN NULL ELSE COALESCE(:slaDueAt, sla_due_at) END,
+                  version = version + 1,
                   updated_at = CURRENT_TIMESTAMP, updated_by = :actorId
                 WHERE tenant_id = :tenantId AND request_id = :id AND version = :version
                 """, p(tenant, null).addValue("id", id).addValue("actorId", actor)
                 .addValue("version", request.version()).addValue("status", request.status().name())
-                .addValue("reason", request.reason().trim())) == 1;
+                .addValue("reason", request.reason().trim())
+                .addValue("priority", request.priority() == null ? null : request.priority().name())
+                .addValue("assignedToSupplied", request.assignedTo() != null).addValue("assignedTo", assignedTo)
+                .addValue("serviceProviderSupplied", request.serviceProvider() != null)
+                .addValue("serviceProvider", serviceProvider)
+                .addValue("workOrderReferenceSupplied", request.externalWorkOrderReference() != null)
+                .addValue("workOrderReference", workOrderReference)
+                .addValue("slaDueAt", request.slaDueAt()).addValue("clearSla", request.clearSla())) == 1;
     }
 
     OffsetDateTime generatedAt() { return jdbc.getJdbcTemplate().queryForObject("SELECT transaction_timestamp()", OffsetDateTime.class); }
@@ -254,8 +271,17 @@ class WorkplaceExperienceFacilitiesRepository {
         return new FacilityRequest(rs.getObject("request_id", UUID.class), rs.getObject("resource_id", UUID.class),
                 rs.getObject("site_id", UUID.class), rs.getObject("floor_id", UUID.class), rs.getString("resource_name"),
                 Category.valueOf(rs.getString("category")), rs.getString("description"),
-                RequestStatus.valueOf(rs.getString("request_status")), rs.getString("status_reason"), rs.getLong("version"),
+                RequestStatus.valueOf(rs.getString("request_status")), rs.getString("status_reason"),
+                RequestPriority.valueOf(rs.getString("priority")), rs.getString("assigned_to"),
+                rs.getString("service_provider"), rs.getString("external_work_order_reference"),
+                rs.getObject("sla_due_at", OffsetDateTime.class), rs.getLong("version"),
                 rs.getObject("created_at", OffsetDateTime.class), rs.getObject("updated_at", OffsetDateTime.class), "WORKPLACE_FACILITIES");
+    }
+
+    private static String trimToNull(String value) {
+        if (value == null) return null;
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
     }
 
     void lockCalendar(Long tenant, UUID resource) {

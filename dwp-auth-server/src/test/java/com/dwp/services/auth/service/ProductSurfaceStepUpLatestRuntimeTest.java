@@ -536,8 +536,8 @@ class ProductSurfaceStepUpLatestRuntimeTest {
     }
 
     @Test
-    void arbitraryFifteenCannotResolveOrIssueFromAnActualActiveDatabasePointer() {
-        for (long version : List.of(15L)) {
+    void arbitraryTwentyTwoCannotResolveOrIssueFromAnActualActiveDatabasePointer() {
+        for (long version : List.of(22L)) {
             rollback(() -> {
                 jdbc.update("""
                         INSERT INTO auth_product_authorization_bundle(bundle_key,version,bundle_status,

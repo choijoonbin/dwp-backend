@@ -136,26 +136,26 @@ class ProductAuthorizationLocalPilotActivationRunnerTest {
     }
 
     @Test
-    void activatesConfiguredLatestBundleOverAnOlderLocalPilot() {
+    void activatesConfiguredV20BundleOverAnOlderLocalPilot() {
         ProductAuthorizationContractDtos.BundleView draft =
-                bundle(14, "DRAFT", 0, "sha256:local-v14");
+                bundle(20, "DRAFT", 0, "sha256:local-v20");
         ProductAuthorizationContractDtos.BundleView approved =
-                bundle(14, "APPROVED", 0, "sha256:local-v14");
+                bundle(20, "APPROVED", 0, "sha256:local-v20");
         ProductAuthorizationContractDtos.BundleView activeV3 = bundle("ACTIVE", 7);
-        when(service.version("product-surfaces", 14)).thenReturn(draft);
-        when(service.approve("product-surfaces", 14, APPROVER)).thenReturn(approved);
+        when(service.version("product-surfaces", 20)).thenReturn(draft);
+        when(service.approve("product-surfaces", 20, APPROVER)).thenReturn(approved);
         when(service.active("product-surfaces")).thenReturn(activeV3);
-        when(service.activate("product-surfaces", 14, ACTIVATOR, 7))
+        when(service.activate("product-surfaces", 20, ACTIVATOR, 7))
                 .thenReturn(new ProductAuthorizationContractDtos.ActivationResult(
-                        "product-surfaces", 14, "ACTIVATE", 8, "sha256:local-v14"));
+                        "product-surfaces", 20, "ACTIVATE", 8, "sha256:local-v20"));
 
-        runner(true, "local", APPROVER, ACTIVATOR, 14).run(null);
+        runner(true, "local", APPROVER, ACTIVATOR, 20).run(null);
 
         InOrder order = inOrder(service);
-        order.verify(service).version("product-surfaces", 14);
-        order.verify(service).approve("product-surfaces", 14, APPROVER);
+        order.verify(service).version("product-surfaces", 20);
+        order.verify(service).approve("product-surfaces", 20, APPROVER);
         order.verify(service).active("product-surfaces");
-        order.verify(service).activate("product-surfaces", 14, ACTIVATOR, 7);
+        order.verify(service).activate("product-surfaces", 20, ACTIVATOR, 7);
     }
 
     private ProductAuthorizationLocalPilotActivationRunner runner(

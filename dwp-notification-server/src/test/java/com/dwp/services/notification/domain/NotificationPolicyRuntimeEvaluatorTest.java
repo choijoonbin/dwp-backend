@@ -38,4 +38,27 @@ class NotificationPolicyRuntimeEvaluatorTest {
                 NotificationPolicyRuntimeEvaluator.userRule(false, null, null),
                 null)).isTrue();
     }
+
+    @Test
+    void exactFollowOverridesUserMuteAndDisabledProfileWhenPolicyAllowsIt() {
+        var overridable = NotificationPolicyRuntimeEvaluator.policy(
+                true, false, true, true, "IMMEDIATE");
+        var userMuted = NotificationPolicyRuntimeEvaluator.userRule(
+                true, "MUTED", false);
+
+        assertThat(NotificationPolicyRuntimeEvaluator.inAppDeliveryEnabled(
+                overridable, userMuted, false, true)).isTrue();
+    }
+
+    @Test
+    void exactFollowNeverOverridesManagedPolicy() {
+        var managed = NotificationPolicyRuntimeEvaluator.policy(
+                true, true, false, false, "MUTED");
+
+        assertThat(NotificationPolicyRuntimeEvaluator.inAppDeliveryEnabled(
+                managed,
+                NotificationPolicyRuntimeEvaluator.userRule(false, null, null),
+                true,
+                true)).isFalse();
+    }
 }

@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -154,6 +155,59 @@ public class MailOrganizationService {
         MailOrganizationDtos.RuleSummary after = rule(tenantId, userId, ruleId);
         record(tenantId, userId, correlationId, "mail.rule.updated", "MAIL_RULE",
                 ruleId, ruleState(before), ruleState(after));
+        return after;
+    }
+
+    @Transactional
+    public MailOrganizationDtos.OrganizationResponse reorderRules(
+            Long tenantId,
+            Long userId,
+            String correlationId,
+            MailOrganizationDtos.RuleOrderRequest request) {
+        List<MailOrganizationDtos.RuleOrderItem> order = request.rules();
+        if (new HashSet<>(order.stream().map(MailOrganizationDtos.RuleOrderItem::ruleId).toList())
+                .size() != order.size()) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "A rule can appear only once.");
+        }
+        List<MailOrganizationDtos.RuleSummary> before = order.stream()
+                .map(item -> rule(tenantId, userId, item.ruleId()))
+                .toList();
+        UUID accountId = before.get(0).accountId();
+        if (before.stream().anyMatch(item -> !accountId.equals(item.accountId()))) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Rules from different mail accounts cannot be reordered together.");
+        }
+        List<MailOrganizationDtos.RuleSummary> activeAccountRules = queries.rules(tenantId, userId)
+                .stream()
+                .filter(item -> accountId.equals(item.accountId()))
+                .toList();
+        if (activeAccountRules.size() != order.size()
+                || !new HashSet<>(activeAccountRules.stream()
+                        .map(MailOrganizationDtos.RuleSummary::ruleId).toList())
+                        .equals(new HashSet<>(order.stream()
+                                .map(MailOrganizationDtos.RuleOrderItem::ruleId).toList()))) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Submit the complete active rule order for one mail account.");
+        }
+        for (int index = 0; index < order.size(); index++) {
+            MailOrganizationDtos.RuleOrderItem item = order.get(index);
+            MailOrganizationDtos.RuleSummary current = before.get(index);
+            if (current.version() != item.version()
+                    || commands.reorderRule(
+                            tenantId, userId, item.ruleId(), index + 1, item.version()) != 1) {
+                throw conflict("A rule changed. Refresh before reordering again.");
+            }
+        }
+        MailOrganizationDtos.OrganizationResponse after = organization(tenantId, userId);
+        for (MailOrganizationDtos.RuleSummary previous : before) {
+            MailOrganizationDtos.RuleSummary reordered = after.rules().stream()
+                    .filter(item -> item.ruleId().equals(previous.ruleId()))
+                    .findFirst().orElseThrow(() -> conflict("The reordered rule is unavailable."));
+            record(tenantId, userId, correlationId, "mail.rule.reordered", "MAIL_RULE",
+                    previous.ruleId(), ruleState(previous), ruleState(reordered));
+        }
         return after;
     }
 

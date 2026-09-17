@@ -98,12 +98,10 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                         tenantId, userId, null, null, "User", null, null, "ACTIVE",
                         List.of("APPROVAL_OPERATOR"), List.copyOf(WORK_PERMISSIONS));
             }
-
             @Override
             public List<Subject> search(long tenantId, String query, int limit) {
                 return List.of();
             }
-
             @Override
             public RoleEligibility requireRole(long tenantId, String roleCode) {
                 return new RoleEligibility(tenantId, roleCode, "ACTIVE", 1, true);
@@ -124,7 +122,6 @@ class ApprovalManagementScopeArchitecturePostgresTest {
     void firstNonRootHitAtomicallySeedsAndClonesTheRequiredBaseline() {
         ApprovalManagementScopeProvisioner provisioner =
                 new ApprovalManagementScopeProvisioner(named, true);
-
         provisioner.ensure(84, "RS_TEAM_A");
         jdbc.update("""
                 INSERT INTO apr_form_categories (
@@ -142,7 +139,6 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                         'RS_TEAM_A', 99, 99)
                 """, nonRootForm);
         provisioner.ensure(84, "RS_TEAM_A");
-
         assertThat(count("apr_policy_rules", 84, "RS_TEAM_A")).isEqualTo(4);
         assertThat(count("apr_signature_providers", 84, "RS_TEAM_A")).isEqualTo(3);
         assertThat(jdbc.queryForObject("""
@@ -173,7 +169,6 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                  WHERE form.tenant_id = 84
                    AND form.management_resource_set_key = 'RS_APPROVALS'
                 """, Boolean.class)).isTrue();
-
         ApprovalManagementScopeContext.set("opaque-a", "RS_TEAM_A");
         assertThat(queries.policies(84)).hasSize(4);
         List<ApprovalDtos.SignatureProviderSummary> signatures =
@@ -206,14 +201,12 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 + "VALUES (85, 'SUSPENDED', TIMESTAMPTZ '2025-01-01 00:00:00Z')");
         ApprovalManagementScopeProvisioner provisioner =
                 new ApprovalManagementScopeProvisioner(named, true);
-
         assertThatThrownBy(() -> provisioner.ensure(85, "RS_TEAM_A"))
                 .isInstanceOf(IllegalStateException.class);
         assertThat(jdbc.queryForObject(
                 "SELECT lifecycle_state FROM apr_tenants WHERE tenant_id = 85",
                 String.class)).isEqualTo("SUSPENDED");
         assertThat(count("apr_policy_rules", 85, "RS_TEAM_A")).isZero();
-
         assertThatThrownBy(() -> jdbc.queryForObject(
                 "SELECT seed_approval_tenant(85)", Object.class))
                 .isInstanceOf(DataAccessException.class);
@@ -247,7 +240,6 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 new ApprovalManagementScopeProvisioner(named, true);
         TransactionTemplate transaction = new TransactionTemplate(
                 new DataSourceTransactionManager(dataSource));
-
         assertThatThrownBy(() -> transaction.executeWithoutResult(
                 ignored -> provisioner.ensure(87, "RS_TEAM_A")))
                 .isInstanceOf(DataAccessException.class)
@@ -266,11 +258,9 @@ class ApprovalManagementScopeArchitecturePostgresTest {
     void legacyReadsAreRootOnlyAndExactMissingScopeFailsClosed() {
         seedTenantAndWorkflows();
         jdbc.queryForObject("SELECT seed_approval_tenant(42)", Object.class);
-
         assertThat(queries.workflows(42, false))
                 .extracting(ApprovalDtos.WorkflowSummary::workflowKey)
                 .doesNotContain("FLOW_A", "FLOW_B");
-
         setDecision("work-scope", "route.approvals.admin.workflows.page");
         assertThatThrownBy(() -> queries.workflows(42, false))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
@@ -283,7 +273,6 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(
                                 ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
-
         ApprovalDecisionRevisionContext.clear();
         ApprovalManagementScopeContext.set("opaque-a", "RS_TEAM_A");
         assertThat(queries.workflows(42, false))
@@ -296,7 +285,6 @@ class ApprovalManagementScopeArchitecturePostgresTest {
         seedTenantAndWorkflows();
         publishBundle(WORKFLOW_A, FORM_A, "RS_TEAM_A", "A");
         publishBundle(WORKFLOW_B, FORM_B, "RS_TEAM_B", "B");
-
         setDecision("work-scope", "route.approvals.work.catalog.page");
         assertThat(queries.publishedWorkflowsForWork(42))
                 .extracting(ApprovalDtos.WorkflowSummary::workflowId)
@@ -308,7 +296,6 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 .isEqualTo(FORM_A);
         assertThat(queries.publishedTemplate(42, WORKFLOW_B).form().form().formId())
                 .isEqualTo(FORM_B);
-
         ApprovalDecisionRevisionContext.clear();
         ApprovalManagementScopeContext.set("opaque-a", "RS_TEAM_A");
         assertThat(queries.workflows(42, false))
@@ -335,7 +322,6 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                     new ApprovalDtos.DecisionRequest("APPROVE", null, 0L),
                     "governed-work-decision");
         });
-
         assertThat(result.decision()).isEqualTo("APPROVE");
         assertThat(result.requestStatus()).isEqualTo("APPROVED");
         assertThat(jdbc.queryForObject(
@@ -396,7 +382,6 @@ class ApprovalManagementScopeArchitecturePostgresTest {
         setDecision(
                 "self-scope",
                 "route.approvals.work.request-information-response.action");
-
         transaction.executeWithoutResult(ignored -> commands.respondToInformationRequest(
                 requester,
                 requestA,
@@ -405,7 +390,6 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                         Map.of("detail", "updated", "summary", " Updated summary "),
                         0L),
                 "governed-information-response"));
-
         assertThat(jdbc.queryForObject(
                 "SELECT status FROM apr_requests WHERE request_id = ?",
                 String.class,
@@ -470,13 +454,11 @@ class ApprovalManagementScopeArchitecturePostgresTest {
         setDecision(
                 "self-scope",
                 "route.approvals.work.request-information-response.action");
-
         transaction.executeWithoutResult(ignored -> commands.respondToInformationRequest(
                 actor(99), requestId,
                 new ApprovalDtos.InformationResponseRequest(
                         "Existing evidence confirmed", Map.of("detail", "original"), 0L),
                 "non-material-information-response"));
-
         assertThat(jdbc.queryForObject(
                 "SELECT schema_version FROM apr_request_payloads WHERE request_id = ?",
                 Integer.class, requestId)).isEqualTo(1);
@@ -497,7 +479,6 @@ class ApprovalManagementScopeArchitecturePostgresTest {
         publishBundle(WORKFLOW_A, FORM_A, "RS_TEAM_A", "A");
         publishBundle(WORKFLOW_B, FORM_B, "RS_TEAM_B", "B");
         setDecision("work-scope", "route.approvals.work.catalog.page");
-
         jdbc.update("UPDATE apr_workflow_definitions SET lifecycle_state = 'DRAFT' "
                 + "WHERE workflow_id = ?", WORKFLOW_B);
         assertThat(queries.publishedWorkflowsForWork(42))
@@ -505,13 +486,11 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 .contains(WORKFLOW_A)
                 .doesNotContain(WORKFLOW_B);
         assertWorkCatalogExcludesBundleB();
-
         ApprovalDecisionRevisionContext.clear();
         ApprovalManagementScopeContext.set("opaque-b", "RS_TEAM_B");
         assertThat(queries.form(42, FORM_B).routes())
                 .extracting(ApprovalDtos.FormRouteSummary::workflowId)
                 .containsExactly(WORKFLOW_B);
-
         ApprovalManagementScopeContext.clear();
         setDecision("work-scope", "route.approvals.work.catalog.page");
         jdbc.update("UPDATE apr_workflow_definitions SET lifecycle_state = 'PUBLISHED' "
@@ -520,7 +499,6 @@ class ApprovalManagementScopeArchitecturePostgresTest {
                 + "SET effective_from = CURRENT_TIMESTAMP + INTERVAL '1 day' "
                 + "WHERE form_id = ?", FORM_B);
         assertWorkCatalogExcludesBundleB();
-
         jdbc.update("UPDATE apr_form_workflow_bindings "
                 + "SET effective_from = CURRENT_TIMESTAMP - INTERVAL '2 days', "
                 + "effective_to = CURRENT_TIMESTAMP - INTERVAL '1 day' "

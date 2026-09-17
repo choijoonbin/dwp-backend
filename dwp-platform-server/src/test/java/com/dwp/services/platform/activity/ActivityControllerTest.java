@@ -35,6 +35,8 @@ class ActivityControllerTest {
         when(repository.list(anyLong(), anyLong(), anySet(), anyBoolean(), any(), any(), anyBoolean()))
                 .thenReturn(List.of());
         when(repository.executionCounts(anyLong(), anyLong(), anySet())).thenReturn(new long[7]);
+        when(repository.currentAttention(anyLong(), anyLong(), anySet(), anyBoolean(), anyInt()))
+                .thenReturn(List.of());
     }
 
     @Test
@@ -92,6 +94,7 @@ class ActivityControllerTest {
                 .andExpect(jsonPath("$.data.coverage.supportedObjectTypes").isEmpty());
         mvc.perform(summary).andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.total").value(0))
+                .andExpect(jsonPath("$.data.attentionItems").isEmpty())
                 .andExpect(jsonPath("$.data.coverage.supportedObjectTypes").isEmpty());
     }
 

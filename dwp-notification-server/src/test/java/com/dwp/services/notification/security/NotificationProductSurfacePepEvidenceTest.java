@@ -277,7 +277,8 @@ class NotificationProductSurfacePepEvidenceTest {
 
         verify(service).inbox(
                 any(), eq("PRIORITY"), eq(50), isNull(), isNull(), isNull(),
-                isNull(), isNull(), isNull(), isNull(), isNull());
+                isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(), isNull(),
+                isNull());
         verify(appSummary).summary(any());
         verify(service).mutate(
                 any(), eq(notificationId), eq("READ"), eq(1L), isNull(), eq("pep-read-1"));
@@ -285,6 +286,24 @@ class NotificationProductSurfacePepEvidenceTest {
                 .map(NotificationProductSurfaceContract.BindingDescriptor::routeKind)
                 .collect(java.util.stream.Collectors.toSet()))
                 .isEqualTo(Set.of("PAGE", "DATA", "ACTION"));
+    }
+
+    @Test
+    void prioritizedAttentionFacetReachesTheOwnerServiceAsAnExactMaterializedEffect() throws Exception {
+        mvc.perform(exactRequest(
+                        HttpMethod.GET,
+                        "/api/notifications/v1/inbox",
+                        canonicalScope(TENANT_ID, ACTOR_ID),
+                        CURRENT_REVISION,
+                        "NORMAL")
+                        .param("view", "ALL")
+                        .param("attentionEffect", "PRIORITIZE"))
+                .andExpect(status().isOk());
+
+        verify(service).inbox(
+                any(), eq("ALL"), eq(50), isNull(), isNull(), isNull(),
+                isNull(), isNull(), isNull(), eq("PRIORITIZE"), isNull(), isNull(), isNull(),
+                isNull(), isNull());
     }
 
     private MockHttpServletRequestBuilder exactRequest(

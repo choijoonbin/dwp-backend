@@ -46,8 +46,10 @@ class MailLifecycleServiceTest {
         UUID inboxId = UUID.randomUUID();
         UUID trashId = UUID.randomUUID();
         var before = new MailLifecycleRepository.LifecycleThread(
-                threadId, accountId, inboxId, "INBOX", null, "OPEN", 3L, true);
-        var target = new MailLifecycleRepository.FolderTarget(trashId, accountId, "TRASH");
+                threadId, accountId, inboxId, "INBOX", null, "OPEN", 3L,
+                true, false, false, false);
+        var target = new MailLifecycleRepository.FolderTarget(
+                trashId, accountId, "TRASH", "Trash");
         when(lifecycle.visibleThread(1L, 7L, threadId)).thenReturn(Optional.of(before));
         when(lifecycle.systemTarget(1L, 7L, accountId, "TRASH")).thenReturn(Optional.of(target));
         when(lifecycle.move(1L, 7L, before, target, "TRASHED", inboxId, 3L)).thenReturn(1);
@@ -70,7 +72,7 @@ class MailLifecycleServiceTest {
         UUID threadId = UUID.randomUUID();
         var before = new MailLifecycleRepository.LifecycleThread(
                 threadId, UUID.randomUUID(), UUID.randomUUID(),
-                "INBOX", null, "OPEN", 5L, true);
+                "INBOX", null, "OPEN", 5L, true, false, false, false);
         when(lifecycle.visibleThread(1L, 7L, threadId)).thenReturn(Optional.of(before));
 
         assertThatThrownBy(() -> service.apply(
@@ -88,11 +90,11 @@ class MailLifecycleServiceTest {
     }
 
     @Test
-    void permanentDeleteIsDisabledUntilRetentionAndLegalHoldAreGoverned() {
+    void permanentDeleteIsBlockedWhileRetentionIsActive() {
         UUID threadId = UUID.randomUUID();
         var before = new MailLifecycleRepository.LifecycleThread(
                 threadId, UUID.randomUUID(), UUID.randomUUID(),
-                "TRASH", null, "TRASHED", 2L, false);
+                "TRASH", null, "TRASHED", 2L, false, false, false, false);
         when(lifecycle.visibleThread(1L, 7L, threadId)).thenReturn(Optional.of(before));
 
         assertThatThrownBy(() -> service.apply(
@@ -100,9 +102,60 @@ class MailLifecycleServiceTest {
                 new MailOrganizationDtos.LifecycleRequest(
                         LifecycleAction.DELETE_FOREVER, null, 2L)))
                 .isInstanceOf(BaseException.class)
-                .hasMessageContaining("retention and legal-hold");
+                .hasMessageContaining("RETENTION_PERIOD_ACTIVE");
 
         verify(lifecycle, never()).deleteForever(1L, 7L, before, 2L);
+    }
+
+    @Test
+    void previewResolvesTheGovernedMoveTargetWithoutWriting() {
+        UUID threadId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        UUID targetId = UUID.randomUUID();
+        var before = new MailLifecycleRepository.LifecycleThread(
+                threadId, accountId, UUID.randomUUID(),
+                "INBOX", null, "OPEN", 4L, false, false, false, false);
+        var target = new MailLifecycleRepository.FolderTarget(
+                targetId, accountId, "CUSTOM", "Customer follow-up");
+        when(lifecycle.visibleThread(1L, 7L, threadId)).thenReturn(Optional.of(before));
+        when(lifecycle.target(1L, 7L, accountId, targetId)).thenReturn(Optional.of(target));
+
+        MailOrganizationDtos.LifecyclePreview preview = service.preview(
+                1L, 7L, threadId,
+                new MailOrganizationDtos.LifecycleRequest(
+                        LifecycleAction.MOVE, targetId, 4L));
+
+        assertThat(preview.allowed()).isTrue();
+        assertThat(preview.targetFolderId()).isEqualTo(targetId);
+        assertThat(preview.targetFolderName()).isEqualTo("Customer follow-up");
+        assertThat(preview.affectedCount()).isOne();
+        verify(lifecycle, never()).move(
+                eq(1L), eq(7L), eq(before), eq(target),
+                org.mockito.ArgumentMatchers.anyString(),
+                org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyLong());
+    }
+
+    @Test
+    void permanentDeleteExecutesOnlyAfterEveryGatePasses() {
+        UUID threadId = UUID.randomUUID();
+        var before = new MailLifecycleRepository.LifecycleThread(
+                threadId, UUID.randomUUID(), UUID.randomUUID(),
+                "TRASH", null, "TRASHED", 8L,
+                true, false, false, false);
+        when(lifecycle.visibleThread(1L, 7L, threadId)).thenReturn(Optional.of(before));
+        when(lifecycle.deleteForever(1L, 7L, before, 8L)).thenReturn(1);
+
+        MailOrganizationDtos.LifecycleResult result = service.apply(
+                1L, 7L, threadId, "corr-delete",
+                new MailOrganizationDtos.LifecycleRequest(
+                        LifecycleAction.DELETE_FOREVER, null, 8L));
+
+        assertThat(result.deleted()).isTrue();
+        assertThat(result.thread()).isNull();
+        verify(evidence).audit(
+                eq(1L), eq(7L), eq("mail.thread.delete.forever"), eq("MAIL_THREAD"),
+                eq(threadId.toString()), eq("corr-delete"), anyMap(), anyMap());
     }
 
     private MailDtos.ThreadSummary thread(

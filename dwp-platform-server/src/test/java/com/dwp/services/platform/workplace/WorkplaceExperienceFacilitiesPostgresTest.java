@@ -116,9 +116,23 @@ class WorkplaceExperienceFacilitiesPostgresTest {
     @Test void facilityStatusRejectsStaleVersionAndRevokedMemberScope() {
         var f = fixture("DESK");
         var created = tx(() -> facilities.createRequest(f.tenant,7L,f.resource,"status",null,new CreateRequest(Category.CLEANING,"Clean desk"),null));
+        OffsetDateTime sla = OffsetDateTime.now().plusHours(4).withNano(0);
         var changed = tx(() -> facilities.changeRequestStatus(f.tenant,9L,f.site,created.requestId(),
-                new ChangeRequestStatus(RequestStatus.IN_PROGRESS,0L,"Assigned internally",true),null));
+                new ChangeRequestStatus(RequestStatus.IN_PROGRESS,0L,"Assigned internally",true,
+                        RequestPriority.HIGH,"Facilities A","Approved Vendor","WO-1202",sla,false),null));
         assertThat(changed.version()).isOne();
+        assertThat(changed.priority()).isEqualTo(RequestPriority.HIGH);
+        assertThat(changed.assignedTo()).isEqualTo("Facilities A");
+        assertThat(changed.serviceProvider()).isEqualTo("Approved Vendor");
+        assertThat(changed.externalWorkOrderReference()).isEqualTo("WO-1202");
+        assertThat(changed.slaDueAt()).isEqualTo(sla);
+        var reassigned = tx(() -> facilities.changeRequestStatus(f.tenant,9L,f.site,created.requestId(),
+                new ChangeRequestStatus(RequestStatus.IN_PROGRESS,1L,"Reassigned",true,
+                        RequestPriority.CRITICAL,"Facilities B","Approved Vendor","WO-1202",null,true),null));
+        assertThat(reassigned.status()).isEqualTo(RequestStatus.IN_PROGRESS);
+        assertThat(reassigned.priority()).isEqualTo(RequestPriority.CRITICAL);
+        assertThat(reassigned.assignedTo()).isEqualTo("Facilities B");
+        assertThat(reassigned.slaDueAt()).isNull();
         assertThatThrownBy(() -> tx(() -> facilities.changeRequestStatus(f.tenant,9L,f.site,created.requestId(),
                 new ChangeRequestStatus(RequestStatus.RESOLVED,0L,"Stale",true),null))).isInstanceOf(BaseException.class);
         jdbc.update("UPDATE wp_site_access_rules SET lifecycle_state='INACTIVE',version=version+1 WHERE tenant_id=? AND subject_user_id=7",f.tenant);

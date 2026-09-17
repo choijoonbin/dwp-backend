@@ -84,10 +84,15 @@ public class NotificationController {
             @RequestParam(required = false) String priority,
             @RequestParam(required = false) String readState,
             @RequestParam(required = false) String reason,
+            @RequestParam(required = false) String attentionEffect,
+            @RequestParam(required = false) List<String> includedType,
+            @RequestParam(required = false) List<String> contextKind,
+            @RequestParam(required = false) List<String> contextKey,
             @RequestParam(required = false) String from,
             @RequestParam(required = false) String to) {
         return ApiResponse.success(service.inbox(
-                actor(), view, limit, cursor, query, appKey, priority, readState, reason, from, to));
+                actor(), view, limit, cursor, query, appKey, priority, readState, reason,
+                attentionEffect, includedType, contextKind, contextKey, from, to));
     }
 
     @GetMapping("/inbox/{notificationId}")

@@ -4,12 +4,15 @@ import com.dwp.services.notification.common.NotificationErrorCode;
 import com.dwp.services.notification.common.NotificationException;
 import com.dwp.services.notification.domain.NotificationMaterializationRepository.PersistenceResult;
 import com.dwp.services.notification.domain.NotificationModels.DirectMaterializationRequest;
+import com.dwp.services.notification.domain.NotificationModels.MaterializationContext;
+import com.dwp.services.notification.domain.NotificationModels.MaterializationContextKind;
 import com.dwp.services.notification.domain.NotificationModels.MaterializationResult;
 import com.dwp.services.notification.security.NotificationRequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
+import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
 import java.util.List;
@@ -67,6 +70,16 @@ class DirectNotificationMaterializerTest {
         assertThat(result.recipientCount()).isOne();
         verify(admission).admittedRecipients(
                 7L, List.of(11L, 12L), "messaging");
+        ArgumentCaptor<DirectMaterializationRequest> persisted =
+                ArgumentCaptor.forClass(DirectMaterializationRequest.class);
+        verify(transactions).materialize(
+                eq(7L), persisted.capture(), eq(contract), any(), anyString(),
+                eq("correlation-1"), eq(Set.of(11L)), any(Instant.class));
+        assertThat(persisted.getValue().contexts())
+                .extracting(context -> context.kind() + ":" + context.key())
+                .containsExactly(
+                        "CONVERSATION:conversation:1",
+                        "PERSON:user:10");
     }
 
     @Test
@@ -100,12 +113,33 @@ class DirectNotificationMaterializerTest {
         assertThat(DirectNotificationMaterializer.canonicalReasonCode(input)).isEqualTo(expected);
     }
 
+    @Test
+    void rejectsNonCanonicalOrPersonalContextsBeforeReadingAContract() {
+        DirectMaterializationRequest request = request(List.of(
+                new MaterializationContext(
+                        MaterializationContextKind.PERSON,
+                        "user:10",
+                        "Alice Kim",
+                        true)));
+
+        assertThatThrownBy(() -> materializer.materialize(
+                actor(), request, "correlation-1"))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("non-personal");
+        verify(transactions, never()).contract(
+                anyLong(), anyString(), anyString(), anyInt(), anyString());
+    }
+
     private NotificationRequestContext.Actor actor() {
         return new NotificationRequestContext.Actor(
                 7L, null, Set.of(), Set.of(), true, "dwp-messaging-server");
     }
 
     private DirectMaterializationRequest request() {
+        return request(List.of());
+    }
+
+    private DirectMaterializationRequest request(List<MaterializationContext> contexts) {
         return new DirectMaterializationRequest(
                 UUID.randomUUID(),
                 "messaging.message.sent.v1",
@@ -121,6 +155,7 @@ class DirectNotificationMaterializerTest {
                 Instant.parse("2026-08-28T01:00:00Z"),
                 null,
                 false,
+                contexts,
                 Map.of("senderName", "Sender", "messagePreview", "Hello"));
     }
 

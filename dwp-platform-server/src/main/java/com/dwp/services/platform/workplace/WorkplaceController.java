@@ -83,10 +83,12 @@ public class WorkplaceController {
             @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @PathVariable UUID bookingId,
             @Valid @RequestBody WorkplaceDtos.VersionRequest request) {
         return ApiResponse.success(service.checkIn(
-                tenantId, userId, bookingId, locale, correlationId, groupRefs, request));
+                tenantId, userId, bookingId, locale, correlationId,
+                groupRefs, idempotencyKey, request));
     }
 
     @PostMapping("/bookings/{bookingId}/cancel")
@@ -96,10 +98,12 @@ public class WorkplaceController {
             @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @PathVariable UUID bookingId,
             @Valid @RequestBody WorkplaceDtos.VersionRequest request) {
         return ApiResponse.success(service.cancelBooking(
-                tenantId, userId, bookingId, locale, correlationId, groupRefs, request));
+                tenantId, userId, bookingId, locale, correlationId,
+                groupRefs, idempotencyKey, request));
     }
 
     @PostMapping("/bookings/{bookingId}/release")
@@ -109,9 +113,11 @@ public class WorkplaceController {
             @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader("Idempotency-Key") String idempotencyKey,
             @PathVariable UUID bookingId,
             @Valid @RequestBody WorkplaceDtos.VersionRequest request) {
         return ApiResponse.success(service.releaseBooking(
-                tenantId, userId, bookingId, locale, correlationId, groupRefs, request));
+                tenantId, userId, bookingId, locale, correlationId,
+                groupRefs, idempotencyKey, request));
     }
 }

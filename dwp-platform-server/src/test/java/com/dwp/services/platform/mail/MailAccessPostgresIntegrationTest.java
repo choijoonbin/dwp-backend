@@ -13,6 +13,9 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 import static com.dwp.services.platform.mail.MailTypes.ThreadAction;
 import static com.dwp.services.platform.mail.MailTypes.WorkflowState;
@@ -147,6 +150,145 @@ class MailAccessPostgresIntegrationTest {
                 .isEqualTo(expectedFuture);
     }
 
+    @Test
+    void deliveryCommandPersistsItsPayloadFingerprint() {
+        String schema = "mail_delivery_payload_binding";
+        migrate(schema);
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource(schema));
+        MailJsonCodec json = new MailJsonCodec(new ObjectMapper().findAndRegisterModules());
+        MailCommandRepository commands = new MailCommandRepository(jdbc, json);
+        PersonalFixture fixture = personalFixture(jdbc);
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ComposeRequest request = new MailDtos.ComposeRequest(
+                "recipient@example.com", "Recipient", "Bound command", "Body",
+                MailTypes.DeliveryMode.SEND, idempotencyKey);
+        String composeFingerprint = new MailSendCommandFingerprint().compose(fixture.userId(), request);
+
+        MailCommandRepository.ComposeResult result = commands.compose(
+                fixture.tenantId(), fixture.userId(), request, composeFingerprint);
+        assertThat(result).isNotNull();
+        assertThat(result.created()).isTrue();
+        assertThat(result.requestFingerprint()).isEqualTo(composeFingerprint);
+
+        assertThatThrownBy(() -> commands.enqueueDelivery(
+                fixture.tenantId(), fixture.userId(), result.threadId(),
+                idempotencyKey, "corr-unbound", null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("request fingerprint");
+
+        commands.enqueueDelivery(
+                fixture.tenantId(), fixture.userId(), result.threadId(),
+                idempotencyKey, "corr-bound", composeFingerprint);
+
+        assertThat(commands.deliveryCommand(
+                fixture.tenantId(), fixture.userId(), idempotencyKey))
+                .isEqualTo(new MailCommandRepository.DeliveryCommand(
+                        result.threadId(), fixture.userId(), composeFingerprint));
+
+        assertThat(commands.enqueueDelivery(
+                fixture.tenantId(), fixture.userId(), result.threadId(),
+                idempotencyKey, "corr-bound-replay", composeFingerprint))
+                .isEqualTo(new MailCommandRepository.DeliveryCommand(
+                        result.threadId(), fixture.userId(), composeFingerprint));
+
+        UUID secondCreationKey = UUID.randomUUID();
+        MailDtos.ComposeRequest secondRequest = new MailDtos.ComposeRequest(
+                "second@example.com", "Second", "Second command", "Second body",
+                MailTypes.DeliveryMode.SEND, secondCreationKey);
+        String secondFingerprint = new MailSendCommandFingerprint()
+                .compose(fixture.userId(), secondRequest);
+        MailCommandRepository.ComposeResult second = commands.compose(
+                fixture.tenantId(), fixture.userId(), secondRequest, secondFingerprint);
+        assertThat(commands.enqueueDelivery(
+                fixture.tenantId(), fixture.userId(), second.threadId(),
+                idempotencyKey, "corr-bound-drift", secondFingerprint))
+                .isEqualTo(new MailCommandRepository.DeliveryCommand(
+                        result.threadId(), fixture.userId(), composeFingerprint));
+
+        Actor other = anotherPersonalActor(jdbc, fixture.tenantId(), fixture.userId());
+        String otherFingerprint = new MailSendCommandFingerprint()
+                .compose(other.userId(), request);
+        MailCommandRepository.ComposeResult otherResult = commands.compose(
+                other.tenantId(), other.userId(), request, otherFingerprint);
+        assertThat(commands.enqueueDelivery(
+                other.tenantId(), other.userId(), otherResult.threadId(),
+                idempotencyKey, "corr-other-actor", otherFingerprint))
+                .isEqualTo(new MailCommandRepository.DeliveryCommand(
+                        otherResult.threadId(), other.userId(), otherFingerprint));
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM mail_delivery_outbox
+                 WHERE tenant_id = ? AND idempotency_key = ?
+                """, Integer.class, fixture.tenantId(), idempotencyKey)).isEqualTo(2);
+
+        MailCommandRepository.ComposeResult replay = commands.compose(
+                fixture.tenantId(), fixture.userId(), request, composeFingerprint);
+        assertThat(replay.created()).isFalse();
+        assertThat(replay.requestFingerprint()).isEqualTo(composeFingerprint);
+
+        jdbc.update("""
+                UPDATE mail_delivery_outbox SET request_fingerprint = NULL
+                 WHERE tenant_id = ? AND created_by = ? AND idempotency_key = ?
+                """, fixture.tenantId(), fixture.userId(), idempotencyKey);
+        assertThat(commands.deliveryCommand(
+                fixture.tenantId(), fixture.userId(), idempotencyKey))
+                .isEqualTo(new MailCommandRepository.DeliveryCommand(
+                        result.threadId(), fixture.userId(), null));
+    }
+
+    @Test
+    void concurrentSameActorEnqueueReturnsTheWinningCommand() throws Exception {
+        String schema = "mail_delivery_concurrent_idempotency";
+        migrate(schema);
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource(schema));
+        MailCommandRepository commands = new MailCommandRepository(
+                jdbc, new MailJsonCodec(new ObjectMapper().findAndRegisterModules()));
+        PersonalFixture fixture = personalFixture(jdbc);
+        UUID firstCreateKey = UUID.randomUUID();
+        UUID secondCreateKey = UUID.randomUUID();
+        UUID sharedDeliveryKey = UUID.randomUUID();
+        MailDtos.ComposeRequest firstRequest = new MailDtos.ComposeRequest(
+                "first@example.com", "First", "First", "First body",
+                MailTypes.DeliveryMode.SEND, firstCreateKey);
+        MailDtos.ComposeRequest secondRequest = new MailDtos.ComposeRequest(
+                "second@example.com", "Second", "Second", "Second body",
+                MailTypes.DeliveryMode.SEND, secondCreateKey);
+        MailSendCommandFingerprint fingerprints = new MailSendCommandFingerprint();
+        String firstFingerprint = fingerprints.compose(fixture.userId(), firstRequest);
+        String secondFingerprint = fingerprints.compose(fixture.userId(), secondRequest);
+        MailCommandRepository.ComposeResult first = commands.compose(
+                fixture.tenantId(), fixture.userId(), firstRequest, firstFingerprint);
+        MailCommandRepository.ComposeResult second = commands.compose(
+                fixture.tenantId(), fixture.userId(), secondRequest, secondFingerprint);
+        CyclicBarrier start = new CyclicBarrier(2);
+
+        try (var workers = Executors.newFixedThreadPool(2)) {
+            var firstResult = workers.submit(() -> {
+                start.await(10, TimeUnit.SECONDS);
+                return commands.enqueueDelivery(
+                        fixture.tenantId(), fixture.userId(), first.threadId(),
+                        sharedDeliveryKey, "corr-first", firstFingerprint);
+            });
+            var secondResult = workers.submit(() -> {
+                start.await(10, TimeUnit.SECONDS);
+                return commands.enqueueDelivery(
+                        fixture.tenantId(), fixture.userId(), second.threadId(),
+                        sharedDeliveryKey, "corr-second", secondFingerprint);
+            });
+
+            MailCommandRepository.DeliveryCommand winner = firstResult.get(10, TimeUnit.SECONDS);
+            assertThat(secondResult.get(10, TimeUnit.SECONDS)).isEqualTo(winner);
+            assertThat(commands.deliveryCommand(
+                    fixture.tenantId(), fixture.userId(), sharedDeliveryKey))
+                    .isEqualTo(winner);
+        }
+
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM mail_delivery_outbox
+                 WHERE tenant_id = ? AND created_by = ? AND idempotency_key = ?
+                """, Integer.class, fixture.tenantId(), fixture.userId(), sharedDeliveryKey))
+                .isOne();
+    }
+
     private void assertDenied(
             MailQueryRepository queries,
             MailCommandRepository commands,
@@ -251,6 +393,24 @@ class MailAccessPostgresIntegrationTest {
         });
     }
 
+    private Actor anotherPersonalActor(
+            JdbcTemplate jdbc,
+            Long tenantId,
+            Long excludedUserId) {
+        return jdbc.queryForObject("""
+                SELECT account.tenant_id, account.owner_user_id
+                  FROM mail_accounts account
+                 WHERE account.tenant_id = ? AND account.account_kind = 'PERSONAL'
+                   AND account.is_default = TRUE
+                   AND account.connection_state = 'ACTIVE'
+                   AND account.owner_user_id <> ?
+                 ORDER BY account.owner_user_id
+                 LIMIT 1
+                """, (result, ignored) -> new Actor(
+                result.getLong("tenant_id"), result.getLong("owner_user_id")),
+                tenantId, excludedUserId);
+    }
+
     private void migrate(String schema) {
         Flyway flyway = Flyway.configure()
                 .dataSource(dataSource())
@@ -284,5 +444,8 @@ class MailAccessPostgresIntegrationTest {
     }
 
     private record PersonalFixture(Long tenantId, Long userId, List<UUID> threadIds) {
+    }
+
+    private record Actor(Long tenantId, Long userId) {
     }
 }

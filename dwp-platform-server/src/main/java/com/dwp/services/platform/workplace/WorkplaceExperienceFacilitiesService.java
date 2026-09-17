@@ -12,8 +12,10 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.stream.Collectors;
@@ -169,11 +171,25 @@ class WorkplaceExperienceFacilitiesService {
         FacilityRequest original = repository.adminRequest(tenant, site, id, true)
                 .orElseThrow(() -> notFound("Facility request"));
         if (request.version() == null || request.version() != original.version()) throw conflict("The facility request changed. Refresh its saved version.");
-        if (!canTransition(original.status(), request.status())) throw invalid("This request status transition is not allowed.");
+        boolean statusChanged = original.status() != request.status();
+        boolean workOrderChanged = changesWorkOrder(original, request);
+        if (statusChanged && !canTransition(original.status(), request.status())) throw invalid("This request status transition is not allowed.");
+        if (!statusChanged && !workOrderChanged) throw invalid("Change the status or at least one work-order field.");
         if (!repository.updateRequest(tenant, actor, id, request)) throw conflict("The facility request changed. Re-read the original request.");
+        var evidence = new LinkedHashMap<String, Object>();
+        evidence.put("previousStatus", original.status());
+        evidence.put("status", request.status());
+        evidence.put("reason", request.reason().trim());
+        evidence.put("resourceId", original.resourceId());
+        evidence.put("version", request.version() + 1);
+        if (request.priority() != null) evidence.put("priority", request.priority());
+        addTextEvidence(evidence, "assignedTo", request.assignedTo());
+        addTextEvidence(evidence, "serviceProvider", request.serviceProvider());
+        addTextEvidence(evidence, "externalWorkOrderReference", request.externalWorkOrderReference());
+        if (request.slaDueAt() != null) evidence.put("slaDueAt", request.slaDueAt());
+        if (request.clearSla()) evidence.put("slaCleared", true);
         bookings.audit(tenant, actor, "workplace.facility.request_status_changed", "FACILITY_REQUEST", id, correlation,
-                Map.of("previousStatus", original.status(), "status", request.status(), "reason", request.reason().trim(),
-                        "resourceId", original.resourceId(), "version", request.version() + 1));
+                evidence);
         return repository.adminRequest(tenant, site, id, false).orElseThrow(() -> notFound("Facility request"));
     }
 
@@ -223,6 +239,26 @@ class WorkplaceExperienceFacilitiesService {
             case IN_PROGRESS -> after == RequestStatus.RESOLVED || after == RequestStatus.CANCELLED;
             case RESOLVED, CANCELLED -> after == RequestStatus.OPEN;
         };
+    }
+    static boolean changesWorkOrder(FacilityRequest before, ChangeRequestStatus after) {
+        if (after.priority() != null && after.priority() != before.priority()) return true;
+        if (after.assignedTo() != null && !Objects.equals(trimToNull(after.assignedTo()), before.assignedTo())) return true;
+        if (after.serviceProvider() != null && !Objects.equals(trimToNull(after.serviceProvider()), before.serviceProvider())) return true;
+        if (after.externalWorkOrderReference() != null
+                && !Objects.equals(trimToNull(after.externalWorkOrderReference()), before.externalWorkOrderReference())) return true;
+        if (after.clearSla()) return before.slaDueAt() != null;
+        return after.slaDueAt() != null && !after.slaDueAt().equals(before.slaDueAt());
+    }
+    private static String trimToNull(String value) {
+        if (value == null) return null;
+        String normalized = value.trim();
+        return normalized.isEmpty() ? null : normalized;
+    }
+    private static void addTextEvidence(Map<String, Object> evidence, String key, String raw) {
+        if (raw == null) return;
+        String normalized = trimToNull(raw);
+        if (normalized == null) evidence.put(key + "Cleared", true);
+        else evidence.put(key, normalized);
     }
     static void validatePage(int page, int size) {
         if (page < 0 || size < 1 || size > 100) throw invalid("Page must be nonnegative and size must be 1–100.");

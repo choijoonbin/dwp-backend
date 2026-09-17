@@ -293,6 +293,8 @@ spring:
                   - '*'
                 exposed-headers:
                   - X-Correlation-ID
+                  - X-Content-SHA256
+                  - X-Content-Type-Options
                 allow-credentials: true
                 max-age: 3600
 

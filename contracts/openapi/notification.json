@@ -184,6 +184,168 @@
         },
         "type": "object"
       },
+      "ApiResponseAttentionContextDiscovery": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AttentionContextDiscovery"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseAttentionControlImpactPreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AttentionControlImpactPreview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseAttentionControls": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AttentionControls"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseAttentionRule": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AttentionRule"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseAttentionRuleCollection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AttentionRuleCollection"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseAttentionRulePreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AttentionRulePreview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseBulkResult": {
         "properties": {
           "correlationId": {
@@ -440,6 +602,60 @@
               "$ref": "#/components/schemas/SubscriptionRule"
             },
             "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseNoiseQuality": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/NoiseQuality"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseRevision": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Revision"
           },
           "errorCode": {
             "type": "string"
@@ -811,6 +1027,33 @@
         },
         "type": "object"
       },
+      "ApiResponseTestDelivery": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TestDelivery"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseTypeContractPage": {
         "properties": {
           "correlationId": {
@@ -844,6 +1087,33 @@
             "type": "string"
           },
           "data": {},
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseWorkspace": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Workspace"
+          },
           "errorCode": {
             "type": "string"
           },
@@ -915,6 +1185,468 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "AttentionContextDiscovery": {
+        "properties": {
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AttentionContextOption"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AttentionContextOption": {
+        "properties": {
+          "contextKind": {
+            "type": "string"
+          },
+          "displayLabel": {
+            "type": "string"
+          },
+          "lastSeenAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scopeKey": {
+            "type": "string"
+          },
+          "scopeKind": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AttentionControl": {
+        "properties": {
+          "allowedEffects": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "controlKey": {
+            "type": "string"
+          },
+          "currentEffect": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "dndBypassAllowed": {
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "policyLocked": {
+            "type": "boolean"
+          },
+          "policyReason": {
+            "type": "string"
+          },
+          "ruleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "ruleVersion": {
+            "type": "string"
+          },
+          "scopeKind": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AttentionControlImpactPreview": {
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "controlKey": {
+            "type": "string"
+          },
+          "currentRuleVersion": {
+            "type": "string"
+          },
+          "effectiveEffect": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "policyLocked": {
+            "type": "boolean"
+          },
+          "policyReason": {
+            "type": "string"
+          },
+          "policySource": {
+            "type": "string"
+          },
+          "previewFingerprint": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AttentionControlMutationRequest": {
+        "properties": {
+          "controlKey": {
+            "minLength": 1,
+            "pattern": "MUTE_TYPE|MUTE_CONTEXT|FOLLOW_CONTEXT|PRIORITIZE_ACTOR",
+            "type": "string"
+          },
+          "effect": {
+            "minLength": 1,
+            "pattern": "FOLLOW|PRIORITIZE|MUTE",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "previewFingerprint": {
+            "minLength": 1,
+            "pattern": "[a-f0-9]{64}",
+            "type": "string"
+          }
+        },
+        "required": [
+          "controlKey",
+          "effect",
+          "previewFingerprint"
+        ],
+        "type": "object"
+      },
+      "AttentionControlPreviewRequest": {
+        "properties": {
+          "controlKey": {
+            "minLength": 1,
+            "pattern": "MUTE_TYPE|MUTE_CONTEXT|FOLLOW_CONTEXT|PRIORITIZE_ACTOR",
+            "type": "string"
+          },
+          "effect": {
+            "minLength": 1,
+            "pattern": "FOLLOW|PRIORITIZE|MUTE",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "controlKey",
+          "effect"
+        ],
+        "type": "object"
+      },
+      "AttentionControls": {
+        "properties": {
+          "controls": {
+            "items": {
+              "$ref": "#/components/schemas/AttentionControl"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "notificationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "unavailableSources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "whyReceived": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AttentionRule": {
+        "properties": {
+          "channels": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "displayLabel": {
+            "type": "string"
+          },
+          "effect": {
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "exceptionAllowed": {
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "managed": {
+            "type": "boolean"
+          },
+          "ruleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scopeKey": {
+            "type": "string"
+          },
+          "scopeKind": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AttentionRuleCollection": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AttentionRule"
+            },
+            "type": "array"
+          },
+          "maxActiveRules": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AttentionRuleCreateRequest": {
+        "properties": {
+          "channels": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          },
+          "displayLabel": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "effect": {
+            "minLength": 1,
+            "pattern": "FOLLOW|PRIORITIZE|MUTE",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "expectedVersion": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scopeKey": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scopeKind": {
+            "minLength": 1,
+            "pattern": "APP_TYPE|ACTOR|THREAD|RESOURCE|TOPIC_TOKEN",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "effect",
+          "scopeKey",
+          "scopeKind"
+        ],
+        "type": "object"
+      },
+      "AttentionRulePreview": {
+        "properties": {
+          "allowed": {
+            "type": "boolean"
+          },
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "conflictReason": {
+            "type": "string"
+          },
+          "effectiveEffect": {
+            "type": "string"
+          },
+          "estimateAvailable": {
+            "type": "boolean"
+          },
+          "estimatedAffectedCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "mandatoryConflict": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "AttentionRulePreviewRequest": {
+        "properties": {
+          "channels": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          },
+          "displayLabel": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "effect": {
+            "minLength": 1,
+            "pattern": "FOLLOW|PRIORITIZE|MUTE",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scopeKey": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scopeKind": {
+            "minLength": 1,
+            "pattern": "APP_TYPE|ACTOR|THREAD|RESOURCE|TOPIC_TOKEN",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "effect",
+          "scopeKey",
+          "scopeKind"
+        ],
+        "type": "object"
+      },
+      "AttentionRuleUpdateRequest": {
+        "properties": {
+          "channels": {
+            "additionalProperties": {
+              "type": "boolean"
+            },
+            "type": "object"
+          },
+          "displayLabel": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "effect": {
+            "minLength": 1,
+            "pattern": "FOLLOW|PRIORITIZE|MUTE",
+            "type": "string"
+          },
+          "enabled": {
+            "type": "boolean"
+          },
+          "expectedVersion": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "scopeKey": {
+            "maxLength": 300,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scopeKind": {
+            "minLength": 1,
+            "pattern": "APP_TYPE|ACTOR|THREAD|RESOURCE|TOPIC_TOKEN",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "effect",
+          "expectedVersion",
+          "scopeKey",
+          "scopeKind"
+        ],
         "type": "object"
       },
       "BulkActionRequest": {
@@ -1015,6 +1747,24 @@
             "type": "array"
           }
         },
+        "type": "object"
+      },
+      "DecisionRequest": {
+        "properties": {
+          "expectedVersion": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedVersion",
+          "reason"
+        ],
         "type": "object"
       },
       "DeliveryEndpoint": {
@@ -1284,6 +2034,28 @@
         ],
         "type": "object"
       },
+      "DraftRequest": {
+        "properties": {
+          "changeReason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "type": "string"
+          },
+          "expectedVersion": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/Settings"
+          }
+        },
+        "required": [
+          "changeReason",
+          "expectedVersion",
+          "settings"
+        ],
+        "type": "object"
+      },
       "EffectiveSettings": {
         "properties": {
           "apps": {
@@ -1317,6 +2089,29 @@
         },
         "type": "object"
       },
+      "FourEyesGovernance": {
+        "properties": {
+          "draftPolicyCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "publishedPolicyCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reviewerSeparationRequired": {
+            "type": "boolean"
+          },
+          "state": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "InboxItem": {
         "properties": {
           "actionable": {
@@ -1329,6 +2124,9 @@
             "type": "array"
           },
           "actorLabel": {
+            "type": "string"
+          },
+          "attentionEffect": {
             "type": "string"
           },
           "completedAt": {
@@ -1472,6 +2270,160 @@
           },
           "source": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NoiseQuality": {
+        "properties": {
+          "actionConversionRate": {
+            "format": "double",
+            "type": "number"
+          },
+          "deduplicationRate": {
+            "format": "double",
+            "type": "number"
+          },
+          "fatigueExposedUsers": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "fourEyes": {
+            "$ref": "#/components/schemas/FourEyesGovernance"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "minimumCohortSize": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "muteRate": {
+            "format": "double",
+            "type": "number"
+          },
+          "noisyTypes": {
+            "items": {
+              "$ref": "#/components/schemas/NoiseTypeMetric"
+            },
+            "type": "array"
+          },
+          "observedCohortSize": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "partial": {
+            "type": "boolean"
+          },
+          "range": {
+            "enum": [
+              "LAST_24_HOURS",
+              "LAST_7_DAYS",
+              "LAST_30_DAYS"
+            ],
+            "type": "string"
+          },
+          "sufficientCohort": {
+            "type": "boolean"
+          },
+          "trend": {
+            "items": {
+              "$ref": "#/components/schemas/NoiseTrendPoint"
+            },
+            "type": "array"
+          },
+          "unavailableSources": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "windowStart": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "NoiseTrendPoint": {
+        "properties": {
+          "actionConversionRate": {
+            "format": "double",
+            "type": "number"
+          },
+          "bucketStart": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cohortSize": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "deduplicationRate": {
+            "format": "double",
+            "type": "number"
+          },
+          "muteRate": {
+            "format": "double",
+            "type": "number"
+          },
+          "volume": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "NoiseTypeMetric": {
+        "properties": {
+          "actionConversionRate": {
+            "format": "double",
+            "type": "number"
+          },
+          "appKey": {
+            "type": "string"
+          },
+          "cohortSize": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "contractId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "deduplicationRate": {
+            "format": "double",
+            "type": "number"
+          },
+          "findingCode": {
+            "type": "string"
+          },
+          "findingSeverity": {
+            "type": "string"
+          },
+          "findingTarget": {
+            "type": "string"
+          },
+          "findingTargetKey": {
+            "type": "string"
+          },
+          "muteRate": {
+            "format": "double",
+            "type": "number"
+          },
+          "ownerTeam": {
+            "type": "string"
+          },
+          "typeKey": {
+            "type": "string"
+          },
+          "volume": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -1864,6 +2816,110 @@
           "end",
           "start",
           "timeZone"
+        ],
+        "type": "object"
+      },
+      "Revision": {
+        "properties": {
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "changeReason": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "governanceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "revisionNumber": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/Settings"
+          },
+          "state": {
+            "type": "string"
+          },
+          "supersedesGovernanceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "Settings": {
+        "properties": {
+          "approvedTopicAllowlist": {
+            "items": {
+              "minLength": 1,
+              "pattern": "#[a-z0-9][a-z0-9._-]{1,79}",
+              "type": "string"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          },
+          "independentReviewerRequired": {
+            "type": "boolean"
+          },
+          "mandatoryPolicyPrecedence": {
+            "type": "boolean"
+          },
+          "maxActiveUserRules": {
+            "format": "int32",
+            "maximum": 500,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "maxFollowRules": {
+            "format": "int32",
+            "maximum": 500,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "maxVipRules": {
+            "format": "int32",
+            "maximum": 500,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "minimumAnalyticsCohort": {
+            "format": "int32",
+            "maximum": 10000,
+            "minimum": 10,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "approvedTopicAllowlist"
         ],
         "type": "object"
       },
@@ -2705,6 +3761,77 @@
         },
         "type": "object"
       },
+      "TestDelivery": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requestedChannels": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "retryAfterSeconds": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/TestDeliveryStage"
+            },
+            "type": "array"
+          },
+          "state": {
+            "type": "string"
+          },
+          "testId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TestDeliveryRequest": {
+        "properties": {
+          "channels": {
+            "items": {
+              "pattern": "IN_APP|EMAIL|WEB_PUSH|MOBILE_PUSH|TEAMS|SLACK",
+              "type": "string"
+            },
+            "maxItems": 6,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "channels"
+        ],
+        "type": "object"
+      },
+      "TestDeliveryStage": {
+        "properties": {
+          "detail": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "stage": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "TimelineEntry": {
         "properties": {
           "actorLabel": {
@@ -2873,6 +4000,27 @@
           "expectedVersion"
         ],
         "type": "object"
+      },
+      "Workspace": {
+        "properties": {
+          "activeRevision": {
+            "$ref": "#/components/schemas/Revision"
+          },
+          "changeVersion": {
+            "type": "string"
+          },
+          "drafts": {
+            "items": {
+              "$ref": "#/components/schemas/Revision"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
       }
     }
   },
@@ -2882,6 +4030,78 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/admin/noise-quality": {
+      "get": {
+        "operationId": "noiseQuality",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "LAST_30_DAYS",
+              "enum": [
+                "LAST_24_HOURS",
+                "LAST_7_DAYS",
+                "LAST_30_DAYS"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "maxLength": 120,
+              "minLength": 0,
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "severity",
+            "required": false,
+            "schema": {
+              "enum": [
+                "INFO",
+                "WARNING",
+                "CRITICAL"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "risk",
+            "required": false,
+            "schema": {
+              "enum": [
+                "HIGH_MUTE_RATE",
+                "LOW_ACTION_CONVERSION",
+                "DEDUPLICATION_OPPORTUNITY"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseNoiseQuality"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-noise-quality-controller"
+        ]
+      }
+    },
     "/v1/admin/operations": {
       "get": {
         "operationId": "operations",
@@ -2939,6 +4159,213 @@
         },
         "tags": [
           "notification-admin-controller"
+        ]
+      }
+    },
+    "/v1/admin/policies/attention-governance": {
+      "get": {
+        "operationId": "workspace",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/policies/attention-governance/drafts": {
+      "post": {
+        "operationId": "createDraft",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/policies/attention-governance/{governanceId}/publish": {
+      "post": {
+        "operationId": "publish",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "governanceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/policies/attention-governance/{governanceId}/reject": {
+      "post": {
+        "operationId": "reject",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "governanceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/policies/attention-governance/{governanceId}/withdraw": {
+      "post": {
+        "operationId": "withdraw",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "governanceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseRevision"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-governance-controller"
         ]
       }
     },
@@ -3743,6 +5170,47 @@
           },
           {
             "in": "query",
+            "name": "attentionEffect",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "includedType",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "contextKind",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "contextKey",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
             "name": "from",
             "required": false,
             "schema": {
@@ -3882,6 +5350,125 @@
         },
         "tags": [
           "notification-controller"
+        ]
+      }
+    },
+    "/v1/inbox/{notificationId}/attention-controls": {
+      "get": {
+        "operationId": "attentionControls",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAttentionControls"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-controller"
+        ]
+      },
+      "post": {
+        "operationId": "applyAttentionControl",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttentionControlMutationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAttentionRule"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-controller"
+        ]
+      }
+    },
+    "/v1/inbox/{notificationId}/attention-controls/preview": {
+      "post": {
+        "operationId": "previewAttentionControl",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notificationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttentionControlPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAttentionControlImpactPreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-controller"
         ]
       }
     },
@@ -4259,6 +5846,235 @@
         ]
       }
     },
+    "/v1/me/attention-contexts": {
+      "get": {
+        "operationId": "discoverContexts",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAttentionContextDiscovery"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-controller"
+        ]
+      }
+    },
+    "/v1/me/attention-rules": {
+      "get": {
+        "operationId": "listRules",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAttentionRuleCollection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createRule",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttentionRuleCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAttentionRule"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-controller"
+        ]
+      }
+    },
+    "/v1/me/attention-rules/preview": {
+      "post": {
+        "operationId": "previewRule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttentionRulePreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAttentionRulePreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-controller"
+        ]
+      }
+    },
+    "/v1/me/attention-rules/{ruleId}": {
+      "delete": {
+        "operationId": "deleteRule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ruleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "expectedVersion",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseVoid"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-controller"
+        ]
+      },
+      "put": {
+        "operationId": "updateRule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "ruleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AttentionRuleUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAttentionRule"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-attention-controller"
+        ]
+      }
+    },
     "/v1/me/delivery-endpoints": {
       "get": {
         "operationId": "list_1",
@@ -4525,6 +6341,77 @@
         },
         "tags": [
           "notification-controller"
+        ]
+      }
+    },
+    "/v1/me/test-deliveries": {
+      "post": {
+        "operationId": "createTestDelivery",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TestDeliveryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTestDelivery"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-test-delivery-controller"
+        ]
+      }
+    },
+    "/v1/me/test-deliveries/{testId}": {
+      "get": {
+        "operationId": "getTestDelivery",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "testId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTestDelivery"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "notification-test-delivery-controller"
         ]
       }
     },

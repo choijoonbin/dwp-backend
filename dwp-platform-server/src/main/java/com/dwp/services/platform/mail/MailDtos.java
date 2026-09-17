@@ -1,5 +1,6 @@
 package com.dwp.services.platform.mail;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -109,7 +110,18 @@ public final class MailDtos {
             List<Message> messages,
             List<InternalComment> internalComments,
             List<ActionProposal> proposals,
-            List<SharedInboxMember> sharedInboxMembers) {
+            List<SharedInboxMember> sharedInboxMembers,
+            MailWorkspaceDtos.ComposeOptions draftOptions,
+            List<MailWorkspaceDtos.Attachment> draftAttachments) {
+
+        public ThreadDetail(
+                ThreadSummary thread,
+                List<Message> messages,
+                List<InternalComment> internalComments,
+                List<ActionProposal> proposals,
+                List<SharedInboxMember> sharedInboxMembers) {
+            this(thread, messages, internalComments, proposals, sharedInboxMembers, null, List.of());
+        }
     }
 
     public record SharedInboxMember(
@@ -172,12 +184,23 @@ public final class MailDtos {
 
     public record CommentRequest(
             @NotBlank @Size(max = 4000) String body,
-            @NotNull @Size(max = 100) List<Long> mentionedUserIds) {
+            @NotNull @Size(max = 100) List<Long> mentionedUserIds,
+            @Min(0) Long version) {
+
+        public CommentRequest(String body, List<Long> mentionedUserIds) {
+            this(body, mentionedUserIds, null);
+        }
     }
 
     public record ReplyRequest(
             @NotBlank @Size(max = 100_000) String body,
-            @NotNull UUID idempotencyKey) {
+            @NotNull UUID idempotencyKey,
+            @Pattern(regexp = "REPLY|REPLY_ALL") String mode,
+            @Size(max = 500) List<MailWorkspaceDtos.@Valid Recipient> recipients) {
+
+        public ReplyRequest(String body, UUID idempotencyKey) {
+            this(body, idempotencyKey, "REPLY", null);
+        }
     }
 
     public record ComposeRequest(
@@ -186,7 +209,14 @@ public final class MailDtos {
             @NotBlank @Size(max = 500) String subject,
             @NotBlank @Size(max = 100_000) String body,
             @NotNull DeliveryMode deliveryMode,
-            @NotNull UUID idempotencyKey) {
+            @NotNull UUID idempotencyKey,
+            @Valid MailWorkspaceDtos.ComposeOptions composeOptions) {
+
+        public ComposeRequest(
+                String toEmail, String toName, String subject, String body,
+                DeliveryMode deliveryMode, UUID idempotencyKey) {
+            this(toEmail, toName, subject, body, deliveryMode, idempotencyKey, null);
+        }
     }
 
     public record DraftUpdateRequest(
@@ -196,7 +226,14 @@ public final class MailDtos {
             @NotBlank @Size(max = 100_000) String body,
             @NotNull DeliveryMode deliveryMode,
             @NotNull UUID idempotencyKey,
-            @NotNull @Min(0) Long version) {
+            @NotNull @Min(0) Long version,
+            @Valid MailWorkspaceDtos.ComposeOptions composeOptions) {
+
+        public DraftUpdateRequest(
+                String toEmail, String toName, String subject, String body,
+                DeliveryMode deliveryMode, UUID idempotencyKey, Long version) {
+            this(toEmail, toName, subject, body, deliveryMode, idempotencyKey, version, null);
+        }
     }
 
     public record DraftSaveRequest(
@@ -205,11 +242,23 @@ public final class MailDtos {
             @Size(max = 500) String subject,
             @Size(max = 100_000) String body,
             @NotNull UUID idempotencyKey,
-            @Min(0) Long version) {
+            @Min(0) Long version,
+            @Valid MailWorkspaceDtos.ComposeOptions composeOptions) {
+
+        public DraftSaveRequest(
+                String toEmail, String toName, String subject, String body,
+                UUID idempotencyKey, Long version) {
+            this(toEmail, toName, subject, body, idempotencyKey, version, null);
+        }
     }
 
     public record ProposalDecisionRequest(
             @NotNull ProposalDecision decision,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record ProposalUpdateRequest(
+            @NotNull Map<String, Object> proposedPayload,
             @NotNull @Min(0) Long version) {
     }
 

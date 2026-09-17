@@ -132,4 +132,24 @@ public final class MailOrganizationDtos {
             MailDtos.ThreadSummary thread,
             boolean deleted) {
     }
+
+    public record LifecyclePreview(
+            UUID threadId,
+            LifecycleAction action,
+            boolean allowed,
+            List<String> blockers,
+            UUID targetFolderId,
+            String targetFolderName,
+            int affectedCount,
+            long version) {
+    }
+
+    public record RuleOrderItem(
+            @NotNull UUID ruleId,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record RuleOrderRequest(
+            @NotEmpty @Size(max = 100) List<@Valid RuleOrderItem> rules) {
+    }
 }

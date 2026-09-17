@@ -13,7 +13,10 @@ import static com.dwp.services.platform.mail.MailTypes.*;
 @Repository
 class MailCommandRepository {
 
-    record ComposeResult(UUID threadId, boolean created) {
+    record ComposeResult(UUID threadId, boolean created, String requestFingerprint) {
+    }
+
+    record DeliveryCommand(UUID threadId, Long createdBy, String requestFingerprint) {
     }
 
     private final JdbcTemplate jdbc;
@@ -186,7 +189,18 @@ class MailCommandRepository {
             UUID threadId,
             String body,
             UUID idempotencyKey) {
+        return insertReply(tenantId, userId, threadId, body, idempotencyKey, null);
+    }
+
+    boolean insertReply(
+            Long tenantId,
+            Long userId,
+            UUID threadId,
+            String body,
+            UUID idempotencyKey,
+            List<MailWorkspaceDtos.Recipient> recipients) {
         UUID messageId = UUID.randomUUID();
+        String recipientsJson = recipients == null ? null : json.write(recipients);
         int inserted = jdbc.update("""
                 INSERT INTO mail_messages (
                     message_id, tenant_id, thread_id, provider_message_ref,
@@ -194,7 +208,8 @@ class MailCommandRepository {
                     body_format, body_content, attachments, sent_at, created_by)
                 SELECT ?, thread.tenant_id, thread.thread_id, ?,
                        account.email_address, account.display_name,
-                       thread.participants, 'OUTBOUND', 'TEXT', ?, '[]'::jsonb,
+                       COALESCE(?::jsonb, thread.participants),
+                       'OUTBOUND', 'TEXT', ?, '[]'::jsonb,
                        CURRENT_TIMESTAMP, ?
                   FROM mail_threads thread
                   JOIN mail_accounts account
@@ -203,7 +218,8 @@ class MailCommandRepository {
                  WHERE thread.tenant_id = ? AND thread.thread_id = ?
                 """ + MailAccessSql.THREAD_ACCESS + """
                 ON CONFLICT (thread_id, provider_message_ref) DO NOTHING
-                """, messageId, "dwp:reply:" + idempotencyKey, body.trim(), userId,
+                """, messageId, "dwp:reply:" + idempotencyKey,
+                recipientsJson, body.trim(), userId,
                 tenantId, threadId, userId, userId);
         if (inserted == 0) return false;
         int updated = jdbc.update("""
@@ -227,23 +243,24 @@ class MailCommandRepository {
     ComposeResult compose(
             Long tenantId,
             Long userId,
-            MailDtos.ComposeRequest request) {
+            MailDtos.ComposeRequest request,
+            String requestFingerprint) {
         String folderType = request.deliveryMode() == DeliveryMode.DRAFT ? "DRAFTS" : "SENT";
         String workflowState = request.deliveryMode() == DeliveryMode.DRAFT ? "DRAFT" : "OPEN";
         String providerRef = "dwp:compose:" + request.idempotencyKey();
-        UUID existingThreadId = composedThread(
-                tenantId, userId, request.idempotencyKey(), providerRef);
-        if (existingThreadId != null) {
-            return new ComposeResult(existingThreadId, false);
+        ComposeResult existing = composedThread(tenantId, userId, providerRef);
+        if (existing != null) {
+            return existing;
         }
         List<UUID> threadIds = jdbc.query("""
                 INSERT INTO mail_threads (
                     thread_id, tenant_id, account_id, folder_id, provider_thread_ref,
+                    compose_request_fingerprint,
                     subject, preview, participants, latest_message_at,
                     unread, importance, triage_lane, workflow_state,
                     external_sender, classification, message_count,
                     created_by, updated_by)
-                SELECT ?, account.tenant_id, account.account_id, folder.folder_id, ?,
+                SELECT ?, account.tenant_id, account.account_id, folder.folder_id, ?, ?,
                        ?, ?, jsonb_build_array(jsonb_build_object(
                            'name', ?, 'email', LOWER(?))), CURRENT_TIMESTAMP,
                        FALSE, 'NORMAL', 'UPDATES', ?,
@@ -260,17 +277,16 @@ class MailCommandRepository {
                 ON CONFLICT (account_id, provider_thread_ref) DO NOTHING
                 RETURNING thread_id
                 """, (result, ignored) -> result.getObject("thread_id", UUID.class),
-                UUID.randomUUID(), providerRef, request.subject().trim(),
+                UUID.randomUUID(), providerRef, requestFingerprint, request.subject().trim(),
                 preview(request.body()), recipientName(request), request.toEmail().trim(),
                 workflowState, request.toEmail().trim(), userId, userId,
                 folderType, tenantId, userId);
         if (threadIds.isEmpty()) {
-            UUID concurrentThreadId = composedThread(
-                    tenantId, userId, request.idempotencyKey(), providerRef);
-            if (concurrentThreadId == null) {
+            ComposeResult concurrent = composedThread(tenantId, userId, providerRef);
+            if (concurrent == null) {
                 throw new IllegalStateException("Composed thread projection is missing.");
             }
-            return new ComposeResult(concurrentThreadId, false);
+            return concurrent;
         }
         UUID threadId = threadIds.get(0);
         int messageInserted = jdbc.update("""
@@ -294,20 +310,15 @@ class MailCommandRepository {
         if (messageInserted != 1) {
             throw new IllegalStateException("Composed message projection is missing.");
         }
-        return new ComposeResult(threadId, true);
+        return new ComposeResult(threadId, true, requestFingerprint);
     }
 
-    private UUID composedThread(
+    private ComposeResult composedThread(
             Long tenantId,
             Long userId,
-            UUID idempotencyKey,
             String providerRef) {
-        UUID deliveredThreadId = deliveryThread(tenantId, userId, idempotencyKey);
-        if (deliveredThreadId != null) {
-            return deliveredThreadId;
-        }
-        List<UUID> threadIds = jdbc.query("""
-                SELECT thread.thread_id
+        List<ComposeResult> commands = jdbc.query("""
+                SELECT thread.thread_id, thread.compose_request_fingerprint
                   FROM mail_threads thread
                   JOIN mail_accounts account
                     ON account.tenant_id = thread.tenant_id
@@ -316,14 +327,17 @@ class MailCommandRepository {
                    AND account.owner_user_id = ?
                  ORDER BY thread.created_at DESC
                  LIMIT 1
-                """, (result, ignored) -> result.getObject("thread_id", UUID.class),
+                """, (result, ignored) -> new ComposeResult(
+                        result.getObject("thread_id", UUID.class), false,
+                        result.getString("compose_request_fingerprint")),
                 tenantId, providerRef, userId);
-        return threadIds.isEmpty() ? null : threadIds.get(0);
+        return commands.isEmpty() ? null : commands.get(0);
     }
 
-    UUID deliveryThread(Long tenantId, Long userId, UUID idempotencyKey) {
-        List<UUID> threadIds = jdbc.query("""
-                SELECT delivery.thread_id
+    DeliveryCommand deliveryCommand(Long tenantId, Long userId, UUID idempotencyKey) {
+        List<DeliveryCommand> commands = jdbc.query("""
+                SELECT delivery.thread_id, delivery.created_by,
+                       delivery.request_fingerprint
                   FROM mail_delivery_outbox delivery
                   JOIN mail_threads thread
                     ON thread.tenant_id = delivery.tenant_id
@@ -332,11 +346,43 @@ class MailCommandRepository {
                     ON account.tenant_id = thread.tenant_id
                    AND account.account_id = thread.account_id
                  WHERE delivery.tenant_id = ? AND delivery.idempotency_key = ?
+                   AND delivery.created_by = ?
                 """ + MailAccessSql.THREAD_ACCESS + """
                  LIMIT 1
-                """, (result, ignored) -> result.getObject("thread_id", UUID.class),
-                tenantId, idempotencyKey, userId, userId);
-        return threadIds.isEmpty() ? null : threadIds.get(0);
+                """, (result, ignored) -> new DeliveryCommand(
+                        result.getObject("thread_id", UUID.class),
+                        result.getObject("created_by", Long.class),
+                        result.getString("request_fingerprint")),
+                tenantId, idempotencyKey, userId, userId, userId);
+        return commands.isEmpty() ? null : commands.get(0);
+    }
+
+    DeliveryCommand deliveryCommandForThread(
+            Long tenantId,
+            Long userId,
+            UUID threadId,
+            UUID idempotencyKey) {
+        List<DeliveryCommand> commands = jdbc.query("""
+                SELECT delivery.thread_id, delivery.created_by,
+                       delivery.request_fingerprint
+                  FROM mail_delivery_outbox delivery
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = delivery.tenant_id
+                   AND thread.thread_id = delivery.thread_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
+                 WHERE delivery.tenant_id = ? AND delivery.idempotency_key = ?
+                   AND delivery.thread_id = ?
+                """ + MailAccessSql.THREAD_ACCESS + """
+                 ORDER BY delivery.created_at, delivery.delivery_id
+                 LIMIT 1
+                """, (result, ignored) -> new DeliveryCommand(
+                        result.getObject("thread_id", UUID.class),
+                        result.getObject("created_by", Long.class),
+                        result.getString("request_fingerprint")),
+                tenantId, idempotencyKey, threadId, userId, userId);
+        return commands.isEmpty() ? null : commands.get(0);
     }
 
     int updateDraft(
@@ -419,18 +465,22 @@ class MailCommandRepository {
                 status, userId, userId, tenantId, proposalId, version, userId, userId);
     }
 
-    void enqueueDelivery(
+    DeliveryCommand enqueueDelivery(
             Long tenantId,
             Long userId,
             UUID threadId,
             UUID idempotencyKey,
-            String correlationId) {
+            String correlationId,
+            String requestFingerprint) {
+        if (requestFingerprint == null || requestFingerprint.isBlank()) {
+            throw new IllegalArgumentException("Mail delivery commands require a request fingerprint.");
+        }
         int inserted = jdbc.update("""
                 INSERT INTO mail_delivery_outbox (
                     delivery_id, tenant_id, thread_id, message_id,
-                    idempotency_key, correlation_id, created_by)
+                    idempotency_key, correlation_id, request_fingerprint, created_by)
                 SELECT ?, message.tenant_id, message.thread_id, message.message_id,
-                       ?, NULLIF(?, ''), ?
+                       ?, NULLIF(?, ''), ?, ?
                   FROM mail_messages message
                   JOIN mail_threads thread
                     ON thread.tenant_id = message.tenant_id
@@ -443,27 +493,14 @@ class MailCommandRepository {
                 """ + MailAccessSql.THREAD_ACCESS + """
                  ORDER BY message.sent_at DESC, message.message_id DESC
                  LIMIT 1
-                ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
-                """, UUID.randomUUID(), idempotencyKey, value(correlationId), userId,
+                ON CONFLICT (tenant_id, created_by, idempotency_key) DO NOTHING
+                """, UUID.randomUUID(), idempotencyKey, value(correlationId),
+                requestFingerprint, userId,
                 tenantId, threadId, userId, userId);
-        if (inserted == 0) {
-            Integer existing = jdbc.queryForObject("""
-                    SELECT COUNT(*)
-                      FROM mail_delivery_outbox delivery
-                      JOIN mail_threads thread
-                        ON thread.tenant_id = delivery.tenant_id
-                       AND thread.thread_id = delivery.thread_id
-                      JOIN mail_accounts account
-                        ON account.tenant_id = thread.tenant_id
-                       AND account.account_id = thread.account_id
-                     WHERE delivery.tenant_id = ? AND delivery.idempotency_key = ?
-                       AND delivery.thread_id = ?
-                    """ + MailAccessSql.THREAD_ACCESS,
-                    Integer.class, tenantId, idempotencyKey, threadId, userId, userId);
-            if (existing == null || existing == 0) {
-                throw new IllegalStateException("Outbound message projection is missing.");
-            }
+        if (inserted == 1) {
+            return new DeliveryCommand(threadId, userId, requestFingerprint);
         }
+        return deliveryCommand(tenantId, userId, idempotencyKey);
     }
 
     int updatePolicy(
@@ -482,6 +519,19 @@ class MailCommandRepository {
                 request.allowSharedInboxes(), request.aiAssistanceEnabled(),
                 request.aiCrossAppActionsEnabled(), request.retentionDays(),
                 request.maximumAttachmentMb(), userId, tenantId, request.version());
+    }
+
+    void policyHistory(
+            Long tenantId, Long userId, long policyVersion,
+            String correlationId, Map<String, Object> before,
+            Map<String, Object> after) {
+        jdbc.update("""
+                INSERT INTO mail_policy_history (
+                    tenant_id, policy_version, changed_by, diff_summary,
+                    apply_result, correlation_id)
+                VALUES (?, ?, ?, ?::jsonb, 'APPLIED', NULLIF(?, ''))
+                """, tenantId, policyVersion, userId,
+                json.write(Map.of("before", before, "after", after)), value(correlationId));
     }
 
     int updateConnection(

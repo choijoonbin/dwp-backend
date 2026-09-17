@@ -6,6 +6,9 @@ import com.dwp.services.platform.workplace.WorkplaceDtos;
 import com.dwp.services.platform.workplace.WorkplaceOperationsController;
 import com.dwp.services.platform.workplace.WorkplaceOperationsService;
 import com.dwp.services.platform.workplace.WorkplaceService;
+import com.dwp.services.platform.workplace.connectorops.WorkplaceConnectorOpsController;
+import com.dwp.services.platform.workplace.connectorops.WorkplaceConnectorOpsService;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -17,6 +20,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.util.Set;
 import java.util.UUID;
+import java.nio.file.Files;
+import java.nio.file.Path;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.tuple;
@@ -47,25 +52,54 @@ class WorkplaceProductSurfacePepContractTest {
     private static final String ROLLOUT_REVISION =
             "rollout-" + "0123456789abcdef".repeat(4);
     private static final String CONTEXT = "psc-" + "a".repeat(64);
+    private static final Set<String> DEVICE_BINDINGS = Set.of(
+            "POST /v1/device/workplace/devices/{deviceId}/heartbeat",
+            "GET /v1/device/workplace/devices/{deviceId}/projection",
+            "POST /v1/device/workplace/devices:register",
+            "POST /v1/device/workplace/devices/{deviceId}/access-pass:pair",
+            "POST /v1/workplace/kiosk/devices/{deviceId}:heartbeat",
+            "POST /v1/workplace/kiosk/devices/{deviceId}:help",
+            "GET /v1/workplace/kiosk/session",
+            "GET /v1/workplace/kiosk/visits/{visitId}",
+            "POST /v1/workplace/kiosk/visits/{visitId}:arrive",
+            "POST /v1/workplace/kiosk/visits/{visitId}:checkout");
+    private static final Set<String> ROOM_BINDINGS = Set.of(
+            "GET /v1/rooms/policy",
+            "GET /v1/rooms/availability",
+            "GET /v1/rooms/bookings",
+            "POST /v1/rooms/bookings",
+            "PUT /v1/rooms/bookings/{eventId}",
+            "POST /v1/rooms/bookings/{eventId}/response",
+            "POST /v1/rooms/bookings/{eventId}/cancel",
+            "GET /v1/admin/rooms/overview",
+            "GET /v1/admin/rooms/policy",
+            "PUT /v1/admin/rooms/policy",
+            "GET /v1/admin/rooms/bookings/pending",
+            "POST /v1/admin/rooms/bookings/{bookingId}/decision",
+            "POST /v1/admin/rooms/resources",
+            "PUT /v1/admin/rooms/resources/{resourceId}");
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final WorkplaceService service = mock(WorkplaceService.class);
     private final WorkplaceOperationsService operations =
             mock(WorkplaceOperationsService.class);
+    private final WorkplaceConnectorOpsService connectorOps =
+            mock(WorkplaceConnectorOpsService.class);
     private final PlatformWorkplaceProductPepRegistry registry =
             new PlatformWorkplaceProductPepRegistry(objectMapper);
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
-        reset(service, operations);
+        reset(service, operations, connectorOps);
         PlatformSecurityFilter platformSecurity = new PlatformSecurityFilter(
                 "trusted", "runtime", objectMapper);
         PlatformWorkplaceProductPepFilter workplacePep =
                 new PlatformWorkplaceProductPepFilter(true, registry, objectMapper);
         mvc = MockMvcBuilders.standaloneSetup(
                         new WorkplaceController(service),
-                        new WorkplaceOperationsController(operations))
+                        new WorkplaceOperationsController(operations),
+                        new WorkplaceConnectorOpsController(connectorOps))
                 .addFilters(platformSecurity, workplacePep)
                 .build();
     }
@@ -143,7 +177,7 @@ class WorkplaceProductSurfacePepContractTest {
     }
 
     @Test
-    void v4DraftPageDataAndActionBindingsReachActualWorkplaceRoutes()
+    void v21PageDataAndActionBindingsReachActualWorkplaceRoutes()
             throws Exception {
         mvc.perform(exactExplore())
                 .andExpect(status().isOk())
@@ -185,7 +219,7 @@ class WorkplaceProductSurfacePepContractTest {
                     assertThat(binding.servicePath()).startsWith("/v1/");
                     assertThat(binding.resolvedAuthorities()).isNotEmpty();
                 });
-        assertThat(registry.bindingContracts()).hasSize(3);
+        assertThat(registry.bindingContracts()).hasSize(306);
         assertThat(registry.bindingContracts())
                 .extracting(
                         PlatformWorkplaceProductPepRegistry.BindingContract::routeContractKey,
@@ -199,25 +233,213 @@ class WorkplaceProductSurfacePepContractTest {
                                 "/api/platform/v1/workplace/explore",
                                 "/v1/workplace/explore"),
                         tuple(
+                                "route.workplace.work.find.page", "PAGE", "GET",
+                                "/api/platform/v1/workplace/explore",
+                                "/v1/workplace/explore"),
+                        tuple(
+                                "route.workplace.work.home.page", "PAGE", "GET",
+                                "/api/platform/v1/workplace/explore",
+                                "/v1/workplace/explore"),
+                        tuple(
+                                "route.workplace.work.planner.page", "PAGE", "GET",
+                                "/api/platform/v1/workplace/explore",
+                                "/v1/workplace/explore"),
+                        tuple(
+                                "route.workplace.work.reservations.page", "PAGE", "GET",
+                                "/api/platform/v1/workplace/bookings",
+                                "/v1/workplace/bookings"),
+                        tuple(
+                                "route.workplace.work.reservations.page", "PAGE", "GET",
+                                "/api/platform/v1/rooms/bookings",
+                                "/v1/rooms/bookings"),
+                        tuple(
                                 "route.workplace.work.floor-background.data", "DATA", "GET",
                                 "/api/platform/v1/workplace/floors/{floorId}/background",
                                 "/v1/workplace/floors/{floorId}/background"),
                         tuple(
                                 "route.workplace.work.booking-create.action", "ACTION", "POST",
                                 "/api/platform/v1/workplace/bookings",
-                                "/v1/workplace/bookings"));
+                                "/v1/workplace/bookings"),
+                        tuple(
+                                "route.workplace.work.booking-beneficiaries.data", "DATA", "GET",
+                                "/api/platform/v1/workplace/booking-intents/beneficiaries",
+                                "/v1/workplace/booking-intents/beneficiaries"),
+                        tuple(
+                                "route.workplace.work.booking-intent-preview.action", "ACTION", "POST",
+                                "/api/platform/v1/workplace/booking-intents/preview",
+                                "/v1/workplace/booking-intents/preview"),
+                        tuple(
+                                "route.workplace.work.booking-intent-status.data", "DATA", "GET",
+                                "/api/platform/v1/workplace/booking-intents/{intentId}",
+                                "/v1/workplace/booking-intents/{intentId}"),
+                        tuple(
+                                "route.workplace.work.booking-intent-hold.action", "ACTION", "POST",
+                                "/api/platform/v1/workplace/booking-intents/{intentId}/holds",
+                                "/v1/workplace/booking-intents/{intentId}/holds"),
+                        tuple(
+                                "route.workplace.work.booking-batch-start.action", "ACTION", "POST",
+                                "/api/platform/v1/workplace/booking-batches",
+                                "/v1/workplace/booking-batches"),
+                        tuple(
+                                "route.workplace.work.booking-batch-status.data", "DATA", "GET",
+                                "/api/platform/v1/workplace/booking-batches/{batchId}",
+                                "/v1/workplace/booking-batches/{batchId}"),
+                        tuple(
+                                "route.workplace.work.booking-batch-compensation.action", "ACTION", "POST",
+                                "/api/platform/v1/workplace/booking-batches/{batchId}/compensations",
+                                "/v1/workplace/booking-batches/{batchId}/compensations"),
+                        tuple(
+                                "route.workplace.work.booking-batch-replan.action", "ACTION", "POST",
+                                "/api/platform/v1/workplace/booking-batches/{batchId}/replans",
+                                "/v1/workplace/booking-batches/{batchId}/replans"),
+                        tuple(
+                                "route.workplace.work.waitlist-create.action", "ACTION", "POST",
+                                "/api/platform/v1/workplace/waitlist-entries",
+                                "/v1/workplace/waitlist-entries"),
+                        tuple(
+                                "route.workplace.work.waitlist-catalog.data", "DATA", "GET",
+                                "/api/platform/v1/workplace/waitlist-entries",
+                                "/v1/workplace/waitlist-entries"),
+                        tuple(
+                                "route.workplace.work.waitlist-detail.data", "DATA", "GET",
+                                "/api/platform/v1/workplace/waitlist-entries/{entryId}",
+                                "/v1/workplace/waitlist-entries/{entryId}"),
+                        tuple(
+                                "route.workplace.work.waitlist-update.action", "ACTION", "PATCH",
+                                "/api/platform/v1/workplace/waitlist-entries/{entryId}",
+                                "/v1/workplace/waitlist-entries/{entryId}"),
+                        tuple(
+                                "route.workplace.work.waitlist-cancel.action", "ACTION", "POST",
+                                "/api/platform/v1/workplace/waitlist-entries/{entryId}:cancel",
+                                "/v1/workplace/waitlist-entries/{entryId}:cancel"),
+                        tuple(
+                                "route.workplace.work.alternative-offer-accept.action", "ACTION", "POST",
+                                "/api/platform/v1/workplace/alternative-offers/{offerId}:accept",
+                                "/v1/workplace/alternative-offers/{offerId}:accept"),
+                        tuple(
+                                "route.workplace.management.connector-operations.data",
+                                "DATA", "GET",
+                                "/api/platform/v1/admin/workplace/connectors/operations",
+                                "/v1/admin/workplace/connectors/operations"),
+                        tuple(
+                                "route.workplace.management.connector-operation.data",
+                                "DATA", "GET",
+                                "/api/platform/v1/admin/workplace/connectors/{kind}/operations",
+                                "/v1/admin/workplace/connectors/{kind}/operations"),
+                        tuple(
+                                "route.workplace.management.connector-replay-preview.action",
+                                "ACTION", "POST",
+                                "/api/platform/v1/admin/workplace/connectors/{kind}/replays:preview",
+                                "/v1/admin/workplace/connectors/{kind}/replays:preview"),
+                        tuple(
+                                "route.workplace.management.connector-replay-start.action",
+                                "ACTION", "POST",
+                                "/api/platform/v1/admin/workplace/connectors/{kind}/replays",
+                                "/v1/admin/workplace/connectors/{kind}/replays"),
+                        tuple(
+                                "route.workplace.management.connector-replay-status.data",
+                                "DATA", "GET",
+                                "/api/platform/v1/admin/workplace/connectors/{kind}/replays/{jobId}",
+                                "/v1/admin/workplace/connectors/{kind}/replays/{jobId}"));
+        assertThat(registry.bindingContracts().stream()
+                .map(PlatformWorkplaceProductPepRegistry.BindingContract::routeContractKey)
+                .filter(route -> route.contains("service-catalog")
+                        || route.contains("service-order")
+                        || route.contains("service-fulfillment"))
+                .collect(java.util.stream.Collectors.toSet()))
+                .contains(
+                        "route.workplace.management.service-catalog-create.action",
+                        "route.workplace.management.service-catalog-detail.data",
+                        "route.workplace.management.service-catalog-state.action",
+                        "route.workplace.management.service-catalog-update.action",
+                        "route.workplace.management.service-catalog.page",
+                        "route.workplace.management.service-fulfillment-attachment-download.data",
+                        "route.workplace.management.service-fulfillment-attachment-scan-result.action",
+                        "route.workplace.management.service-fulfillment-attachment-scan-status.data",
+                        "route.workplace.management.service-fulfillment-attachment-upload.action",
+                        "route.workplace.management.service-fulfillment-attachments.data",
+                        "route.workplace.management.service-fulfillment-detail.data",
+                        "route.workplace.management.service-fulfillment-events.data",
+                        "route.workplace.management.service-fulfillment-line-adjustment-reconcile.action",
+                        "route.workplace.management.service-fulfillment-line-adjustment.data",
+                        "route.workplace.management.service-fulfillment-message.action",
+                        "route.workplace.management.service-fulfillment-messages.data",
+                        "route.workplace.management.service-fulfillment-task-update.action",
+                        "route.workplace.management.service-fulfillment.page",
+                        "route.workplace.work.service-catalog.data",
+                        "route.workplace.work.service-order-attachment-download.data",
+                        "route.workplace.work.service-order-attachment-upload.action",
+                        "route.workplace.work.service-order-attachments.data",
+                        "route.workplace.work.service-order-cancel.action",
+                        "route.workplace.work.service-order-detail.data",
+                        "route.workplace.work.service-order-events.data",
+                        "route.workplace.work.service-order-line-adjustment.data",
+                        "route.workplace.work.service-order-line-cancel.action",
+                        "route.workplace.work.service-order-line-cancellation-impact.action",
+                        "route.workplace.work.service-order-message.action",
+                        "route.workplace.work.service-order-messages.data",
+                        "route.workplace.work.service-order-preview.action",
+                        "route.workplace.work.service-order-reconfirm.action",
+                        "route.workplace.work.service-order-submit.action",
+                        "route.workplace.work.service-orders.page");
         assertThat(registry.bindingContracts())
                 .extracting(
                         PlatformWorkplaceProductPepRegistry.BindingContract::routeContractKey,
                         PlatformWorkplaceProductPepRegistry.BindingContract::authorityType,
                         PlatformWorkplaceProductPepRegistry.BindingContract::authorityKey)
-                .containsExactlyInAnyOrder(
+                .contains(
                         tuple("route.workplace.work.explore.page",
+                                "POLICY", "workplace.work-access.v1"),
+                        tuple("route.workplace.work.find.page",
+                                "POLICY", "workplace.work-access.v1"),
+                        tuple("route.workplace.work.planner.page",
+                                "POLICY", "workplace.work-access.v1"),
+                        tuple("route.workplace.work.reservations.page",
+                                "POLICY", "workplace.work-access.v1"),
+                        tuple("route.workplace.work.reservations.page",
                                 "POLICY", "workplace.work-access.v1"),
                         tuple("route.workplace.work.floor-background.data",
                                 "POLICY", "workplace.work-access.v1"),
                         tuple("route.workplace.work.booking-create.action",
-                                "CAPABILITY", "workplace.space.create"));
+                                "CAPABILITY", "workplace.space.create"),
+                        tuple("route.workplace.work.booking-beneficiaries.data",
+                                "POLICY", "workplace.work-access.v1"),
+                        tuple("route.workplace.work.booking-intent-preview.action",
+                                "CAPABILITY", "workplace.space.create"),
+                        tuple("route.workplace.work.booking-intent-status.data",
+                                "POLICY", "workplace.work-access.v1"),
+                        tuple("route.workplace.work.booking-intent-hold.action",
+                                "CAPABILITY", "workplace.space.create"),
+                        tuple("route.workplace.work.booking-batch-start.action",
+                                "CAPABILITY", "workplace.space.create"),
+                        tuple("route.workplace.work.booking-batch-status.data",
+                                "POLICY", "workplace.work-access.v1"),
+                        tuple("route.workplace.work.booking-batch-compensation.action",
+                                "CAPABILITY", "workplace.booking.update"),
+                        tuple("route.workplace.work.booking-batch-replan.action",
+                                "CAPABILITY", "workplace.space.create"),
+                        tuple("route.workplace.work.waitlist-create.action",
+                                "CAPABILITY", "workplace.space.create"),
+                        tuple("route.workplace.work.waitlist-catalog.data",
+                                "POLICY", "workplace.work-access.v1"),
+                        tuple("route.workplace.work.waitlist-detail.data",
+                                "POLICY", "workplace.work-access.v1"),
+                        tuple("route.workplace.work.waitlist-update.action",
+                                "CAPABILITY", "workplace.booking.update"),
+                        tuple("route.workplace.work.waitlist-cancel.action",
+                                "CAPABILITY", "workplace.booking.update"),
+                        tuple("route.workplace.work.alternative-offer-accept.action",
+                                "CAPABILITY", "workplace.space.create"),
+                        tuple("route.workplace.management.connector-operations.data",
+                                "CAPABILITY", "workplace.connector-runtime.read"),
+                        tuple("route.workplace.management.connector-operation.data",
+                                "CAPABILITY", "workplace.connector-runtime.read"),
+                        tuple("route.workplace.management.connector-replay-preview.action",
+                                "CAPABILITY", "workplace.connector-replay.manage"),
+                        tuple("route.workplace.management.connector-replay-start.action",
+                                "CAPABILITY", "workplace.connector-replay.manage"),
+                        tuple("route.workplace.management.connector-replay-status.data",
+                                "CAPABILITY", "workplace.connector-replay.manage"));
         assertThat(registry.bindingContracts().stream()
                 .map(PlatformWorkplaceProductPepRegistry.BindingContract::routeKind)
                 .collect(java.util.stream.Collectors.toSet()))
@@ -225,13 +447,233 @@ class WorkplaceProductSurfacePepContractTest {
     }
 
     @Test
-    void unmodeledWorkplaceSiblingPassesThroughWhileGovernedCandidateRejectsRouteDrift()
+    void v21ServiceHistoryLineAdjustmentAndScanBindingsFailClosed() {
+        String order = "00000000-0000-4000-8000-000000000001";
+        String line = "00000000-0000-4000-8000-000000000002";
+        String adjustment = "00000000-0000-4000-8000-000000000003";
+        String attachment = "00000000-0000-4000-8000-000000000004";
+
+        assertThat(registry.authorize(
+                "route.workplace.work.service-order-events.data", "GET",
+                "/v1/workplace/service-orders/" + order + "/events",
+                Set.of("APP.WORKPLACE:VIEW"), "NORMAL").allowed()).isTrue();
+        assertThat(registry.authorize(
+                "route.workplace.work.service-order-events.data", "POST",
+                "/v1/workplace/service-orders/" + order + "/events",
+                Set.of("APP.WORKPLACE:VIEW"), "NORMAL").allowed()).isFalse();
+        assertThat(registry.authorize(
+                "route.workplace.work.service-order-detail.data", "GET",
+                "/v1/workplace/service-orders/" + order + "/events",
+                Set.of("APP.WORKPLACE:VIEW"), "NORMAL").allowed()).isFalse();
+
+        assertThat(registry.authorize(
+                "route.workplace.work.service-order-line-cancel.action", "POST",
+                "/v1/workplace/service-orders/" + order + "/lines/" + line + ":cancel",
+                Set.of("APP.WORKPLACE:VIEW"), "NORMAL").allowed()).isFalse();
+        assertThat(registry.authorize(
+                "route.workplace.work.service-order-line-cancel.action", "POST",
+                "/v1/workplace/service-orders/" + order + "/lines/" + line + ":cancel",
+                Set.of("APP.WORKPLACE:UPDATE"), "NORMAL").allowed()).isTrue();
+
+        String scanStatus = "/v1/admin/workplace/service-orders/" + order
+                + "/attachments/" + attachment + "/scan-status";
+        assertThat(registry.authorize(
+                "route.workplace.management.service-fulfillment-attachment-scan-status.data",
+                "GET", scanStatus, Set.of("ADMIN.WORKPLACE:VIEW"), "NORMAL").allowed())
+                .isFalse();
+        assertThat(registry.authorize(
+                "route.workplace.management.service-fulfillment-attachment-scan-status.data",
+                "GET", scanStatus, Set.of("ADMIN.WORKPLACE:VIEW"), "ELEVATED").allowed())
+                .isTrue();
+
+        String reconcile = "/v1/admin/workplace/service-orders/" + order
+                + "/line-adjustments/" + adjustment + ":reconcile";
+        assertThat(registry.authorize(
+                "route.workplace.management.service-fulfillment-line-adjustment-reconcile.action",
+                "POST", reconcile, Set.of("ADMIN.WORKPLACE:MANAGE"), "NORMAL").allowed())
+                .isFalse();
+        assertThat(registry.authorize(
+                "route.workplace.management.service-fulfillment-line-adjustment-reconcile.action",
+                "POST", reconcile, Set.of("ADMIN.WORKPLACE:VIEW"), "ELEVATED").allowed())
+                .isFalse();
+        assertThat(registry.authorize(
+                "route.workplace.management.service-fulfillment-line-adjustment-reconcile.action",
+                "POST", reconcile, Set.of("ADMIN.WORKPLACE:MANAGE"), "ELEVATED").allowed())
+                .isTrue();
+    }
+
+    @Test
+    void v21ClosesEveryCurrentHumanRouteAndExactRoomSupportWithoutDeviceRoutes()
+            throws Exception {
+        JsonNode versionTwentyOne = contract("product-surfaces-v1.bundle-v21.json");
+        Set<String> registryBindings = workplacePlatformBindings(versionTwentyOne);
+        Set<String> openApiWorkplace = platformOpenApiWorkplaceBindings();
+        assertThat(openApiWorkplace).hasSize(299).containsAll(DEVICE_BINDINGS);
+        Set<String> human = new java.util.LinkedHashSet<>(openApiWorkplace);
+        human.removeAll(DEVICE_BINDINGS);
+        assertThat(human).hasSize(289).contains(
+                "POST /v1/workplace/bookings/{bookingId}/check-in",
+                "POST /v1/workplace/bookings/{bookingId}/cancel",
+                "POST /v1/workplace/bookings/{bookingId}/release",
+                "POST /v1/workplace/bookings/{bookingId}/relocate",
+                "POST /v1/workplace/assistant/requests",
+                "GET /v1/admin/workplace/assistant/audit-events");
+        Set<String> strictRegistry = registryBindings.stream()
+                .filter(binding -> binding.contains(" /v1/workplace/")
+                        || binding.contains(" /v1/admin/workplace/"))
+                .collect(java.util.stream.Collectors.toSet());
+        assertThat(strictRegistry).isEqualTo(human);
+        assertThat(registryBindings.stream()
+                .filter(binding -> binding.contains(" /v1/rooms/")
+                        || binding.contains(" /v1/admin/rooms/"))
+                .collect(java.util.stream.Collectors.toSet()))
+                .isEqualTo(ROOM_BINDINGS);
+        assertThat(registryBindings).hasSize(303).doesNotContainAnyElementsOf(DEVICE_BINDINGS);
+        assertThat(registry.ownsOwner("GET", "/v1/admin/rooms/policy")).isTrue();
+        assertThat(registry.ownsOwner("GET", "/v1/admin/rooms/not-owned")).isFalse();
+    }
+
+    @Test
+    void v21PublishesEveryNewPageAndEnforcesAllAndExportAuthorities() {
+        assertThat(registry.bindingContracts().stream()
+                .map(PlatformWorkplaceProductPepRegistry.BindingContract::routeContractKey)
+                .collect(java.util.stream.Collectors.toSet()))
+                .contains(
+                        "route.workplace.work.home.page",
+                        "route.workplace.work.wayfinding.page",
+                        "route.workplace.work.assistant.page",
+                        "route.workplace.work.safety.page",
+                        "route.workplace.management.devices.page",
+                        "route.workplace.management.service-providers.page",
+                        "route.workplace.management.space-planning.page",
+                        "route.workplace.management.assistant-governance.page",
+                        "route.workplace.management.governance.page",
+                        "route.workplace.management.safety.page",
+                        "route.workplace.management.visits.page",
+                        "route.workplace.management.visit-policies.page",
+                        "route.workplace.management.access-zones.page",
+                        "route.workplace.management.visit-providers.page",
+                        "route.workplace.management.kiosk-devices.page",
+                        "route.workplace.management.overview.page",
+                        "route.workplace.management.operations.page",
+                        "route.workplace.management.exceptions.page",
+                        "route.workplace.management.locations.page",
+                        "route.workplace.management.policy.page",
+                        "route.workplace.management.room-operations.page",
+                        "route.workplace.management.room-policy.page");
+
+        String planningApprove = "/v1/admin/workplace/space-planning/scenarios/"
+                + "33333333-3333-4333-8333-333333333333:approve";
+        String planningRoute =
+                "route.workplace.management.space-planning-scenarios-by-scenario-id-approve-post.action";
+        assertThat(registry.authorize(planningRoute, "POST", planningApprove,
+                Set.of("ADMIN.WORKPLACE:MANAGE"), "ELEVATED").allowed()).isFalse();
+        assertThat(registry.authorize(planningRoute, "POST", planningApprove,
+                Set.of("ADMIN.WORKPLACE:APPROVE"), "ELEVATED").allowed()).isFalse();
+        assertThat(registry.authorize(planningRoute, "POST", planningApprove,
+                Set.of("ADMIN.WORKPLACE:MANAGE", "ADMIN.WORKPLACE:APPROVE"),
+                "NORMAL").allowed()).isFalse();
+        assertThat(registry.authorize(planningRoute, "POST", planningApprove,
+                Set.of("ADMIN.WORKPLACE:MANAGE", "ADMIN.WORKPLACE:APPROVE"),
+                "ELEVATED").allowed()).isTrue();
+
+        String safetyExport = "/v1/admin/workplace/safety/incidents/"
+                + "44444444-4444-4444-8444-444444444444/exports";
+        String exportRoute =
+                "route.workplace.management.safety-incidents-by-incident-id-exports-post.action";
+        assertThat(registry.authorize(exportRoute, "POST", safetyExport,
+                Set.of("ADMIN.WORKPLACE:MANAGE"), "ELEVATED").allowed()).isFalse();
+        assertThat(registry.authorize(exportRoute, "POST", safetyExport,
+                Set.of("ADMIN.WORKPLACE:EXPORT"), "NORMAL").allowed()).isFalse();
+        assertThat(registry.authorize(exportRoute, "POST", safetyExport,
+                Set.of("ADMIN.WORKPLACE:EXPORT"), "ELEVATED").allowed()).isTrue();
+
+        String passExecute = "/v1/workplace/navigation/access-pass:execute";
+        String passRoute = "route.workplace.work.access-pass-execute.action";
+        assertThat(registry.authorize(passRoute, "POST", passExecute,
+                Set.of("APP.WORKPLACE:UPDATE"), "NORMAL").allowed()).isFalse();
+        assertThat(registry.authorize(passRoute, "POST", passExecute,
+                Set.of("APP.WORKPLACE:UPDATE"), "ELEVATED").allowed()).isTrue();
+
+        String closureExecute = "/v1/admin/workplace/experience/facilities/"
+                + "closure-impact-previews/55555555-5555-4555-8555-555555555555/commands";
+        String closureRoute =
+                "route.workplace.management.facility-closure-impact-execute.action";
+        assertThat(registry.authorize(closureRoute, "POST", closureExecute,
+                Set.of("ADMIN.WORKPLACE:UPDATE"), "NORMAL").allowed()).isFalse();
+        assertThat(registry.authorize(closureRoute, "POST", closureExecute,
+                Set.of("ADMIN.WORKPLACE:UPDATE"), "ELEVATED").allowed()).isTrue();
+
+        String recoveryPreview = "/v1/admin/workplace/exceptions/CONNECTOR_CALENDAR/"
+                + "recovery:preview";
+        String recoveryRoute =
+                "route.workplace.management.exception-recovery-preview.action";
+        assertThat(registry.authorize(recoveryRoute, "POST", recoveryPreview,
+                Set.of("ADMIN.WORKPLACE:MANAGE"), "NORMAL").allowed()).isFalse();
+        assertThat(registry.authorize(recoveryRoute, "POST", recoveryPreview,
+                Set.of("ADMIN.WORKPLACE:MANAGE"), "ELEVATED").allowed()).isTrue();
+    }
+
+    @Test
+    void connectorReadsUseViewWhileReplayContractsRequireManageAndElevated()
+            throws Exception {
+        MockHttpServletRequestBuilder operationsRequest = exactManagement(
+                get("/v1/admin/workplace/connectors/operations"),
+                "route.workplace.management.connector-operations.data",
+                "ADMIN.WORKPLACE:VIEW", "NORMAL");
+        mvc.perform(operationsRequest).andExpect(status().isOk());
+        verify(connectorOps).operations(TENANT);
+
+        String jobId = "33333333-3333-4333-8333-333333333333";
+        MockHttpServletRequestBuilder normalStatus = exactManagement(
+                get("/v1/admin/workplace/connectors/CALENDAR/replays/{jobId}", jobId),
+                "route.workplace.management.connector-replay-status.data",
+                "ADMIN.WORKPLACE:MANAGE", "NORMAL");
+        mvc.perform(normalStatus).andExpect(status().isForbidden());
+
+        MockHttpServletRequestBuilder elevatedStatus = exactManagement(
+                get("/v1/admin/workplace/connectors/CALENDAR/replays/{jobId}", jobId),
+                "route.workplace.management.connector-replay-status.data",
+                "ADMIN.WORKPLACE:MANAGE", "ELEVATED");
+        mvc.perform(elevatedStatus).andExpect(status().isOk());
+        verify(connectorOps).replay(TENANT,
+                com.dwp.services.platform.workplace.connectorops
+                        .WorkplaceConnectorOpsDtos.ConnectorKind.CALENDAR,
+                UUID.fromString(jobId));
+
+        MockHttpServletRequestBuilder elevatedPreview = exactManagement(
+                post("/v1/admin/workplace/connectors/CALENDAR/replays:preview")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .header("Idempotency-Key", "connector-preview-pep-test")
+                        .header("X-Correlation-ID", "connector-preview-pep-correlation")
+                        .content("""
+                                {
+                                  "from":"2026-09-16T01:00:00Z",
+                                  "to":"2026-09-16T02:00:00Z",
+                                  "failedOnly":true,
+                                  "maximumRecords":500,
+                                  "configurationVersion":4,
+                                  "runtimeVersion":7
+                                }
+                                """),
+                "route.workplace.management.connector-replay-preview.action",
+                "ADMIN.WORKPLACE:MANAGE", "ELEVATED");
+        mvc.perform(elevatedPreview).andExpect(status().isOk());
+        verify(connectorOps).preview(eq(TENANT), eq(ACTOR),
+                eq(com.dwp.services.platform.workplace.connectorops
+                        .WorkplaceConnectorOpsDtos.ConnectorKind.CALENDAR),
+                eq("connector-preview-pep-test"), any(),
+                eq("connector-preview-pep-correlation"));
+    }
+
+    @Test
+    void reservationsRouteIsGovernedAndCandidateRouteDriftFailsClosed()
             throws Exception {
         mvc.perform(exact(
                         get("/v1/workplace/bookings")
                                 .param("from", "2026-08-28T09:00:00+09:00")
                                 .param("to", "2026-08-28T18:00:00+09:00"),
-                        "route.workplace.work.unmodeled.data",
+                        "route.workplace.work.reservations.page",
                         "APP.WORKPLACE:VIEW"))
                 .andExpect(status().isOk());
         verify(service).myBookings(
@@ -252,6 +694,49 @@ class WorkplaceProductSurfacePepContractTest {
         verify(service, never()).explore(
                 anyLong(), anyLong(), any(), any(), any(), any(), any(), any());
         verifyNoInteractions(operations);
+    }
+
+    private JsonNode contract(String name) throws Exception {
+        Path path = Path.of("contracts/product-authorization", name);
+        if (!Files.exists(path)) path = Path.of("../contracts/product-authorization", name);
+        return objectMapper.readTree(Files.readAllBytes(path));
+    }
+
+    private Set<String> platformOpenApiWorkplaceBindings() throws Exception {
+        Path path = Path.of("contracts/openapi/platform.json");
+        if (!Files.exists(path)) path = Path.of("../contracts/openapi/platform.json");
+        JsonNode document = objectMapper.readTree(Files.readAllBytes(path));
+        Set<String> methods = Set.of("GET", "POST", "PUT", "PATCH", "DELETE");
+        Set<String> bindings = new java.util.LinkedHashSet<>();
+        document.path("paths").properties().forEach(pathEntry -> {
+            String servicePath = pathEntry.getKey();
+            if (!(servicePath.startsWith("/v1/workplace/")
+                    || servicePath.startsWith("/v1/admin/workplace/")
+                    || servicePath.startsWith("/v1/device/workplace/"))) {
+                return;
+            }
+            pathEntry.getValue().properties().forEach(operation -> {
+                String method = operation.getKey().toUpperCase(java.util.Locale.ROOT);
+                if (methods.contains(method)) bindings.add(method + " " + servicePath);
+            });
+        });
+        return Set.copyOf(bindings);
+    }
+
+    private Set<String> workplacePlatformBindings(JsonNode bundle) {
+        Set<String> values = new java.util.LinkedHashSet<>();
+        for (JsonNode route : bundle.path("routes")) {
+            if (!"workplace".equals(route.path("subject").path("productKey").asText())) {
+                continue;
+            }
+            for (JsonNode binding : route.path("servicePepBindings")) {
+                if ("platform".equals(binding.path("serviceKey").asText())) {
+                    values.add(binding.path("method").asText()
+                            + " " + binding.path("path").asText());
+                }
+            }
+        }
+        return Set.copyOf(values);
     }
 
     private MockHttpServletRequestBuilder exactExplore() {
@@ -308,6 +793,24 @@ class WorkplaceProductSurfacePepContractTest {
             request.header(PlatformSecurityFilter.EXPECTED_DECISION_REVISION_HEADER,
                     CURRENT_REVISION);
         }
+        return request;
+    }
+
+    private MockHttpServletRequestBuilder exactManagement(
+            MockHttpServletRequestBuilder request,
+            String route,
+            String permissions,
+            String accessMode) {
+        exact(request, route, permissions)
+                .header(PlatformSecurityFilter.RESOURCE_ROLES_HEADER,
+                        "APP_CONFIG_ADMIN@APP_WORKPLACE");
+        replaceHeader(request, PlatformSecurityFilter.SCOPE_HEADER,
+                ProductSurfaceScopeKey.resourceSet(
+                        TENANT, ACTOR, "workplace", "workplace.management",
+                        "APP_WORKPLACE"));
+        replaceHeader(request,
+                PlatformWorkplaceProductPepFilter.ACTIVE_ACCESS_MODE_HEADER,
+                accessMode);
         return request;
     }
 

@@ -33,6 +33,8 @@ public class ActivityRepository {
               ON binding.activity_event_id=e.activity_event_id
             WHERE
             """;
+    private static final String SELECT_CURRENT_EVENT = SELECT_EVENT.replace(
+            "FROM wrk_activity_events e", "FROM wrk_activity_execution_current e");
     // Audiences are not grants. An item must still exist and the viewer must have
     // its current domain permission AND current object ownership/catalog grant.
     static final String AUTHORIZED = """
@@ -124,6 +126,15 @@ public class ActivityRepository {
                 """ + AUTHORIZED, access(tenant, user, permissions, false),
                 (rs, n) -> new long[] {rs.getLong(1), rs.getLong(2), rs.getLong(3),
                         rs.getLong(4), rs.getLong(5), rs.getLong(6), rs.getLong(7)});
+    }
+
+    public List<WorkspaceDtos.ActivityEvent> currentAttention(
+            Long tenant, Long user, Set<String> permissions, boolean korean, int limit) {
+        return jdbc.query(SELECT_CURRENT_EVENT + AUTHORIZED
+                        + " AND e.event_state IN ('NEEDS_INPUT','POLICY_BLOCKED')"
+                        + " ORDER BY e.occurred_at DESC,e.activity_event_id DESC LIMIT :limit",
+                access(tenant, user, permissions, false).addValue("limit", limit),
+                (rs, n) -> event(rs, korean));
     }
 
     private MapSqlParameterSource access(

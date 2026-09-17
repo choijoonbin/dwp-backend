@@ -179,12 +179,35 @@ public class NotificationDeliveryAdmissionRepository {
             String reasonCode,
             UUID suppressionId,
             Instant windowStartedAt) {
+        complete(
+                tenantId,
+                receiptId,
+                decision,
+                reasonCode,
+                suppressionId,
+                windowStartedAt,
+                NotificationAttentionDecision.none());
+    }
+
+    void complete(
+            long tenantId,
+            UUID receiptId,
+            String decision,
+            String reasonCode,
+            UUID suppressionId,
+            Instant windowStartedAt,
+            NotificationAttentionDecision attention) {
         int updated = jdbc.update("""
                 UPDATE ntf_delivery_admission_receipts
                    SET decision = :decision,
                        reason_code = :reasonCode,
                        suppression_id = :suppressionId,
                        window_started_at = :windowStartedAt,
+                       attention_rule_id = :attentionRuleId,
+                       attention_scope_kind = :attentionScopeKind,
+                       attention_effect = :attentionEffect,
+                       attention_rule_revision = :attentionRuleRevision,
+                       attention_policy_source = :attentionPolicySource,
                        decided_at = CURRENT_TIMESTAMP
                  WHERE tenant_id = :tenantId
                    AND receipt_id = :receiptId
@@ -196,9 +219,68 @@ public class NotificationDeliveryAdmissionRepository {
                 .addValue("reasonCode", reasonCode)
                 .addValue("suppressionId", suppressionId)
                 .addValue("windowStartedAt", windowStartedAt == null
-                        ? null : Timestamp.from(windowStartedAt)));
+                        ? null : Timestamp.from(windowStartedAt))
+                .addValue("attentionRuleId", attention.ruleId())
+                .addValue("attentionScopeKind", attention.scopeKind())
+                .addValue("attentionEffect", attention.effect())
+                .addValue("attentionRuleRevision", attention.ruleRevision())
+                .addValue("attentionPolicySource", attention.policySource()));
         if (updated != 1) {
             throw new IllegalStateException("Notification admission receipt is not pending.");
+        }
+    }
+
+    void appendQualityFact(
+            long tenantId,
+            UUID receiptId,
+            NotificationQualityFactContext context) {
+        int inserted = jdbc.update("""
+                INSERT INTO ntf_notification_quality_facts (
+                    fact_id, tenant_id, receipt_id, user_id,
+                    type_version_id, contract_id, owner_app_key, type_key, owner_team,
+                    decided_at, decision, reason_code,
+                    attention_effect, attention_scope_kind,
+                    action_required, collapsed,
+                    thread_identity_hash, source_identity_hash)
+                SELECT :factId,
+                       receipt.tenant_id,
+                       receipt.receipt_id,
+                       receipt.user_id,
+                       receipt.type_version_id,
+                       type.type_id,
+                       type.owner_app_key,
+                       type.type_key,
+                       type.owner_team,
+                       receipt.decided_at,
+                       receipt.decision,
+                       receipt.reason_code,
+                       receipt.attention_effect,
+                       receipt.attention_scope_kind,
+                       :actionRequired,
+                       :collapsed,
+                       :threadIdentityHash,
+                       :sourceIdentityHash
+                  FROM ntf_delivery_admission_receipts receipt
+                  JOIN ntf_notification_type_versions type_version
+                    ON type_version.type_version_id = receipt.type_version_id
+                  JOIN ntf_notification_types type
+                    ON type.type_id = type_version.type_id
+                 WHERE receipt.tenant_id = :tenantId
+                   AND receipt.receipt_id = :receiptId
+                   AND receipt.decision <> 'PENDING'
+                   AND receipt.decided_at IS NOT NULL
+                ON CONFLICT (tenant_id, receipt_id) DO NOTHING
+                """, new MapSqlParameterSource()
+                .addValue("factId", UUID.randomUUID())
+                .addValue("tenantId", tenantId)
+                .addValue("receiptId", receiptId)
+                .addValue("actionRequired", context.actionRequired())
+                .addValue("collapsed", context.collapsed())
+                .addValue("threadIdentityHash", context.threadIdentityHash())
+                .addValue("sourceIdentityHash", context.sourceIdentityHash()));
+        if (inserted != 1) {
+            throw new IllegalStateException(
+                    "Notification quality fact was not appended exactly once.");
         }
     }
 

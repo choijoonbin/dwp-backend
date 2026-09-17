@@ -50,6 +50,8 @@ class NotificationDeliveryAdmissionServiceTest {
         verify(repository).complete(
                 7, receiptId, "SUPPRESSED", "ACTIVE_SUPPRESSION",
                 suppressionId, null);
+        verify(repository).appendQualityFact(
+                eq(7L), eq(receiptId), any(NotificationQualityFactContext.class));
         verify(repository, never()).maximumPerWindow(any(Long.class), any(), any(), any());
     }
 
@@ -106,6 +108,30 @@ class NotificationDeliveryAdmissionServiceTest {
         verify(repository, never()).incrementWindow(
                 any(Long.class), any(Long.class), any(), any(), any(), any(Integer.class),
                 any(Integer.class));
+        verify(repository, never()).appendQualityFact(
+                any(Long.class), any(), any(NotificationQualityFactContext.class));
+    }
+
+    @Test
+    void attentionMuteIsPersistedBeforeOperationalSuppressionAndRateChecks() {
+        UUID receiptId = UUID.randomUUID();
+        NotificationAttentionDecision attention = new NotificationAttentionDecision(
+                UUID.randomUUID(), "THREAD", "MUTE", 3L, "USER",
+                "USER_ATTENTION_MUTE");
+        when(repository.claim(any(Long.class), any(), any(), any(Long.class), eq("IN_APP")))
+                .thenReturn(new AdmissionClaim(receiptId, "PENDING", true));
+
+        assertThat(service.admittedRecipient(
+                7, 91, request(), contract("NORMAL", "ACTIONABLE"),
+                Instant.now(), attention)).isFalse();
+
+        verify(repository).complete(
+                7, receiptId, "SUPPRESSED", "USER_ATTENTION_MUTE",
+                null, null, attention);
+        verify(repository, never()).matchingSuppression(
+                any(Long.class), any(), any(), any(), any());
+        verify(repository, never()).maximumPerWindow(
+                any(Long.class), any(), any(), any());
     }
 
     @Test

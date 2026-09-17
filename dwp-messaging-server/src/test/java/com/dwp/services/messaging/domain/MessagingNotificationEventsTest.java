@@ -71,6 +71,13 @@ class MessagingNotificationEventsTest {
                 .isEmpty();
         assertThat(envelope.data().path("notificationIntents").get(0)
                 .path("recipientUserIds").toString()).isEqualTo("[20]");
+        var contexts = envelope.data().path("notificationIntents").get(0).path("contexts");
+        assertThat(contexts).hasSize(2);
+        assertThat(contexts.toString())
+                .contains("\"kind\":\"PERSON\"", "\"key\":\"user:10\"")
+                .contains("\"kind\":\"CONVERSATION\"",
+                        "messaging-conversation:" + conversationId)
+                .doesNotContain("김민서", "AX 프로젝트", "배포 계획", "displayHint", "TOPIC");
     }
 
     @Test
@@ -208,6 +215,12 @@ class MessagingNotificationEventsTest {
         assertThat(intents.get(1).path("typeKey").asText())
                 .isEqualTo(MessagingNotificationEvents.THREAD_REPLY);
         assertThat(intents.get(1).path("recipientUserIds").toString()).isEqualTo("[30]");
+        assertThat(intents.get(1).path("contexts").toString())
+                .contains("\"kind\":\"PERSON\"")
+                .contains("\"kind\":\"CONVERSATION\"")
+                .contains("\"kind\":\"THREAD\"",
+                        "messaging-thread:" + replyToMessageId)
+                .doesNotContain("@사용자20", "AX 프로젝트", "TOPIC");
         assertThat(intents.get(2).path("typeKey").asText())
                 .isEqualTo(MessagingNotificationEvents.CHANNEL_MESSAGE);
         assertThat(intents.get(2).path("recipientUserIds").toString()).isEqualTo("[40]");

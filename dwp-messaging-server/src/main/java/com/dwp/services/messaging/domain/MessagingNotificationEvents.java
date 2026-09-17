@@ -258,12 +258,28 @@ class MessagingNotificationEvents {
                 .put("actionRequired", false);
         ArrayNode recipientIds = intent.putArray("recipientUserIds");
         recipients.forEach(recipientIds::add);
+        ArrayNode contexts = intent.putArray("contexts");
+        addContext(contexts, "PERSON", "user:" + subject.userId());
+        addContext(
+                contexts,
+                "CONVERSATION",
+                "messaging-conversation:" + conversation.conversationId());
+        if (threadKey.startsWith("messaging-thread:")) {
+            addContext(contexts, "THREAD", threadKey);
+        }
         intent.putObject("variables")
                 .put("senderName", subject.displayName())
                 .put("conversationName", conversation.name())
                 .put("conversationId", conversation.conversationId().toString())
                 .put("messageId", messageId.toString())
                 .put("messagePreview", preview);
+    }
+
+    private void addContext(ArrayNode contexts, String kind, String key) {
+        contexts.addObject()
+                .put("kind", kind)
+                .put("key", key)
+                .put("matchable", true);
     }
 
     private String safePreview(String body, String dataClassification) {

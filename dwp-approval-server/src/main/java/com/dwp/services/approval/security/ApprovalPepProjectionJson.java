@@ -18,7 +18,7 @@ final class ApprovalPepProjectionJson {
     }
 
     static ObjectNode readProjection(ObjectMapper objectMapper, String resource) {
-        try (InputStream input = ApprovalPilotPepRegistry.class.getClassLoader()
+        try (InputStream input = ApprovalPepProjectionJson.class.getClassLoader()
                 .getResourceAsStream(resource)) {
             if (input == null) {
                 throw new IllegalStateException("Generated Approval Pilot PEP is absent.");

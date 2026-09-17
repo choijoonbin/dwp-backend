@@ -127,6 +127,15 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
+        String path = request.getRequestURI();
+        boolean devicePath = PlatformDeviceIdentity.owns(request.getMethod(), path);
+        String identityPlane = PlatformDeviceIdentity.exactHeader(
+                request, PlatformDeviceIdentity.PLANE_HEADER);
+        if (PlatformDeviceIdentity.PLANE.equals(identityPlane) && !devicePath) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "The DEVICE identity plane is restricted to governed device routes.");
+            return;
+        }
         if (request.getRequestURI().startsWith("/v1/workspace/activity")) {
             response.setHeader("Cache-Control", "private, no-store, max-age=0");
         }
@@ -135,7 +144,9 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             writeError(response, ErrorCode.EXTERNAL_SERVICE_ERROR, "Platform service identity is not configured.");
             return;
         }
-        String providedToken = request.getHeader(SERVICE_TOKEN_HEADER);
+        String providedToken = devicePath
+                ? PlatformDeviceIdentity.exactHeader(request, SERVICE_TOKEN_HEADER)
+                : request.getHeader(SERVICE_TOKEN_HEADER);
         boolean gatewayIdentity = !serviceToken.isBlank()
                 && constantTimeEquals(serviceToken, providedToken);
         boolean runtimeIdentity = runtimeRead
@@ -143,6 +154,26 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 && constantTimeEquals(runtimeServiceToken, providedToken);
         if (!gatewayIdentity && !runtimeIdentity) {
             writeError(response, ErrorCode.UNAUTHORIZED, "Trusted platform service identity is required.");
+            return;
+        }
+
+        if (devicePath) {
+            Long deviceTenant = PlatformDeviceIdentity.canonicalTenant(request, TENANT_HEADER);
+            String credential = PlatformDeviceIdentity.exactHeader(
+                    request, PlatformDeviceIdentity.CREDENTIAL_HEADER);
+            if (!gatewayIdentity || deviceTenant == null
+                    || !PlatformDeviceIdentity.PLANE.equals(identityPlane)
+                    || !PlatformDeviceIdentity.validCredential(credential)) {
+                writeError(response, ErrorCode.UNAUTHORIZED,
+                        "Trusted DEVICE identity evidence is required.");
+                return;
+            }
+            if (PlatformDeviceIdentity.hasConflictingEvidence(request)) {
+                writeError(response, ErrorCode.FORBIDDEN,
+                        "User, role, permission, product, and support evidence cannot coexist with DEVICE identity.");
+                return;
+            }
+            filterChain.doFilter(request, response);
             return;
         }
 
@@ -158,7 +189,6 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                     "Provider control-plane roles cannot coexist with tenant or workspace roles.");
             return;
         }
-        String path = request.getRequestURI();
         List<String> resolvedCanaryRoutes = List.of();
         List<String> resolvedApprovalRoutes = List.of();
         boolean approvalStateChanging = false;
@@ -443,6 +473,13 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
 
     private boolean hasRoomsAuthority(HttpServletRequest request) {
         String path = request.getRequestURI();
+        if (("GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod()))
+                && "/v1/rooms/bookings".equals(path)
+                && "route.workplace.work.reservations.page".equals(
+                request.getHeader(ROUTE_CONTRACT_HEADER))) {
+            return hasAuthority(
+                    request.getHeader(PERMISSIONS_HEADER), "APP.WORKPLACE", "VIEW");
+        }
         String requiredPermission = switch (request.getMethod()) {
             case "GET", "HEAD" -> "VIEW";
             case "POST" -> path.endsWith("/bookings")
@@ -486,7 +523,8 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     private boolean hasWorkplaceAdminAuthority(HttpServletRequest request) {
         String path = request.getRequestURI();
         String requiredPermission = switch (request.getMethod()) {
-            case "GET", "HEAD" -> "VIEW";
+            case "GET", "HEAD" -> isWorkplaceConnectorReplayStatus(path)
+                    ? "MANAGE" : "VIEW";
             case "POST" -> path.endsWith("/background")
                     ? "UPDATE"
                     : isWorkplaceGovernanceTransition(path) ? "MANAGE" : "CREATE";
@@ -507,9 +545,16 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     private boolean isWorkplaceGovernanceTransition(String path) {
         return (path.startsWith("/v1/admin/workplace/experience/collaboration/")
                 && (path.endsWith("/changes") || path.endsWith("/review")))
+                || (path.startsWith("/v1/admin/workplace/connectors/")
+                && (path.endsWith("/replays:preview") || path.endsWith("/replays")))
                 || path.endsWith("/review")
                 || path.endsWith("/publish")
                 || path.endsWith("/restore");
+    }
+
+    private boolean isWorkplaceConnectorReplayStatus(String path) {
+        return path.matches(
+                "^/v1/admin/workplace/connectors/[^/]+/replays/[^/]+$");
     }
 
     private boolean hasCalendarAdminAuthority(HttpServletRequest request) {
@@ -542,8 +587,7 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     private boolean hasMailAdminAuthority(HttpServletRequest request) {
         String requiredPermission = switch (request.getMethod()) {
             case "GET", "HEAD" -> "VIEW";
-            case "POST" -> "CREATE";
-            case "PUT", "PATCH", "DELETE" -> "MANAGE";
+            case "POST", "PUT", "PATCH", "DELETE" -> "MANAGE";
             default -> "MANAGE";
         };
         return hasAuthority(

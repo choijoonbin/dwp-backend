@@ -113,6 +113,11 @@ class WorkplacePrivacyRepository {
                               AND event.aggregate_id = release.release_window_id
                               AND release.tenant_id = event.tenant_id
                               AND release.legal_hold = TRUE)
+                       AND NOT EXISTS (
+                           SELECT 1
+                             FROM wp_booking_commands command
+                            WHERE command.tenant_id = event.tenant_id
+                              AND command.audit_event_id = event.audit_event_id)
                      ORDER BY event.occurred_at, event.audit_event_id
                      FOR UPDATE SKIP LOCKED
                      LIMIT ?

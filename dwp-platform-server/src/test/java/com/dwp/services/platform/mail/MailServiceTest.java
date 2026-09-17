@@ -36,6 +36,8 @@ class MailServiceTest {
     private MailDeliveryCompletionService deliveryCompletion;
 
     private MailService service;
+    private final MailSendCommandFingerprint sendFingerprints =
+            new MailSendCommandFingerprint();
 
     @BeforeEach
     void setUp() {
@@ -53,6 +55,8 @@ class MailServiceTest {
         when(queries.proposal(1L, 7L, proposalId))
                 .thenReturn(Optional.of(before))
                 .thenReturn(Optional.of(after));
+        when(queries.thread(1L, 7L, threadId))
+                .thenReturn(Optional.of(thread(threadId, true, 0L)));
         when(queries.policy(1L)).thenReturn(policy());
         when(commands.decideProposal(
                 1L, 7L, proposalId, ProposalDecision.ACCEPT, 2L)).thenReturn(1);
@@ -77,6 +81,8 @@ class MailServiceTest {
         UUID threadId = UUID.randomUUID();
         when(queries.proposal(1L, 7L, proposalId)).thenReturn(Optional.of(
                 proposal(proposalId, threadId, ProposalStatus.PROPOSED, 2L)));
+        when(queries.thread(1L, 7L, threadId))
+                .thenReturn(Optional.of(thread(threadId, true, 0L)));
         when(queries.policy(1L)).thenReturn(policy());
 
         assertThatThrownBy(() -> service.decideProposal(
@@ -137,8 +143,9 @@ class MailServiceTest {
                 DeliveryMode.SEND, idempotencyKey);
         MailDtos.ThreadSummary existing = thread(threadId, false, 0L);
         when(queries.accounts(1L, 7L)).thenReturn(List.of(account()));
-        when(commands.compose(1L, 7L, request))
-                .thenReturn(new MailCommandRepository.ComposeResult(threadId, false));
+        String fingerprint = sendFingerprints.compose(7L, request);
+        when(commands.deliveryCommand(1L, 7L, idempotencyKey)).thenReturn(
+                new MailCommandRepository.DeliveryCommand(threadId, 7L, fingerprint));
         when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(existing));
         when(queries.messages(1L, 7L, threadId)).thenReturn(List.of());
         when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
@@ -149,31 +156,259 @@ class MailServiceTest {
 
         assertThat(result.thread().threadId()).isEqualTo(threadId);
         verify(commands, never()).enqueueDelivery(
-                eq(1L), eq(7L), eq(threadId), eq(idempotencyKey), eq("corr-replay"));
+                eq(1L), eq(7L), eq(threadId), eq(idempotencyKey), eq("corr-replay"),
+                eq(fingerprint));
         verify(commands, never()).audit(
                 eq(1L), eq(7L), eq("mail.message.queued"),
                 eq("MAIL_THREAD"), eq(threadId.toString()),
                 eq("corr-replay"), anyMap(), anyMap());
+        verify(commands, never()).compose(1L, 7L, request, fingerprint);
+    }
+
+    @Test
+    void repeatedComposeDraftReturnsTheOriginalDraftWithoutAnotherMutation() {
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ComposeRequest request = new MailDtos.ComposeRequest(
+                "recipient@sk.com", "수신자", "임시 저장", "동일 초안입니다.",
+                DeliveryMode.DRAFT, idempotencyKey);
+        String fingerprint = sendFingerprints.compose(7L, request);
+        MailDtos.ThreadSummary existing = thread(threadId, false, 0L);
+        when(queries.accounts(1L, 7L)).thenReturn(List.of(account()));
+        when(commands.compose(1L, 7L, request, fingerprint)).thenReturn(
+                new MailCommandRepository.ComposeResult(threadId, false, fingerprint));
+        when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(existing));
+        when(queries.messages(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
+
+        MailDtos.ThreadDetail result = service.compose(
+                1L, 7L, "corr-draft-replay", request);
+
+        assertThat(result.thread().threadId()).isEqualTo(threadId);
+        verify(commands, never()).enqueueDelivery(
+                eq(1L), eq(7L), eq(threadId), eq(idempotencyKey),
+                eq("corr-draft-replay"), eq(fingerprint));
+        verify(commands, never()).audit(
+                eq(1L), eq(7L), eq("mail.draft.saved"),
+                eq("MAIL_THREAD"), eq(threadId.toString()),
+                eq("corr-draft-replay"), anyMap(), anyMap());
+    }
+
+    @Test
+    void composeSendIdempotencyKeyRejectsChangedPayload() {
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ComposeRequest original = new MailDtos.ComposeRequest(
+                "recipient@sk.com", "수신자", "원본 제목", "원본 본문",
+                DeliveryMode.SEND, idempotencyKey);
+        MailDtos.ComposeRequest changed = new MailDtos.ComposeRequest(
+                "other@sk.com", "다른 수신자", "변경 제목", "변경 본문",
+                DeliveryMode.SEND, idempotencyKey);
+        String changedFingerprint = sendFingerprints.compose(7L, changed);
+        when(queries.accounts(1L, 7L)).thenReturn(List.of(account()));
+        when(commands.deliveryCommand(1L, 7L, idempotencyKey)).thenReturn(
+                new MailCommandRepository.DeliveryCommand(
+                        threadId, 7L, sendFingerprints.compose(7L, original)));
+
+        assertThatThrownBy(() -> service.compose(
+                1L, 7L, "corr-compose-send-drift", changed))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("different mail send command");
+
+        verify(commands, never()).compose(1L, 7L, changed, changedFingerprint);
+        verify(commands, never()).enqueueDelivery(
+                eq(1L), eq(7L), eq(threadId), eq(idempotencyKey),
+                eq("corr-compose-send-drift"), eq(changedFingerprint));
+    }
+
+    @Test
+    void legacyComposeDeliveryWithoutFingerprintFailsClosed() {
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ComposeRequest request = new MailDtos.ComposeRequest(
+                "recipient@sk.com", "수신자", "기존 명령", "기존 본문",
+                DeliveryMode.SEND, idempotencyKey);
+        when(queries.accounts(1L, 7L)).thenReturn(List.of(account()));
+        when(commands.deliveryCommand(1L, 7L, idempotencyKey)).thenReturn(
+                new MailCommandRepository.DeliveryCommand(threadId, 7L, null));
+
+        assertThatThrownBy(() -> service.compose(
+                1L, 7L, "corr-compose-legacy", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("different mail send command");
+
+        verify(commands, never()).compose(
+                1L, 7L, request, sendFingerprints.compose(7L, request));
+    }
+
+    @Test
+    void legacyComposeDraftWithoutFingerprintFailsClosed() {
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ComposeRequest request = new MailDtos.ComposeRequest(
+                "recipient@sk.com", "수신자", "기존 초안", "기존 초안 본문",
+                DeliveryMode.DRAFT, idempotencyKey);
+        String fingerprint = sendFingerprints.compose(7L, request);
+        when(queries.accounts(1L, 7L)).thenReturn(List.of(account()));
+        when(commands.compose(1L, 7L, request, fingerprint)).thenReturn(
+                new MailCommandRepository.ComposeResult(threadId, false, null));
+
+        assertThatThrownBy(() -> service.compose(
+                1L, 7L, "corr-draft-legacy", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("different mail send command");
+
+        verify(commands, never()).enqueueDelivery(
+                eq(1L), eq(7L), eq(threadId), eq(idempotencyKey),
+                eq("corr-draft-legacy"), eq(fingerprint));
+    }
+
+    @Test
+    void composeIdempotencyKeyRejectsChangedPayloadOrMode() {
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ComposeRequest original = new MailDtos.ComposeRequest(
+                "recipient@sk.com", "수신자", "원본 제목", "원본 본문",
+                DeliveryMode.DRAFT, idempotencyKey);
+        MailDtos.ComposeRequest changed = new MailDtos.ComposeRequest(
+                "other@sk.com", "다른 수신자", "변경 제목", "변경 본문",
+                DeliveryMode.SEND, idempotencyKey);
+        String changedFingerprint = sendFingerprints.compose(7L, changed);
+        when(queries.accounts(1L, 7L)).thenReturn(List.of(account()));
+        when(commands.compose(1L, 7L, changed, changedFingerprint)).thenReturn(
+                new MailCommandRepository.ComposeResult(
+                        threadId, false, sendFingerprints.compose(7L, original)));
+
+        assertThatThrownBy(() -> service.compose(
+                1L, 7L, "corr-compose-drift", changed))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("different mail send command");
+
+        verify(commands, never()).enqueueDelivery(
+                eq(1L), eq(7L), eq(threadId), eq(idempotencyKey),
+                eq("corr-compose-drift"), eq(changedFingerprint));
     }
 
     @Test
     void repeatedReplyReturnsTheOriginalThreadWithoutAnotherMessage() {
         UUID threadId = UUID.randomUUID();
         UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ReplyRequest request =
+                new MailDtos.ReplyRequest("재전송된 요청", idempotencyKey);
         MailDtos.ThreadSummary existing = thread(threadId, false, 1L);
         when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(existing));
-        when(commands.deliveryThread(1L, 7L, idempotencyKey)).thenReturn(threadId);
+        when(commands.deliveryCommand(1L, 7L, idempotencyKey)).thenReturn(
+                new MailCommandRepository.DeliveryCommand(
+                        threadId, 7L, sendFingerprints.reply(7L, threadId, request)));
         when(queries.messages(1L, 7L, threadId)).thenReturn(List.of());
         when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
         when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
 
         MailDtos.ThreadDetail result = service.reply(
-                1L, 7L, threadId, "corr-reply-replay",
-                new MailDtos.ReplyRequest("재전송된 요청", idempotencyKey));
+                1L, 7L, threadId, "corr-reply-replay", request);
 
         assertThat(result.thread().threadId()).isEqualTo(threadId);
         verify(commands, never()).insertReply(
                 eq(1L), eq(7L), eq(threadId), eq("재전송된 요청"), eq(idempotencyKey));
+    }
+
+    @Test
+    void replyIdempotencyKeyRejectsChangedBody() {
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ReplyRequest original =
+                new MailDtos.ReplyRequest("원본 본문", idempotencyKey);
+        when(queries.thread(1L, 7L, threadId))
+                .thenReturn(Optional.of(thread(threadId, false, 1L)));
+        when(commands.deliveryCommand(1L, 7L, idempotencyKey)).thenReturn(
+                new MailCommandRepository.DeliveryCommand(
+                        threadId, 7L, sendFingerprints.reply(7L, threadId, original)));
+
+        assertThatThrownBy(() -> service.reply(
+                1L, 7L, threadId, "corr-reply-drift",
+                new MailDtos.ReplyRequest("변경된 본문", idempotencyKey)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("different mail send command");
+
+        verify(commands, never()).insertReply(
+                eq(1L), eq(7L), eq(threadId), eq("변경된 본문"), eq(idempotencyKey));
+    }
+
+    @Test
+    void replyIdempotencyKeyRejectsAnotherThread() {
+        UUID originalThreadId = UUID.randomUUID();
+        UUID replayThreadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ReplyRequest request =
+                new MailDtos.ReplyRequest("동일한 본문", idempotencyKey);
+        when(queries.thread(1L, 7L, replayThreadId))
+                .thenReturn(Optional.of(thread(replayThreadId, false, 1L)));
+        when(commands.deliveryCommand(1L, 7L, idempotencyKey)).thenReturn(
+                new MailCommandRepository.DeliveryCommand(
+                        originalThreadId, 7L,
+                        sendFingerprints.reply(7L, originalThreadId, request)));
+
+        assertThatThrownBy(() -> service.reply(
+                1L, 7L, replayThreadId, "corr-reply-thread-drift", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("different mail send command");
+
+        verify(commands, never()).insertReply(
+                eq(1L), eq(7L), eq(replayThreadId), eq("동일한 본문"), eq(idempotencyKey));
+    }
+
+    @Test
+    void sharedReplyCannotReplayAnotherActorsCommand() {
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ReplyRequest request =
+                new MailDtos.ReplyRequest("동일한 공유 답장", idempotencyKey);
+        when(queries.thread(1L, 7L, threadId))
+                .thenReturn(Optional.of(thread(threadId, false, 1L)));
+        when(commands.deliveryCommandForThread(
+                1L, 7L, threadId, idempotencyKey)).thenReturn(
+                new MailCommandRepository.DeliveryCommand(
+                        threadId, 8L,
+                        sendFingerprints.reply(8L, threadId, request)));
+
+        assertThatThrownBy(() -> service.reply(
+                1L, 7L, threadId, "corr-cross-actor", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("different mail send command");
+
+        verify(commands, never()).insertReply(
+                eq(1L), eq(7L), eq(threadId), eq("동일한 공유 답장"), eq(idempotencyKey));
+    }
+
+    @Test
+    void duplicateEnqueueOnAnotherThreadMapsToConflict() {
+        UUID requestedThreadId = UUID.randomUUID();
+        UUID existingThreadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ReplyRequest request =
+                new MailDtos.ReplyRequest("새 답장", idempotencyKey);
+        String fingerprint = sendFingerprints.reply(7L, requestedThreadId, request);
+        when(queries.thread(1L, 7L, requestedThreadId))
+                .thenReturn(Optional.of(thread(requestedThreadId, false, 1L)));
+        when(commands.insertReply(
+                1L, 7L, requestedThreadId, request.body(), idempotencyKey))
+                .thenReturn(true);
+        when(commands.enqueueDelivery(
+                1L, 7L, requestedThreadId, idempotencyKey,
+                "corr-enqueue-race", fingerprint)).thenReturn(
+                new MailCommandRepository.DeliveryCommand(
+                        existingThreadId, 7L, fingerprint));
+
+        assertThatThrownBy(() -> service.reply(
+                1L, 7L, requestedThreadId, "corr-enqueue-race", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("different mail send command");
+
+        verify(commands, never()).audit(
+                eq(1L), eq(7L), eq("mail.reply.sent"), eq("MAIL_THREAD"),
+                eq(requestedThreadId.toString()), eq("corr-enqueue-race"),
+                anyMap(), anyMap());
     }
 
     @Test
@@ -185,7 +420,9 @@ class MailServiceTest {
                 "recipient@sk.com", "수신자", "전송 완료", "이미 전송했습니다.",
                 DeliveryMode.SEND, idempotencyKey, 1L);
         when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(existing));
-        when(commands.deliveryThread(1L, 7L, idempotencyKey)).thenReturn(threadId);
+        when(commands.deliveryCommand(1L, 7L, idempotencyKey)).thenReturn(
+                new MailCommandRepository.DeliveryCommand(
+                        threadId, 7L, sendFingerprints.draftSend(7L, threadId, request)));
         when(queries.messages(1L, 7L, threadId)).thenReturn(List.of());
         when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
         when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
@@ -195,6 +432,30 @@ class MailServiceTest {
 
         assertThat(result.thread().threadId()).isEqualTo(threadId);
         verify(commands, never()).updateDraft(1L, 7L, threadId, request);
+    }
+
+    @Test
+    void draftSendIdempotencyKeyRejectsChangedPayloadOrVersion() {
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.DraftUpdateRequest original = new MailDtos.DraftUpdateRequest(
+                "recipient@sk.com", "수신자", "전송 완료", "원본 본문",
+                DeliveryMode.SEND, idempotencyKey, 1L);
+        MailDtos.DraftUpdateRequest changed = new MailDtos.DraftUpdateRequest(
+                "other@sk.com", "다른 수신자", "변경된 제목", "변경된 본문",
+                DeliveryMode.SEND, idempotencyKey, 2L);
+        when(queries.thread(1L, 7L, threadId))
+                .thenReturn(Optional.of(thread(threadId, false, 2L)));
+        when(commands.deliveryCommand(1L, 7L, idempotencyKey)).thenReturn(
+                new MailCommandRepository.DeliveryCommand(
+                        threadId, 7L, sendFingerprints.draftSend(7L, threadId, original)));
+
+        assertThatThrownBy(() -> service.updateDraft(
+                1L, 7L, threadId, "corr-draft-drift", changed))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("different mail send command");
+
+        verify(commands, never()).updateDraft(1L, 7L, threadId, changed);
     }
 
     @Test
@@ -233,6 +494,9 @@ class MailServiceTest {
                 TriageLane.ASSIGNED, WorkflowState.OPEN, null,
                 null, null, false, false, Classification.INTERNAL, 1, 0L);
         when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(sharedThread));
+        when(queries.hasSharedInboxPermission(
+                1L, sharedInboxId, 7L,
+                MailQueryRepository.SharedInboxPermission.ASSIGN)).thenReturn(true);
         when(queries.isActiveSharedInboxMember(1L, sharedInboxId, 99L)).thenReturn(false);
 
         assertThatThrownBy(() -> service.assign(
@@ -240,6 +504,33 @@ class MailServiceTest {
                 new MailDtos.AssignRequest(99L, "비구성원", 0L)))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("not an active member");
+    }
+
+    @Test
+    void readOnlySharedInboxGrantCannotCreateInternalComments() {
+        UUID threadId = UUID.randomUUID();
+        UUID sharedInboxId = UUID.randomUUID();
+        MailDtos.ThreadSummary sharedThread = new MailDtos.ThreadSummary(
+                threadId, UUID.randomUUID(), "People Help", "INBOX",
+                sharedInboxId, "People Help", "문의", "확인 부탁드립니다.",
+                List.of(new MailDtos.Participant("구성원", "member@sk.com")),
+                OffsetDateTime.now(), true, false, Importance.HIGH,
+                TriageLane.ASSIGNED, WorkflowState.OPEN, null,
+                null, null, false, false, Classification.INTERNAL, 1, 0L);
+        when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(sharedThread));
+        when(queries.hasSharedInboxPermission(
+                1L, sharedInboxId, 7L,
+                MailQueryRepository.SharedInboxPermission.MANAGE)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.comment(
+                1L, 7L, "Member", threadId, "corr-comment",
+                new MailDtos.CommentRequest("Internal note", List.of())))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("does not permit");
+
+        verify(commands, never()).insertComment(
+                eq(1L), eq(7L), eq("Member"), eq(threadId),
+                eq("Internal note"), eq(List.of()));
     }
 
     @Test

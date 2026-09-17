@@ -20,6 +20,14 @@ final class MailAccessSql {
                             AND membership.shared_inbox_id = inbox.shared_inbox_id
                             AND membership.user_id = ?
                             AND membership.lifecycle_state = 'ACTIVE'
+                           JOIN mail_shared_inbox_access_grants access_grant
+                             ON access_grant.tenant_id = membership.tenant_id
+                            AND access_grant.shared_inbox_id = membership.shared_inbox_id
+                            AND access_grant.user_id = membership.user_id
+                            AND access_grant.member_state = 'ACTIVE'
+                            AND access_grant.can_read = TRUE
+                            AND (access_grant.expires_at IS NULL
+                                 OR access_grant.expires_at > CURRENT_TIMESTAMP)
                           WHERE policy.tenant_id = account.tenant_id
                             AND policy.allow_shared_inboxes = TRUE
                      )
@@ -48,6 +56,14 @@ final class MailAccessSql {
                             AND membership.shared_inbox_id = inbox.shared_inbox_id
                             AND membership.user_id = ?
                             AND membership.lifecycle_state = 'ACTIVE'
+                           JOIN mail_shared_inbox_access_grants access_grant
+                             ON access_grant.tenant_id = membership.tenant_id
+                            AND access_grant.shared_inbox_id = membership.shared_inbox_id
+                            AND access_grant.user_id = membership.user_id
+                            AND access_grant.member_state = 'ACTIVE'
+                            AND access_grant.can_read = TRUE
+                            AND (access_grant.expires_at IS NULL
+                                 OR access_grant.expires_at > CURRENT_TIMESTAMP)
                           WHERE policy.tenant_id = thread.tenant_id
                             AND policy.allow_shared_inboxes = TRUE
                      )
@@ -70,6 +86,14 @@ final class MailAccessSql {
                    AND membership.shared_inbox_id = inbox.shared_inbox_id
                    AND membership.user_id = ?
                    AND membership.lifecycle_state = 'ACTIVE'
+                  JOIN mail_shared_inbox_access_grants access_grant
+                    ON access_grant.tenant_id = membership.tenant_id
+                   AND access_grant.shared_inbox_id = membership.shared_inbox_id
+                   AND access_grant.user_id = membership.user_id
+                   AND access_grant.member_state = 'ACTIVE'
+                   AND access_grant.can_read = TRUE
+                   AND (access_grant.expires_at IS NULL
+                        OR access_grant.expires_at > CURRENT_TIMESTAMP)
                  WHERE policy.tenant_id = thread.tenant_id
                    AND policy.allow_shared_inboxes = TRUE
                    AND account.tenant_id = thread.tenant_id

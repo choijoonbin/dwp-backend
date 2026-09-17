@@ -2,6 +2,7 @@ package com.dwp.services.platform.mail;
 
 import com.dwp.core.common.ApiResponse;
 import jakarta.validation.Valid;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.bind.annotation.PutMapping;
 
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
 import java.util.Base64;
 import java.util.UUID;
 
@@ -22,17 +24,28 @@ public class MailController {
 
     private final MailService service;
     private final MailDraftService drafts;
+    private final MailWorkspaceService workspace;
 
     public MailController(MailService service, MailDraftService drafts) {
+        this(service, drafts, null);
+    }
+
+    @Autowired
+    public MailController(
+            MailService service,
+            MailDraftService drafts,
+            MailWorkspaceService workspace) {
         this.service = service;
         this.drafts = drafts;
+        this.workspace = workspace;
     }
 
     @GetMapping("/home")
     public ApiResponse<MailDtos.HomeResponse> home(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
-            @RequestHeader("X-DWP-User-ID") Long userId) {
-        return ApiResponse.success(service.home(tenantId, userId));
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestParam(required = false) UUID accountId) {
+        return ApiResponse.success(service.home(tenantId, userId, accountId));
     }
 
     @GetMapping("/threads")
@@ -44,12 +57,25 @@ public class MailController {
             @RequestParam(required = false, defaultValue = "") String folder,
             @RequestParam(required = false) UUID folderId,
             @RequestParam(defaultValue = "false") boolean sharedOnly,
+            @RequestParam(required = false) UUID accountId,
+            @RequestParam(required = false, defaultValue = "") String scope,
+            @RequestParam(required = false) UUID sharedInboxId,
+            @RequestParam(required = false, defaultValue = "") String assignment,
+            @RequestParam(name = "from", required = false, defaultValue = "") String sender,
+            @RequestParam(name = "to", required = false, defaultValue = "") String recipient,
+            @RequestParam(required = false) LocalDate dateFrom,
+            @RequestParam(required = false) LocalDate dateTo,
+            @RequestParam(required = false) Boolean unread,
+            @RequestParam(required = false) Boolean needsReply,
+            @RequestParam(required = false) Boolean hasAttachment,
             @RequestParam(required = false, defaultValue = "") String query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "30") int pageSize) {
-        return ApiResponse.success(service.threads(
+        return ApiResponse.success(service.threadsAdvanced(
                 tenantId, userId, lane, state, folder, folderId,
-                sharedOnly, query, page, pageSize));
+                sharedOnly, query, accountId, scope, sharedInboxId, assignment,
+                sender, recipient, dateFrom, dateTo, unread, needsReply,
+                hasAttachment, page, pageSize));
     }
 
     @PostMapping("/messages")
@@ -58,6 +84,12 @@ public class MailController {
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @Valid @RequestBody MailDtos.ComposeRequest request) {
+        if (workspace != null
+                && request.deliveryMode() == com.dwp.services.platform.mail.MailTypes.DeliveryMode.SEND
+                && request.composeOptions() != null) {
+            return ApiResponse.success(workspace.compose(
+                    tenantId, userId, correlationId, request));
+        }
         return ApiResponse.success(service.compose(
                 tenantId, userId, correlationId, request));
     }
@@ -68,8 +100,14 @@ public class MailController {
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @Valid @RequestBody MailDtos.DraftSaveRequest request) {
-        return ApiResponse.success(drafts.create(
-                tenantId, userId, correlationId, request));
+        MailDtos.ThreadDetail detail = drafts.create(
+                tenantId, userId, correlationId, request);
+        if (workspace != null && request.composeOptions() != null) {
+            workspace.saveDraftOptions(
+                    tenantId, userId, detail.thread().threadId(), request.composeOptions());
+            detail = workspace.enrichDraft(tenantId, userId, detail);
+        }
+        return ApiResponse.success(detail);
     }
 
     @PutMapping("/drafts/{threadId}")
@@ -79,8 +117,13 @@ public class MailController {
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID threadId,
             @Valid @RequestBody MailDtos.DraftSaveRequest request) {
-        return ApiResponse.success(drafts.save(
-                tenantId, userId, threadId, correlationId, request));
+        MailDtos.ThreadDetail detail = drafts.save(
+                tenantId, userId, threadId, correlationId, request);
+        if (workspace != null && request.composeOptions() != null) {
+            workspace.saveDraftOptions(tenantId, userId, threadId, request.composeOptions());
+            detail = workspace.enrichDraft(tenantId, userId, detail);
+        }
+        return ApiResponse.success(detail);
     }
 
     @PutMapping("/threads/{threadId}/draft")
@@ -90,6 +133,12 @@ public class MailController {
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID threadId,
             @Valid @RequestBody MailDtos.DraftUpdateRequest request) {
+        if (workspace != null
+                && request.deliveryMode() == com.dwp.services.platform.mail.MailTypes.DeliveryMode.SEND
+                && request.composeOptions() != null) {
+            return ApiResponse.success(workspace.sendDraft(
+                    tenantId, userId, threadId, correlationId, request));
+        }
         return ApiResponse.success(service.updateDraft(
                 tenantId, userId, threadId, correlationId, request));
     }
@@ -99,7 +148,13 @@ public class MailController {
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
             @PathVariable UUID threadId) {
-        return ApiResponse.success(service.thread(tenantId, userId, threadId));
+        MailDtos.ThreadDetail detail = service.thread(tenantId, userId, threadId);
+        if (workspace != null
+                && detail.thread().workflowState()
+                == com.dwp.services.platform.mail.MailTypes.WorkflowState.DRAFT) {
+            detail = workspace.enrichDraft(tenantId, userId, detail);
+        }
+        return ApiResponse.success(detail);
     }
 
     @PostMapping("/threads/{threadId}/actions")
@@ -179,6 +234,26 @@ public class MailController {
             @Valid @RequestBody MailDtos.ProposalDecisionRequest request) {
         return ApiResponse.success(service.decideProposal(
                 tenantId, userId, permissions, proposalId, correlationId, request));
+    }
+
+    @GetMapping("/proposals")
+    public ApiResponse<java.util.List<MailDtos.ActionProposal>> proposals(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestParam(required = false, defaultValue = "") String status,
+            @RequestParam(required = false, defaultValue = "") String type) {
+        return ApiResponse.success(service.proposals(tenantId, userId, status, type));
+    }
+
+    @PutMapping("/proposals/{proposalId}")
+    public ApiResponse<MailDtos.ActionProposal> updateProposal(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @PathVariable UUID proposalId,
+            @Valid @RequestBody MailDtos.ProposalUpdateRequest request) {
+        return ApiResponse.success(service.updateProposal(
+                tenantId, userId, proposalId, correlationId, request));
     }
 
     private String decoded(String value) {

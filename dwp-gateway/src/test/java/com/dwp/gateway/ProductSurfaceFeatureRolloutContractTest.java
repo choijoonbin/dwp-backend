@@ -683,13 +683,23 @@ class ProductSurfaceFeatureRolloutContractTest {
     }
 
     @Test
-    void incrementalWorkplaceReadSiblingBypassesRolloutAndStripsSpoofedEvidence() {
+    void incrementalWorkplaceReadReceivesOnlyTenantAuthoritativeRolloutEvidence() {
         FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
+        when(client.evaluateProducts(eq(7L), eq(List.of("workplace")), any()))
+                .thenReturn(Mono.just(List.of(
+                        new ProductSurfaceContextDtos.ProductRollout(
+                                "workplace",
+                                "110",
+                                new ProductSurfaceContextDtos.RolloutFlags(true, true, false),
+                                "eligible-workplace",
+                                "rollout-workplace-revision",
+                                ProductSurfaceContextDtos.AuthorityStatus.NOT_EVALUATED))));
         ProductSurfaceRolloutHeaderFilter filter =
                 new ProductSurfaceRolloutHeaderFilter(
                         client, productRouteCatalog(), new ObjectMapper());
         MockServerWebExchange exchange = MockServerWebExchange.from(
                 MockServerHttpRequest.get("/api/platform/v1/workplace/bookings")
+                        .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
                         .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "111")
                         .header(ProductSurfaceRolloutHeaderFilter.COHORT_HEADER, "attacker")
                         .header(ProductSurfaceRolloutHeaderFilter.REVISION_HEADER, "attacker"));
@@ -702,14 +712,14 @@ class ProductSurfaceFeatureRolloutContractTest {
         }).block();
 
         assertThat(forwarded.get()).isNotNull();
-        assertThat(forwarded.get().getHeaders().containsKey(
-                ProductSurfaceRolloutHeaderFilter.STATE_HEADER)).isFalse();
-        assertThat(forwarded.get().getHeaders().containsKey(
-                ProductSurfaceRolloutHeaderFilter.COHORT_HEADER)).isFalse();
-        assertThat(forwarded.get().getHeaders().containsKey(
-                ProductSurfaceRolloutHeaderFilter.REVISION_HEADER)).isFalse();
-        verify(client, org.mockito.Mockito.never())
-                .evaluateProducts(anyLong(), any(), any());
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceRolloutHeaderFilter.STATE_HEADER)).isEqualTo("110");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceRolloutHeaderFilter.COHORT_HEADER)).isEqualTo("eligible-workplace");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceRolloutHeaderFilter.REVISION_HEADER))
+                .isEqualTo("rollout-workplace-revision");
+        verify(client).evaluateProducts(eq(7L), eq(List.of("workplace")), any());
     }
 
     @Test

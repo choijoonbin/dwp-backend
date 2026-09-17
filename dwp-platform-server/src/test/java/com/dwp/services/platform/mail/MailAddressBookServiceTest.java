@@ -100,6 +100,10 @@ class MailAddressBookServiceTest {
         var recipient = new MailAddressBookRepository.Recipient(
                 UUID.randomUUID(), "Kim", "kim@example.com");
         var detail = detail(threadId);
+        var sendReceipt = new MailAddressBookDtos.GroupSendReceipt(
+                UUID.randomUUID(), groupId, 5L,
+                MailAddressBookDtos.GroupRecipientMode.TO,
+                1, threadId, OffsetDateTime.now(), "ACCEPTED");
         when(receipts.reserve(1L, 7L, GROUP_MESSAGE_SEND, key, fingerprint))
                 .thenReturn(new MailAddressBookCommandReceiptRepository.Receipt(
                         fingerprint, null, null, "IN_PROGRESS", true))
@@ -110,13 +114,23 @@ class MailAddressBookServiceTest {
         when(groupCompose.compose(
                 1L, 7L, groupId, request, List.of(recipient), "corr-first"))
                 .thenReturn(new MailGroupComposeRepository.ComposeResult(
-                        threadId, 0L, "a".repeat(64), 1));
+                        threadId, 0L, "a".repeat(64), 1, UUID.randomUUID(), sendReceipt));
         when(mail.thread(1L, 7L, threadId)).thenReturn(detail);
+        when(groupCompose.receipt(1L, 7L, groupId, threadId))
+                .thenReturn(java.util.Optional.of(sendReceipt));
 
         assertThat(service.sendGroupMessage(
-                1L, 7L, groupId, "corr-first", request)).isEqualTo(detail);
+                1L, 7L, groupId, "corr-first", request))
+                .satisfies(result -> {
+                    assertThat(result.thread()).isEqualTo(detail);
+                    assertThat(result.receipt()).isEqualTo(sendReceipt);
+                });
         assertThat(service.sendGroupMessage(
-                1L, 7L, groupId, "corr-replay", request)).isEqualTo(detail);
+                1L, 7L, groupId, "corr-replay", request))
+                .satisfies(result -> {
+                    assertThat(result.thread()).isEqualTo(detail);
+                    assertThat(result.receipt()).isEqualTo(sendReceipt);
+                });
 
         verify(groupCompose).compose(
                 1L, 7L, groupId, request, List.of(recipient), "corr-first");

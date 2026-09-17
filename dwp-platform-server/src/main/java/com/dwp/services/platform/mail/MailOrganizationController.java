@@ -87,6 +87,16 @@ public class MailOrganizationController {
                 service.updateRule(tenantId, userId, ruleId, correlationId, request));
     }
 
+    @PutMapping("/rules/order")
+    public ApiResponse<MailOrganizationDtos.OrganizationResponse> reorderRules(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @Valid @RequestBody MailOrganizationDtos.RuleOrderRequest request) {
+        return ApiResponse.success(
+                service.reorderRules(tenantId, userId, correlationId, request));
+    }
+
     @PostMapping("/rules/{ruleId}/archive")
     public ApiResponse<Void> archiveRule(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,

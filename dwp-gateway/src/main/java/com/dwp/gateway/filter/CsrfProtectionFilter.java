@@ -26,6 +26,9 @@ public class CsrfProtectionFilter implements GlobalFilter, Ordered {
 
     @Override
     public Mono<Void> filter(ServerWebExchange exchange, GatewayFilterChain chain) {
+        if (DeviceIdentityPlaneFilter.verified(exchange)) {
+            return chain.filter(exchange);
+        }
         String path = exchange.getRequest().getURI().getPath();
         HttpMethod method = exchange.getRequest().getMethod();
         if (method == null

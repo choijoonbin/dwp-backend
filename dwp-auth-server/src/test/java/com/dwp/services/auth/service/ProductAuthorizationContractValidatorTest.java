@@ -223,11 +223,26 @@ class ProductAuthorizationContractValidatorTest {
                 generatedDocument("product-surfaces-v1.bundle-v13.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionFourteen = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v14.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(14);
-        assertThat(index.latestChecksum()).isEqualTo(versionFourteen.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionFifteen = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v15.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionSixteen = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v16.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionSeventeen = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v17.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionEighteen = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v18.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionNineteen = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v19.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionTwenty = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v20.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionTwentyOne = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v21.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(21);
+        assertThat(index.latestChecksum()).isEqualTo(versionTwentyOne.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
-                .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L);
+                .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
+                        12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -271,6 +286,73 @@ class ProductAuthorizationContractValidatorTest {
                         .toList());
         assertThat(versionFourteen.routes()).hasSize(360)
                 .containsAll(versionThirteen.routes());
+        assertStrictCapabilitySuperset(versionFourteen, versionFifteen);
+        assertThat(versionFifteen.capabilities()).hasSize(136);
+        assertThat(versionFifteen.routes()).hasSize(411)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionFourteen.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList());
+        assertThat(versionFifteen.routes())
+                .filteredOn(route -> "route.workplace.work.explore.page"
+                        .equals(route.routeContractKey()))
+                .singleElement()
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::authorizationEquivalenceKey)
+                .isEqualTo("wire-authority.workplace.work.explore.v1");
+        assertStrictCapabilitySuperset(versionFifteen, versionSixteen);
+        assertThat(versionSixteen.capabilities()).hasSize(137);
+        assertThat(versionSixteen.routes()).hasSize(425)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionFifteen.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains("route.workplace.work.booking-intent-preview.action",
+                        "route.workplace.work.booking-batch-compensation.action",
+                        "route.workplace.work.waitlist-cancel.action");
+        assertThat(versionEighteen.routes()).hasSize(459)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionSeventeen.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.workplace.work.service-order-events.data",
+                        "route.workplace.work.service-order-line-cancel.action",
+                        "route.workplace.management.service-fulfillment-attachment-scan-status.data",
+                        "route.workplace.management.service-fulfillment-line-adjustment-reconcile.action");
+        assertThat(versionNineteen.routes()).hasSize(460)
+                .containsAll(versionEighteen.routes());
+        assertThat(versionTwenty.capabilities()).hasSize(159);
+        assertThat(versionTwenty.routes()).hasSize(686)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionNineteen.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.workplace.work.home.page",
+                        "route.workplace.work.wayfinding.page",
+                        "route.workplace.management.safety.page",
+                        "route.workplace.management.visits.page",
+                        "route.workplace.management.visit-policies.page",
+                        "route.workplace.management.access-zones.page",
+                        "route.workplace.management.visit-providers.page",
+                        "route.workplace.management.kiosk-devices.page",
+                        "route.workplace.management.overview.page",
+                        "route.workplace.management.operations.page",
+                        "route.workplace.management.locations.page",
+                        "route.workplace.management.policy.page",
+                        "route.workplace.management.room-operations.page",
+                        "route.workplace.management.room-policy.page");
+        assertThat(versionTwentyOne.capabilities()).hasSize(159);
+        assertThat(versionTwentyOne.routes()).hasSize(709)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionTwenty.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.dwaion.management.ai-control.page",
+                        "route.dwaion.management.ai-control-bootstrap.action",
+                        "route.dwaion.management.ai-control-update.action",
+                        "route.dwaion.management.ai-control-emergency.action");
         assertThat(versionSix.routes()).filteredOn(value -> value.routeContractKey().equals(
                 "route.services.work.request-information-response.action"))
                 .singleElement().satisfies(route -> {

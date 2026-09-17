@@ -9,8 +9,13 @@ public enum NotificationErrorCode {
     SERVICE_NOT_CONFIGURED(HttpStatus.BAD_GATEWAY, "E5000", "Notification service identity is not configured."),
     NOTIFICATION_NOT_FOUND(HttpStatus.NOT_FOUND, "NOTIFICATION_NOT_FOUND", "The notification was not found."),
     DELIVERY_ENDPOINT_NOT_FOUND(HttpStatus.NOT_FOUND, "DELIVERY_ENDPOINT_NOT_FOUND", "The notification delivery endpoint was not found."),
+    ATTENTION_RULE_NOT_FOUND(HttpStatus.NOT_FOUND, "ATTENTION_RULE_NOT_FOUND", "The attention rule was not found."),
+    ATTENTION_SCOPE_NOT_AVAILABLE(HttpStatus.NOT_FOUND, "ATTENTION_SCOPE_NOT_AVAILABLE", "The attention scope is not available."),
+    TEST_DELIVERY_NOT_FOUND(HttpStatus.NOT_FOUND, "TEST_DELIVERY_NOT_FOUND", "The test delivery was not found."),
     NOTIFICATION_TARGET_UNAVAILABLE(HttpStatus.GONE, "NOTIFICATION_TARGET_UNAVAILABLE", "The notification target is no longer available."),
     NOTIFICATION_STALE_VERSION(HttpStatus.CONFLICT, "NOTIFICATION_STALE_VERSION", "The notification was changed by another request."),
+    ATTENTION_PREVIEW_STALE(HttpStatus.CONFLICT, "ATTENTION_PREVIEW_STALE", "The attention impact preview is no longer current."),
+    ATTENTION_RULE_LIMIT_REACHED(HttpStatus.CONFLICT, "ATTENTION_RULE_LIMIT_REACHED", "The active attention rule limit was reached."),
     NOTIFICATION_INVALID_CURSOR(HttpStatus.BAD_REQUEST, "NOTIFICATION_INVALID_CURSOR", "The cursor is invalid or expired."),
     NOTIFICATION_SYNC_RESET_REQUIRED(HttpStatus.CONFLICT, "NOTIFICATION_SYNC_RESET_REQUIRED", "A full notification refresh is required."),
     NOTIFICATION_IDEMPOTENCY_CONFLICT(HttpStatus.CONFLICT, "NOTIFICATION_IDEMPOTENCY_CONFLICT", "The idempotency key was reused with a different request."),
@@ -18,6 +23,8 @@ public enum NotificationErrorCode {
     NOTIFICATION_CONTRACT_QUARANTINED(HttpStatus.UNPROCESSABLE_ENTITY, "NOTIFICATION_CONTRACT_QUARANTINED", "The notification contract is not active or compatible."),
     NOTIFICATION_IDENTITY_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "NOTIFICATION_IDENTITY_UNAVAILABLE", "Recipient entitlement validation is unavailable."),
     AUTHORITY_RESOLUTION_UNAVAILABLE(HttpStatus.SERVICE_UNAVAILABLE, "AUTHORITY_RESOLUTION_UNAVAILABLE", "Current authorization evidence is unavailable."),
+    ATTENTION_POLICY_LOCKED(HttpStatus.FORBIDDEN, "ATTENTION_POLICY_LOCKED", "Organization policy prevents this attention change."),
+    TEST_DELIVERY_RATE_LIMITED(HttpStatus.TOO_MANY_REQUESTS, "TEST_DELIVERY_RATE_LIMITED", "The test delivery rate limit was reached."),
     NOTIFICATION_CAPABILITY_DISABLED(HttpStatus.NOT_IMPLEMENTED, "NOTIFICATION_CAPABILITY_DISABLED", "The requested notification capability is disabled."),
     INTERNAL_ERROR(HttpStatus.INTERNAL_SERVER_ERROR, "E1000", "An internal server error occurred.");
 

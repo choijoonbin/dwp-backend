@@ -19,6 +19,10 @@ PEP = (
     / "approval-pilot-pep-v2.generated.json"
 )
 OPENAPI = ROOT / "contracts/openapi/approval.json"
+WORK_PROJECTION = (
+    ROOT
+    / "contracts/product-authorization/approval-work-projections-v7.generated.json"
+)
 
 SCHEMA_PROFILES = {
     "ApprovalOversightAdminPulseV1": "legacy-oversight",
@@ -28,6 +32,13 @@ SCHEMA_PROFILES = {
     "ApprovalAuditorOperationsV1": "auditor",
     "ApprovalOversightOperationsV1": "legacy-oversight",
     "ApprovalOversightSignatureV1": "legacy-oversight",
+}
+WORK_SCHEMA_PROFILES = {
+    "DraftReconciliation": "full-work",
+    "DraftRevisionDetail": "full-work",
+    "PageDraftRevision": "full-work",
+    "PageRequestSummary": "full-work",
+    "PageTaskSummary": "full-work",
 }
 TARGET_PROFILES = frozenset(SCHEMA_PROFILES.values())
 BASE_FIELDS = frozenset({
@@ -65,7 +76,7 @@ def openapi_hashes(document: dict[str, Any]) -> dict[str, str]:
     if not isinstance(schemas, dict):
         fail("approval OpenAPI components.schemas is missing")
     result: dict[str, str] = {}
-    for schema_key in SCHEMA_PROFILES:
+    for schema_key in SCHEMA_PROFILES | WORK_SCHEMA_PROFILES:
         schema = schemas.get(schema_key)
         if not isinstance(schema, dict):
             fail(f"OpenAPI component {schema_key} is missing")
@@ -80,11 +91,12 @@ def binding_record(
     profile_key: str,
     binding: dict[str, Any],
     hashes: dict[str, str],
+    schema_profiles: dict[str, str],
 ) -> tuple[Any, ...]:
     if set(binding) != BASE_FIELDS | METADATA_FIELDS:
         fail(f"{route_key}/{profile_key}: projection fields changed")
     schema_key = binding.get("responseSchemaKey")
-    if SCHEMA_PROFILES.get(schema_key) != profile_key:
+    if schema_profiles.get(schema_key) != profile_key:
         fail(f"{route_key}/{profile_key}: unregistered field-mask schema {schema_key}")
     schema_version = binding.get("schemaVersion")
     schema_hash = binding.get("openApiSchemaSha256")
@@ -133,7 +145,9 @@ def generated_records(
                 if not isinstance(binding, dict):
                     fail(f"{route_key}/{profile_key}: projection must be an object")
                 if profile_key in TARGET_PROFILES:
-                    record = binding_record(route_key, profile_key, binding, hashes)
+                    record = binding_record(
+                        route_key, profile_key, binding, hashes, SCHEMA_PROFILES
+                    )
                     if record in records:
                         fail(f"{route_key}/{profile_key}: duplicate projection binding")
                     records.add(record)
@@ -147,11 +161,12 @@ def generated_records(
 
 def source_records(
     document: dict[str, Any], hashes: dict[str, str]
-) -> set[tuple[Any, ...]]:
+) -> tuple[set[tuple[Any, ...]], set[tuple[Any, ...]]]:
     enrichment = document.get("descriptorEnrichments")
     if not isinstance(enrichment, dict):
         fail("canonical descriptorEnrichments is missing")
     records: set[tuple[Any, ...]] = set()
+    work_records: set[tuple[Any, ...]] = set()
     for route in enrichment.get("routes", []):
         route_key = route.get("routeContractKey")
         for binding in route.get("projectionBindings", []):
@@ -159,31 +174,95 @@ def source_records(
                 fail(f"{route_key}: canonical projection must be an object")
             profile_key = binding.get("profileKey")
             has_metadata = bool(set(binding) & METADATA_FIELDS)
-            if profile_key in TARGET_PROFILES or has_metadata:
+            if profile_key in TARGET_PROFILES:
                 generated_shape = {
                     key: value for key, value in binding.items() if key != "profileKey"
                 }
                 record = binding_record(
-                    route_key, profile_key, generated_shape, hashes
+                    route_key, profile_key, generated_shape, hashes, SCHEMA_PROFILES
                 )
                 if record in records:
                     fail(f"{route_key}/{profile_key}: duplicate canonical projection")
                 records.add(record)
+            elif binding.get("responseSchemaKey") in WORK_SCHEMA_PROFILES:
+                generated_shape = {
+                    key: value for key, value in binding.items() if key != "profileKey"
+                }
+                record = binding_record(
+                    route_key,
+                    profile_key,
+                    generated_shape,
+                    hashes,
+                    WORK_SCHEMA_PROFILES,
+                )
+                if record in work_records:
+                    fail(f"{route_key}/{profile_key}: duplicate work projection")
+                work_records.add(record)
+            elif has_metadata:
+                fail(
+                    f"{route_key}/{profile_key}: unregistered field-mask schema "
+                    f"{binding.get('responseSchemaKey')}"
+                )
     if {record[4] for record in records} != set(SCHEMA_PROFILES):
         fail("canonical source does not carry all seven schema hashes")
+    if {record[4] for record in work_records} != set(WORK_SCHEMA_PROFILES):
+        fail("canonical source does not carry all five v7 Work schema hashes")
+    return records, work_records
+
+
+def work_contract_records(
+    document: dict[str, Any], hashes: dict[str, str]
+) -> set[tuple[Any, ...]]:
+    bindings = document.get("bindings")
+    if not isinstance(bindings, list) or document.get("bindingCount") != len(bindings):
+        fail("v7 Work projection binding count is invalid")
+    schemas = document.get("schemas")
+    if not isinstance(schemas, dict):
+        fail("v7 Work projection schema closure is missing")
+    records: set[tuple[Any, ...]] = set()
+    for binding in bindings:
+        if not isinstance(binding, dict):
+            fail("v7 Work projection binding must be an object")
+        route_key = binding.get("routeContractKey")
+        profile_key = binding.get("profileKey")
+        generated_shape = {
+            key: value
+            for key, value in binding.items()
+            if key not in {"routeContractKey", "profileKey"}
+        }
+        record = binding_record(
+            route_key,
+            profile_key,
+            generated_shape,
+            hashes,
+            WORK_SCHEMA_PROFILES,
+        )
+        if record in records:
+            fail(f"{route_key}/{profile_key}: duplicate v7 Work projection binding")
+        records.add(record)
+    if {record[4] for record in records} != set(WORK_SCHEMA_PROFILES):
+        fail("v7 Work projection artifact does not cover all five schemas exactly")
+    for schema_key in WORK_SCHEMA_PROFILES:
+        schema = schemas.get(schema_key)
+        if not isinstance(schema, dict) or raw_schema_sha256(schema) != hashes[schema_key]:
+            fail(f"v7 Work projection artifact schema drift: {schema_key}")
     return records
 
 
 def main() -> None:
     hashes = openapi_hashes(load(OPENAPI))
-    source = source_records(load(SOURCE), hashes)
+    source, source_work = source_records(load(SOURCE), hashes)
     registry = generated_records(load(REGISTRY), hashes, registry=True)
     pep = generated_records(load(PEP), hashes, registry=False)
+    work = work_contract_records(load(WORK_PROJECTION), hashes)
     if source != registry or registry != pep:
         fail("canonical source, v2 registry, and Approval PEP projections differ")
+    if source_work != work:
+        fail("canonical source and v7 Work projection artifact differ")
     print(
         "Approval projection schema contract OK: "
-        f"schemas={len(hashes)} bindings={len(registry)}"
+        f"legacySchemas={len(SCHEMA_PROFILES)} legacyBindings={len(registry)} "
+        f"workSchemas={len(WORK_SCHEMA_PROFILES)} workBindings={len(work)}"
     )
 
 

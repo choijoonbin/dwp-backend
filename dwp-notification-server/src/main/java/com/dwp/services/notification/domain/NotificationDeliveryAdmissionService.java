@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class NotificationDeliveryAdmissionService {
@@ -52,6 +53,35 @@ public class NotificationDeliveryAdmissionService {
             DirectMaterializationRequest request,
             TemplateContract contract,
             Instant now) {
+        return admittedRecipient(
+                tenantId,
+                userId,
+                request,
+                contract,
+                now,
+                NotificationAttentionDecision.none());
+    }
+
+    public boolean admittedRecipient(
+            long tenantId,
+            long userId,
+            DirectMaterializationRequest request,
+            TemplateContract contract,
+            Instant now,
+            NotificationAttentionDecision attention) {
+        return admittedRecipient(
+                tenantId, userId, request, contract, now, attention, false, true);
+    }
+
+    boolean admittedRecipient(
+            long tenantId,
+            long userId,
+            DirectMaterializationRequest request,
+            TemplateContract contract,
+            Instant now,
+            NotificationAttentionDecision attention,
+            boolean collapsed,
+            boolean deliveryEnabled) {
         AdmissionClaim claim = repository.claim(
                 tenantId,
                 request.sourceEventId(),
@@ -65,6 +95,32 @@ public class NotificationDeliveryAdmissionService {
             }
             return "ADMITTED".equals(claim.decision());
         }
+        NotificationQualityFactContext qualityFact = NotificationQualityFactContext.from(
+                tenantId, request, contract, collapsed);
+        if (attention.suppress()) {
+            complete(
+                    tenantId,
+                    claim.receiptId(),
+                    "SUPPRESSED",
+                    attention.reasonCode(),
+                    null,
+                    null,
+                    attention,
+                    qualityFact);
+            return false;
+        }
+        if (!deliveryEnabled) {
+            complete(
+                    tenantId,
+                    claim.receiptId(),
+                    "SUPPRESSED",
+                    "USER_CHANNEL_DISABLED",
+                    null,
+                    null,
+                    attention,
+                    qualityFact);
+            return false;
+        }
         SuppressionMatch suppression = repository.matchingSuppression(
                 tenantId,
                 contract.ownerAppKey(),
@@ -74,13 +130,15 @@ public class NotificationDeliveryAdmissionService {
         boolean critical = "URGENT".equals(contract.priority())
                 || "CRITICAL".equals(contract.urgency());
         if (suppression != null && !(suppression.criticalBypass() && critical)) {
-            repository.complete(
+            complete(
                     tenantId,
                     claim.receiptId(),
                     "SUPPRESSED",
                     "ACTIVE_SUPPRESSION",
                     suppression.suppressionId(),
-                    null);
+                    null,
+                    attention,
+                    qualityFact);
             return false;
         }
         Integer maximum = repository.maximumPerWindow(
@@ -96,24 +154,58 @@ public class NotificationDeliveryAdmissionService {
                     windowStartedAt,
                     Math.toIntExact(rateWindow.getSeconds()),
                     maximum)) {
-                repository.complete(
+                complete(
                         tenantId,
                         claim.receiptId(),
                         "RATE_LIMITED",
                         "MAX_PER_WINDOW",
                         null,
-                        windowStartedAt);
+                        windowStartedAt,
+                        attention,
+                        qualityFact);
                 return false;
             }
         }
-        repository.complete(
+        complete(
                 tenantId,
                 claim.receiptId(),
                 "ADMITTED",
                 suppression == null ? "POLICY_ADMITTED" : "CRITICAL_BYPASS",
                 suppression == null ? null : suppression.suppressionId(),
-                windowStartedAt);
+                windowStartedAt,
+                attention,
+                qualityFact);
         return true;
+    }
+
+    private void complete(
+            long tenantId,
+            UUID receiptId,
+            String decision,
+            String reasonCode,
+            UUID suppressionId,
+            Instant windowStartedAt,
+            NotificationAttentionDecision attention,
+            NotificationQualityFactContext qualityFact) {
+        if (attention.matched()) {
+            repository.complete(
+                    tenantId,
+                    receiptId,
+                    decision,
+                    reasonCode,
+                    suppressionId,
+                    windowStartedAt,
+                    attention);
+        } else {
+            repository.complete(
+                    tenantId,
+                    receiptId,
+                    decision,
+                    reasonCode,
+                    suppressionId,
+                    windowStartedAt);
+        }
+        repository.appendQualityFact(tenantId, receiptId, qualityFact);
     }
 
     static Instant windowStart(Instant now, Duration duration) {

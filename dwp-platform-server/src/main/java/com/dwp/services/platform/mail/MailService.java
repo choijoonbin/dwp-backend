@@ -7,6 +7,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -25,6 +27,7 @@ public class MailService {
     private final MailCommandRepository commands;
     private final MailProviderCatalog providerCatalog;
     private final MailDeliveryCompletionService deliveryCompletion;
+    private final MailSendCommandFingerprint sendFingerprints;
 
     public MailService(
             MailQueryRepository queries,
@@ -35,18 +38,30 @@ public class MailService {
         this.commands = commands;
         this.providerCatalog = providerCatalog;
         this.deliveryCompletion = deliveryCompletion;
+        this.sendFingerprints = new MailSendCommandFingerprint();
     }
 
     @Transactional(readOnly = true)
     public MailDtos.HomeResponse home(Long tenantId, Long userId) {
+        return home(tenantId, userId, null);
+    }
+
+    @Transactional(readOnly = true)
+    public MailDtos.HomeResponse home(Long tenantId, Long userId, UUID accountId) {
         List<MailDtos.AccountSummary> accounts = queries.accounts(tenantId, userId);
         requireMailbox(accounts);
+        if (accountId != null && accounts.stream().noneMatch(account -> account.accountId().equals(accountId))) {
+            throw new BaseException(ErrorCode.FORBIDDEN, "The selected mail account is not available.");
+        }
         return new MailDtos.HomeResponse(
                 accounts,
-                queries.metrics(tenantId, userId),
-                queries.threads(tenantId, userId, "", "", "INBOX", false, "", 0, 6),
-                queries.proposals(tenantId, userId, null, 4),
-                queries.sharedInboxPulse(tenantId, userId),
+                queries.metrics(tenantId, userId, accountId),
+                queries.threadsAdvanced(
+                        tenantId, userId, "", "", "INBOX", null, false, "",
+                        accountId, "", null, "", "", "", null, null,
+                        null, null, null, 0, 6),
+                queries.proposalsFiltered(tenantId, userId, accountId, "PROPOSED", "", 4),
+                queries.sharedInboxPulse(tenantId, userId, accountId),
                 OffsetDateTime.now());
     }
 
@@ -82,6 +97,64 @@ public class MailService {
     }
 
     @Transactional(readOnly = true)
+    public MailDtos.ThreadPage threadsAdvanced(
+            Long tenantId,
+            Long userId,
+            String lane,
+            String state,
+            String folder,
+            UUID folderId,
+            boolean sharedOnly,
+            String search,
+            UUID accountId,
+            String scope,
+            UUID sharedInboxId,
+            String assignment,
+            String sender,
+            String recipient,
+            java.time.LocalDate dateFrom,
+            java.time.LocalDate dateTo,
+            Boolean unread,
+            Boolean needsReply,
+            Boolean hasAttachment,
+            int page,
+            int pageSize) {
+        List<MailDtos.AccountSummary> accounts = queries.accounts(tenantId, userId);
+        requireMailbox(accounts);
+        if (accountId != null && accounts.stream().noneMatch(account -> account.accountId().equals(accountId))) {
+            throw new BaseException(ErrorCode.FORBIDDEN, "The selected mail account is not available.");
+        }
+        String resolvedLane = enumValue(lane, TriageLane.class);
+        String resolvedState = enumValue(state, WorkflowState.class);
+        String resolvedFolder = folderValue(folder);
+        String resolvedSearch = normalizeSearch(search);
+        String resolvedScope = normalizeChoice(scope, Set.of("ALL", "PERSONAL", "SHARED"));
+        if ("ALL".equals(resolvedScope)) resolvedScope = "";
+        String resolvedAssignment = normalizeChoice(
+                assignment, Set.of("ALL", "MINE", "UNASSIGNED"));
+        if ("ALL".equals(resolvedAssignment)) resolvedAssignment = "";
+        String resolvedSender = normalizeSearch(sender);
+        String resolvedRecipient = normalizeSearch(recipient);
+        if (dateFrom != null && dateTo != null && dateFrom.isAfter(dateTo)) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "The mail date range is invalid.");
+        }
+        int resolvedPage = Math.max(0, page);
+        int resolvedPageSize = Math.max(1, Math.min(100, pageSize));
+        return new MailDtos.ThreadPage(
+                queries.threadsAdvanced(
+                        tenantId, userId, resolvedLane, resolvedState, resolvedFolder, folderId,
+                        sharedOnly, resolvedSearch, accountId, resolvedScope, sharedInboxId,
+                        resolvedAssignment, resolvedSender, resolvedRecipient, dateFrom, dateTo,
+                        unread, needsReply, hasAttachment, resolvedPage, resolvedPageSize),
+                queries.threadCountAdvanced(
+                        tenantId, userId, resolvedLane, resolvedState, resolvedFolder, folderId,
+                        sharedOnly, resolvedSearch, accountId, resolvedScope, sharedInboxId,
+                        resolvedAssignment, resolvedSender, resolvedRecipient, dateFrom, dateTo,
+                        unread, needsReply, hasAttachment),
+                resolvedPage, resolvedPageSize);
+    }
+
+    @Transactional(readOnly = true)
     public MailDtos.ThreadDetail thread(Long tenantId, Long userId, UUID threadId) {
         MailDtos.ThreadSummary thread = visibleThread(tenantId, userId, threadId);
         return detail(tenantId, userId, thread);
@@ -95,6 +168,8 @@ public class MailService {
             String correlationId,
             MailDtos.ThreadActionRequest request) {
         MailDtos.ThreadSummary before = visibleThread(tenantId, userId, threadId);
+        requireSharedPermission(
+                tenantId, userId, before, MailQueryRepository.SharedInboxPermission.MANAGE);
         if (commands.applyAction(
                 tenantId, userId, threadId, request.action(), request.version()) == 0) {
             conflict();
@@ -115,6 +190,8 @@ public class MailService {
             String correlationId,
             MailDtos.SnoozeRequest request) {
         MailDtos.ThreadSummary before = visibleThread(tenantId, userId, threadId);
+        requireSharedPermission(
+                tenantId, userId, before, MailQueryRepository.SharedInboxPermission.MANAGE);
         OffsetDateTime now = OffsetDateTime.now();
         if (!request.until().isAfter(now.plusMinutes(1))
                 || request.until().isAfter(now.plusYears(1))) {
@@ -146,6 +223,8 @@ public class MailService {
                     ErrorCode.INVALID_STATE,
                     "Only shared inbox conversations can be assigned.");
         }
+        requireSharedPermission(
+                tenantId, userId, before, MailQueryRepository.SharedInboxPermission.ASSIGN);
         if (!queries.isActiveSharedInboxMember(
                 tenantId, before.sharedInboxId(), request.assignedUserId())) {
             throw new BaseException(
@@ -173,6 +252,8 @@ public class MailService {
             String correlationId,
             MailDtos.CommentRequest request) {
         MailDtos.ThreadSummary thread = visibleThread(tenantId, userId, threadId);
+        requireSharedPermission(
+                tenantId, userId, thread, MailQueryRepository.SharedInboxPermission.MANAGE);
         UUID commentId = commands.insertComment(
                 tenantId, userId, displayName(authorName, userId), threadId,
                 request.body(), request.mentionedUserIds().stream().distinct().toList());
@@ -202,27 +283,39 @@ public class MailService {
             String correlationId,
             MailDtos.ReplyRequest request) {
         MailDtos.ThreadSummary before = visibleThread(tenantId, userId, threadId);
-        UUID deliveryThreadId = commands.deliveryThread(
-                tenantId, userId, request.idempotencyKey());
-        if (deliveryThreadId != null) {
-            if (!deliveryThreadId.equals(threadId)) {
-                throw new BaseException(
-                        ErrorCode.INVALID_INPUT_VALUE,
-                        "The idempotency key belongs to another mail thread.");
-            }
+        requireSharedPermission(
+                tenantId, userId, before, MailQueryRepository.SharedInboxPermission.SEND);
+        List<MailWorkspaceDtos.Recipient> recipients = replyRecipients(request);
+        String requestFingerprint = sendFingerprints.reply(userId, threadId, request);
+        MailCommandRepository.DeliveryCommand deliveryCommand = existingSendCommand(
+                tenantId, userId, threadId, request.idempotencyKey());
+        if (deliveryCommand != null) {
+            requireMatchingSendCommand(deliveryCommand, threadId, requestFingerprint);
             return detail(tenantId, userId, before);
         }
-        boolean inserted = commands.insertReply(
-                tenantId, userId, threadId, request.body(), request.idempotencyKey());
-        if (!inserted) return detail(tenantId, userId, before);
-        commands.enqueueDelivery(
-                tenantId, userId, threadId, request.idempotencyKey(), correlationId);
+        boolean inserted = recipients == null
+                ? commands.insertReply(
+                        tenantId, userId, threadId, request.body(), request.idempotencyKey())
+                : commands.insertReply(
+                        tenantId, userId, threadId, request.body(), request.idempotencyKey(),
+                        recipients);
+        if (!inserted) {
+            requireMatchingSendCommand(existingSendCommand(
+                    tenantId, userId, threadId, request.idempotencyKey()),
+                    threadId, requestFingerprint);
+            return detail(tenantId, userId, before);
+        }
+        requireMatchingSendCommand(commands.enqueueDelivery(
+                tenantId, userId, threadId, request.idempotencyKey(), correlationId,
+                requestFingerprint), threadId, requestFingerprint);
         MailDtos.ThreadSummary after = visibleThread(tenantId, userId, threadId);
         commands.audit(
                 tenantId, userId, "mail.reply.sent", "MAIL_THREAD",
                 threadId.toString(), correlationId,
                 state(before), Map.of(
                         "messageCount", after.messageCount(),
+                        "replyMode", replyMode(request),
+                        "recipientCount", recipients == null ? 0 : recipients.size(),
                         "idempotencyKey", request.idempotencyKey()));
         commands.domainEvent(
                 tenantId, "MAIL_THREAD", threadId, "mail.reply.sent",
@@ -242,6 +335,8 @@ public class MailService {
             UUID messageId,
             String correlationId) {
         MailDtos.ThreadSummary thread = visibleThread(tenantId, userId, threadId);
+        requireSharedPermission(
+                tenantId, userId, thread, MailQueryRepository.SharedInboxPermission.SEND);
         boolean messageVisible = queries.messages(tenantId, userId, threadId).stream()
                 .anyMatch(message -> message.messageId().equals(messageId)
                         && message.deliveryState() == DeliveryState.FAILED);
@@ -263,20 +358,33 @@ public class MailService {
             String correlationId,
             MailDtos.ComposeRequest request) {
         requireMailbox(queries.accounts(tenantId, userId));
-        MailCommandRepository.ComposeResult result = commands.compose(tenantId, userId, request);
+        String requestFingerprint = sendFingerprints.compose(userId, request);
+        MailCommandRepository.DeliveryCommand delivered = commands.deliveryCommand(
+                tenantId, userId, request.idempotencyKey());
+        if (delivered != null) {
+            requireMatchingSendCommand(
+                    delivered, delivered.threadId(), requestFingerprint);
+            return detail(
+                    tenantId, userId,
+                    visibleThread(tenantId, userId, delivered.threadId()));
+        }
+        MailCommandRepository.ComposeResult result = commands.compose(
+                tenantId, userId, request, requestFingerprint);
         if (result == null) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,
                     "No active default mail account is available.");
         }
+        requireMatchingComposeCommand(result, requestFingerprint);
         UUID threadId = result.threadId();
         if (!result.created()) {
             MailDtos.ThreadSummary existing = visibleThread(tenantId, userId, threadId);
             return detail(tenantId, userId, existing);
         }
         if (request.deliveryMode() == DeliveryMode.SEND) {
-            commands.enqueueDelivery(
-                    tenantId, userId, threadId, request.idempotencyKey(), correlationId);
+            requireMatchingSendCommand(commands.enqueueDelivery(
+                    tenantId, userId, threadId, request.idempotencyKey(), correlationId,
+                    requestFingerprint), threadId, requestFingerprint);
         }
         MailDtos.ThreadSummary thread = visibleThread(tenantId, userId, threadId);
         String event = request.deliveryMode() == DeliveryMode.DRAFT
@@ -305,15 +413,14 @@ public class MailService {
             String correlationId,
             MailDtos.DraftUpdateRequest request) {
         MailDtos.ThreadSummary before = visibleThread(tenantId, userId, threadId);
+        String requestFingerprint = request.deliveryMode() == DeliveryMode.SEND
+                ? sendFingerprints.draftSend(userId, threadId, request)
+                : null;
         if (request.deliveryMode() == DeliveryMode.SEND) {
-            UUID deliveryThreadId = commands.deliveryThread(
-                    tenantId, userId, request.idempotencyKey());
-            if (deliveryThreadId != null) {
-                if (!deliveryThreadId.equals(threadId)) {
-                    throw new BaseException(
-                            ErrorCode.INVALID_INPUT_VALUE,
-                            "The idempotency key belongs to another mail thread.");
-                }
+            MailCommandRepository.DeliveryCommand deliveryCommand = existingSendCommand(
+                    tenantId, userId, threadId, request.idempotencyKey());
+            if (deliveryCommand != null) {
+                requireMatchingSendCommand(deliveryCommand, threadId, requestFingerprint);
                 return detail(tenantId, userId, before);
             }
         }
@@ -323,18 +430,22 @@ public class MailService {
             throw new BaseException(ErrorCode.INVALID_STATE, "Only a personal draft can be edited.");
         }
         if (commands.updateDraft(tenantId, userId, threadId, request) == 0) {
-            UUID deliveryThreadId = request.deliveryMode() == DeliveryMode.SEND
-                    ? commands.deliveryThread(tenantId, userId, request.idempotencyKey())
+            MailCommandRepository.DeliveryCommand deliveryCommand = request.deliveryMode()
+                    == DeliveryMode.SEND
+                    ? existingSendCommand(
+                            tenantId, userId, threadId, request.idempotencyKey())
                     : null;
-            if (threadId.equals(deliveryThreadId)) {
+            if (deliveryCommand != null) {
+                requireMatchingSendCommand(deliveryCommand, threadId, requestFingerprint);
                 MailDtos.ThreadSummary existing = visibleThread(tenantId, userId, threadId);
                 return detail(tenantId, userId, existing);
             }
             conflict();
         }
         if (request.deliveryMode() == DeliveryMode.SEND) {
-            commands.enqueueDelivery(
-                    tenantId, userId, threadId, request.idempotencyKey(), correlationId);
+            requireMatchingSendCommand(commands.enqueueDelivery(
+                    tenantId, userId, threadId, request.idempotencyKey(), correlationId,
+                    requestFingerprint), threadId, requestFingerprint);
         }
         MailDtos.ThreadSummary after = visibleThread(tenantId, userId, threadId);
         String event = request.deliveryMode() == DeliveryMode.DRAFT
@@ -368,6 +479,9 @@ public class MailService {
             MailDtos.ProposalDecisionRequest request) {
         MailDtos.ActionProposal before = queries.proposal(tenantId, userId, proposalId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        requireSharedPermission(
+                tenantId, userId, visibleThread(tenantId, userId, before.threadId()),
+                MailQueryRepository.SharedInboxPermission.MANAGE);
         MailDtos.TenantPolicy policy = queries.policy(tenantId);
         if (request.decision() == ProposalDecision.ACCEPT) {
             MailAiActionCatalog.Policy actionPolicy = MailAiActionCatalog.validate(before);
@@ -417,6 +531,57 @@ public class MailService {
     }
 
     @Transactional(readOnly = true)
+    public List<MailDtos.ActionProposal> proposals(
+            Long tenantId,
+            Long userId,
+            String status,
+            String type) {
+        requireMailbox(queries.accounts(tenantId, userId));
+        String resolvedStatus = enumValue(status, ProposalStatus.class);
+        String resolvedType = enumValue(type, ProposalType.class);
+        return queries.proposalsFiltered(
+                tenantId, userId, null, resolvedStatus, resolvedType, 200);
+    }
+
+    @Transactional
+    public MailDtos.ActionProposal updateProposal(
+            Long tenantId,
+            Long userId,
+            UUID proposalId,
+            String correlationId,
+            MailDtos.ProposalUpdateRequest request) {
+        MailDtos.ActionProposal before = queries.proposal(tenantId, userId, proposalId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        requireSharedPermission(
+                tenantId, userId, visibleThread(tenantId, userId, before.threadId()),
+                MailQueryRepository.SharedInboxPermission.MANAGE);
+        if (before.status() != ProposalStatus.PROPOSED
+                || (before.expiresAt() != null && !before.expiresAt().isAfter(OffsetDateTime.now()))) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Only an active proposed action can be edited.");
+        }
+        validateProposalPayload(request.proposedPayload());
+        if (queries.updateProposalPayload(
+                tenantId, userId, proposalId, request.proposedPayload(), request.version()) != 1) {
+            conflict();
+        }
+        MailDtos.ActionProposal after = queries.proposal(tenantId, userId, proposalId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        commands.audit(
+                tenantId, userId, "mail.proposal.updated", "MAIL_ACTION_PROPOSAL",
+                proposalId.toString(), correlationId,
+                Map.of("version", before.version(), "payloadKeys", before.proposedPayload().keySet()),
+                Map.of("version", after.version(), "payloadKeys", after.proposedPayload().keySet()));
+        commands.domainEvent(
+                tenantId, "MAIL_ACTION_PROPOSAL", proposalId, "mail.proposal.updated",
+                Map.of("proposalId", proposalId, "threadId", before.threadId(),
+                        "actorUserId", userId, "version", after.version()),
+                correlationId);
+        return after;
+    }
+
+    @Transactional(readOnly = true)
     public MailDtos.AdminOverview adminOverview(Long tenantId) {
         MailQueryRepository.AdminCounts counts = queries.adminCounts(tenantId);
         return new MailDtos.AdminOverview(
@@ -437,6 +602,9 @@ public class MailService {
         MailDtos.TenantPolicy before = queries.policy(tenantId);
         if (commands.updatePolicy(tenantId, userId, request) == 0) conflict();
         MailDtos.TenantPolicy after = queries.policy(tenantId);
+        commands.policyHistory(
+                tenantId, userId, after.version(), correlationId,
+                policyState(before), policyState(after));
         commands.audit(
                 tenantId, userId, "mail.policy.updated", "MAIL_TENANT_POLICY",
                 tenantId.toString(), correlationId,
@@ -536,6 +704,88 @@ public class MailService {
         }
     }
 
+    private void validateProposalPayload(Map<String, Object> payload) {
+        if (!Boolean.TRUE.equals(payload.get("requiresConfirmation"))
+                || payload.size() > 100
+                || !validProposalValue(payload, 0)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Proposal details must be bounded JSON and require human confirmation.");
+        }
+    }
+
+    private List<MailWorkspaceDtos.Recipient> replyRecipients(MailDtos.ReplyRequest request) {
+        if (request.recipients() == null || request.recipients().isEmpty()) {
+            if ("REPLY_ALL".equals(replyMode(request))) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "Reply all requires an explicit reviewed recipient list.");
+            }
+            return null;
+        }
+        LinkedHashMap<String, MailWorkspaceDtos.Recipient> unique = new LinkedHashMap<>();
+        for (MailWorkspaceDtos.Recipient recipient : request.recipients()) {
+            if (recipient.type() == MailWorkspaceDtos.RecipientType.BCC) {
+                throw new BaseException(
+                        ErrorCode.INVALID_INPUT_VALUE,
+                        "Reply recipients cannot include hidden BCC recipients.");
+            }
+            String email = recipient.email().trim().toLowerCase(Locale.ROOT);
+            String name = recipient.name() == null || recipient.name().isBlank()
+                    ? null : recipient.name().trim();
+            unique.putIfAbsent(
+                    email,
+                    new MailWorkspaceDtos.Recipient(recipient.type(), name, email));
+        }
+        if (unique.values().stream()
+                .noneMatch(item -> item.type() == MailWorkspaceDtos.RecipientType.TO)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Reply recipients require at least one To address.");
+        }
+        return List.copyOf(unique.values());
+    }
+
+    private String replyMode(MailDtos.ReplyRequest request) {
+        return request.mode() == null || request.mode().isBlank()
+                ? "REPLY" : request.mode().trim().toUpperCase(Locale.ROOT);
+    }
+
+    private boolean validProposalValue(Object value, int depth) {
+        if (depth > 6) return false;
+        if (value == null || value instanceof Boolean) return true;
+        if (value instanceof String text) return text.length() <= 10_000;
+        if (value instanceof Number number) {
+            if (number instanceof Double item) return Double.isFinite(item);
+            if (number instanceof Float item) return Float.isFinite(item);
+            return true;
+        }
+        if (value instanceof Map<?, ?> map) {
+            return map.size() <= 100
+                    && map.entrySet().stream().allMatch(entry ->
+                            entry.getKey() instanceof String key
+                                    && key.length() <= 160
+                                    && validProposalValue(entry.getValue(), depth + 1));
+        }
+        if (value instanceof Collection<?> collection) {
+            return collection.size() <= 100
+                    && collection.stream().allMatch(item -> validProposalValue(item, depth + 1));
+        }
+        return false;
+    }
+
+    private void requireSharedPermission(
+            Long tenantId, Long userId, MailDtos.ThreadSummary thread,
+            MailQueryRepository.SharedInboxPermission permission) {
+        if (thread.sharedInboxId() == null) return;
+        if (!queries.hasSharedInboxPermission(
+                tenantId, thread.sharedInboxId(), userId, permission)) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "The shared inbox grant does not permit this action.");
+        }
+    }
+
     private <T extends Enum<T>> String enumValue(String value, Class<T> type) {
         if (value == null || value.isBlank()) return "";
         String normalized = value.trim().toUpperCase(Locale.ROOT);
@@ -555,6 +805,15 @@ public class MailService {
         String normalized = search.trim().toLowerCase(Locale.ROOT);
         if (normalized.length() > 200) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Search is too long.");
+        }
+        return normalized;
+    }
+
+    private String normalizeChoice(String value, Set<String> allowed) {
+        if (value == null || value.isBlank()) return "";
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
+        if (!allowed.contains(normalized)) {
+            throw new BaseException(ErrorCode.INVALID_FORMAT, "Unsupported mail filter.");
         }
         return normalized;
     }
@@ -638,5 +897,45 @@ public class MailService {
         throw new BaseException(
                 ErrorCode.RESOURCE_CONFLICT,
                 "The mail resource changed. Refresh and try again.");
+    }
+
+    private void requireMatchingSendCommand(
+            MailCommandRepository.DeliveryCommand command,
+            UUID threadId,
+            String requestFingerprint) {
+        if (command == null
+                || !threadId.equals(command.threadId())
+                || !requestFingerprint.equals(command.requestFingerprint())) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The idempotency key was already used for a different mail send command.");
+        }
+    }
+
+    private void requireMatchingComposeCommand(
+            MailCommandRepository.ComposeResult result,
+            String requestFingerprint) {
+        if (!requestFingerprint.equals(result.requestFingerprint())) {
+            throw sendCommandConflict();
+        }
+    }
+
+    private MailCommandRepository.DeliveryCommand existingSendCommand(
+            Long tenantId,
+            Long userId,
+            UUID threadId,
+            UUID idempotencyKey) {
+        MailCommandRepository.DeliveryCommand own = commands.deliveryCommand(
+                tenantId, userId, idempotencyKey);
+        return own != null
+                ? own
+                : commands.deliveryCommandForThread(
+                        tenantId, userId, threadId, idempotencyKey);
+    }
+
+    private BaseException sendCommandConflict() {
+        return new BaseException(
+                ErrorCode.RESOURCE_CONFLICT,
+                "The idempotency key was already used for a different mail send command.");
     }
 }

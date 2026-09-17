@@ -68,12 +68,27 @@ dwp:
     relay-database-role: dwp_notification_audit_relay
   notification:
     product-authorization-v4-enabled: ${DWP_NOTIFICATION_PRODUCT_AUTHORIZATION_V4_ENABLED:false}
+    attention:
+      max-active-rules: ${DWP_NOTIFICATION_MAX_ACTIVE_ATTENTION_RULES:500}
+      minimum-analytics-cohort: ${DWP_NOTIFICATION_MINIMUM_ANALYTICS_COHORT:10}
+    attention-audit:
+      enabled: ${DWP_NOTIFICATION_ATTENTION_AUDIT_ENABLED:true}
+      relay-database-role: dwp_notification_attention_audit_relay
+      instance-id: ${DWP_NOTIFICATION_INSTANCE_ID:${HOSTNAME:local}}
+      lease-duration: ${DWP_NOTIFICATION_ATTENTION_AUDIT_LEASE_DURATION:PT30S}
+      poll-interval: ${DWP_NOTIFICATION_ATTENTION_AUDIT_POLL_INTERVAL:PT2S}
+      published-retention: ${DWP_NOTIFICATION_ATTENTION_AUDIT_RETENTION:P30D}
+      maximum-attempts: ${DWP_NOTIFICATION_ATTENTION_AUDIT_MAXIMUM_ATTEMPTS:20}
+      batch-size: ${DWP_NOTIFICATION_ATTENTION_AUDIT_BATCH_SIZE:100}
+    test-delivery:
+      minute-limit: ${DWP_NOTIFICATION_TEST_DELIVERY_MINUTE_LIMIT:1}
+      daily-limit: ${DWP_NOTIFICATION_TEST_DELIVERY_DAILY_LIMIT:10}
     bulk-undo-window: ${DWP_NOTIFICATION_BULK_UNDO_WINDOW:PT10M}
     service-token: ${DWP_NOTIFICATION_SERVICE_TOKEN:}
     gateway-source: ${DWP_NOTIFICATION_GATEWAY_SOURCE:dwp-gateway}
     producer-tokens: ${DWP_NOTIFICATION_PRODUCER_TOKENS:}
     producer-app-bindings: >-
-      ${DWP_NOTIFICATION_PRODUCER_APP_BINDINGS:dwp-approval-server=approvals,dwp-people-server=hcm|people,dwp-platform-server=platform,dwp-space-server=space,dwp-messaging-server=messaging,dwp-meeting-server=meetings}
+      ${DWP_NOTIFICATION_PRODUCER_APP_BINDINGS:dwp-approval-server=approvals,dwp-people-server=hcm|people,dwp-platform-server=platform|workplace,dwp-space-server=space,dwp-messaging-server=messaging,dwp-meeting-server=meetings}
     cursor-secret: ${DWP_NOTIFICATION_CURSOR_SECRET:}
     cursor-ttl: ${DWP_NOTIFICATION_CURSOR_TTL:24h}
     sse-timeout: ${DWP_NOTIFICATION_SSE_TIMEOUT:30m}
@@ -90,7 +105,7 @@ dwp:
       window: ${DWP_NOTIFICATION_ADMISSION_WINDOW:PT1H}
     recipient-entitlements:
       app-view-bindings: >-
-        ${DWP_NOTIFICATION_APP_VIEW_BINDINGS:approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,meetings=APP.MEETINGS:VIEW}
+        ${DWP_NOTIFICATION_APP_VIEW_BINDINGS:approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,meetings=APP.MEETINGS:VIEW,workplace=APP.WORKPLACE:VIEW}
     retention:
       enabled: ${DWP_NOTIFICATION_RETENTION_ENABLED:true}
       default-ttl: ${DWP_NOTIFICATION_DEFAULT_RETENTION_TTL:P0D}
@@ -126,7 +141,7 @@ dwp:
       dead-letter-topic: ${DWP_NOTIFICATION_DOMAIN_EVENT_DLT:dwp.domain-events.v1.DLT}
       retry-interval: ${DWP_NOTIFICATION_DOMAIN_EVENT_RETRY_INTERVAL:1s}
       maximum-attempts: ${DWP_NOTIFICATION_DOMAIN_EVENT_MAX_ATTEMPTS:4}
-      producer-sources: ${DWP_NOTIFICATION_DOMAIN_EVENT_SOURCES:urn:dwp:messaging=dwp-messaging-server,urn:dwp:meetings=dwp-meeting-server}
+      producer-sources: ${DWP_NOTIFICATION_DOMAIN_EVENT_SOURCES:urn:dwp:messaging=dwp-messaging-server,urn:dwp:meetings=dwp-meeting-server,urn:dwp:platform:workplace=dwp-platform-server}
     approval-pilot:
       enabled: ${DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED:false}
       topic: ${DWP_NOTIFICATION_APPROVAL_PILOT_TOPIC:dwp.approval.events.v1}
@@ -145,6 +160,9 @@ management:
     health:
       probes:
         enabled: true
+      group:
+        readiness:
+          include: readinessState,notificationAttentionAuditRelayLifecycle
 
 logging:
   level:

@@ -332,7 +332,7 @@ public class ApprovalOperationsRepository {
             String assignmentRevision,
             Instant assignedAt,
             Instant lockedUntil,
-            String requestStatus) {
+            String requestStatus) implements ApprovalOperationsAuthority.DeliverySnapshot {
     }
 
     record TaskRow(
@@ -350,7 +350,7 @@ public class ApprovalOperationsRepository {
             String requestStatus,
             String managementScope,
             String stepStatus,
-            String stepCandidateRole) {
+            String stepCandidateRole) implements ApprovalOperationsAuthority.TaskSnapshot {
     }
 
     record DeliveryCommit(

@@ -78,12 +78,10 @@ class ProductAuthorizationAuthorityAdapterTest {
     @Test
     void allowsWorkEntryFromExactProductEntitlement() {
         evidence(Set.of("APP.COMMUNICATIONS:VIEW"), List.of());
-
         ProductSurfaceAuthorityDtos.AuthorityResult result = evaluate(
                 "communications", "communications.work",
                 ProductSurfaceAuthorityDtos.AccessMode.NORMAL, null,
                 null, null, null, null, List.of());
-
         assertThat(result.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(result.plane()).isEqualTo("work");
         assertThat(result.accessSource())
@@ -100,7 +98,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 null, null, null, null, List.of());
         assertThat(denied.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
-
         evidence(Set.of("ADMIN.SERVICE_CATALOG:VIEW"), List.of(role(
                 "APP_CONTENT_EDITOR", "ADMIN.SERVICE_CATALOG", "RS_SERVICES")));
         ProductSurfaceAuthorityDtos.AuthorityResult wrongResponsibility = evaluate(
@@ -110,7 +107,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 null, null, null, null, List.of());
         assertThat(wrongResponsibility.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
-
         evidence(Set.of("ADMIN.SERVICE_CATALOG:VIEW"), List.of(role(
                 "APP_CONFIG_ADMIN", "APP.OTHER", "RS_SERVICES")));
         ProductSurfaceAuthorityDtos.AuthorityResult wrongResource = evaluate(
@@ -120,7 +116,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 null, null, null, null, List.of());
         assertThat(wrongResource.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
-
         evidence(Set.of("ADMIN.SERVICE_CATALOG:VIEW"), List.of(role(
                 "APP_CONFIG_ADMIN", "APP.EMPLOYEE_SERVICES", "RS_SERVICES")));
         ProductSurfaceAuthorityDtos.AuthorityResult allowed = evaluate(
@@ -152,7 +147,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 null, null, null, null, List.of());
         assertThat(denied.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
-
         evidence(Set.of("APP.APPROVALS:VIEW", "ACTION.APPROVAL_TASK:VIEW"), List.of());
         ProductSurfaceAuthorityDtos.AuthorityResult allowed = evaluate(
                 "approvals", "approvals.work",
@@ -173,7 +167,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 null, null, null, null, List.of());
         assertThat(wrongResponsibility.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
-
         evidence(Set.of("ACTION.WORKFORCE_REFERENCE:VIEW"), List.of(role(
                 "APP_CONFIG_ADMIN", "APP.HCM", "RS_HCM_CONFIG")));
         ProductSurfaceAuthorityDtos.AuthorityResult allowed = evaluate(
@@ -193,14 +186,12 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "route.communications.management.content.page",
                 null, null, "support-1", "support-rev-1",
                 List.of("TENANT_CONFIGURATION_READ"));
-
         assertThat(allowed.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(allowed.accessSource())
                 .isEqualTo(ProductSurfaceAuthorityDtos.AccessSource.SUPPORT);
         assertThat(allowed.appResourceKey()).isEqualTo("APP.COMMUNICATIONS");
         assertThat(allowed.effectiveReadOnly()).isTrue();
-
         evidence(Set.of("ADMIN.COMMUNICATIONS:VIEW"), List.of(role(
                 "APP_CONTENT_EDITOR", "ADMIN.COMMUNICATIONS", "RS_COMMUNICATIONS")));
         ProductSurfaceAuthorityDtos.AuthorityResult denied = evaluate(
@@ -219,13 +210,11 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "ADMIN.COMMUNICATIONS:CREATE",
                 "ADMIN.COMMUNICATIONS:UPDATE"), List.of(role(
                 "APP_CONFIG_ADMIN", "ADMIN.COMMUNICATIONS", "RS_COMMUNICATIONS")));
-
         ProductSurfaceAuthorityDtos.AuthorityResult result = evaluate(
                 "communications", "communications.management",
                 ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT,
                 null, null, null, "support-1", "support-rev-1",
                 List.of("TENANT_CONFIGURATION_WRITE"));
-
         assertThat(result.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(result.accessSource())
                 .isEqualTo(ProductSurfaceAuthorityDtos.AccessSource.SUPPORT);
@@ -244,18 +233,15 @@ class ProductAuthorizationAuthorityAdapterTest {
     @Test
     void marksTeamAsWorkAndDefersRelationshipEvidenceToPeopleOwner() {
         evidence(Set.of("APP.HCM:VIEW"), List.of());
-
         ProductSurfaceAuthorityDtos.AuthorityResult result = evaluate(
                 "hcm", "hcm.team", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 null, null, null, null, null, List.of());
-
         assertThat(result.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(result.plane()).isEqualTo("work");
         assertThat(result.accessSource())
                 .isEqualTo(ProductSurfaceAuthorityDtos.AccessSource.RELATIONSHIP);
         assertThat(result.requiresProductEligibility()).isTrue();
         assertThat(result.appResourceKey()).isEqualTo("APP.HCM");
-
         ProductSurfaceAuthorityDtos.AuthorityResult direct = evaluate(
                 "hcm", "hcm.team", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 "route.hcm.team.home.page", null, null, null, null, List.of());
@@ -266,12 +252,10 @@ class ProductAuthorizationAuthorityAdapterTest {
     @Test
     void doesNotValidatePeopleOwnedScopeAgainstAuthPlaceholder() {
         evidence(Set.of("APP.HCM:VIEW"), List.of());
-
         ProductSurfaceAuthorityDtos.AuthorityResult result = evaluate(
                 "hcm", "hcm.team", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 "route.hcm.team.home.page", null, "people-owned-scope",
                 null, null, List.of());
-
         assertThat(result.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(result.requiresProductEligibility()).isTrue();
     }
@@ -286,7 +270,6 @@ class ProductAuthorizationAuthorityAdapterTest {
         assertThat(challenged.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
         assertThat(challenged.requestPolicyRef()).isEqualTo("STEPUP-MGMT-CRITICAL-V1");
-
         ProductSurfaceAuthorityDtos.AuthorityResult elevated = evaluate(
                 "hcm", "hcm.management", ProductSurfaceAuthorityDtos.AccessMode.ELEVATED,
                 "route.hcm.management.controlled-export-create.action",
@@ -305,7 +288,6 @@ class ProductAuthorizationAuthorityAdapterTest {
         assertThat(missingPermission.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
         assertThat(missingPermission.requestPolicyRef()).isNull();
-
         evidence(Set.of("ADMIN.APPROVAL_DESIGN:PUBLISH"), Set.of(), List.of(), List.of(
                 duty("APPROVAL_DESIGN_PUBLISH", "ADMIN.APPROVAL_DESIGN",
                         "RS_APPROVALS", Map.of(
@@ -317,7 +299,6 @@ class ProductAuthorizationAuthorityAdapterTest {
         assertThat(missingResponsibility.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
         assertThat(missingResponsibility.requestPolicyRef()).isNull();
-
         List<AppGovernanceDtos.ResourceRole> scope = List.of(role(
                 "APP_CONFIG_ADMIN", "APP.APPROVALS", "RS_APPROVALS"));
         evidence(Set.of(
@@ -336,7 +317,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SOD_CONFLICT);
         assertThat(sodConflict.reasonCode()).isEqualTo("SOD_CONFLICT");
         assertThat(sodConflict.requestPolicyRef()).isNull();
-
         evidence(Set.of("ADMIN.APPROVAL_DESIGN:PUBLISH"), Set.of(), scope, List.of(
                 duty("APPROVAL_DESIGN_PUBLISH", "ADMIN.APPROVAL_DESIGN",
                         "RS_APPROVALS", Map.of("approvals.design.publish",
@@ -358,7 +338,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 duty("APPROVAL_DESIGN_PUBLISH", "ADMIN.APPROVAL_DESIGN",
                         "RS_APPROVALS", Map.of("approvals.design.publish",
                                 "ADMIN.APPROVAL_DESIGN:PUBLISH"))));
-
         ProductSurfaceAuthorityDtos.AuthorityResult rejection = evaluate(
                 "approvals", "approvals.admin", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 "route.approvals.admin.form-publish-review-reject.action",
@@ -367,7 +346,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "approvals", "approvals.admin", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 "route.approvals.admin.form-reviewed-publish.action",
                 null, null, null, null, List.of());
-
         assertThat(rejection.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(rejection.requestPolicyRef()).isNull();
@@ -387,12 +365,10 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "APPROVAL_PUBLISHER"), List.of(role(
                         "APP_CONFIG_ADMIN", "APP.APPROVALS", "RS_APPROVALS")),
                 List.of());
-
         ProductSurfaceAuthorityDtos.AuthorityResult result = evaluate(
                 "approvals", "approvals.admin", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 "route.approvals.admin.workflow-publish.action",
                 null, null, null, null, List.of());
-
         assertThat(result.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
         assertThat(result.requestPolicyRef()).isNull();
@@ -406,12 +382,10 @@ class ProductAuthorizationAuthorityAdapterTest {
                         "RS_APPROVALS", Map.of(
                                 "approvals.design.publish",
                                 "ADMIN.APPROVAL_DESIGN:UPDATE"))));
-
         ProductSurfaceAuthorityDtos.AuthorityResult result = evaluate(
                 "approvals", "approvals.admin", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 "route.approvals.admin.workflow-publish.action",
                 null, null, null, null, List.of());
-
         assertThat(result.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED);
         assertThat(result.requestPolicyRef()).isNull();
@@ -424,12 +398,10 @@ class ProductAuthorizationAuthorityAdapterTest {
                         "RS_APPROVALS", Map.of(
                                 "approvals.audit.operations.read",
                                 "ADMIN.APPROVAL_OPERATIONS:VIEW"))));
-
         ProductSurfaceAuthorityDtos.AuthorityResult result = evaluate(
                 "approvals", "approvals.admin", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 "route.approvals.admin.operations.page",
                 null, null, null, null, List.of());
-
         assertThat(result.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(result.effectiveGrants()).singleElement()
                 .isInstanceOf(ProductSurfaceAuthorityDtos.CapabilityGrant.class);
@@ -440,7 +412,6 @@ class ProductAuthorizationAuthorityAdapterTest {
         String route = "route.approvals.admin.operations.retry.action";
         List<AppGovernanceDtos.ResourceRole> exactScope = List.of(role(
                 "APP_CONFIG_ADMIN", "APP.APPROVALS", "RS_APPROVALS"));
-
         evidence(Set.of("ADMIN.APPROVAL_OPERATIONS:EXECUTE"), Set.of(), exactScope, List.of(
                 duty("APPROVAL_OPERATIONS_EXECUTE", "ADMIN.APPROVAL_OPERATIONS",
                         "RS_APPROVALS", Map.of("approvals.operations.execute",
@@ -451,11 +422,9 @@ class ProductAuthorizationAuthorityAdapterTest {
         ProductSurfaceAuthorityDtos.AuthorityResult conflict = evaluate(
                 "approvals", "approvals.admin", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 route, null, null, null, null, List.of());
-
         assertThat(conflict.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.SOD_CONFLICT);
         assertThat(conflict.requestPolicyRef()).isNull();
-
         evidence(Set.of("ADMIN.APPROVAL_OPERATIONS:EXECUTE"), Set.of(), exactScope, List.of(
                 duty("APPROVAL_OPERATIONS_EXECUTE", "ADMIN.APPROVAL_OPERATIONS",
                         "RS_APPROVALS", Map.of("approvals.operations.execute",
@@ -466,7 +435,6 @@ class ProductAuthorizationAuthorityAdapterTest {
         ProductSurfaceAuthorityDtos.AuthorityResult nonOverlapping = evaluate(
                 "approvals", "approvals.admin", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 route, null, null, null, null, List.of());
-
         assertThat(nonOverlapping.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
     }
@@ -488,7 +456,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "ADMIN.APPROVAL_DESIGN:UPDATE",
                 "ADMIN.APPROVAL_DESIGN:PUBLISH"), Set.of(), responsibilities,
                 List.of(draft, publishDisjoint));
-
         ProductSurfaceAuthorityDtos.AuthorityResult disjoint = evaluate(
                 "approvals", "approvals.admin", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 "route.approvals.admin.workflow-publish.action",
@@ -497,7 +464,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED);
         assertThat(disjoint.scopes()).singleElement().satisfies(scope ->
                 assertThat(scope.kind()).isEqualTo("RESOURCE_SET"));
-
         var publishPartial = dutyWithMembers(
                 "APPROVAL_DESIGN_PUBLISH", "ADMIN.APPROVAL_DESIGN", "RS_DESIGN_B",
                 Map.of("approvals.design.publish", "ADMIN.APPROVAL_DESIGN:PUBLISH"),
@@ -506,7 +472,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "ADMIN.APPROVAL_DESIGN:UPDATE",
                 "ADMIN.APPROVAL_DESIGN:PUBLISH"), Set.of(), responsibilities,
                 List.of(draft, publishPartial));
-
         ProductSurfaceAuthorityDtos.AuthorityResult partial = evaluate(
                 "approvals", "approvals.admin", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 "route.approvals.admin.workflow-publish.action",
@@ -527,11 +492,9 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "ACTION.APPROVAL_REQUEST:UPDATE",
                 "ACTION.APPROVAL_DELEGATION:VIEW",
                 "ACTION.APPROVAL_DELEGATION:MANAGE"), List.of());
-
         ProductSurfaceAuthorityDtos.AuthorityResult result = evaluate(
                 "approvals", "approvals.work", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 null, null, null, null, null, List.of());
-
         assertThat(result.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(result.effectiveGrants().stream()
                 .filter(ProductSurfaceAuthorityDtos.CapabilityGrant.class::isInstance)
@@ -567,13 +530,11 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "DATA.HR_ABSENCE:APPROVE",
                 "DATA.HR_TIME:VIEW",
                 "DATA.HR_TIME:APPROVE"), List.of());
-
         @SuppressWarnings("unchecked")
         ObjectProvider<ProductSurfaceAuthorityPort> ports =
                 org.mockito.Mockito.mock(ObjectProvider.class);
         when(ports.orderedStream()).thenAnswer(ignored -> Stream.of(adapter));
         ProductSurfaceAuthorityService service = new ProductSurfaceAuthorityService(ports);
-
         ProductSurfaceAuthorityDtos.AuthorityResult approvals = service.evaluate(
                 request("approvals", "approvals.work"));
         ProductSurfaceAuthorityDtos.AuthorityResult team = service.evaluate(
@@ -581,7 +542,6 @@ class ProductAuthorizationAuthorityAdapterTest {
         ProductSurfaceAuthorityDtos.AuthorityResult approvalInbox = service.evaluate(
                 request("approvals", "approvals.work",
                         "route.approvals.work.inbox.page"));
-
         assertThat(approvals.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(team.decision())
@@ -613,13 +573,11 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "ACTION.APPROVAL_DELEGATION:VIEW",
                 "ACTION.APPROVAL_DELEGATION:MANAGE"), List.of(role(
                         "APP_CONFIG_ADMIN", "APP.APPROVALS", "RS_APPROVALS")));
-
         @SuppressWarnings("unchecked")
         ObjectProvider<ProductSurfaceAuthorityPort> ports =
                 org.mockito.Mockito.mock(ObjectProvider.class);
         when(ports.orderedStream()).thenAnswer(ignored -> Stream.of(adapter));
         ProductSurfaceAuthorityService service = new ProductSurfaceAuthorityService(ports);
-
         ProductSurfaceAuthorityDtos.EvaluateRequest approvalWorkRequest =
                 request("approvals", "approvals.work");
         ProductSurfaceAuthorityDtos.AuthorityResult approvals = service.evaluate(
@@ -647,7 +605,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 .singleElement()
                 .satisfies(grant -> assertThat(grant.scopeKeys())
                         .containsExactly(selfScope.key()));
-
         List<String> workPageRoutes = List.of(
                 "route.approvals.work.completed.page",
                 "route.approvals.work.delegations.page",
@@ -664,11 +621,9 @@ class ProductAuthorizationAuthorityAdapterTest {
             assertSelfScopedWorkRoute(directWithoutContext, selfScope.key());
             assertThat(directWithoutContext.contextKey())
                     .isEqualTo(approvals.contextKey());
-
             ProductSurfaceAuthorityDtos.AuthorityResult direct = service.evaluate(request(
                     "approvals", "approvals.work", route,
                     approvals.contextKey(), selfScope.key()));
-
             assertSelfScopedWorkRoute(direct, selfScope.key());
             assertThat(direct.contextKey()).isEqualTo(approvals.contextKey());
         }
@@ -680,18 +635,15 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "APP.HCM:VIEW",
                 "DATA.HR_TIME:VIEW"), List.of(role(
                         "APP_CONFIG_ADMIN", "APP.HCM", "RS_HCM_CONFIG")));
-
         @SuppressWarnings("unchecked")
         ObjectProvider<ProductSurfaceAuthorityPort> ports =
                 org.mockito.Mockito.mock(ObjectProvider.class);
         when(ports.orderedStream()).thenAnswer(ignored -> Stream.of(adapter));
         ProductSurfaceAuthorityService service = new ProductSurfaceAuthorityService(ports);
-
         ProductSurfaceAuthorityDtos.AuthorityResult teamTime = service.evaluate(request(
                 "hcm", "hcm.team", "route.hcm.team.time.page"));
         ProductSurfaceAuthorityDtos.AuthorityResult operationsTime = service.evaluate(request(
                 "hcm", "hcm.operations", "route.hcm.operations.time.page"));
-
         assertTargetPopulationCapabilityScope(teamTime, "hcm.team.time.read");
         assertTargetPopulationCapabilityScope(
                 operationsTime, "hcm.operations.time.read");
@@ -703,7 +655,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "APP.HCM:VIEW",
                 "DATA.WORKFORCE:VIEW",
                 "DATA.HR_TIME:VIEW"), List.of());
-
         ProductSurfaceAuthorityDtos.AuthorityResult teamEntry = evaluate(
                 "hcm", "hcm.team", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 null, null, null, null, null, List.of());
@@ -725,7 +676,6 @@ class ProductAuthorizationAuthorityAdapterTest {
         ProductSurfaceAuthorityDtos.AuthorityResult operationsAssignments = evaluate(
                 "hcm", "hcm.operations", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 "route.hcm.operations.assignments.page", null, null, null, null, List.of());
-
         assertThat(List.of(
                 teamEntry, teamTime, operationsEntry, operationsTime, operationsOverview,
                 operationsPeople, operationsAssignments))
@@ -739,7 +689,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                 .allSatisfy(result -> assertThat(result.scopes()).isNotEmpty()
                         .extracting(ProductSurfaceAuthorityDtos.EffectiveScope::kind)
                         .containsOnly("TARGET_POPULATION"));
-
         evidence(Set.of(), List.of());
         ProductSurfaceAuthorityDtos.AuthorityResult operationsSupportEntry = evaluate(
                 "hcm", "hcm.operations",
@@ -761,7 +710,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                         assertThat(scope.readOnly()).isTrue();
                     });
                 });
-
         ProductSurfaceAuthorityDtos.AuthorityResult teamSupportEntry = evaluate(
                 "hcm", "hcm.team", ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT,
                 null, null, null, "support-1", "support-rev-1",
@@ -789,13 +737,11 @@ class ProductAuthorizationAuthorityAdapterTest {
                 "APP.HCM:VIEW",
                 "APP.PEOPLE_DIRECTORY:VIEW",
                 "APP.EMPLOYEE_SERVICES:VIEW"), List.of());
-
         @SuppressWarnings("unchecked")
         ObjectProvider<ProductSurfaceAuthorityPort> ports =
                 org.mockito.Mockito.mock(ObjectProvider.class);
         when(ports.orderedStream()).thenAnswer(ignored -> Stream.of(adapter));
         ProductSurfaceAuthorityService service = new ProductSurfaceAuthorityService(ports);
-
         ProductSurfaceAuthorityDtos.AuthorityResult entry = service.evaluate(
                 request("hcm", "hcm.personal"));
         assertThat(entry.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
@@ -810,7 +756,6 @@ class ProductAuthorizationAuthorityAdapterTest {
         ProductSurfaceAuthorityDtos.AuthorityResult directory = service.evaluate(request(
                 "hcm", "hcm.personal", "route.hcm.personal.directory.page",
                 entry.contextKey(), selfScope.key()));
-
         assertThat(directory.decision())
                 .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
         assertThat(directory.contextKey()).isEqualTo(entry.contextKey());
@@ -838,7 +783,6 @@ class ProductAuthorizationAuthorityAdapterTest {
                                 "approvals.design.read", "ADMIN.APPROVAL_DESIGN:VIEW",
                                 "approvals.design.publish",
                                 "ADMIN.APPROVAL_DESIGN:PUBLISH"))));
-
         ProductSurfaceAuthorityDtos.AuthorityResult normal = evaluate(
                 "approvals", "approvals.admin", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
                 null, null, null, null, null, List.of());

@@ -128,6 +128,22 @@ class MailOrganizationCommandRepository {
                 """, userId, tenantId, userId, ruleId, version);
     }
 
+    int reorderRule(
+            Long tenantId,
+            Long userId,
+            UUID ruleId,
+            int priority,
+            long version) {
+        return jdbc.update("""
+                UPDATE mail_rules
+                   SET priority = ?, synchronization_state = 'LOCAL_ONLY',
+                       last_error_code = NULL, version = version + 1,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                 WHERE tenant_id = ? AND owner_user_id = ? AND rule_id = ?
+                   AND lifecycle_state = 'ACTIVE' AND version = ?
+                """, priority, userId, tenantId, userId, ruleId, version);
+    }
+
     UUID startRuleRun(Long tenantId, Long userId, UUID ruleId) {
         UUID runId = UUID.randomUUID();
         jdbc.update("""

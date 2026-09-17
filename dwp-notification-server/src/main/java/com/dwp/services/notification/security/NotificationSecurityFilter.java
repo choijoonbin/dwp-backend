@@ -144,6 +144,9 @@ public class NotificationSecurityFilter extends OncePerRequestFilter {
         if (path.startsWith("/v1/admin/overview")) {
             return "ADMIN.NOTIFICATION_OPERATIONS";
         }
+        if (path.startsWith("/v1/admin/noise-quality")) {
+            return "ADMIN.NOTIFICATION_OPERATIONS";
+        }
         if (path.startsWith("/v1/admin/types")) return "ADMIN.NOTIFICATION_CONTRACT";
         if (path.startsWith("/v1/admin/templates")) return "ADMIN.NOTIFICATION_TEMPLATE";
         if (path.startsWith("/v1/admin/policies")) return "ADMIN.NOTIFICATION_POLICY";

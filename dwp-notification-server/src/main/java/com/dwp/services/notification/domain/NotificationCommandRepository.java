@@ -143,6 +143,12 @@ public class NotificationCommandRepository {
                 after.unread() - before.unread(),
                 after.actionable() - before.actionable(),
                 after.urgent() - before.urgent());
+        if ("COMPLETE".equals(action)
+                && current.completedAt() == null
+                && next.completedAt() != null) {
+            appendCompletionFact(
+                    actor, notificationId, current, changeVersion, next.completedAt());
+        }
         appendOutbox(actor, notificationId, action, changeVersion, current.userId(), now);
 
         MutationOutcome outcome = new MutationOutcome(
@@ -155,14 +161,26 @@ public class NotificationCommandRepository {
             NotificationRequestContext.Actor actor,
             UUID notificationId) {
         List<NotificationTriageState> rows = jdbc.query("""
-                SELECT user_id, inbox_state, read_at, saved_at, completed_at,
-                       snoozed_until, action_required, effective_priority,
-                       change_version, version
-                  FROM ntf_user_notifications
-                 WHERE tenant_id = :tenantId
-                   AND user_id = :userId
-                   AND notification_id = :notificationId
-                 FOR UPDATE
+                SELECT user_notification.user_id,
+                       user_notification.inbox_state,
+                       user_notification.read_at,
+                       user_notification.saved_at,
+                       user_notification.completed_at,
+                       user_notification.snoozed_until,
+                       user_notification.action_required,
+                       user_notification.effective_priority,
+                       notification.type_version_id,
+                       notification.thread_key,
+                       user_notification.change_version,
+                       user_notification.version
+                  FROM ntf_user_notifications user_notification
+                  JOIN ntf_notifications notification
+                    ON notification.tenant_id = user_notification.tenant_id
+                   AND notification.notification_id = user_notification.notification_id
+                 WHERE user_notification.tenant_id = :tenantId
+                   AND user_notification.user_id = :userId
+                   AND user_notification.notification_id = :notificationId
+                 FOR UPDATE OF user_notification
                 """, actorParams(actor).addValue("notificationId", notificationId),
                 (resultSet, rowNumber) -> new NotificationTriageState(
                         resultSet.getLong("user_id"),
@@ -173,6 +191,8 @@ public class NotificationCommandRepository {
                         instant(resultSet.getTimestamp("snoozed_until")),
                         resultSet.getBoolean("action_required"),
                         resultSet.getString("effective_priority"),
+                        resultSet.getObject("type_version_id", UUID.class),
+                        resultSet.getString("thread_key"),
                         resultSet.getLong("change_version"),
                         resultSet.getLong("version")));
         if (rows.isEmpty()) {
@@ -270,6 +290,50 @@ public class NotificationCommandRepository {
                         "userId", userId,
                         "changeVersion", changeVersion)))
                 .addValue("occurredAt", Timestamp.from(occurredAt)));
+    }
+
+    private void appendCompletionFact(
+            NotificationRequestContext.Actor actor,
+            UUID notificationId,
+            NotificationTriageState state,
+            long changeVersion,
+            Instant completedAt) {
+        int inserted = jdbc.update("""
+                INSERT INTO ntf_notification_quality_completion_facts (
+                    fact_id, tenant_id, user_id, notification_identity_hash,
+                    type_version_id, contract_id, owner_app_key, type_key, owner_team,
+                    thread_identity_hash, change_version, completed_at)
+                SELECT :factId,
+                       :tenantId,
+                       :userId,
+                       :notificationIdentityHash,
+                       type_version.type_version_id,
+                       type.type_id,
+                       type.owner_app_key,
+                       type.type_key,
+                       type.owner_team,
+                       :threadIdentityHash,
+                       :changeVersion,
+                       :completedAt
+                  FROM ntf_notification_type_versions type_version
+                  JOIN ntf_notification_types type
+                    ON type.type_id = type_version.type_id
+                 WHERE type_version.type_version_id = :typeVersionId
+                """, actorParams(actor)
+                .addValue("factId", UUID.randomUUID())
+                .addValue("notificationIdentityHash",
+                        NotificationQualityFactContext.notificationIdentity(
+                                actor.tenantId(), notificationId))
+                .addValue("typeVersionId", state.typeVersionId())
+                .addValue("threadIdentityHash",
+                        NotificationQualityFactContext.threadIdentity(
+                                actor.tenantId(), state.typeVersionId(), state.threadKey()))
+                .addValue("changeVersion", changeVersion)
+                .addValue("completedAt", Timestamp.from(completedAt)));
+        if (inserted != 1) {
+            throw new IllegalStateException(
+                    "Notification completion quality fact was not appended exactly once.");
+        }
     }
 
     private String json(Object value) {

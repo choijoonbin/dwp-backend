@@ -202,6 +202,53 @@ class WorkplaceBookingRepository {
                 result -> null);
     }
 
+    void lockBookingCommand(Long tenantId, Long actorId, String idempotencyKey) {
+        jdbc.query(
+                "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
+                statement -> statement.setString(
+                        1, "workplace-booking-command:" + tenantId + ":" + actorId + ":" + idempotencyKey),
+                result -> null);
+    }
+
+    Optional<BookingCommandRow> bookingCommand(
+            Long tenantId, Long actorId, String idempotencyKey) {
+        return jdbc.query("""
+                SELECT command_id, booking_id, command_type, request_fingerprint,
+                       result_snapshot::text, audit_event_id
+                  FROM wp_booking_commands
+                 WHERE tenant_id = ? AND actor_user_id = ? AND idempotency_key = ?
+                """, (result, ignored) -> new BookingCommandRow(
+                        result.getObject("command_id", UUID.class),
+                        result.getObject("booking_id", UUID.class),
+                        result.getString("command_type"),
+                        result.getString("request_fingerprint"),
+                        bookingSnapshot(result.getString("result_snapshot")),
+                        result.getObject("audit_event_id", UUID.class)),
+                tenantId, actorId, idempotencyKey).stream().findFirst();
+    }
+
+    void completeBookingCommand(
+            Long tenantId,
+            Long actorId,
+            UUID bookingId,
+            String commandType,
+            String idempotencyKey,
+            String requestFingerprint,
+            WorkplaceDtos.Booking result,
+            UUID auditEventId,
+            String correlationId,
+            OffsetDateTime completedAt) {
+        jdbc.update("""
+                INSERT INTO wp_booking_commands(
+                    command_id, tenant_id, actor_user_id, booking_id, command_type,
+                    idempotency_key, request_fingerprint, result_snapshot,
+                    audit_event_id, correlation_id, completed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, CAST(? AS jsonb), ?, ?, ?)
+                """, UUID.randomUUID(), tenantId, actorId, bookingId, commandType,
+                idempotencyKey, requestFingerprint, json(result), auditEventId,
+                blank(correlationId), completedAt);
+    }
+
     void lockResourceBookingScope(Long tenantId, UUID resourceId) {
         jdbc.query(
                 "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
@@ -460,6 +507,24 @@ class WorkplaceBookingRepository {
                 blank(correlationId), json(snapshot));
     }
 
+    UUID auditCommand(
+            Long tenantId,
+            Long actorId,
+            String action,
+            UUID aggregateId,
+            String correlationId,
+            Map<String, ?> snapshot) {
+        UUID auditEventId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO wp_audit_events (
+                    audit_event_id, tenant_id, action, aggregate_type, aggregate_id,
+                    actor_user_id, correlation_id, snapshot)
+                VALUES (?, ?, ?, 'BOOKING', ?, ?, ?, CAST(? AS jsonb))
+                """, auditEventId, tenantId, action, aggregateId, actorId,
+                blank(correlationId), json(snapshot));
+        return auditEventId;
+    }
+
     private OccupancyRow occupancy(ResultSet result) throws SQLException {
         return new OccupancyRow(
                 result.getObject("resource_id", UUID.class),
@@ -490,7 +555,15 @@ class WorkplaceBookingRepository {
                 result.getObject("release_window_id", UUID.class), result.getLong("version"));
     }
 
-    private String json(Map<String, ?> value) {
+    private WorkplaceDtos.Booking bookingSnapshot(String value) {
+        try {
+            return mapper.readValue(value, WorkplaceDtos.Booking.class);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Invalid Workplace booking command snapshot", exception);
+        }
+    }
+
+    private String json(Object value) {
         try {
             return mapper.writeValueAsString(value);
         } catch (JsonProcessingException exception) {
@@ -537,6 +610,15 @@ class WorkplaceBookingRepository {
             OffsetDateTime startsAt,
             OffsetDateTime endsAt,
             long version) {
+    }
+
+    record BookingCommandRow(
+            UUID commandId,
+            UUID bookingId,
+            String commandType,
+            String requestFingerprint,
+            WorkplaceDtos.Booking result,
+            UUID auditEventId) {
     }
 
     record BookingRow(

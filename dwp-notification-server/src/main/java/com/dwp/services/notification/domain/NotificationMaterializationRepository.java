@@ -24,23 +24,23 @@ import java.util.UUID;
 
 @Repository
 public class NotificationMaterializationRepository {
-
     private final NamedParameterJdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
     private final NotificationDeliveryAdmissionService admissionService;
     private final NotificationRuntimeAdmissionRepository runtimeAdmissionRepository;
-
+    private final NotificationAttentionAdmissionService attentionAdmissionService;
     public NotificationMaterializationRepository(
             NamedParameterJdbcTemplate jdbc,
             ObjectMapper objectMapper,
             NotificationDeliveryAdmissionService admissionService,
-            NotificationRuntimeAdmissionRepository runtimeAdmissionRepository) {
+            NotificationRuntimeAdmissionRepository runtimeAdmissionRepository,
+            NotificationAttentionAdmissionService attentionAdmissionService) {
         this.jdbc = jdbc;
         this.objectMapper = objectMapper;
         this.admissionService = admissionService;
         this.runtimeAdmissionRepository = runtimeAdmissionRepository;
+        this.attentionAdmissionService = attentionAdmissionService;
     }
-
     public TemplateContract contract(
             long tenantId,
             String typeKey,
@@ -198,14 +198,51 @@ public class NotificationMaterializationRepository {
                     List.of());
         }
 
-        Instant occurredAt = request.occurredAt() == null ? Instant.now() : request.occurredAt();
+        Instant admittedAt = Instant.now();
+        Map<Long, NotificationAttentionDecision> attentionDecisions =
+                attentionAdmissionService.evaluate(
+                        tenantId,
+                        entitledRecipientUserIds,
+                        request,
+                        contract,
+                        admittedAt);
+        if (entitledRecipientUserIds.stream().allMatch(recipientUserId ->
+                attentionDecisions.getOrDefault(
+                        recipientUserId, NotificationAttentionDecision.none()).suppress())) {
+            for (Long recipientUserId : entitledRecipientUserIds) {
+                admissionService.admittedRecipient(
+                        tenantId,
+                        recipientUserId,
+                        request,
+                        contract,
+                        admittedAt,
+                        attentionDecisions.getOrDefault(
+                                recipientUserId, NotificationAttentionDecision.none()),
+                        false,
+                        true);
+            }
+            jdbc.update("""
+                    UPDATE ntf_notification_intents
+                       SET decision = 'SUPPRESSED',
+                           reason_code = 'USER_ATTENTION_MUTE'
+                     WHERE tenant_id = :tenantId AND intent_id = :intentId
+                    """, new MapSqlParameterSource()
+                    .addValue("tenantId", tenantId)
+                    .addValue("intentId", intent.intentId()));
+            return new PersistenceResult(
+                    new MaterializationResult(
+                            intent.intentId(), null, 0, false, "0"),
+                    List.of());
+        }
+
+        Instant occurredAt = request.occurredAt() == null ? admittedAt : request.occurredAt();
         String threadKey = request.threadKey() == null || request.threadKey().isBlank()
                 ? request.sourceEventId().toString()
                 : request.threadKey().trim();
-        UUID notificationId = upsertNotification(
+        NotificationProjection projection = upsertNotification(
                 tenantId, request, contract, content, threadKey, occurredAt);
-        if (notificationId == null) {
-            notificationId = activeThreadId(tenantId, contract.typeKey(), threadKey);
+        if (projection == null) {
+            UUID notificationId = activeThreadId(tenantId, contract.typeKey(), threadKey);
             jdbc.update("""
                     UPDATE ntf_notification_intents
                        SET notification_id = :notificationId,
@@ -220,6 +257,8 @@ public class NotificationMaterializationRepository {
                             intent.intentId(), notificationId, 0, true, "0"),
                     List.of());
         }
+        UUID notificationId = projection.notificationId();
+        boolean collapsed = projection.occurrenceCount() > 1;
         jdbc.update("""
                 UPDATE ntf_notification_intents
                    SET notification_id = :notificationId
@@ -232,15 +271,23 @@ public class NotificationMaterializationRepository {
         List<ChangeSignal> signals = new ArrayList<>();
         long highestChangeVersion = 0;
         for (Long recipientUserId : new LinkedHashSet<>(entitledRecipientUserIds)) {
-            if (!runtimeAdmissionRepository.inAppDeliveryEnabled(
+            NotificationAttentionDecision attention = attentionDecisions.getOrDefault(
+                    recipientUserId, NotificationAttentionDecision.none());
+            boolean deliveryEnabled = runtimeAdmissionRepository.inAppDeliveryEnabled(
                     tenantId,
                     recipientUserId,
                     contract.ownerAppKey(),
-                    contract.typeKey())) {
-                continue;
-            }
+                    contract.typeKey(),
+                    attention.followOverride());
             if (!admissionService.admittedRecipient(
-                    tenantId, recipientUserId, request, contract, Instant.now())) continue;
+                    tenantId,
+                    recipientUserId,
+                    request,
+                    contract,
+                    admittedAt,
+                    attention,
+                    collapsed,
+                    deliveryEnabled)) continue;
             long changeVersion = materializeRecipient(
                     tenantId,
                     recipientUserId,
@@ -248,7 +295,8 @@ public class NotificationMaterializationRepository {
                     request,
                     contract,
                     content,
-                    occurredAt);
+                    occurredAt,
+                    attention);
             highestChangeVersion = Math.max(highestChangeVersion, changeVersion);
             signals.add(new ChangeSignal(
                     tenantId, recipientUserId, changeVersion, notificationId));
@@ -328,14 +376,14 @@ public class NotificationMaterializationRepository {
                         true));
     }
 
-    private UUID upsertNotification(
+    private NotificationProjection upsertNotification(
             long tenantId,
             DirectMaterializationRequest request,
             TemplateContract contract,
             RenderedContent content,
             String threadKey,
             Instant occurredAt) {
-        List<UUID> notificationIds = jdbc.query("""
+        List<NotificationProjection> notifications = jdbc.query("""
                 INSERT INTO ntf_notifications (
                     notification_id, tenant_id, type_version_id, type_scope_tenant_id,
                     type_key, thread_key,
@@ -364,7 +412,7 @@ public class NotificationMaterializationRepository {
                     version = ntf_notifications.version + 1,
                     updated_at = CURRENT_TIMESTAMP
                 WHERE EXCLUDED.last_activity_at >= ntf_notifications.last_activity_at
-                RETURNING notification_id
+                RETURNING notification_id, occurrence_count
                 """, new MapSqlParameterSource()
                 .addValue("notificationId", UUID.randomUUID())
                 .addValue("tenantId", tenantId)
@@ -379,8 +427,10 @@ public class NotificationMaterializationRepository {
                 .addValue("actionPayload", json(content.action()))
                 .addValue("variables", json(request.variables()))
                 .addValue("occurredAt", Timestamp.from(occurredAt)),
-                (resultSet, rowNumber) -> resultSet.getObject("notification_id", UUID.class));
-        return notificationIds.isEmpty() ? null : notificationIds.get(0);
+                (resultSet, rowNumber) -> new NotificationProjection(
+                        resultSet.getObject("notification_id", UUID.class),
+                        resultSet.getLong("occurrence_count")));
+        return notifications.isEmpty() ? null : notifications.get(0);
     }
 
     private UUID activeThreadId(long tenantId, String typeKey, String threadKey) {
@@ -404,7 +454,9 @@ public class NotificationMaterializationRepository {
             DirectMaterializationRequest request,
             TemplateContract contract,
             RenderedContent content,
-            Instant occurredAt) {
+            Instant occurredAt,
+            NotificationAttentionDecision attention) {
+        String effectivePriority = attention.effectivePriority(contract.priority());
         MapSqlParameterSource identity = new MapSqlParameterSource()
                 .addValue("tenantId", tenantId)
                 .addValue("userId", userId)
@@ -451,7 +503,9 @@ public class NotificationMaterializationRepository {
                     safe_title, safe_preview, safe_body, action_payload,
                     search_text, inbox_state, first_activity_at,
                     last_activity_at, occurrence_count, change_version,
-                    target_state, target_state_reason)
+                    target_state, target_state_reason,
+                    attention_rule_id, attention_scope_kind, attention_effect,
+                    attention_rule_revision, attention_policy_source)
                 VALUES (
                     :tenantId, :userId, :notificationId, :reasonCode,
                     :priority, :actionRequired, :dueAt, :locale,
@@ -459,7 +513,9 @@ public class NotificationMaterializationRepository {
                     :actorRef, :subjectRef, :targetRef,
                     :safeTitle, :safePreview, :safeBody, CAST(:actionPayload AS jsonb),
                     :searchText, 'ACTIVE', :occurredAt,
-                    :occurredAt, 1, :changeVersion, 'AVAILABLE', NULL)
+                    :occurredAt, 1, :changeVersion, 'AVAILABLE', NULL,
+                    :attentionRuleId, :attentionScopeKind, :attentionEffect,
+                    :attentionRuleRevision, :attentionPolicySource)
                 ON CONFLICT (tenant_id, user_id, notification_id)
                 DO UPDATE SET
                     reason_code = EXCLUDED.reason_code,
@@ -479,6 +535,11 @@ public class NotificationMaterializationRepository {
                     search_text = EXCLUDED.search_text,
                     target_state = 'AVAILABLE',
                     target_state_reason = NULL,
+                    attention_rule_id = EXCLUDED.attention_rule_id,
+                    attention_scope_kind = EXCLUDED.attention_scope_kind,
+                    attention_effect = EXCLUDED.attention_effect,
+                    attention_rule_revision = EXCLUDED.attention_rule_revision,
+                    attention_policy_source = EXCLUDED.attention_policy_source,
                     inbox_state = 'ACTIVE',
                     read_at = NULL,
                     completed_at = NULL,
@@ -491,7 +552,7 @@ public class NotificationMaterializationRepository {
                     updated_at = CURRENT_TIMESTAMP
                 """, identity
                 .addValue("reasonCode", reason(request.reasonCode()))
-                .addValue("priority", contract.priority())
+                .addValue("priority", effectivePriority)
                 .addValue("actionRequired", request.actionRequired())
                 .addValue("dueAt", request.dueAt() == null ? null : Timestamp.from(request.dueAt()))
                 .addValue("locale", contract.locale())
@@ -507,12 +568,19 @@ public class NotificationMaterializationRepository {
                 .addValue("actionPayload", json(content.action()))
                 .addValue("searchText", content.title() + " " + content.preview())
                 .addValue("occurredAt", Timestamp.from(occurredAt))
-                .addValue("changeVersion", changeVersion));
+                .addValue("changeVersion", changeVersion)
+                .addValue("attentionRuleId", attention.ruleId())
+                .addValue("attentionScopeKind", attention.scopeKind())
+                .addValue("attentionEffect", attention.effect())
+                .addValue("attentionRuleRevision", attention.ruleRevision())
+                .addValue("attentionPolicySource", attention.policySource()));
+        NotificationRecipientContextWriter.write(
+                jdbc, tenantId, userId, notificationId, request.contexts());
 
         int unreadDelta = existing == null || !visibleUnread(existing, occurredAt) ? 1 : 0;
         int actionableDelta = request.actionRequired()
                 && (existing == null || !visibleActionable(existing, occurredAt)) ? 1 : 0;
-        int urgentDelta = "URGENT".equals(contract.priority())
+        int urgentDelta = "URGENT".equals(effectivePriority)
                 && (existing == null || !visibleUrgent(existing, occurredAt)) ? 1 : 0;
         jdbc.update("""
                 UPDATE ntf_user_counters
@@ -624,5 +692,8 @@ public class NotificationMaterializationRepository {
             Instant snoozedUntil,
             boolean actionRequired,
             String priority) {
+    }
+
+    private record NotificationProjection(UUID notificationId, long occurrenceCount) {
     }
 }

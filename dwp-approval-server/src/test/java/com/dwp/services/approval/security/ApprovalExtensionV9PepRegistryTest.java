@@ -25,9 +25,9 @@ class ApprovalExtensionV9PepRegistryTest {
         var current = new ApprovalPilotPepRegistry(mapper);
         assertThat(v9.bindingContracts()).hasSize(99).containsAll(v8.bindingContracts());
         assertThat(v9.bindingContracts()).filteredOn(binding -> !v8.bindingContracts().contains(binding)).hasSize(27);
-        assertThat(current.bindingContracts()).hasSize(157).containsAll(v9.bindingContracts());
-        assertThat(current.bindingContracts()).filteredOn(binding -> !v9.bindingContracts().contains(binding)).hasSize(58);
-        assertThatThrownBy(() -> new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 15))
+        assertThat(current.bindingContracts()).hasSize(246).containsAll(v9.bindingContracts());
+        assertThat(current.bindingContracts()).filteredOn(binding -> !v9.bindingContracts().contains(binding)).hasSize(147);
+        assertThatThrownBy(() -> new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 16))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("Unsupported");
     }
 

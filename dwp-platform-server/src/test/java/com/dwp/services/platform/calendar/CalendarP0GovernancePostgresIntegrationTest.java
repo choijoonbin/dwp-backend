@@ -300,7 +300,7 @@ class CalendarP0GovernancePostgresIntegrationTest {
         insertBooking(TENANT_A, fixture.eventId(), resourceId);
         insertGroupGrant(fixture.calendarId(), groupRef, "EDIT");
 
-        CalendarRepository repository = new CalendarRepository(jdbc, new ObjectMapper());
+        CalendarRepository repository = CalendarP0GovernanceRepositoryFixture.roomRepository(jdbc, TENANT_A, resourceId);
         CalendarService calendarService = mock(CalendarService.class);
         RoomService service = new RoomService(
                 calendarService,

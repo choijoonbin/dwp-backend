@@ -29,7 +29,7 @@ class MessagingProductSurfaceContractCandidateTest {
         assertThat(bundle.path("bundleStatus").asText()).isEqualTo("DRAFT");
         JsonNode index = objectMapper.readTree(Files.readString(contractArtifact(
                 "contracts/product-authorization/product-surfaces-v1.index.json")));
-        assertThat(index.path("latestVersion").asInt()).isEqualTo(5);
+        assertThat(index.path("latestVersion").asInt()).isEqualTo(20);
         assertThat(index.path("versions").get(3).path("bundleStatus").asText())
                 .isEqualTo("DRAFT");
         assertThat(index.path("versions").get(4).path("bundleStatus").asText())

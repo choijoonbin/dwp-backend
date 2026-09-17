@@ -25,7 +25,7 @@ class NotificationRecipientEntitlementAdmissionTest {
                     directory,
                     "approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,"
                             + "messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,"
-                            + "meetings=APP.MEETINGS:VIEW");
+                            + "meetings=APP.MEETINGS:VIEW,workplace=APP.WORKPLACE:VIEW");
 
     @Test
     void admitsOnlyActiveTenantUsersWithTheExactOwnerAppViewPermission() {
@@ -71,6 +71,17 @@ class NotificationRecipientEntitlementAdmissionTest {
     }
 
     @Test
+    void admitsWorkplaceRecipientsOnlyWithTheExactWorkplaceViewPermission() {
+        when(directory.find(7L, 31L)).thenReturn(Optional.of(subject(
+                7L, 31L, "ACTIVE", "TENANT", "APP.WORKPLACE:VIEW")));
+        when(directory.find(7L, 32L)).thenReturn(Optional.of(subject(
+                7L, 32L, "ACTIVE", "TENANT", "ADMIN.WORKPLACE:VIEW")));
+
+        assertThat(admission.admittedRecipients(7L, List.of(31L, 32L), "WORKPLACE"))
+                .containsExactly(31L);
+    }
+
+    @Test
     void failsClosedOnUnknownOwnerBindingsAndDirectoryFailures() {
         assertThatThrownBy(() -> admission.admittedRecipients(
                 7L, List.of(11L), "unknown"))
@@ -99,7 +110,7 @@ class NotificationRecipientEntitlementAdmissionTest {
                 directory,
                 "approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,"
                         + "messaging=APP.WORK:VIEW,space=APP.SPACES:VIEW,"
-                        + "meetings=APP.MEETINGS:VIEW"))
+                        + "meetings=APP.MEETINGS:VIEW,workplace=APP.WORKPLACE:VIEW"))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("exact app VIEW entitlements");
     }

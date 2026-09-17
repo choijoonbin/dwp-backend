@@ -663,7 +663,7 @@ def local_environment() -> dict[str, str]:
         ),
         "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
         "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",
-        "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "14",
+        "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "21",
         "DWP_AGENT_SERVICE_TOKEN": "dwp-local-agent-service-token",
         "DWP_AGENT_IDENTITY_SIGNING_SECRET": (
             "dwp-local-agent-identity-signing-secret-v1"
@@ -691,6 +691,7 @@ def local_environment() -> dict[str, str]:
         "DWP_PLATFORM_SERVICE_TOKEN": "dwp-local-platform-service-token",
         "DWP_PLATFORM_RUNTIME_SERVICE_TOKEN": "dwp-local-platform-runtime-token",
         "DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED": "true",
+        "DWP_PLATFORM_PRODUCT_AUTHORIZATION_WORKPLACE_V4_ENABLED": "true",
         "DWP_ACTIVITY_LOCAL_FIXTURES_ENABLED": "true",
         "DWP_PRODUCTIVITY_DATA_KEY": (
             "ZHdwLWxvY2FsLXByb2R1Y3Rpdml0eS1rZXktMzJieXQ="
@@ -753,7 +754,7 @@ def local_environment() -> dict[str, str]:
         ),
         "DWP_NOTIFICATION_PRODUCER_APP_BINDINGS": (
             "dwp-approval-server=approvals,dwp-people-server=hcm|people,"
-            "dwp-platform-server=platform,dwp-space-server=space,"
+            "dwp-platform-server=platform|workplace,dwp-space-server=space,"
             "dwp-messaging-server=messaging,dwp-meeting-server=meetings"
         ),
         "DWP_NOTIFICATION_APPROVAL_PILOT_ENABLED": "true",
@@ -878,6 +879,9 @@ def service_environment(service_name: str) -> dict[str, str]:
     if service_name != "platform":
         environment.pop(
             "DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED", None
+        )
+        environment.pop(
+            "DWP_PLATFORM_PRODUCT_AUTHORIZATION_WORKPLACE_V4_ENABLED", None
         )
         environment.pop("DWP_ACTIVITY_LOCAL_FIXTURES_ENABLED", None)
     if service_name != "agent":

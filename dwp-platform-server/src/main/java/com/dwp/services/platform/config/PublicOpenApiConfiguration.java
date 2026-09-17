@@ -2,6 +2,9 @@ package com.dwp.services.platform.config;
 
 import io.swagger.v3.oas.models.Operation;
 import io.swagger.v3.oas.models.PathItem;
+import io.swagger.v3.oas.models.Components;
+import io.swagger.v3.oas.models.security.SecurityRequirement;
+import io.swagger.v3.oas.models.security.SecurityScheme;
 import io.swagger.v3.oas.models.media.Content;
 import io.swagger.v3.oas.models.media.MediaType;
 import io.swagger.v3.oas.models.media.Schema;
@@ -14,9 +17,24 @@ import org.springframework.context.annotation.Configuration;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 @Configuration
 class PublicOpenApiConfiguration {
+    static final String DEVICE_CREDENTIAL_SCHEME = "DeviceCredential";
+    static final String DEVICE_TENANT_SCHEME = "DeviceTenant";
+    private static final String DEVICE_IDENTITY_PLANE = "DEVICE";
+    private static final Set<String> DEVICE_IDENTITY_PATHS = Set.of(
+            "/v1/device/workplace/devices:register",
+            "/v1/device/workplace/devices/{deviceId}/heartbeat",
+            "/v1/device/workplace/devices/{deviceId}/projection",
+            "/v1/device/workplace/devices/{deviceId}/access-pass:pair",
+            "/v1/workplace/kiosk/session",
+            "/v1/workplace/kiosk/visits/{visitId}",
+            "/v1/workplace/kiosk/visits/{visitId}:arrive",
+            "/v1/workplace/kiosk/visits/{visitId}:checkout",
+            "/v1/workplace/kiosk/devices/{deviceId}:heartbeat",
+            "/v1/workplace/kiosk/devices/{deviceId}:help");
     private static final List<String> HOME_PERSONALIZATION_PATHS = List.of(
             "/v1/home-views", "/v1/home-templates", "/v1/home-composer");
 
@@ -28,6 +46,41 @@ class PublicOpenApiConfiguration {
                     .map(PathItem::readOperations)
                     .flatMap(List::stream)
                     .forEach(this::removeTrustedHeaders);
+        };
+    }
+
+    /**
+     * Keeps the actorless Workplace device plane explicit in the owner contract.
+     *
+     * <p>The owner service consumes headers that were verified and rewritten by the Gateway.
+     * The exporter projects these two schemes to their public header names when it composes the
+     * Gateway contract. Human PRODUCT authorization is deliberately absent from these operations.</p>
+     */
+    @Bean
+    OpenApiCustomizer documentWorkplaceDeviceIdentityPlane() {
+        return openApi -> {
+            Components components = openApi.getComponents();
+            if (components == null) {
+                components = new Components();
+                openApi.setComponents(components);
+            }
+            components.addSecuritySchemes(DEVICE_TENANT_SCHEME, apiKey(
+                    "X-DWP-Tenant-ID",
+                    "Gateway-verified tenant evidence for the actorless DEVICE identity plane."));
+            components.addSecuritySchemes(DEVICE_CREDENTIAL_SCHEME, apiKey(
+                    "X-DWP-Device-Credential",
+                    "Gateway-verified device credential. The owner service hashes it before "
+                            + "matching tenant-bound device evidence."));
+            if (openApi.getPaths() == null) return;
+            openApi.getPaths().forEach((path, item) -> {
+                if (!DEVICE_IDENTITY_PATHS.contains(path)) return;
+                item.readOperations().forEach(operation -> {
+                    operation.setSecurity(List.of(new SecurityRequirement()
+                            .addList(DEVICE_TENANT_SCHEME)
+                            .addList(DEVICE_CREDENTIAL_SCHEME)));
+                    operation.addExtension("x-dwp-identity-plane", DEVICE_IDENTITY_PLANE);
+                });
+            });
         };
     }
 
@@ -89,6 +142,14 @@ class PublicOpenApiConfiguration {
     private Schema<?> property(Schema<?> owner, String name) {
         if (owner == null || owner.getProperties() == null) return null;
         return owner.getProperties().get(name);
+    }
+
+    private SecurityScheme apiKey(String header, String description) {
+        return new SecurityScheme()
+                .type(SecurityScheme.Type.APIKEY)
+                .in(SecurityScheme.In.HEADER)
+                .name(header)
+                .description(description);
     }
 
     private void removeTrustedHeaders(Operation operation) {

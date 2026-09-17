@@ -105,7 +105,7 @@ public final class WorkspaceDtos {
     public record ExecutionSummary(
             long total, long running, long needsInput, long policyBlocked,
             long completed, long failed, long cancelled, long unknown, OffsetDateTime generatedAt,
-            ActivityCoverage coverage) {
+            ActivityCoverage coverage, List<ActivityEvent> attentionItems) {
     }
 
     public record ActivityEvent(

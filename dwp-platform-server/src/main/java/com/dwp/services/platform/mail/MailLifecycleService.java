@@ -27,6 +27,30 @@ public class MailLifecycleService {
         this.evidence = evidence;
     }
 
+    @Transactional(readOnly = true)
+    public MailOrganizationDtos.LifecyclePreview preview(
+            Long tenantId,
+            Long userId,
+            UUID threadId,
+            MailOrganizationDtos.LifecycleRequest request) {
+        MailLifecycleRepository.LifecycleThread before = lifecycle.visibleThread(
+                tenantId, userId, threadId).orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        if (before.version() != request.version()) {
+            conflict();
+        }
+        if (request.action() == LifecycleAction.DELETE_FOREVER) {
+            List<String> blockers = deleteBlockers(before);
+            return new MailOrganizationDtos.LifecyclePreview(
+                    threadId, request.action(), blockers.isEmpty(), blockers,
+                    null, null, 1, before.version());
+        }
+        MailLifecycleRepository.FolderTarget target = target(
+                tenantId, userId, before, request.action(), request.targetFolderId());
+        return new MailOrganizationDtos.LifecyclePreview(
+                threadId, request.action(), true, List.of(),
+                target.folderId(), target.displayName(), 1, before.version());
+    }
+
     @Transactional
     public MailOrganizationDtos.LifecycleResult apply(
             Long tenantId,
@@ -40,9 +64,19 @@ public class MailLifecycleService {
             conflict();
         }
         if (request.action() == LifecycleAction.DELETE_FOREVER) {
-            throw new BaseException(
-                    ErrorCode.INVALID_STATE,
-                    "Permanent mail deletion is disabled until retention and legal-hold policy is governed.");
+            List<String> blockers = deleteBlockers(before);
+            if (!blockers.isEmpty()) {
+                throw new BaseException(
+                        ErrorCode.INVALID_STATE,
+                        "Permanent deletion is blocked: " + String.join(", ", blockers));
+            }
+            if (lifecycle.deleteForever(
+                    tenantId, userId, before, request.version()) != 1) {
+                conflict();
+            }
+            record(tenantId, userId, correlationId, event(request.action()), threadId,
+                    state(before), Map.of("deleted", true, "version", before.version()));
+            return new MailOrganizationDtos.LifecycleResult(null, true);
         }
         MailLifecycleRepository.FolderTarget target = target(
                 tenantId, userId, before, request.action(), request.targetFolderId());
@@ -112,6 +146,18 @@ public class MailLifecycleService {
     private UUID previousFolder(MailLifecycleRepository.LifecycleThread before) {
         return List.of("ARCHIVE", "TRASH", "SPAM").contains(before.folderType())
                 ? before.previousFolderId() : before.folderId();
+    }
+
+    private List<String> deleteBlockers(MailLifecycleRepository.LifecycleThread thread) {
+        java.util.ArrayList<String> blockers = new java.util.ArrayList<>();
+        if (!"TRASH".equals(thread.folderType()) || !"TRASHED".equals(thread.workflowState())) {
+            blockers.add("THREAD_NOT_TRASHED");
+        }
+        if (!thread.retentionElapsed()) blockers.add("RETENTION_PERIOD_ACTIVE");
+        if (thread.activeLegalHold()) blockers.add("ACTIVE_LEGAL_HOLD");
+        if (thread.immutableDeliveryEvidence()) blockers.add("IMMUTABLE_DELIVERY_EVIDENCE");
+        if (thread.externalProvider()) blockers.add("EXTERNAL_PROVIDER_DELETE_UNAVAILABLE");
+        return List.copyOf(blockers);
     }
 
     private String workflow(String folderType) {

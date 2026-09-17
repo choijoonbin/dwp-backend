@@ -18,6 +18,15 @@ public class NotificationRuntimeAdmissionRepository {
             long userId,
             String appKey,
             String typeKey) {
+        return inAppDeliveryEnabled(tenantId, userId, appKey, typeKey, false);
+    }
+
+    public boolean inAppDeliveryEnabled(
+            long tenantId,
+            long userId,
+            String appKey,
+            String typeKey,
+            boolean exactFollowOverride) {
         PolicyAdmissionRow row = jdbc.queryForObject("""
                 WITH effective_policy AS (
                     SELECT policy.mandatory,
@@ -104,7 +113,8 @@ public class NotificationRuntimeAdmissionRepository {
                         row.userRulePresent(),
                         row.userRuleMode(),
                         row.userRuleChannelEnabled()),
-                row.profileChannelEnabled());
+                row.profileChannelEnabled(),
+                exactFollowOverride);
     }
 
     private record PolicyAdmissionRow(

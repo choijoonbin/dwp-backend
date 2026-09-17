@@ -238,7 +238,7 @@ public class MailAddressBookService {
     }
 
     @Transactional
-    public MailDtos.ThreadDetail sendGroupMessage(
+    public MailAddressBookDtos.GroupSendResult sendGroupMessage(
             Long tenantId,
             Long userId,
             UUID groupId,
@@ -249,7 +249,14 @@ public class MailAddressBookService {
                 tenantId, userId, GROUP_MESSAGE_SEND,
                 request.idempotencyKey(), fingerprint);
         requireMatchingReceipt(receipt, fingerprint);
-        if (receipt.completed()) return mail.thread(tenantId, userId, target(receipt));
+        if (receipt.completed()) {
+            UUID threadId = target(receipt);
+            return new MailAddressBookDtos.GroupSendResult(
+                    mail.thread(tenantId, userId, threadId),
+                    groupCompose.receipt(tenantId, userId, groupId, threadId)
+                            .orElseThrow(() -> conflict(
+                                    "The completed group send receipt is unavailable.")));
+        }
         requireNewReservation(receipt);
         if (!addressBook.lockGroup(tenantId, userId, groupId, request.groupVersion())) {
             throw conflict("The group changed. Review its recipients before sending.");
@@ -275,17 +282,30 @@ public class MailAddressBookService {
         receipts.complete(
                 tenantId, userId, GROUP_MESSAGE_SEND,
                 request.idempotencyKey(), fingerprint, result.threadId(), result.version());
+        MailAddressBookDtos.GroupSendReceipt sendReceipt = result.receipt() != null
+                ? result.receipt()
+                : groupCompose.receipt(tenantId, userId, groupId, result.threadId())
+                        .orElseThrow(() -> conflict("The group send receipt is unavailable."));
         Map<String, Object> state = Map.of(
                 "groupId", groupId,
                 "groupVersion", request.groupVersion(),
+                "recipientMode", request.recipientMode().name(),
                 "recipientCount", result.recipientCount(),
+                "receiptId", sendReceipt.receiptId(),
                 "recipientSnapshotSha256", result.recipientSnapshotSha256(),
                 "classification", request.classification().name(),
                 "queued", true);
         record(
                 tenantId, userId, "mail.contact.group.message.queued", "MAIL_THREAD",
                 result.threadId(), correlationId, Map.of(), state);
-        return detail;
+        return new MailAddressBookDtos.GroupSendResult(detail, sendReceipt);
+    }
+
+    @Transactional(readOnly = true)
+    public List<MailAddressBookDtos.GroupSendReceipt> groupMessageHistory(
+            Long tenantId, Long userId, UUID groupId) {
+        group(tenantId, userId, groupId);
+        return groupCompose.history(tenantId, userId, groupId, 100);
     }
 
     private MailAddressBookDtos.Contact contact(Long tenantId, Long userId, UUID contactId) {

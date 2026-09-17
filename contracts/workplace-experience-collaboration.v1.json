@@ -72,7 +72,7 @@
       "response": "SharingPolicy"
     },
     "PUT /connectors/{kind}": {
-      "kind": "CALENDAR|ACTUAL_PRESENCE|SIGNAGE|VISITOR|VEHICLE",
+      "kind": "CALENDAR|ACTUAL_PRESENCE|ACCESS_CONTROL|SIGNAGE|VISITOR|VEHICLE|FACILITY_WORK_ORDER",
       "body": {
         "provider": "required label [A-Za-z0-9._-] 1..80",
         "enabled": "boolean",

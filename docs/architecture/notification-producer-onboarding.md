@@ -2,7 +2,7 @@
 
 Status: `required-for-every-product-integration`
 
-Last reviewed: 2026-09-09
+Last reviewed: 2026-09-17
 
 ## Decision
 
@@ -122,6 +122,18 @@ Conformance Gate와 통합 회귀를 소유한다. 앱 작업이 끝나면 알�
         "subjectReference": "messaging-message:message-id",
         "targetReference": "/messages/direct?conversation=conversation-id&message=message-id",
         "actionRequired": false,
+        "contexts": [
+          {
+            "kind": "PERSON",
+            "key": "user:900019",
+            "matchable": true
+          },
+          {
+            "kind": "CONVERSATION",
+            "key": "messaging-conversation:conversation-id",
+            "matchable": true
+          }
+        ],
         "variables": {
           "senderName": "김민서",
           "messagePreview": "배포 계획을 확인해 주세요."
@@ -131,6 +143,36 @@ Conformance Gate와 통합 회귀를 소유한다. 앱 작업이 끝나면 알�
   }
 }
 ```
+
+## Structured Recipient Context Contract
+
+`contexts`는 선택 항목이며 Intent당 최대 20개다. Notification Platform은 허용된 Context만
+수신자 Projection과 같은 Transaction에 저장한다. Suppression 또는 전체 Mute에는 Context Row를
+만들지 않고, 동일 Event Replay는 기존 Context를 수정하지 않는다. 같은 Thread로 합쳐지는 새 Event는
+기존 `(kind, key hash)`를 보존하면서 새로운 정본 Context만 추가한다.
+
+| Context kind   | Attention scope | Canonical example                               |
+| -------------- | --------------- | ----------------------------------------------- |
+| `PERSON`       | `ACTOR`         | `user:900019`, `person:<uuid-or-sha256>`        |
+| `CONVERSATION` | `THREAD`        | `messaging-conversation:<uuid>`                 |
+| `THREAD`       | `THREAD`        | `messaging-thread:<uuid>`                       |
+| `CHANNEL`      | `THREAD`        | `messaging-channel:<uuid>`                      |
+| `PROJECT`      | `RESOURCE`      | `project:<opaque-id>`                           |
+| `WORK_ITEM`    | `RESOURCE`      | `work-item:<opaque-id>`, `approval-request:<id>` |
+| `TOPIC`        | `TOPIC_TOKEN`   | `security-alert`, `release.2026-q3`             |
+
+- Context Object의 필드는 `kind`, `key`, 선택 `displayHint`, `matchable`만 허용한다. 알 수 없는
+  `body`, `payload` 등의 필드가 있거나 배열이 20개를 넘으면 Event 전체를 격리한다.
+- `key`는 공백 보정 없이 Canonical ASCII Opaque ID여야 한다. `PERSON`은 내부 User ID, UUID 또는
+  SHA-256 Reference만 허용하며 이메일·이름·전화번호를 금지한다.
+- `displayHint`는 최대 160자이며 개인 식별자, 이메일, 전화번호, 메시지 본문, Secret을 넣지 않는다.
+  `PERSON`에는 `displayHint`를 사용하지 않는다.
+- `matchable=true`는 사용자의 정확 일치 Attention Rule과 Inbox Context Filter 후보가 된다는 뜻이다.
+  `TOPIC`은 Tenant가 게시한 Topic Allowlist에 포함돼야 Attention Rule에 사용된다.
+- Producer는 업무 원장이 제공한 Project·Work Item·Conversation·Thread ID만 발행한다. 메시지 본문,
+  제목 또는 사용자 입력에서 Topic을 추론하지 않는다.
+- Context를 포함한 Event는 Context까지 Payload Hash에 포함하므로 같은 Event ID로 Context를 바꾼
+  Replay는 격리된다. Context가 없는 기존 Event의 Hash 형식은 이전 버전과 동일하게 유지된다.
 
 ## Messaging Reference Decision Table
 

@@ -45,8 +45,9 @@ public class ActivityController {
     @GetMapping("/executions/summary")
     public ResponseEntity<ApiResponse<WorkspaceDtos.ExecutionSummary>> summary(
             @RequestHeader("X-DWP-Tenant-ID") Long tenant, @RequestHeader("X-DWP-User-ID") Long user,
-            @RequestHeader("X-DWP-Permissions") String permissions) {
-        return noStore(service.summary(tenant, user, permissions));
+            @RequestHeader("X-DWP-Permissions") String permissions,
+            @RequestHeader(value = "Accept-Language", required = false) String locale) {
+        return noStore(service.summary(tenant, user, permissions, locale));
     }
 
     private <T> ResponseEntity<ApiResponse<T>> noStore(T value) {

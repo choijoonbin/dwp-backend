@@ -1,8 +1,13 @@
 package com.dwp.services.notification.integration;
 
 import com.dwp.services.notification.domain.DirectNotificationMaterializer;
+import com.dwp.services.notification.domain.NotificationAttentionAdmissionRepository;
+import com.dwp.services.notification.domain.NotificationAttentionAdmissionService;
+import com.dwp.services.notification.domain.NotificationAttentionGovernanceRepository;
+import com.dwp.services.notification.domain.NotificationAttentionGovernanceRuntime;
 import com.dwp.services.notification.domain.NotificationDeliveryAdmissionRepository;
 import com.dwp.services.notification.domain.NotificationDeliveryAdmissionService;
+import com.dwp.services.notification.domain.NotificationEffectivePolicyRepository;
 import com.dwp.services.notification.domain.NotificationMaterializationRepository;
 import com.dwp.services.notification.domain.NotificationMaterializationTransactions;
 import com.dwp.services.notification.domain.NotificationModels.MaterializationResult;
@@ -18,6 +23,7 @@ import com.dwp.services.notification.realtime.NotificationRedisChannels;
 import com.dwp.services.notification.realtime.NotificationRedisSignalCodec;
 import com.dwp.services.notification.security.NotificationDatabaseScope;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +41,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Supplier;
@@ -75,6 +82,18 @@ class ApprovalSlaMaterializationPostgresIntegrationTest {
     @BeforeAll
     static void migrateAllRealVersionsWithTheGuardedDedicatedRole() {
         ApprovalSlaDeliveryJournalPostgresIntegrationTest.migrateOnlyDisposablePrefixedDatabaseWithDedicatedRuntimeRole();
+        String url = System.getenv("DWP_NOTIFICATION_SLA_TEST_DB_URL");
+        var source = new DriverManagerDataSource(
+                url,
+                System.getenv().getOrDefault("DWP_NOTIFICATION_SLA_TEST_DB_USERNAME", "postgres"),
+                System.getenv().getOrDefault("DWP_NOTIFICATION_SLA_TEST_DB_PASSWORD", "postgres"));
+        var migration = Flyway.configure()
+                .dataSource(source)
+                .locations("classpath:db/migration")
+                .placeholders(Map.of("notificationRuntimeRole", "ntf_sla_test_runtime"))
+                .load();
+        migration.migrate();
+        assertThat(migration.info().current().getVersion().getVersion()).isEqualTo("33");
     }
 
     @BeforeEach
@@ -97,11 +116,22 @@ class ApprovalSlaMaterializationPostgresIntegrationTest {
         var retention = new NotificationRetentionService(scope, new NotificationRetentionRepository(named), publisher,
                 Duration.ofDays(7), Duration.ofDays(7), 100);
         var admission = new NotificationDeliveryAdmissionService(new NotificationDeliveryAdmissionRepository(named), Duration.ofHours(1));
-        var repository = new NotificationMaterializationRepository(named, mapper, admission, new NotificationRuntimeAdmissionRepository(named));
+        var repository = new NotificationMaterializationRepository(
+                named,
+                mapper,
+                admission,
+                new NotificationRuntimeAdmissionRepository(named),
+                new NotificationAttentionAdmissionService(
+                        new NotificationAttentionAdmissionRepository(named),
+                        new NotificationEffectivePolicyRepository(named),
+                        new NotificationAttentionGovernanceRuntime(
+                                new NotificationAttentionGovernanceRepository(named, mapper),
+                                500,
+                                10)));
         var nativeTransactions = new NotificationMaterializationTransactions(manager, scope, repository, retention, publisher, jdbc);
         var legacyEntitlements = new NotificationRecipientEntitlementAdmission((id, user) -> {
             throw new AssertionError("SLA private Verified must not borrow the generic recipient directory");
-        }, "approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,meetings=APP.MEETINGS:VIEW");
+        }, "approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,meetings=APP.MEETINGS:VIEW,workplace=APP.WORKPLACE:VIEW");
         materializer = new DirectNotificationMaterializer(nativeTransactions,
                 new NotificationProducerOwnershipPolicy("dwp-approval-server=approvals"), legacyEntitlements, mapper);
         tenant = ThreadLocalRandom.current().nextLong(100_000L, 1_000_000_000_000L);
@@ -175,6 +205,60 @@ class ApprovalSlaMaterializationPostgresIntegrationTest {
         assertThat(results).extracting(MaterializationResult::recipientCount).containsExactly(0, 1);
         assertThat(rowCount(admin, "ntf_user_notifications")).isEqualTo(1);
         verify(redis, times(1)).convertAndSend(anyString(), anyString());
+    }
+
+    @Test
+    void exactThreadMuteSuppressesEveryProjectionAndReplayRemainsWriteFree() throws Exception {
+        var plan = ownPlan(1);
+        var frame = new Frame(plan, new MutableClock(NOW));
+        var current = frame.verify(frame.claims());
+        var request = plan.request(plan.chunk(0).getFirst());
+        long recipient = request.recipientUserIds().getFirst();
+        UUID ruleId = UUID.randomUUID();
+        admin.update("""
+                INSERT INTO ntf_user_attention_rules (
+                    rule_id, tenant_id, user_id, scope_kind, scope_key,
+                    scope_key_hash, effect, source)
+                VALUES (?, ?, ?, 'THREAD', ?, ?, 'MUTE', 'USER')
+                """, ruleId, tenant, recipient, request.threadKey(),
+                ApprovalSlaNotificationContractTest.digest(request.threadKey()));
+
+        var first = worker(() -> materializer.materializeApprovalSlaWithinWorkerTransaction(
+                plan.actor(), plan, List.of(request), current)).getFirst();
+
+        assertThat(first.notificationId()).isNull();
+        assertThat(first.recipientCount()).isZero();
+        assertThat(first.duplicate()).isFalse();
+        assertThat(rowCount(admin, "ntf_notification_intents")).isEqualTo(1);
+        for (String table : List.of(
+                "ntf_notifications", "ntf_user_notifications",
+                "ntf_user_counters", "ntf_outbox_events")) {
+            assertThat(rowCount(admin, table)).as("Mute leaves no projection: " + table).isZero();
+        }
+        assertThat(rowCount(admin, "ntf_delivery_admission_receipts")).isEqualTo(1);
+        assertThat(admin.queryForMap("""
+                SELECT decision, reason_code, attention_rule_id,
+                       attention_scope_kind, attention_effect, attention_rule_revision
+                  FROM ntf_delivery_admission_receipts
+                 WHERE tenant_id = ?
+                """, tenant))
+                .containsEntry("decision", "SUPPRESSED")
+                .containsEntry("reason_code", "USER_ATTENTION_MUTE")
+                .containsEntry("attention_rule_id", ruleId)
+                .containsEntry("attention_scope_kind", "THREAD")
+                .containsEntry("attention_effect", "MUTE")
+                .containsEntry("attention_rule_revision", 1L);
+        verifyNoInteractions(redis);
+
+        var replay = worker(() -> materializer.materializeApprovalSlaWithinWorkerTransaction(
+                plan.actor(), plan, List.of(request), current)).getFirst();
+
+        assertThat(replay.notificationId()).isNull();
+        assertThat(replay.recipientCount()).isZero();
+        assertThat(replay.duplicate()).isTrue();
+        assertThat(rowCount(admin, "ntf_notification_intents")).isEqualTo(1);
+        assertThat(rowCount(admin, "ntf_delivery_admission_receipts")).isEqualTo(1);
+        verifyNoInteractions(redis);
     }
 
     @Test

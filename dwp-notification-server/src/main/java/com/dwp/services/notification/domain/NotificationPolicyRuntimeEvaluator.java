@@ -9,9 +9,18 @@ final class NotificationPolicyRuntimeEvaluator {
             PolicyInput policy,
             UserRuleInput userRule,
             Boolean profileEnabled) {
+        return inAppDeliveryEnabled(policy, userRule, profileEnabled, false);
+    }
+
+    static boolean inAppDeliveryEnabled(
+            PolicyInput policy,
+            UserRuleInput userRule,
+            Boolean profileEnabled,
+            boolean exactFollowOverride) {
         if (policy.present() && (policy.mandatory() || !policy.userOverridable())) {
             return policy.enabled() && !"MUTED".equals(policy.defaultMode());
         }
+        if (exactFollowOverride) return true;
         if (userRule.present()) {
             return !"MUTED".equals(defaultString(userRule.mode(), "IMMEDIATE"))
                     && firstNonNull(

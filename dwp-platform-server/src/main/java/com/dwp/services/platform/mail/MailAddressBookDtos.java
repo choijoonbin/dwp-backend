@@ -18,6 +18,8 @@ public final class MailAddressBookDtos {
     private MailAddressBookDtos() {
     }
 
+    public enum GroupRecipientMode { TO, BCC }
+
     public record Contact(
             UUID contactId,
             String displayName,
@@ -113,7 +115,33 @@ public final class MailAddressBookDtos {
             @NotBlank @Size(max = 500) String subject,
             @NotBlank @Size(max = 100_000) String body,
             @NotNull Classification classification,
+            @NotNull GroupRecipientMode recipientMode,
             @NotNull UUID idempotencyKey,
             @NotNull @Min(0) Long groupVersion) {
+
+        public GroupMessageRequest(
+                String subject,
+                String body,
+                Classification classification,
+                UUID idempotencyKey,
+                Long groupVersion) {
+            this(subject, body, classification, GroupRecipientMode.TO, idempotencyKey, groupVersion);
+        }
+    }
+
+    public record GroupSendReceipt(
+            UUID receiptId,
+            UUID groupId,
+            long groupVersion,
+            GroupRecipientMode recipientMode,
+            int recipientCount,
+            UUID threadId,
+            OffsetDateTime acceptedAt,
+            String state) {
+    }
+
+    public record GroupSendResult(
+            MailDtos.ThreadDetail thread,
+            GroupSendReceipt receipt) {
     }
 }

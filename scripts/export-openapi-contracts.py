@@ -19,10 +19,11 @@ from typing import Any, Callable
 ROOT = Path(__file__).resolve().parents[1]
 CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
+AGENT_AI_CONTROL_SNAPSHOT = CONTRACT_ROOT / "agent-ai-control.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v14.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v21.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 14
+PRODUCT_AUTHORIZATION_VERSION = 21
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 TELEMETRY_PUBLIC_PATH = "/api/platform/v1/observability/product-surface-events"
 TELEMETRY_TRUSTED_HEADERS = {"X-DWP-Tenant-ID", "X-DWP-Rollout-Cohort"}
@@ -31,6 +32,34 @@ PUBLIC_COMMAND_PROOF_HEADERS = {
     "x-dwp-expected-decision-revision",
     "x-dwp-expected-object-version",
 }
+PLATFORM_DEVICE_SECURITY_SCHEMES = {
+    "DeviceTenant": {
+        "name": "X-Tenant-ID",
+        "description": (
+            "Positive tenant identifier for the actorless DEVICE identity plane. "
+            "The Gateway verifies and rewrites this value before forwarding it."
+        ),
+    },
+    "DeviceCredential": {
+        "name": "X-Device-Credential",
+        "description": (
+            "Opaque tenant-bound device credential for the actorless DEVICE identity plane. "
+            "The Gateway verifies its shape and forwards it only to exact device routes."
+        ),
+    },
+}
+PLATFORM_DEVICE_OPERATIONS = frozenset({
+    ("post", "/v1/device/workplace/devices:register"),
+    ("post", "/v1/device/workplace/devices/{deviceId}/heartbeat"),
+    ("get", "/v1/device/workplace/devices/{deviceId}/projection"),
+    ("post", "/v1/device/workplace/devices/{deviceId}/access-pass:pair"),
+    ("get", "/v1/workplace/kiosk/session"),
+    ("get", "/v1/workplace/kiosk/visits/{visitId}"),
+    ("post", "/v1/workplace/kiosk/visits/{visitId}:arrive"),
+    ("post", "/v1/workplace/kiosk/visits/{visitId}:checkout"),
+    ("post", "/v1/workplace/kiosk/devices/{deviceId}:heartbeat"),
+    ("post", "/v1/workplace/kiosk/devices/{deviceId}:help"),
+})
 SCOPE_SELECTION_PARAMETER = {
     "name": "contextScopeKey",
     "in": "query",
@@ -135,6 +164,8 @@ SERVICES = (
     ServiceContract("notification", 8008, prefixed("/api/notifications")),
     ServiceContract("meeting", 8009, prefixed("/api/meetings")),
 )
+AGENT_AI_CONTROL_SERVICE = ServiceContract("agent", 8010, prefixed("/api/agent"))
+GATEWAY_SERVICES = (*SERVICES, AGENT_AI_CONTROL_SERVICE)
 
 
 def fetch_contract(service: ServiceContract) -> dict[str, Any]:
@@ -213,6 +244,29 @@ def load_gateway_owned_snapshot() -> dict[str, Any]:
     return document
 
 
+def load_agent_ai_control_snapshot() -> dict[str, Any]:
+    try:
+        document = json.loads(AGENT_AI_CONTROL_SNAPSHOT.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError(
+            f"Unable to read Agent AI-control OpenAPI snapshot at "
+            f"{AGENT_AI_CONTROL_SNAPSHOT}: {error}"
+        ) from error
+    expected = {
+        "/v1/admin/ai-control": {"get"},
+        "/v1/admin/ai-control/bootstrap": {"post"},
+        "/v1/admin/ai-control/policy": {"put"},
+        "/v1/admin/ai-control/emergency": {"post"},
+    }
+    actual = {
+        path: {method for method in path_item if method in HTTP_METHODS}
+        for path, path_item in document.get("paths", {}).items()
+    }
+    if not str(document.get("openapi", "")).startswith("3.") or actual != expected:
+        raise RuntimeError("Agent AI-control approved OpenAPI snapshot is invalid")
+    return document
+
+
 def component_names(service: str, document: dict[str, Any]) -> dict[tuple[str, str], str]:
     return {
         (category, name): f"{service}_{name}"
@@ -247,6 +301,84 @@ def rewrite_contract_value(value: Any, names: dict[tuple[str, str], str]) -> Any
     return rewritten
 
 
+def gateway_component_value(
+        service: str,
+        category: str,
+        name: str,
+        value: Any,
+        names: dict[tuple[str, str], str]) -> Any:
+    rewritten = rewrite_contract_value(copy.deepcopy(value), names)
+    public_device_scheme = PLATFORM_DEVICE_SECURITY_SCHEMES.get(name)
+    if (
+        service == "platform"
+        and category == "securitySchemes"
+        and public_device_scheme is not None
+    ):
+        if not isinstance(rewritten, dict) or rewritten.get("type") != "apiKey":
+            raise RuntimeError(f"Platform DEVICE security scheme is invalid: {name}")
+        rewritten["in"] = "header"
+        rewritten.update(public_device_scheme)
+    return rewritten
+
+
+def validate_platform_device_identity(
+        document: dict[str, Any], *, gateway: bool = False) -> None:
+    prefix = "/api/platform" if gateway else ""
+    scheme_prefix = "platform_" if gateway else ""
+    expected = {(method, prefix + path) for method, path in PLATFORM_DEVICE_OPERATIONS}
+    actual = {
+        (method, path)
+        for path, path_item in document.get("paths", {}).items()
+        for method, operation in path_item.items()
+        if method in HTTP_METHODS
+        and isinstance(operation, dict)
+        and operation.get("x-dwp-identity-plane") == "DEVICE"
+    }
+    if actual != expected:
+        raise RuntimeError(
+            "Platform DEVICE OpenAPI operations are not exact: "
+            f"missing={sorted(expected - actual)}, unexpected={sorted(actual - expected)}"
+        )
+    security_schemes = document.get("components", {}).get("securitySchemes", {})
+    for name, public in PLATFORM_DEVICE_SECURITY_SCHEMES.items():
+        scheme = security_schemes.get(scheme_prefix + name)
+        expected_header = public["name"] if gateway else {
+            "DeviceTenant": "X-DWP-Tenant-ID",
+            "DeviceCredential": "X-DWP-Device-Credential",
+        }[name]
+        if (
+            not isinstance(scheme, dict)
+            or scheme.get("type") != "apiKey"
+            or scheme.get("in") != "header"
+            or scheme.get("name") != expected_header
+        ):
+            raise RuntimeError(
+                f"Platform DEVICE OpenAPI security scheme is invalid: {scheme_prefix}{name}"
+            )
+    expected_security = [{
+        scheme_prefix + "DeviceTenant": [],
+        scheme_prefix + "DeviceCredential": [],
+    }]
+    for method, path in expected:
+        operation = document["paths"][path][method]
+        if operation.get("security") != expected_security:
+            raise RuntimeError(
+                f"Platform DEVICE OpenAPI security is invalid: {method.upper()} {path}"
+            )
+        parameters = operation.get("parameters", [])
+        if any(
+            isinstance(parameter, dict)
+            and parameter.get("name") in {
+                "contextScopeKey", "X-DWP-Expected-Decision-Revision"
+            }
+            for parameter in parameters
+        ):
+            raise RuntimeError(
+                f"Platform DEVICE operation was mixed with human PRODUCT governance: "
+                f"{method.upper()} {path}"
+            )
+
+
 def gateway_contract(
         documents: dict[str, dict[str, Any]],
         gateway_owned: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -278,7 +410,7 @@ def gateway_contract(
             "name": "gateway",
             "description": "Gateway-owned public contracts",
         })
-    for service in SERVICES:
+    for service in GATEWAY_SERVICES:
         document = documents[service.name]
         names = component_names(service.name, document)
         for path, path_item in document.get("paths", {}).items():
@@ -325,7 +457,9 @@ def gateway_contract(
                 continue
             target = gateway["components"].setdefault(category, {})
             for name, value in values.items():
-                target[names[(category, name)]] = rewrite_contract_value(copy.deepcopy(value), names)
+                target[names[(category, name)]] = gateway_component_value(
+                    service.name, category, name, value, names
+                )
         gateway["tags"].append({"name": service.name, "description": f"{service.name} service"})
 
     if not gateway["paths"]:
@@ -512,17 +646,31 @@ def main() -> int:
             "approved snapshots for the others; repeat to select multiple services"
         ),
     )
+    parser.add_argument(
+        "--approved-snapshots",
+        action="store_true",
+        help="compose without live service fetches, using every approved snapshot",
+    )
     args = parser.parse_args()
 
-    selected = set(args.service or (service.name for service in SERVICES))
+    selected = (
+        set()
+        if args.approved_snapshots
+        else set(args.service or (service.name for service in SERVICES))
+    )
     documents = {
         service.name: fetch_contract(service) if service.name in selected else load_snapshot(service)
         for service in SERVICES
     }
+    documents[AGENT_AI_CONTROL_SERVICE.name] = load_agent_ai_control_snapshot()
     gateway_owned = load_gateway_owned_snapshot()
-    outputs = {f"{name}.json": document for name, document in documents.items()}
+    outputs = {
+        f"{service.name}.json": documents[service.name] for service in SERVICES
+    }
     outputs["gateway-owned.json"] = gateway_owned
     outputs["gateway-public.json"] = gateway_contract(documents, gateway_owned)
+    validate_platform_device_identity(outputs["platform.json"])
+    validate_platform_device_identity(outputs["gateway-public.json"], gateway=True)
     validate_approval_signature_operations(outputs["gateway-public.json"], gateway=True)
     CONTRACT_ROOT.mkdir(parents=True, exist_ok=True)
 

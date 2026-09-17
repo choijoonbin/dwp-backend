@@ -7,6 +7,7 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Repository
@@ -16,7 +17,17 @@ class MailGroupComposeRepository {
             UUID threadId,
             long version,
             String recipientSnapshotSha256,
-            int recipientCount) {
+            int recipientCount,
+            UUID deliveryId,
+            MailAddressBookDtos.GroupSendReceipt receipt) {
+
+        ComposeResult(
+                UUID threadId,
+                long version,
+                String recipientSnapshotSha256,
+                int recipientCount) {
+            this(threadId, version, recipientSnapshotSha256, recipientCount, null, null);
+        }
     }
 
     private final JdbcTemplate jdbc;
@@ -42,7 +53,7 @@ class MailGroupComposeRepository {
                 .sorted(Comparator
                         .comparing(MailAddressBookRepository.Recipient::emailAddress)
                         .thenComparing(MailAddressBookRepository.Recipient::contactId))
-                .map(this::participant)
+                .map(recipient -> participant(recipient, request.recipientMode()))
                 .toList();
         String recipientsJson = json.write(participants);
         String recipientSnapshotSha256 = MailRecipientSnapshot.fingerprint(participants);
@@ -116,15 +127,68 @@ class MailGroupComposeRepository {
         if (snapshotInserted != 1) {
             throw new IllegalStateException("Group mail recipient evidence was not persisted.");
         }
+        MailAddressBookDtos.GroupSendReceipt receipt = jdbc.queryForObject("""
+                INSERT INTO mail_group_send_history (
+                    receipt_id, tenant_id, owner_user_id, group_id, group_version,
+                    recipient_mode, recipient_count, thread_id, delivery_id,
+                    receipt_state)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACCEPTED')
+                RETURNING receipt_id, group_id, group_version, recipient_mode,
+                          recipient_count, thread_id, accepted_at, receipt_state
+                """, (result, ignored) -> receipt(result), UUID.randomUUID(), tenantId, userId,
+                groupId, request.groupVersion(), request.recipientMode().name(),
+                participants.size(), threadId, deliveryId);
         return new ComposeResult(
-                threadId, 0L, recipientSnapshotSha256, participants.size());
+                threadId, 0L, recipientSnapshotSha256, participants.size(), deliveryId, receipt);
     }
 
-    private Map<String, Object> participant(MailAddressBookRepository.Recipient recipient) {
+    Optional<MailAddressBookDtos.GroupSendReceipt> receipt(
+            Long tenantId, Long userId, UUID groupId, UUID threadId) {
+        return jdbc.query("""
+                SELECT receipt_id, group_id, group_version, recipient_mode,
+                       recipient_count, thread_id, accepted_at, receipt_state
+                  FROM mail_group_send_history
+                 WHERE tenant_id = ? AND owner_user_id = ?
+                   AND group_id = ? AND thread_id = ?
+                 ORDER BY accepted_at DESC, receipt_id DESC
+                 LIMIT 1
+                """, (result, ignored) -> receipt(result),
+                tenantId, userId, groupId, threadId).stream().findFirst();
+    }
+
+    List<MailAddressBookDtos.GroupSendReceipt> history(
+            Long tenantId, Long userId, UUID groupId, int limit) {
+        return jdbc.query("""
+                SELECT receipt_id, group_id, group_version, recipient_mode,
+                       recipient_count, thread_id, accepted_at, receipt_state
+                  FROM mail_group_send_history
+                 WHERE tenant_id = ? AND owner_user_id = ? AND group_id = ?
+                 ORDER BY accepted_at DESC, receipt_id DESC
+                 LIMIT ?
+                """, (result, ignored) -> receipt(result), tenantId, userId, groupId, limit);
+    }
+
+    private MailAddressBookDtos.GroupSendReceipt receipt(java.sql.ResultSet result)
+            throws java.sql.SQLException {
+        return new MailAddressBookDtos.GroupSendReceipt(
+                result.getObject("receipt_id", UUID.class),
+                result.getObject("group_id", UUID.class),
+                result.getLong("group_version"),
+                MailAddressBookDtos.GroupRecipientMode.valueOf(
+                        result.getString("recipient_mode")),
+                result.getInt("recipient_count"),
+                result.getObject("thread_id", UUID.class),
+                result.getObject("accepted_at", java.time.OffsetDateTime.class),
+                result.getString("receipt_state"));
+    }
+
+    private Map<String, Object> participant(
+            MailAddressBookRepository.Recipient recipient,
+            MailAddressBookDtos.GroupRecipientMode mode) {
         Map<String, Object> participant = new LinkedHashMap<>();
         participant.put("name", recipient.displayName());
         participant.put("email", recipient.emailAddress());
-        participant.put("type", "TO");
+        participant.put("type", mode.name());
         return participant;
     }
 

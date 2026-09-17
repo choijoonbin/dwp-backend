@@ -1704,7 +1704,7 @@
   ],
   "fixedClock": "2026-08-21T09:00:00Z",
   "fixtureBundleKey": "pilot-fixtures.v1",
-  "fixtureChecksum": "78a1186e73f40e3af5fee02a3be26d54156f8c6a5c7888fd1be06678099b4f33",
+  "fixtureChecksum": "891eb748680f2071dd9bb3f86b5591b8d26bdc99b8945502100467cdc06d6872",
   "fixtureChecksumAlgorithm": "SHA-256",
   "negativeCases": [
     {
@@ -1942,8 +1942,8 @@
   "registryLineage": {
     "authority": "INFORMATIONAL_ONLY",
     "bundleKey": "product-surfaces",
-    "indexSha256": "b99af40653a99e9ad5a7e22a6b1f2af5bf1d7abca5831aa9bc15161e971468b2",
-    "latestAliasVersion": 14,
+    "indexSha256": "79d16d664df9a732b24fb1cc7cbe5d8ab1c859fe22217a852cd298417b8182f0",
+    "latestAliasVersion": 21,
     "versions": [
       {
         "bundleKey": "product-surfaces",
@@ -2014,6 +2014,41 @@
         "bundleKey": "product-surfaces",
         "sha256": "7ee0bac12ddfbc72dda55a5014c67b0798caa68a5ffc73b4be479d06a4590336",
         "version": 14
+      },
+      {
+        "bundleKey": "product-surfaces",
+        "sha256": "a9eab001b26d6488de0f7f176fa1d70fea2c9792a230769f645eb53ba90cf89f",
+        "version": 15
+      },
+      {
+        "bundleKey": "product-surfaces",
+        "sha256": "a677d2ad662d8791a09cdf4ad592f3483aa3dbf068ed2785c648351e8f2a20d0",
+        "version": 16
+      },
+      {
+        "bundleKey": "product-surfaces",
+        "sha256": "cdd1e671c8df1bbd63cab442acf175ee22c645cac071b79a3598f498c9947239",
+        "version": 17
+      },
+      {
+        "bundleKey": "product-surfaces",
+        "sha256": "ce5ce0e2058ab33998c0bf19ace2ff54ace06c8c0bda4dc4dca3554b06926fc5",
+        "version": 18
+      },
+      {
+        "bundleKey": "product-surfaces",
+        "sha256": "32bec6d3fb912af6072139aec72228281597c5b4fbb15f8b4af947c20721644c",
+        "version": 19
+      },
+      {
+        "bundleKey": "product-surfaces",
+        "sha256": "1acbce34c450c650aa3e8f1c11995b831f177ee4a6139dd8217ea5bdd22e7a60",
+        "version": 20
+      },
+      {
+        "bundleKey": "product-surfaces",
+        "sha256": "4cd1732df91d197cc47fca94699b0fb702ab1f6f2c557d3d17ce0e069d65af85",
+        "version": 21
       }
     ]
   },

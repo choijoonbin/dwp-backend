@@ -1,0 +1,922 @@
+{
+  "accessPolicies": [
+    {
+      "accessPolicyKey": "workplace.work-access.v1",
+      "authorityMode": "ENTITLEMENT",
+      "entitlementExpressionKey": "WORKPLACE_WORK_ACCESS_V1",
+      "evaluationType": "SINGLE",
+      "lifecycleState": "ACTIVE",
+      "modeBranches": null,
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "workplace",
+      "relationshipResolver": null,
+      "requiresProductEntitlement": true,
+      "routeContractKeys": [
+        "route.workplace.work.explore.page",
+        "route.workplace.work.find.page",
+        "route.workplace.work.floor-background.data",
+        "route.workplace.work.planner.page",
+        "route.workplace.work.reservations.page"
+      ],
+      "scopeResolver": "SELF",
+      "supportScopes": null,
+      "surfaceEntryKeys": [
+        "workplace.work"
+      ],
+      "surfaceKey": "workplace.work"
+    }
+  ],
+  "bindingPairCount": 12,
+  "capabilities": [
+    {
+      "action": "MANAGE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "workplace.connector-replay.manage",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "workplace",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.WORKPLACE:MANAGE",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.workplace.management.connector-replay-preview.action",
+        "route.workplace.management.connector-replay-start.action",
+        "route.workplace.management.connector-replay-status.data"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_WORKPLACE_CONFIG",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "workplace.management"
+    },
+    {
+      "action": "VIEW",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION",
+      "contractKey": "workplace.connector-runtime.read",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "workplace",
+      "requiredResponsibilityCode": "APP_CONFIG_ADMIN",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "ADMIN.WORKPLACE:VIEW",
+      "resourceKey": "ADMIN.WORKPLACE",
+      "responsibilityRequirement": "REQUIRED",
+      "riskTier": "LOW",
+      "routeContractKeys": [
+        "route.workplace.management.connector-operation.data",
+        "route.workplace.management.connector-operations.data"
+      ],
+      "scopeResolver": "APP_RESOURCE_SET:RS_WORKPLACE_CONFIG",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "workplace.management"
+    },
+    {
+      "action": "CREATE",
+      "activationPolicy": null,
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "workplace.space.create",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "productKey": "workplace",
+      "requiresProductEntitlement": true,
+      "resolvedCapabilityCode": "APP.WORKPLACE:CREATE",
+      "resourceKey": "APP.WORKPLACE",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "MEDIUM",
+      "routeContractKeys": [
+        "route.workplace.work.booking-create.action"
+      ],
+      "scopeResolver": "SELF",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "workplace.work"
+    }
+  ],
+  "entitlementExpressions": [
+    {
+      "expression": {
+        "entitlement": "APP.WORKPLACE:VIEW",
+        "type": "LEAF"
+      },
+      "expressionKey": "WORKPLACE_WORK_ACCESS_V1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1
+    }
+  ],
+  "ownerServiceKey": "platform",
+  "predicatePolicies": [
+    {
+      "inputEvidenceSchemaKey": "WorkplaceResourceEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Workplace + Platform + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {},
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.workplace-resource.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.workplace-resource.v1",
+      "routeContractKeys": [
+        "route.workplace.work.booking-create.action",
+        "route.workplace.work.explore.page",
+        "route.workplace.work.find.page",
+        "route.workplace.work.floor-background.data",
+        "route.workplace.work.planner.page",
+        "route.workplace.work.reservations.page"
+      ],
+      "targetBindingKinds": [
+        "SELF",
+        "OBJECT"
+      ]
+    }
+  ],
+  "projectedRouteContractCount": 11,
+  "projectionChecksum": "ba5580487e0d1f64ddce4ff05a967a18bc5b03e46890184d03e56f8eb25b2f44",
+  "projectionChecksumAlgorithm": "SHA-256",
+  "projectionKey": "platform-workplace-pep-v15",
+  "registryRef": {
+    "bundleKey": "product-surfaces",
+    "sha256": "a9eab001b26d6488de0f7f176fa1d70fea2c9792a230769f645eb53ba90cf89f",
+    "version": 15
+  },
+  "routeKindCounts": {
+    "ACTION": 3,
+    "DATA": 4,
+    "PAGE": 4
+  },
+  "routes": [
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "workplace.connector-runtime.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.workplace.management.connector-operation.data.binding.01",
+              "projectionPolicyKey": "route.workplace.management.connector-operation.data.full-management.projection.v1",
+              "responseSchemaKey": "route.workplace.management.connector-operation.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.connector-operation.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/workplace/connectors/{kind}/operations",
+          "pathParameterConstraints": {
+            "kind": {
+              "kind": "ALLOWLIST",
+              "values": [
+                "CALENDAR",
+                "ACTUAL_PRESENCE",
+                "ACCESS_CONTROL",
+                "SIGNAGE",
+                "VISITOR",
+                "VEHICLE",
+                "FACILITY_WORK_ORDER"
+              ]
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.management",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.management.connector-operation.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.connector-operation.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/workplace/connectors/{kind}/operations",
+          "pathParameterConstraints": {
+            "kind": {
+              "kind": "ALLOWLIST",
+              "values": [
+                "CALENDAR",
+                "ACTUAL_PRESENCE",
+                "ACCESS_CONTROL",
+                "SIGNAGE",
+                "VISITOR",
+                "VEHICLE",
+                "FACILITY_WORK_ORDER"
+              ]
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "workplace.connector-runtime.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.workplace.management.connector-operations.data.binding.01",
+              "projectionPolicyKey": "route.workplace.management.connector-operations.data.full-management.projection.v1",
+              "responseSchemaKey": "route.workplace.management.connector-operations.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.connector-operations.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/workplace/connectors/operations",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.management",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.management.connector-operations.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.connector-operations.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/workplace/connectors/operations",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "workplace.connector-replay.manage",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.connector-replay-preview.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/admin/workplace/connectors/{kind}/replays:preview",
+          "pathParameterConstraints": {
+            "kind": {
+              "kind": "ALLOWLIST",
+              "values": [
+                "CALENDAR",
+                "ACTUAL_PRESENCE",
+                "ACCESS_CONTROL",
+                "SIGNAGE",
+                "VISITOR",
+                "VEHICLE",
+                "FACILITY_WORK_ORDER"
+              ]
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.management",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.management.connector-replay-preview.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.connector-replay-preview.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/workplace/connectors/{kind}/replays:preview",
+          "pathParameterConstraints": {
+            "kind": {
+              "kind": "ALLOWLIST",
+              "values": [
+                "CALENDAR",
+                "ACTUAL_PRESENCE",
+                "ACCESS_CONTROL",
+                "SIGNAGE",
+                "VISITOR",
+                "VEHICLE",
+                "FACILITY_WORK_ORDER"
+              ]
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "workplace.connector-replay.manage",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.connector-replay-start.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/admin/workplace/connectors/{kind}/replays",
+          "pathParameterConstraints": {
+            "kind": {
+              "kind": "ALLOWLIST",
+              "values": [
+                "CALENDAR",
+                "ACTUAL_PRESENCE",
+                "ACCESS_CONTROL",
+                "SIGNAGE",
+                "VISITOR",
+                "VEHICLE",
+                "FACILITY_WORK_ORDER"
+              ]
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.management",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.management.connector-replay-start.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.connector-replay-start.action.binding.01",
+          "method": "POST",
+          "path": "/v1/admin/workplace/connectors/{kind}/replays",
+          "pathParameterConstraints": {
+            "kind": {
+              "kind": "ALLOWLIST",
+              "values": [
+                "CALENDAR",
+                "ACTUAL_PRESENCE",
+                "ACCESS_CONTROL",
+                "SIGNAGE",
+                "VISITOR",
+                "VEHICLE",
+                "FACILITY_WORK_ORDER"
+              ]
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [],
+          "profileKey": "full-management",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "workplace.connector-replay.manage",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.workplace.management.connector-replay-status.data.binding.01",
+              "projectionPolicyKey": "route.workplace.management.connector-replay-status.data.full-management.projection.v1",
+              "responseSchemaKey": "route.workplace.management.connector-replay-status.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": []
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.management.connector-replay-status.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/admin/workplace/connectors/{kind}/replays/{jobId}",
+          "pathParameterConstraints": {
+            "kind": {
+              "kind": "ALLOWLIST",
+              "values": [
+                "CALENDAR",
+                "ACTUAL_PRESENCE",
+                "ACCESS_CONTROL",
+                "SIGNAGE",
+                "VISITOR",
+                "VEHICLE",
+                "FACILITY_WORK_ORDER"
+              ]
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.management",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.management.connector-replay-status.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.management.connector-replay-status.data.binding.01",
+          "method": "GET",
+          "path": "/v1/admin/workplace/connectors/{kind}/replays/{jobId}",
+          "pathParameterConstraints": {
+            "kind": {
+              "kind": "ALLOWLIST",
+              "values": [
+                "CALENDAR",
+                "ACTUAL_PRESENCE",
+                "ACCESS_CONTROL",
+                "SIGNAGE",
+                "VISITOR",
+                "VEHICLE",
+                "FACILITY_WORK_ORDER"
+              ]
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.management",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.workplace-resource.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "workplace.space.create",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.booking-create.action.binding.01",
+          "method": "POST",
+          "path": "/api/platform/v1/workplace/bookings",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.work.booking-create.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.booking-create.action.binding.01",
+          "method": "POST",
+          "path": "/v1/workplace/bookings",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.workplace-resource.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "workplace.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.workplace.work.explore.page.binding.01",
+              "projectionPolicyKey": "route.workplace.work.explore.page.full-work.projection.v1",
+              "responseSchemaKey": "route.workplace.work.explore.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.workplace.work.explore.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.explore.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/workplace/explore",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.work.explore.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.explore.page.binding.01",
+          "method": "GET",
+          "path": "/v1/workplace/explore",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "workplace.work.explore",
+      "uiRoutePattern": "/workplace/explore"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.workplace-resource.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "workplace.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.workplace.work.find.page.binding.01",
+              "projectionPolicyKey": "route.workplace.work.explore.page.full-work.projection.v1",
+              "responseSchemaKey": "route.workplace.work.explore.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.workplace.work.explore.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.find.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/workplace/explore",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.work.find.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.find.page.binding.01",
+          "method": "GET",
+          "path": "/v1/workplace/explore",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "workplace.work.find",
+      "uiRoutePattern": "/workplace/find"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.workplace-resource.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "workplace.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.workplace.work.floor-background.data.binding.01",
+              "projectionPolicyKey": "route.workplace.work.floor-background.data.full-work.projection.v1",
+              "responseSchemaKey": "route.workplace.work.floor-background.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "OBJECT"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.floor-background.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/workplace/floors/{floorId}/background",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.work.floor-background.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.floor-background.data.binding.01",
+          "method": "GET",
+          "path": "/v1/workplace/floors/{floorId}/background",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.workplace-resource.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "workplace.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.workplace.work.planner.page.binding.01",
+              "projectionPolicyKey": "route.workplace.work.explore.page.full-work.projection.v1",
+              "responseSchemaKey": "route.workplace.work.explore.page.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "authorizationEquivalenceKey": "wire-authority.workplace.work.explore.v1",
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.planner.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/workplace/explore",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.work.planner.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.planner.page.binding.01",
+          "method": "GET",
+          "path": "/v1/workplace/explore",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "workplace.work.planner",
+      "uiRoutePattern": "/workplace/planner"
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.workplace-resource.v1"
+          ],
+          "profileKey": "full-work",
+          "readOnly": true,
+          "requiredAccess": {
+            "accessPolicyKey": "workplace.work-access.v1",
+            "type": "POLICY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.workplace.work.reservations.page.binding.01",
+              "projectionPolicyKey": "workplace.work.reservations.workplace-bookings.v1",
+              "responseSchemaKey": "WorkplaceBookingListV1"
+            },
+            {
+              "apiBindingKey": "route.workplace.work.reservations.page.binding.02",
+              "projectionPolicyKey": "workplace.work.reservations.room-bookings.v1",
+              "responseSchemaKey": "RoomBookingListV1"
+            }
+          ],
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.workplace.work.reservations.page.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/workplace/bookings",
+          "pathParameterConstraints": {}
+        },
+        {
+          "bindingKey": "route.workplace.work.reservations.page.binding.02",
+          "method": "GET",
+          "path": "/api/platform/v1/rooms/bookings",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "workplace.work",
+      "owner": "Workplace + Platform + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.workplace.work.reservations.page",
+      "routeKind": "PAGE",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.workplace.work.reservations.page.binding.01",
+          "method": "GET",
+          "path": "/v1/workplace/bookings",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        },
+        {
+          "bindingKey": "route.workplace.work.reservations.page.binding.02",
+          "method": "GET",
+          "path": "/v1/rooms/bookings",
+          "pathParameterConstraints": {},
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "workplace",
+        "surfaceKey": "workplace.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": "workplace.work.reservations",
+      "uiRoutePattern": "/workplace/reservations"
+    }
+  ],
+  "schemaVersion": 1,
+  "sourceRegistryRouteCount": 411
+}

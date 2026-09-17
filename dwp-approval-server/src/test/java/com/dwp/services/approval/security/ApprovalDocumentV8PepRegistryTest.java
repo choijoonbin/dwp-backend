@@ -24,7 +24,7 @@ class ApprovalDocumentV8PepRegistryTest {
                 .containsAll(work.bindingContracts());
         assertThat(active.bindingContracts()).filteredOn(binding -> !work.bindingContracts().contains(binding))
                 .hasSize(17);
-        assertThatThrownBy(() -> new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 15))
+        assertThatThrownBy(() -> new ApprovalPilotPepRegistry(mapper, Clock.systemUTC(), 16))
                 .isInstanceOf(IllegalStateException.class).hasMessageContaining("Unsupported");
     }
 

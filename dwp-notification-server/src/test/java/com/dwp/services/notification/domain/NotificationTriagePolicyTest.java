@@ -108,6 +108,8 @@ class NotificationTriagePolicyTest {
                 snoozedUntil,
                 true,
                 "HIGH",
+                null,
+                null,
                 4L,
                 3L);
     }

@@ -65,6 +65,9 @@ public class ProductSurfaceRolloutHeaderFilter implements GlobalFilter, Ordered 
                 .headers(headers -> UNTRUSTED_ROLLOUT_HEADERS.forEach(headers::remove))
                 .build();
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitized).build();
+        if (DeviceIdentityPlaneFilter.verified(exchange)) {
+            return chain.filter(sanitizedExchange);
+        }
         GeneratedProductRouteCatalog.Match routeMatch = routeCatalog.match(
                 sanitized.getMethod() == null ? null : sanitized.getMethod().name(),
                 sanitized.getURI().getPath(), sanitized.getURI().getRawQuery());

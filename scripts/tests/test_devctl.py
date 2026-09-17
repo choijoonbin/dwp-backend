@@ -185,6 +185,12 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
                 "DWP_NOTIFICATION_PRODUCER_APP_BINDINGS"
             ].split(","),
         )
+        self.assertIn(
+            "dwp-platform-server=platform|workplace",
+            environments["notification"][
+                "DWP_NOTIFICATION_PRODUCER_APP_BINDINGS"
+            ].split(","),
+        )
         for name, environment in environments.items():
             self.assertEqual(invitation_token in environment, name == "meeting")
             self.assertEqual(
@@ -294,7 +300,7 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
         auth_only = {
             "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
             "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "true",
-            "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "14",
+            "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_VERSION": "21",
         }
         for key, value in auth_only.items():
             self.assertEqual(environments["auth"][key], value)
@@ -325,12 +331,13 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
                     if name != "provider")
             )
 
-        exact_latches = {
-            "platform": "DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED",
-            "people": "DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED",
-            "approval": "DWP_APPROVAL_PRODUCT_AUTHORIZATION_V2_ENABLED",
-        }
-        for owner, key in exact_latches.items():
+        exact_latches = (
+            ("platform", "DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED"),
+            ("platform", "DWP_PLATFORM_PRODUCT_AUTHORIZATION_WORKPLACE_V4_ENABLED"),
+            ("people", "DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED"),
+            ("approval", "DWP_APPROVAL_PRODUCT_AUTHORIZATION_V2_ENABLED"),
+        )
+        for owner, key in exact_latches:
             self.assertEqual(environments[owner][key], "true")
             self.assertTrue(
                 all(key not in environment

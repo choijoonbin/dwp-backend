@@ -30,22 +30,51 @@ where that descriptor exists, then preserves it in every later monotonic
 superset. It expands projection bindings and descriptor-to-route reverse
 indexes, validates same-bundle references and computes SHA-256 over canonical
 JSON with the mutable `checksum` and `bundleStatus` members omitted. The
-canonical source contains a version 1 base plus append-only version 2, 3, 4 and 5
-waves. It emits complete snapshots rather than deltas:
+canonical source contains a version 1 base plus append-only version 2 through
+21 waves. It emits complete snapshots rather than deltas:
 
 - `product-surfaces-v1.bundle-v1.json` — W0/Canary, checksum `bc34f47b…`
 - `product-surfaces-v1.bundle-v2.json` — W1a Approvals, checksum `5b634a35…`
 - `product-surfaces-v1.bundle-v3.json` — W1b HCM candidate, checksum `f90c4e3a…`
 - `product-surfaces-v1.bundle-v4.json` — twelve-product exact closure, checksum `a9cd0826…`
 - `product-surfaces-v1.bundle-v5.json` — DWAI.ON read-only run/activity closure, checksum `c69816a0…`
-- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v5
+- `product-surfaces-v1.bundle-v6.json` through `bundle-v14.json` — immutable product and Approvals extensions whose exact checksums remain pinned by the generator
+- `product-surfaces-v1.bundle-v15.json` — APR-17 through APR-24 exact Approvals admin route closure plus the same-release Workplace append, checksum `a9eab001…`
+- `product-surfaces-v1.bundle-v16.json` — Workplace Planner intent, hold, batch, compensation, waitlist, and offer lifecycle closure, checksum `a677d2ad…`
+- `product-surfaces-v1.bundle-v17.json` — reservation-linked Workplace Services catalog, order, collaboration, fulfillment and secure attachment closure, checksum `cdd1e671…`
+- `product-surfaces-v1.bundle-v18.json` — immutable Workplace service history, line adjustment and attachment scan extension, checksum `ce5ce0e2…`
+- `product-surfaces-v1.bundle-v19.json` — immutable Approvals release extension, checksum `32bec6d3…`
+- `product-surfaces-v1.bundle-v20.json` — exhaustive human Workplace and exact room-support authorization closure, checksum `1acbce34…`
+- `product-surfaces-v1.bundle-v21.json` — Workplace operations extension plus exact DWAI.ON AI runtime-control closure, checksum `4cd1732d…`
+- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v21
 - `product-surfaces-v1.index.json` — checksummed version/artifact index
 
 Auth classpath resources use the same names with `.generated.json` before the
 extension. Every contract snapshot is byte-identical to its Auth seed peer;
-the latest Auth alias is byte-identical to bundle v5. The generator verifies
+the latest Auth alias is byte-identical to bundle v21. The generator verifies
 all files, checksums, aliases, descriptor preservation and monotonic reverse
 references in both generate and `--check` modes.
+
+Version 20 appends 20 Workplace management capabilities and 226 route
+descriptors without changing any v1-v19 byte. Its Platform Workplace projection
+contains 285 route contracts, 287 bindings and 284 unique method/path pairs. It
+exactly covers all 270 current human controller operations under
+`/v1/workplace/**` and `/v1/admin/workplace/**`, plus only the 14 declared room
+support pairs used by the Workplace UI. The nine device-identity operations
+under `/v1/device/workplace/**` and `/v1/workplace/kiosk/**` remain outside the
+human Product PEP. The 28 Workplace PAGE contracts include every official menu
+page and the `/workplace/home` alias. Space-planning approve and publish require
+an `ALL` expression over `ADMIN.WORKPLACE:MANAGE` and
+`ADMIN.WORKPLACE:APPROVE`; safety export resolves only to
+`ADMIN.WORKPLACE:EXPORT`. The generated owner registry accepts room bindings by
+that exact 14-pair allowlist and does not claim either room namespace by prefix.
+
+Version 21 appends the four exact AI runtime-control bindings under
+`/api/agent/v1/admin/ai-control`. Read authority accepts
+`ADMIN.DWAION_SAFETY:VIEW` or `MANAGE`; bootstrap and policy updates accept
+`UPDATE` or `MANAGE`; emergency control requires `MANAGE`. All four bind to the
+tenant `dwaion.management` CONFIG_SCOPE, and all three mutations are ACTION
+contracts that require current/expected decision-revision equality at runtime.
 
 Bundle version 1 contains only the W0 registry, Named Reviewer and the
 Communications/Services technical canary, including its exact responsibility,
@@ -62,6 +91,24 @@ loading version 4 does not approve or activate it. Version 5 is the exact
 monotonic superset that registers the DWAI.ON run list/detail and Activity
 events/detail/summary reads. It adds no command, does not alter any v1-v4
 descriptor, and remains `DRAFT`; generating or loading it does not activate it.
+
+Versions 6 through 14 are immutable append-only extensions for governed product
+commands and the earlier Approvals work, attachment, form, retention, signature,
+delegation, draft-migration and publish-review contracts. Version 15 is their
+exact monotonic superset for APR-17 through APR-24. It appends 43 Approvals route
+contracts: five `PAGE`, eighteen `DATA` and twenty `ACTION`, projected to 89
+exact service/public bindings. The pages are `/approvals/admin/routing`,
+`/approvals/admin/integrations`, `/approvals/admin/audit`,
+`/approvals/admin/analytics` and `/approvals/admin/deployments`. The API bindings
+cover only the actual owner endpoints under forms templates and Studio V3,
+workflow routing, policy automation, connectors, incidents, audit records,
+analytics and deployments. Twenty-eight high-risk command bindings carry an
+exact method, path, target source, `COMMAND_HEADER` version source, approval
+owner and `dwp-approval-server` audience. There is no wildcard, prefix or
+legacy fallback. Unsupported or unpublished paths therefore remain unknown and
+fail closed. Bundle v15 and its Approval PEP projection remain `DRAFT`; generation,
+seed loading and executable tests neither raise an activation ceiling nor
+constitute provider approval, release approval or activation evidence.
 
 The signed pilot fixture has no authoritative top-level registry reference.
 Its `registryLineage` is informational only; every test case and step-up
@@ -137,7 +184,7 @@ corrupt or unavailable durable state also fails closed. A higher approved
 revision with `E_p=false` is the only rollout path from `110` to `100`.
 
 Runtime loaders reject `test.*` keys and never read test registry overrides.
-The checksummed seed index imports versions 1 through 5 in order, all as `DRAFT`.
+The checksummed seed index imports versions 1 through 21 in order, all as `DRAFT`.
 It contains no active version field or pointer. Activation is an explicit CAS
 pointer transition after independent approval; loading a seed does not approve
 or activate it.

@@ -224,6 +224,7 @@ abstract class ApprovalCommandJdbcRepository {
             return new RequestRuntime(
                     result.getString("status"),
                     result.getString("title"),
+                    result.getLong("version"),
                     slaMinutes,
                     runtimeSteps(result.getString("workflow_definition"), slaMinutes),
                     result.getString("form_schema"),
@@ -652,6 +653,7 @@ abstract class ApprovalCommandJdbcRepository {
     protected record RequestRuntime(
             String status,
             String title,
+            long version,
             int slaMinutes,
             List<ApprovalCommandRepository.RuntimeStep> steps,
             String formSchema,

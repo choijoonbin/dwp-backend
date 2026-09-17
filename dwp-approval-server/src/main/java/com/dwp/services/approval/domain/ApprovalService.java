@@ -226,6 +226,54 @@ public class ApprovalService {
     }
 
     @Transactional
+    public ApprovalDtos.RequestPreflight preflight(UUID requestId, long expectedVersion) {
+        ApprovalRequestContext.Actor actor = prepare();
+        List<ApprovalDtos.RequestPreflightCheck> checks = new java.util.ArrayList<>();
+        if (commands.quorumWorkflow(actor.tenantId(), requestId) == null) {
+            commands.preflightLegacySubmit(actor, requestId, expectedVersion);
+            checks.add(new ApprovalDtos.RequestPreflightCheck(
+                    "OWNED_DRAFT", "PASS", "The current actor owns the exact draft version."));
+            checks.add(new ApprovalDtos.RequestPreflightCheck(
+                    "CONCURRENCY", "PASS", "The stored draft version matches the requested version."));
+            checks.add(new ApprovalDtos.RequestPreflightCheck(
+                    "FORM_SCHEMA_AND_ROUTE", "PASS", "The stored payload matches its published form and route."));
+            checks.add(new ApprovalDtos.RequestPreflightCheck(
+                    "ATTACHMENT_EVIDENCE", "PASS", "All submission attachments are sealed for this version."));
+            taskGovernance.requireEligibleCandidateRoles(actor, queries.requestCandidateRoles(actor, requestId));
+            checks.add(new ApprovalDtos.RequestPreflightCheck(
+                    "CANDIDATE_AUTHORITY", "PASS", "Every configured approver role is active and staffed."));
+            return new ApprovalDtos.RequestPreflight(
+                    requestId, expectedVersion, true, "LEGACY_SEQUENTIAL", checks, Instant.now(), null);
+        }
+        ApprovalWorkflowQuorumSimulation.Result result = requireQuorum().preflight(actor, requestId);
+        commands.prepareQuorumSubmit(actor, requestId, expectedVersion);
+        checks.add(new ApprovalDtos.RequestPreflightCheck(
+                "OWNED_DRAFT", "PASS", "The current actor owns the exact draft version."));
+        checks.add(new ApprovalDtos.RequestPreflightCheck(
+                "CONCURRENCY", "PASS", "The stored draft version matches the requested version."));
+        checks.add(new ApprovalDtos.RequestPreflightCheck(
+                "FORM_SCHEMA_AND_ROUTE", "PASS", "The stored payload matches its pinned form and conditional route."));
+        checks.add(new ApprovalDtos.RequestPreflightCheck(
+                "ATTACHMENT_EVIDENCE", "PASS", "All submission attachments are sealed for this version."));
+        boolean ready = result.status() != ApprovalWorkflowQuorumSimulation.Status.BLOCKED
+                && result.status() != ApprovalWorkflowQuorumSimulation.Status.UNKNOWN;
+        if (result.issues().isEmpty()) {
+            checks.add(new ApprovalDtos.RequestPreflightCheck(
+                    "CANDIDATE_AUTHORITY", "PASS", "Current candidate authority satisfies every executable stage."));
+            checks.add(new ApprovalDtos.RequestPreflightCheck(
+                    "SEGREGATION_OF_DUTIES", "PASS", "Requester exclusion and quorum rules were evaluated from pinned policy."));
+        } else {
+            for (ApprovalWorkflowQuorumSimulation.Issue issue : result.issues()) {
+                checks.add(new ApprovalDtos.RequestPreflightCheck(
+                        issue.code(), "BLOCKED", issue.stageKey() == null ? "WORKFLOW" : issue.stageKey()));
+            }
+        }
+        return new ApprovalDtos.RequestPreflight(
+                requestId, expectedVersion, ready, result.schemaContract(), checks,
+                result.evaluatedAt(), result.validUntil());
+    }
+
+    @Transactional
     public ApprovalDtos.RequestSummary withdraw(
             UUID requestId,
             long expectedVersion,

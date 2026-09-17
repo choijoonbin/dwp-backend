@@ -172,6 +172,13 @@ public class ApprovalWorkflowQuorumFacade {
                 actor.tenantId(), request, input, () -> validateReadonlyDraft(actor, request));
     }
 
+    public ApprovalWorkflowQuorumSimulation.Result preflight(
+            ApprovalRequestContext.Actor actor,
+            UUID request) {
+        return new ApprovalWorkflowQuorumReadOnlySimulation(jdbc, mapper, transactions, authority()).preflight(
+                actor.tenantId(), request, () -> validateReadonlyDraft(actor, request));
+    }
+
     private void validateReadonlyDraft(ApprovalRequestContext.Actor actor, UUID request) {
         var rows = jdbc.queryForList("""
                 SELECT request.title,form_version.schema_payload::text AS schema,payload.payload::text AS payload,

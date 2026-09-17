@@ -31,4 +31,13 @@ public class MailLifecycleController {
         return ApiResponse.success(
                 service.apply(tenantId, userId, threadId, correlationId, request));
     }
+
+    @PostMapping("/{threadId}/lifecycle/preview")
+    public ApiResponse<MailOrganizationDtos.LifecyclePreview> preview(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @PathVariable UUID threadId,
+            @Valid @RequestBody MailOrganizationDtos.LifecycleRequest request) {
+        return ApiResponse.success(service.preview(tenantId, userId, threadId, request));
+    }
 }

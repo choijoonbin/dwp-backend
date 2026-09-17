@@ -2,6 +2,9 @@ package com.dwp.services.notification.integration;
 
 import com.dwp.core.event.DomainEventEnvelope;
 import com.dwp.services.notification.domain.NotificationModels.DirectMaterializationRequest;
+import com.dwp.services.notification.domain.NotificationModels.MaterializationContext;
+import com.dwp.services.notification.domain.NotificationModels.MaterializationContextKind;
+import com.dwp.services.notification.domain.NotificationStructuredContexts;
 import com.dwp.services.notification.domain.NotificationTargetLifecycleService.TargetChange;
 import com.dwp.services.notification.security.NotificationRequestContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -30,6 +33,8 @@ public class NotificationDomainEventTranslator {
     private static final int MAXIMUM_RECIPIENTS = 100;
     private static final int MAXIMUM_VARIABLES = 50;
     private static final int MAXIMUM_TARGET_CHANGES = 100;
+    private static final Set<String> CONTEXT_FIELDS = Set.of(
+            "kind", "key", "displayHint", "matchable");
     private static final Pattern TYPE_KEY = Pattern.compile("[A-Z][A-Z0-9_.-]{2,159}");
     private static final Pattern VARIABLE_KEY =
             Pattern.compile("[A-Za-z][A-Za-z0-9_.-]{0,79}");
@@ -101,6 +106,7 @@ public class NotificationDomainEventTranslator {
                         event.time(),
                         instant(intent, "dueAt"),
                         booleanValue(intent, "actionRequired"),
+                        contexts(intent.get("contexts")),
                         variables(intent.get("variables")));
                 translations.add(new Translation(actor, request, event.correlationId()));
             }
@@ -194,6 +200,47 @@ public class NotificationDomainEventTranslator {
         return Collections.unmodifiableMap(variables);
     }
 
+    private List<MaterializationContext> contexts(JsonNode node) {
+        if (node == null || node.isNull()) return List.of();
+        if (!node.isArray() || node.size() > NotificationStructuredContexts.MAXIMUM_CONTEXTS) {
+            throw contract("Notification contexts must be an array with at most 20 entries.");
+        }
+        List<MaterializationContext> contexts = new ArrayList<>();
+        node.forEach(value -> {
+            if (!value.isObject()
+                    || value.properties().stream()
+                            .anyMatch(field -> !CONTEXT_FIELDS.contains(field.getKey()))) {
+                throw contract("Each notification context must contain only contract fields.");
+            }
+            String kindValue = exactText(value, "kind", 30, true);
+            MaterializationContextKind kind;
+            try {
+                kind = MaterializationContextKind.valueOf(kindValue);
+            } catch (IllegalArgumentException exception) {
+                throw contract("A notification context kind is invalid.");
+            }
+            JsonNode matchableNode = value.get("matchable");
+            if (matchableNode == null || !matchableNode.isBoolean()) {
+                throw contract("Notification context matchable must be boolean.");
+            }
+            try {
+                contexts.add(NotificationStructuredContexts.canonical(
+                        new MaterializationContext(
+                                kind,
+                                exactText(value, "key", 300, true),
+                                exactText(value, "displayHint", 160, false),
+                                matchableNode.booleanValue())));
+            } catch (IllegalArgumentException exception) {
+                throw contract(exception.getMessage());
+            }
+        });
+        try {
+            return NotificationStructuredContexts.explicit(contexts);
+        } catch (IllegalArgumentException exception) {
+            throw contract(exception.getMessage());
+        }
+    }
+
     private String text(JsonNode parent, String field, int maximumLength, boolean required) {
         JsonNode value = parent.get(field);
         if (value == null || value.isNull()) {
@@ -214,6 +261,24 @@ public class NotificationDomainEventTranslator {
             JsonNode parent, String field, String defaultValue, int maximumLength) {
         String value = text(parent, field, maximumLength, false);
         return value == null ? defaultValue : value;
+    }
+
+    private String exactText(
+            JsonNode parent,
+            String field,
+            int maximumLength,
+            boolean required) {
+        JsonNode value = parent.get(field);
+        if (value == null || value.isNull()) {
+            if (required) throw contract("Notification context is missing " + field + '.');
+            return null;
+        }
+        if (!value.isTextual() || !safe(value.textValue(), maximumLength)
+                || !value.textValue().equals(value.textValue().trim())
+                || (required && value.textValue().isBlank())) {
+            throw contract("Notification context " + field + " is invalid.");
+        }
+        return value.textValue().isBlank() ? null : value.textValue();
     }
 
     private boolean booleanValue(JsonNode parent, String field) {

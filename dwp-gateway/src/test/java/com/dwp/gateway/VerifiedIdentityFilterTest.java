@@ -46,6 +46,7 @@ class VerifiedIdentityFilterTest {
                 .header(VerifiedIdentityFilter.RESOURCE_ROLES_HEADER,
                         "APP_OWNER@APP.SPOOFED")
                 .header(VerifiedIdentityFilter.DISPLAY_NAME_HEADER, "c3Bvb2ZlZA")
+                .header(VerifiedIdentityFilter.LEGACY_DISPLAY_NAME_HEADER, "spoofed plaintext")
                 .header(VerifiedIdentityFilter.AUTH_SESSION_ID_HEADER,
                         "spoofed-session-family")
                 .header(VerifiedIdentityFilter.IDENTITY_PLANE_HEADER, "PROVIDER")
@@ -77,6 +78,8 @@ class VerifiedIdentityFilterTest {
         assertThat(new String(Base64.getUrlDecoder().decode(
                 forwarded.get().getHeaders().getFirst(VerifiedIdentityFilter.DISPLAY_NAME_HEADER)),
                 StandardCharsets.UTF_8)).isEqualTo("김민서");
+        assertThat(forwarded.get().getHeaders().containsKey(
+                VerifiedIdentityFilter.LEGACY_DISPLAY_NAME_HEADER)).isFalse();
         assertThat(forwarded.get().getHeaders().getFirst(
                 VerifiedIdentityFilter.LEGACY_ROLE_FALLBACK_HEADER)).isEqualTo("true");
         assertThat(forwarded.get().getHeaders().getFirst(

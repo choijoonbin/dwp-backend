@@ -83,6 +83,9 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
             headers.remove(EXPECTED_REVISION_HEADER);
         }).build();
         ServerWebExchange sanitizedExchange = exchange.mutate().request(sanitized).build();
+        if (DeviceIdentityPlaneFilter.verified(exchange)) {
+            return chain.filter(sanitizedExchange);
+        }
         if (sanitized.getMethod() == HttpMethod.OPTIONS) return chain.filter(sanitizedExchange);
 
         ScopeSelection scopeSelection = scopeSelection(sanitized.getURI().getRawQuery());
@@ -140,7 +143,7 @@ public final class ProductSurfaceDecisionContextFilter implements GlobalFilter, 
         GeneratedProductRouteCatalog.Route route = match.uniqueRoute();
         String rollout = sanitized.getHeaders().getFirst(
                 ProductSurfaceRolloutHeaderFilter.STATE_HEADER);
-        if (!ROLLOUT_STATES.contains(rollout)) {
+        if (rollout == null || !ROLLOUT_STATES.contains(rollout)) {
             LOGGER.warn(
                     "Trusted product surface rollout evidence is missing before authority evaluation for route {}",
                     route.routeContractKey());

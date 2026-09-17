@@ -656,7 +656,7 @@ class ProductSurfaceDecisionContextFilterTest {
     }
 
     @Test
-    void incrementalWorkplaceReadSiblingBypassesProductDecisionContext() {
+    void incrementalWorkplaceReadWithoutTrustedRolloutFailsClosed() {
         ProductSurfaceContextAggregationService authority = mock(
                 ProductSurfaceContextAggregationService.class);
         ProductSurfaceDecisionContextFilter filter = filter(authority);
@@ -670,11 +670,10 @@ class ProductSurfaceDecisionContextFilterTest {
             return Mono.empty();
         }).block();
 
-        assertThat(forwarded.get()).isNotNull();
-        assertThat(forwarded.get().getHeaders().containsKey(
-                ProductSurfaceDecisionContextFilter.ROUTE_HEADER)).isFalse();
-        assertThat(forwarded.get().getHeaders().containsKey(
-                ProductSurfaceDecisionContextFilter.CURRENT_REVISION_HEADER)).isFalse();
+        assertThat(forwarded.get()).isNull();
+        assertThat(exchange.getResponse().getStatusCode())
+                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
+        assertThat(body(exchange)).contains("AUTHORITY_RESOLUTION_UNAVAILABLE");
         verify(authority, never()).evaluateProductTrusted(any(), any());
     }
 

@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
 import java.util.HashSet;
+import java.util.Set;
 
 @Component
 public class ApprovalWorkAuthority {
@@ -32,25 +33,66 @@ public class ApprovalWorkAuthority {
     }
 
     public ApprovalRequestContext.Actor requireCurrent(String permission) {
-        var actor = ApprovalRequestContext.require();
+        if (permission == null || permission.isBlank()) throw forbidden();
+        return requireAnyCurrent(Set.of(permission));
+    }
+
+    public ApprovalRequestContext.Actor requireAnyCurrent(Set<String> permissions) {
+        if (permissions == null || permissions.isEmpty()
+                || permissions.stream().anyMatch(permission -> permission == null || permission.isBlank())) {
+            throw forbidden();
+        }
+        ApprovalRequestContext.Actor actor;
+        try {
+            actor = ApprovalRequestContext.require();
+        } catch (IllegalStateException exception) {
+            throw unavailable();
+        }
         ApprovalDecisionRevisionContext.current().ifPresent(evidence -> {
             if (!OffsetDateTime.now().isBefore(evidence.validUntil())) throw unavailable();
         });
-        var subject = identities.require(actor.tenantId(), actor.userId());
-        if (subject == null) throw unavailable();
+        if (actor.tenantId() == null || actor.userId() == null
+                || actor.permissions() == null || actor.roles() == null) {
+            throw unavailable();
+        }
+        var subject = currentSubject(actor);
         if (!actor.tenantId().equals(subject.tenantId())
                 || !actor.userId().equals(subject.userId()) || !subject.active()
                 || !subject.hasPermission("APP.APPROVALS:VIEW")
-                || !subject.hasPermission(permission)
-                || !actor.permissions().contains(permission)) throw forbidden();
+                || subject.roles() == null || subject.permissionKeys() == null) throw forbidden();
         if (actor.roles().stream().anyMatch(role -> role.startsWith("PROVIDER_"))
-                || (subject.roles() != null && subject.roles().stream().anyMatch(role -> role.startsWith("PROVIDER_")))) throw forbidden();
+                || subject.roles().stream().anyMatch(role -> role.startsWith("PROVIDER_"))) throw forbidden();
         if (actor.personPublicId() != null
                 && !actor.personPublicId().equals(subject.personPublicId())) throw forbidden();
         var roles = new HashSet<>(actor.roles());
-        roles.retainAll(subject.roles() == null ? java.util.List.of() : subject.roles());
+        roles.retainAll(subject.roles());
+        var currentPermissions = new HashSet<>(actor.permissions());
+        currentPermissions.retainAll(subject.permissionKeys());
+        if (currentPermissions.stream().noneMatch(permissions::contains)) throw forbidden();
         return new ApprovalRequestContext.Actor(actor.userId(), actor.tenantId(),
-                actor.personPublicId(), actor.displayName(), roles, actor.permissions());
+                actor.personPublicId(), actor.displayName(),
+                Set.copyOf(roles), Set.copyOf(currentPermissions));
+    }
+
+    private ApprovalIdentityDirectory.Subject currentSubject(
+            ApprovalRequestContext.Actor actor) {
+        try {
+            ApprovalIdentityDirectory.Subject subject = identities.require(
+                    actor.tenantId(), actor.userId());
+            if (subject == null) throw unavailable();
+            return subject;
+        } catch (BaseException exception) {
+            if (exception.getErrorCode() == ErrorCode.NOT_FOUND
+                    || exception.getErrorCode() == ErrorCode.FORBIDDEN) {
+                throw forbidden();
+            }
+            if (exception.getErrorCode() == ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE) {
+                throw exception;
+            }
+            throw unavailable();
+        } catch (RuntimeException exception) {
+            throw unavailable();
+        }
     }
 
     private BaseException unavailable() {

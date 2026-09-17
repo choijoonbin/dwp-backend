@@ -270,6 +270,9 @@ class ActivityPostgresIntegrationTest {
         assertThat(summary.total()).isEqualTo(2); assertThat(summary.completed()).isEqualTo(1);
         assertThat(summary.needsInput()).isEqualTo(1); assertThat(summary.running()).isZero();
         assertThat(summary.failed()).isZero();
+        assertThat(summary.attentionItems()).hasSize(1);
+        assertThat(summary.attentionItems().getFirst().executionId()).isEqualTo("run-two");
+        assertThat(summary.attentionItems().getFirst().state()).isEqualTo("NEEDS_INPUT");
         var filtered = new ActivityQuery("PERSON", "COMPLETED", "completed", "DWP_WORKSPACE",
                 "WORK_ITEM", work.toString(), "run-one", now.minusSeconds(1), now.plusSeconds(1), null, 50, false);
         assertThat(service.list(tenant, 7L, ACCESS, "en", filtered).events()).hasSize(1);

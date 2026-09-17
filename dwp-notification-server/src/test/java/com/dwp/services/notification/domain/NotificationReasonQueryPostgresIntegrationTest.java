@@ -116,6 +116,19 @@ class NotificationReasonQueryPostgresIntegrationTest {
     }
 
     @Test
+    void includedTypesAreAnOrSetInsideTheExactTenantAndUserInbox() {
+        scope.applyUser(ACTOR);
+        var filters = new InboxFilters(
+                null, null, null, null, null,
+                List.of("ASSIGNED", "DIRECT"), List.of(), null, null);
+
+        assertThat(inbox(InboxView.ALL, filters, 100, null))
+                .extracting(row -> row.item().notificationId())
+                .containsExactlyInAnyOrder(
+                        ids.get("DIRECT"), ids.get("DIRECT_RECIPIENT"), ids.get("ROLE"));
+    }
+
+    @Test
     void mentionViewReasonFilterAndCounterAgreeIncludingLegacyCase() {
         UUID legacy = notification(42, 900018, messaging, "mentioned");
         UUID snoozed = notification(42, 900018, messaging, "MENTIONED");
@@ -141,13 +154,17 @@ class NotificationReasonQueryPostgresIntegrationTest {
         jdbc.update("UPDATE ntf_user_notifications SET effective_priority = 'HIGH', action_required = TRUE WHERE notification_id = ?", subscribed);
         jdbc.update("UPDATE ntf_user_notifications SET read_at = CURRENT_TIMESTAMP WHERE notification_id = ?", ids.get("SUBSCRIPTION"));
         scope.applyUser(ACTOR);
-        var selected = new InboxFilters(null, "messaging", "HIGH", "UNREAD", "SUBSCRIPTION", null, null);
+        var selected = new InboxFilters(
+                null, "messaging", "HIGH", "UNREAD", "SUBSCRIPTION",
+                List.of(), List.of(), null, null);
 
         assertThat(inbox(InboxView.PRIORITY, selected, 100, null))
                 .extracting(row -> row.item().notificationId()).containsExactly(subscribed);
         assertThat(inbox(InboxView.MENTIONS, selected, 100, null)).isEmpty();
         assertThat(inbox(InboxView.ALL,
-                new InboxFilters(null, "messaging", null, "READ", "SUBSCRIBED", null, null), 100, null))
+                new InboxFilters(
+                        null, "messaging", null, "READ", "SUBSCRIBED",
+                        List.of(), List.of(), null, null), 100, null))
                 .extracting(row -> row.item().notificationId()).containsExactly(ids.get("SUBSCRIPTION"));
     }
 
@@ -205,12 +222,141 @@ class NotificationReasonQueryPostgresIntegrationTest {
                 String.class, unknown)).isEqualTo(raw);
     }
 
+    @Test
+    void threadContextUsesExactRecipientOwnedMatching() {
+        String threadKey = "conversation:" + UUID.randomUUID();
+        UUID expected = notification(42, 900018, messaging, "DIRECT");
+        UUID prefixOnly = notification(42, 900018, messaging, "DIRECT");
+        UUID otherUser = notification(42, 900019, approvals, "DIRECT");
+        UUID otherTenant = notification(43, 900018, messaging, "DIRECT");
+        jdbc.update("UPDATE ntf_notifications SET thread_key = ? WHERE notification_id = ?",
+                threadKey, expected);
+        jdbc.update("UPDATE ntf_notifications SET thread_key = ? WHERE notification_id = ?",
+                threadKey + "-child", prefixOnly);
+        jdbc.update("UPDATE ntf_notifications SET thread_key = ? WHERE notification_id IN (?, ?)",
+                threadKey, otherUser, otherTenant);
+        scope.applyUser(ACTOR);
+
+        assertThat(inbox(InboxView.ALL, context("THREAD", threadKey), 100, null))
+                .extracting(row -> row.item().notificationId())
+                .containsExactly(expected);
+    }
+
+    @Test
+    void structuredTopicContextUsesHashAndExactKeyWithinRecipientBoundary() {
+        String topic = "release.2026-q3";
+        UUID expected = notification(42, 900018, messaging, "DIRECT");
+        UUID prefixOnly = notification(42, 900018, messaging, "DIRECT");
+        UUID otherUser = notification(42, 900019, messaging, "DIRECT");
+        UUID otherTenant = notification(43, 900018, messaging, "DIRECT");
+        context(42, 900018, expected, topic);
+        context(42, 900018, prefixOnly, topic + "-hotfix");
+        context(42, 900019, otherUser, topic);
+        context(43, 900018, otherTenant, topic);
+        scope.applyUser(ACTOR);
+
+        assertThat(inbox(InboxView.ALL, context("TOPIC_TOKEN", topic), 100, null))
+                .extracting(row -> row.item().notificationId())
+                .containsExactly(expected);
+    }
+
+    @Test
+    void multipleContextsUseOrWithinKindAndAndAcrossKinds() {
+        UUID first = notification(42, 900018, messaging, "DIRECT");
+        UUID second = notification(42, 900018, messaging, "DIRECT");
+        UUID actorOnly = notification(42, 900018, messaging, "DIRECT");
+        UUID resourceOnly = notification(42, 900018, messaging, "DIRECT");
+        UUID otherUser = notification(42, 900019, messaging, "DIRECT");
+        UUID otherTenant = notification(43, 900018, messaging, "DIRECT");
+        jdbc.update("""
+                UPDATE ntf_user_notifications
+                   SET actor_ref = CASE
+                         WHEN notification_id IN (?, ?, ?) THEN 'user:42'
+                         WHEN notification_id = ? THEN 'user:84'
+                         ELSE 'user:100'
+                       END,
+                       subject_ref = CASE
+                         WHEN notification_id IN (?, ?, ?, ?) THEN 'project:renewal'
+                         ELSE 'project:other'
+                       END
+                 WHERE notification_id IN (?, ?, ?, ?, ?, ?)
+                """, first, actorOnly, otherUser, second,
+                first, second, resourceOnly, otherTenant,
+                first, second, actorOnly, resourceOnly, otherUser, otherTenant);
+        scope.applyUser(ACTOR);
+
+        var filters = new InboxFilters(
+                null, null, null, null, null,
+                List.of(),
+                List.of(
+                        new NotificationQueryRepository.InboxContextFilter("ACTOR", "user:42"),
+                        new NotificationQueryRepository.InboxContextFilter("ACTOR", "user:84"),
+                        new NotificationQueryRepository.InboxContextFilter(
+                                "RESOURCE", "project:renewal")),
+                null, null);
+
+        assertThat(inbox(InboxView.ALL, filters, 100, null))
+                .extracting(row -> row.item().notificationId())
+                .containsExactlyInAnyOrder(first, second)
+                .doesNotContain(actorOnly, resourceOnly, otherUser, otherTenant);
+    }
+
+    @Test
+    void materializedPrioritizeFacetAndTotalStayInsideTheRecipientBoundary() {
+        UUID expected = notification(42, 900018, messaging, "DIRECT");
+        UUID ordinary = notification(42, 900018, messaging, "DIRECT");
+        UUID otherUser = notification(42, 900019, messaging, "DIRECT");
+        UUID otherTenant = notification(43, 900018, messaging, "DIRECT");
+        jdbc.update("""
+                UPDATE ntf_user_notifications
+                   SET attention_rule_id = notification_id,
+                       attention_scope_kind = 'ACTOR',
+                       attention_effect = 'PRIORITIZE',
+                       attention_rule_revision = 1,
+                       attention_policy_source = 'USER'
+                 WHERE notification_id IN (?, ?, ?)
+                """, expected, otherUser, otherTenant);
+        scope.applyUser(ACTOR);
+        var filters = new InboxFilters(
+                null, null, null, null, null, "PRIORITIZE",
+                List.of(), List.of(), null, null);
+
+        assertThat(inbox(InboxView.ALL, filters, 100, null))
+                .singleElement()
+                .satisfies(row -> {
+                    assertThat(row.item().notificationId()).isEqualTo(expected);
+                    assertThat(row.item().attentionEffect()).isEqualTo("PRIORITIZE");
+                });
+        assertThat(repository.inboxTotal(ACTOR, InboxView.ALL, filters)).isEqualTo(1L);
+        assertThat(inbox(InboxView.ALL, filters(null), 100, null))
+                .extracting(row -> row.item().notificationId())
+                .contains(expected, ordinary)
+                .doesNotContain(otherUser, otherTenant);
+    }
+
     private List<InboxRow> inbox(InboxView view, InboxFilters filters, int limit, InboxCursor cursor) {
         return repository.inbox(ACTOR, view, filters, limit, cursor);
     }
 
     private InboxFilters filters(String reason) {
-        return new InboxFilters(null, null, null, null, reason, null, null);
+        return new InboxFilters(
+                null, null, null, null, reason, List.of(), List.of(), null, null);
+    }
+
+    private InboxFilters context(String kind, String key) {
+        return new InboxFilters(
+                null, null, null, null, null,
+                List.of(),
+                List.of(new NotificationQueryRepository.InboxContextFilter(kind, key)), null, null);
+    }
+
+    private void context(long tenant, long user, UUID notificationId, String key) {
+        jdbc.update("""
+                INSERT INTO ntf_recipient_notification_contexts (
+                    tenant_id, user_id, notification_id, kind,
+                    context_key, context_key_hash, matchable)
+                VALUES (?, ?, ?, 'TOPIC', ?, ?, TRUE)
+                """, tenant, user, notificationId, key, NotificationAttentionScope.sha256(key));
     }
 
     private TypeFixture type(String appKey) {

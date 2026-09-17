@@ -71,10 +71,36 @@ APPROVAL_RELEASE13_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
 APPROVAL_RELEASE14_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
     "approval-pilot-pep-v14.generated.json"
 )
+APPROVAL_RELEASE15_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
+    "approval-pilot-pep-v15.generated.json"
+)
+APPROVAL_RELEASE19_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
+    "approval-pilot-pep-v19.generated.json"
+)
 PLATFORM_APPROVALS_PEP_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-approvals-pep-v2.generated.json"
+)
+LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT = (
+    ROOT
+    / "dwp-platform-server/src/main/resources/product-authorization/"
+    / "platform-workplace-pep-v15.generated.json"
+)
+LEGACY_PLATFORM_WORKPLACE_PEP_V16_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.with_name(
+    "platform-workplace-pep-v16.generated.json"
+)
+LEGACY_PLATFORM_WORKPLACE_PEP_V17_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.with_name(
+    "platform-workplace-pep-v17.generated.json"
+)
+LEGACY_PLATFORM_WORKPLACE_PEP_V18_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.with_name(
+    "platform-workplace-pep-v18.generated.json"
+)
+LEGACY_PLATFORM_WORKPLACE_PEP_V20_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.with_name(
+    "platform-workplace-pep-v20.generated.json"
+)
+PLATFORM_WORKPLACE_PEP_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.with_name(
+    "platform-workplace-pep-v21.generated.json"
 )
 HCM_PEOPLE_PEP_OUTPUT = (
     ROOT
@@ -86,7 +112,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14)
+BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21)
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -148,6 +174,20 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 46, "routes": 355, "PAGE": 79, "DATA": 93, "ACTION": 183},
     14: {"capabilities": 134, "accessPolicies": 22, "entitlementExpressions": 16,
          "predicatePolicies": 46, "routes": 360, "PAGE": 79, "DATA": 96, "ACTION": 185},
+    15: {"capabilities": 136, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 411, "PAGE": 87, "DATA": 117, "ACTION": 207},
+    16: {"capabilities": 137, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 425, "PAGE": 87, "DATA": 122, "ACTION": 216},
+    17: {"capabilities": 139, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 446, "PAGE": 90, "DATA": 128, "ACTION": 228},
+    18: {"capabilities": 139, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 459, "PAGE": 90, "DATA": 137, "ACTION": 232},
+    19: {"capabilities": 139, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 460, "PAGE": 90, "DATA": 137, "ACTION": 233},
+    20: {"capabilities": 159, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 686, "PAGE": 111, "DATA": 207, "ACTION": 368},
+    21: {"capabilities": 159, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 709, "PAGE": 112, "DATA": 217, "ACTION": 380},
 }
 IMMUTABLE_RELEASE_CHECKSUMS = {
     1: "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
@@ -164,6 +204,13 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     12: "65155dcc88f454a0ad2530518f8ec9b0c070afd31d583a19f980dd3d10f78a74",
     13: "3bd67d7b145c5b7c845788c70f8884c8afadedd9920de419ecd1e1d0e8a4c8b0",
     14: "7ee0bac12ddfbc72dda55a5014c67b0798caa68a5ffc73b4be479d06a4590336",
+    15: "a9eab001b26d6488de0f7f176fa1d70fea2c9792a230769f645eb53ba90cf89f",
+    16: "a677d2ad662d8791a09cdf4ad592f3483aa3dbf068ed2785c648351e8f2a20d0",
+    17: "cdd1e671c8df1bbd63cab442acf175ee22c645cac071b79a3598f498c9947239",
+    18: "ce5ce0e2058ab33998c0bf19ace2ff54ace06c8c0bda4dc4dca3554b06926fc5",
+    19: "32bec6d3fb912af6072139aec72228281597c5b4fbb15f8b4af947c20721644c",
+    20: "1acbce34c450c650aa3e8f1c11995b831f177ee4a6139dd8217ea5bdd22e7a60",
+    21: "4cd1732df91d197cc47fca94699b0fb702ab1f6f2c557d3d17ce0e069d65af85",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -945,6 +992,13 @@ def _validate_descriptor_enrichment_envelope(
             patches.keys() <= first_versions[section].keys(),
             f"{section}: enrichment references an unknown descriptor",
         )
+        for descriptor_key, patch in patches.items():
+            introduced = patch.get("introducedInVersion", first_versions[section][descriptor_key])
+            require(
+                isinstance(introduced, int)
+                and first_versions[section][descriptor_key] <= introduced <= BUNDLE_VERSIONS[-1],
+                f"{descriptor_key}: invalid enrichment introduction version",
+            )
 
     all_capabilities = {
         item["contractKey"]: item
@@ -1002,13 +1056,13 @@ def _apply_descriptor_enrichments(
         enrichment["routes"], "routeContractKey", "route enrichments"
     )
     for key, patch in route_patches.items():
-        if key not in routes:
+        if key not in routes or version < patch.get("introducedInVersion", 1):
             continue
         require(
             set(patch) <= {
                 "routeContractKey", "authorizationEquivalenceKey",
                 "queryParameterConstraintsByBinding", "projectionBindings",
-                "stepUpCommandBindings"
+                "stepUpCommandBindings", "introducedInVersion"
             },
             f"{key}: invalid route enrichment fields",
         )
@@ -1097,6 +1151,13 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
             candidate_descriptor = copy.deepcopy(candidate[descriptor_key])
             prior_routes = set(prior_descriptor.pop("routeContractKeys", []))
             candidate_routes = set(candidate_descriptor.pop("routeContractKeys", []))
+            if (current["version"] == 15 and section == "routes"
+                    and descriptor_key == "route.workplace.work.explore.page"):
+                require(
+                    candidate_descriptor.pop("authorizationEquivalenceKey", None)
+                    == "wire-authority.workplace.work.explore.v1",
+                    "v15 Workplace find alias equivalence is required",
+                )
             if prior_descriptor != candidate_descriptor or not prior_routes <= candidate_routes:
                 drift.append(descriptor_key)
         require(
@@ -2370,7 +2431,15 @@ def verify_no_out_of_lineage_artifacts() -> None:
         APPROVAL_RELEASE12_PEP_OUTPUT,
         APPROVAL_RELEASE13_PEP_OUTPUT,
         APPROVAL_RELEASE14_PEP_OUTPUT,
+        APPROVAL_RELEASE15_PEP_OUTPUT,
+        APPROVAL_RELEASE19_PEP_OUTPUT,
         PLATFORM_APPROVALS_PEP_OUTPUT,
+        LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT,
+        LEGACY_PLATFORM_WORKPLACE_PEP_V16_OUTPUT,
+        LEGACY_PLATFORM_WORKPLACE_PEP_V17_OUTPUT,
+        LEGACY_PLATFORM_WORKPLACE_PEP_V18_OUTPUT,
+        LEGACY_PLATFORM_WORKPLACE_PEP_V20_OUTPUT,
+        PLATFORM_WORKPLACE_PEP_OUTPUT,
         PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT,
         HCM_PEOPLE_PEP_OUTPUT,
     }
@@ -2380,6 +2449,9 @@ def verify_no_out_of_lineage_artifacts() -> None:
         *APPROVAL_PILOT_PEP_OUTPUT.parent.glob("approval-pilot-pep-v*.generated.json"),
         *PLATFORM_APPROVALS_PEP_OUTPUT.parent.glob(
             "platform-approvals-pep-v*.generated.json"
+        ),
+        *PLATFORM_WORKPLACE_PEP_OUTPUT.parent.glob(
+            "platform-workplace-pep-v*.generated.json"
         ),
         *PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT.parent.glob(
             "platform-telemetry-dimensions-v*.generated.json"
@@ -2488,6 +2560,24 @@ def main() -> int:
                 "entitlementExpressions": 1, "predicatePolicies": 18,
             }, version=14,
         )
+        approval_release15_pep = build_approvals_pep(
+            snapshots[14], "approval", "approval-pilot-pep-v15",
+            {
+                "routes": 192, "bindings": 246,
+                "routeKinds": {"ACTION": 99, "DATA": 73, "PAGE": 20},
+                "capabilities": 39, "accessPolicies": 1,
+                "entitlementExpressions": 1, "predicatePolicies": 18,
+            }, version=15,
+        )
+        approval_release19_pep = build_approvals_pep(
+            snapshots[18], "approval", "approval-pilot-pep-v19",
+            {
+                "routes": 193, "bindings": 247,
+                "routeKinds": {"ACTION": 100, "DATA": 73, "PAGE": 20},
+                "capabilities": 39, "accessPolicies": 1,
+                "entitlementExpressions": 1, "predicatePolicies": 18,
+            }, version=19,
+        )
         platform_approvals_pep = build_approvals_pep(
             snapshots[1],
             "platform",
@@ -2501,6 +2591,22 @@ def main() -> int:
                 "entitlementExpressions": 1,
                 "predicatePolicies": 1,
             },
+        )
+        platform_workplace_pep = build_approvals_pep(
+            snapshots[20],
+            "platform",
+            "platform-workplace-pep-v21",
+            {
+                "routes": 304,
+                "bindings": 306,
+                "routeKinds": {"ACTION": 172, "DATA": 103, "PAGE": 29},
+                "capabilities": 26,
+                "accessPolicies": 1,
+                "entitlementExpressions": 1,
+                "predicatePolicies": 1,
+            },
+            version=21,
+            product_key="workplace",
         )
         platform_telemetry_dimensions = build_platform_telemetry_dimensions(
             snapshots[2]
@@ -2578,9 +2684,16 @@ def main() -> int:
             write_or_check(APPROVAL_RELEASE12_PEP_OUTPUT, render(approval_release12_pep), args.check),
             write_or_check(APPROVAL_RELEASE13_PEP_OUTPUT, render(approval_release13_pep), args.check),
             write_or_check(APPROVAL_RELEASE14_PEP_OUTPUT, render(approval_release14_pep), args.check),
+            write_or_check(APPROVAL_RELEASE15_PEP_OUTPUT, render(approval_release15_pep), args.check),
+            write_or_check(APPROVAL_RELEASE19_PEP_OUTPUT, render(approval_release19_pep), args.check),
             write_or_check(
                 PLATFORM_APPROVALS_PEP_OUTPUT,
                 render(platform_approvals_pep),
+                args.check,
+            ),
+            write_or_check(
+                PLATFORM_WORKPLACE_PEP_OUTPUT,
+                render(platform_workplace_pep),
                 args.check,
             ),
             write_or_check(
@@ -2619,7 +2732,10 @@ def main() -> int:
         verify_approvals_pep(APPROVAL_RELEASE12_PEP_OUTPUT, approval_release12_pep)
         verify_approvals_pep(APPROVAL_RELEASE13_PEP_OUTPUT, approval_release13_pep)
         verify_approvals_pep(APPROVAL_RELEASE14_PEP_OUTPUT, approval_release14_pep)
+        verify_approvals_pep(APPROVAL_RELEASE15_PEP_OUTPUT, approval_release15_pep)
+        verify_approvals_pep(APPROVAL_RELEASE19_PEP_OUTPUT, approval_release19_pep)
         verify_approvals_pep(PLATFORM_APPROVALS_PEP_OUTPUT, platform_approvals_pep)
+        verify_approvals_pep(PLATFORM_WORKPLACE_PEP_OUTPUT, platform_workplace_pep)
         verify_platform_telemetry_dimensions(platform_telemetry_dimensions)
         verify_approvals_pep(HCM_PEOPLE_PEP_OUTPUT, hcm_people_pep)
     except (ContractError, OSError, json.JSONDecodeError) as exc:

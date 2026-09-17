@@ -3,6 +3,7 @@ package com.dwp.services.notification.domain;
 import com.dwp.services.notification.domain.NotificationMaterializationRepository.PersistenceResult;
 import com.dwp.services.notification.domain.NotificationMaterializationRepository.RenderedContent;
 import com.dwp.services.notification.domain.NotificationModels.DirectMaterializationRequest;
+import com.dwp.services.notification.domain.NotificationModels.MaterializationContext;
 import com.dwp.services.notification.domain.NotificationModels.MaterializationResult;
 import com.dwp.services.notification.security.NotificationRequestContext;
 import com.dwp.services.notification.integration.ApprovalSlaNotificationPlan;
@@ -52,23 +53,8 @@ public class DirectNotificationMaterializer {
             NotificationRequestContext.Actor actor,
             DirectMaterializationRequest request,
             String correlationId) {
-        Map<String, Object> variables = sanitize(request.variables());
-        DirectMaterializationRequest sanitizedRequest = new DirectMaterializationRequest(
-                request.sourceEventId(),
-                request.sourceEventType().trim(),
-                request.sourceSchemaVersion(),
-                request.typeKey().trim(),
-                request.recipientUserIds().stream().distinct().toList(),
-                trimmed(request.threadKey()),
-                normalizedLocale(request.locale()),
-                canonicalReasonCode(request.reasonCode()),
-                trimmed(request.actorReference()),
-                trimmed(request.subjectReference()),
-                trimmed(request.targetReference()),
-                request.occurredAt(),
-                request.dueAt(),
-                request.actionRequired(),
-                variables);
+        PreparedMaterialization prepared = prepare(request);
+        DirectMaterializationRequest sanitizedRequest = prepared.materializationRequest();
         TemplateContract contract = transactions.contract(
                 actor.tenantId(),
                 sanitizedRequest.typeKey(),
@@ -80,9 +66,9 @@ public class DirectNotificationMaterializer {
                 actor.tenantId(),
                 sanitizedRequest.recipientUserIds(),
                 contract.ownerAppKey());
-        String payloadHash = payloadHash(sanitizedRequest);
+        String payloadHash = payloadHash(prepared.payloadRequest());
         Instant admittedAt = Instant.now();
-        RenderedContent content = render(contract, variables);
+        RenderedContent content = render(contract, sanitizedRequest.variables());
         PersistenceResult result = transactions.materialize(
                 actor.tenantId(),
                 sanitizedRequest,
@@ -104,17 +90,20 @@ public class DirectNotificationMaterializer {
             throw new IllegalArgumentException("Current SLA producer authority is required.");
         authority.requireBatch(plan, requests);
         transactions.requireExistingWorkerTransaction(actor.tenantId());
-        DirectMaterializationRequest first = requests.getFirst();
+        List<PreparedMaterialization> preparedRequests = requests.stream()
+                .map(this::prepare)
+                .toList();
+        DirectMaterializationRequest first = preparedRequests.getFirst().materializationRequest();
         TemplateContract contract = transactions.contractWithinWorkerTransaction(actor.tenantId(),
                 first.typeKey(), first.sourceEventType(), first.sourceSchemaVersion(), first.locale());
         ownershipPolicy.requireOwnership(actor, contract);
         if (!"approvals".equals(contract.ownerAppKey()) || !first.typeKey().equals(contract.typeKey()))
             throw new IllegalArgumentException("SLA template ownership changed.");
         List<MaterializationResult> results = new ArrayList<>();
-        for (DirectMaterializationRequest request : requests) {
-            Map<String,Object> variables = sanitize(request.variables());
+        for (PreparedMaterialization prepared : preparedRequests) {
+            DirectMaterializationRequest request = prepared.materializationRequest();
             var result = transactions.materializeWithinWorkerTransaction(actor.tenantId(), request, contract,
-                    render(contract, variables), payloadHash(request), "",
+                    render(contract, request.variables()), payloadHash(prepared.payloadRequest()), "",
                     Set.of(request.recipientUserIds().getFirst()), Instant.now());
             results.add(result.result());
         }
@@ -191,6 +180,42 @@ public class DirectNotificationMaterializer {
         return Collections.unmodifiableMap(sanitized);
     }
 
+    private PreparedMaterialization prepare(DirectMaterializationRequest request) {
+        Map<String, Object> variables = sanitize(request.variables());
+        List<MaterializationContext> explicit =
+                NotificationStructuredContexts.explicit(request.contexts());
+        DirectMaterializationRequest payloadRequest = request(
+                request, explicit, variables);
+        List<MaterializationContext> materialized =
+                NotificationStructuredContexts.withLegacy(payloadRequest, explicit);
+        return new PreparedMaterialization(
+                payloadRequest,
+                request(payloadRequest, materialized, variables));
+    }
+
+    private DirectMaterializationRequest request(
+            DirectMaterializationRequest source,
+            List<MaterializationContext> contexts,
+            Map<String, Object> variables) {
+        return new DirectMaterializationRequest(
+                source.sourceEventId(),
+                source.sourceEventType().trim(),
+                source.sourceSchemaVersion(),
+                source.typeKey().trim(),
+                source.recipientUserIds().stream().distinct().toList(),
+                trimmed(source.threadKey()),
+                normalizedLocale(source.locale()),
+                canonicalReasonCode(source.reasonCode()),
+                trimmed(source.actorReference()),
+                trimmed(source.subjectReference()),
+                trimmed(source.targetReference()),
+                source.occurredAt(),
+                source.dueAt(),
+                source.actionRequired(),
+                contexts,
+                variables);
+    }
+
     private String payloadHash(DirectMaterializationRequest request) {
         Map<String, Object> canonical = new TreeMap<>();
         canonical.put("sourceEventId", request.sourceEventId().toString());
@@ -209,6 +234,9 @@ public class DirectNotificationMaterializer {
         canonical.put("occurredAt", request.occurredAt());
         canonical.put("dueAt", request.dueAt());
         canonical.put("actionRequired", request.actionRequired());
+        if (!request.contexts().isEmpty()) {
+            canonical.put("contexts", request.contexts());
+        }
         canonical.put("variables", request.variables());
         try {
             byte[] payload = objectMapper.writeValueAsBytes(canonical);
@@ -238,5 +266,10 @@ public class DirectNotificationMaterializer {
 
     private String trimmed(String value) {
         return value == null || value.isBlank() ? null : value.trim();
+    }
+
+    private record PreparedMaterialization(
+            DirectMaterializationRequest payloadRequest,
+            DirectMaterializationRequest materializationRequest) {
     }
 }

@@ -565,6 +565,36 @@
         },
         "type": "object"
       },
+      "ApiResponseListDefinition": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Definition"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListEntitlementSummary": {
         "properties": {
           "correlationId": {
@@ -1051,6 +1081,33 @@
         },
         "type": "object"
       },
+      "ApiResponseResolution": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Resolution"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseRevision": {
         "properties": {
           "correlationId": {
@@ -1373,6 +1430,81 @@
         },
         "type": "object"
       },
+      "ApplicationStatus": {
+        "properties": {
+          "convergedTargetCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "desiredState": {
+            "enum": [
+              "NONE",
+              "DRAFT",
+              "PENDING_APPROVAL",
+              "APPROVED",
+              "PUBLISH_REQUESTED",
+              "PUBLISHED",
+              "FAILED"
+            ],
+            "type": "string"
+          },
+          "desiredVersion": {
+            "type": "string"
+          },
+          "driftedTargetCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "expectedTargetCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "failedTargetCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "latestObservationAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedTargetCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "publishAcceptedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedVersion": {
+            "type": "string"
+          },
+          "stale": {
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "NOT_CONFIGURED",
+              "DRAFT",
+              "APPROVAL_PENDING",
+              "READY_TO_PUBLISH",
+              "PUBLISH_PENDING",
+              "OBSERVATION_UNSUPPORTED",
+              "PUBLISHED_UNOBSERVED",
+              "APPLYING",
+              "CONVERGED",
+              "PARTIAL",
+              "DRIFTED",
+              "FAILED",
+              "OBSERVATION_STALE"
+            ],
+            "type": "string"
+          },
+          "uniformlyObservedVersion": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Approval": {
         "properties": {
           "approvalId": {
@@ -1614,6 +1746,29 @@
           "tenantCount": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ChangeContract": {
+        "properties": {
+          "activationRequired": {
+            "type": "boolean"
+          },
+          "approvalRequired": {
+            "type": "boolean"
+          },
+          "riskTier": {
+            "type": "string"
+          },
+          "workflow": {
+            "enum": [
+              "DIRECT",
+              "REVIEW_AND_PUBLISH",
+              "APPROVE_AND_ACTIVATE",
+              "OWNER_MANAGED"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -2458,6 +2613,63 @@
           "reason",
           "version"
         ],
+        "type": "object"
+      },
+      "Definition": {
+        "properties": {
+          "change": {
+            "$ref": "#/components/schemas/ChangeContract"
+          },
+          "definitionVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "description": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "enum": [
+              "ACTIVE",
+              "DEPRECATED",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "owner": {
+            "$ref": "#/components/schemas/Owner"
+          },
+          "sensitivity": {
+            "enum": [
+              "PUBLIC",
+              "INTERNAL",
+              "CONFIDENTIAL",
+              "SECRET"
+            ],
+            "type": "string"
+          },
+          "settingId": {
+            "type": "string"
+          },
+          "supportedScopes": {
+            "items": {
+              "enum": [
+                "USER",
+                "TENANT",
+                "PROVIDER",
+                "APPLICATION"
+              ],
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "validation": {
+            "$ref": "#/components/schemas/ValidationContract"
+          }
+        },
         "type": "object"
       },
       "DisableActivationRequest": {
@@ -3528,6 +3740,23 @@
         },
         "type": "object"
       },
+      "Owner": {
+        "properties": {
+          "domain": {
+            "type": "string"
+          },
+          "managementPath": {
+            "type": "string"
+          },
+          "readPermission": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "PageResultOperationSummary": {
         "properties": {
           "content": {
@@ -3621,6 +3850,51 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "Provenance": {
+        "properties": {
+          "decidedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionCode": {
+            "type": "string"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "precedence": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sourceId": {
+            "type": "string"
+          },
+          "sourceScope": {
+            "enum": [
+              "USER",
+              "TENANT",
+              "PROVIDER",
+              "APPLICATION"
+            ],
+            "type": "string"
+          },
+          "sourceType": {
+            "enum": [
+              "DEFAULT",
+              "PROVIDER_POLICY",
+              "TENANT_POLICY",
+              "USER_PREFERENCE",
+              "ACTIVE_ROLLOUT",
+              "APPLICATION_OVERRIDE"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -3801,6 +4075,52 @@
           "justification",
           "version"
         ],
+        "type": "object"
+      },
+      "Resolution": {
+        "properties": {
+          "applicationStatus": {
+            "$ref": "#/components/schemas/ApplicationStatus"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/Definition"
+          },
+          "effectiveValue": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "effectiveVersion": {
+            "type": "string"
+          },
+          "provenance": {
+            "items": {
+              "$ref": "#/components/schemas/Provenance"
+            },
+            "type": "array"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "resolutionState": {
+            "enum": [
+              "RESOLVED",
+              "REDACTED",
+              "UNSUPPORTED_SETTING",
+              "UNSUPPORTED_SCOPE",
+              "VALUE_UNAVAILABLE"
+            ],
+            "type": "string"
+          },
+          "resolvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "settingId": {
+            "type": "string"
+          },
+          "target": {
+            "$ref": "#/components/schemas/ScopeTarget"
+          }
+        },
         "type": "object"
       },
       "RetryOperationRequest": {
@@ -4018,6 +4338,26 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ScopeTarget": {
+        "properties": {
+          "environment": {
+            "type": "string"
+          },
+          "scopeId": {
+            "type": "string"
+          },
+          "scopeType": {
+            "enum": [
+              "USER",
+              "TENANT",
+              "PROVIDER",
+              "APPLICATION"
+            ],
+            "type": "string"
           }
         },
         "type": "object"
@@ -5166,6 +5506,31 @@
         ],
         "type": "object"
       },
+      "ValidationContract": {
+        "properties": {
+          "ownerRevalidatesOnWrite": {
+            "type": "boolean"
+          },
+          "schema": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "schemaVersion": {
+            "type": "string"
+          },
+          "valueType": {
+            "enum": [
+              "BOOLEAN",
+              "STRING",
+              "NUMBER",
+              "OBJECT",
+              "ARRAY",
+              "JSON"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "VerifiedSessionContext": {
         "properties": {
           "accessMode": {
@@ -5406,7 +5771,7 @@
     },
     "/v1/admin/code-catalog/code-sets": {
       "get": {
-        "operationId": "catalog",
+        "operationId": "catalog_1",
         "responses": {
           "200": {
             "content": {
@@ -6967,6 +7332,118 @@
         },
         "tags": [
           "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/admin/settings": {
+      "get": {
+        "operationId": "catalog",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ownerService",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeType",
+            "required": false,
+            "schema": {
+              "enum": [
+                "USER",
+                "TENANT",
+                "PROVIDER",
+                "APPLICATION"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListDefinition"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "settings-read-controller"
+        ]
+      }
+    },
+    "/v1/admin/settings/{settingId}/effective": {
+      "get": {
+        "operationId": "effective",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "settingId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeType",
+            "required": true,
+            "schema": {
+              "enum": [
+                "USER",
+                "TENANT",
+                "PROVIDER",
+                "APPLICATION"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "scopeId",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "environment",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseResolution"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "settings-read-controller"
         ]
       }
     },

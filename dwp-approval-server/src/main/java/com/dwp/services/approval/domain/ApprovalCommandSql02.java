@@ -76,7 +76,7 @@ final class ApprovalCommandSql02 {
         """;
 
     static final String OWNED_REQUEST_SELECT_APR_REQUESTS = """
-        SELECT request.status, request.title, workflow.sla_minutes,
+        SELECT request.status, request.title, request.version, workflow.sla_minutes,
                request.management_resource_set_key,
                workflow_version.definition::text AS workflow_definition,
                form_version.schema_payload::text AS form_schema,
