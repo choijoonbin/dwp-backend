@@ -85,6 +85,7 @@ HOME_PROVIDER_TARGETS = {
     "dwp-messaging-server",
     "dwp-people-server",
 }
+HOME_PROVIDER_FACTORY_TARGETS = HOME_PROVIDER_TARGETS | {"dwp-agent-runtime"}
 HOME_PROVIDER_FACTORY = {
     "id": "platform-home-provider-client-factory",
     "classification": "home-runtime-owner-provider-factory",
@@ -93,7 +94,7 @@ HOME_PROVIDER_FACTORY = {
         "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/"
         "HomeProviderClientConfiguration.java"
     ),
-    "targetServices": HOME_PROVIDER_TARGETS,
+    "targetServices": HOME_PROVIDER_FACTORY_TARGETS,
 }
 HOME_PROVIDER_CLIENT = {
     "id": "platform-home-owner-provider-transport",

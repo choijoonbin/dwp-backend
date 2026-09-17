@@ -6,15 +6,6 @@
     "batch": "/internal/home/v1/widget-data:batch",
     "command": "/internal/home/v1/widget-actions:execute"
   },
-  "requiredHeaders": [
-    "X-DWP-Service-Identity",
-    "X-DWP-Service-Token",
-    "X-DWP-Tenant-ID",
-    "X-DWP-User-ID",
-    "X-DWP-Current-Decision-Revision",
-    "X-DWP-Current-Revalidate-At",
-    "X-DWP-Home-Deadline-At"
-  ],
   "forbiddenAmbientHeaders": [
     "Authorization",
     "Cookie",
@@ -22,6 +13,53 @@
     "X-DWP-Provider-Tenant-ID",
     "X-DWP-Actor-Tenant-ID"
   ],
+  "authProfiles": {
+    "service-token-v1": {
+      "owners": [
+        "approval",
+        "meeting",
+        "notification",
+        "space",
+        "messaging",
+        "people"
+      ],
+      "requiredHeaders": [
+        "X-DWP-Service-Identity",
+        "X-DWP-Service-Token",
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID",
+        "X-DWP-Current-Decision-Revision",
+        "X-DWP-Current-Revalidate-At",
+        "X-DWP-Home-Deadline-At"
+      ]
+    },
+    "dwp1-hmac-sha256": {
+      "owners": [
+        "dwaion"
+      ],
+      "requiredHeaders": [
+        "X-DWP-Home-Assertion",
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID",
+        "X-DWP-Identity-Plane",
+        "X-DWP-Permissions",
+        "X-DWP-Roles",
+        "X-DWP-Group-Refs",
+        "X-DWP-Current-Decision-Revision",
+        "X-DWP-Current-Revalidate-At",
+        "X-DWP-Home-Deadline-At"
+      ],
+      "forbiddenHeaders": [
+        "Authorization",
+        "Cookie",
+        "X-DWP-Service-Identity",
+        "X-DWP-Service-Token",
+        "X-DWP-Support-Session-ID",
+        "X-DWP-Provider-Tenant-ID",
+        "X-DWP-Actor-Tenant-ID"
+      ]
+    }
+  },
   "owners": {
     "approval": {
       "module": "dwp-approval-server",

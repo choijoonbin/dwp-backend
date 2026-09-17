@@ -10,18 +10,22 @@ import io.github.resilience4j.circuitbreaker.CircuitBreakerConfig;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.http.client.JdkClientHttpRequestFactory;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.client.RestClientResponseException;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.net.http.HttpClient;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
+import java.util.UUID;
 import java.util.function.Supplier;
 
 import static com.dwp.services.platform.home.runtime.DwaionHomeWorkloadProtocol.*;
@@ -30,16 +34,27 @@ import static com.dwp.services.platform.home.runtime.DwaionHomeWorkloadProtocol.
 final class DwaionHomeWidgetProviderClient implements WidgetProviderPort {
 
     private static final Duration MAX_DEADLINE_AHEAD = Duration.ofSeconds(1);
+    private static final Set<String> ARTIFACT_ITEM_FIELDS = Set.of(
+            "artifactId", "title", "artifactType", "state", "revision", "updatedAt");
+    private static final Set<String> ARTIFACT_TYPES = Set.of(
+            "DOCUMENT", "WORK_PLAN", "COMPARISON");
+    private static final Set<String> ARTIFACT_STATES = Set.of("DRAFT", "REVIEW_REQUIRED");
+    private static final Set<String> UNAVAILABLE_REASONS = Set.of(
+            "PROVIDER_DWAION_ARTIFACT_PROJECTION_NOT_ACTIVATED",
+            "PROVIDER_DWAION_ARTIFACT_PROJECTION_UNAVAILABLE",
+            "PROVIDER_DWAION_ARTIFACT_TITLE_UNREADABLE");
 
     private final RestClient client;
     private final ObjectMapper mapper;
     private final DwaionHomeWorkloadAssertionSigner signer;
+    private final int maximumResponseBytes;
     private final CircuitBreaker circuitBreaker;
     private final Bulkhead bulkhead;
 
     DwaionHomeWidgetProviderClient(
             String baseUrl,
             Duration timeout,
+            int maximumResponseBytes,
             RestClient.Builder builder,
             ObjectMapper mapper,
             DwaionHomeWorkloadAssertionSigner signer,
@@ -54,6 +69,8 @@ final class DwaionHomeWidgetProviderClient implements WidgetProviderPort {
         this.client = builder.clone().baseUrl(baseUrl).requestFactory(requestFactory).build();
         this.mapper = mapper;
         this.signer = signer;
+        this.maximumResponseBytes = Math.max(
+                16_384, Math.min(maximumResponseBytes, 1_048_576));
         CircuitBreakerConfig circuitConfig = CircuitBreakerConfig.from(
                         circuitBreakers.getDefaultConfig())
                 .ignoreException(this::ignoredByCircuitBreaker)
@@ -143,25 +160,70 @@ final class DwaionHomeWidgetProviderClient implements WidgetProviderPort {
             if (context.personPublicId() != null) {
                 request.header("X-DWP-Person-Public-ID", context.personPublicId().toString());
             }
-            return request.body(body).retrieve()
-                    .body(HomeWidgetProviderContract.BatchResponse.class);
-        } catch (RestClientResponseException exception) {
-            if (exception.getStatusCode() == HttpStatus.FORBIDDEN) {
-                throw failure(WidgetProviderException.Kind.FORBIDDEN,
-                        "AUTHORIZATION_PROVIDER_FORBIDDEN",
-                        "DWAI-ON denied the Home recipient.", exception);
-            }
-            if (exception.getStatusCode().is5xxServerError()) {
-                throw failure(WidgetProviderException.Kind.UNAVAILABLE,
-                        "PROVIDER_HTTP_5XX", "DWAI-ON Home provider is unavailable.", exception);
-            }
-            throw failure(WidgetProviderException.Kind.MALFORMED,
-                    "PROVIDER_HTTP_REJECTED",
-                    "DWAI-ON rejected the signed Home contract.", exception);
+            return request.body(body).exchange((ignored, response) ->
+                    decodeBoundedResponse(response));
         } catch (RestClientException exception) {
             throw failure(WidgetProviderException.Kind.UNAVAILABLE,
                     "PROVIDER_TRANSPORT_FAILURE",
                     "DWAI-ON Home provider transport failed.", exception);
+        }
+    }
+
+    private HomeWidgetProviderContract.BatchResponse decodeBoundedResponse(
+            ClientHttpResponse response) throws IOException {
+        if (response.getStatusCode() == HttpStatus.FORBIDDEN) {
+            close(response.getBody());
+            throw failure(WidgetProviderException.Kind.FORBIDDEN,
+                    "AUTHORIZATION_PROVIDER_FORBIDDEN",
+                    "DWAI-ON denied the Home recipient.", null);
+        }
+        if (response.getStatusCode().is5xxServerError()) {
+            close(response.getBody());
+            throw failure(WidgetProviderException.Kind.UNAVAILABLE,
+                    "PROVIDER_HTTP_5XX", "DWAI-ON Home provider is unavailable.", null);
+        }
+        if (!response.getStatusCode().is2xxSuccessful()) {
+            close(response.getBody());
+            throw failure(WidgetProviderException.Kind.MALFORMED,
+                    "PROVIDER_HTTP_REJECTED",
+                    "DWAI-ON rejected the signed Home contract.", null);
+        }
+        long declaredLength = response.getHeaders().getContentLength();
+        if (declaredLength > maximumResponseBytes) {
+            close(response.getBody());
+            throw failure(WidgetProviderException.Kind.MALFORMED,
+                    "PROVIDER_RESPONSE_OUT_OF_BOUNDS",
+                    "DWAI-ON Home provider response exceeds its payload budget.", null);
+        }
+        byte[] encoded;
+        try (InputStream input = response.getBody()) {
+            if (input == null) {
+                throw failure(WidgetProviderException.Kind.MALFORMED,
+                        "PROVIDER_RESPONSE_MALFORMED",
+                        "DWAI-ON Home provider returned no response body.", null);
+            }
+            encoded = input.readNBytes(maximumResponseBytes + 1);
+        }
+        if (encoded.length == 0 || encoded.length > maximumResponseBytes) {
+            throw failure(WidgetProviderException.Kind.MALFORMED,
+                    "PROVIDER_RESPONSE_OUT_OF_BOUNDS",
+                    "DWAI-ON Home provider response exceeds its payload budget.", null);
+        }
+        try {
+            return mapper.readValue(encoded, HomeWidgetProviderContract.BatchResponse.class);
+        } catch (JsonProcessingException exception) {
+            throw failure(WidgetProviderException.Kind.MALFORMED,
+                    "PROVIDER_RESPONSE_MALFORMED",
+                    "DWAI-ON Home provider response is malformed.", exception);
+        }
+    }
+
+    private void close(InputStream input) {
+        if (input == null) return;
+        try {
+            input.close();
+        } catch (IOException ignored) {
+            // The stable provider error intentionally omits remote transport details.
         }
     }
 
@@ -238,7 +300,141 @@ final class DwaionHomeWidgetProviderClient implements WidgetProviderPort {
                     "PROVIDER_ENVELOPE_MISMATCH",
                     "DWAI-ON response does not match the recipient request.", null);
         }
+        validateProjection(requests, response);
         return response;
+    }
+
+    private void validateProjection(
+            List<Request> requests,
+            HomeWidgetProviderContract.BatchResponse response) {
+        Map<UUID, Request> expected = requests.stream().collect(
+                java.util.stream.Collectors.toUnmodifiableMap(
+                        Request::instanceId, request -> request));
+        for (HomeWidgetProviderContract.WidgetResult result : response.results()) {
+            Request request = expected.get(result.instanceId());
+            HomeWidgetProviderContract.SourceState source = result.source();
+            if (source == null || !"DWAION_HOME".equals(source.sourceKey())
+                    || result.state() == null) {
+                invalidProjection();
+            }
+            switch (result.state()) {
+                case AVAILABLE -> {
+                    validateDataPayload(result.payload(), request.itemLimit());
+                    validateSourceAction(result.actions());
+                    if (!result.redactions().isEmpty() || source.reasonCode() != null
+                            || source.retryable() || !validResultVersion(source)) {
+                        invalidProjection();
+                    }
+                }
+                case PARTIAL -> {
+                    validateDataPayload(result.payload(), request.itemLimit());
+                    validateSourceAction(result.actions());
+                    if (!List.of("ARTIFACT_TITLE_PROJECTION_UNREADABLE")
+                            .equals(result.redactions())
+                            || !"PROVIDER_DWAION_ARTIFACT_TITLE_PARTIAL"
+                            .equals(source.reasonCode())
+                            || source.retryable() || !validResultVersion(source)) {
+                        invalidProjection();
+                    }
+                }
+                case EMPTY -> {
+                    validateSourceAction(result.actions());
+                    if (!result.payload().isEmpty() || !result.redactions().isEmpty()
+                            || source.reasonCode() != null || source.retryable()
+                            || !validResultVersion(source)) {
+                        invalidProjection();
+                    }
+                }
+                case FORBIDDEN -> {
+                    if (!result.payload().isEmpty() || !result.actions().isEmpty()
+                            || !result.redactions().isEmpty()
+                            || !"AUTHORIZATION_DWAION_ARTIFACT_REQUIRED"
+                            .equals(source.reasonCode())
+                            || source.retryable() || source.resultVersion() != null) {
+                        invalidProjection();
+                    }
+                }
+                case UNAVAILABLE -> {
+                    if (!result.payload().isEmpty() || !result.actions().isEmpty()
+                            || !result.redactions().isEmpty()
+                            || !UNAVAILABLE_REASONS.contains(source.reasonCode())
+                            || !source.retryable() || source.resultVersion() != null) {
+                        invalidProjection();
+                    }
+                }
+                default -> invalidProjection();
+            }
+        }
+    }
+
+    private void validateDataPayload(Map<String, Object> payload, int itemLimit) {
+        com.fasterxml.jackson.databind.JsonNode node = mapper.valueToTree(payload);
+        if (!node.isObject() || node.size() != 2
+                || !node.has("visibleCount") || !node.has("items")
+                || !node.get("visibleCount").isIntegralNumber()
+                || !node.get("visibleCount").canConvertToInt()
+                || node.get("visibleCount").intValue() < 1
+                || !node.get("items").isArray()
+                || node.get("items").isEmpty()
+                || node.get("items").size() > itemLimit
+                || node.get("visibleCount").intValue() < node.get("items").size()) {
+            invalidProjection();
+        }
+        Set<UUID> artifactIds = new HashSet<>();
+        for (com.fasterxml.jackson.databind.JsonNode item : node.get("items")) {
+            if (!item.isObject()) invalidProjection();
+            Set<String> names = new HashSet<>();
+            item.fieldNames().forEachRemaining(names::add);
+            if (!names.equals(ARTIFACT_ITEM_FIELDS)
+                    || !text(item, "title", 200)
+                    || !text(item, "artifactType", 64)
+                    || !text(item, "state", 64)
+                    || !ARTIFACT_TYPES.contains(item.get("artifactType").asText())
+                    || !ARTIFACT_STATES.contains(item.get("state").asText())
+                    || !item.get("revision").isIntegralNumber()
+                    || !item.get("revision").canConvertToInt()
+                    || item.get("revision").intValue() < 1) {
+                invalidProjection();
+            }
+            try {
+                if (!artifactIds.add(UUID.fromString(item.get("artifactId").asText()))) {
+                    invalidProjection();
+                }
+                OffsetDateTime.parse(item.get("updatedAt").asText());
+            } catch (RuntimeException exception) {
+                invalidProjection();
+            }
+        }
+    }
+
+    private boolean text(com.fasterxml.jackson.databind.JsonNode node, String field, int maximum) {
+        return node.has(field) && node.get(field).isTextual()
+                && !node.get(field).asText().isBlank()
+                && node.get(field).asText().length() <= maximum;
+    }
+
+    private boolean validResultVersion(HomeWidgetProviderContract.SourceState source) {
+        return source.resultVersion() != null
+                && source.resultVersion().matches("v1:[0-9a-f]{32}");
+    }
+
+    private void validateSourceAction(List<HomeWidgetProviderContract.Action> actions) {
+        if (actions.size() != 1) invalidProjection();
+        HomeWidgetProviderContract.Action action = actions.getFirst();
+        if (!"open-source".equals(action.actionId())
+                || !"home.action.openSource".equals(action.labelKey())
+                || action.kind() != HomeWidgetProviderContract.ActionKind.SOURCE_ROUTE
+                || !"/dwaion/artifacts".equals(action.sourceRoute())
+                || action.commandKey() != null || action.expectedResultVersion() != null
+                || action.requiresConfirmation()) {
+            invalidProjection();
+        }
+    }
+
+    private void invalidProjection() {
+        throw failure(WidgetProviderException.Kind.MALFORMED,
+                "PROVIDER_PROJECTION_INVALID",
+                "DWAI-ON response exceeded its title-only projection contract.", null);
     }
 
     private boolean ignoredByCircuitBreaker(Throwable failure) {

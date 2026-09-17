@@ -406,11 +406,12 @@
         "dwp-notification-server",
         "dwp-space-server",
         "dwp-messaging-server",
-        "dwp-people-server"
+        "dwp-people-server",
+        "dwp-agent-runtime"
       ],
       "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeProviderClientConfiguration.java",
-      "purpose": "Bind six owner-specific URLs and deployment secrets to Boot-customized RestClient builders without constructing or invoking a transport in configuration code.",
-      "auth": "Injects a distinct deployment property for each owner service; the transport applies the shared private header name and exact platform identity.",
+      "purpose": "Bind six service-token owner clients and the dedicated signed DWAI-ON owner client to Boot-customized RestClient builders without constructing or invoking a transport in configuration code.",
+      "auth": "Injects distinct deployment properties for six service-token owners and a separate DWAI-ON dwp1 signing identity; each transport applies only its declared authentication profile.",
       "retryMode": "none",
       "failureMode": "fail-contained",
       "requiredMarkers": [

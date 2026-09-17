@@ -22,6 +22,33 @@ def main() -> None:
     document = json.loads(CONTRACT.read_text(encoding="utf-8"))
     if document.get("schemaVersion") != 1 or document.get("visibility") != "INTERNAL_ONLY":
         fail("schema version or visibility changed")
+    expected_service_owners = [
+        "approval", "meeting", "notification", "space", "messaging", "people",
+    ]
+    profiles = document.get("authProfiles")
+    if not isinstance(profiles, dict) or profiles.get("service-token-v1") != {
+        "owners": expected_service_owners,
+        "requiredHeaders": [
+            "X-DWP-Service-Identity", "X-DWP-Service-Token",
+            "X-DWP-Tenant-ID", "X-DWP-User-ID",
+            "X-DWP-Current-Decision-Revision", "X-DWP-Current-Revalidate-At",
+            "X-DWP-Home-Deadline-At",
+        ],
+    } or profiles.get("dwp1-hmac-sha256") != {
+        "owners": ["dwaion"],
+        "requiredHeaders": [
+            "X-DWP-Home-Assertion", "X-DWP-Tenant-ID", "X-DWP-User-ID",
+            "X-DWP-Identity-Plane", "X-DWP-Permissions", "X-DWP-Roles",
+            "X-DWP-Group-Refs", "X-DWP-Current-Decision-Revision",
+            "X-DWP-Current-Revalidate-At", "X-DWP-Home-Deadline-At",
+        ],
+        "forbiddenHeaders": [
+            "Authorization", "Cookie", "X-DWP-Service-Identity",
+            "X-DWP-Service-Token", "X-DWP-Support-Session-ID",
+            "X-DWP-Provider-Tenant-ID", "X-DWP-Actor-Tenant-ID",
+        ],
+    }:
+        fail("owner authentication profile partition drifted")
     contract_source = (ROOT / "dwp-platform-contracts/src/main/java/com/dwp/platform/contract/home/"
                        "HomeWidgetProviderContract.java").read_text(encoding="utf-8")
     for value in document["paths"].values():

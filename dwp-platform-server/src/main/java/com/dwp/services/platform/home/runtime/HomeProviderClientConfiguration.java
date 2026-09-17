@@ -100,7 +100,8 @@ public class HomeProviderClientConfiguration {
         DwaionHomeWorkloadAssertionSigner signer =
                 new DwaionHomeWorkloadAssertionSigner(keyId, signingSecret, objectMapper);
         return new DwaionHomeWidgetProviderClient(
-                url, runtime.providerTimeout(), builder, objectMapper, signer,
+                url, runtime.providerTimeout(), runtime.maximumProviderPayloadBytes(),
+                builder, objectMapper, signer,
                 circuitBreakers, bulkheads);
     }
 

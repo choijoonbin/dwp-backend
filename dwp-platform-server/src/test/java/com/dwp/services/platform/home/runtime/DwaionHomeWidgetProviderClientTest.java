@@ -72,7 +72,8 @@ class DwaionHomeWidgetProviderClientTest {
         DwaionHomeWorkloadAssertionSigner signer = new DwaionHomeWorkloadAssertionSigner(
                 "platform-dwaion-home-v1", SECRET, mapper);
         DwaionHomeWidgetProviderClient client = new DwaionHomeWidgetProviderClient(
-                "http://127.0.0.1:1", Duration.ofMillis(100), RestClient.builder(), mapper,
+                "http://127.0.0.1:1", Duration.ofMillis(100), 262_144,
+                RestClient.builder(), mapper,
                 signer, CircuitBreakerRegistry.ofDefaults(), BulkheadRegistry.ofDefaults());
         HomeRuntimeContext context = context("corr-allowlist", null, null);
 
@@ -96,7 +97,8 @@ class DwaionHomeWidgetProviderClientTest {
         DwaionHomeWorkloadAssertionSigner signer = new DwaionHomeWorkloadAssertionSigner(
                 "platform-dwaion-home-v1", SECRET, mapper);
         DwaionHomeWidgetProviderClient client = new DwaionHomeWidgetProviderClient(
-                "http://127.0.0.1:1", Duration.ofMillis(100), RestClient.builder(), mapper,
+                "http://127.0.0.1:1", Duration.ofMillis(100), 262_144,
+                RestClient.builder(), mapper,
                 signer, CircuitBreakerRegistry.ofDefaults(), BulkheadRegistry.ofDefaults());
         HomeRuntimeContext missingAsk = HomeRuntimeContext.create(
                 71L, 82L, null, "APP.DWAION_ARTIFACTS:VIEW", "MEMBER", "team-a",
@@ -123,6 +125,77 @@ class DwaionHomeWidgetProviderClientTest {
                     assertThat(failure.reasonCode())
                             .isEqualTo("PROVIDER_REQUEST_OUT_OF_BOUNDS");
                 });
+    }
+
+    @Test
+    void boundsSuccessfulResponseBeforeDeserializationAndClassifiesForbiddenSafely()
+            throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/internal/home/v1/widget-data:batch", exchange -> {
+            try {
+                exchange.getRequestBody().readAllBytes();
+                boolean forbidden = "corr-forbidden".equals(
+                        exchange.getRequestHeaders().getFirst("X-Correlation-ID"));
+                exchange.sendResponseHeaders(forbidden ? 403 : 200, 0);
+                exchange.getResponseBody().write("x".repeat(262_145)
+                        .getBytes(StandardCharsets.UTF_8));
+            } catch (java.io.IOException ignored) {
+                // The bounded client may close the stream before the fixture finishes writing.
+            } finally {
+                exchange.close();
+            }
+        });
+        server.start();
+        try {
+            DwaionHomeWidgetProviderClient client = client(server);
+            HomeRuntimeContext oversized = context("corr-oversized-response", null, null);
+            assertThatThrownBy(() -> client.readBatch(
+                    oversized, List.of(request()), deadline(oversized)))
+                    .isInstanceOfSatisfying(WidgetProviderException.class, failure -> {
+                        assertThat(failure.kind())
+                                .isEqualTo(WidgetProviderException.Kind.MALFORMED);
+                        assertThat(failure.reasonCode())
+                                .isEqualTo("PROVIDER_RESPONSE_OUT_OF_BOUNDS");
+                    });
+
+            HomeRuntimeContext forbidden = context("corr-forbidden", null, null);
+            assertThatThrownBy(() -> client.readBatch(
+                    forbidden, List.of(request()), deadline(forbidden)))
+                    .isInstanceOfSatisfying(WidgetProviderException.class, failure -> {
+                        assertThat(failure.kind())
+                                .isEqualTo(WidgetProviderException.Kind.FORBIDDEN);
+                        assertThat(failure.reasonCode())
+                                .isEqualTo("AUTHORIZATION_PROVIDER_FORBIDDEN");
+                    });
+        } finally {
+            server.stop(0);
+        }
+    }
+
+    @Test
+    void rejectsPayloadOutsideTitleProjectionAndUndeclaredCommandAction() throws Exception {
+        HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/internal/home/v1/widget-data:batch",
+                this::respondWithProjectionViolation);
+        server.start();
+        try {
+            DwaionHomeWidgetProviderClient client = client(server);
+            for (String correlation : List.of(
+                    "corr-private-payload", "corr-command-action",
+                    "corr-enum-drift", "corr-duplicate-artifact")) {
+                HomeRuntimeContext context = context(correlation, null, null);
+                assertThatThrownBy(() -> client.readBatch(
+                        context, List.of(request()), deadline(context)))
+                        .isInstanceOfSatisfying(WidgetProviderException.class, failure -> {
+                            assertThat(failure.kind())
+                                    .isEqualTo(WidgetProviderException.Kind.MALFORMED);
+                            assertThat(failure.reasonCode())
+                                    .isEqualTo("PROVIDER_PROJECTION_INVALID");
+                        });
+            }
+        } finally {
+            server.stop(0);
+        }
     }
 
     private void invokeWithAmbientHeaders(
@@ -171,7 +244,7 @@ class DwaionHomeWidgetProviderClientTest {
                 "platform-dwaion-home-v1", SECRET, mapper);
         return new DwaionHomeWidgetProviderClient(
                 "http://127.0.0.1:" + server.getAddress().getPort(),
-                Duration.ofSeconds(1), RestClient.builder(), mapper, signer,
+                Duration.ofSeconds(1), 262_144, RestClient.builder(), mapper, signer,
                 CircuitBreakerRegistry.ofDefaults(), BulkheadRegistry.ofDefaults());
     }
 
@@ -196,6 +269,9 @@ class DwaionHomeWidgetProviderClientTest {
                     ? context("corr-first", "00-" + "1".repeat(32)
                             + "-" + "2".repeat(16) + "-01", "vendor=first")
                     : context("corr-second", null, null);
+            OffsetDateTime generatedAt = OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(1);
+            OffsetDateTime expiresAt = OffsetDateTime.parse(
+                    exchange.getRequestHeaders().getFirst("X-DWP-Home-Deadline-At"));
             String response = "{\"schemaVersion\":1,\"tenantId\":71,\"userId\":82,"
                     + "\"authorityDecisionRevision\":\"" + context.authorityDecisionRevision()
                     + "\",\"results\":[{\"instanceId\":\"" + instanceId
@@ -204,8 +280,77 @@ class DwaionHomeWidgetProviderClientTest {
                     + DwaionHomeWorkloadProtocol.DEFINITION_MANIFEST_HASH + "\","
                     + "\"rendererBindingRevision\":\""
                     + bindingCatalogRevision + "\","
-                    + "\"state\":\"EMPTY\",\"source\":null,\"payload\":{},"
-                    + "\"actions\":[],\"redactions\":[]}]}";
+                    + "\"state\":\"AVAILABLE\",\"source\":{\"sourceKey\":\"DWAION_HOME\","
+                    + "\"generatedAt\":\"" + generatedAt + "\",\"expiresAt\":\""
+                    + expiresAt + "\",\"lastSuccessAt\":\"" + generatedAt
+                    + "\",\"reasonCode\":null,\"retryable\":false,"
+                    + "\"resultVersion\":\"v1:" + "a".repeat(32) + "\"},"
+                    + "\"payload\":{\"visibleCount\":1,\"items\":[{\"artifactId\":\""
+                    + UUID.randomUUID() + "\",\"title\":\"safe title\","
+                    + "\"artifactType\":\"DOCUMENT\",\"state\":\"DRAFT\","
+                    + "\"revision\":1,\"updatedAt\":\"" + generatedAt + "\"}]},"
+                    + "\"actions\":[{\"actionId\":\"open-source\","
+                    + "\"labelKey\":\"home.action.openSource\",\"kind\":\"SOURCE_ROUTE\","
+                    + "\"sourceRoute\":\"/dwaion/artifacts\",\"commandKey\":null,"
+                    + "\"expectedResultVersion\":null,\"requiresConfirmation\":false}],"
+                    + "\"redactions\":[]}]}";
+            byte[] encoded = response.getBytes(StandardCharsets.UTF_8);
+            exchange.getResponseHeaders().set("Content-Type", "application/json");
+            exchange.sendResponseHeaders(200, encoded.length);
+            exchange.getResponseBody().write(encoded);
+            exchange.close();
+        } catch (Exception exception) {
+            throw new RuntimeException(exception);
+        }
+    }
+
+    private void respondWithProjectionViolation(HttpExchange exchange) {
+        try {
+            JsonNode request = mapper.readTree(exchange.getRequestBody().readAllBytes());
+            JsonNode widget = request.get("widgets").get(0);
+            String correlation = exchange.getRequestHeaders().getFirst("X-Correlation-ID");
+            OffsetDateTime generatedAt = OffsetDateTime.now(ZoneOffset.UTC).minusSeconds(1);
+            OffsetDateTime expiresAt = OffsetDateTime.parse(
+                    exchange.getRequestHeaders().getFirst("X-DWP-Home-Deadline-At"));
+            boolean privatePayload = "corr-private-payload".equals(correlation);
+            boolean commandAction = "corr-command-action".equals(correlation);
+            String artifactId = UUID.randomUUID().toString();
+            String artifactType = "corr-enum-drift".equals(correlation)
+                    ? "REPORT" : "DOCUMENT";
+            String item = "{\"artifactId\":\"" + artifactId
+                    + "\",\"title\":\"safe title\",\"artifactType\":\""
+                    + artifactType + "\",\"state\":\"DRAFT\",\"revision\":1,"
+                    + "\"updatedAt\":\"" + generatedAt + "\""
+                    + (privatePayload ? ",\"body\":\"private\"" : "") + "}";
+            String payload = commandAction ? "{}"
+                    : "{\"visibleCount\":2,\"items\":[" + item
+                    + ("corr-duplicate-artifact".equals(correlation) ? "," + item : "")
+                    + "]}";
+            String actions = !commandAction
+                    ? "[{\"actionId\":\"open-source\",\"labelKey\":\"home.action.openSource\","
+                    + "\"kind\":\"SOURCE_ROUTE\",\"sourceRoute\":\"/dwaion/artifacts\","
+                    + "\"commandKey\":null,\"expectedResultVersion\":null,"
+                    + "\"requiresConfirmation\":false}]"
+                    : "[{\"actionId\":\"run\",\"labelKey\":\"home.action.run\","
+                    + "\"kind\":\"COMMAND\",\"sourceRoute\":null,"
+                    + "\"commandKey\":\"dwaion.run\",\"expectedResultVersion\":\"v1:"
+                    + "a".repeat(32) + "\",\"requiresConfirmation\":true}]";
+            String response = "{\"schemaVersion\":1,\"tenantId\":71,\"userId\":82,"
+                    + "\"authorityDecisionRevision\":\"decision-17\",\"results\":[{"
+                    + "\"instanceId\":\"" + widget.get("instanceId").asText() + "\","
+                    + "\"definitionKey\":\"dwaion.artifact\","
+                    + "\"definitionManifestHash\":\""
+                    + DwaionHomeWorkloadProtocol.DEFINITION_MANIFEST_HASH + "\","
+                    + "\"rendererBindingRevision\":\""
+                    + widget.get("rendererBindingRevision").asText() + "\","
+                    + "\"state\":\"" + (commandAction ? "EMPTY" : "AVAILABLE") + "\","
+                    + "\"source\":{\"sourceKey\":\"DWAION_HOME\",\"generatedAt\":\""
+                    + generatedAt + "\",\"expiresAt\":\"" + expiresAt
+                    + "\",\"lastSuccessAt\":\"" + generatedAt
+                    + "\",\"reasonCode\":null,\"retryable\":false,"
+                    + "\"resultVersion\":\"v1:" + "a".repeat(32) + "\"},"
+                    + "\"payload\":" + payload + ",\"actions\":" + actions
+                    + ",\"redactions\":[]}]}";
             byte[] encoded = response.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().set("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, encoded.length);

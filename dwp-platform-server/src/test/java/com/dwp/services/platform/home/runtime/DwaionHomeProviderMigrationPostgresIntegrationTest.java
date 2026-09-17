@@ -10,6 +10,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -111,5 +112,69 @@ class DwaionHomeProviderMigrationPostgresIntegrationTest {
                   FROM plt_widget_registry_state
                  WHERE environment = 'GLOBAL'
                 """, String.class)).isEqualTo("SHADOW|false");
+    }
+
+    @Test
+    void leavesRetiredTenantHeadOnItsExistingRevisionDuringUpgrade() {
+        String schema = "dwaion_retired_" + UUID.randomUUID().toString().replace("-", "");
+        Flyway beforeActivation = flyway(schema, "264");
+        assertThat(beforeActivation.migrate().migrationsExecuted).isPositive();
+
+        JdbcTemplate isolated = new JdbcTemplate(dataSource(schema));
+        Long tenantId = isolated.queryForObject("""
+                SELECT tenant_id
+                  FROM adm_tenant_widget_policy_heads
+                 WHERE definition_id = ?::uuid
+                 ORDER BY tenant_id
+                 LIMIT 1
+                """, Long.class, DEFINITION_ID);
+        String priorRevision = isolated.queryForObject("""
+                SELECT current_revision_id::text
+                  FROM adm_tenant_widget_policy_heads
+                 WHERE tenant_id = ? AND definition_id = ?::uuid
+                """, String.class, tenantId, DEFINITION_ID);
+        assertThat(isolated.update("""
+                UPDATE sys_service_tenants
+                   SET lifecycle_state = 'RETIRED'
+                 WHERE tenant_id = ?
+                """, tenantId)).isEqualTo(1);
+
+        Flyway activation = flyway(schema, null);
+        assertThat(activation.migrate().migrationsExecuted).isPositive();
+        assertThat(isolated.queryForObject("""
+                SELECT current_revision_id::text
+                  FROM adm_tenant_widget_policy_heads
+                 WHERE tenant_id = ? AND definition_id = ?::uuid
+                """, String.class, tenantId, DEFINITION_ID)).isEqualTo(priorRevision);
+        assertThat(isolated.queryForObject("""
+                SELECT count(*)
+                  FROM adm_tenant_widget_policy_revisions
+                 WHERE tenant_id = ? AND definition_id = ?::uuid AND revision_number = 2
+                """, Integer.class, tenantId, DEFINITION_ID)).isZero();
+    }
+
+    private static Flyway flyway(String schema, String target) {
+        var configuration = Flyway.configure()
+                .dataSource(dataSource())
+                .schemas(schema)
+                .defaultSchema(schema)
+                .locations("filesystem:src/main/resources/db/migration")
+                .cleanDisabled(false);
+        if (target != null) configuration.target(target);
+        return configuration.load();
+    }
+
+    private static PGSimpleDataSource dataSource() {
+        PGSimpleDataSource source = new PGSimpleDataSource();
+        source.setURL(POSTGRES.getJdbcUrl());
+        source.setUser(POSTGRES.getUsername());
+        source.setPassword(POSTGRES.getPassword());
+        return source;
+    }
+
+    private static PGSimpleDataSource dataSource(String schema) {
+        PGSimpleDataSource source = dataSource();
+        source.setCurrentSchema(schema);
+        return source;
     }
 }

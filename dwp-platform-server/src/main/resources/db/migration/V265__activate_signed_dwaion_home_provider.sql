@@ -82,11 +82,14 @@ ON CONFLICT (tenant_id, definition_id, revision_number) DO NOTHING;
 
 UPDATE adm_tenant_widget_policy_heads head
    SET current_revision_id = md5('dwaion-home-provider-v1.1-policy:' || head.tenant_id)::uuid,
-       version = version + 1,
+       version = head.version + 1,
        updated_by = 1,
        updated_at = CURRENT_TIMESTAMP
- WHERE definition_id = '36400000-0000-0000-0000-000000000002'
-   AND current_revision_id <> md5('dwaion-home-provider-v1.1-policy:' || head.tenant_id)::uuid;
+  FROM sys_service_tenants tenant
+ WHERE head.tenant_id = tenant.tenant_id
+   AND tenant.lifecycle_state <> 'RETIRED'
+   AND head.definition_id = '36400000-0000-0000-0000-000000000002'
+   AND head.current_revision_id <> md5('dwaion-home-provider-v1.1-policy:' || head.tenant_id)::uuid;
 
 INSERT INTO plt_widget_registry_events (
     event_id, registry_revision, aggregate_type, aggregate_id, event_type,
