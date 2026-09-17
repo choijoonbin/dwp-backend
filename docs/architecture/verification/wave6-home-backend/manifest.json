@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "gateId": "DWP-HOME-WAVE6-BACKEND-GUARDED-ROLLOUT",
   "status": "PASS_PREPRODUCTION_INPUT",
-  "sealedAtUtc": "2026-09-17T00:57:22+00:00",
-  "scope": "Wave 6 Home runtime authority, distributed shadow admission, Flow expressive-mesh owner contracts, rollout, provider isolation, command idempotency, trusted telemetry and OpenAPI contracts",
+  "sealedAtUtc": "2026-09-17T05:16:35+00:00",
+  "scope": "Wave 6 Home runtime authority, distributed shadow admission, Flow expressive-mesh owner contracts, signed DWAI-ON provider boundary, rollout, provider isolation, command idempotency, trusted telemetry and OpenAPI contracts",
   "baseCommit": "23906591226f4eb0822667507e8b6df40bb84585",
   "initialImplementationCommit": "4f290885831c76c5facbbabb5e77d0204ce1e9d0",
-  "productCommit": "5ed6e350cb731b81f0483efe70db9aaa70dde3b2",
+  "productCommit": "6d703ab796d954c8a04d499fca5ccfc989d43791",
   "activationDefaults": {
     "runtimeEnabled": false,
     "shadowEnabled": true,
@@ -25,7 +25,10 @@
     "security violation counters at provider scope/authority and owner receipt rejection points",
     "generated Platform and Gateway OpenAPI snapshots",
     "recipient-bound least-data Workplace booking projection and exact source-route action contract",
-    "fail-closed disabled DWAI.ON artifact slot with exact artifact authority and no payload or actions",
+    "signed, recipient- and authority-bound DWAI.ON artifact owner transport with exact request-body, deadline and single-use assertion binding plus bounded pre-deserialization response reads",
+    "Platform-enforced DWAI.ON title-only payload, exact artifact enums, unique artifact identifiers and source-route-only action contract",
+    "SHADOW-only immutable DWAI.ON Registry 1.1.0 publication with retired-tenant-safe policy migration",
+    "explicitly partitioned service-token and DWAI.ON signed owner authentication profiles",
     "append-only exact-drift Registry manifests, evidence, channels and tenant policies for the Flow expressive mesh"
   ],
   "verification": {
@@ -76,9 +79,32 @@
       "status": "PASS",
       "p0": 0,
       "p1": 0,
+      "closedFindings": [
+        {
+          "severity": "P1",
+          "finding": "V265 retired-tenant policy-head foreign-key deployment failure",
+          "resolution": "Live-tenant join plus V264-to-V265 retired-tenant PostgreSQL regression"
+        },
+        {
+          "severity": "P2",
+          "finding": "DWAI.ON response size was enforced only after deserialization",
+          "resolution": "Content-Length and sentinel-byte bounds are enforced before Jackson"
+        },
+        {
+          "severity": "P2",
+          "finding": "DWAI.ON title-only response shape relied only on pinned owner behavior",
+          "resolution": "Platform now enforces exact payload fields, enums, unique artifact IDs, source key, states and source-route-only action"
+        },
+        {
+          "severity": "P2",
+          "finding": "Owner auth and factory architecture contracts conflated service-token and signed providers",
+          "resolution": "Profiles are partitioned and dwp-agent-runtime is an explicit factory target"
+        }
+      ],
       "nonBlocking": [
-        "DWAI.ON artifact data remains deliberately disabled and UNAVAILABLE until the owner service publishes an authenticated recipient-bound artifact provider endpoint.",
-        "Actual Redis TLS deployment evidence, release-automation transition receipts and production observations remain LIVE_PENDING."
+        "Actual Redis TLS deployment evidence, release-automation transition receipts and production observations remain LIVE_PENDING.",
+        "DWAI.ON live endpoint confidential transport/service identity, matched signing-key rotation, durable replay-store operation and deployed title-projection readiness remain LIVE_PENDING; absent signing material keeps the provider inactive.",
+        "DWAI.ON response MIME enforcement and tighter visible-count/item-updatedAt semantic bounds remain optional defense-in-depth; exact JSON parsing, payload field allowlists and generic freshness validation already fail closed."
       ]
     },
     "distributedShadowAdmissionImpact": {
@@ -94,6 +120,60 @@
       "logicalTests": 19,
       "failed": 0,
       "note": "Focused provider plus Registry migration/control-plane tests passed after correcting only newly introduced fixture and migration-parser issues."
+    },
+    "signedDwaionProviderImpact": {
+      "status": "PASS",
+      "productCommit": "6d703ab796d954c8a04d499fca5ccfc989d43791",
+      "classes": 18,
+      "tests": 98,
+      "failed": 0,
+      "errors": 0,
+      "skipped": 0,
+      "buildResult": "BUILD_SUCCESSFUL",
+      "command": "./gradlew :dwp-platform-server:test --tests 'com.dwp.services.platform.home.runtime.DwaionHomeProviderMigrationContractTest' --tests 'com.dwp.services.platform.home.runtime.DwaionHomeProviderMigrationPostgresIntegrationTest' --tests 'com.dwp.services.platform.home.runtime.DwaionHomeWidgetProviderClientTest' --tests 'com.dwp.services.platform.home.runtime.DwaionHomeWorkloadAssertionSignerTest' --tests 'com.dwp.services.platform.home.runtime.HomeNativeProviderContractTest' --tests 'com.dwp.services.platform.home.runtime.HomeProviderClientConfigurationTest' --tests 'com.dwp.services.platform.home.runtime.HomeReadModelControllerTest' --tests 'com.dwp.services.platform.home.runtime.HomeReadModelOwnerProviderRoutingTest' --tests 'com.dwp.services.platform.home.runtime.HomeRuntimeAuthorizationEtagTest' --tests 'com.dwp.services.platform.home.runtime.HomeRuntimeCacheSecurityTest' --tests 'com.dwp.services.platform.home.runtime.HomeRuntimeContextTest' --tests 'com.dwp.services.platform.home.runtime.HomeRuntimeRollbackGateTest' --tests 'com.dwp.services.platform.home.runtime.ProviderResultValidatorSecurityTest' --tests 'com.dwp.services.platform.home.runtime.ProviderResultValidatorTest' --tests 'com.dwp.services.platform.home.runtime.WidgetRuntimeBrokerIsolationSecurityTest' --tests 'com.dwp.services.platform.home.runtime.WidgetRuntimeBrokerOwnerProviderContractTest' --tests 'com.dwp.services.platform.security.HomeStudioPlatformSecurityFilterTest' --tests 'com.dwp.services.platform.widgetregistry.WidgetRegistryControlPlanePostgresIntegrationTest' --no-daemon",
+      "testClassResults": {
+        "com.dwp.services.platform.home.runtime.DwaionHomeProviderMigrationContractTest": 1,
+        "com.dwp.services.platform.home.runtime.DwaionHomeProviderMigrationPostgresIntegrationTest": 3,
+        "com.dwp.services.platform.home.runtime.DwaionHomeWidgetProviderClientTest": 5,
+        "com.dwp.services.platform.home.runtime.DwaionHomeWorkloadAssertionSignerTest": 3,
+        "com.dwp.services.platform.home.runtime.HomeNativeProviderContractTest": 3,
+        "com.dwp.services.platform.home.runtime.HomeProviderClientConfigurationTest": 1,
+        "com.dwp.services.platform.home.runtime.HomeReadModelControllerTest": 2,
+        "com.dwp.services.platform.home.runtime.HomeReadModelOwnerProviderRoutingTest": 1,
+        "com.dwp.services.platform.home.runtime.HomeRuntimeAuthorizationEtagTest": 2,
+        "com.dwp.services.platform.home.runtime.HomeRuntimeCacheSecurityTest": 2,
+        "com.dwp.services.platform.home.runtime.HomeRuntimeContextTest": 5,
+        "com.dwp.services.platform.home.runtime.HomeRuntimeRollbackGateTest": 1,
+        "com.dwp.services.platform.home.runtime.ProviderResultValidatorSecurityTest": 23,
+        "com.dwp.services.platform.home.runtime.ProviderResultValidatorTest": 9,
+        "com.dwp.services.platform.home.runtime.WidgetRuntimeBrokerIsolationSecurityTest": 2,
+        "com.dwp.services.platform.home.runtime.WidgetRuntimeBrokerOwnerProviderContractTest": 2,
+        "com.dwp.services.platform.security.HomeStudioPlatformSecurityFilterTest": 24,
+        "com.dwp.services.platform.widgetregistry.WidgetRegistryControlPlanePostgresIntegrationTest": 9
+      },
+      "note": "Fresh focused run after retired-tenant migration repair, bounded response decoding, exact title-projection validation and authentication-profile contract correction; includes real PostgreSQL V264-to-V265 retired-tenant upgrade coverage."
+    },
+    "homeOwnerProviderContractChecker": {
+      "status": "PASS",
+      "owners": 7,
+      "failed": 0,
+      "command": "python3 scripts/check-home-owner-provider-contracts.py",
+      "output": "home owner provider contract: PASS (7 owners)"
+    },
+    "serviceBoundaryChecker": {
+      "status": "PASS",
+      "failed": 0,
+      "command": "python3 scripts/check-service-boundaries.py",
+      "output": "PASS service boundaries: backend modules, HTTP/application/persistence layering, direct service HTTP clients, and cross-database metadata exceptions match docs/architecture/service-interface-contracts.json."
+    },
+    "signedDwaionEvidenceIntegrity": {
+      "status": "PASS",
+      "fixturePath": "contracts/home-runtime/dwaion-signed-workload.v1.json",
+      "fixtureSha256": "dd2ab8edc36e7d52db73d3f6ae954111819ad763742e23f24eb12986faae0482",
+      "requestBodySha256": "a9c15a6a7cecd66afe90b4cfa6221308e732211bb3eaa5336404f075c4d0e900",
+      "assertionSha256": "ac7ff7568c38f0110d8807ba359400fb3a380589ea0c239607e871e724cf3909",
+      "ownerEvidenceCommit": "7092a93ea7446d08af6e45bb88e7225dd9ed4148",
+      "ownerPrivacyEvidenceSha256": "2b61d64f15ccbb14e680289c851221e4a2899517466178bfe061d4e0164d2fb3"
     }
   },
   "safety": {
@@ -112,7 +192,12 @@
     "rollbackMetricBoundary": "No request-level rollback emission; live source requires a durable before/after transition receipt.",
     "shadowReceiptAdmission": "REDIS_ATOMIC_HMAC_SHA256_TTL_AND_CAPACITY_BOUNDED_FAIL_CLOSED",
     "workplaceProjection": "RECIPIENT_BOUND_LEAST_DATA_READ_ONLY_SOURCE_ROUTE",
-    "dwaionProjection": "POLICY_DISABLED_OWNER_PROVIDER_NOT_CONFIGURED_EMPTY_PAYLOAD_AND_ACTIONS"
+    "dwaionProjection": "PLATFORM_VALIDATED_TITLE_ONLY_FIELDS_EXACT_ENUMS_UNIQUE_ARTIFACTS_AND_SOURCE_ROUTE_ONLY_ACTION",
+    "dwaionWorkloadIdentity": "DWP1_HMAC_SHA256_EXACT_BODY_RECIPIENT_AUTHORITY_DEADLINE_AND_SINGLE_USE_JTI",
+    "dwaionResponseBoundary": "BOUNDED_BEFORE_DESERIALIZATION_AND_FAIL_CLOSED_ON_HTTP_OR_SCHEMA_DRIFT",
+    "dwaionActivation": "INACTIVE_WITHOUT_SIGNING_SECRET_AND_REGISTRY_REMAINS_SHADOW_NON_AUTHORITATIVE",
+    "dwaionAuthProfile": "SEPARATE_FROM_SERVICE_TOKEN_OWNER_PROFILE",
+    "dwaionTenantMigration": "RETIRED_HEADS_REMAIN_ON_EXISTING_REVISION_LIVE_TENANTS_ONLY_ADVANCE"
   },
   "verificationScopePolicy": {
     "sessionHomeChangesOnly": true,
@@ -121,10 +206,20 @@
     "impactedFailuresRerunOnly": true
   },
   "sourceIntegrity": {
-    "algorithm": "sha256(sorted lines: <file-sha256><two spaces><repo-relative-path><newline>)",
-    "sha256": "94ff208004fe1ec6e413fc3a6fc58d2e88035e0b5365917d64723b52f7910a1c",
-    "fileCount": 86,
+    "algorithm": "sha256(concatenation of <file-sha256><two spaces><repo-relative-path><newline> for files sorted lexicographically by repo-relative path)",
+    "sha256": "cb8afa0d35a3aca97e98779092448adcf78234e9dad6cb7ca72e1869a35e22cb",
+    "fileCount": 106,
     "files": [
+      {
+        "path": "contracts/home-runtime/dwaion-signed-workload.v1.json",
+        "bytes": 3840,
+        "sha256": "dd2ab8edc36e7d52db73d3f6ae954111819ad763742e23f24eb12986faae0482"
+      },
+      {
+        "path": "contracts/home-runtime/owner-provider-batch.v1.json",
+        "bytes": 14498,
+        "sha256": "1ca22e6102eb0a3aaac606395f932e89f357a6f9a165fa9d10841f9ac23f81e2"
+      },
       {
         "path": "contracts/home-runtime/platform-owner-actions.v1.json",
         "bytes": 744,
@@ -164,6 +259,11 @@
         "path": "contracts/product-authorization/product-surfaces-v1.yaml",
         "bytes": 858222,
         "sha256": "bfc42e9bc50a312f485c14ff42e23fc68982a485d62233ff1eae0f12ec561771"
+      },
+      {
+        "path": "docs/architecture/service-interface-contracts.json",
+        "bytes": 71537,
+        "sha256": "569d9812cbb4fafbde4943f1b67e8d7508aeaf29a3cca7993a7412634d27902d"
       },
       {
         "path": "dwp-auth-server/src/main/resources/product-authorization/product-surfaces-v1.bundle-v17.generated.json",
@@ -226,6 +326,21 @@
         "sha256": "c3529b167c7eb59a6c9627d6fce67e6ef4617c9e408c3bddf32834744147bb19"
       },
       {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/DwaionHomeWidgetProviderClient.java",
+        "bytes": 22433,
+        "sha256": "01c90f1405b0636e1209996f9f5d772c6920d415b134045f202c1650761666cc"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/DwaionHomeWorkloadAssertionSigner.java",
+        "bytes": 5660,
+        "sha256": "608b9bacfe37b9efcde7f1e3e194eec3ac4cdcb1f439ff265b9ec89ff99189da"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/DwaionHomeWorkloadProtocol.java",
+        "bytes": 574,
+        "sha256": "ac5780b96676c1e9e7b5b470f4a6a01d4719bb7ebae0bcbff021f6f8cbf38d1b"
+      },
+      {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeOwnerActionContracts.java",
         "bytes": 3415,
         "sha256": "7b851b250fc0ee6d97c91a217a222fdf4c075062be939ea5fde75f44e38fefd3"
@@ -246,9 +361,14 @@
         "sha256": "e2af5a214c297635aca4e783861b2e3503d9521e1b802b52c0e968433d89f534"
       },
       {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeProviderClientConfiguration.java",
+        "bytes": 5407,
+        "sha256": "7d84eb026b66c66027580f4439b14bc650349fbbc4474a69ae94667a57d1a39c"
+      },
+      {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeReadModelController.java",
-        "bytes": 18140,
-        "sha256": "b6befb7df7cbacbbfab68d5f69422e4c97b8463e61aa430b07871227385949a3"
+        "bytes": 18790,
+        "sha256": "1783514cb096fccd157c3d6842c4e06cf5896c3d96110bd08ef7cb3970fb7ebd"
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeReadModelDtos.java",
@@ -267,8 +387,8 @@
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeRuntimeContext.java",
-        "bytes": 6900,
-        "sha256": "344949a33618cc18b4a7a80812c40eedb61d8489aafb2b4ff7f90a55f476765f"
+        "bytes": 10210,
+        "sha256": "70e1acf1dbb2e2803fe5e3a36a9dbd6e5d7803cdd701a0f731e9284973b460fb"
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeRuntimeRolloutDecision.java",
@@ -317,8 +437,8 @@
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/InactiveDwaionWidgetProvider.java",
-        "bytes": 3375,
-        "sha256": "f809a4073fff5fcee9762bf9d07a05ad2c18c62d488b0e59a20d38ece53fddfb"
+        "bytes": 3315,
+        "sha256": "f9f0f00d7d9388ba7b25b539df20ff029406fa733704b69798f35ce43daf8945"
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/PlatformNativeWidgetProvider.java",
@@ -362,13 +482,18 @@
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/provisioning/Wave4OwnerWidgetPolicySeeder.java",
-        "bytes": 4236,
-        "sha256": "79363206e74da38c6725a6ae294db69535951d12f3b948ebc5f02a9382d47254"
+        "bytes": 6515,
+        "sha256": "4526fa377510bf626aa09e2508a92d88859d0c18af60a083446ec7600e1c599f"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/security/PlatformSecurityFilter.java",
+        "bytes": 35531,
+        "sha256": "42b76361cf7c180cc289b5c8403568cfc20d4e31f73b32f996ddb06b575923b7"
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetCatalogService.java",
         "bytes": 38110,
-        "sha256": "450da489a394fdf61ee24d43854af51f3ba9f46b276852c9521770bf7dc45fd9"
+        "sha256": "871fa208d180b9012c7f2c1ee443f2e8f2dd7786a2a77fcc839cbeb10dbe8e2e"
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetRegistryDtos.java",
@@ -417,8 +542,8 @@
       },
       {
         "path": "dwp-platform-server/src/main/resources/application.yml",
-        "bytes": 11636,
-        "sha256": "b907230c0597ba4f943d22686f3b9869ef5cfea735d0e8f2a1953758886b9bce"
+        "bytes": 11868,
+        "sha256": "aca01f9425b0b0087c52d380944b5d64872e00113acd87d98207446c21668b81"
       },
       {
         "path": "dwp-platform-server/src/main/resources/db/migration/V263__wire_home_runtime_rollout_controls.sql",
@@ -431,9 +556,34 @@
         "sha256": "4d2e2cb1d195bc0bbff52cc668fe6eafc4acaf8915c4e07d9c78a1198cba0de8"
       },
       {
+        "path": "dwp-platform-server/src/main/resources/db/migration/V265__activate_signed_dwaion_home_provider.sql",
+        "bytes": 8615,
+        "sha256": "12b22302a4fc16ab35c7a7a87c722ff0e922e5a3b7d95241332c3259560d61e5"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/DwaionHomeProviderMigrationContractTest.java",
+        "bytes": 1631,
+        "sha256": "0bf7b0843891374bc84341d46b8b0a64eb9af7a1347f81941a9d60366ac09d67"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/DwaionHomeProviderMigrationPostgresIntegrationTest.java",
+        "bytes": 8161,
+        "sha256": "04806c4578b2a1a518575c0b1e1c34f102fae71b206db7377264206b1fe6fce5"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/DwaionHomeWidgetProviderClientTest.java",
+        "bytes": 22289,
+        "sha256": "e69e491302f33e8e3e767af2d15e95030750e6b9767f43ecd972ec8683be7f3d"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/DwaionHomeWorkloadAssertionSignerTest.java",
+        "bytes": 7330,
+        "sha256": "6e8bd9da33b93e49503d4ff259020eb033dd8e629ab3f7c2abc449a4fd905747"
+      },
+      {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeNativeProviderContractTest.java",
-        "bytes": 9529,
-        "sha256": "61bb0aca4f8eafa02bcd67510bccf15cc67439ab6fc356725d6426a800a8a650"
+        "bytes": 9545,
+        "sha256": "861f4ebc719f5e07d62b9ead27966893193e9ed7836d6e2dfc8df6e2802a4df4"
       },
       {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeOwnerActionCommandGateTest.java",
@@ -451,9 +601,19 @@
         "sha256": "59ee1de3173ae3c3d1cc72961e8125b8e0b6b35b2436dcc6d095d6b9cb61ee9d"
       },
       {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeProviderClientConfigurationTest.java",
+        "bytes": 1720,
+        "sha256": "2d92191eb507138f5faa96492883adeb588c9753af0f2700ea66cda74094d081"
+      },
+      {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeReadModelControllerTest.java",
-        "bytes": 4868,
-        "sha256": "e1e2f7085ffd781e724154c6d431a66d51e8f1f43115a2620925ba3ee0e8f2aa"
+        "bytes": 5882,
+        "sha256": "ebd73eb878d90d192a87e0b2258f630d8e38ec8ee98422e2a7a6d5f27f3cec61"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeReadModelOwnerProviderRoutingTest.java",
+        "bytes": 10659,
+        "sha256": "480e0ab76a839c676bee751faad57219aae484df14abe8f056cdd67677f274f2"
       },
       {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeReadModelShadowComparatorTest.java",
@@ -467,8 +627,8 @@
       },
       {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeRuntimeContextTest.java",
-        "bytes": 3420,
-        "sha256": "fc086aebf8cd9d41c8c0e3626b44fe37ffd945026aae778a7d87840aaf3d8d1a"
+        "bytes": 5098,
+        "sha256": "bb3f472f114277e6e1fa8498e2694498f36a2e3c7885369ff4d24de91439b193"
       },
       {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeRuntimeContinuityPostgresIntegrationTest.java",
@@ -481,6 +641,11 @@
         "sha256": "b738dcef860ddb61b947aa40995c74240fc37330713ee1a208b51af010e707cd"
       },
       {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeRuntimeRollbackGateTest.java",
+        "bytes": 6765,
+        "sha256": "8ef92d3dfaa905c90f76f065fd11a327c5715235b0e8f362c49b0ca499f624c7"
+      },
+      {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeRuntimeRolloutDecisionResolverTest.java",
         "bytes": 7317,
         "sha256": "4c170dd8af11afbfa41293b7cfdb212cef3207a356320c7d15b1f8a5118c73a5"
@@ -489,6 +654,11 @@
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeWidgetCommandServiceTest.java",
         "bytes": 18987,
         "sha256": "bc07a2028ddf2eabae56e7858e48ea7618f5e21145e938877ad4a584287ff2c3"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/ProviderResultValidatorTest.java",
+        "bytes": 8477,
+        "sha256": "821c90acec602bea40356f211872e3c59304add9ae3ede41364bb7a3deb588e2"
       },
       {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/RecipientBoundWidgetCacheTest.java",
@@ -521,9 +691,14 @@
         "sha256": "15f76687a8dca995e7f52c43bf74ecfb18597bf94ad2992bf85a334b771016a1"
       },
       {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/security/HomeStudioPlatformSecurityFilterTest.java",
+        "bytes": 7721,
+        "sha256": "dca68deb0811c50c7c6161d0f9a0db46b711770d4e54b08ce6a86a05c0fc1bac"
+      },
+      {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/widgetregistry/WidgetRegistryControlPlanePostgresIntegrationTest.java",
-        "bytes": 42761,
-        "sha256": "9ffe59fd079e9667e07886be60ffd8c1f00d92f9c17b524205b3de9a26dc2a1e"
+        "bytes": 43620,
+        "sha256": "66c53847c04f828cd6e2436e0079d310619b9524fa626f1efe15b68db81ad8b2"
       },
       {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/widgetregistry/WidgetRegistryMigrationPostgresIntegrationTest.java",
@@ -539,6 +714,16 @@
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryActivationInterlockTest.java",
         "bytes": 10838,
         "sha256": "06d22469424715467a9af68c43b84d92851ca86f8804f20858231c7b2b20189f"
+      },
+      {
+        "path": "scripts/check-home-owner-provider-contracts.py",
+        "bytes": 12494,
+        "sha256": "d38afbc36bf2b2ab011c7fa6855119246ef35c1d883ba541d979d47501fbea91"
+      },
+      {
+        "path": "scripts/check-service-boundaries.py",
+        "bytes": 96380,
+        "sha256": "e57953fd3adf4bc68e45925d2657da339ef9a0772ceca1f4d875131d4df4a4bf"
       },
       {
         "path": "scripts/export-openapi-contracts.py",
@@ -562,6 +747,11 @@
     "redisTlsRequired": true,
     "sharedPrivacyHashSecretMinimumBytes": 32,
     "secretValueMayAppearInEvidence": false,
-    "dwaionOwnerEndpointRequiredForAvailableState": true
+    "dwaionOwnerEndpointRequiredForAvailableState": true,
+    "dwaionSignedTransportTlsRequired": true,
+    "dwaionSigningSecretMinimumBytes": 32,
+    "dwaionSigningKeyRotationEvidenceRequired": true,
+    "dwaionDurableReplayStoreRequired": true,
+    "dwaionTitleProjectionDeploymentEvidenceRequired": true
   }
 }
