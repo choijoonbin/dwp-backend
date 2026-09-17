@@ -33,6 +33,31 @@ UPDATE mail_signatures
    SET publication_state = 'DRAFT', publication_version = 1
  WHERE signature_scope = 'ORGANIZATION';
 
+-- V268 keyed personal defaults only by account nullability. Organization signatures also have a
+-- null account, so a governed organization default could collide with an unrelated personal
+-- default owned by the same administrator. Keep each scope's default policy independent.
+DROP INDEX IF EXISTS uk_mail_signature_personal_default;
+DROP INDEX IF EXISTS uk_mail_signature_account_default;
+DROP INDEX IF EXISTS uk_mail_signature_personal_reply_default;
+DROP INDEX IF EXISTS uk_mail_signature_account_reply_default;
+
+CREATE UNIQUE INDEX uk_mail_signature_personal_default
+    ON mail_signatures (tenant_id, owner_user_id)
+    WHERE signature_scope = 'PERSONAL'
+      AND default_for_new = TRUE AND account_id IS NULL AND lifecycle_state = 'ACTIVE';
+CREATE UNIQUE INDEX uk_mail_signature_account_default
+    ON mail_signatures (tenant_id, owner_user_id, account_id)
+    WHERE signature_scope = 'ACCOUNT'
+      AND default_for_new = TRUE AND account_id IS NOT NULL AND lifecycle_state = 'ACTIVE';
+CREATE UNIQUE INDEX uk_mail_signature_personal_reply_default
+    ON mail_signatures (tenant_id, owner_user_id)
+    WHERE signature_scope = 'PERSONAL'
+      AND default_for_reply = TRUE AND account_id IS NULL AND lifecycle_state = 'ACTIVE';
+CREATE UNIQUE INDEX uk_mail_signature_account_reply_default
+    ON mail_signatures (tenant_id, owner_user_id, account_id)
+    WHERE signature_scope = 'ACCOUNT'
+      AND default_for_reply = TRUE AND account_id IS NOT NULL AND lifecycle_state = 'ACTIVE';
+
 ALTER TABLE mail_templates
     ADD CONSTRAINT ck_mail_template_publication_state CHECK (
         (template_scope <> 'ORGANIZATION'

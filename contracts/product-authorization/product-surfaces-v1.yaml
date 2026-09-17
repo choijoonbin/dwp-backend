@@ -48968,6 +48968,69 @@
           "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 25,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {
+          "routeContractKey": "route.dwaion.work.artifact-collaboration-review-decision.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-review-decision.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/workspace/review-stages/{stageId}/decision",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-review-decision.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/artifact-collaboration/{artifactId}/workspace/review-stages/{stageId}/decision",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.artifacts.update"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {

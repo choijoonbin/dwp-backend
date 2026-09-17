@@ -44,7 +44,8 @@ class MailGroupComposeRepository {
             UUID groupId,
             MailAddressBookDtos.GroupMessageRequest request,
             List<MailAddressBookRepository.Recipient> recipients,
-            String correlationId) {
+            String correlationId,
+            String requestFingerprint) {
         UUID threadId = UUID.randomUUID();
         UUID messageId = UUID.randomUUID();
         UUID deliveryId = UUID.randomUUID();
@@ -116,10 +117,10 @@ class MailGroupComposeRepository {
         int deliveryInserted = jdbc.update("""
                 INSERT INTO mail_delivery_outbox (
                     delivery_id, tenant_id, thread_id, message_id, idempotency_key,
-                    delivery_status, correlation_id, created_by)
-                VALUES (?, ?, ?, ?, ?, 'QUEUED', ?, ?)
+                    request_fingerprint, delivery_status, correlation_id, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, 'QUEUED', ?, ?)
                 """, deliveryId, tenantId, threadId, messageId,
-                request.idempotencyKey(), value(correlationId), userId);
+                request.idempotencyKey(), requestFingerprint, value(correlationId), userId);
         if (deliveryInserted != 1) {
             throw new IllegalStateException("Group mail delivery command was not enqueued.");
         }

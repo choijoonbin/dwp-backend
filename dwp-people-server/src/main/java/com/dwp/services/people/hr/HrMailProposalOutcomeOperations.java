@@ -6,7 +6,11 @@ interface HrMailProposalOutcomeOperations {
 
     HrMailProposalOutcomeOperations NOOP = new HrMailProposalOutcomeOperations() {
         @Override
-        public void preflight(long tenantId, long actorId, HrMailProposalBinding binding) {
+        public void preflight(
+                long tenantId,
+                long actorId,
+                HrMailProposalBinding binding,
+                HrDtos.CreateLeaveRequest request) {
             throw new IllegalStateException("Mail proposal outcome integration is unavailable.");
         }
 
@@ -21,7 +25,11 @@ interface HrMailProposalOutcomeOperations {
         }
     };
 
-    void preflight(long tenantId, long actorId, HrMailProposalBinding binding);
+    void preflight(
+            long tenantId,
+            long actorId,
+            HrMailProposalBinding binding,
+            HrDtos.CreateLeaveRequest request);
 
     void enqueueExecuted(
             long tenantId,

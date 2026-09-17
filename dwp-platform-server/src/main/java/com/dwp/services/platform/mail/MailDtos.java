@@ -111,6 +111,7 @@ public final class MailDtos {
             List<InternalComment> internalComments,
             List<ActionProposal> proposals,
             List<SharedInboxMember> sharedInboxMembers,
+            List<String> sharedInboxActions,
             MailWorkspaceDtos.ComposeOptions draftOptions,
             List<MailWorkspaceDtos.Attachment> draftAttachments) {
 
@@ -120,7 +121,8 @@ public final class MailDtos {
                 List<InternalComment> internalComments,
                 List<ActionProposal> proposals,
                 List<SharedInboxMember> sharedInboxMembers) {
-            this(thread, messages, internalComments, proposals, sharedInboxMembers, null, List.of());
+            this(thread, messages, internalComments, proposals, sharedInboxMembers,
+                    List.of(), null, List.of());
         }
     }
 

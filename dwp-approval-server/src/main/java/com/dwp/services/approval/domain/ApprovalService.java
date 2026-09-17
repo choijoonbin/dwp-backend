@@ -3,6 +3,8 @@ package com.dwp.services.approval.domain;
 import com.dwp.audit.AuditEvent;
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.services.approval.integration.ApprovalIdentityDirectory;
+import com.dwp.services.approval.dwaion.DwaionProposalHandoffIdentity;
+import com.dwp.services.approval.dwaion.DwaionProposalHandoffOutboxRepository;
 import com.dwp.services.approval.security.ApprovalRequestContext;
 import com.dwp.services.approval.security.ApprovalHighRiskCommandGuard;
 import com.dwp.services.approval.security.ApprovalOwnerPredicateEvaluator;
@@ -31,10 +33,11 @@ public class ApprovalService {
     private final ApprovalWorkflowManagementCommands workflowCommands;
     private final ApprovalWorkflowDecisionCommands workflowDecisions;
     private final ApprovalDelegationManagement delegationManagement;
+    private final DwaionProposalHandoffOutboxRepository dwaionHandoffs;
 
     public ApprovalService(ApprovalQueryRepository queries, ApprovalCommandRepository commands,
             AuditOutboxRecorder audit, ApprovalIdentityDirectory identities) {
-        this(queries, commands, audit, identities, null, null);
+        this(queries, commands, audit, identities, null, null, null, null);
     }
 
     public ApprovalService(
@@ -44,14 +47,22 @@ public class ApprovalService {
             ApprovalIdentityDirectory identities,
             ApprovalHighRiskCommandGuard highRiskGuard,
             ApprovalOwnerPredicateEvaluator ownerPredicates) {
-        this(queries, commands, audit, identities, highRiskGuard, ownerPredicates, null);
+        this(queries, commands, audit, identities, highRiskGuard, ownerPredicates, null, null);
+    }
+
+    public ApprovalService(ApprovalQueryRepository queries, ApprovalCommandRepository commands,
+            AuditOutboxRecorder audit, ApprovalIdentityDirectory identities,
+            ApprovalHighRiskCommandGuard highRiskGuard, ApprovalOwnerPredicateEvaluator ownerPredicates,
+            ApprovalWorkflowQuorumFacade quorum) {
+        this(queries, commands, audit, identities, highRiskGuard, ownerPredicates, quorum, null);
     }
 
     @Autowired
     public ApprovalService(ApprovalQueryRepository queries, ApprovalCommandRepository commands,
             AuditOutboxRecorder audit, ApprovalIdentityDirectory identities,
             ApprovalHighRiskCommandGuard highRiskGuard, ApprovalOwnerPredicateEvaluator ownerPredicates,
-            ApprovalWorkflowQuorumFacade quorum) {
+            ApprovalWorkflowQuorumFacade quorum,
+            DwaionProposalHandoffOutboxRepository dwaionHandoffs) {
         this.queries = queries;
         this.commands = commands;
         this.audit = audit;
@@ -59,6 +70,7 @@ public class ApprovalService {
         this.highRiskGuard = highRiskGuard;
         this.ownerPredicates = ownerPredicates;
         this.quorum = quorum;
+        this.dwaionHandoffs = dwaionHandoffs;
         workflowCommands = new ApprovalWorkflowManagementCommands(commands, queries, audit);
         delegationManagement = new ApprovalDelegationManagement(
                 queries, commands, audit, identities, ownerPredicates);
@@ -184,11 +196,28 @@ public class ApprovalService {
     public ApprovalDtos.RequestSummary create(
             ApprovalDtos.CreateRequest request,
             String correlationId) {
+        return create(request, correlationId, null);
+    }
+
+    @Transactional
+    public ApprovalDtos.RequestSummary create(
+            ApprovalDtos.CreateRequest request,
+            String correlationId,
+            DwaionProposalHandoffIdentity handoffIdentity) {
         ApprovalRequestContext.Actor actor = prepare();
         if (ownerPredicates != null && ApprovalPilotAuthorizationContext.current().isPresent()) {
             ownerPredicates.requirePublishedForm(actor, request.formId(), request.workflowId());
         }
         UUID requestId = commands.createDraft(actor, request, correlationId);
+        if (request.dwaionProposalHandoff() != null) {
+            if (dwaionHandoffs == null || handoffIdentity == null) {
+                throw new com.dwp.core.exception.BaseException(
+                        com.dwp.core.common.ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                        "The DWAI-ON Approval completion bridge is unavailable.");
+            }
+            dwaionHandoffs.bindDraft(actor, requestId, request.dwaionProposalHandoff(),
+                    handoffIdentity, correlationId);
+        }
         record(actor, "approval.request.drafted", "APPROVAL_REQUEST", requestId.toString(),
                 correlationId, Map.of("workflowId", request.workflowId().toString()));
         return queries.request(actor, requestId);
@@ -222,7 +251,11 @@ public class ApprovalService {
         }
         record(actor, "approval.request.submitted", "APPROVAL_REQUEST", requestId.toString(),
                 correlationId, Map.of());
-        return queries.request(actor, requestId);
+        ApprovalDtos.RequestSummary result = queries.request(actor, requestId);
+        if (dwaionHandoffs != null) {
+            dwaionHandoffs.markDomainCommitted(actor, requestId, result, correlationId);
+        }
+        return result;
     }
 
     @Transactional

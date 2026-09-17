@@ -165,6 +165,44 @@ class MailAccessPostgresIntegrationTest {
         assertThat(commands.insertReply(
                 fixture.tenantId(), fixture.userId(), fixture.threadId(),
                 "Send on behalf of the mailbox", UUID.randomUUID())).isTrue();
+        long currentVersion = jdbc.queryForObject("""
+                SELECT version FROM mail_threads
+                 WHERE tenant_id = ? AND thread_id = ?
+                """, Long.class, fixture.tenantId(), fixture.threadId());
+        assertThat(commands.applyAction(
+                fixture.tenantId(), fixture.userId(), fixture.threadId(),
+                ThreadAction.MARK_UNREAD, currentVersion)).isZero();
+        assertThat(commands.snooze(
+                fixture.tenantId(), fixture.userId(), fixture.threadId(),
+                OffsetDateTime.now().plusHours(1), currentVersion)).isZero();
+        assertThat(commands.assign(
+                fixture.tenantId(), fixture.userId(), fixture.threadId(),
+                fixture.userId(), "Read-only member", currentVersion)).isZero();
+        assertThat(commands.insertComment(
+                fixture.tenantId(), fixture.userId(), "Read-only member",
+                fixture.threadId(), "Must require manage permission", List.of())).isNull();
+        UUID proposalId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO mail_action_proposals (
+                    proposal_id, tenant_id, account_id, thread_id, proposal_type,
+                    proposal_status, title, summary, evidence, proposed_payload,
+                    confidence, risk_level, required_resource_key,
+                    required_permission_code, target_route, expires_at,
+                    action_contract_version, created_by, updated_by)
+                VALUES (?, ?, ?, ?, 'DRAFT_REPLY', 'PROPOSED', 'Shared reply',
+                        'Read-only members cannot change this proposal',
+                        '[{"messageId":"source"}]'::jsonb,
+                        '{"requiresConfirmation":true}'::jsonb, 0.9000, 'LOW',
+                        'APP.MAIL', 'CREATE', '/mail/inbox',
+                        CURRENT_TIMESTAMP + INTERVAL '1 day', 1, ?, ?)
+                """, proposalId, fixture.tenantId(), fixture.accountId(), fixture.threadId(),
+                fixture.userId(), fixture.userId());
+        assertThat(queries.updateProposalPayload(
+                fixture.tenantId(), fixture.userId(), proposalId,
+                Map.of("requiresConfirmation", true, "tone", "formal"), 0L)).isZero();
+        assertThat(commands.decideProposal(
+                fixture.tenantId(), fixture.userId(), proposalId,
+                MailTypes.ProposalDecision.ACCEPT, 0L)).isZero();
         MailDeliveryRepository deliveryRepository = new MailDeliveryRepository(jdbc, json);
         MailDeliveryRepository.DeliveryJob authorizationProbe =
                 new MailDeliveryRepository.DeliveryJob(
@@ -712,7 +750,7 @@ class MailAccessPostgresIntegrationTest {
                 .locations(
                         "filesystem:src/main/resources/db/migration",
                         "filesystem:../dwp-core/src/main/resources/db/migration")
-                .target("282")
+                .target("291")
                 .cleanDisabled(false)
                 .load();
         flyway.clean();

@@ -10,6 +10,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -249,8 +250,55 @@ class MailProposalOutcomeServiceTest {
 
             assertError(ErrorCode.INVALID_STATE, () -> service.validateNewExecution(
                     TENANT_ID, ACTOR_ID, HR,
-                    new MailProposalHandoffBinding(proposalId, commandId, version)));
+                    new MailProposalHandoffBinding(proposalId, commandId, version),
+                    new MailProposalOutcomePort.OwnerMutation(
+                            null, Map.of("durationDays", 1))));
         }
+    }
+
+    @Test
+    void newExecutionRequiresTheAcceptedOwnerMeaningAndMailSourceThread() {
+        UUID hrProposalId = UUID.randomUUID();
+        UUID hrCommandId = UUID.randomUUID();
+        var hr = new MailQueryRepository.OwnerProposalHandoffRow(
+                hrProposalId, hrCommandId, CREATE_LEAVE_REQUEST,
+                UUID.randomUUID(), Map.of(
+                        "durationDays", 2,
+                        "requiresConfirmation", true),
+                ACTOR_ID, "/hr/absence?action=create", "ACCEPTED", null,
+                OffsetDateTime.parse("2026-09-17T00:00:00Z"), 3L);
+        when(queries.ownerProposalHandoff(TENANT_ID, hrProposalId, true))
+                .thenReturn(Optional.of(hr));
+
+        assertError(ErrorCode.INVALID_STATE, () -> service.validateNewExecution(
+                TENANT_ID, ACTOR_ID, HR,
+                new MailProposalHandoffBinding(hrProposalId, hrCommandId, 3L),
+                new MailProposalOutcomePort.OwnerMutation(
+                        null, Map.of("durationDays", 1))));
+
+        UUID mailProposalId = UUID.randomUUID();
+        UUID mailCommandId = UUID.randomUUID();
+        UUID sourceThreadId = UUID.randomUUID();
+        var mail = new MailQueryRepository.OwnerProposalHandoffRow(
+                mailProposalId, mailCommandId, MailTypes.ProposalType.DRAFT_REPLY,
+                sourceThreadId, Map.of(
+                        "tone", "PROFESSIONAL",
+                        "language", "ko",
+                        "requiresConfirmation", true),
+                ACTOR_ID, "/mail/inbox", "ACCEPTED", null,
+                OffsetDateTime.parse("2026-09-17T00:00:00Z"), 3L);
+        when(queries.ownerProposalHandoff(TENANT_ID, mailProposalId, true))
+                .thenReturn(Optional.of(mail));
+
+        assertError(ErrorCode.INVALID_STATE, () -> service.validateNewExecution(
+                TENANT_ID, ACTOR_ID, MailProposalOutcomePort.Owner.MAIL,
+                new MailProposalHandoffBinding(mailProposalId, mailCommandId, 3L),
+                new MailProposalOutcomePort.OwnerMutation(
+                        UUID.randomUUID(), Map.of())));
+        service.validateNewExecution(
+                TENANT_ID, ACTOR_ID, MailProposalOutcomePort.Owner.MAIL,
+                new MailProposalHandoffBinding(mailProposalId, mailCommandId, 3L),
+                new MailProposalOutcomePort.OwnerMutation(sourceThreadId, Map.of()));
     }
 
     private void assertError(
@@ -270,7 +318,22 @@ class MailProposalOutcomeServiceTest {
             String resultRef,
             long version) {
         return new MailQueryRepository.OwnerProposalHandoffRow(
-                proposalId, commandId, type, decidedBy,
+                proposalId, commandId, type,
+                UUID.nameUUIDFromBytes(("source:" + proposalId).getBytes(
+                        java.nio.charset.StandardCharsets.UTF_8)),
+                switch (type) {
+                    case DRAFT_REPLY -> Map.of(
+                            "tone", "PROFESSIONAL", "requiresConfirmation", true);
+                    case CREATE_CALENDAR_EVENT -> Map.of(
+                            "durationMinutes", 60, "requiresConfirmation", true);
+                    case CREATE_TASK -> Map.of(
+                            "priority", "HIGH", "requiresConfirmation", true);
+                    case CREATE_LEAVE_REQUEST -> Map.of(
+                            "durationDays", 1, "requiresConfirmation", true);
+                    case ESCALATE_NOTIFICATION -> Map.of(
+                            "channel", "IN_APP", "requiresConfirmation", true);
+                },
+                decidedBy,
                 "/hr/absence?action=create", state, resultRef,
                 OffsetDateTime.parse("2026-09-17T00:00:00Z"), version);
     }

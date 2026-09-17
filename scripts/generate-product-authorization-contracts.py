@@ -121,7 +121,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24)
+BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25)
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -203,6 +203,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 46, "routes": 768, "PAGE": 118, "DATA": 239, "ACTION": 411},
     24: {"capabilities": 160, "accessPolicies": 22, "entitlementExpressions": 16,
          "predicatePolicies": 46, "routes": 776, "PAGE": 118, "DATA": 244, "ACTION": 414},
+    25: {"capabilities": 160, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 777, "PAGE": 118, "DATA": 244, "ACTION": 415},
 }
 IMMUTABLE_RELEASE_CHECKSUMS = {
     1: "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
@@ -229,6 +231,7 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     22: "1629b75f62c7bb524dc70faaecac73499b9f9b0fb126ab38221b6e4773f35ede",
     23: "4687f384ce79faacf4e2b1eb9c6b8eca3f2109dd62a88ac01c5deda22e1925c7",
     24: "be3db891d27cd0b94aa88ac706d9bc87d4b991c9f9d8e505e26b296647728b84",
+    25: "805fa41852b1679d3c7c473d650020f481ace0c2a7910271872d935c223287c1",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",

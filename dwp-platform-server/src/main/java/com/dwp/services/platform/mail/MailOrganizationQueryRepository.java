@@ -25,7 +25,21 @@ class MailOrganizationQueryRepository {
             String subject,
             String body,
             boolean attachments,
-            Importance importance) {
+            Importance importance,
+            OffsetDateTime createdAt) {
+
+        RuleCandidate(
+                UUID threadId,
+                long version,
+                String sender,
+                String recipient,
+                String subject,
+                String body,
+                boolean attachments,
+                Importance importance) {
+            this(threadId, version, sender, recipient, subject, body,
+                    attachments, importance, OffsetDateTime.MIN);
+        }
     }
 
     private final JdbcTemplate jdbc;
@@ -182,6 +196,26 @@ class MailOrganizationQueryRepository {
     }
 
     List<RuleCandidate> candidates(Long tenantId, Long userId, UUID accountId) {
+        return candidates(
+                tenantId, userId, accountId, OffsetDateTime.now(), null, null);
+    }
+
+    List<RuleCandidate> candidates(
+            Long tenantId,
+            Long userId,
+            UUID accountId,
+            OffsetDateTime snapshotAt,
+            OffsetDateTime afterCreatedAt,
+            UUID afterThreadId) {
+        String continuation = afterCreatedAt == null ? "" : """
+                   AND (thread.created_at < ?
+                        OR (thread.created_at = ? AND thread.thread_id > ?))
+                """;
+        Object[] arguments = afterCreatedAt == null
+                ? new Object[] { tenantId, userId, accountId, snapshotAt }
+                : new Object[] {
+                        tenantId, userId, accountId, snapshotAt,
+                        afterCreatedAt, afterCreatedAt, afterThreadId };
         return jdbc.query("""
                 SELECT thread.thread_id, thread.version,
                        COALESCE(latest.sender_email, '') AS sender,
@@ -189,7 +223,8 @@ class MailOrganizationQueryRepository {
                        thread.subject,
                        COALESCE(latest.body_content, thread.preview) AS body,
                        thread.has_attachments,
-                       thread.importance
+                       thread.importance,
+                       thread.created_at
                   FROM mail_threads thread
                   JOIN mail_accounts account
                     ON account.tenant_id = thread.tenant_id
@@ -205,8 +240,10 @@ class MailOrganizationQueryRepository {
                   ) latest ON TRUE
                  WHERE thread.tenant_id = ? AND account.owner_user_id = ?
                    AND thread.account_id = ?
+                   AND thread.created_at <= ?
                    AND thread.workflow_state NOT IN ('DRAFT', 'TRASHED', 'SPAM')
-                 ORDER BY thread.latest_message_at DESC, thread.thread_id
+                """ + continuation + """
+                 ORDER BY thread.created_at DESC, thread.thread_id
                  LIMIT 501
                 """, (result, ignored) -> new RuleCandidate(
                 result.getObject("thread_id", UUID.class),
@@ -216,7 +253,8 @@ class MailOrganizationQueryRepository {
                 result.getString("subject"),
                 result.getString("body"),
                 result.getBoolean("has_attachments"),
-                Importance.valueOf(result.getString("importance"))), tenantId, userId, accountId);
+                Importance.valueOf(result.getString("importance")),
+                result.getObject("created_at", OffsetDateTime.class)), arguments);
     }
 
     private MailOrganizationDtos.FolderSummary folder(ResultSet result) throws SQLException {

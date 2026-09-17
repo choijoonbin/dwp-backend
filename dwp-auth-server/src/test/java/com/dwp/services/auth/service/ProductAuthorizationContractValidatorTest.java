@@ -243,12 +243,14 @@ class ProductAuthorizationContractValidatorTest {
                 generatedDocument("product-surfaces-v1.bundle-v23.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionTwentyFour = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v24.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(24);
-        assertThat(index.latestChecksum()).isEqualTo(versionTwentyFour.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionTwentyFive = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v25.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(25);
+        assertThat(index.latestChecksum()).isEqualTo(versionTwentyFive.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
-                        12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L);
+                        12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -401,6 +403,17 @@ class ProductAuthorizationContractValidatorTest {
                         "route.dwaion.work.research-raw-download.data",
                         "route.dwaion.work.routine-webhook-trigger.action",
                         "route.dwaion.work.artifact-collaboration-comments.action");
+        assertThat(versionTwentyFive.capabilities())
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionTwentyFour.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertThat(versionTwentyFive.routes()).hasSize(777)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionTwentyFour.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains("route.dwaion.work.artifact-collaboration-review-decision.action");
         assertThat(versionSix.routes()).filteredOn(value -> value.routeContractKey().equals(
                 "route.services.work.request-information-response.action"))
                 .singleElement().satisfies(route -> {

@@ -22,7 +22,9 @@ class MailRuleBackfillTransactions {
             String fingerprint,
             int matchedThreadCount,
             int plannedApplicationCount,
-            boolean truncated) {
+            boolean truncated,
+            String continuationToken,
+            String nextContinuationToken) {
     }
 
     private final MailOrganizationQueryRepository queries;
@@ -49,9 +51,17 @@ class MailRuleBackfillTransactions {
 
     @Transactional(readOnly = true)
     MailRuleBackfillDtos.Preview preview(Long tenantId, Long userId, UUID accountId) {
-        Snapshot snapshot = snapshot(tenantId, userId, accountId);
+        return preview(tenantId, userId, accountId, null);
+    }
+
+    @Transactional(readOnly = true)
+    MailRuleBackfillDtos.Preview preview(
+            Long tenantId, Long userId, UUID accountId, String continuationToken) {
+        Snapshot snapshot = snapshot(tenantId, userId, accountId, continuationToken);
         return new MailRuleBackfillDtos.Preview(
                 accountId,
+                snapshot.continuationToken(),
+                snapshot.nextContinuationToken(),
                 snapshot.fingerprint(),
                 snapshot.rules().size(),
                 snapshot.candidates().size(),
@@ -86,12 +96,8 @@ class MailRuleBackfillTransactions {
             MailRuleBackfillDtos.Request request) {
         backfills.requireActiveLease(tenantId, userId, claim);
         backfills.requireActivePersonalAccount(tenantId, userId, claim.accountId());
-        Snapshot snapshot = snapshot(tenantId, userId, claim.accountId());
-        if (snapshot.truncated()) {
-            throw new BaseException(
-                    ErrorCode.RESOURCE_CONFLICT,
-                    "The backfill preview is truncated. Narrow the mailbox scope before execution.");
-        }
+        Snapshot snapshot = snapshot(
+                tenantId, userId, claim.accountId(), request.continuationToken());
         if (snapshot.rules().isEmpty()) {
             throw new BaseException(ErrorCode.INVALID_STATE, "Enable at least one rule first.");
         }
@@ -199,8 +205,12 @@ class MailRuleBackfillTransactions {
         backfills.fail(tenantId, userId, claim, errorCode);
     }
 
-    private Snapshot snapshot(Long tenantId, Long userId, UUID accountId) {
+    private Snapshot snapshot(
+            Long tenantId, Long userId, UUID accountId, String continuationToken) {
         requireOwnedAccount(tenantId, userId, accountId);
+        MailRuleBackfillContinuation.Cursor cursor =
+                MailRuleBackfillContinuation.resolve(accountId, continuationToken);
+        String currentContinuationToken = MailRuleBackfillContinuation.encode(cursor);
         List<MailOrganizationDtos.RuleSummary> rules = queries.rules(tenantId, userId).stream()
                 .filter(rule -> rule.accountId().equals(accountId) && rule.enabled())
                 .sorted(Comparator
@@ -208,11 +218,16 @@ class MailRuleBackfillTransactions {
                         .thenComparing(MailOrganizationDtos.RuleSummary::ruleId))
                 .toList();
         List<MailOrganizationQueryRepository.RuleCandidate> discovered =
-                queries.candidates(tenantId, userId, accountId);
+                queries.candidates(
+                        tenantId, userId, accountId,
+                        cursor.snapshotAt(), cursor.afterCreatedAt(), cursor.afterThreadId());
         boolean truncated = discovered.size() > 500;
         List<MailOrganizationQueryRepository.RuleCandidate> candidates = truncated
                 ? List.copyOf(discovered.subList(0, 500))
                 : discovered;
+        String nextContinuationToken = truncated
+                ? MailRuleBackfillContinuation.encode(cursor.advance(candidates.getLast()))
+                : null;
         int matchedThreads = 0;
         int applications = 0;
         for (MailOrganizationQueryRepository.RuleCandidate candidate : candidates) {
@@ -228,10 +243,13 @@ class MailRuleBackfillTransactions {
         return new Snapshot(
                 rules,
                 candidates,
-                fingerprints.preview(accountId, rules, candidates),
+                fingerprints.preview(
+                        accountId, currentContinuationToken, rules, candidates),
                 matchedThreads,
                 applications,
-                truncated);
+                truncated,
+                currentContinuationToken,
+                nextContinuationToken);
     }
 
     private void requireOwnedAccount(Long tenantId, Long userId, UUID accountId) {

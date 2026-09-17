@@ -1432,9 +1432,13 @@ class MailWorkspaceRepository {
         }
         String error = result.getString("last_error_code");
         if (error != null) {
-            timeline.add(new DeliveryTimeline("FAILED",
+            String attentionState = deliveryAttentionState(summary.state());
+            timeline.add(new DeliveryTimeline(attentionState,
                     result.getObject("updated_at", OffsetDateTime.class),
-                    "Delivery requires attention", "DWP_OUTBOX", "VERIFIED", error));
+                    "UNKNOWN".equals(attentionState)
+                            ? "Provider outcome is unknown"
+                            : "Delivery requires attention",
+                    "DWP_OUTBOX", "VERIFIED", error));
         }
         String eligibility = retryEligible(result) ? "ELIGIBLE" : "INELIGIBLE";
         if ("UNKNOWN".equals(summary.state())) eligibility = "UNKNOWN";
@@ -1472,6 +1476,10 @@ class MailWorkspaceRepository {
             case "CANCELLED" -> "CANCELLED";
             default -> "UNKNOWN";
         };
+    }
+
+    static String deliveryAttentionState(String summaryState) {
+        return "UNKNOWN".equals(summaryState) ? "UNKNOWN" : "FAILED";
     }
 
     private boolean reschedulable(ResultSet result) throws SQLException {

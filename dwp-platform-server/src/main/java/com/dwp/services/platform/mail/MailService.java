@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.OffsetDateTime;
 import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -346,6 +347,7 @@ public class MailService {
                     tenantId, userId, threadId, correlationId, proposalBinding);
             return detail(tenantId, userId, before);
         }
+        validateNewProposalExecution(tenantId, userId, threadId, proposalBinding);
         validateReplyMandatoryContent(tenantId, userId, threadId, request.body());
         boolean inserted = recipients == null
                 ? commands.insertReply(
@@ -874,7 +876,32 @@ public class MailService {
                 queries.proposals(tenantId, userId, thread.threadId(), 20),
                 thread.sharedInboxId() == null
                         ? List.of()
-                        : queries.sharedInboxMembers(tenantId, thread.sharedInboxId()));
+                        : queries.sharedInboxMembers(tenantId, thread.sharedInboxId()),
+                sharedInboxActions(tenantId, userId, thread.sharedInboxId()),
+                null,
+                List.of());
+    }
+
+    private List<String> sharedInboxActions(Long tenantId, Long userId, UUID sharedInboxId) {
+        if (sharedInboxId == null) return List.of();
+        List<String> actions = new ArrayList<>();
+        if (queries.hasSharedInboxPermission(
+                tenantId, sharedInboxId, userId,
+                MailQueryRepository.SharedInboxPermission.ASSIGN)) {
+            actions.add("ASSIGN");
+        }
+        if (queries.hasSharedInboxPermission(
+                tenantId, sharedInboxId, userId,
+                MailQueryRepository.SharedInboxPermission.MANAGE)) {
+            actions.add("COMMENT");
+        }
+        if (queries.hasSharedInboxPermission(
+                tenantId, sharedInboxId, userId,
+                MailQueryRepository.SharedInboxPermission.SEND)) {
+            actions.add("REPLY");
+            actions.add("SEND_AS");
+        }
+        return List.copyOf(actions);
     }
 
     private Map<String, Object> sharedInboxState(MailDtos.SharedInboxSummary value) {
@@ -1172,6 +1199,17 @@ public class MailService {
         }
         proposalOutcomes.validate(
                 tenantId, actorId, MailProposalOutcomePort.Owner.MAIL, binding);
+    }
+
+    private void validateNewProposalExecution(
+            long tenantId,
+            long actorId,
+            UUID threadId,
+            MailProposalHandoffBinding binding) {
+        if (binding == null) return;
+        proposalOutcomes.validateNewExecution(
+                tenantId, actorId, MailProposalOutcomePort.Owner.MAIL, binding,
+                new MailProposalOutcomePort.OwnerMutation(threadId, Map.of()));
     }
 
     private void completeReplyProposal(

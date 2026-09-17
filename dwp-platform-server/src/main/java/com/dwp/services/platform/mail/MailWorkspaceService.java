@@ -596,7 +596,7 @@ public class MailWorkspaceService {
                 tenantId, userId, detail.thread().threadId()).orElse(null);
         return new MailDtos.ThreadDetail(
                 detail.thread(), detail.messages(), detail.internalComments(), detail.proposals(),
-                detail.sharedInboxMembers(), options,
+                detail.sharedInboxMembers(), detail.sharedInboxActions(), options,
                 repository.draftAttachments(tenantId, userId, detail.thread().threadId()));
     }
 

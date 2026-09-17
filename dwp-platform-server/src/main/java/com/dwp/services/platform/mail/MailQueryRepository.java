@@ -33,6 +33,8 @@ class MailQueryRepository {
             UUID proposalId,
             UUID commandId,
             ProposalType proposalType,
+            UUID sourceThreadId,
+            Map<String, Object> proposedPayload,
             Long decidedBy,
             String ownerRoute,
             String ownerState,
@@ -734,7 +736,9 @@ class MailQueryRepository {
             long tenantId, UUID proposalId, boolean lock) {
         String sql = """
                 SELECT proposal.proposal_id, proposal.owner_command_id,
-                       proposal.proposal_type, proposal.decided_by,
+                       proposal.proposal_type, proposal.thread_id,
+                       proposal.proposed_payload::text AS proposed_payload,
+                       proposal.decided_by,
                        proposal.target_route, proposal.owner_state,
                        proposal.result_ref, proposal.owner_updated_at,
                        proposal.version
@@ -747,6 +751,8 @@ class MailQueryRepository {
                         result.getObject("proposal_id", UUID.class),
                         result.getObject("owner_command_id", UUID.class),
                         ProposalType.valueOf(result.getString("proposal_type")),
+                        result.getObject("thread_id", UUID.class),
+                        json.map(result.getString("proposed_payload")),
                         result.getObject("decided_by", Long.class),
                         result.getString("target_route"),
                         result.getString("owner_state"),

@@ -7,6 +7,7 @@ import com.dwp.services.approval.domain.ApprovalDraftService;
 import com.dwp.services.approval.domain.ApprovalResubmitDraftDtos;
 import com.dwp.services.approval.domain.ApprovalService;
 import com.dwp.services.approval.domain.ApprovalWorkflowQuorumInformationPending;
+import com.dwp.services.approval.dwaion.DwaionProposalHandoffIdentity;
 import com.dwp.services.approval.security.ApprovalWorkflowQuorumCommandMetadata;
 import com.dwp.services.approval.security.ApprovalWorkflowQuorumCommandProof.Purpose;
 import jakarta.validation.Valid;
@@ -116,8 +117,11 @@ public class ApprovalController {
     public ApiResponse<ApprovalDtos.RequestSummary> create(
             @Valid @RequestBody ApprovalDtos.CreateRequest request,
             @RequestHeader("Idempotency-Key") String idempotencyKey,
-            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
-        return ApiResponse.success(drafts.create(request, idempotencyKey, correlationId));
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Auth-Session-ID", required = false) String authSessionId) {
+        DwaionProposalHandoffIdentity identity = request.dwaionProposalHandoff() == null
+                ? null : handoffIdentity(authSessionId);
+        return ApiResponse.success(drafts.create(request, idempotencyKey, correlationId, identity));
     }
 
     @PostMapping("/requests/{requestId}/resubmit-draft")
@@ -189,6 +193,16 @@ public class ApprovalController {
     private void prepareWorkflowMetadata(Purpose purpose, UUID target) {
         if (workflowMetadata == null) throw informationUnavailable();
         workflowMetadata.prepare(purpose, target);
+    }
+
+    private DwaionProposalHandoffIdentity handoffIdentity(String authSessionId) {
+        try {
+            return new DwaionProposalHandoffIdentity(authSessionId);
+        } catch (IllegalArgumentException invalid) {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.INVALID_INPUT_VALUE,
+                    invalid.getMessage());
+        }
     }
     private com.dwp.core.exception.BaseException informationUnavailable() {
         return new com.dwp.core.exception.BaseException(com.dwp.core.common.ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,

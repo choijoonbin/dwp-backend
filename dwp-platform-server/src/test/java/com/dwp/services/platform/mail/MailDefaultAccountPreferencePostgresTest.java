@@ -93,7 +93,7 @@ class MailDefaultAccountPreferencePostgresTest {
                         List.of(new MailAddressBookRepository.Recipient(
                                 UUID.randomUUID(), "Group Recipient",
                                 "group-recipient@example.com")),
-                        "corr-default-account"));
+                        "corr-default-account", "a".repeat(64)));
         assertThat(group).isNotNull();
         assertThreadAccount(jdbc, owner.tenantId(), group.threadId(), preferredAccountId);
     }

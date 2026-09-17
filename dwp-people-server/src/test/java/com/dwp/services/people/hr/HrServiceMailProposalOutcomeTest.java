@@ -53,7 +53,7 @@ class HrServiceMailProposalOutcomeTest {
         HrMailProposalBinding binding = binding();
         org.mockito.Mockito.doThrow(new BaseException(
                         ErrorCode.RESOURCE_CONFLICT, "stale binding"))
-                .when(outcomes).preflight(TENANT_ID, ACTOR_ID, binding);
+                .when(outcomes).preflight(TENANT_ID, ACTOR_ID, binding, request);
 
         assertThatThrownBy(() -> service.createLeaveRequest(
                 request, "corr-preflight", binding))
@@ -96,7 +96,7 @@ class HrServiceMailProposalOutcomeTest {
 
         assertThat(result).isEqualTo(created);
         var order = inOrder(outcomes, repository, audit);
-        order.verify(outcomes).preflight(TENANT_ID, ACTOR_ID, binding);
+        order.verify(outcomes).preflight(TENANT_ID, ACTOR_ID, binding, request);
         order.verify(repository).createLeaveRequest(TENANT_ID, WORKER_ID, request, ACTOR_ID);
         order.verify(outcomes).enqueueExecuted(
                 TENANT_ID, ACTOR_ID, binding, requestId, "corr-success");

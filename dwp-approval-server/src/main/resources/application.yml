@@ -70,6 +70,16 @@ dwp:
     # management-scope-v1 compatibility fence; never use old-binary rollback.
     management-scope-writes-enabled: ${DWP_APPROVAL_MANAGEMENT_SCOPE_WRITES_ENABLED:false}
     management-scope-cluster-fence-confirmed: ${DWP_APPROVAL_MANAGEMENT_SCOPE_CLUSTER_FENCE_CONFIRMED:false}
+    dwaion-handoff:
+      enabled: ${DWP_APPROVAL_DWAION_HANDOFF_ENABLED:true}
+      agent-url: ${SERVICE_AGENT_URL:http://localhost:8010}
+      service-token: ${DWP_AGENT_SERVICE_TOKEN:}
+      worker-token: ${DWP_WORKFLOW_WORKER_TOKEN:}
+      identity-signing-secret: ${DWP_AGENT_IDENTITY_SIGNING_SECRET:}
+      identity-key-id: ${DWP_AGENT_IDENTITY_KEY_ID:gateway-agent-v1}
+      batch-size: ${DWP_APPROVAL_DWAION_HANDOFF_BATCH_SIZE:25}
+      poll-delay-ms: ${DWP_APPROVAL_DWAION_HANDOFF_POLL_DELAY_MS:2000}
+      initial-delay-ms: ${DWP_APPROVAL_DWAION_HANDOFF_INITIAL_DELAY_MS:5000}
     step-up:
       public-key-pem: ${DWP_APPROVAL_STEP_UP_PUBLIC_KEY_PEM:}
       issuer: ${DWP_APPROVAL_STEP_UP_ISSUER:}

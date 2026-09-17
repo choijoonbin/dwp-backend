@@ -9,6 +9,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.OffsetDateTime;
+import java.util.Map;
 import java.util.UUID;
 
 import static com.dwp.services.platform.mail.MailProposalOutcomePort.Owner.HR;
@@ -43,7 +44,9 @@ class InternalMailProposalOutcomeControllerTest {
         assertThat(response.getData()).isTrue();
         verify(outcomes).validateNewExecution(
                 3L, 17L, HR,
-                new MailProposalHandoffBinding(proposalId, commandId, 5L));
+                new MailProposalHandoffBinding(proposalId, commandId, 5L),
+                new MailProposalOutcomePort.OwnerMutation(
+                        null, Map.of("durationDays", 1)));
     }
 
     @Test
@@ -94,7 +97,8 @@ class InternalMailProposalOutcomeControllerTest {
             long version,
             String resultRef) {
         return new InternalMailProposalOutcomeController.OwnerOutcomeRequest(
-                proposalId, commandId, version, resultRef);
+                proposalId, commandId, version, resultRef,
+                resultRef == null ? Map.of("durationDays", 1) : null);
     }
 
     private void assertForbidden(

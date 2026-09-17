@@ -3000,6 +3000,7 @@
         "route.dwaion.work.artifact-collaboration-members.action",
         "route.dwaion.work.artifact-collaboration-preflight.action",
         "route.dwaion.work.artifact-collaboration-resolve.action",
+        "route.dwaion.work.artifact-collaboration-review-decision.action",
         "route.dwaion.work.artifact-collaboration-share.action",
         "route.dwaion.work.artifact-collaboration-workspace.action",
         "route.dwaion.work.artifact-preflight.action",
@@ -5160,7 +5161,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "be3db891d27cd0b94aa88ac706d9bc87d4b991c9f9d8e505e26b296647728b84",
+  "checksum": "805fa41852b1679d3c7c473d650020f481ace0c2a7910271872d935c223287c1",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -6076,6 +6077,7 @@
         "route.dwaion.work.artifact-collaboration-members.action",
         "route.dwaion.work.artifact-collaboration-preflight.action",
         "route.dwaion.work.artifact-collaboration-resolve.action",
+        "route.dwaion.work.artifact-collaboration-review-decision.action",
         "route.dwaion.work.artifact-collaboration-share.action",
         "route.dwaion.work.artifact-collaboration-workspace.action",
         "route.dwaion.work.artifact-collaboration.data",
@@ -24972,6 +24974,60 @@
           "bindingKey": "route.dwaion.work.artifact-collaboration-resolve.action.binding.01",
           "method": "POST",
           "path": "/v1/artifact-collaboration/{artifactId}/workspace/conflicts/{conflictId}/resolve",
+          "pathParameterConstraints": {},
+          "serviceKey": "agent"
+        }
+      ],
+      "sideEffectFree": null,
+      "subject": {
+        "productKey": "dwaion",
+        "surfaceKey": "dwaion.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.dwaion-self.v1"
+          ],
+          "profileKey": "self-authority",
+          "readOnly": false,
+          "requiredAccess": {
+            "capabilityContractKey": "dwaion.work.artifacts.update",
+            "type": "CAPABILITY"
+          },
+          "targetBindingKinds": [
+            "SELF"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.dwaion.work.artifact-collaboration-review-decision.action.binding.01",
+          "method": "POST",
+          "path": "/api/agent/v1/artifact-collaboration/{artifactId}/workspace/review-stages/{stageId}/decision",
+          "pathParameterConstraints": {}
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "dwaion.work",
+      "owner": "DWAI.ON + Agent Runtime + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.dwaion.work.artifact-collaboration-review-decision.action",
+      "routeKind": "ACTION",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.dwaion.work.artifact-collaboration-review-decision.action.binding.01",
+          "method": "POST",
+          "path": "/v1/artifact-collaboration/{artifactId}/workspace/review-stages/{stageId}/decision",
           "pathParameterConstraints": {},
           "serviceKey": "agent"
         }
@@ -53732,5 +53788,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 24
+  "version": 25
 }

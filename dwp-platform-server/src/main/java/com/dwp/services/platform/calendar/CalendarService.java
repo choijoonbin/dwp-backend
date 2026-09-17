@@ -265,6 +265,7 @@ public class CalendarService {
                     tenantId, userId, result.eventId(), correlationId, proposalBinding);
             return result;
         }
+        validateNewMailProposal(tenantId, userId, proposalBinding, request);
         CalendarRepository.PolicyRow policy = validateEvent(
                 tenantId, request.startsAt(), request.endsAt(), request.timeZone(),
                 request.type(), request.description(), request.recurrence(),
@@ -875,6 +876,51 @@ public class CalendarService {
         }
         mailProposalOutcomes.validate(
                 tenantId, actorId, MailProposalOutcomePort.Owner.CALENDAR, binding);
+    }
+
+    private void validateNewMailProposal(
+            long tenantId,
+            long actorId,
+            MailProposalHandoffBinding binding,
+            CalendarDtos.CreateEventRequest request) {
+        if (binding == null) return;
+        mailProposalOutcomes.validateNewExecution(
+                tenantId, actorId, MailProposalOutcomePort.Owner.CALENDAR, binding,
+                new MailProposalOutcomePort.OwnerMutation(
+                        null, calendarProposalPayload(request)));
+    }
+
+    private Map<String, Object> calendarProposalPayload(
+            CalendarDtos.CreateEventRequest request) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("title", request.title());
+        payload.put("description", request.description());
+        payload.put("type", request.type().name());
+        payload.put("startsAt", request.startsAt().toInstant().toString());
+        payload.put("endsAt", request.endsAt().toInstant().toString());
+        payload.put("durationMinutes", Duration.between(
+                request.startsAt(), request.endsAt()).toMinutes());
+        payload.put("timeZone", request.timeZone());
+        payload.put("allDay", request.allDay());
+        payload.put("location", request.location());
+        payload.put("conferenceUrl", request.conferenceUrl());
+        payload.put("visibility", request.visibility().name());
+        payload.put("recurrence", request.recurrence().name());
+        payload.put("recurrenceInterval", request.recurrenceInterval());
+        payload.put("recurrenceUntil", request.recurrenceUntil() == null
+                ? null : request.recurrenceUntil().toString());
+        payload.put("responseRequired", request.responseRequired());
+        payload.put("attendees", request.attendees().stream()
+                .map(CalendarDtos.AttendeeInput::email)
+                .map(email -> email.trim().toLowerCase(Locale.ROOT))
+                .toList());
+        payload.put("resourceId", request.resourceId() == null
+                ? null : request.resourceId().toString());
+        payload.put("calendarId", request.calendarId() == null
+                ? null : request.calendarId().toString());
+        payload.put("importance", request.importance() == null
+                ? null : request.importance().name());
+        return payload;
     }
 
     private void completeMailProposal(

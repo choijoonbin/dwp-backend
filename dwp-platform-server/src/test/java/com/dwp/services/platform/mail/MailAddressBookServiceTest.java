@@ -112,7 +112,7 @@ class MailAddressBookServiceTest {
         when(addressBook.lockGroup(1L, 7L, groupId, 5L)).thenReturn(true);
         when(addressBook.recipients(1L, 7L, groupId)).thenReturn(List.of(recipient));
         when(groupCompose.compose(
-                1L, 7L, groupId, request, List.of(recipient), "corr-first"))
+                1L, 7L, groupId, request, List.of(recipient), "corr-first", fingerprint))
                 .thenReturn(new MailGroupComposeRepository.ComposeResult(
                         threadId, 0L, "a".repeat(64), 1, UUID.randomUUID(), sendReceipt));
         when(mail.thread(1L, 7L, threadId)).thenReturn(detail);
@@ -133,7 +133,7 @@ class MailAddressBookServiceTest {
                 });
 
         verify(groupCompose).compose(
-                1L, 7L, groupId, request, List.of(recipient), "corr-first");
+                1L, 7L, groupId, request, List.of(recipient), "corr-first", fingerprint);
         verify(receipts).complete(
                 1L, 7L, GROUP_MESSAGE_SEND, key, fingerprint, threadId, 0L);
         verify(evidence).domainEvent(

@@ -86,13 +86,16 @@ class MailAddressBookPostgresIntegrationTest {
                 "Launch", "Please review the launch plan.", INTERNAL,
                 MailAddressBookDtos.GroupRecipientMode.TO,
                 UUID.randomUUID(), revised.version());
+        String sendFingerprint = new MailAddressBookCommandFingerprint()
+                .groupMessage(groupId, send);
         MailGroupComposeRepository compose = new MailGroupComposeRepository(
                 jdbc, new MailJsonCodec(new ObjectMapper()));
         MailGroupComposeRepository.ComposeResult delivery = transaction.execute(status -> {
             assertThat(addressBook.lockGroup(
                     owner.tenantId(), owner.userId(), groupId, send.groupVersion())).isTrue();
             return compose.compose(
-                    owner.tenantId(), owner.userId(), groupId, send, recipients, "corr-group");
+                    owner.tenantId(), owner.userId(), groupId, send, recipients,
+                    "corr-group", sendFingerprint);
         });
         assertThat(delivery).isNotNull();
         Map<String, Object> persisted = jdbc.queryForMap("""
@@ -100,6 +103,7 @@ class MailAddressBookPostgresIntegrationTest {
                        jsonb_array_length(message.recipients) AS recipient_count,
                        message.recipients -> 0 ->> 'type' AS recipient_mode,
                        delivery.delivery_status,
+                       delivery.request_fingerprint,
                        history.receipt_state,
                        history.recipient_mode AS history_recipient_mode
                   FROM mail_threads thread
@@ -119,6 +123,7 @@ class MailAddressBookPostgresIntegrationTest {
                 .containsEntry("recipient_count", 2)
                 .containsEntry("recipient_mode", "TO")
                 .containsEntry("delivery_status", "QUEUED")
+                .containsEntry("request_fingerprint", sendFingerprint)
                 .containsEntry("receipt_state", "ACCEPTED")
                 .containsEntry("history_recipient_mode", "TO");
         assertThat(delivery.receipt()).isNotNull();
@@ -149,6 +154,18 @@ class MailAddressBookPostgresIntegrationTest {
                 "kim.updated@example.com", "lee.external@example.com");
         assertThat(claimed.ccRecipients()).isEmpty();
         assertThat(claimed.bccRecipients()).isEmpty();
+        assertThat(deliveryRepository.markFailed(
+                claimed, "address-book-test", "FAILED", "TRANSIENT_PROVIDER_FAILURE", null))
+                .isOne();
+        assertThat(deliveryRepository.retry(
+                owner.tenantId(), owner.userId(), delivery.threadId(), claimed.messageId()))
+                .isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT delivery_status
+                  FROM mail_delivery_outbox
+                 WHERE tenant_id = ? AND delivery_id = ?
+                """, String.class, owner.tenantId(), delivery.deliveryId()))
+                .isEqualTo("QUEUED");
         assertThatThrownBy(() -> jdbc.update("""
                 UPDATE mail_group_recipient_snapshots
                    SET recipient_count = 1

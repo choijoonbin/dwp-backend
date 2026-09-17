@@ -5,13 +5,40 @@ import com.dwp.core.exception.BaseException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.OffsetDateTime;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.mail.MailTypes.ProposalType;
 
 @Service
 final class MailProposalOutcomeService implements MailProposalOutcomePort {
+
+    private static final Set<String> CONTROL_FIELDS = Set.of("requiresConfirmation");
+    private static final Map<Owner, Set<String>> OWNER_FIELDS = Map.of(
+            Owner.MAIL, Set.of("tone", "language"),
+            Owner.CALENDAR, Set.of(
+                    "title", "description", "type", "startsAt", "endsAt",
+                    "durationMinutes", "timeZone", "allDay", "location",
+                    "conferenceUrl", "visibility", "recurrence",
+                    "recurrenceInterval", "recurrenceUntil", "responseRequired",
+                    "attendees", "resourceId", "calendarId", "importance"),
+            Owner.WORK, Set.of(
+                    "title", "description", "priority", "dueAt",
+                    "sourceSystem", "sourceReference", "obligationKey"),
+            Owner.HR, Set.of(
+                    "planId", "startAt", "endAt", "startsOn", "endsOn",
+                    "requestedMinutes", "durationDays", "reason"));
 
     private final MailQueryRepository queries;
     private final MailCommandRepository commands;
@@ -37,7 +64,8 @@ final class MailProposalOutcomeService implements MailProposalOutcomePort {
             long tenantId,
             long actorId,
             Owner owner,
-            MailProposalHandoffBinding binding) {
+            MailProposalHandoffBinding binding,
+            OwnerMutation mutation) {
         if (binding == null) return;
         MailQueryRepository.OwnerProposalHandoffRow row =
                 requireBound(tenantId, actorId, owner, binding, true);
@@ -46,6 +74,7 @@ final class MailProposalOutcomeService implements MailProposalOutcomePort {
             throw invalidState(
                     "The Mail proposal is not available for a new owner execution.");
         }
+        requireMatchingMutation(owner, row, mutation);
     }
 
     @Override
@@ -191,6 +220,104 @@ final class MailProposalOutcomeService implements MailProposalOutcomePort {
             case ESCALATE_NOTIFICATION -> throw invalidState(
                     "Notification escalation has no executable owner integration.");
         };
+    }
+
+    private void requireMatchingMutation(
+            Owner owner,
+            MailQueryRepository.OwnerProposalHandoffRow row,
+            OwnerMutation mutation) {
+        if (mutation == null) {
+            throw invalidState("The Mail proposal owner mutation evidence is missing.");
+        }
+        if (owner == Owner.MAIL) {
+            if (!row.sourceThreadId().equals(mutation.sourceThreadId())) {
+                throw invalidState(
+                        "The Mail reply target does not match the accepted proposal thread.");
+            }
+            return;
+        }
+        Set<String> supported = OWNER_FIELDS.get(owner);
+        Set<String> unsupported = new HashSet<>(row.proposedPayload().keySet());
+        unsupported.removeAll(CONTROL_FIELDS);
+        unsupported.removeAll(supported);
+        if (!unsupported.isEmpty()) {
+            throw invalidState(
+                    "The accepted Mail proposal contains unsupported owner fields: "
+                            + String.join(", ", unsupported.stream().sorted().toList()));
+        }
+        List<String> semanticFields = row.proposedPayload().keySet().stream()
+                .filter(supported::contains)
+                .sorted()
+                .toList();
+        if (semanticFields.isEmpty()) {
+            throw invalidState(
+                    "The accepted Mail proposal has no owner fields that can be verified.");
+        }
+        for (String field : semanticFields) {
+            if (!mutation.payload().containsKey(field)
+                    || !equivalent(field, row.proposedPayload().get(field),
+                    mutation.payload().get(field))) {
+                throw invalidState(
+                        "The owner mutation does not match the accepted Mail proposal field: "
+                                + field);
+            }
+        }
+    }
+
+    private boolean equivalent(String field, Object expected, Object actual) {
+        if (expected == null || actual == null) return Objects.equals(expected, actual);
+        if (expected instanceof Number expectedNumber && actual instanceof Number actualNumber) {
+            return new BigDecimal(expectedNumber.toString())
+                    .compareTo(new BigDecimal(actualNumber.toString())) == 0;
+        }
+        if ("startsAt".equals(field) || "endsAt".equals(field) || "dueAt".equals(field)
+                || "startAt".equals(field) || "endAt".equals(field)) {
+            try {
+                return instant(expected).equals(instant(actual));
+            } catch (RuntimeException ignored) {
+                return false;
+            }
+        }
+        if ("startsOn".equals(field) || "endsOn".equals(field)
+                || "recurrenceUntil".equals(field)) {
+            try {
+                return LocalDate.parse(expected.toString())
+                        .equals(LocalDate.parse(actual.toString()));
+            } catch (RuntimeException ignored) {
+                return false;
+            }
+        }
+        if ("attendees".equals(field)) {
+            return normalizedEmails(expected).equals(normalizedEmails(actual));
+        }
+        if (expected instanceof Collection<?> expectedValues
+                && actual instanceof Collection<?> actualValues) {
+            return new ArrayList<>(expectedValues).equals(new ArrayList<>(actualValues));
+        }
+        return expected.toString().trim().equals(actual.toString().trim());
+    }
+
+    private Instant instant(Object value) {
+        if (value instanceof Instant instant) return instant;
+        if (value instanceof OffsetDateTime offset) return offset.toInstant();
+        String text = value.toString();
+        try {
+            return Instant.parse(text);
+        } catch (RuntimeException ignored) {
+            return OffsetDateTime.parse(text).toInstant();
+        }
+    }
+
+    private List<String> normalizedEmails(Object value) {
+        if (!(value instanceof Collection<?> values)) return List.of();
+        return values.stream()
+                .map(item -> item instanceof Map<?, ?> map ? map.get("email") : item)
+                .filter(Objects::nonNull)
+                .map(Object::toString)
+                .map(String::trim)
+                .map(text -> text.toLowerCase(java.util.Locale.ROOT))
+                .sorted(Comparator.naturalOrder())
+                .toList();
     }
 
     private String normalizeResult(Owner owner, String resultRef) {

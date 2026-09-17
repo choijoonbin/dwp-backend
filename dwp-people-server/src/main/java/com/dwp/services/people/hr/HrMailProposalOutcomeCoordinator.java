@@ -18,8 +18,12 @@ final class HrMailProposalOutcomeCoordinator implements HrMailProposalOutcomeOpe
     }
 
     @Override
-    public void preflight(long tenantId, long actorId, HrMailProposalBinding binding) {
-        client.preflight(tenantId, actorId, binding);
+    public void preflight(
+            long tenantId,
+            long actorId,
+            HrMailProposalBinding binding,
+            HrDtos.CreateLeaveRequest request) {
+        client.preflight(tenantId, actorId, binding, request);
     }
 
     @Override

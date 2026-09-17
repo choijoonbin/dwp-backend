@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.UUID;
@@ -121,8 +122,10 @@ public class MailOrganizationController {
     public ApiResponse<MailRuleBackfillDtos.Preview> backfillPreview(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
-            @PathVariable UUID accountId) {
-        return ApiResponse.success(backfills.preview(tenantId, userId, accountId));
+            @PathVariable UUID accountId,
+            @RequestParam(required = false) String continuationToken) {
+        return ApiResponse.success(
+                backfills.preview(tenantId, userId, accountId, continuationToken));
     }
 
     @PostMapping("/accounts/{accountId}/rules/backfill")

@@ -278,7 +278,7 @@ public class MailAddressBookService {
                     "The group exceeds the current 100-recipient safety limit.");
         }
         MailGroupComposeRepository.ComposeResult result = groupCompose.compose(
-                tenantId, userId, groupId, request, recipients, correlationId);
+                tenantId, userId, groupId, request, recipients, correlationId, fingerprint);
         if (result == null) {
             throw new BaseException(
                     ErrorCode.INVALID_STATE,

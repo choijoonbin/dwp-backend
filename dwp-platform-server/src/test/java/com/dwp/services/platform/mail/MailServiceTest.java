@@ -774,6 +774,38 @@ class MailServiceTest {
     }
 
     @Test
+    void sharedThreadDetailProjectsOnlyTheCurrentActorsEffectiveActions() {
+        UUID threadId = UUID.randomUUID();
+        UUID sharedInboxId = UUID.randomUUID();
+        MailDtos.ThreadSummary sharedThread = new MailDtos.ThreadSummary(
+                threadId, UUID.randomUUID(), "People Help", "INBOX",
+                sharedInboxId, "People Help", "문의", "확인 부탁드립니다.",
+                List.of(new MailDtos.Participant("구성원", "member@sk.com")),
+                OffsetDateTime.now(), true, false, Importance.HIGH,
+                TriageLane.ASSIGNED, WorkflowState.OPEN, null,
+                null, null, false, false, Classification.INTERNAL, 1, 0L);
+        when(queries.thread(1L, 7L, threadId)).thenReturn(Optional.of(sharedThread));
+        when(queries.messages(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
+        when(queries.sharedInboxMembers(1L, sharedInboxId)).thenReturn(List.of());
+        when(queries.hasSharedInboxPermission(
+                1L, sharedInboxId, 7L,
+                MailQueryRepository.SharedInboxPermission.ASSIGN)).thenReturn(true);
+        when(queries.hasSharedInboxPermission(
+                1L, sharedInboxId, 7L,
+                MailQueryRepository.SharedInboxPermission.MANAGE)).thenReturn(false);
+        when(queries.hasSharedInboxPermission(
+                1L, sharedInboxId, 7L,
+                MailQueryRepository.SharedInboxPermission.SEND)).thenReturn(true);
+
+        MailDtos.ThreadDetail detail = service.thread(1L, 7L, threadId);
+
+        assertThat(detail.sharedInboxActions())
+                .containsExactly("ASSIGN", "REPLY", "SEND_AS");
+    }
+
+    @Test
     void sharedInboxAssignmentPublishesTheAssigneeNotificationIntent() {
         UUID threadId = UUID.randomUUID();
         UUID accountId = UUID.randomUUID();

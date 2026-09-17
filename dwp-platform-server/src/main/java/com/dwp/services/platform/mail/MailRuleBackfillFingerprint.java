@@ -16,9 +16,18 @@ class MailRuleBackfillFingerprint {
             UUID accountId,
             List<MailOrganizationDtos.RuleSummary> rules,
             List<MailOrganizationQueryRepository.RuleCandidate> candidates) {
+        return preview(accountId, "", rules, candidates);
+    }
+
+    String preview(
+            UUID accountId,
+            String continuationToken,
+            List<MailOrganizationDtos.RuleSummary> rules,
+            List<MailOrganizationQueryRepository.RuleCandidate> candidates) {
         MessageDigest digest = digest();
-        append(digest, "mail-rule-backfill-preview.v1");
+        append(digest, "mail-rule-backfill-preview.v2");
         append(digest, accountId);
+        append(digest, continuationToken);
         for (MailOrganizationDtos.RuleSummary rule : rules) {
             append(digest, rule.ruleId());
             append(digest, rule.version());
@@ -37,6 +46,7 @@ class MailRuleBackfillFingerprint {
             append(digest, candidate.body());
             append(digest, candidate.attachments());
             append(digest, candidate.importance());
+            append(digest, candidate.createdAt());
         }
         return HexFormat.of().formatHex(digest.digest());
     }

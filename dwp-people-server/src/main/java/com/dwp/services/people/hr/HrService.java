@@ -314,7 +314,8 @@ public class HrService {
         }
         if (mailProposalBinding != null) {
             mailProposalOutcomes.preflight(
-                    context.actor().tenantId(), context.actor().userId(), mailProposalBinding);
+                    context.actor().tenantId(), context.actor().userId(),
+                    mailProposalBinding, request);
         }
         HrDtos.LeaveRequest created;
         try {

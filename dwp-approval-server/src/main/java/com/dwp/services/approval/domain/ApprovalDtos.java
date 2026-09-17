@@ -1,5 +1,6 @@
 package com.dwp.services.approval.domain;
 
+import com.dwp.services.approval.dwaion.DwaionProposalHandoffBinding;
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -522,7 +523,17 @@ public final class ApprovalDtos {
             @NotNull @Size(max = 300) String title,
             @NotNull @Size(max = 2000) String summary,
             @NotBlank String priority,
-            Map<String, Object> payload) {
+            Map<String, Object> payload,
+            @Valid DwaionProposalHandoffBinding dwaionProposalHandoff) {
+        public CreateRequest(
+                UUID workflowId,
+                UUID formId,
+                String title,
+                String summary,
+                String priority,
+                Map<String, Object> payload) {
+            this(workflowId, formId, title, summary, priority, payload, null);
+        }
     }
 
     public record UpdateDraftRequest(

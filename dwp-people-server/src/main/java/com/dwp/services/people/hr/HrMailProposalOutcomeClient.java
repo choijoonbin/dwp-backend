@@ -11,6 +11,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
+import java.time.ZoneOffset;
+import java.time.temporal.ChronoUnit;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 @Component
@@ -40,7 +44,11 @@ public class HrMailProposalOutcomeClient {
         this.serviceToken = serviceToken == null ? "" : serviceToken.strip();
     }
 
-    public void preflight(long tenantId, long actorId, HrMailProposalBinding binding) {
+    public void preflight(
+            long tenantId,
+            long actorId,
+            HrMailProposalBinding binding,
+            HrDtos.CreateLeaveRequest leaveRequest) {
         requireConfigured();
         try {
             platform.post()
@@ -51,7 +59,7 @@ public class HrMailProposalOutcomeClient {
                     .header(TENANT_HEADER, Long.toString(tenantId))
                     .header(USER_HEADER, Long.toString(actorId))
                     .contentType(MediaType.APPLICATION_JSON)
-                    .body(OwnerOutcomeRequest.preflight(binding))
+                    .body(OwnerOutcomeRequest.preflight(binding, leaveRequest))
                     .retrieve()
                     .toBodilessEntity();
         } catch (RestClientResponseException exception) {
@@ -77,7 +85,8 @@ public class HrMailProposalOutcomeClient {
                             outcome.proposalId(),
                             outcome.commandId(),
                             outcome.proposalVersion(),
-                            outcome.resultRef()))
+                            outcome.resultRef(),
+                            null))
                     .retrieve()
                     .toBodilessEntity();
         } catch (RestClientResponseException exception) {
@@ -121,14 +130,31 @@ public class HrMailProposalOutcomeClient {
             UUID proposalId,
             UUID commandId,
             long proposalVersion,
-            String resultRef) {
+            String resultRef,
+            Map<String, Object> ownerPayload) {
 
-        static OwnerOutcomeRequest preflight(HrMailProposalBinding binding) {
+        static OwnerOutcomeRequest preflight(
+                HrMailProposalBinding binding,
+                HrDtos.CreateLeaveRequest request) {
+            Map<String, Object> payload = new LinkedHashMap<>();
+            payload.put("planId", request.planId().toString());
+            payload.put("startAt", request.startAt().toString());
+            payload.put("endAt", request.endAt().toString());
+            payload.put("startsOn", request.startAt().atZone(ZoneOffset.UTC)
+                    .toLocalDate().toString());
+            payload.put("endsOn", request.endAt().atZone(ZoneOffset.UTC)
+                    .toLocalDate().toString());
+            payload.put("requestedMinutes", request.requestedMinutes());
+            payload.put("durationDays", ChronoUnit.DAYS.between(
+                    request.startAt().atZone(ZoneOffset.UTC).toLocalDate(),
+                    request.endAt().atZone(ZoneOffset.UTC).toLocalDate()) + 1);
+            payload.put("reason", request.reason());
             return new OwnerOutcomeRequest(
                     binding.proposalId(),
                     binding.commandId(),
                     binding.proposalVersion(),
-                    null);
+                    null,
+                    payload);
         }
     }
 

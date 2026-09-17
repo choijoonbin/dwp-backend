@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Map;
 import java.util.UUID;
 
 @RestController
@@ -37,7 +38,8 @@ public final class InternalMailProposalOutcomeController {
         requirePeopleService(serviceIdentity);
         outcomes.validateNewExecution(
                 tenantId, actorId, MailProposalOutcomePort.Owner.HR,
-                request.binding());
+                request.binding(),
+                new MailProposalOutcomePort.OwnerMutation(null, request.ownerPayload()));
         return ApiResponse.success(true);
     }
 
@@ -67,7 +69,8 @@ public final class InternalMailProposalOutcomeController {
             @NotNull UUID proposalId,
             @NotNull UUID commandId,
             @NotNull @Min(0) Long proposalVersion,
-            @Size(max = 500) String resultRef) {
+            @Size(max = 500) String resultRef,
+            Map<String, Object> ownerPayload) {
 
         MailProposalHandoffBinding binding() {
             return new MailProposalHandoffBinding(

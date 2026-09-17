@@ -107,6 +107,7 @@ public class PersonalWorkService {
         List<ChecklistItem> checklist = validateChecklist(request.checklist() == null ? List.of() : request.checklist());
         List<SourceReference> sources = requestedSources(request.sourceReference(), request.sourceReferences(), false, List.of());
         TaskRow result = command(context, commandId, "CREATE", "tasks", request, TaskRow.class, () -> {
+            validateNewMailProposal(context, proposalBinding, request);
             sources.forEach(source -> requireSource(context, source));
             CreateTaskRequest effective = new CreateTaskRequest(request.title(), request.description(),
                     request.priority(), request.dueAt(), sources.isEmpty() ? null : sources.getFirst(), checklist, sources);
@@ -464,6 +465,32 @@ public class PersonalWorkService {
         mailProposalOutcomes.validate(
                 context.tenantId(), context.userId(),
                 MailProposalOutcomePort.Owner.WORK, binding);
+    }
+
+    private void validateNewMailProposal(
+            AccessContext context,
+            MailProposalHandoffBinding binding,
+            CreateTaskRequest request) {
+        if (binding == null) return;
+        mailProposalOutcomes.validateNewExecution(
+                context.tenantId(), context.userId(),
+                MailProposalOutcomePort.Owner.WORK, binding,
+                new MailProposalOutcomePort.OwnerMutation(
+                        null, workProposalPayload(request)));
+    }
+
+    private Map<String, Object> workProposalPayload(CreateTaskRequest request) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("title", request.title());
+        payload.put("description", request.description());
+        payload.put("priority", request.priority().name());
+        payload.put("dueAt", request.dueAt() == null
+                ? null : request.dueAt().toInstant().toString());
+        SourceReference source = request.sourceReference();
+        payload.put("sourceSystem", source == null ? null : source.sourceSystem());
+        payload.put("sourceReference", source == null ? null : source.sourceReference());
+        payload.put("obligationKey", source == null ? null : source.obligationKey());
+        return payload;
     }
 
     private void completeMailProposal(

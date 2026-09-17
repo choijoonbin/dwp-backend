@@ -1,5 +1,8 @@
 package com.dwp.services.platform.mail;
 
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.UUID;
 
 public interface MailProposalOutcomePort {
@@ -26,7 +29,8 @@ public interface MailProposalOutcomePort {
             long tenantId,
             long actorId,
             Owner owner,
-            MailProposalHandoffBinding binding);
+            MailProposalHandoffBinding binding,
+            OwnerMutation mutation);
 
     MailDtos.ProposalHandoff executed(
             long tenantId,
@@ -43,4 +47,12 @@ public interface MailProposalOutcomePort {
             UUID commandId,
             long proposalVersion,
             String correlationId);
+
+    record OwnerMutation(UUID sourceThreadId, Map<String, Object> payload) {
+        public OwnerMutation {
+            payload = payload == null
+                    ? Map.of()
+                    : Collections.unmodifiableMap(new LinkedHashMap<>(payload));
+        }
+    }
 }

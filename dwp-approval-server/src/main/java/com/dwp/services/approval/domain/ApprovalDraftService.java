@@ -7,6 +7,7 @@ import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.services.approval.security.ApprovalRequestContext;
 import com.dwp.services.approval.security.ApprovalDecisionRevisionContext;
 import com.dwp.services.approval.security.ApprovalPilotAuthorizationContext;
+import com.dwp.services.approval.dwaion.DwaionProposalHandoffIdentity;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
@@ -35,6 +36,15 @@ public class ApprovalDraftService {
 
     @Transactional
     public ApprovalDtos.RequestSummary create(ApprovalDtos.CreateRequest body, String key, String correlationId) {
+        return create(body, key, correlationId, null);
+    }
+
+    @Transactional
+    public ApprovalDtos.RequestSummary create(
+            ApprovalDtos.CreateRequest body,
+            String key,
+            String correlationId,
+            DwaionProposalHandoffIdentity handoffIdentity) {
         validateKey(key);
         var actor = authority.requireCurrent("ACTION.APPROVAL_REQUEST:CREATE");
         var receipt = repository.begin(actor, "POST /v1/requests", "CREATE", null, key, body, 0, null, correlationId);
@@ -43,7 +53,7 @@ public class ApprovalDraftService {
             authority.requireCurrent("ACTION.APPROVAL_REQUEST:CREATE");
             return repository.read(receipt.result(), ApprovalDtos.RequestSummary.class);
         }
-        var response = approvals.create(body, correlationId);
+        var response = approvals.create(body, correlationId, handoffIdentity);
         authority.requireCurrent("ACTION.APPROVAL_REQUEST:CREATE");
         repository.complete(receipt, response, repository.lock(actor, response.requestId()));
         return response;

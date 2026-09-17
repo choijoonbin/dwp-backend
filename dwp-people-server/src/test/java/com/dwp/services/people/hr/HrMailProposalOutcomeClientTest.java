@@ -7,6 +7,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.client.MockRestServiceServer;
 import org.springframework.web.client.RestClient;
 
+import java.time.Instant;
 import java.util.UUID;
 
 import static org.springframework.test.web.client.ExpectedCount.once;
@@ -28,6 +29,9 @@ class HrMailProposalOutcomeClientTest {
                 builder.build(), "platform-token");
         HrMailProposalBinding binding = new HrMailProposalBinding(
                 UUID.randomUUID(), UUID.randomUUID(), 6L);
+        Instant start = Instant.parse("2026-10-05T00:00:00Z");
+        HrDtos.CreateLeaveRequest leaveRequest = new HrDtos.CreateLeaveRequest(
+                UUID.randomUUID(), start, start.plusSeconds(28_800), 480, "Annual leave");
 
         server.expect(once(), requestTo(
                         "https://platform.test/internal/v1/mail/proposal-outcomes/preflight"))
@@ -41,12 +45,24 @@ class HrMailProposalOutcomeClientTest {
                           "proposalId": "%s",
                           "commandId": "%s",
                           "proposalVersion": 6,
-                          "resultRef": null
+                          "resultRef": null,
+                          "ownerPayload": {
+                            "planId": "%s",
+                            "startAt": "2026-10-05T00:00:00Z",
+                            "endAt": "2026-10-05T08:00:00Z",
+                            "startsOn": "2026-10-05",
+                            "endsOn": "2026-10-05",
+                            "requestedMinutes": 480,
+                            "durationDays": 1,
+                            "reason": "Annual leave"
+                          }
                         }
-                        """.formatted(binding.proposalId(), binding.commandId())))
+                        """.formatted(
+                                binding.proposalId(), binding.commandId(),
+                                leaveRequest.planId())))
                 .andRespond(withSuccess("{}", MediaType.APPLICATION_JSON));
 
-        client.preflight(3L, 17L, binding);
+        client.preflight(3L, 17L, binding, leaveRequest);
 
         server.verify();
     }

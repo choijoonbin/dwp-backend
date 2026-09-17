@@ -29,6 +29,9 @@ class MailRuleBackfillFingerprintTest {
                 .isNotEqualTo(original);
         assertThat(fingerprints.preview(UUID.randomUUID(), List.of(rule), List.of(candidate)))
                 .isNotEqualTo(original);
+        assertThat(fingerprints.preview(
+                accountId, "different-continuation", List.of(rule), List.of(candidate)))
+                .isNotEqualTo(original);
     }
 
     @Test
