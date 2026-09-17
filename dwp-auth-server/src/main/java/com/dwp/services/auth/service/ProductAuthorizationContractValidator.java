@@ -109,7 +109,7 @@ public class ProductAuthorizationContractValidator {
         require(contract.schemaVersion() == 1, "Unsupported registry schemaVersion.");
         require("product-surfaces".equals(contract.bundleKey()), "Unexpected registry bundleKey.");
         require(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(contract.version()),
-                "Registry descriptor version must be one of the closed versions 1 through 21.");
+                "Registry descriptor version must be one of the closed versions 1 through 24.");
         require(Set.of("DRAFT", "APPROVED", "ACTIVE", "RETIRED").contains(contract.bundleStatus()),
                 "Invalid bundle status.");
         require("SHA-256".equals(contract.checksumAlgorithm()), "Only SHA-256 is supported.");

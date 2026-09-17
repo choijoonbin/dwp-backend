@@ -451,6 +451,33 @@
         },
         "type": "object"
       },
+      "ApiResponseFeatureRolloutApplicationReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FeatureRolloutApplicationReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseFeatureRolloutInternalEvaluation": {
         "properties": {
           "correlationId": {
@@ -3015,6 +3042,76 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "FeatureRolloutApplicationReceipt": {
+        "properties": {
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "flagKey": {
+            "type": "string"
+          },
+          "newlyAccepted": {
+            "type": "boolean"
+          },
+          "observationState": {
+            "type": "string"
+          },
+          "opaqueRevision": {
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "targetId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FeatureRolloutApplicationReceiptRequest": {
+        "properties": {
+          "authTenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "errorCode": {
+            "maxLength": 80,
+            "minLength": 0,
+            "pattern": "^[A-Z][A-Z0-9_]{2,79}$",
+            "type": "string"
+          },
+          "flagKey": {
+            "maxLength": 160,
+            "minLength": 0,
+            "pattern": "^(access|ux)\\.product-surfaces\\.[a-z0-9.-]+\\.v1$",
+            "type": "string"
+          },
+          "observationState": {
+            "minLength": 1,
+            "pattern": "APPLIED|FAILED",
+            "type": "string"
+          },
+          "opaqueRevision": {
+            "minLength": 1,
+            "pattern": "^rev-[0-9]{20}$",
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authTenantId",
+          "flagKey",
+          "observationState",
+          "opaqueRevision",
+          "receiptId"
+        ],
         "type": "object"
       },
       "FeatureRolloutInternalEvaluation": {
@@ -5616,6 +5713,36 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/internal/provider/v1/feature-rollouts/application-receipts": {
+      "post": {
+        "operationId": "acknowledgeProductSurfaceFeatureRolloutApplicationInternal",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FeatureRolloutApplicationReceiptRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFeatureRolloutApplicationReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "feature-rollout-application-receipt-controller"
+        ]
+      }
+    },
     "/internal/provider/v1/feature-rollouts/evaluate": {
       "post": {
         "operationId": "evaluateProductSurfaceFeatureRolloutInternal",

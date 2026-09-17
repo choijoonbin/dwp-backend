@@ -1,8 +1,10 @@
 package com.dwp.services.platform.mail;
 
+import com.dwp.platform.contract.MailConnectorPort;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
 
+import java.net.URI;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.OffsetDateTime;
@@ -20,6 +22,30 @@ import static com.dwp.services.platform.mail.MailWorkspaceDtos.*;
 class MailWorkspaceRepository {
 
     record AdvancedComposeCreated(UUID threadId, UUID deliveryId, boolean replayed) {
+    }
+
+    record AdvancedComposeCommand(
+            UUID threadId, UUID deliveryId, UUID accountId, String requestFingerprint) {
+    }
+
+    record AttachmentContentReference(
+            String storageReference,
+            String fileName,
+            String contentType,
+            long sizeBytes,
+            String checksumSha256) {
+    }
+
+    record ComposeProviderContext(
+            UUID accountId,
+            MailTypes.ProviderType providerType,
+            UUID connectionId,
+            URI credentialReference,
+            String mailDomain,
+            String providerAccountReference) {
+    }
+
+    private record AttachmentAggregate(long count, long totalBytes) {
     }
 
     private record DeletedAttachment(String storageReference, UUID threadId) {
@@ -64,11 +90,13 @@ class MailWorkspaceRepository {
     List<Template> templates(long tenantId, long userId, boolean includeArchived) {
         return jdbc.query("""
                 SELECT template_id, display_name, subject_template, body_content, body_format,
-                       template_scope, account_id, mandatory_content, lifecycle_state,
-                       version, updated_at, owner_user_id
-                  FROM mail_templates
+                       template_scope, account_id, mandatory_content, publication_state,
+                       publication_version, lifecycle_state, version, updated_at, owner_user_id
+                 FROM mail_templates
                  WHERE tenant_id = ?
-                   AND (owner_user_id = ? OR template_scope = 'ORGANIZATION')
+                   AND ((template_scope <> 'ORGANIZATION' AND owner_user_id = ?)
+                     OR (template_scope = 'ORGANIZATION'
+                         AND publication_state = 'PUBLISHED'))
                    AND (? OR lifecycle_state = 'ACTIVE')
                  ORDER BY lifecycle_state, template_scope, lower(display_name), template_id
                 """, (result, ignored) -> template(result, userId),
@@ -78,14 +106,35 @@ class MailWorkspaceRepository {
     Optional<Template> template(long tenantId, long userId, UUID templateId) {
         return jdbc.query("""
                 SELECT template_id, display_name, subject_template, body_content, body_format,
-                       template_scope, account_id, mandatory_content, lifecycle_state,
-                       version, updated_at, owner_user_id
+                       template_scope, account_id, mandatory_content, publication_state,
+                       publication_version, lifecycle_state, version, updated_at, owner_user_id
                  FROM mail_templates
                  WHERE tenant_id = ? AND template_id = ?
-                   AND (owner_user_id = ? OR template_scope = 'ORGANIZATION')
+                   AND ((template_scope <> 'ORGANIZATION' AND owner_user_id = ?)
+                     OR (template_scope = 'ORGANIZATION'
+                         AND publication_state = 'PUBLISHED'))
                    AND lifecycle_state = 'ACTIVE'
                 """, (result, ignored) -> template(result, userId),
                 tenantId, templateId, userId).stream().findFirst();
+    }
+
+    Optional<Template> templateForSend(
+            long tenantId, long userId, UUID accountId, UUID templateId) {
+        return jdbc.query("""
+                SELECT template_id, display_name, subject_template, body_content, body_format,
+                       template_scope, account_id, mandatory_content, publication_state,
+                       publication_version, lifecycle_state, version, updated_at, owner_user_id
+                  FROM mail_templates
+                 WHERE tenant_id = ? AND template_id = ? AND lifecycle_state = 'ACTIVE'
+                   AND ((template_scope = 'PERSONAL' AND owner_user_id = ?
+                         AND account_id IS NULL)
+                     OR (template_scope = 'ACCOUNT' AND owner_user_id = ?
+                         AND account_id = ?)
+                     OR (template_scope = 'ORGANIZATION' AND account_id IS NULL
+                         AND publication_state = 'PUBLISHED'))
+                   FOR SHARE
+                """, (result, ignored) -> template(result, userId),
+                tenantId, templateId, userId, userId, accountId).stream().findFirst();
     }
 
     Template createTemplate(long tenantId, long userId, TemplateRequest request) {
@@ -133,10 +182,13 @@ class MailWorkspaceRepository {
         return jdbc.query("""
                 SELECT signature_id, display_name, body_content, body_format, signature_scope,
                        account_id, default_for_new, default_for_reply, mandatory_content,
-                       lifecycle_state, version, updated_at, owner_user_id
-                  FROM mail_signatures
+                       publication_state, publication_version, lifecycle_state, version,
+                       updated_at, owner_user_id
+                 FROM mail_signatures
                  WHERE tenant_id = ?
-                   AND (owner_user_id = ? OR signature_scope = 'ORGANIZATION')
+                   AND ((signature_scope <> 'ORGANIZATION' AND owner_user_id = ?)
+                     OR (signature_scope = 'ORGANIZATION'
+                         AND publication_state = 'PUBLISHED'))
                    AND (? OR lifecycle_state = 'ACTIVE')
                  ORDER BY lifecycle_state, default_for_new DESC, default_for_reply DESC,
                           signature_scope, lower(display_name), signature_id
@@ -148,13 +200,114 @@ class MailWorkspaceRepository {
         return jdbc.query("""
                 SELECT signature_id, display_name, body_content, body_format, signature_scope,
                        account_id, default_for_new, default_for_reply, mandatory_content,
-                       lifecycle_state, version, updated_at, owner_user_id
+                       publication_state, publication_version, lifecycle_state, version,
+                       updated_at, owner_user_id
                  FROM mail_signatures
                  WHERE tenant_id = ? AND signature_id = ?
-                   AND (owner_user_id = ? OR signature_scope = 'ORGANIZATION')
+                   AND ((signature_scope <> 'ORGANIZATION' AND owner_user_id = ?)
+                     OR (signature_scope = 'ORGANIZATION'
+                         AND publication_state = 'PUBLISHED'))
                    AND lifecycle_state = 'ACTIVE'
                 """, (result, ignored) -> signature(result, userId),
                 tenantId, signatureId, userId).stream().findFirst();
+    }
+
+    Optional<Signature> signatureForSend(
+            long tenantId, long userId, UUID accountId, UUID signatureId) {
+        return jdbc.query("""
+                SELECT signature_id, display_name, body_content, body_format, signature_scope,
+                       account_id, default_for_new, default_for_reply, mandatory_content,
+                       publication_state, publication_version, lifecycle_state, version,
+                       updated_at, owner_user_id
+                  FROM mail_signatures
+                 WHERE tenant_id = ? AND signature_id = ? AND lifecycle_state = 'ACTIVE'
+                   AND ((signature_scope = 'PERSONAL' AND owner_user_id = ?
+                         AND account_id IS NULL)
+                     OR (signature_scope = 'ACCOUNT' AND owner_user_id = ?
+                         AND account_id = ?)
+                     OR (signature_scope = 'ORGANIZATION' AND account_id IS NULL
+                         AND publication_state = 'PUBLISHED'))
+                   FOR SHARE
+                """, (result, ignored) -> signature(result, userId),
+                tenantId, signatureId, userId, userId, accountId).stream().findFirst();
+    }
+
+    Optional<UUID> preferredSignatureId(long tenantId, long userId) {
+        return jdbc.query("""
+                SELECT default_signature_id
+                  FROM mail_user_preferences
+                 WHERE tenant_id = ? AND user_id = ? AND default_signature_id IS NOT NULL
+                """, (result, ignored) -> result.getObject("default_signature_id", UUID.class),
+                tenantId, userId).stream().findFirst();
+    }
+
+    Optional<Signature> defaultSignatureForNew(
+            long tenantId, long userId, UUID accountId) {
+        return jdbc.query("""
+                SELECT signature_id, display_name, body_content, body_format, signature_scope,
+                       account_id, default_for_new, default_for_reply, mandatory_content,
+                       publication_state, publication_version, lifecycle_state, version,
+                       updated_at, owner_user_id
+                  FROM mail_signatures
+                 WHERE tenant_id = ? AND lifecycle_state = 'ACTIVE'
+                   AND default_for_new = TRUE
+                   AND ((signature_scope = 'ACCOUNT' AND owner_user_id = ? AND account_id = ?)
+                     OR (signature_scope = 'PERSONAL' AND owner_user_id = ?
+                         AND account_id IS NULL)
+                     OR (signature_scope = 'ORGANIZATION' AND account_id IS NULL
+                         AND publication_state = 'PUBLISHED'))
+                 ORDER BY CASE signature_scope
+                              WHEN 'ACCOUNT' THEN 0
+                              WHEN 'ORGANIZATION' THEN 1
+                              ELSE 2
+                          END,
+                          publication_version DESC, version DESC, signature_id
+                 LIMIT 1
+                   FOR SHARE
+                """, (result, ignored) -> signature(result, userId),
+                tenantId, userId, accountId, userId).stream().findFirst();
+    }
+
+    Optional<UUID> replyAccount(
+            long tenantId, long userId, UUID threadId) {
+        return jdbc.query("""
+                SELECT thread.account_id
+                  FROM mail_threads thread
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
+                 WHERE thread.tenant_id = ? AND thread.thread_id = ?
+                """ + MailAccessSql.THREAD_SEND_ACCESS + """
+                 FOR SHARE
+                """, (result, ignored) -> result.getObject("account_id", UUID.class),
+                tenantId, threadId, userId, userId).stream().findFirst();
+    }
+
+    Optional<Signature> defaultSignatureForReply(
+            long tenantId, long userId, UUID accountId) {
+        return jdbc.query("""
+                SELECT signature_id, display_name, body_content, body_format, signature_scope,
+                       account_id, default_for_new, default_for_reply, mandatory_content,
+                       publication_state, publication_version, lifecycle_state, version,
+                       updated_at, owner_user_id
+                  FROM mail_signatures
+                 WHERE tenant_id = ? AND lifecycle_state = 'ACTIVE'
+                   AND default_for_reply = TRUE
+                   AND ((signature_scope = 'ACCOUNT' AND owner_user_id = ? AND account_id = ?)
+                     OR (signature_scope = 'PERSONAL' AND owner_user_id = ?
+                         AND account_id IS NULL)
+                     OR (signature_scope = 'ORGANIZATION' AND account_id IS NULL
+                         AND publication_state = 'PUBLISHED'))
+                 ORDER BY CASE signature_scope
+                              WHEN 'ACCOUNT' THEN 0
+                              WHEN 'ORGANIZATION' THEN 1
+                              ELSE 2
+                          END,
+                          publication_version DESC, version DESC, signature_id
+                 LIMIT 1
+                   FOR SHARE
+                """, (result, ignored) -> signature(result, userId),
+                tenantId, userId, accountId, userId).stream().findFirst();
     }
 
     void clearSignatureDefaults(
@@ -456,6 +609,43 @@ class MailWorkspaceRepository {
                 tenantId, userId, attachmentId).stream().findFirst();
     }
 
+    Optional<AttachmentContentReference> visibleAttachment(
+            long tenantId,
+            long userId,
+            UUID threadId,
+            UUID messageId,
+            UUID attachmentId) {
+        return jdbc.query("""
+                SELECT attachment.storage_reference, attachment.file_name,
+                       attachment.content_type, attachment.size_bytes,
+                       attachment.checksum_sha256
+                  FROM mail_threads thread
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
+                  JOIN mail_messages message
+                    ON message.tenant_id = thread.tenant_id
+                   AND message.thread_id = thread.thread_id
+                  JOIN LATERAL jsonb_array_elements(message.attachments) projected
+                    ON projected ->> 'attachmentId' = ?::text
+                  JOIN mail_compose_attachments attachment
+                    ON attachment.tenant_id = message.tenant_id
+                   AND attachment.thread_id = message.thread_id
+                   AND attachment.attachment_id = ?
+                   AND attachment.scan_state = 'READY'
+                 WHERE thread.tenant_id = ? AND thread.thread_id = ?
+                   AND message.message_id = ?
+                """ + MailAccessSql.THREAD_ACCESS,
+                (result, ignored) -> new AttachmentContentReference(
+                        result.getString("storage_reference"),
+                        result.getString("file_name"),
+                        result.getString("content_type"),
+                        result.getLong("size_bytes"),
+                        result.getString("checksum_sha256")),
+                attachmentId, attachmentId, tenantId, threadId, messageId,
+                userId, userId).stream().findFirst();
+    }
+
     Optional<String> deleteOwnedDraftAttachment(
             long tenantId, long userId, UUID attachmentId) {
         List<DeletedAttachment> deleted = jdbc.query("""
@@ -522,6 +712,37 @@ class MailWorkspaceRepository {
         return count != null && count == attachmentIds.size();
     }
 
+    boolean attachmentsWithinTotalSize(
+            long tenantId,
+            long userId,
+            List<UUID> attachmentIds,
+            UUID threadId,
+            long maximumBytes) {
+        if (attachmentIds.isEmpty()) return true;
+        AttachmentAggregate aggregate = jdbc.queryForObject("""
+                SELECT COUNT(*) AS attachment_count,
+                       COALESCE(SUM(selected.size_bytes), 0) AS total_bytes
+                  FROM (
+                        SELECT attachment.size_bytes
+                          FROM mail_compose_attachments attachment
+                         WHERE attachment.tenant_id = ?
+                           AND attachment.uploader_user_id = ?
+                           AND attachment.attachment_id = ANY (?::uuid[])
+                           AND attachment.scan_state = 'READY'
+                           AND ((?::uuid IS NULL AND attachment.thread_id IS NULL)
+                             OR (?::uuid IS NOT NULL AND
+                                 (attachment.thread_id IS NULL OR attachment.thread_id = ?)))
+                           FOR SHARE
+                       ) selected
+                """, (result, ignored) -> new AttachmentAggregate(
+                result.getLong("attachment_count"), result.getLong("total_bytes")),
+                tenantId, userId, attachmentIds.toArray(UUID[]::new),
+                threadId, threadId, threadId);
+        return aggregate != null
+                && aggregate.count() == attachmentIds.size()
+                && aggregate.totalBytes() <= maximumBytes;
+    }
+
     List<Map<String, Object>> attachmentProjection(
             long tenantId, long userId, List<UUID> attachmentIds) {
         if (attachmentIds.isEmpty()) return List.of();
@@ -544,31 +765,101 @@ class MailWorkspaceRepository {
         return jdbc.query("""
                 SELECT account.account_id
                   FROM mail_accounts account
+                  LEFT JOIN mail_user_preferences preference
+                    ON preference.tenant_id = account.tenant_id
+                   AND preference.user_id = ?
                  WHERE account.tenant_id = ?
                    AND (?::uuid IS NULL OR account.account_id = ?::uuid)
                    AND account.connection_state = 'ACTIVE'
-                   AND (
-                       account.account_kind = 'PERSONAL'
-                       OR EXISTS (
-                           SELECT 1
-                             FROM mail_shared_inboxes inbox
-                             JOIN mail_shared_inbox_access_grants access
-                               ON access.tenant_id = inbox.tenant_id
-                              AND access.shared_inbox_id = inbox.shared_inbox_id
-                              AND access.user_id = ?
-                              AND access.member_state = 'ACTIVE'
-                              AND access.can_send_as = TRUE
-                            WHERE inbox.tenant_id = account.tenant_id
-                              AND inbox.account_id = account.account_id
-                              AND inbox.lifecycle_state = 'ACTIVE'))
-                """ + MailAccessSql.ACCOUNT_ACCESS + """
+                """ + MailAccessSql.ACCOUNT_SEND_ACCESS + """
                  ORDER BY CASE WHEN account.account_id = ?::uuid THEN 0
-                               WHEN account.is_default THEN 1 ELSE 2 END,
+                               WHEN ?::uuid IS NULL
+                                AND account.account_id = preference.default_account_id THEN 1
+                               WHEN account.is_default THEN 2 ELSE 3 END,
                           account.account_kind, account.account_id
                  LIMIT 1
                 """, (result, ignored) -> result.getObject(1, UUID.class),
-                tenantId, requestedAccountId, requestedAccountId, userId,
-                userId, userId, requestedAccountId).stream().findFirst();
+                userId, tenantId, requestedAccountId, requestedAccountId,
+                userId, userId, requestedAccountId, requestedAccountId).stream().findFirst();
+    }
+
+    Optional<ComposeProviderContext> composeProviderContext(
+            long tenantId, long userId, UUID accountId) {
+        return jdbc.query("""
+                SELECT account.account_id, connection.provider_type,
+                       connection.connection_id, connection.credential_ref,
+                       connection.mail_domain, account.provider_account_ref
+                  FROM mail_accounts account
+                  JOIN mail_provider_connections connection
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
+                 WHERE account.tenant_id = ? AND account.account_id = ?
+                   AND account.connection_state = 'ACTIVE'
+                   AND connection.connection_state = 'ACTIVE'
+                """ + MailAccessSql.ACCOUNT_ACCESS,
+                (result, ignored) -> new ComposeProviderContext(
+                        result.getObject("account_id", UUID.class),
+                        MailTypes.ProviderType.valueOf(result.getString("provider_type")),
+                        result.getObject("connection_id", UUID.class),
+                        uri(result.getString("credential_ref")),
+                        result.getString("mail_domain"),
+                        result.getString("provider_account_ref")),
+                tenantId, accountId, userId, userId).stream().findFirst();
+    }
+
+    Optional<MailConnectorPort.SenderMode> composeSenderMode(
+            long tenantId, long userId, UUID accountId) {
+        return authorizedSenderMode(tenantId, accountId, userId);
+    }
+
+    private Optional<MailConnectorPort.SenderMode> authorizedSenderMode(
+            long tenantId, UUID accountId, long userId) {
+        return jdbc.query("""
+                SELECT CASE
+                           WHEN account.account_kind = 'PERSONAL' THEN 'ACCOUNT'
+                           WHEN access_grant.can_send_as THEN 'SEND_AS'
+                           ELSE 'SEND_ON_BEHALF'
+                       END AS sender_mode
+                  FROM mail_accounts account
+                  LEFT JOIN mail_tenant_policies policy
+                    ON policy.tenant_id = account.tenant_id
+                  LEFT JOIN mail_shared_inboxes inbox
+                    ON inbox.tenant_id = account.tenant_id
+                   AND inbox.account_id = account.account_id
+                   AND inbox.lifecycle_state = 'ACTIVE'
+                  LEFT JOIN mail_shared_inbox_members membership
+                    ON membership.tenant_id = inbox.tenant_id
+                   AND membership.account_id = inbox.account_id
+                   AND membership.shared_inbox_id = inbox.shared_inbox_id
+                   AND membership.user_id = ?
+                   AND membership.lifecycle_state = 'ACTIVE'
+                  LEFT JOIN mail_shared_inbox_access_grants access_grant
+                    ON access_grant.tenant_id = membership.tenant_id
+                   AND access_grant.shared_inbox_id = membership.shared_inbox_id
+                   AND access_grant.user_id = membership.user_id
+                   AND access_grant.member_state = 'ACTIVE'
+                 WHERE account.tenant_id = ? AND account.account_id = ?
+                   AND account.connection_state = 'ACTIVE'
+                   AND (
+                       (account.account_kind = 'PERSONAL' AND account.owner_user_id = ?)
+                       OR (
+                           account.account_kind = 'SHARED'
+                           AND policy.allow_shared_inboxes = TRUE
+                           AND membership.user_id IS NOT NULL
+                           AND access_grant.can_read = TRUE
+                           AND (access_grant.can_send_as = TRUE
+                                OR access_grant.can_send_on_behalf = TRUE)
+                           AND (access_grant.expires_at IS NULL
+                                OR access_grant.expires_at > CURRENT_TIMESTAMP)
+                       )
+                   )
+                """, (result, ignored) -> MailConnectorPort.SenderMode.valueOf(
+                        result.getString("sender_mode")),
+                userId, tenantId, accountId, userId).stream().findFirst();
+    }
+
+    private URI uri(String value) {
+        return value == null || value.isBlank() ? null : URI.create(value);
     }
 
     void lockAdvancedComposeCommand(long tenantId, long userId, UUID idempotencyKey) {
@@ -594,6 +885,25 @@ class MailWorkspaceRepository {
                 }, tenantId, userId, idempotencyKey).stream().findFirst();
     }
 
+    Optional<AdvancedComposeCommand> advancedComposeCommand(
+            long tenantId, long userId, UUID idempotencyKey) {
+        return jdbc.query("""
+                SELECT delivery.thread_id, delivery.delivery_id,
+                       thread.account_id, delivery.request_fingerprint
+                  FROM mail_delivery_outbox delivery
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = delivery.tenant_id
+                   AND thread.thread_id = delivery.thread_id
+                 WHERE delivery.tenant_id = ? AND delivery.created_by = ?
+                   AND delivery.idempotency_key = ?
+                """, (result, ignored) -> new AdvancedComposeCommand(
+                result.getObject("thread_id", UUID.class),
+                result.getObject("delivery_id", UUID.class),
+                result.getObject("account_id", UUID.class),
+                result.getString("request_fingerprint")),
+                tenantId, userId, idempotencyKey).stream().findFirst();
+    }
+
     AdvancedComposeCreated createAdvancedCompose(
             long tenantId,
             long userId,
@@ -615,6 +925,7 @@ class MailWorkspaceRepository {
                 "name", recipient.name() == null ? "" : recipient.name(),
                 "email", recipient.email().toLowerCase(Locale.ROOT))).toList());
         String participantJson = json.write(recipients.stream().map(recipient -> Map.of(
+                "type", recipient.type().name(),
                 "name", recipient.name() == null ? recipient.email() : recipient.name(),
                 "email", recipient.email().toLowerCase(Locale.ROOT))).toList());
         String attachmentJson = json.write(attachmentProjection(tenantId, userId, attachmentIds));
@@ -638,8 +949,11 @@ class MailWorkspaceRepository {
                    AND folder.folder_type = 'SENT'
                    AND folder.lifecycle_state = 'ACTIVE'
                  WHERE account.tenant_id = ? AND account.account_id = ?
-                """, threadId, providerReference, fingerprint, subject.trim(), preview,
-                participantJson, !attachmentIds.isEmpty(), userId, userId, tenantId, accountId);
+                   AND account.connection_state = 'ACTIVE'
+                """ + MailAccessSql.ACCOUNT_SEND_ACCESS,
+                threadId, providerReference, fingerprint, subject.trim(), preview,
+                participantJson, !attachmentIds.isEmpty(), userId, userId,
+                tenantId, accountId, userId, userId);
         if (threadInserted != 1) return null;
         jdbc.update("""
                 INSERT INTO mail_messages (
@@ -697,6 +1011,7 @@ class MailWorkspaceRepository {
                 "name", recipient.name() == null ? "" : recipient.name(),
                 "email", recipient.email().toLowerCase(Locale.ROOT))).toList());
         String participantJson = json.write(recipients.stream().map(recipient -> Map.of(
+                "type", recipient.type().name(),
                 "name", recipient.name() == null ? recipient.email() : recipient.name(),
                 "email", recipient.email().toLowerCase(Locale.ROOT))).toList());
         String attachmentJson = json.write(attachmentProjection(tenantId, userId, attachmentIds));
@@ -722,12 +1037,14 @@ class MailWorkspaceRepository {
                    AND current_account.owner_user_id = ?
                    AND account.tenant_id = thread.tenant_id
                    AND account.account_id = ?
+                   AND account.connection_state = 'ACTIVE'
                    AND sent.tenant_id = account.tenant_id
                    AND sent.account_id = account.account_id
                    AND sent.folder_type = 'SENT' AND sent.lifecycle_state = 'ACTIVE'
-                """, "dwp:advanced:" + idempotencyKey, fingerprint,
+                """ + MailAccessSql.ACCOUNT_SEND_ACCESS,
+                "dwp:advanced:" + idempotencyKey, fingerprint,
                 subject.trim(), preview, participantJson, !attachmentIds.isEmpty(), userId,
-                tenantId, threadId, expectedVersion, userId, accountId);
+                tenantId, threadId, expectedVersion, userId, accountId, userId, userId);
         if (updated != 1) return null;
         List<UUID> messages = jdbc.query("""
                 UPDATE mail_messages
@@ -826,7 +1143,7 @@ class MailWorkspaceRepository {
                  ORDER BY delivery.created_at DESC, delivery.delivery_id
                  LIMIT ? OFFSET ?
                 """.formatted(bucketPredicate(bucket)),
-                (result, ignored) -> deliverySummary(result),
+                (result, ignored) -> deliverySummary(result, userId),
                 tenantId, userId, userId, pageSize, page * pageSize);
     }
 
@@ -848,7 +1165,7 @@ class MailWorkspaceRepository {
 
     Optional<DeliveryReceipt> delivery(long tenantId, long userId, UUID deliveryId) {
         return jdbc.query(deliverySelect() + " AND delivery.delivery_id = ?",
-                (result, ignored) -> deliveryReceipt(result),
+                (result, ignored) -> deliveryReceipt(result, userId),
                 tenantId, userId, userId, deliveryId).stream().findFirst();
     }
 
@@ -856,25 +1173,7 @@ class MailWorkspaceRepository {
             long tenantId, long userId, UUID deliveryId, OffsetDateTime scheduledAt, long version) {
         return jdbc.update("""
                 UPDATE mail_delivery_outbox delivery
-                   SET next_attempt_at = ?, version = version + 1, updated_at = CURRENT_TIMESTAMP
-                  FROM mail_threads thread, mail_accounts account
-                 WHERE delivery.tenant_id = ? AND delivery.delivery_id = ?
-                   AND delivery.delivery_status IN ('QUEUED', 'RETRY_WAIT')
-                   AND delivery.accepted_at IS NULL
-                   AND delivery.provider_message_ref IS NULL
-                   AND delivery.provider_thread_ref IS NULL
-                   AND delivery.lease_owner IS NULL AND delivery.lease_expires_at IS NULL
-                   AND delivery.version = ?
-                   AND thread.tenant_id = delivery.tenant_id
-                   AND thread.thread_id = delivery.thread_id
-                """ + MailAccessSql.THREAD_ACCESS,
-                scheduledAt, tenantId, deliveryId, version, userId, userId) == 1;
-    }
-
-    boolean cancelDelivery(long tenantId, long userId, UUID deliveryId, long version) {
-        return jdbc.update("""
-                UPDATE mail_delivery_outbox delivery
-                   SET delivery_status = 'CANCELLED', version = version + 1,
+                   SET next_attempt_at = ?, version = delivery.version + 1,
                        updated_at = CURRENT_TIMESTAMP
                   FROM mail_threads thread, mail_accounts account
                  WHERE delivery.tenant_id = ? AND delivery.delivery_id = ?
@@ -886,20 +1185,59 @@ class MailWorkspaceRepository {
                    AND delivery.version = ?
                    AND thread.tenant_id = delivery.tenant_id
                    AND thread.thread_id = delivery.thread_id
-                """ + MailAccessSql.THREAD_ACCESS,
-                tenantId, deliveryId, version, userId, userId) == 1;
+                """ + MailAccessSql.THREAD_SEND_ACCESS,
+                scheduledAt, tenantId, deliveryId, version, userId, userId) == 1;
     }
 
-    boolean touchDeliveryEvidence(long tenantId, long userId, UUID deliveryId, long version) {
+    boolean cancelDelivery(long tenantId, long userId, UUID deliveryId, long version) {
         return jdbc.update("""
                 UPDATE mail_delivery_outbox delivery
-                   SET version = version + 1, updated_at = CURRENT_TIMESTAMP
+                   SET delivery_status = 'CANCELLED', version = delivery.version + 1,
+                       updated_at = CURRENT_TIMESTAMP
                   FROM mail_threads thread, mail_accounts account
                  WHERE delivery.tenant_id = ? AND delivery.delivery_id = ?
+                   AND delivery.delivery_status IN ('QUEUED', 'RETRY_WAIT')
+                   AND delivery.accepted_at IS NULL
+                   AND delivery.provider_message_ref IS NULL
+                   AND delivery.provider_thread_ref IS NULL
+                   AND delivery.lease_owner IS NULL AND delivery.lease_expires_at IS NULL
                    AND delivery.version = ?
                    AND thread.tenant_id = delivery.tenant_id
                    AND thread.thread_id = delivery.thread_id
-                """ + MailAccessSql.THREAD_ACCESS,
+                """ + MailAccessSql.THREAD_SEND_ACCESS,
+                tenantId, deliveryId, version, userId, userId) == 1;
+    }
+
+    boolean reconcileSandboxDelivery(
+            long tenantId, long userId, UUID deliveryId, long version) {
+        return jdbc.update("""
+                UPDATE mail_delivery_outbox delivery
+                   SET delivery_status = 'QUEUED', attempt_count = 0,
+                       next_attempt_at = CURRENT_TIMESTAMP, last_error_code = NULL,
+                       lease_owner = NULL, lease_expires_at = NULL,
+                       version = delivery.version + 1, updated_at = CURRENT_TIMESTAMP
+                  FROM mail_threads thread, mail_accounts account,
+                       mail_provider_connections connection
+                 WHERE delivery.tenant_id = ? AND delivery.delivery_id = ?
+                   AND delivery.version = ?
+                   AND delivery.accepted_at IS NULL
+                   AND delivery.provider_message_ref IS NULL
+                   AND delivery.provider_thread_ref IS NULL
+                   AND (
+                       (delivery.delivery_status = 'LEASED'
+                        AND delivery.lease_expires_at < CURRENT_TIMESTAMP)
+                       OR
+                       (delivery.delivery_status = 'FAILED'
+                        AND delivery.last_error_code = 'MAIL_PROVIDER_RESULT_UNKNOWN'
+                        AND delivery.lease_owner IS NULL
+                        AND delivery.lease_expires_at IS NULL)
+                   )
+                   AND thread.tenant_id = delivery.tenant_id
+                   AND thread.thread_id = delivery.thread_id
+                   AND connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
+                   AND connection.provider_type = 'DWP_SANDBOX'
+                """ + MailAccessSql.THREAD_SEND_ACCESS,
                 tenantId, deliveryId, version, userId, userId) == 1;
     }
 
@@ -907,7 +1245,7 @@ class MailWorkspaceRepository {
         return jdbc.update("""
                 UPDATE mail_delivery_outbox delivery
                    SET delivery_status = 'RETRY_WAIT', next_attempt_at = CURRENT_TIMESTAMP,
-                       last_error_code = NULL, version = version + 1,
+                       last_error_code = NULL, version = delivery.version + 1,
                        updated_at = CURRENT_TIMESTAMP
                   FROM mail_threads thread, mail_accounts account
                  WHERE delivery.tenant_id = ? AND delivery.delivery_id = ?
@@ -917,9 +1255,10 @@ class MailWorkspaceRepository {
                    AND delivery.provider_thread_ref IS NULL
                    AND delivery.lease_owner IS NULL AND delivery.lease_expires_at IS NULL
                    AND delivery.request_fingerprint IS NOT NULL
+                   AND COALESCE(delivery.last_error_code, '') <> 'MAIL_PROVIDER_RESULT_UNKNOWN'
                    AND thread.tenant_id = delivery.tenant_id
                    AND thread.thread_id = delivery.thread_id
-                """ + MailAccessSql.THREAD_ACCESS,
+                """ + MailAccessSql.THREAD_SEND_ACCESS,
                 tenantId, deliveryId, version, userId, userId) == 1;
     }
 
@@ -946,7 +1285,8 @@ class MailWorkspaceRepository {
                        delivery.lease_owner, delivery.lease_expires_at,
                        delivery.provider_message_ref, delivery.provider_thread_ref,
                        delivery.request_fingerprint,
-                       delivery.updated_at, delivery.version,
+                       connection.provider_type,
+                       delivery.updated_at, delivery.version, delivery.created_by,
                        message.recipients::text AS recipients,
                        EXISTS (SELECT 1 FROM mail_group_recipient_snapshots snapshot
                                 WHERE snapshot.tenant_id = delivery.tenant_id
@@ -961,6 +1301,9 @@ class MailWorkspaceRepository {
                   JOIN mail_accounts account
                     ON account.tenant_id = thread.tenant_id
                    AND account.account_id = thread.account_id
+                  JOIN mail_provider_connections connection
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
                  WHERE delivery.tenant_id = ?
                 """ + MailAccessSql.THREAD_ACCESS;
     }
@@ -986,6 +1329,8 @@ class MailWorkspaceRepository {
                 result.getObject("account_id", UUID.class),
                 scope != AssetScope.ORGANIZATION && result.getLong("owner_user_id") == userId,
                 result.getString("mandatory_content"),
+                result.getString("publication_state"),
+                result.getInt("publication_version"),
                 "ACTIVE".equals(result.getString("lifecycle_state")), result.getLong("version"),
                 result.getObject("updated_at", OffsetDateTime.class));
     }
@@ -1000,6 +1345,8 @@ class MailWorkspaceRepository {
                 result.getBoolean("default_for_reply"),
                 scope != AssetScope.ORGANIZATION && result.getLong("owner_user_id") == userId,
                 result.getString("mandatory_content"),
+                result.getString("publication_state"),
+                result.getInt("publication_version"),
                 "ACTIVE".equals(result.getString("lifecycle_state")), result.getLong("version"),
                 result.getObject("updated_at", OffsetDateTime.class));
     }
@@ -1053,8 +1400,8 @@ class MailWorkspaceRepository {
                 result.getObject("created_at", OffsetDateTime.class));
     }
 
-    private DeliverySummary deliverySummary(ResultSet result) throws SQLException {
-        List<Recipient> recipients = recipients(result.getString("recipients"));
+    private DeliverySummary deliverySummary(ResultSet result, long userId) throws SQLException {
+        List<Recipient> recipients = visibleDeliveryRecipients(result, userId);
         return new DeliverySummary(
                 result.getObject("delivery_id", UUID.class),
                 result.getObject("receipt_id", UUID.class),
@@ -1067,8 +1414,8 @@ class MailWorkspaceRepository {
                 result.getLong("version"));
     }
 
-    private DeliveryReceipt deliveryReceipt(ResultSet result) throws SQLException {
-        DeliverySummary summary = deliverySummary(result);
+    private DeliveryReceipt deliveryReceipt(ResultSet result, long userId) throws SQLException {
+        DeliverySummary summary = deliverySummary(result, userId);
         List<DeliveryTimeline> timeline = new ArrayList<>();
         timeline.add(new DeliveryTimeline("QUEUED",
                 result.getObject("requested_at", OffsetDateTime.class),
@@ -1096,7 +1443,7 @@ class MailWorkspaceRepository {
                 summary.recipientSummary(), summary.accountName(), summary.kind(),
                 summary.requestedAt(), summary.scheduledAt(), summary.state(),
                 summary.canReschedule(), summary.canCancel(), summary.canReconcile(),
-                summary.version(), recipients(result.getString("recipients")), timeline,
+                summary.version(), visibleDeliveryRecipients(result, userId), timeline,
                 result.getObject("updated_at", OffsetDateTime.class),
                 List.of(Map.of(
                         "source", "mail_delivery_outbox",
@@ -1107,6 +1454,15 @@ class MailWorkspaceRepository {
     private String deliveryState(ResultSet result) throws SQLException {
         String status = result.getString("delivery_status");
         OffsetDateTime scheduledAt = result.getObject("scheduled_at", OffsetDateTime.class);
+        OffsetDateTime leaseExpiresAt = result.getObject(
+                "lease_expires_at", OffsetDateTime.class);
+        if ("MAIL_PROVIDER_RESULT_UNKNOWN".equals(result.getString("last_error_code"))) {
+            return "UNKNOWN";
+        }
+        if ("LEASED".equals(status) && leaseExpiresAt != null
+                && leaseExpiresAt.isBefore(OffsetDateTime.now())) {
+            return "UNKNOWN";
+        }
         return switch (status) {
             case "QUEUED", "RETRY_WAIT" -> scheduledAt != null
                     && scheduledAt.isAfter(OffsetDateTime.now()) ? "SCHEDULED" : "QUEUED";
@@ -1127,7 +1483,22 @@ class MailWorkspaceRepository {
     }
 
     private boolean reconcilable(ResultSet result) throws SQLException {
-        return List.of("LEASED", "FAILED").contains(result.getString("delivery_status"));
+        if (!"DWP_SANDBOX".equals(result.getString("provider_type"))
+                || result.getObject("accepted_at") != null
+                || result.getString("provider_message_ref") != null
+                || result.getString("provider_thread_ref") != null) {
+            return false;
+        }
+        String status = result.getString("delivery_status");
+        OffsetDateTime leaseExpiresAt = result.getObject(
+                "lease_expires_at", OffsetDateTime.class);
+        return ("LEASED".equals(status) && leaseExpiresAt != null
+                    && leaseExpiresAt.isBefore(OffsetDateTime.now()))
+                || ("FAILED".equals(status)
+                    && "MAIL_PROVIDER_RESULT_UNKNOWN".equals(
+                            result.getString("last_error_code"))
+                    && result.getString("lease_owner") == null
+                    && leaseExpiresAt == null);
     }
 
     private boolean retryEligible(ResultSet result) throws SQLException {
@@ -1137,7 +1508,8 @@ class MailWorkspaceRepository {
                 && result.getString("provider_thread_ref") == null
                 && result.getString("lease_owner") == null
                 && result.getObject("lease_expires_at") == null
-                && result.getString("request_fingerprint") != null;
+                && result.getString("request_fingerprint") != null
+                && !"MAIL_PROVIDER_RESULT_UNKNOWN".equals(result.getString("last_error_code"));
     }
 
     private boolean mutableQueuedDelivery(ResultSet result) throws SQLException {
@@ -1173,6 +1545,15 @@ class MailWorkspaceRepository {
         return json.mapList(raw).stream().map(item -> new Recipient(
                 recipientType(item.get("type")), text(item.get("name")), text(item.get("email"))))
                 .filter(item -> item.email() != null && !item.email().isBlank()).toList();
+    }
+
+    private List<Recipient> visibleDeliveryRecipients(ResultSet result, long userId)
+            throws SQLException {
+        List<Recipient> recipients = recipients(result.getString("recipients"));
+        if (result.getLong("created_by") == userId) return recipients;
+        return recipients.stream()
+                .filter(recipient -> recipient.type() != RecipientType.BCC)
+                .toList();
     }
 
     private RecipientType recipientType(Object value) {

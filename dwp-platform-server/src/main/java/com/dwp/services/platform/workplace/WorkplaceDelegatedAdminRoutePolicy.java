@@ -129,6 +129,19 @@ final class WorkplaceDelegatedAdminRoutePolicy {
         siteQuery(rules, HttpMethod.GET, "/v1/admin/workplace/policy-impact-preview",
                 DelegatedPermission.POLICY_MANAGE);
 
+        siteQuery(rules, HttpMethod.POST,
+                "/v1/admin/workplace/space-planning/reports:preview",
+                DelegatedPermission.CATALOG_VIEW);
+        siteQuery(rules, HttpMethod.POST,
+                "/v1/admin/workplace/space-planning/reports",
+                DelegatedPermission.CATALOG_MANAGE);
+        siteQuery(rules, HttpMethod.GET,
+                "/v1/admin/workplace/space-planning/reports/{commandId}",
+                DelegatedPermission.CATALOG_VIEW);
+        siteQuery(rules, HttpMethod.GET,
+                "/v1/admin/workplace/space-planning/reports/{commandId}/content",
+                DelegatedPermission.CATALOG_MANAGE);
+
         global(rules, HttpMethod.GET, "/v1/admin/workplace/overview");
         siteList(rules, HttpMethod.GET, "/v1/admin/workplace/sites",
                 DelegatedPermission.CATALOG_VIEW);

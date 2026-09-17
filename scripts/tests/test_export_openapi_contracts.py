@@ -189,7 +189,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             .read_text(encoding="utf-8")
         )
         latest = json.loads(
-            (ROOT / "contracts/product-authorization/product-surfaces-v1.bundle-v21.json")
+            (ROOT / "contracts/product-authorization/product-surfaces-v1.bundle-v24.json")
             .read_text(encoding="utf-8")
         )
         platform = json.loads(
@@ -226,7 +226,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             or path.startswith("/api/platform/v1/admin/workplace/")
         }
         human_workplace = runtime_human_workplace - post_v20
-        self.assertEqual(len(runtime_human_workplace), 289)
+        self.assertEqual(len(runtime_human_workplace), 311)
+        self.assertEqual(len(post_v20), 41)
         room_operations = {
             operation
             for operation in platform_operations
@@ -445,7 +446,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected"):
             EXPORTER["validate_approval_signature_operations"](unexpected)
 
-    def test_gateway_openapi_projection_consumes_append_only_v21_registry(self) -> None:
+    def test_gateway_openapi_projection_consumes_append_only_v24_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -454,11 +455,11 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 21)
-        self.assertEqual(registry["version"], 21)
-        self.assertEqual(len(dwaion_routes), 99)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 24)
+        self.assertEqual(registry["version"], 24)
+        self.assertEqual(len(dwaion_routes), 144)
         self.assertEqual(
-            sum(route["routeKind"] == "ACTION" for route in dwaion_routes), 60
+            sum(route["routeKind"] == "ACTION" for route in dwaion_routes), 84
         )
         approval_routes = [route for route in registry["routes"]
                            if route["subject"].get("productKey") == "approvals"]

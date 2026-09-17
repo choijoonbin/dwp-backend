@@ -1,5 +1,6 @@
 package com.dwp.services.platform.mail;
 
+import com.dwp.platform.contract.MailConnectorPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
@@ -12,6 +13,7 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.time.OffsetDateTime;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executors;
@@ -21,6 +23,7 @@ import static com.dwp.services.platform.mail.MailTypes.ThreadAction;
 import static com.dwp.services.platform.mail.MailTypes.WorkflowState;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 @Testcontainers(disabledWithoutDocker = true)
 class MailAccessPostgresIntegrationTest {
@@ -87,6 +90,116 @@ class MailAccessPostgresIntegrationTest {
                  WHERE tenant_id = ? AND thread_id = ?
                 """, otherInboxId, fixture.tenantId(), fixture.threadId()))
                 .isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    @Test
+    void sendOnBehalfCanSendButCannotManageOrRevealAnotherActorsBcc() {
+        String schema = "mail_shared_read_only_bcc";
+        migrate(schema);
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource(schema));
+        MailJsonCodec json = new MailJsonCodec(new ObjectMapper().findAndRegisterModules());
+        MailQueryRepository queries = new MailQueryRepository(jdbc, json);
+        MailCommandRepository commands = new MailCommandRepository(jdbc, json);
+        MailLifecycleRepository lifecycle = new MailLifecycleRepository(jdbc);
+        MailWorkspaceRepository workspace = new MailWorkspaceRepository(jdbc, json);
+        SharedFixture fixture = sharedFixture(jdbc);
+
+        jdbc.update("""
+                UPDATE mail_shared_inbox_access_grants
+                   SET can_read = TRUE, can_send_as = FALSE,
+                       can_send_on_behalf = TRUE, can_assign = FALSE, can_manage = FALSE
+                 WHERE tenant_id = ? AND shared_inbox_id = ? AND user_id = ?
+                """, fixture.tenantId(), fixture.sharedInboxId(), fixture.userId());
+        long otherActor = fixture.userId() + 1_000_000L;
+        jdbc.update("""
+                UPDATE mail_threads
+                   SET participants = '[
+                       {"type":"TO","name":"Visible","email":"visible@example.com"},
+                       {"type":"BCC","name":"Hidden","email":"hidden@example.com"}
+                   ]'::jsonb,
+                       created_by = ?
+                 WHERE tenant_id = ? AND thread_id = ?
+                """, otherActor, fixture.tenantId(), fixture.threadId());
+        UUID messageId = jdbc.queryForObject("""
+                UPDATE mail_messages
+                   SET recipients = '[
+                       {"type":"TO","name":"Visible","email":"visible@example.com"},
+                       {"type":"BCC","name":"Hidden","email":"hidden@example.com"}
+                   ]'::jsonb,
+                       message_direction = 'OUTBOUND', created_by = ?
+                 WHERE message_id = (
+                       SELECT message_id FROM mail_messages
+                        WHERE tenant_id = ? AND thread_id = ?
+                        ORDER BY sent_at, message_id LIMIT 1)
+                RETURNING message_id
+                """, UUID.class, otherActor, fixture.tenantId(), fixture.threadId());
+        UUID deliveryId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO mail_delivery_outbox (
+                    delivery_id, tenant_id, thread_id, message_id, idempotency_key,
+                    request_fingerprint, delivery_status, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, 'QUEUED', ?)
+                """, deliveryId, fixture.tenantId(), fixture.threadId(), messageId,
+                UUID.randomUUID(), "b".repeat(64), otherActor);
+
+        MailDtos.ThreadSummary summary = queries.thread(
+                fixture.tenantId(), fixture.userId(), fixture.threadId()).orElseThrow();
+        assertThat(summary.participants())
+                .extracting(MailDtos.Participant::email)
+                .containsExactly("visible@example.com");
+        assertThat(queries.messages(
+                fixture.tenantId(), fixture.userId(), fixture.threadId()).getFirst().recipients())
+                .extracting(value -> String.valueOf(value.get("email")))
+                .containsExactly("visible@example.com");
+        assertThat(queries.threads(
+                fixture.tenantId(), fixture.userId(), "", "", "", true,
+                "hidden@example.com", 0, 100)).isEmpty();
+        assertThat(workspace.delivery(
+                fixture.tenantId(), fixture.userId(), deliveryId).orElseThrow().recipients())
+                .extracting(MailWorkspaceDtos.Recipient::email)
+                .containsExactly("visible@example.com");
+
+        assertThat(queries.hasSharedInboxPermission(
+                fixture.tenantId(), fixture.sharedInboxId(), fixture.userId(),
+                MailQueryRepository.SharedInboxPermission.SEND)).isTrue();
+        assertThat(commands.insertReply(
+                fixture.tenantId(), fixture.userId(), fixture.threadId(),
+                "Send on behalf of the mailbox", UUID.randomUUID())).isTrue();
+        MailDeliveryRepository deliveryRepository = new MailDeliveryRepository(jdbc, json);
+        MailDeliveryRepository.DeliveryJob authorizationProbe =
+                new MailDeliveryRepository.DeliveryJob(
+                        UUID.randomUUID(), fixture.tenantId(), fixture.threadId(), messageId,
+                        UUID.randomUUID(), 1, "corr-on-behalf", fixture.userId(),
+                        UUID.randomUUID(), MailTypes.ProviderType.DWP_SANDBOX, null,
+                        "example.com", fixture.accountId(), "shared:mailbox",
+                        "shared@example.com", "Shared", "Subject", "Body",
+                        List.of("recipient@example.com"), null);
+        assertThat(deliveryRepository.authorizedSenderMode(authorizationProbe))
+                .contains(MailConnectorPort.SenderMode.SEND_ON_BEHALF);
+        MailLifecycleRepository.LifecycleThread before = lifecycle.visibleThread(
+                fixture.tenantId(), fixture.userId(), fixture.threadId()).orElseThrow();
+        MailLifecycleRepository.FolderTarget archive = lifecycle.systemTarget(
+                fixture.tenantId(), fixture.userId(), fixture.accountId(), "ARCHIVE")
+                .orElseThrow();
+        assertThat(lifecycle.move(
+                fixture.tenantId(), fixture.userId(), before, archive, "ARCHIVED",
+                before.folderId(), before.version())).isZero();
+        assertThat(workspace.cancelDelivery(
+                fixture.tenantId(), fixture.userId(), deliveryId, 0L)).isTrue();
+        assertThat(workspace.reconcileSandboxDelivery(
+                fixture.tenantId(), fixture.userId(), deliveryId, 0L)).isFalse();
+
+        jdbc.update("""
+                UPDATE mail_shared_inbox_access_grants
+                   SET can_send_on_behalf = FALSE
+                 WHERE tenant_id = ? AND shared_inbox_id = ? AND user_id = ?
+                """, fixture.tenantId(), fixture.sharedInboxId(), fixture.userId());
+        assertThat(queries.hasSharedInboxPermission(
+                fixture.tenantId(), fixture.sharedInboxId(), fixture.userId(),
+                MailQueryRepository.SharedInboxPermission.SEND)).isFalse();
+        assertThat(commands.insertReply(
+                fixture.tenantId(), fixture.userId(), fixture.threadId(),
+                "Read access alone must not send", UUID.randomUUID())).isFalse();
     }
 
     @Test
@@ -289,6 +402,166 @@ class MailAccessPostgresIntegrationTest {
                 .isOne();
     }
 
+    @Test
+    void htmlAndAttachmentsSurviveClaimSandboxMirrorAndRecipientAcl() {
+        String schema = "mail_delivery_html_attachments";
+        migrate(schema);
+        JdbcTemplate jdbc = new JdbcTemplate(dataSource(schema));
+        MailJsonCodec json = new MailJsonCodec(new ObjectMapper().findAndRegisterModules());
+        MailWorkspaceRepository workspace = new MailWorkspaceRepository(jdbc, json);
+        MailDeliveryRepository deliveries = new MailDeliveryRepository(jdbc, json);
+        MailDeliveryCompletionService completion = new MailDeliveryCompletionService(
+                deliveries, new MailCommandRepository(jdbc, json),
+                new MailInboundMessageService(
+                        deliveries, mock(MailNotificationEvents.class)));
+        PersonalFixture sender = personalFixture(jdbc);
+        Actor recipient = anotherPersonalActor(jdbc, sender.tenantId(), sender.userId());
+        AccountAddress senderAccount = sandboxAccount(jdbc, sender.tenantId(), sender.userId());
+        AccountAddress recipientAccount = sandboxAccount(
+                jdbc, recipient.tenantId(), recipient.userId());
+        UUID firstAttachment = UUID.randomUUID();
+        UUID secondAttachment = UUID.randomUUID();
+        workspace.createAttachment(
+                sender.tenantId(), sender.userId(), firstAttachment,
+                sender.tenantId() + "/mail/compose/first.txt", "first.txt", "text/plain",
+                5, "a".repeat(64), "TEST_READY");
+        workspace.createAttachment(
+                sender.tenantId(), sender.userId(), secondAttachment,
+                sender.tenantId() + "/mail/compose/second.txt", "second.txt", "text/plain",
+                6, "b".repeat(64), "TEST_READY");
+        UUID idempotencyKey = UUID.randomUUID();
+        MailWorkspaceRepository.AdvancedComposeCreated created = workspace.createAdvancedCompose(
+                sender.tenantId(), sender.userId(), senderAccount.accountId(),
+                List.of(new MailWorkspaceDtos.Recipient(
+                        MailWorkspaceDtos.RecipientType.TO,
+                        "Recipient", recipientAccount.email())),
+                "HTML with attachments", "<p>Preserved body</p>",
+                MailWorkspaceDtos.BodyFormat.HTML,
+                List.of(firstAttachment, secondAttachment), null,
+                idempotencyKey, "f".repeat(64), "corr-html-attachments");
+        assertThat(created).isNotNull();
+
+        MailDeliveryRepository.DeliveryJob initiallyClaimed = deliveries
+                .claim("html-attachment-test", 500, 30).stream()
+                .filter(job -> job.threadId().equals(created.threadId()))
+                .findFirst().orElseThrow();
+        assertThat(initiallyClaimed.bodyFormat()).isEqualTo("HTML");
+        assertThat(initiallyClaimed.body()).isEqualTo("<p>Preserved body</p>");
+        assertThat(initiallyClaimed.expectedAttachmentCount()).isEqualTo(2);
+        assertThat(initiallyClaimed.attachments())
+                .extracting(MailDeliveryRepository.DeliveryAttachment::fileName)
+                .containsExactly("first.txt", "second.txt");
+        jdbc.update("""
+                UPDATE mail_delivery_outbox
+                   SET lease_expires_at = CURRENT_TIMESTAMP - INTERVAL '1 second'
+                 WHERE delivery_id = ?
+                """, created.deliveryId());
+        MailWorkspaceDtos.DeliveryReceipt unknown = workspace.delivery(
+                sender.tenantId(), sender.userId(), created.deliveryId()).orElseThrow();
+        assertThat(unknown.state()).isEqualTo("UNKNOWN");
+        assertThat(unknown.canReconcile()).isTrue();
+        assertThat(workspace.reconcileSandboxDelivery(
+                sender.tenantId(), sender.userId(), created.deliveryId(), unknown.version()))
+                .isTrue();
+        MailWorkspaceDtos.DeliveryReceipt requeued = workspace.delivery(
+                sender.tenantId(), sender.userId(), created.deliveryId()).orElseThrow();
+        assertThat(requeued.state()).isEqualTo("QUEUED");
+        assertThat(requeued.canReconcile()).isFalse();
+        MailDeliveryRepository.DeliveryJob claimed = deliveries
+                .claim("html-attachment-test", 500, 30).stream()
+                .filter(job -> job.threadId().equals(created.threadId()))
+                .findFirst().orElseThrow();
+
+        MailConnectorPort.DeliveryReceipt receipt = new MailConnectorPort.DeliveryReceipt(
+                "sandbox:message:" + UUID.randomUUID(),
+                "sandbox:thread:" + UUID.randomUUID(), java.time.Instant.now());
+        completion.complete(
+                claimed, "html-attachment-test", receipt,
+                MailConnectorPort.SenderMode.ACCOUNT);
+        Map<String, Object> mirrored = jdbc.queryForMap("""
+                SELECT thread.thread_id, message.message_id, message.body_format,
+                       message.body_content, message.attachments::text AS attachments
+                  FROM mail_threads thread
+                  JOIN mail_messages message
+                    ON message.tenant_id = thread.tenant_id
+                   AND message.thread_id = thread.thread_id
+                 WHERE thread.tenant_id = ? AND thread.account_id = ?
+                   AND thread.provider_thread_ref = ?
+                   AND message.provider_message_ref = ?
+                """, sender.tenantId(), recipientAccount.accountId(),
+                receipt.providerThreadReference(), receipt.providerMessageReference());
+        assertThat(mirrored.get("body_format")).isEqualTo("HTML");
+        assertThat(mirrored.get("body_content")).isEqualTo("<p>Preserved body</p>");
+        List<Map<String, Object>> mirroredAttachments = json.mapList(
+                String.valueOf(mirrored.get("attachments")));
+        assertThat(mirroredAttachments)
+                .extracting(value -> String.valueOf(value.get("fileName")))
+                .containsExactly("first.txt", "second.txt");
+        UUID mirroredAttachmentId = UUID.fromString(
+                String.valueOf(mirroredAttachments.getFirst().get("attachmentId")));
+        UUID mirroredThreadId = (UUID) mirrored.get("thread_id");
+        UUID mirroredMessageId = (UUID) mirrored.get("message_id");
+        assertThat(workspace.visibleAttachment(
+                sender.tenantId(), recipient.userId(), mirroredThreadId,
+                mirroredMessageId, mirroredAttachmentId)).isPresent();
+        assertThat(workspace.visibleAttachment(
+                sender.tenantId(), sender.userId(), mirroredThreadId,
+                mirroredMessageId, mirroredAttachmentId)).isEmpty();
+
+        MailWorkspaceDtos.FollowUp followUp = workspace.createFollowUp(
+                sender.tenantId(), sender.userId(), created.threadId(),
+                new MailWorkspaceDtos.FollowUpRequest(
+                        OffsetDateTime.now().plusDays(1), "UTC", "Awaiting reply", null))
+                .orElseThrow();
+        assertThat(followUp.status()).isEqualTo("WAITING");
+        assertThat(followUp.version()).isZero();
+        UUID replyMessageId = UUID.randomUUID();
+        UUID replyDeliveryId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO mail_messages (
+                    message_id, tenant_id, thread_id, provider_message_ref,
+                    sender_email, sender_name, recipients, message_direction,
+                    body_format, body_content, attachments, sent_at, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, 'OUTBOUND', 'TEXT', ?,
+                        '[]'::jsonb, CURRENT_TIMESTAMP, ?)
+                """, replyMessageId, sender.tenantId(), mirroredThreadId,
+                "dwp:reply:" + replyDeliveryId, recipientAccount.email(), "Recipient",
+                json.write(List.of(Map.of(
+                        "type", "TO", "name", "Sender", "email", senderAccount.email()))),
+                "Reply received", recipient.userId());
+        jdbc.update("""
+                INSERT INTO mail_delivery_outbox (
+                    delivery_id, tenant_id, thread_id, message_id, idempotency_key,
+                    request_fingerprint, delivery_status, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, 'QUEUED', ?)
+                """, replyDeliveryId, sender.tenantId(), mirroredThreadId,
+                replyMessageId, UUID.randomUUID(), "e".repeat(64), recipient.userId());
+        MailDeliveryRepository.DeliveryJob reply = deliveries
+                .claim("follow-up-reply-test", 500, 30).stream()
+                .filter(job -> job.deliveryId().equals(replyDeliveryId))
+                .findFirst().orElseThrow();
+        assertThat(reply.replyToProviderMessageReference())
+                .isEqualTo(receipt.providerMessageReference());
+        MailConnectorPort.DeliveryReceipt replyReceipt = new MailConnectorPort.DeliveryReceipt(
+                "sandbox:message:" + UUID.randomUUID(),
+                receipt.providerThreadReference(), java.time.Instant.now());
+        completion.complete(
+                reply, "follow-up-reply-test", replyReceipt,
+                MailConnectorPort.SenderMode.ACCOUNT);
+
+        Map<String, Object> tracker = jdbc.queryForMap("""
+                SELECT tracker_status, last_checked_at, version
+                  FROM mail_follow_up_trackers
+                 WHERE tenant_id = ? AND follow_up_id = ?
+                """, sender.tenantId(), followUp.followUpId());
+        assertThat(tracker.get("tracker_status")).isEqualTo("REPLIED");
+        assertThat(java.time.Duration.between(
+                replyReceipt.acceptedAt(),
+                ((java.sql.Timestamp) tracker.get("last_checked_at")).toInstant()).abs())
+                .isLessThan(java.time.Duration.ofMillis(1));
+        assertThat(tracker.get("version")).isEqualTo(1L);
+    }
+
     private void assertDenied(
             MailQueryRepository queries,
             MailCommandRepository commands,
@@ -411,6 +684,26 @@ class MailAccessPostgresIntegrationTest {
                 tenantId, excludedUserId);
     }
 
+    private AccountAddress sandboxAccount(
+            JdbcTemplate jdbc, Long tenantId, Long userId) {
+        return jdbc.queryForObject("""
+                SELECT account.account_id, account.email_address
+                  FROM mail_accounts account
+                  JOIN mail_provider_connections connection
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
+                 WHERE account.tenant_id = ? AND account.owner_user_id = ?
+                   AND account.account_kind = 'PERSONAL'
+                   AND account.connection_state = 'ACTIVE'
+                   AND connection.connection_state = 'ACTIVE'
+                   AND connection.provider_type = 'DWP_SANDBOX'
+                 ORDER BY account.is_default DESC, account.account_id
+                 LIMIT 1
+                """, (result, ignored) -> new AccountAddress(
+                        result.getObject("account_id", UUID.class),
+                        result.getString("email_address")), tenantId, userId);
+    }
+
     private void migrate(String schema) {
         Flyway flyway = Flyway.configure()
                 .dataSource(dataSource())
@@ -419,6 +712,7 @@ class MailAccessPostgresIntegrationTest {
                 .locations(
                         "filesystem:src/main/resources/db/migration",
                         "filesystem:../dwp-core/src/main/resources/db/migration")
+                .target("282")
                 .cleanDisabled(false)
                 .load();
         flyway.clean();
@@ -447,5 +741,8 @@ class MailAccessPostgresIntegrationTest {
     }
 
     private record Actor(Long tenantId, Long userId) {
+    }
+
+    private record AccountAddress(UUID accountId, String email) {
     }
 }

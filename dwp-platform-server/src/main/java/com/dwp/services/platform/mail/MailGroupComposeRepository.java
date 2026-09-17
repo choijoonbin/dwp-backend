@@ -78,14 +78,22 @@ class MailGroupComposeRepository {
                    AND folder.account_id = account.account_id
                    AND folder.folder_type = 'SENT'
                    AND folder.lifecycle_state = 'ACTIVE'
+                  LEFT JOIN mail_user_preferences preference
+                    ON preference.tenant_id = account.tenant_id
+                   AND preference.user_id = ?
                  WHERE account.tenant_id = ? AND account.owner_user_id = ?
-                   AND account.is_default = TRUE AND account.account_kind = 'PERSONAL'
+                   AND account.account_kind = 'PERSONAL'
                    AND account.connection_state = 'ACTIVE'
+                 ORDER BY CASE
+                    WHEN account.account_id = preference.default_account_id THEN 0
+                    WHEN account.is_default THEN 1 ELSE 2 END,
+                    account.account_id
+                 LIMIT 1
                 RETURNING thread_id
                 """, (result, ignored) -> result.getObject("thread_id", UUID.class),
                 threadId, providerRef, request.subject().trim(), preview(request.body()),
                 recipientsJson, recipientsJson, request.classification().name(),
-                userId, userId, tenantId, userId);
+                userId, userId, userId, tenantId, userId);
         if (inserted.isEmpty()) return null;
         int messageInserted = jdbc.update("""
                 INSERT INTO mail_messages (

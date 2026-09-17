@@ -53,6 +53,7 @@ public class ProviderSecurityFilter extends OncePerRequestFilter {
         return path.startsWith("/actuator/health")
                 || path.startsWith("/v3/api-docs")
                 || path.equals(FeatureRolloutInternalEvaluationSecurityFilter.PATH)
+                || path.equals(FeatureRolloutInternalEvaluationSecurityFilter.RECEIPT_PATH)
                 || path.equals("/error");
     }
 

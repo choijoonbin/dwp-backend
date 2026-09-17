@@ -1,5 +1,6 @@
 package com.dwp.services.auth.scim;
 
+import java.util.Set;
 import java.util.UUID;
 
 public final class ScimConnectorContext {
@@ -23,6 +24,21 @@ public final class ScimConnectorContext {
         IDENTITY.remove();
     }
 
-    public record ConnectorIdentity(UUID connectorId, Long tenantId, String connectorKey) {
+    public static void requireOperation(String operation) {
+        ConnectorIdentity identity = require();
+        if (!identity.allowedOperations().contains(operation)) {
+            throw ScimException.forbidden(
+                    "This SCIM credential is not authorized for " + operation + " resources.");
+        }
+    }
+
+    public record ConnectorIdentity(
+            UUID connectorId,
+            Long tenantId,
+            String connectorKey,
+            Set<String> allowedOperations) {
+        public ConnectorIdentity {
+            allowedOperations = Set.copyOf(allowedOperations);
+        }
     }
 }

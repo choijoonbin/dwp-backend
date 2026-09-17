@@ -1,6 +1,9 @@
 package com.dwp.services.auth.scim;
 
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
@@ -16,7 +19,18 @@ public final class ScimConnectorDtos {
     public record CreateRequest(
             @NotBlank
             @Pattern(regexp = "[A-Za-z][A-Za-z0-9_.-]{0,99}") String connectorKey,
-            @NotBlank @Size(max = 200) String displayName) {
+            @NotBlank @Size(max = 200) String displayName,
+            @NotBlank @Size(max = 300) String purpose,
+            @NotNull @Size(min = 1, max = 2)
+            List<@Pattern(regexp = "USERS|GROUPS") String> allowedOperations,
+            @NotNull @Min(1) @Max(365) Integer credentialTtlDays) {
+    }
+
+    public record RotateRequest(
+            @NotNull @Min(0) Long expectedVersion,
+            @NotNull @Min(1) @Max(365) Integer credentialTtlDays,
+            @NotNull Boolean explicitConfirmation,
+            @NotBlank @Size(max = 500) String reason) {
     }
 
     public record LifecycleRequest(@NotBlank @Pattern(regexp = "ACTIVE|SUSPENDED|RETIRED") String state) {
@@ -28,7 +42,13 @@ public final class ScimConnectorDtos {
             String displayName,
             String tokenPrefix,
             List<String> allowedOperations,
+            String purpose,
+            Long ownerUserId,
             String lifecycleState,
+            String credentialState,
+            Instant credentialIssuedAt,
+            Instant credentialExpiresAt,
+            Instant credentialRotatedAt,
             Instant lastUsedAt,
             String health,
             long events24h,

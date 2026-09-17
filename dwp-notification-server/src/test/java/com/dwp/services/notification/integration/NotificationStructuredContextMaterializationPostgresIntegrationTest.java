@@ -149,14 +149,17 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
                                         userId,
                                         "ACTIVE",
                                         "TENANT",
-                                        List.of("APP.MESSAGING:VIEW", "APP.WORKPLACE:VIEW"))),
+                                        List.of("APP.MESSAGING:VIEW", "APP.WORKPLACE:VIEW",
+                                                "APP.MAIL:VIEW"))),
                         "approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,"
                                 + "messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,"
-                                + "meetings=APP.MEETINGS:VIEW,workplace=APP.WORKPLACE:VIEW");
+                                + "meetings=APP.MEETINGS:VIEW,workplace=APP.WORKPLACE:VIEW,"
+                                + "mail=APP.MAIL:VIEW");
         materializer = new DirectNotificationMaterializer(
                 nativeTransactions,
                 new NotificationProducerOwnershipPolicy(
-                        "dwp-messaging-server=messaging,dwp-platform-server=platform|workplace"),
+                        "dwp-messaging-server=messaging,"
+                                + "dwp-platform-server=platform|workplace|mail"),
                 entitlements,
                 mapper);
         contextRepository = new NotificationAttentionContextRepository(named);
@@ -223,6 +226,95 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
                 """, tenantId, result.notificationId()))
                 .containsEntry("target_ref", "/workplace/reservations?booking=" + booking)
                 .containsEntry("route", "/workplace/reservations?booking=" + booking);
+    }
+
+    @Test
+    void mailEventsMaterializeThroughSourceOwnershipAndViewEntitlementOnboarding()
+            throws Exception {
+        long recipient = 900031L;
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        UUID threadId = UUID.randomUUID();
+        List<MailContractCase> cases = List.of(
+                new MailContractCase(
+                        "mail.message.received.v1",
+                        "MAIL.NEW_MESSAGE",
+                        "/mail/inbox?thread=" + threadId,
+                        Map.of(
+                                "threadId", threadId.toString(),
+                                "messageId", UUID.randomUUID().toString()),
+                        false),
+                new MailContractCase(
+                        "mail.shared-inbox.assigned.v1",
+                        "MAIL.SHARED_ASSIGNMENT",
+                        "/mail/shared?threadId=" + threadId,
+                        Map.of(
+                                "threadId", threadId.toString(),
+                                "sharedInboxId", UUID.randomUUID().toString()),
+                        true),
+                new MailContractCase(
+                        "mail.follow-up.due.v1",
+                        "MAIL.FOLLOW_UP_DUE",
+                        "/mail/follow-up?threadId=" + threadId,
+                        Map.of(
+                                "threadId", threadId.toString(),
+                                "followUpId", UUID.randomUUID().toString(),
+                                "dueAt", "2026-09-17T10:00:00Z"),
+                        true));
+        NotificationDomainEventTranslator translator = new NotificationDomainEventTranslator(
+                mapper, "urn:dwp:platform:mail=dwp-platform-server");
+
+        for (MailContractCase contract : cases) {
+            var data = mapper.createObjectNode();
+            var intent = data.putArray("notificationIntents").addObject()
+                    .put("typeKey", contract.typeKey())
+                    .put("threadKey", "mail-thread:" + threadId)
+                    .put("locale", "ko-KR")
+                    .put("reasonCode", "DIRECT")
+                    .put("subjectReference", "mail-thread:" + threadId)
+                    .put("targetReference", contract.route())
+                    .put("actionRequired", contract.actionRequired());
+            if (contract.typeKey().equals("MAIL.FOLLOW_UP_DUE")) {
+                intent.put("dueAt", "2026-09-17T10:00:00Z");
+            }
+            intent.putArray("recipientUserIds").add(recipient);
+            intent.putArray("contexts").addObject()
+                    .put("kind", "THREAD")
+                    .put("key", "mail-thread:" + threadId)
+                    .put("matchable", true);
+            var variables = intent.putObject("variables");
+            contract.variables().forEach(variables::put);
+            DomainEventEnvelope event = DomainEventEnvelope.create(
+                    "urn:dwp:platform:mail",
+                    contract.eventType(),
+                    1,
+                    tenantId,
+                    "MAIL_TEST",
+                    UUID.randomUUID().toString(),
+                    1,
+                    "corr-mail-materialization-" + contract.typeKey(),
+                    null,
+                    null,
+                    data);
+            var translation = translator.translate(mapper.writeValueAsString(event)).getFirst();
+
+            var result = materializer.materialize(
+                    translation.actor(), translation.request(), translation.correlationId());
+
+            assertThat(result.recipientCount()).isOne();
+            assertThat(admin.queryForMap("""
+                    SELECT notification.target_ref,
+                           notification.action_payload ->> 'route' AS route,
+                           type.type_key
+                      FROM ntf_notifications notification
+                      JOIN ntf_notification_type_versions version
+                        ON version.type_version_id = notification.type_version_id
+                      JOIN ntf_notification_types type ON type.type_id = version.type_id
+                     WHERE notification.tenant_id=? AND notification.notification_id=?
+                    """, tenantId, result.notificationId()))
+                    .containsEntry("target_ref", contract.route())
+                    .containsEntry("route", contract.route())
+                    .containsEntry("type_key", contract.typeKey());
+        }
     }
 
     @Test
@@ -511,4 +603,11 @@ class NotificationStructuredContextMaterializationPostgresIntegrationTest {
         }
         return value;
     }
+
+    private record MailContractCase(
+            String eventType,
+            String typeKey,
+            String route,
+            Map<String, String> variables,
+            boolean actionRequired) { }
 }

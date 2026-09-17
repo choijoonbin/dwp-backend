@@ -77,6 +77,12 @@ public class TenantMediaCleanupOutbox {
                 return false;
             }
         }
+        Integer mailReferences = jdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM mail_compose_attachments
+                 WHERE tenant_id = ? AND storage_reference = ?
+                """, Integer.class, job.tenantId(), job.storageKey());
+        if (mailReferences != null && mailReferences > 0) return false;
         Integer leased = jdbc.queryForObject("""
                 SELECT COUNT(*)
                   FROM sys_tenant_media_cleanup_outbox

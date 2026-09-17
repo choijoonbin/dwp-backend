@@ -171,7 +171,7 @@ class MailLifecycleRepository {
                   FROM mail_accounts account, mail_folders target_folder
                  WHERE thread.tenant_id = ? AND thread.thread_id = ?
                    AND thread.account_id = ? AND thread.version = ?
-                """ + MailAccessSql.THREAD_ACCESS + """
+                """ + MailAccessSql.THREAD_MANAGE_ACCESS + """
                    AND target_folder.tenant_id = ?
                    AND target_folder.account_id = ?
                    AND target_folder.folder_id = ?
@@ -195,7 +195,7 @@ class MailLifecycleRepository {
                    ), 365))
                    AND account.tenant_id = thread.tenant_id
                    AND account.account_id = thread.account_id
-                """ + MailAccessSql.THREAD_ACCESS + """
+                """ + MailAccessSql.THREAD_MANAGE_ACCESS + """
                    AND NOT EXISTS (
                        SELECT 1 FROM mail_legal_holds hold
                         WHERE hold.tenant_id = thread.tenant_id

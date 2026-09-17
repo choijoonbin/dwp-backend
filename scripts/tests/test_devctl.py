@@ -11,6 +11,17 @@ from scripts import devctl
 
 
 class AgentLocalEnvironmentTest(unittest.TestCase):
+    def test_spring_services_wait_for_readiness_instead_of_optional_dependency_health(
+        self,
+    ) -> None:
+        spring_services = set(devctl.SERVICES) - {"agent", "frontend"}
+        self.assertTrue(spring_services)
+        for name in spring_services:
+            self.assertEqual(
+                devctl.SERVICES[name].health_path,
+                devctl.SPRING_READINESS_PATH,
+            )
+
     def test_approval_local_boot_publishes_signature_contracts_without_enabling_sources(
         self,
     ) -> None:
@@ -104,6 +115,28 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
                     environment["DWP_IDENTITY_SYNC_TOKEN"],
                     "local-purpose-token",
                 )
+
+    def test_people_receives_platform_token_for_trusted_mail_owner_callbacks(self) -> None:
+        with patch.dict(
+            os.environ,
+            {"DWP_PLATFORM_SERVICE_TOKEN": "local-platform-owner-token"},
+            clear=True,
+        ):
+            environments = {
+                name: devctl.service_environment(name) for name in devctl.SERVICES
+            }
+
+        for name, environment in environments.items():
+            expected = name in {"gateway", "platform", "people"}
+            self.assertEqual("DWP_PLATFORM_SERVICE_TOKEN" in environment, expected)
+            if expected:
+                self.assertEqual(
+                    environment["DWP_PLATFORM_SERVICE_TOKEN"],
+                    "local-platform-owner-token",
+                )
+        self.assertNotIn(
+            "DWP_PLATFORM_RUNTIME_SERVICE_TOKEN", environments["people"]
+        )
 
     def test_core006_bootstrap_settings_are_injected_only_into_exact_services(
         self,

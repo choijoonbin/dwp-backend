@@ -212,10 +212,11 @@ class MailProductSurfacePepEvidenceTest {
                                 CURRENT_REVISION))
                 .andExpect(status().isOk());
 
-        verify(service).home(anyLong(), anyLong());
-        verify(service).threads(
+        verify(service).home(anyLong(), anyLong(), any());
+        verify(service).threadsAdvanced(
                 anyLong(), anyLong(), any(), any(), any(), any(),
-                anyBoolean(), any(), anyInt(), anyInt());
+                anyBoolean(), any(), any(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any(), anyInt(), anyInt());
         verify(service).compose(anyLong(), anyLong(), any(), any());
     }
 

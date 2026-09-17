@@ -164,4 +164,33 @@ public final class FeatureRolloutDtos {
             String cohort,
             Instant evaluatedAt) {
     }
+
+    @Schema(name = "FeatureRolloutApplicationReceiptRequest")
+    public record ApplicationReceiptRequest(
+            @NotNull UUID receiptId,
+            @NotNull @Positive Long authTenantId,
+            @NotBlank @Size(max = 160)
+            @Pattern(regexp = "^(access|ux)\\.product-surfaces\\.[a-z0-9.-]+\\.v1$")
+            String flagKey,
+            @NotBlank
+            @Pattern(regexp = "^rev-[0-9]{20}$")
+            String opaqueRevision,
+            @NotBlank
+            @Pattern(regexp = "APPLIED|FAILED")
+            String observationState,
+            @Size(max = 80)
+            @Pattern(regexp = "^[A-Z][A-Z0-9_]{2,79}$")
+            String errorCode) {
+    }
+
+    @Schema(name = "FeatureRolloutApplicationReceipt")
+    public record ApplicationReceipt(
+            UUID receiptId,
+            String targetId,
+            String flagKey,
+            String opaqueRevision,
+            String observationState,
+            boolean newlyAccepted,
+            Instant acceptedAt) {
+    }
 }

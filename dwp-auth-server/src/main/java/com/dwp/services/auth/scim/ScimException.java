@@ -37,6 +37,10 @@ public class ScimException extends RuntimeException {
         return new ScimException(400, "invalidFilter", detail);
     }
 
+    public static ScimException forbidden(String detail) {
+        return new ScimException(403, null, detail);
+    }
+
     public static ScimException preconditionFailed(String detail) {
         return new ScimException(412, null, detail);
     }

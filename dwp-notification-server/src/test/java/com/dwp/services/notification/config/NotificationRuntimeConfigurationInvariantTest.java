@@ -35,6 +35,17 @@ class NotificationRuntimeConfigurationInvariantTest {
     }
 
     @Test
+    void mailProducerIdentityOwnershipEntitlementAndSourceAreConfiguredTogether()
+            throws IOException {
+        String application = new ClassPathResource("application.yml")
+                .getContentAsString(StandardCharsets.UTF_8);
+        assertThat(application)
+                .contains("dwp-platform-server=platform|workplace|mail")
+                .contains("mail=APP.MAIL:VIEW")
+                .contains("urn:dwp:platform:mail=dwp-platform-server");
+    }
+
+    @Test
     void longLivedStreamsDoNotRetainOpenEntityManagers() {
         ClassPathResource application = new ClassPathResource("application.yml");
         assertThat(application.exists()).isTrue();

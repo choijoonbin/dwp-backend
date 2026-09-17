@@ -16,7 +16,9 @@ class DwpSandboxMailConnector implements MailConnectorPort {
             ProviderFamily.DWP_SANDBOX,
             "1.0.0",
             "DWP native sandbox",
-            Set.of(Capability.READ, Capability.SEND, Capability.THREADS,
+            Set.of(Capability.READ, Capability.SEND, Capability.SEND_ON_BEHALF, Capability.BCC,
+                    Capability.HTML_BODY,
+                    Capability.ATTACHMENTS, Capability.THREADS,
                     Capability.FOLDERS, Capability.PUSH));
 
     @Override

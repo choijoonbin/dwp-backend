@@ -54,7 +54,7 @@ class MailCommandRepository {
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
                   FROM mail_accounts account
                  WHERE thread.tenant_id = ? AND thread.thread_id = ? AND thread.version = ?
-                """.formatted(assignment) + MailAccessSql.THREAD_ACCESS,
+                """.formatted(assignment) + MailAccessSql.THREAD_MANAGE_ACCESS,
                 userId, tenantId, threadId, version, userId, userId);
     }
 
@@ -81,7 +81,7 @@ class MailCommandRepository {
                    AND archive_folder.account_id = thread.account_id
                    AND archive_folder.folder_type = 'ARCHIVE'
                    AND archive_folder.lifecycle_state = 'ACTIVE'
-                """ + MailAccessSql.THREAD_ACCESS,
+                """ + MailAccessSql.THREAD_MANAGE_ACCESS,
                 userId, tenantId, threadId, version, userId, userId);
     }
 
@@ -115,7 +115,7 @@ class MailCommandRepository {
                    AND current_folder.account_id = thread.account_id
                    AND current_folder.folder_id = thread.folder_id
                    AND current_folder.folder_type IN ('ARCHIVE', 'TRASH', 'SPAM')
-                """ + MailAccessSql.THREAD_ACCESS,
+                """ + MailAccessSql.THREAD_MANAGE_ACCESS,
                 userId, tenantId, threadId, tenantId, threadId, version, userId, userId);
     }
 
@@ -132,7 +132,7 @@ class MailCommandRepository {
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
                   FROM mail_accounts account
                  WHERE thread.tenant_id = ? AND thread.thread_id = ? AND thread.version = ?
-                """ + MailAccessSql.THREAD_ACCESS,
+                """ + MailAccessSql.THREAD_MANAGE_ACCESS,
                 until, userId, tenantId, threadId, version, userId, userId);
     }
 
@@ -151,7 +151,7 @@ class MailCommandRepository {
                   FROM mail_accounts account
                  WHERE thread.tenant_id = ? AND thread.thread_id = ?
                    AND thread.shared_inbox_id IS NOT NULL AND thread.version = ?
-                """ + MailAccessSql.THREAD_ACCESS
+                """ + MailAccessSql.THREAD_ASSIGN_ACCESS
                         + "\n AND " + MailAccessSql.ACTIVE_SHARED_MEMBER,
                 assignedUserId, assignedName, userId, tenantId, threadId, version,
                 userId, userId, assignedUserId);
@@ -175,7 +175,7 @@ class MailCommandRepository {
                     ON account.tenant_id = thread.tenant_id
                    AND account.account_id = thread.account_id
                  WHERE thread.tenant_id = ? AND thread.thread_id = ?
-                """ + MailAccessSql.THREAD_ACCESS + """
+                """ + MailAccessSql.THREAD_MANAGE_ACCESS + """
                 RETURNING comment_id
                 """, (result, ignored) -> result.getObject("comment_id", UUID.class),
                 commentId, userId, authorName, body.trim(), json.write(mentions),
@@ -216,7 +216,7 @@ class MailCommandRepository {
                     ON account.tenant_id = thread.tenant_id
                    AND account.account_id = thread.account_id
                  WHERE thread.tenant_id = ? AND thread.thread_id = ?
-                """ + MailAccessSql.THREAD_ACCESS + """
+                """ + MailAccessSql.THREAD_SEND_ACCESS + """
                 ON CONFLICT (thread_id, provider_message_ref) DO NOTHING
                 """, messageId, "dwp:reply:" + idempotencyKey,
                 recipientsJson, body.trim(), userId,
@@ -232,7 +232,7 @@ class MailCommandRepository {
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
                   FROM mail_accounts account
                  WHERE thread.tenant_id = ? AND thread.thread_id = ?
-                """ + MailAccessSql.THREAD_ACCESS,
+                """ + MailAccessSql.THREAD_SEND_ACCESS,
                 preview(body), userId, tenantId, threadId, userId, userId);
         if (updated != 1) {
             throw new IllegalStateException("Mail thread access changed while replying.");
@@ -272,15 +272,23 @@ class MailCommandRepository {
                    AND folder.account_id = account.account_id
                    AND folder.folder_type = ?
                    AND folder.lifecycle_state = 'ACTIVE'
+                  LEFT JOIN mail_user_preferences preference
+                    ON preference.tenant_id = account.tenant_id
+                   AND preference.user_id = ?
                  WHERE account.tenant_id = ? AND account.owner_user_id = ?
-                   AND account.is_default = TRUE AND account.connection_state = 'ACTIVE'
+                   AND account.connection_state = 'ACTIVE'
+                 ORDER BY CASE
+                    WHEN account.account_id = preference.default_account_id THEN 0
+                    WHEN account.is_default THEN 1 ELSE 2 END,
+                    account.account_id
+                 LIMIT 1
                 ON CONFLICT (account_id, provider_thread_ref) DO NOTHING
                 RETURNING thread_id
                 """, (result, ignored) -> result.getObject("thread_id", UUID.class),
                 UUID.randomUUID(), providerRef, requestFingerprint, request.subject().trim(),
                 preview(request.body()), recipientName(request), request.toEmail().trim(),
                 workflowState, request.toEmail().trim(), userId, userId,
-                folderType, tenantId, userId);
+                folderType, userId, tenantId, userId);
         if (threadIds.isEmpty()) {
             ComposeResult concurrent = composedThread(tenantId, userId, providerRef);
             if (concurrent == null) {
@@ -454,6 +462,19 @@ class MailCommandRepository {
                 UPDATE mail_action_proposals proposal
                    SET proposal_status = ?, decided_at = CURRENT_TIMESTAMP,
                        decided_by = ?, version = proposal.version + 1,
+                       owner_command_id = CASE
+                           WHEN ? = 'ACCEPTED'
+                               THEN COALESCE(proposal.owner_command_id, gen_random_uuid())
+                           ELSE proposal.owner_command_id
+                       END,
+                       owner_state = CASE
+                           WHEN ? = 'ACCEPTED' THEN 'ACCEPTED'
+                           ELSE proposal.owner_state
+                       END,
+                       owner_updated_at = CASE
+                           WHEN ? = 'ACCEPTED' THEN CURRENT_TIMESTAMP
+                           ELSE proposal.owner_updated_at
+                       END,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
                   FROM mail_threads thread, mail_accounts account
                  WHERE proposal.tenant_id = ? AND proposal.proposal_id = ?
@@ -461,8 +482,83 @@ class MailCommandRepository {
                    AND thread.thread_id = proposal.thread_id
                    AND proposal.proposal_status = 'PROPOSED' AND proposal.version = ?
                    AND (proposal.expires_at IS NULL OR proposal.expires_at > CURRENT_TIMESTAMP)
-                """ + MailAccessSql.THREAD_ACCESS,
-                status, userId, userId, tenantId, proposalId, version, userId, userId);
+                """ + MailAccessSql.THREAD_MANAGE_ACCESS,
+                status, userId, status, status, status, userId,
+                tenantId, proposalId, version, userId, userId);
+    }
+
+    int updateProposalOutcome(
+            Long tenantId,
+            Long userId,
+            UUID proposalId,
+            UUID commandId,
+            String outcome,
+            String resultRef,
+            long version) {
+        String proposalStatus = "EXECUTED".equals(outcome) ? "EXECUTED" : "ACCEPTED";
+        return jdbc.update("""
+                UPDATE mail_action_proposals proposal
+                   SET proposal_status = ?, owner_state = ?, result_ref = ?,
+                       owner_updated_at = CURRENT_TIMESTAMP,
+                       version = proposal.version + 1,
+                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                  FROM mail_threads thread, mail_accounts account
+                 WHERE proposal.tenant_id = ? AND proposal.proposal_id = ?
+                   AND proposal.owner_command_id = ?
+                   AND proposal.version = ?
+                   AND proposal.proposal_status IN ('ACCEPTED', 'EXECUTED')
+                   AND proposal.owner_state IN ('ACCEPTED', 'UNKNOWN')
+                   AND thread.tenant_id = proposal.tenant_id
+                   AND thread.thread_id = proposal.thread_id
+                """ + MailAccessSql.THREAD_MANAGE_ACCESS,
+                proposalStatus, outcome, resultRef, userId,
+                tenantId, proposalId, commandId, version, userId, userId);
+    }
+
+    int updateProposalOutcomeFromOwner(
+            long tenantId,
+            long actorId,
+            UUID proposalId,
+            UUID commandId,
+            ProposalType proposalType,
+            String outcome,
+            String resultRef,
+            long version) {
+        String proposalStatus = "EXECUTED".equals(outcome) ? "EXECUTED" : "ACCEPTED";
+        return jdbc.update("""
+                UPDATE mail_action_proposals
+                   SET proposal_status = ?, owner_state = ?, result_ref = ?,
+                       owner_updated_at = CURRENT_TIMESTAMP,
+                       version = version + 1, updated_at = CURRENT_TIMESTAMP,
+                       updated_by = ?
+                 WHERE tenant_id = ? AND proposal_id = ?
+                   AND owner_command_id = ? AND proposal_type = ?
+                   AND decided_by = ? AND version = ?
+                   AND proposal_status IN ('ACCEPTED', 'EXECUTED')
+                   AND owner_state IN ('ACCEPTED', 'UNKNOWN')
+                """, proposalStatus, outcome, resultRef, actorId,
+                tenantId, proposalId, commandId, proposalType.name(), actorId, version);
+    }
+
+    int cancelProposalOutcome(
+            long tenantId,
+            long actorId,
+            UUID proposalId,
+            UUID commandId,
+            long version,
+            String resultRef) {
+        return jdbc.update("""
+                UPDATE mail_action_proposals
+                   SET owner_state = 'CANCELLED', result_ref = ?,
+                       owner_updated_at = CURRENT_TIMESTAMP,
+                       version = version + 1, updated_at = CURRENT_TIMESTAMP,
+                       updated_by = ?
+                 WHERE tenant_id = ? AND proposal_id = ?
+                   AND owner_command_id = ? AND decided_by = ? AND version = ?
+                   AND proposal_status = 'ACCEPTED'
+                   AND owner_state IN ('ACCEPTED', 'UNKNOWN')
+                """, resultRef, actorId, tenantId, proposalId,
+                commandId, actorId, version);
     }
 
     DeliveryCommand enqueueDelivery(
@@ -490,7 +586,7 @@ class MailCommandRepository {
                    AND account.account_id = thread.account_id
                  WHERE message.tenant_id = ? AND message.thread_id = ?
                    AND message.message_direction = 'OUTBOUND'
-                """ + MailAccessSql.THREAD_ACCESS + """
+                """ + MailAccessSql.THREAD_SEND_ACCESS + """
                  ORDER BY message.sent_at DESC, message.message_id DESC
                  LIMIT 1
                 ON CONFLICT (tenant_id, created_by, idempotency_key) DO NOTHING

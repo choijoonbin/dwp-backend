@@ -109,6 +109,20 @@ public class WorkplaceBookingOrchestrationController {
                 intentId, request));
     }
 
+    @PostMapping("/booking-orchestration/intents/{intentId}/holds:release")
+    public ApiResponse<HoldReleaseResult> releaseHolds(
+            @RequestHeader(TENANT) long tenantId,
+            @RequestHeader(USER) long actorId,
+            @RequestHeader(IDEMPOTENCY) String idempotencyKey,
+            @RequestHeader(value = CORRELATION, required = false) String correlationId,
+            @PathVariable UUID intentId,
+            @Valid @RequestBody HoldReleaseRequest request,
+            HttpServletResponse response) {
+        noStore(response);
+        return ApiResponse.success(service.releaseHolds(
+                tenantId, actorId, idempotencyKey, correlationId, intentId, request));
+    }
+
     @PostMapping("/booking-batches")
     public ResponseEntity<ApiResponse<BatchStartResponse>> startBatch(
             @RequestHeader(TENANT) long tenantId,

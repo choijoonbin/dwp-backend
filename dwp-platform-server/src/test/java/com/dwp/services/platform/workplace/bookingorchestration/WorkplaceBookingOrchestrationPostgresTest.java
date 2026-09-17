@@ -412,18 +412,98 @@ class WorkplaceBookingOrchestrationPostgresTest {
         assertThat(heldReplay.holds()).extracting(ReservationHold::holdId)
                 .containsExactlyElementsOf(held.holds().stream()
                         .map(ReservationHold::holdId).toList());
+        HoldReleaseRequest releaseRequest = new HoldReleaseRequest(
+                held.intentVersion(), List.of(new HoldReleaseReference(
+                        held.holds().getFirst().holdId(),
+                        held.holds().getFirst().version())),
+                "Edit the reviewed plan", true);
+        HoldReleaseResult released = tx(() -> service.releaseHolds(
+                fixture.tenant(), ACTOR, "release-" + fixture.tenant(),
+                "corr-release", first.intentId(), releaseRequest));
+        HoldReleaseResult releasedReplay = tx(() -> service.releaseHolds(
+                fixture.tenant(), ACTOR, "release-" + fixture.tenant(),
+                "ignored", first.intentId(), releaseRequest));
+
+        assertThat(released.intent().intentState()).isEqualTo(IntentState.PREVIEWED);
+        assertThat(released.intent().holds()).singleElement().satisfies(hold -> {
+            assertThat(hold.state()).isEqualTo(HoldState.RELEASED);
+            assertThat(hold.version()).isEqualTo(2L);
+        });
+        assertThat(released.receipt().releasedHoldIds())
+                .containsExactly(held.holds().getFirst().holdId());
+        assertThat(released.receipt().idempotentReplay()).isFalse();
+        assertThat(released.receipt().requeryRequired()).isFalse();
+        assertThat(releasedReplay.receipt().commandId())
+                .isEqualTo(released.receipt().commandId());
+        assertThat(releasedReplay.receipt().idempotentReplay()).isTrue();
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM wp_hold_release_commands
+                 WHERE tenant_id = ? AND actor_user_id = ? AND intent_id = ?
+                """, Long.class, fixture.tenant(), ACTOR, first.intentId())).isEqualTo(1L);
+        assertThatThrownBy(() -> tx(() -> service.releaseHolds(
+                fixture.tenant(), ACTOR, "release-" + fixture.tenant(),
+                "ignored", first.intentId(), new HoldReleaseRequest(
+                        held.intentVersion(), releaseRequest.holds(), "Different release", true))))
+                .isInstanceOfSatisfying(BaseException.class,
+                        error -> assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.RESOURCE_CONFLICT));
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM wp_booking_orchestration_outbox
                  WHERE tenant_id = ?
-                """, Long.class, fixture.tenant())).isEqualTo(2L);
+                """, Long.class, fixture.tenant())).isEqualTo(3L);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM wp_audit_events
                  WHERE tenant_id = ? AND action IN (
                     'workplace.booking.intent.previewed',
-                    'workplace.booking.holds.created')
-                """, Long.class, fixture.tenant())).isEqualTo(2L);
+                    'workplace.booking.holds.created',
+                    'workplace.booking.holds.released')
+                """, Long.class, fixture.tenant())).isEqualTo(3L);
         assertThatThrownBy(() -> service.intentStatus(
                 fixture.tenant() + 1000, ACTOR, first.intentId(), "en"))
+                .isInstanceOfSatisfying(BaseException.class,
+                        error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
+    }
+
+    @Test
+    void holdReleaseIsOwnedCompleteAndVersionCheckedBeforeAnyStateChanges() {
+        Fixture fixture = fixture();
+        BookingIntentPreview preview = tx(() -> service.preview(
+                fixture.tenant(), ACTOR, fixture.person(), "Planner member", null, "en",
+                "preview-release-cas-" + fixture.tenant(), "corr-preview",
+                previewRequest(fixture)));
+        BookingCandidate candidate = preview.items().getFirst().candidates().getFirst();
+        HoldResponse held = tx(() -> service.createHolds(
+                fixture.tenant(), ACTOR, null, "hold-release-cas-" + fixture.tenant(),
+                "corr-hold", preview.intentId(), new HoldRequest(
+                        preview.version(), List.of(new HoldSelection(
+                                preview.items().getFirst().intentItemId(), candidate.resourceId(),
+                                preview.items().getFirst().version(), candidate.resourceVersion())),
+                        "Hold before CAS test", true)));
+        UUID holdId = held.holds().getFirst().holdId();
+
+        assertThatThrownBy(() -> tx(() -> service.releaseHolds(
+                fixture.tenant(), ACTOR, "release-cas-" + fixture.tenant(), "corr-release",
+                preview.intentId(), new HoldReleaseRequest(
+                        held.intentVersion(),
+                        List.of(new HoldReleaseReference(holdId, 999L)),
+                        "Try stale release", true))))
+                .isInstanceOfSatisfying(BaseException.class,
+                        error -> assertThat(error.getErrorCode())
+                                .isEqualTo(ErrorCode.OBJECT_VERSION_CONFLICT));
+        assertThat(jdbc.queryForObject("""
+                SELECT hold_state FROM wp_reservation_holds
+                 WHERE tenant_id = ? AND hold_id = ?
+                """, String.class, fixture.tenant(), holdId)).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("""
+                SELECT intent_state FROM wp_booking_intents
+                 WHERE tenant_id = ? AND intent_id = ?
+                """, String.class, fixture.tenant(), preview.intentId())).isEqualTo("HELD");
+        assertThatThrownBy(() -> tx(() -> service.releaseHolds(
+                fixture.tenant(), ACTOR + 1, "release-owner-" + fixture.tenant(), "corr-owner",
+                preview.intentId(), new HoldReleaseRequest(
+                        held.intentVersion(),
+                        List.of(new HoldReleaseReference(holdId, 1L)),
+                        "Wrong actor release", true))))
                 .isInstanceOfSatisfying(BaseException.class,
                         error -> assertThat(error.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
     }

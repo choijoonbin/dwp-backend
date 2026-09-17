@@ -441,6 +441,49 @@ class PlatformSecurityFilterTest {
     }
 
     @Test
+    void spacePlanningBoardReportsRequireTheDedicatedExportPermission() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+        String commandId = "123e4567-e89b-42d3-a456-426614174000";
+        List<String[]> routes = List.of(
+                new String[]{"POST", "/v1/admin/workplace/space-planning/reports:preview"},
+                new String[]{"POST", "/v1/admin/workplace/space-planning/reports"},
+                new String[]{"GET", "/v1/admin/workplace/space-planning/reports/" + commandId},
+                new String[]{"GET", "/v1/admin/workplace/space-planning/reports/"
+                        + commandId + "/content"});
+
+        for (String[] route : routes) {
+            MockHttpServletRequest allowed = new MockHttpServletRequest(route[0], route[1]);
+            allowed.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+            allowed.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
+            allowed.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+            allowed.addHeader(PlatformSecurityFilter.ROLES_HEADER, "TENANT_ADMIN");
+            allowed.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER,
+                    "ADMIN.WORKPLACE:EXPORT");
+            MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+
+            filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+
+            assertThat(allowedResponse.getStatus()).as(route[0] + " " + route[1])
+                    .isEqualTo(200);
+
+            MockHttpServletRequest denied = new MockHttpServletRequest(route[0], route[1]);
+            denied.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+            denied.addHeader(PlatformSecurityFilter.USER_HEADER, "19");
+            denied.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+            denied.addHeader(PlatformSecurityFilter.ROLES_HEADER, "TENANT_ADMIN");
+            denied.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER,
+                    "ADMIN.WORKPLACE:MANAGE");
+            MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+
+            filter.doFilter(denied, deniedResponse, new MockFilterChain());
+
+            assertThat(deniedResponse.getStatus()).as(route[0] + " " + route[1])
+                    .isEqualTo(403);
+        }
+    }
+
+    @Test
     void workplaceLegalHoldRequiresManagePermission() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         String path = "/v1/admin/workplace/bookings/"
@@ -506,12 +549,52 @@ class PlatformSecurityFilterTest {
         allowedPolicy.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
         allowedPolicy.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
         allowedPolicy.addHeader(PlatformSecurityFilter.ROLES_HEADER, "MAIL_ADMIN");
-        allowedPolicy.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "ADMIN.MAIL:MANAGE");
+        allowedPolicy.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.MAIL:POLICY_MANAGE");
         MockHttpServletResponse allowedPolicyResponse = new MockHttpServletResponse();
 
         filter.doFilter(allowedPolicy, allowedPolicyResponse, new MockFilterChain());
 
         assertThat(allowedPolicyResponse.getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void separatesPurposeBoundMailAdministrationCapabilities() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+        String[][] cases = {
+                {"PUT", "/v1/admin/mail/connections/00000000-0000-0000-0000-000000000001", "CONNECTION_MANAGE"},
+                {"POST", "/v1/admin/mail/shared-inboxes/00000000-0000-0000-0000-000000000001/members", "SHARED_INBOX_MANAGE"},
+                {"POST", "/v1/admin/mail/retention/holds", "HOLD_MANAGE"},
+                {"POST", "/v1/admin/mail/retention/purge-previews", "PURGE_AUTHORIZE"},
+                {"POST", "/v1/admin/mail/retention/purges/00000000-0000-0000-0000-000000000001/execute", "PURGE_EXECUTE"},
+                {"POST", "/v1/admin/mail/delivery-audit/00000000-0000-0000-0000-000000000001/retry", "RECOVERY"},
+                {"POST", "/v1/admin/mail/delivery-audit/exports", "EXPORT"},
+                {"POST", "/v1/admin/mail/writing-assets/SIGNATURE/drafts", "WRITING_ASSET_EDIT"},
+                {"POST", "/v1/admin/mail/writing-assets/SIGNATURE/00000000-0000-0000-0000-000000000001/submit", "WRITING_ASSET_SUBMIT"},
+                {"POST", "/v1/admin/mail/writing-assets/SIGNATURE/00000000-0000-0000-0000-000000000001/approve", "WRITING_ASSET_APPROVE"},
+                {"POST", "/v1/admin/mail/writing-assets/SIGNATURE/00000000-0000-0000-0000-000000000001/publish", "WRITING_ASSET_PUBLISH"},
+                {"POST", "/v1/admin/mail/writing-assets/SIGNATURE/00000000-0000-0000-0000-000000000001/retire", "WRITING_ASSET_RETIRE"}
+        };
+
+        for (String[] value : cases) {
+            MockHttpServletRequest denied = mailAdminRequest(
+                    value[0], value[1], "ADMIN.MAIL:MANAGE");
+            MockHttpServletResponse deniedResponse = new MockHttpServletResponse();
+            filter.doFilter(denied, deniedResponse, new MockFilterChain());
+            assertThat(deniedResponse.getStatus())
+                    .as("generic MANAGE must not authorize %s %s", value[0], value[1])
+                    .isEqualTo(403);
+
+            MockHttpServletRequest allowed = mailAdminRequest(
+                    value[0], value[1], "ADMIN.MAIL:" + value[2]);
+            MockHttpServletResponse allowedResponse = new MockHttpServletResponse();
+            filter.doFilter(allowed, allowedResponse, new MockFilterChain());
+            assertThat(allowedResponse.getStatus())
+                    .as("%s must authorize %s %s", value[2], value[0], value[1])
+                    .isEqualTo(200);
+        }
     }
 
     @Test
@@ -1039,6 +1122,17 @@ class PlatformSecurityFilterTest {
 
     private MockHttpServletRequest request(String path) {
         return new MockHttpServletRequest("GET", path);
+    }
+
+    private MockHttpServletRequest mailAdminRequest(
+            String method, String path, String permission) {
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
+        request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        request.addHeader(PlatformSecurityFilter.USER_HEADER, "18");
+        request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "MAIL_ADMIN");
+        request.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, permission);
+        return request;
     }
 
     private void legacyProduct(MockHttpServletRequest request) {

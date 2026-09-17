@@ -3,10 +3,12 @@ package com.dwp.platform.contract;
 import org.junit.jupiter.api.Test;
 
 import java.net.URI;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -16,6 +18,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PlatformContractTest {
 
     private static final String PLAN_HASH = "a".repeat(64);
+    private static final String PAYLOAD_SHA256 =
+            "239f59ed55e737c77147cf55ad0c1b030b6d7ee748a7426952f9b852d5a935e5";
 
     private final ExecutionContext context = new ExecutionContext(
             "tenant-1",
@@ -136,5 +140,112 @@ class PlatformContractTest {
                 "Subject", "Message", null))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("idempotencyKey");
+    }
+
+    @Test
+    void mailSendRequestPreservesHtmlAndSnapshotsAttachmentContent() {
+        MailConnectorPort.ConnectionContext connection =
+                new MailConnectorPort.ConnectionContext(
+                        context, UUID.randomUUID(), null, "sk.com");
+        byte[] content = "payload".getBytes(StandardCharsets.UTF_8);
+        MailConnectorPort.OutboundAttachment attachment =
+                new MailConnectorPort.OutboundAttachment(
+                        UUID.randomUUID(), "report.txt", "text/plain",
+                        content.length, PAYLOAD_SHA256, content);
+        List<MailConnectorPort.OutboundAttachment> attachments =
+                new ArrayList<>(List.of(attachment));
+
+        MailConnectorPort.SendRequest request = new MailConnectorPort.SendRequest(
+                connection, "account-1", UUID.randomUUID(),
+                List.of("to@sk.com"), List.of("cc@sk.com"), List.of("bcc@sk.com"),
+                "Subject", "<p>Message</p>", MailConnectorPort.BodyFormat.HTML,
+                attachments, null);
+        content[0] = 'X';
+        attachments.clear();
+        byte[] exposed = request.attachments().getFirst().content();
+        exposed[0] = 'X';
+
+        assertThat(request.bodyFormat()).isEqualTo(MailConnectorPort.BodyFormat.HTML);
+        assertThat(request.body()).isEqualTo("<p>Message</p>");
+        assertThat(request.attachments()).containsExactly(attachment);
+        assertThat(request.attachments().getFirst().content())
+                .containsExactly("payload".getBytes(StandardCharsets.UTF_8));
+        assertThatThrownBy(() -> request.attachments().add(attachment))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    @Test
+    void legacyMailSendConstructorsDefaultToTextWithoutAttachments() {
+        MailConnectorPort.ConnectionContext connection =
+                new MailConnectorPort.ConnectionContext(
+                        context, UUID.randomUUID(), null, "sk.com");
+        MailConnectorPort.SendRequest sevenArgumentRequest =
+                new MailConnectorPort.SendRequest(
+                        connection, "account-1", UUID.randomUUID(),
+                        List.of("to@sk.com"), "Subject", "Message", null);
+        MailConnectorPort.SendRequest typedNineArgumentRequest =
+                new MailConnectorPort.SendRequest(
+                        connection, "account-1", UUID.randomUUID(),
+                        List.of("to@sk.com"), List.of("cc@sk.com"), List.of("bcc@sk.com"),
+                        "Subject", "Message", null);
+
+        assertThat(sevenArgumentRequest.bodyFormat())
+                .isEqualTo(MailConnectorPort.BodyFormat.TEXT);
+        assertThat(sevenArgumentRequest.attachments()).isEmpty();
+        assertThat(sevenArgumentRequest.senderMode())
+                .isEqualTo(MailConnectorPort.SenderMode.ACCOUNT);
+        assertThat(typedNineArgumentRequest.bodyFormat())
+                .isEqualTo(MailConnectorPort.BodyFormat.TEXT);
+        assertThat(typedNineArgumentRequest.attachments()).isEmpty();
+        assertThat(MailConnectorPort.Capability.values()).contains(
+                MailConnectorPort.Capability.SEND_ON_BEHALF,
+                MailConnectorPort.Capability.BCC,
+                MailConnectorPort.Capability.HTML_BODY,
+                MailConnectorPort.Capability.ATTACHMENTS);
+    }
+
+    @Test
+    void providerMessagePreservesHtmlAndAttachmentContentWhileLegacyDefaultsToText() {
+        byte[] content = "payload".getBytes(StandardCharsets.UTF_8);
+        MailConnectorPort.ProviderAttachment attachment =
+                new MailConnectorPort.ProviderAttachment(
+                        "provider-attachment-1", "provider-content-1", "report.txt",
+                        "text/plain", content.length, PAYLOAD_SHA256, content,
+                        Map.of("disposition", "attachment"));
+        MailConnectorPort.ProviderMessage typed = new MailConnectorPort.ProviderMessage(
+                "provider-message-1", "provider-thread-1", "provider-folder-1",
+                Instant.parse("2026-09-17T00:00:00Z"), "Sender <sender@example.test>",
+                List.of("recipient@example.test"), "Subject", "<p>Body</p>",
+                MailConnectorPort.BodyFormat.HTML, List.of(attachment), Map.of());
+        MailConnectorPort.ProviderMessage legacy = new MailConnectorPort.ProviderMessage(
+                "provider-message-2", "provider-thread-2", "provider-folder-1",
+                Instant.parse("2026-09-17T00:00:00Z"), "sender@example.test",
+                List.of(), "Subject", "Body", Map.of());
+        content[0] = 'X';
+        byte[] exposed = typed.attachments().getFirst().content();
+        exposed[0] = 'X';
+
+        assertThat(typed.bodyFormat()).isEqualTo(MailConnectorPort.BodyFormat.HTML);
+        assertThat(typed.body()).isEqualTo("<p>Body</p>");
+        assertThat(typed.attachments().getFirst().content())
+                .containsExactly("payload".getBytes(StandardCharsets.UTF_8));
+        assertThat(legacy.bodyFormat()).isEqualTo(MailConnectorPort.BodyFormat.TEXT);
+        assertThat(legacy.attachments()).isEmpty();
+    }
+
+    @Test
+    void outboundMailAttachmentRejectsInconsistentContentMetadata() {
+        byte[] content = "payload".getBytes(StandardCharsets.UTF_8);
+
+        assertThatThrownBy(() -> new MailConnectorPort.OutboundAttachment(
+                UUID.randomUUID(), "report.txt", "text/plain",
+                content.length + 1L, PAYLOAD_SHA256, content))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("sizeBytes");
+        assertThatThrownBy(() -> new MailConnectorPort.OutboundAttachment(
+                UUID.randomUUID(), "report.txt", "text/plain",
+                content.length, "a".repeat(64), content))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("match content");
     }
 }

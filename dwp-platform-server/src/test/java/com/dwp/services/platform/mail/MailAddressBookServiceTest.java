@@ -145,6 +145,21 @@ class MailAddressBookServiceTest {
                 anyMap(), anyMap());
     }
 
+    @Test
+    void groupBccFailsClosedBeforeACommandOrDeliveryIsCreated() {
+        var request = new MailAddressBookDtos.GroupMessageRequest(
+                "Private update", "Body", INTERNAL,
+                MailAddressBookDtos.GroupRecipientMode.BCC,
+                UUID.randomUUID(), 3L);
+
+        assertThatThrownBy(() -> service.sendGroupMessage(
+                1L, 7L, UUID.randomUUID(), "corr-bcc", request))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("Group BCC delivery is unavailable");
+
+        verifyNoInteractions(addressBook, receipts, groupCompose, mail, evidence);
+    }
+
     private MailAddressBookDtos.Contact contact(UUID contactId, String email, long version) {
         return new MailAddressBookDtos.Contact(
                 contactId, "Kim", email, null, null, null,

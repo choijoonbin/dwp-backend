@@ -2,7 +2,11 @@ package com.dwp.services.platform.mail;
 
 import com.dwp.core.common.ApiResponse;
 import jakarta.validation.Valid;
+import org.springframework.core.io.Resource;
+import org.springframework.http.ContentDisposition;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -16,7 +20,9 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.mail.MailWorkspaceDtos.*;
@@ -24,6 +30,16 @@ import static com.dwp.services.platform.mail.MailWorkspaceDtos.*;
 @RestController
 @RequestMapping("/v1/mail")
 public class MailWorkspaceController {
+
+    private static final Set<String> DOWNLOAD_CONTENT_TYPES = Set.of(
+            "image/png",
+            "image/jpeg",
+            "application/pdf",
+            "application/zip",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            "text/plain");
 
     private final MailWorkspaceService service;
 
@@ -53,6 +69,25 @@ public class MailWorkspaceController {
             @PathVariable UUID attachmentId) {
         service.deleteAttachment(tenantId, userId, attachmentId);
         return ApiResponse.success(null);
+    }
+
+    @GetMapping("/threads/{threadId}/messages/{messageId}/attachments/{attachmentId}")
+    public ResponseEntity<Resource> downloadAttachment(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @PathVariable UUID threadId,
+            @PathVariable UUID messageId,
+            @PathVariable UUID attachmentId) {
+        MailWorkspaceService.AttachmentDownload attachment = service.downloadAttachment(
+                tenantId, userId, threadId, messageId, attachmentId);
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, ContentDisposition.attachment()
+                        .filename(attachment.fileName(), StandardCharsets.UTF_8)
+                        .build().toString())
+                .header("X-Content-Type-Options", "nosniff")
+                .contentType(safeContentType(attachment.contentType()))
+                .contentLength(attachment.sizeBytes())
+                .body(attachment.resource());
     }
 
     @PostMapping("/messages/advanced")
@@ -192,8 +227,9 @@ public class MailWorkspaceController {
     @GetMapping("/writing-assets")
     public ApiResponse<WritingAssets> writingAssets(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
-            @RequestHeader("X-DWP-User-ID") Long userId) {
-        return ApiResponse.success(service.writingAssets(tenantId, userId));
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestParam(defaultValue = "false") boolean includeArchived) {
+        return ApiResponse.success(service.writingAssets(tenantId, userId, includeArchived));
     }
 
     @PostMapping("/templates")
@@ -263,5 +299,12 @@ public class MailWorkspaceController {
             @RequestHeader("X-DWP-User-ID") Long userId,
             @Valid @RequestBody PreferencesRequest request) {
         return ApiResponse.success(service.updatePreferences(tenantId, userId, request));
+    }
+
+    private MediaType safeContentType(String value) {
+        if (value == null || !DOWNLOAD_CONTENT_TYPES.contains(value)) {
+            return MediaType.APPLICATION_OCTET_STREAM;
+        }
+        return MediaType.parseMediaType(value);
     }
 }

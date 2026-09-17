@@ -3,20 +3,26 @@ package com.dwp.services.platform.mail;
 import com.dwp.platform.contract.ExecutionContext;
 import com.dwp.platform.contract.MailConnectorPort;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.http.HttpStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -27,21 +33,58 @@ public class AdminMailCompletionService {
 
     private static final Duration SOURCE_FRESH = Duration.ofMinutes(5);
     private static final Duration DELIVERY_EVIDENCE_FRESH = Duration.ofMinutes(2);
+    private static final int MAX_SYNC_PAGES_PER_ACCOUNT = 20;
+    private static final int DELIVERY_EXPORT_ITEM_LIMIT = 10_000;
     private static final Set<String> PURGE_RESOURCE_TYPES = Set.of("THREADS", "MESSAGES");
 
     private final AdminMailCompletionRepository repository;
     private final MailConnectorRegistry connectorRegistry;
     private final AdminMailCommandFingerprint fingerprints;
     private final ObjectMapper objectMapper;
+    private final MailExternalSyncMaterializer syncMaterializer;
+    private final AdminMailOperationDurability operationDurability;
+    private final AdminMailPurgeTransactions purgeTransactions;
 
+    @Autowired
     public AdminMailCompletionService(
             AdminMailCompletionRepository repository,
             MailConnectorRegistry connectorRegistry,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            MailExternalSyncMaterializer syncMaterializer,
+            AdminMailOperationDurability operationDurability,
+            AdminMailPurgeTransactions purgeTransactions) {
         this.repository = repository;
         this.connectorRegistry = connectorRegistry;
         this.fingerprints = new AdminMailCommandFingerprint(objectMapper);
         this.objectMapper = objectMapper;
+        this.syncMaterializer = syncMaterializer;
+        this.operationDurability = operationDurability;
+        this.purgeTransactions = purgeTransactions;
+    }
+
+    AdminMailCompletionService(
+            AdminMailCompletionRepository repository,
+            MailConnectorRegistry connectorRegistry,
+            ObjectMapper objectMapper,
+            MailExternalSyncMaterializer syncMaterializer,
+            AdminMailOperationDurability operationDurability) {
+        this(repository, connectorRegistry, objectMapper, syncMaterializer,
+                operationDurability, null);
+    }
+
+    AdminMailCompletionService(
+            AdminMailCompletionRepository repository,
+            MailConnectorRegistry connectorRegistry,
+            ObjectMapper objectMapper,
+            MailExternalSyncMaterializer syncMaterializer) {
+        this(repository, connectorRegistry, objectMapper, syncMaterializer, null, null);
+    }
+
+    AdminMailCompletionService(
+            AdminMailCompletionRepository repository,
+            MailConnectorRegistry connectorRegistry,
+            ObjectMapper objectMapper) {
+        this(repository, connectorRegistry, objectMapper, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -56,13 +99,15 @@ public class AdminMailCompletionService {
         List<AdminException> exceptions = repository.exceptions(tenantId, 100).stream()
                 .map(row -> new AdminException(
                         row.kind() + ':' + row.resourceRef(), row.kind(), row.severity(),
-                        row.resourceRef(), row.impactCount(), row.observedAt(),
+                        safeResourceReference(row.kind(), row.resourceRef()),
+                        row.impactCount(), row.observedAt(),
                         row.correlationId(), row.nextAction()))
                 .toList();
         List<AdminCommandAudit> commands = repository.commandAudit(tenantId, 100).stream()
                 .map(row -> new AdminCommandAudit(
-                        row.auditId(), row.commandType(), row.resourceRef(),
-                        "User " + row.actorId(), row.result(), row.occurredAt(),
+                        row.auditId(), row.commandType(),
+                        safeResourceReference("resource", row.resourceRef()),
+                        "Mail administrator", row.result(), row.occurredAt(),
                         nullToEmpty(row.correlationId())))
                 .toList();
         return new AdminOperationsSnapshot(now, sources, exceptions, commands);
@@ -74,9 +119,6 @@ public class AdminMailCompletionService {
             String correlationId, ConnectionOperationRequest request) {
         requireIdentity(tenantId, actorId);
         String kind = requiredEnum(operationKind, Set.of("DIAGNOSTIC", "SYNC", "TEST_SEND"));
-        AdminMailCompletionRepository.ConnectionRow connection = repository
-                .connection(tenantId, connectionId).orElseThrow(this::notFound);
-        if (connection.version() != request.version()) conflict("CONNECTION_VERSION_CONFLICT");
         validateConnectionRequest(kind, request);
         String fingerprint = fingerprints.digest(
                 "CONNECTION_OPERATION", actorId, connectionId, kind,
@@ -92,22 +134,42 @@ public class AdminMailCompletionService {
             }
             return connectionOperation(existing.get(), true);
         }
+        AdminMailCompletionRepository.ConnectionRow connection = repository
+                .connection(tenantId, connectionId).orElseThrow(this::notFound);
+        if (connection.version() != request.version()) conflict("CONNECTION_VERSION_CONFLICT");
+
+        Map<String, Object> payload = Map.of(
+                "capability", nullToEmpty(request.capability()),
+                "scope", nullToEmpty(request.scope()),
+                "recipient", nullToEmpty(request.recipient()),
+                "confirmedExternalImpact", Boolean.TRUE.equals(request.confirmedExternalImpact()),
+                "version", request.version());
+        if ("TEST_SEND".equals(kind)) {
+            return durableTestSend(
+                    tenantId, actorId, connectionId, correlationId, request,
+                    fingerprint, payload, connection);
+        }
 
         UUID operationId = repository.insertConnectionOperation(
                 tenantId, actorId, connectionId, kind, normalized(request.scope()),
-                Map.of(
-                        "capability", nullToEmpty(request.capability()),
-                        "scope", nullToEmpty(request.scope()),
-                        "recipient", nullToEmpty(request.recipient()),
-                        "confirmedExternalImpact", Boolean.TRUE.equals(request.confirmedExternalImpact()),
-                        "version", request.version()),
-                request.idempotencyKey(), fingerprint, correlationId);
+                payload,
+                request.idempotencyKey(), fingerprint, correlationId).orElse(null);
+        if (operationId == null) {
+            AdminMailCompletionRepository.ConnectionOperationRow winner = repository
+                    .connectionOperation(tenantId, actorId, request.idempotencyKey())
+                    .orElseThrow(this::conflict);
+            requireFingerprint(winner.fingerprint(), fingerprint);
+            if (!winner.connectionId().equals(connectionId) || !winner.kind().equals(kind)) {
+                conflict("IDEMPOTENCY_TARGET_MISMATCH");
+            }
+            return connectionOperation(winner, true);
+        }
         OffsetDateTime evidenceAt = now();
         String state = "SUCCEEDED";
         String errorCode = null;
         try {
             executeConnectionOperation(
-                    tenantId, actorId, correlationId, connection, kind, request);
+                    tenantId, actorId, correlationId, operationId, connection, kind, request);
         } catch (AdminOperationFailure failure) {
             state = failure.unknown ? "UNKNOWN" : "FAILED";
             errorCode = failure.code;
@@ -126,8 +188,60 @@ public class AdminMailCompletionService {
                 tenantId, actorId, request.idempotencyKey()).orElseThrow(this::conflict), false);
     }
 
+    private ConnectionOperation durableTestSend(
+            long tenantId,
+            long actorId,
+            UUID connectionId,
+            String correlationId,
+            ConnectionOperationRequest request,
+            String fingerprint,
+            Map<String, Object> payload,
+            AdminMailCompletionRepository.ConnectionRow connection) {
+        if (operationDurability == null) {
+            throw new IllegalStateException("TEST_SEND durability is unavailable");
+        }
+        AdminMailOperationDurability.Claim claim = operationDurability.claimTestSend(
+                tenantId, actorId, connectionId, normalized(request.scope()), payload,
+                request.idempotencyKey(), fingerprint, correlationId);
+        if (!claim.created()) {
+            AdminMailCompletionRepository.ConnectionOperationRow winner = claim.existing();
+            requireFingerprint(winner.fingerprint(), fingerprint);
+            if (!winner.connectionId().equals(connectionId)
+                    || !winner.kind().equals("TEST_SEND")) {
+                conflict("IDEMPOTENCY_TARGET_MISMATCH");
+            }
+            return connectionOperation(winner, true);
+        }
+
+        OffsetDateTime evidenceAt = now();
+        String state = "SUCCEEDED";
+        String errorCode = null;
+        try {
+            executeConnectionOperation(
+                    tenantId, actorId, correlationId, claim.operationId(),
+                    connection, "TEST_SEND", request);
+        } catch (AdminOperationFailure failure) {
+            state = failure.unknown ? "UNKNOWN" : "FAILED";
+            errorCode = failure.code;
+        } catch (RuntimeException failure) {
+            state = "UNKNOWN";
+            errorCode = "CONNECTOR_RESULT_UNCERTAIN";
+        }
+        AdminMailCompletionRepository.ConnectionOperationRow completed =
+                operationDurability.complete(
+                        tenantId, actorId, request.idempotencyKey(), claim.operationId(),
+                        state, errorCode, evidenceAt);
+        repository.audit(
+                tenantId, actorId, "mail.connection.test_send",
+                "MAIL_CONNECTION", connectionId.toString(), correlationId,
+                Map.of("version", request.version()),
+                resultEvidence(state, errorCode, claim.operationId()));
+        return connectionOperation(completed, false);
+    }
+
     private void executeConnectionOperation(
             long tenantId, long actorId, String correlationId,
+            UUID operationId,
             AdminMailCompletionRepository.ConnectionRow connection,
             String kind, ConnectionOperationRequest request) {
         MailTypes.ProviderType provider;
@@ -163,12 +277,36 @@ public class AdminMailCompletionService {
                 repository.connectionAccounts(tenantId, connection.id());
         if (accounts.isEmpty()) throw failure("NO_ACTIVE_ACCOUNT");
         if ("SYNC".equals(kind)) {
+            if (syncMaterializer == null) {
+                throw failure("SYNC_MATERIALIZER_UNAVAILABLE");
+            }
             for (var account : accounts) {
-                MailConnectorPort.SyncBatch batch = connector.synchronize(
-                        new MailConnectorPort.SyncRequest(
-                                context, account.providerAccountRef(), account.cursor(), 500));
-                if (batch.partial() || batch.cursorResetRequired() || !batch.messages().isEmpty()) {
-                    throw failure("SYNC_MATERIALIZATION_REQUIRED");
+                AdminMailCompletionRepository.AccountRow pageAccount = account;
+                boolean complete = false;
+                for (int page = 0; page < MAX_SYNC_PAGES_PER_ACCOUNT; page++) {
+                    MailConnectorPort.SyncBatch batch = connector.synchronize(
+                            new MailConnectorPort.SyncRequest(
+                                    context, pageAccount.providerAccountRef(),
+                                    pageAccount.cursor(), 500));
+                    try {
+                        syncMaterializer.materialize(
+                                tenantId, actorId, pageAccount, batch);
+                    } catch (MailExternalSyncMaterializer.SyncFailure syncFailure) {
+                        throw failure(syncFailure.code());
+                    }
+                    if (!batch.partial()) {
+                        complete = true;
+                        break;
+                    }
+                    if (Objects.equals(pageAccount.cursor(), batch.nextCursor())) {
+                        throw failure("SYNC_CURSOR_DID_NOT_ADVANCE");
+                    }
+                    pageAccount = new AdminMailCompletionRepository.AccountRow(
+                            pageAccount.id(), pageAccount.email(),
+                            pageAccount.providerAccountRef(), batch.nextCursor());
+                }
+                if (!complete) {
+                    throw failure("SYNC_PAGE_LIMIT_REACHED");
                 }
             }
             if (repository.markConnectionSynchronized(
@@ -186,7 +324,7 @@ public class AdminMailCompletionService {
         }
         AdminMailCompletionRepository.AccountRow account = accounts.getFirst();
         connector.send(new MailConnectorPort.SendRequest(
-                context, account.providerAccountRef(), request.idempotencyKey(),
+                context, account.providerAccountRef(), operationId,
                 List.of(request.recipient().trim()), "DWP Mail connection test",
                 "This test message verifies the configured DWP Mail connection.", null));
     }
@@ -210,9 +348,6 @@ public class AdminMailCompletionService {
             SharedInboxMemberRequest request) {
         requireIdentity(tenantId, actorId);
         validatePermissions(request.permissions());
-        AdminMailCompletionRepository.SharedInboxRow inbox = repository.sharedInbox(tenantId, inboxId)
-                .orElseThrow(this::notFound);
-        if (inbox.version() != request.version()) conflict("SHARED_INBOX_VERSION_CONFLICT");
         String fingerprint = memberFingerprint(actorId, inboxId, null, "ADD", request);
         AdminMailCompletionRepository.AdminReceiptRow replay = claimOrReplay(
                 tenantId, actorId, "SHARED_MEMBER_ADD", request.idempotencyKey(),
@@ -221,6 +356,9 @@ public class AdminMailCompletionService {
             replayMember(tenantId, inboxId, replay, "SHARED_MEMBER");
             return sharedInboxAccess(tenantId, inboxId);
         }
+        AdminMailCompletionRepository.SharedInboxRow inbox = repository.sharedInbox(tenantId, inboxId)
+                .orElseThrow(this::notFound);
+        if (inbox.version() != request.version()) conflict("SHARED_INBOX_VERSION_CONFLICT");
         if (repository.accessGrantByUser(tenantId, inboxId, request.userId()).isPresent()) {
             conflict("SHARED_MEMBER_ALREADY_EXISTS");
         }
@@ -254,11 +392,6 @@ public class AdminMailCompletionService {
             String correlationId, SharedInboxMemberRequest request) {
         requireIdentity(tenantId, actorId);
         validatePermissions(request.permissions());
-        AdminMailCompletionRepository.SharedInboxRow inbox = repository.sharedInbox(tenantId, inboxId)
-                .orElseThrow(this::notFound);
-        AdminMailCompletionRepository.AccessGrantRow before = repository
-                .accessGrant(tenantId, inboxId, memberId).orElseThrow(this::notFound);
-        if (before.userId() != request.userId()) badRequest("MEMBER_IDENTITY_IMMUTABLE");
         String fingerprint = memberFingerprint(actorId, inboxId, memberId, "UPDATE", request);
         AdminMailCompletionRepository.AdminReceiptRow replay = claimOrReplay(
                 tenantId, actorId, "SHARED_MEMBER_UPDATE", request.idempotencyKey(),
@@ -267,6 +400,11 @@ public class AdminMailCompletionService {
             replayMember(tenantId, inboxId, replay, "SHARED_MEMBER");
             return sharedInboxAccess(tenantId, inboxId);
         }
+        AdminMailCompletionRepository.SharedInboxRow inbox = repository.sharedInbox(tenantId, inboxId)
+                .orElseThrow(this::notFound);
+        AdminMailCompletionRepository.AccessGrantRow before = repository
+                .accessGrant(tenantId, inboxId, memberId).orElseThrow(this::notFound);
+        if (before.userId() != request.userId()) badRequest("MEMBER_IDENTITY_IMMUTABLE");
         String providerState = providerMutationState(inbox.providerType());
         if (repository.updateAccessGrant(
                 tenantId, inboxId, memberId, displayName(request),
@@ -298,6 +436,14 @@ public class AdminMailCompletionService {
             long tenantId, long actorId, UUID inboxId, UUID memberId,
             String correlationId, SharedInboxMemberRevokeRequest request) {
         requireIdentity(tenantId, actorId);
+        String fingerprint = memberFingerprint(actorId, inboxId, memberId, "REVOKE", request);
+        AdminMailCompletionRepository.AdminReceiptRow replay = claimOrReplay(
+                tenantId, actorId, "SHARED_MEMBER_REVOKE", request.idempotencyKey(),
+                fingerprint, correlationId);
+        if (replay != null) {
+            replayMember(tenantId, inboxId, replay, "SHARED_MEMBER");
+            return sharedInboxAccess(tenantId, inboxId);
+        }
         AdminMailCompletionRepository.SharedInboxRow inbox = repository.sharedInbox(tenantId, inboxId)
                 .orElseThrow(this::notFound);
         AdminMailCompletionRepository.AccessGrantRow before = repository
@@ -306,14 +452,6 @@ public class AdminMailCompletionService {
                 repository.accessImpact(tenantId, inboxId, before.userId());
         if (impact.hasImpact() && !request.impactAcknowledged()) {
             conflict("REVOKE_IMPACT_ACKNOWLEDGEMENT_REQUIRED");
-        }
-        String fingerprint = memberFingerprint(actorId, inboxId, memberId, "REVOKE", request);
-        AdminMailCompletionRepository.AdminReceiptRow replay = claimOrReplay(
-                tenantId, actorId, "SHARED_MEMBER_REVOKE", request.idempotencyKey(),
-                fingerprint, correlationId);
-        if (replay != null) {
-            replayMember(tenantId, inboxId, replay, "SHARED_MEMBER");
-            return sharedInboxAccess(tenantId, inboxId);
         }
         String providerState = providerMutationState(inbox.providerType());
         if (repository.revokeAccessGrant(
@@ -361,7 +499,7 @@ public class AdminMailCompletionService {
                         "MailWorkspaceService", policy.updatedAt()));
         List<PolicyHistory> history = repository.policyHistory(tenantId, 100).stream()
                 .map(row -> new PolicyHistory(
-                        row.id(), row.version(), "User " + row.actorId(), row.changedAt(),
+                        row.id(), row.version(), "Mail administrator", row.changedAt(),
                         row.diff().toString(), row.result(), nullToEmpty(row.correlationId())))
                 .toList();
         return new PolicyGovernance(now(), policy.version(), rows, history);
@@ -387,6 +525,7 @@ public class AdminMailCompletionService {
     public LegalHold createLegalHold(
             long tenantId, long actorId, String correlationId, LegalHoldRequest request) {
         requireIdentity(tenantId, actorId);
+        repository.lockRetentionLifecycle(tenantId);
         validateLegalHold(request, false);
         String fingerprint = legalHoldFingerprint(actorId, null, "CREATE", request);
         AdminMailCompletionRepository.AdminReceiptRow replay = claimOrReplay(
@@ -409,6 +548,7 @@ public class AdminMailCompletionService {
             long tenantId, long actorId, UUID holdId, String correlationId,
             LegalHoldRequest request) {
         requireIdentity(tenantId, actorId);
+        repository.lockRetentionLifecycle(tenantId);
         validateLegalHold(request, true);
         String fingerprint = legalHoldFingerprint(actorId, holdId, "UPDATE", request);
         AdminMailCompletionRepository.AdminReceiptRow replay = claimOrReplay(
@@ -435,6 +575,7 @@ public class AdminMailCompletionService {
             long tenantId, long actorId, UUID holdId, String correlationId,
             LegalHoldReleaseRequest request) {
         requireIdentity(tenantId, actorId);
+        repository.lockRetentionLifecycle(tenantId);
         String fingerprint = fingerprints.digest(
                 "LEGAL_HOLD", "RELEASE", actorId, holdId, request.version());
         AdminMailCompletionRepository.AdminReceiptRow replay = claimOrReplay(
@@ -478,9 +619,11 @@ public class AdminMailCompletionService {
         AdminMailCompletionRepository.CandidateSet candidates =
                 repository.purgeCandidates(tenantId, effectiveBefore);
         int activeHolds = repository.activeHoldCount(tenantId);
-        int total = requestedCandidateCount(candidates, request.resourceTypes());
-        int held = activeHolds > 0 ? total : 0;
-        int eligible = total - held;
+        int evidenceBlocked = requestedBlockedCount(candidates, request.resourceTypes());
+        int eligibleCandidates = requestedCandidateCount(candidates, request.resourceTypes());
+        int total = evidenceBlocked + eligibleCandidates;
+        int held = activeHolds > 0 ? total : evidenceBlocked;
+        int eligible = activeHolds > 0 ? 0 : eligibleCandidates;
         List<String> partial = candidates.hasExternalProvider()
                 ? List.of("EXTERNAL_PROVIDER_DELETE_UNAVAILABLE") : List.of();
         String snapshotFingerprint = purgeFingerprint(
@@ -536,6 +679,7 @@ public class AdminMailCompletionService {
             long tenantId, long actorId, UUID snapshotId, String correlationId,
             PurgeExecuteRequest request) {
         requireIdentity(tenantId, actorId);
+        repository.lockRetentionLifecycle(tenantId);
         AdminMailCompletionRepository.PurgePreviewRow preview = repository
                 .purgePreview(tenantId, snapshotId).orElseThrow(this::notFound);
         var replay = repository.purgeJobByCommand(tenantId, actorId, request.idempotencyKey());
@@ -543,7 +687,15 @@ public class AdminMailCompletionService {
             if (!replay.get().snapshotId().equals(snapshotId)) {
                 conflict("IDEMPOTENCY_TARGET_MISMATCH");
             }
+            if (preview.policyVersion() != request.policyVersion()) {
+                conflict("IDEMPOTENCY_PAYLOAD_MISMATCH");
+            }
+            requireFingerprint(
+                    preview.fingerprint(), request.fingerprint().toLowerCase(Locale.ROOT));
             return purgeJob(replay.get());
+        }
+        if (repository.purgeJobBySnapshot(tenantId, snapshotId).isPresent()) {
+            conflict("PURGE_SNAPSHOT_ALREADY_EXECUTED");
         }
         requireLivePreview(preview, request.policyVersion());
         requireFingerprint(preview.fingerprint(), request.fingerprint().toLowerCase(Locale.ROOT));
@@ -561,20 +713,26 @@ public class AdminMailCompletionService {
                 tenantId, preview.scope(), preview.resourceTypes(), preview.before(),
                 policy.version(), activeHolds, candidates);
         requireFingerprint(preview.fingerprint(), currentFingerprint);
-        if (requestedCandidateCount(candidates, preview.resourceTypes()) != preview.eligible()) {
+        if (requestedCandidateCount(candidates, preview.resourceTypes()) != preview.eligible()
+                || requestedBlockedCount(candidates, preview.resourceTypes()) != preview.held()) {
             conflict("PURGE_CANDIDATE_SET_CHANGED");
         }
         UUID jobId = repository.insertPurgeJob(
                 tenantId, snapshotId, actorId, request.idempotencyKey());
         AdminMailCompletionRepository.DeleteCounts counts;
         try {
-            counts = repository.deletePurgeCandidates(tenantId, preview.before());
+            counts = purgeTransactions == null
+                    ? repository.deletePurgeCandidates(tenantId, preview.before())
+                    : purgeTransactions.deleteCandidates(tenantId, preview.before());
         } catch (RuntimeException deletionFailure) {
             List<Map<String, Object>> failedSteps = List.of(
                     Map.of("step", "REVALIDATE_POLICY", "state", "SUCCEEDED",
                             "policyVersion", policy.version()),
                     Map.of("step", "REVALIDATE_LEGAL_HOLDS", "state", "SUCCEEDED",
                             "activeHoldCount", activeHolds),
+                    Map.of("step", "PRESERVE_IMMUTABLE_EVIDENCE", "state", "SUCCEEDED",
+                            "blockedThreads", candidates.blockedThreadCount(),
+                            "blockedMessages", candidates.blockedMessageCount()),
                     Map.of("step", "DELETE_LOCAL_THREADS", "state", "FAILED",
                             "errorCode", "LOCAL_DELETE_FAILED"),
                     Map.of("step", "VERIFY_LOCAL_ABSENCE", "state", "UNKNOWN"));
@@ -593,6 +751,9 @@ public class AdminMailCompletionService {
                         "policyVersion", policy.version()),
                 Map.of("step", "REVALIDATE_LEGAL_HOLDS", "state", "SUCCEEDED",
                         "activeHoldCount", activeHolds),
+                Map.of("step", "PRESERVE_IMMUTABLE_EVIDENCE", "state", "SUCCEEDED",
+                        "blockedThreads", candidates.blockedThreadCount(),
+                        "blockedMessages", candidates.blockedMessageCount()),
                 Map.of("step", "DELETE_LOCAL_THREADS", "state", state,
                         "deletedThreads", counts.threads(),
                         "deletedMessages", counts.messages()),
@@ -605,7 +766,9 @@ public class AdminMailCompletionService {
                 jobId.toString(), correlationId,
                 Map.of("candidateSnapshotId", snapshotId, "fingerprint", preview.fingerprint()),
                 Map.of("result", state, "deletedThreads", counts.threads(),
-                        "deletedMessages", counts.messages(), "remaining", remaining));
+                        "deletedMessages", counts.messages(), "remaining", remaining,
+                        "preservedThreads", candidates.blockedThreadCount(),
+                        "preservedMessages", candidates.blockedMessageCount()));
         return purgeJob(repository.purgeJob(tenantId, jobId).orElseThrow(this::conflict));
     }
 
@@ -699,37 +862,100 @@ public class AdminMailCompletionService {
             requireFingerprint(existingFingerprint, fingerprint);
             return deliveryExport(existing.get());
         }
-        OffsetDateTime expiresAt = now().plusHours(24);
+        OffsetDateTime snapshotCutoff = now();
+        OffsetDateTime expiresAt = snapshotCutoff.plusHours(24);
         String watermark = "DWP MAIL AUDIT • tenant " + tenantId + " • user " + actorId
-                + " • " + now();
-        UUID exportId = repository.insertExport(
-                tenantId, actorId, request.filters(), request.purpose().trim(),
-                watermark, request.idempotencyKey(), expiresAt);
-        return deliveryExport(repository.export(tenantId, exportId).orElseThrow(this::conflict));
+                + " • " + snapshotCutoff;
+        UUID exportId = UUID.randomUUID();
+        String state = request.filters().get("state") instanceof String value ? value : "";
+        String query = request.filters().get("query") instanceof String value ? value : "";
+        List<AdminMailCompletionRepository.DeliveryRow> candidates = repository.deliveries(
+                tenantId, state, query, DELIVERY_EXPORT_ITEM_LIMIT + 1, 0);
+        boolean truncated = candidates.size() > DELIVERY_EXPORT_ITEM_LIMIT;
+        List<DeliveryAuditItem> items = candidates.stream()
+                .limit(DELIVERY_EXPORT_ITEM_LIMIT)
+                .map(row -> deliveryItem(tenantId, row))
+                .toList();
+        String payload = deliveryExportPayload(
+                exportId, snapshotCutoff, expiresAt, watermark,
+                request.purpose().trim(), request.filters(), items, truncated);
+        String payloadSha256 = sha256(payload);
+        UUID inserted = repository.insertExport(
+                exportId, tenantId, actorId, request.filters(), request.purpose().trim(),
+                watermark, request.idempotencyKey(), expiresAt, payload,
+                payloadSha256, items.size(), truncated, snapshotCutoff).orElse(null);
+        if (inserted == null) {
+            AdminMailCompletionRepository.ExportRow winner = repository.exportByCommand(
+                    tenantId, actorId, request.idempotencyKey()).orElseThrow(this::conflict);
+            String existingFingerprint = fingerprints.digest(
+                    "DELIVERY_EXPORT", actorId, winner.filters(), winner.purpose());
+            requireFingerprint(existingFingerprint, fingerprint);
+            return deliveryExport(winner);
+        }
+        return deliveryExport(repository.export(
+                tenantId, actorId, inserted).orElseThrow(this::conflict));
     }
 
     @Transactional(readOnly = true)
     public String deliveryExportJson(long tenantId, long actorId, UUID exportId) {
         requireIdentity(tenantId, actorId);
-        AdminMailCompletionRepository.ExportRow export = repository.export(tenantId, exportId)
+        AdminMailCompletionRepository.ExportRow export = repository.export(
+                        tenantId, actorId, exportId)
                 .orElseThrow(this::notFound);
         if (export.expiresAt().isBefore(now())) {
             throw new ResponseStatusException(HttpStatus.GONE, "DELIVERY_EXPORT_EXPIRED");
         }
-        Map<String, Object> filters = export.filters();
-        String state = filters.get("state") instanceof String value ? value : "";
-        String query = filters.get("query") instanceof String value ? value : "";
-        List<DeliveryAuditItem> items = repository.deliveries(
-                tenantId, state, query, 10_000, 0).stream()
-                .map(row -> deliveryItem(tenantId, row)).toList();
+        if (!"READY".equals(export.state())
+                || export.snapshotPayload() == null
+                || export.payloadSha256() == null) {
+            throw new ResponseStatusException(
+                    HttpStatus.CONFLICT, "DELIVERY_EXPORT_SNAPSHOT_UNAVAILABLE");
+        }
+        if (!MessageDigest.isEqual(
+                export.payloadSha256().getBytes(StandardCharsets.US_ASCII),
+                sha256(export.snapshotPayload()).getBytes(StandardCharsets.US_ASCII))) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "DELIVERY_EXPORT_INTEGRITY_CHECK_FAILED");
+        }
+        return export.snapshotPayload();
+    }
+
+    private String deliveryExportPayload(
+            UUID exportId,
+            OffsetDateTime snapshotCutoff,
+            OffsetDateTime expiresAt,
+            String watermark,
+            String purpose,
+            Map<String, Object> filters,
+            List<DeliveryAuditItem> items,
+            boolean truncated) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("exportId", exportId);
+        payload.put("generatedAt", snapshotCutoff);
+        payload.put("snapshotCutoff", snapshotCutoff);
+        payload.put("expiresAt", expiresAt);
+        payload.put("watermark", watermark);
+        payload.put("purpose", purpose);
+        payload.put("filters", filters);
+        payload.put("itemCount", items.size());
+        payload.put("truncated", truncated);
+        payload.put("itemLimit", DELIVERY_EXPORT_ITEM_LIMIT);
+        payload.put("items", items);
         try {
-            return objectMapper.writeValueAsString(Map.of(
-                    "exportId", export.id(), "generatedAt", export.createdAt(),
-                    "expiresAt", export.expiresAt(), "watermark", export.watermark(),
-                    "purpose", export.purpose(), "filters", export.filters(), "items", items));
+            return objectMapper.writeValueAsString(payload);
         } catch (Exception serializationFailure) {
             throw new ResponseStatusException(
                     HttpStatus.INTERNAL_SERVER_ERROR, "DELIVERY_EXPORT_SERIALIZATION_FAILED");
+        }
+    }
+
+    private String sha256(String payload) {
+        try {
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(payload.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
         }
     }
 
@@ -769,7 +995,7 @@ public class AdminMailCompletionService {
         if (!normalized.equals(PURGE_RESOURCE_TYPES)) {
             badRequest("PURGE_RESOURCE_TYPE_UNSUPPORTED");
         }
-        if (!Boolean.TRUE.equals(request.scope().get("tenant"))) {
+        if (!Map.of("tenant", true).equals(request.scope())) {
             badRequest("PURGE_SCOPE_UNSUPPORTED");
         }
         if (request.before().isAfter(now())) badRequest("PURGE_BEFORE_MUST_NOT_BE_FUTURE");
@@ -945,8 +1171,18 @@ public class AdminMailCompletionService {
             List<String> resourceTypes) {
         Set<String> requested = Set.copyOf(normalizedResources(resourceTypes));
         int total = 0;
-        if (requested.contains("THREADS")) total += candidates.threadCount();
-        if (requested.contains("MESSAGES")) total += candidates.messageCount();
+        if (requested.contains("THREADS")) total += candidates.eligibleThreadCount();
+        if (requested.contains("MESSAGES")) total += candidates.eligibleMessageCount();
+        return total;
+    }
+
+    private int requestedBlockedCount(
+            AdminMailCompletionRepository.CandidateSet candidates,
+            List<String> resourceTypes) {
+        Set<String> requested = Set.copyOf(normalizedResources(resourceTypes));
+        int total = 0;
+        if (requested.contains("THREADS")) total += candidates.blockedThreadCount();
+        if (requested.contains("MESSAGES")) total += candidates.blockedMessageCount();
         return total;
     }
 
@@ -956,8 +1192,10 @@ public class AdminMailCompletionService {
             AdminMailCompletionRepository.CandidateSet candidates) {
         return fingerprints.digest(
                 "PURGE_SNAPSHOT", tenantId, scope, normalizedResources(resourceTypes), before,
-                policyVersion, activeHolds, candidates.threadIds(),
-                candidates.threadCount(), candidates.messageCount());
+                policyVersion, activeHolds,
+                candidates.eligibleThreadIds(), candidates.blockedThreadIds(),
+                candidates.eligibleThreadCount(), candidates.eligibleMessageCount(),
+                candidates.blockedThreadCount(), candidates.blockedMessageCount());
     }
 
     private DeliveryAuditItem deliveryItem(
@@ -983,7 +1221,8 @@ public class AdminMailCompletionService {
                         stringValue(event.evidence().get("errorCode")))));
         boolean fresh = fresh(row.updatedAt(), now(), DELIVERY_EVIDENCE_FRESH);
         return new DeliveryAuditItem(
-                row.id(), row.id().toString(), "SEND", "User " + row.actorId(),
+                row.id(), safeResourceReference("message", row.id().toString()),
+                "SEND", "Mail administrator",
                 row.accountName(), row.providerType(), deliveryStage(row),
                 deliveryState(row), fresh && retryEligible(row) ? "ELIGIBLE" : "INELIGIBLE",
                 providerDisposition(row), idempotencyState(row),
@@ -1018,7 +1257,8 @@ public class AdminMailCompletionService {
 
     private String providerDisposition(AdminMailCompletionRepository.DeliveryRow row) {
         if (row.acceptedAt() != null && row.providerMessageRef() != null) return "ACCEPTED";
-        if ("FAILED".equals(row.status()) && row.providerMessageRef() == null) {
+        if ("FAILED".equals(row.status()) && row.providerMessageRef() == null
+                && !"MAIL_PROVIDER_RESULT_UNKNOWN".equals(row.errorCode())) {
             return "NOT_ACCEPTED";
         }
         return "UNKNOWN";
@@ -1039,7 +1279,8 @@ public class AdminMailCompletionService {
 
     private String deliveryEvidenceState(AdminMailCompletionRepository.DeliveryRow row) {
         if (row.acceptedAt() != null && row.providerMessageRef() != null) return "VERIFIED";
-        if ("FAILED".equals(row.status()) && row.providerMessageRef() == null) return "VERIFIED";
+        if ("FAILED".equals(row.status()) && row.providerMessageRef() == null
+                && !"MAIL_PROVIDER_RESULT_UNKNOWN".equals(row.errorCode())) return "VERIFIED";
         if ("LEASED".equals(row.status()) && row.leaseExpiresAt() != null
                 && row.leaseExpiresAt().isBefore(now())) return "STALE";
         return "REPORTED";
@@ -1049,8 +1290,10 @@ public class AdminMailCompletionService {
         return "FAILED".equals(row.status())
                 && row.acceptedAt() == null
                 && row.providerMessageRef() == null
+                && row.providerThreadRef() == null
                 && row.leaseOwner() == null
-                && row.leaseExpiresAt() == null;
+                && row.leaseExpiresAt() == null
+                && !"MAIL_PROVIDER_RESULT_UNKNOWN".equals(row.errorCode());
     }
 
     private boolean cancelEligible(AdminMailCompletionRepository.DeliveryRow row) {
@@ -1086,6 +1329,7 @@ public class AdminMailCompletionService {
     private DeliveryExport deliveryExport(AdminMailCompletionRepository.ExportRow row) {
         return new DeliveryExport(
                 row.id(), row.state(), row.expiresAt(), row.watermark(),
+                row.itemCount(), row.truncated(), row.payloadSha256(), row.snapshotCutoff(),
                 "/api/platform/v1/admin/mail/delivery-audit/exports/"
                         + row.id() + "/download");
     }
@@ -1153,6 +1397,14 @@ public class AdminMailCompletionService {
 
     private String nullToEmpty(String value) {
         return value == null ? "" : value;
+    }
+
+    private String safeResourceReference(String kind, String resourceReference) {
+        String label = normalized(kind).toLowerCase(Locale.ROOT).replace('_', '-');
+        if (resourceReference == null || resourceReference.isBlank()) return label;
+        String value = resourceReference.trim();
+        int suffixLength = Math.min(6, value.length());
+        return label + ":••" + value.substring(value.length() - suffixLength);
     }
 
     private String correlation(String value) {

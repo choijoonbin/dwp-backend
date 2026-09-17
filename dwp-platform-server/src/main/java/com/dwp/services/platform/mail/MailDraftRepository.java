@@ -50,15 +50,23 @@ class MailDraftRepository {
                    AND folder.account_id = account.account_id
                    AND folder.folder_type = 'DRAFTS'
                    AND folder.lifecycle_state = 'ACTIVE'
+                  LEFT JOIN mail_user_preferences preference
+                    ON preference.tenant_id = account.tenant_id
+                   AND preference.user_id = ?
                  WHERE account.tenant_id = ? AND account.owner_user_id = ?
                    AND account.account_kind = 'PERSONAL'
-                   AND account.is_default = TRUE
                    AND account.connection_state = 'ACTIVE'
+                 ORDER BY CASE
+                    WHEN account.account_id = preference.default_account_id THEN 0
+                    WHEN account.is_default THEN 1 ELSE 2 END,
+                    account.account_id
+                 LIMIT 1
                 ON CONFLICT (account_id, provider_thread_ref) DO NOTHING
                 RETURNING thread_id
                 """, (result, ignored) -> result.getObject("thread_id", UUID.class),
                 UUID.randomUUID(), providerRef, subject, preview(body),
-                email, name, email, email, email, userId, userId, tenantId, userId);
+                email, name, email, email, email, userId, userId,
+                userId, tenantId, userId);
         if (threadIds.isEmpty()) {
             UUID concurrent = threadByProviderReference(tenantId, userId, providerRef);
             if (concurrent == null) return null;

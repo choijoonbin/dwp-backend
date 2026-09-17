@@ -131,7 +131,7 @@ class ApprovalSlaMaterializationPostgresIntegrationTest {
         var nativeTransactions = new NotificationMaterializationTransactions(manager, scope, repository, retention, publisher, jdbc);
         var legacyEntitlements = new NotificationRecipientEntitlementAdmission((id, user) -> {
             throw new AssertionError("SLA private Verified must not borrow the generic recipient directory");
-        }, "approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,meetings=APP.MEETINGS:VIEW,workplace=APP.WORKPLACE:VIEW");
+        }, "approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,meetings=APP.MEETINGS:VIEW,workplace=APP.WORKPLACE:VIEW,mail=APP.MAIL:VIEW");
         materializer = new DirectNotificationMaterializer(nativeTransactions,
                 new NotificationProducerOwnershipPolicy("dwp-approval-server=approvals"), legacyEntitlements, mapper);
         tenant = ThreadLocalRandom.current().nextLong(100_000L, 1_000_000_000_000L);

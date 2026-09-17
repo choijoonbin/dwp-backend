@@ -62,6 +62,7 @@ DEFAULT_FRONTEND_NODE_OPTIONS = "--max-old-space-size=8192"
 ENVIRONMENT_NAME = re.compile(r"^[A-Z][A-Z0-9_]*$")
 CANONICAL_POSITIVE_INTEGER = re.compile(r"^[1-9][0-9]*$")
 SERVICE_STARTUP_TIMEOUT_ENVIRONMENT = "DWP_DEVCTL_STARTUP_TIMEOUT_SECONDS"
+SPRING_READINESS_PATH = "/actuator/health/readiness"
 DEFAULT_SERVICE_STARTUP_TIMEOUT_SECONDS = 300
 MIN_SERVICE_STARTUP_TIMEOUT_SECONDS = 60
 MAX_SERVICE_STARTUP_TIMEOUT_SECONDS = 900
@@ -137,63 +138,63 @@ SERVICES = {
         BACKEND_ROOT,
         ("./gradlew", "--no-daemon", ":dwp-auth-server:bootRun"),
         8001,
-        "/actuator/health",
+        SPRING_READINESS_PATH,
     ),
     "platform": Service(
         "platform",
         BACKEND_ROOT,
         ("./gradlew", "--no-daemon", ":dwp-platform-server:bootRun"),
         8002,
-        "/actuator/health",
+        SPRING_READINESS_PATH,
     ),
     "people": Service(
         "people",
         BACKEND_ROOT,
         ("./gradlew", "--no-daemon", ":dwp-people-server:bootRun"),
         8003,
-        "/actuator/health",
+        SPRING_READINESS_PATH,
     ),
     "provider": Service(
         "provider",
         BACKEND_ROOT,
         ("./gradlew", "--no-daemon", ":dwp-provider-server:bootRun"),
         8004,
-        "/actuator/health",
+        SPRING_READINESS_PATH,
     ),
     "approval": Service(
         "approval",
         BACKEND_ROOT,
         ("./gradlew", "--no-daemon", ":dwp-approval-server:bootRun"),
         8005,
-        "/actuator/health",
+        SPRING_READINESS_PATH,
     ),
     "space": Service(
         "space",
         BACKEND_ROOT,
         ("./gradlew", "--no-daemon", ":dwp-space-server:bootRun"),
         8006,
-        "/actuator/health",
+        SPRING_READINESS_PATH,
     ),
     "messaging": Service(
         "messaging",
         BACKEND_ROOT,
         ("./gradlew", "--no-daemon", ":dwp-messaging-server:bootRun"),
         8007,
-        "/actuator/health",
+        SPRING_READINESS_PATH,
     ),
     "notification": Service(
         "notification",
         BACKEND_ROOT,
         ("./gradlew", "--no-daemon", ":dwp-notification-server:bootRun"),
         8008,
-        "/actuator/health",
+        SPRING_READINESS_PATH,
     ),
     "meeting": Service(
         "meeting",
         BACKEND_ROOT,
         ("./gradlew", "--no-daemon", ":dwp-meeting-server:bootRun"),
         8009,
-        "/actuator/health",
+        SPRING_READINESS_PATH,
     ),
     "agent": Service(
         "agent",
@@ -219,7 +220,7 @@ SERVICES = {
         BACKEND_ROOT,
         ("./gradlew", "--no-daemon", ":dwp-gateway:bootRun"),
         8080,
-        "/actuator/health",
+        SPRING_READINESS_PATH,
     ),
     "frontend": Service(
         "frontend",
@@ -872,6 +873,8 @@ def service_environment(service_name: str) -> dict[str, str]:
     if service_name == "agent":
         environment.pop("DWP_PLATFORM_SERVICE_TOKEN", None)
     elif service_name == "gateway":
+        environment.pop("DWP_PLATFORM_RUNTIME_SERVICE_TOKEN", None)
+    elif service_name == "people":
         environment.pop("DWP_PLATFORM_RUNTIME_SERVICE_TOKEN", None)
     elif service_name not in {"platform"}:
         environment.pop("DWP_PLATFORM_SERVICE_TOKEN", None)

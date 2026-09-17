@@ -44981,6 +44981,3993 @@
           "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 22,
+      "capabilities": [
+        {
+          "action": "MANAGE",
+          "activationPolicy": null,
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "contractKey": "dwaion.control-plane.execute",
+          "legacySource": null,
+          "lifecycleState": "ACTIVE",
+          "mappingVersion": 1,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "productKey": "dwaion",
+          "requiresProductEntitlement": true,
+          "resolvedCapabilityCode": "ADMIN.DWAION_OPERATIONS:MANAGE",
+          "resourceKey": "ADMIN.DWAION_OPERATIONS",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "riskTier": "HIGH",
+          "scopeResolver": "CONFIG_SCOPE",
+          "sodPolicyId": "SOD-DWAION-CONTROL-PLANE-V1",
+          "sunsetAt": null,
+          "surfaceKey": "dwaion.management"
+        }
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {
+          "routeContractKey": "route.workplace.work.resource-favorites-get.data",
+          "routeKind": "DATA",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.work"
+          },
+          "navigationContextId": "workplace.work",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-favorites-get.data.binding.01",
+              "method": "GET",
+              "path": "/api/platform/v1/workplace/resource-favorites",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-favorites-get.data.binding.01",
+              "serviceKey": "platform",
+              "method": "GET",
+              "path": "/v1/workplace/resource-favorites",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-work",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "workplace.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.workplace-resource.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.work.resource-favorite-set.action",
+          "routeKind": "ACTION",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.work"
+          },
+          "navigationContextId": "workplace.work",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-favorite-set.action.binding.01",
+              "method": "PUT",
+              "path": "/api/platform/v1/workplace/resources/{resourceId}/favorite",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-favorite-set.action.binding.01",
+              "serviceKey": "platform",
+              "method": "PUT",
+              "path": "/v1/workplace/resources/{resourceId}/favorite",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-work",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.booking.update"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.workplace-resource.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.work.booking-intent-holds-release.action",
+          "navigationContextId": "workplace.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.work"
+          },
+          "routeKind": "ACTION",
+          "sideEffectFree": null,
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "accessProfiles": [
+            {
+              "profileKey": "full-work",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.space.create"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.workplace-resource.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.work.booking-intent-holds-release.action.binding.01",
+              "method": "POST",
+              "path": "/api/platform/v1/workplace/booking-orchestration/intents/{intentId}/holds:release",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.work.booking-intent-holds-release.action.binding.01",
+              "serviceKey": "platform",
+              "method": "POST",
+              "path": "/v1/workplace/booking-orchestration/intents/{intentId}/holds:release",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.new.page",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "PAGE",
+          "uiRouteId": "dwaion.work.new",
+          "uiRoutePattern": "/dwaion/new",
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.new.page.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/navigation/new",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.new.page.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/navigation/new",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.conversations.page",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "PAGE",
+          "uiRouteId": "dwaion.work.conversations",
+          "uiRoutePattern": "/dwaion/conversations",
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.conversations.page.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/navigation/conversations",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.conversations.page.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/navigation/conversations",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.conversation-detail.page",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "PAGE",
+          "uiRouteId": "dwaion.work.conversation-detail",
+          "uiRoutePattern": "/dwaion/conversations/:conversationId",
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.conversation-detail.page.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/navigation/conversations/{conversationId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.conversation-detail.page.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/navigation/conversations/{conversationId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.activity.page",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "PAGE",
+          "uiRouteId": "dwaion.work.activity",
+          "uiRoutePattern": "/dwaion/activity",
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.activity.page.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/navigation/activity",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.activity.page.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/navigation/activity",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.agents.page",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "PAGE",
+          "uiRouteId": "dwaion.work.agents",
+          "uiRoutePattern": "/dwaion/agents",
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.agents.page.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/navigation/agents",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.agents.page.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/navigation/agents",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.proposal-handoff.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.proposal-handoff.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/proposals/{proposalId}/handoff",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.proposal-handoff.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/proposals/{proposalId}/handoff",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.ask.execute"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.proposal-handoff.data",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.proposal-handoff.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/proposals/{proposalId}/handoff",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.proposal-handoff.data.binding.02",
+              "method": "GET",
+              "path": "/api/agent/v1/proposal-handoffs/{handoffId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.proposal-handoff.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/proposals/{proposalId}/handoff",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.proposal-handoff.data.binding.02",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/proposal-handoffs/{handoffId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.attachments.data",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.attachments.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/attachments",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.attachments.data.binding.02",
+              "method": "GET",
+              "path": "/api/agent/v1/attachments/capabilities",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.attachments.data.binding.03",
+              "method": "GET",
+              "path": "/api/agent/v1/attachments/{attachmentId}",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.attachments.data.binding.04",
+              "method": "GET",
+              "path": "/api/agent/v1/attachments/{attachmentId}/evidence",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.attachments.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/attachments",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.attachments.data.binding.02",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/attachments/capabilities",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.attachments.data.binding.03",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/attachments/{attachmentId}",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.attachments.data.binding.04",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/attachments/{attachmentId}/evidence",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.attachment-create.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.attachment-create.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/attachments",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.attachment-create.action.binding.02",
+              "method": "POST",
+              "path": "/api/agent/v1/attachments/{attachmentId}/complete",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.attachment-create.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/attachments",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.attachment-create.action.binding.02",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/attachments/{attachmentId}/complete",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.ask.execute"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.attachment-delete.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.attachment-delete.action.binding.01",
+              "method": "DELETE",
+              "path": "/api/agent/v1/attachments/{attachmentId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.attachment-delete.action.binding.01",
+              "serviceKey": "agent",
+              "method": "DELETE",
+              "path": "/v1/attachments/{attachmentId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.privacy.manage"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.research-plans.data",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-plans.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/research/plans/{planId}",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-plans.data.binding.02",
+              "method": "GET",
+              "path": "/api/agent/v1/research/capabilities",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-plans.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/research/plans/{planId}",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-plans.data.binding.02",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/research/capabilities",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.research-runs.data",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-runs.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/research/runs/{runId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-runs.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/research/runs/{runId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.research-deliveries.data",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-deliveries.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/research/runs/{runId}/deliveries",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-deliveries.data.binding.02",
+              "method": "GET",
+              "path": "/api/agent/v1/research/runs/{runId}/deliveries/{deliveryId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-deliveries.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/research/runs/{runId}/deliveries",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-deliveries.data.binding.02",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/research/runs/{runId}/deliveries/{deliveryId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.research-plan-create.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-plan-create.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/research/plans",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-plan-create.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/research/plans",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.ask.execute"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.research-plan-update.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-plan-update.action.binding.01",
+              "method": "PUT",
+              "path": "/api/agent/v1/research/plans/{planId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-plan-update.action.binding.01",
+              "serviceKey": "agent",
+              "method": "PUT",
+              "path": "/v1/research/plans/{planId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.ask.execute"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.research-run-start.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-run-start.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/research/plans/{planId}/runs",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-run-start.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/research/plans/{planId}/runs",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.ask.execute"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.research-run-command.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-run-command.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/research/runs/{runId}/commands",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-run-command.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/research/runs/{runId}/commands",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.ask.execute"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.research-run-execute.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-run-execute.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/research/runs/{runId}/execute",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-run-execute.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/research/runs/{runId}/execute",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.ask.execute"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.research-output.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-output.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/research/runs/{runId}/artifact",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-output.action.binding.02",
+              "method": "POST",
+              "path": "/api/agent/v1/research/runs/{runId}/proposal",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-output.action.binding.03",
+              "method": "POST",
+              "path": "/api/agent/v1/research/runs/{runId}/exports",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-output.action.binding.04",
+              "method": "POST",
+              "path": "/api/agent/v1/research/runs/{runId}/handoffs",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-output.action.binding.05",
+              "method": "POST",
+              "path": "/api/agent/v1/research/runs/{runId}/shares",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-output.action.binding.06",
+              "method": "POST",
+              "path": "/api/agent/v1/research/runs/{runId}/routines",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-output.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/research/runs/{runId}/artifact",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-output.action.binding.02",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/research/runs/{runId}/proposal",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-output.action.binding.03",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/research/runs/{runId}/exports",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-output.action.binding.04",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/research/runs/{runId}/handoffs",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-output.action.binding.05",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/research/runs/{runId}/shares",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.research-output.action.binding.06",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/research/runs/{runId}/routines",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.ask.execute"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.routine-execution.data",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-execution.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/routines/capabilities",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.routine-execution.data.binding.02",
+              "method": "GET",
+              "path": "/api/agent/v1/routines/{routineId}/runs",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.routine-execution.data.binding.03",
+              "method": "GET",
+              "path": "/api/agent/v1/routines/{routineId}/runs/{routineRunId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-execution.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/routines/capabilities",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.routine-execution.data.binding.02",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/routines/{routineId}/runs",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.routine-execution.data.binding.03",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/routines/{routineId}/runs/{routineRunId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.routine-activation.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-activation.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/routines/{routineId}/activation",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-activation.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/routines/{routineId}/activation",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.routines.manage"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.routine-run-trigger.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-run-trigger.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/routines/{routineId}/runs",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-run-trigger.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/routines/{routineId}/runs",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.routines.manage"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.routine-run-command.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-run-command.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/routines/{routineId}/runs/{routineRunId}/commands",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-run-command.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/routines/{routineId}/runs/{routineRunId}/commands",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.routines.manage"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.artifact-collaboration.data",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/artifact-collaboration/capabilities",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration.data.binding.02",
+              "method": "GET",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/workspace",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/artifact-collaboration/capabilities",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration.data.binding.02",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/artifact-collaboration/{artifactId}/workspace",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.artifact-collaboration-preflight.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-preflight.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/preflights",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-preflight.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/artifact-collaboration/{artifactId}/preflights",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.artifacts.update"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.artifact-collaboration-workspace.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-workspace.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/workspace",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-workspace.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/artifact-collaboration/{artifactId}/workspace",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.artifacts.update"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.artifact-collaboration-members.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-members.action.binding.01",
+              "method": "PUT",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/workspace/members",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-members.action.binding.01",
+              "serviceKey": "agent",
+              "method": "PUT",
+              "path": "/v1/artifact-collaboration/{artifactId}/workspace/members",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.artifacts.update"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.artifact-collaboration-edit.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-edit.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/workspace/edits",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-edit.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/artifact-collaboration/{artifactId}/workspace/edits",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.artifacts.update"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.artifact-collaboration-resolve.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-resolve.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/workspace/conflicts/{conflictId}/resolve",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-resolve.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/artifact-collaboration/{artifactId}/workspace/conflicts/{conflictId}/resolve",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.artifacts.update"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.artifact-collaboration-share.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-share.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/workspace/shares",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-share.action.binding.02",
+              "method": "POST",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/workspace/shares/{shareId}/revoke",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-share.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/artifact-collaboration/{artifactId}/workspace/shares",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-share.action.binding.02",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/artifact-collaboration/{artifactId}/workspace/shares/{shareId}/revoke",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.artifacts.update"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.artifact-collaboration-access-request.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-access-request.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/access-requests",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-access-request.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/artifact-collaboration/{artifactId}/access-requests",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.artifacts.update"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.personal-deletions.data",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.personal-deletions.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/personal-data/deletions",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.personal-deletions.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/personal-data/deletions",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.personal-deletion-retry.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.personal-deletion-retry.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/personal-data/deletions/{deletionJobId}/retry",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.personal-deletion-retry.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/personal-data/deletions/{deletionJobId}/retry",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.privacy.manage"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.management.models-routing.page",
+          "navigationContextId": "dwaion.management",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.management"
+          },
+          "routeKind": "PAGE",
+          "uiRouteId": "dwaion.management.models-routing",
+          "uiRoutePattern": "/dwaion/admin/models",
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.management.models-routing.page.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/admin/control-plane/models-routing",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.management.models-routing.page.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/admin/control-plane/models-routing",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "management-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY_EXPRESSION",
+                "mode": "ANY",
+                "capabilityContractKeys": [
+                  "dwaion.operations.read",
+                  "dwaion.operations.manage"
+                ]
+              },
+              "targetBindingKinds": [
+                "CONFIG_SCOPE"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-management-scope.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.management.control-plane-snapshots.data",
+          "navigationContextId": "dwaion.management",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.management"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.management.control-plane-snapshots.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/admin/control-plane/connectors",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-snapshots.data.binding.02",
+              "method": "GET",
+              "path": "/api/agent/v1/admin/control-plane/evaluation-safety",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-snapshots.data.binding.03",
+              "method": "GET",
+              "path": "/api/agent/v1/admin/control-plane/incidents",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-snapshots.data.binding.04",
+              "method": "GET",
+              "path": "/api/agent/v1/admin/control-plane/outcomes",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.management.control-plane-snapshots.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/admin/control-plane/connectors",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-snapshots.data.binding.02",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/admin/control-plane/evaluation-safety",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-snapshots.data.binding.03",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/admin/control-plane/incidents",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-snapshots.data.binding.04",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/admin/control-plane/outcomes",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "management-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY_EXPRESSION",
+                "mode": "ANY",
+                "capabilityContractKeys": [
+                  "dwaion.operations.read",
+                  "dwaion.operations.manage"
+                ]
+              },
+              "targetBindingKinds": [
+                "CONFIG_SCOPE"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-management-scope.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.management.control-plane-commands.data",
+          "navigationContextId": "dwaion.management",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.management"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.management.control-plane-commands.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/admin/control-plane/commands",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-commands.data.binding.02",
+              "method": "GET",
+              "path": "/api/agent/v1/admin/control-plane/commands/{commandId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.management.control-plane-commands.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/admin/control-plane/commands",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-commands.data.binding.02",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/admin/control-plane/commands/{commandId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "management-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY_EXPRESSION",
+                "mode": "ANY",
+                "capabilityContractKeys": [
+                  "dwaion.operations.read",
+                  "dwaion.operations.manage"
+                ]
+              },
+              "targetBindingKinds": [
+                "CONFIG_SCOPE"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-management-scope.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.management.control-plane-command.action",
+          "navigationContextId": "dwaion.management",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.management"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.management.control-plane-command.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/admin/control-plane/commands",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-command.action.binding.02",
+              "method": "POST",
+              "path": "/api/agent/v1/admin/control-plane/commands/{commandId}/decision",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-command.action.binding.03",
+              "method": "POST",
+              "path": "/api/agent/v1/admin/control-plane/commands/{commandId}/cancel",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-command.action.binding.04",
+              "method": "POST",
+              "path": "/api/agent/v1/admin/control-plane/commands/{commandId}/retry",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-command.action.binding.05",
+              "method": "POST",
+              "path": "/api/agent/v1/admin/control-plane/commands/{commandId}/rollback",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.management.control-plane-command.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/admin/control-plane/commands",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-command.action.binding.02",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/admin/control-plane/commands/{commandId}/decision",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-command.action.binding.03",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/admin/control-plane/commands/{commandId}/cancel",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-command.action.binding.04",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/admin/control-plane/commands/{commandId}/retry",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.management.control-plane-command.action.binding.05",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/admin/control-plane/commands/{commandId}/rollback",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "management-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.control-plane.execute"
+              },
+              "targetBindingKinds": [
+                "CONFIG_SCOPE"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-management-scope.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ]
+    },
+    {
+      "version": 23,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {
+          "routeContractKey": "route.workplace.management.space-planning-report-preview.data",
+          "routeKind": "DATA",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.management"
+          },
+          "navigationContextId": "workplace.management",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.management.space-planning-report-preview.data.binding.01",
+              "method": "POST",
+              "path": "/api/platform/v1/admin/workplace/space-planning/reports:preview",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.management.space-planning-report-preview.data.binding.01",
+              "serviceKey": "platform",
+              "method": "POST",
+              "path": "/v1/admin/workplace/space-planning/reports:preview",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.operations.export"
+              },
+              "targetBindingKinds": [],
+              "predicatePolicyKeys": [],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.management.space-planning-report-execute.action",
+          "routeKind": "ACTION",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.management"
+          },
+          "navigationContextId": "workplace.management",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.management.space-planning-report-execute.action.binding.01",
+              "method": "POST",
+              "path": "/api/platform/v1/admin/workplace/space-planning/reports",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.management.space-planning-report-execute.action.binding.01",
+              "serviceKey": "platform",
+              "method": "POST",
+              "path": "/v1/admin/workplace/space-planning/reports",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.operations.export"
+              },
+              "targetBindingKinds": [],
+              "predicatePolicyKeys": [],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.management.space-planning-report-receipt.data",
+          "routeKind": "DATA",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.management"
+          },
+          "navigationContextId": "workplace.management",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.management.space-planning-report-receipt.data.binding.01",
+              "method": "GET",
+              "path": "/api/platform/v1/admin/workplace/space-planning/reports/{commandId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.management.space-planning-report-receipt.data.binding.01",
+              "serviceKey": "platform",
+              "method": "GET",
+              "path": "/v1/admin/workplace/space-planning/reports/{commandId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.operations.export"
+              },
+              "targetBindingKinds": [],
+              "predicatePolicyKeys": [],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.management.space-planning-report-content.data",
+          "routeKind": "DATA",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.management"
+          },
+          "navigationContextId": "workplace.management",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.management.space-planning-report-content.data.binding.01",
+              "method": "GET",
+              "path": "/api/platform/v1/admin/workplace/space-planning/reports/{commandId}/content",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.management.space-planning-report-content.data.binding.01",
+              "serviceKey": "platform",
+              "method": "GET",
+              "path": "/v1/admin/workplace/space-planning/reports/{commandId}/content",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.operations.export"
+              },
+              "targetBindingKinds": [],
+              "predicatePolicyKeys": [],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.work.resource-command-context.data",
+          "routeKind": "DATA",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.work"
+          },
+          "navigationContextId": "workplace.work",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-command-context.data.binding.01",
+              "method": "GET",
+              "path": "/api/platform/v1/workplace/bookings/{bookingId}/resource-command-context",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-command-context.data.binding.01",
+              "serviceKey": "platform",
+              "method": "GET",
+              "path": "/v1/workplace/bookings/{bookingId}/resource-command-context",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-work",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "workplace.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.workplace-resource.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.work.resource-command-preview.action",
+          "routeKind": "ACTION",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.work"
+          },
+          "navigationContextId": "workplace.work",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-command-preview.action.binding.01",
+              "method": "POST",
+              "path": "/api/platform/v1/workplace/bookings/{bookingId}/resource-commands:preview",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-command-preview.action.binding.01",
+              "serviceKey": "platform",
+              "method": "POST",
+              "path": "/v1/workplace/bookings/{bookingId}/resource-commands:preview",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-work",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.booking.update"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.workplace-resource.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.work.resource-command-preview-get.data",
+          "routeKind": "DATA",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.work"
+          },
+          "navigationContextId": "workplace.work",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-command-preview-get.data.binding.01",
+              "method": "GET",
+              "path": "/api/platform/v1/workplace/bookings/{bookingId}/resource-command-previews/{previewId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-command-preview-get.data.binding.01",
+              "serviceKey": "platform",
+              "method": "GET",
+              "path": "/v1/workplace/bookings/{bookingId}/resource-command-previews/{previewId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-work",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "workplace.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.workplace-resource.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.work.resource-command-execute.action",
+          "routeKind": "ACTION",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.work"
+          },
+          "navigationContextId": "workplace.work",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-command-execute.action.binding.01",
+              "method": "POST",
+              "path": "/api/platform/v1/workplace/bookings/{bookingId}/resource-commands",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-command-execute.action.binding.01",
+              "serviceKey": "platform",
+              "method": "POST",
+              "path": "/v1/workplace/bookings/{bookingId}/resource-commands",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-work",
+              "precedence": 300,
+              "activeAccessModes": [
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.booking.update"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.workplace-resource.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.work.resource-command-receipt.data",
+          "routeKind": "DATA",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.work"
+          },
+          "navigationContextId": "workplace.work",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-command-receipt.data.binding.01",
+              "method": "GET",
+              "path": "/api/platform/v1/workplace/bookings/{bookingId}/resource-commands/{commandId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-command-receipt.data.binding.01",
+              "serviceKey": "platform",
+              "method": "GET",
+              "path": "/v1/workplace/bookings/{bookingId}/resource-commands/{commandId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-work",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "workplace.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.workplace-resource.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.work.resource-command-reconcile.action",
+          "routeKind": "ACTION",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.work"
+          },
+          "navigationContextId": "workplace.work",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-command-reconcile.action.binding.01",
+              "method": "POST",
+              "path": "/api/platform/v1/workplace/bookings/{bookingId}/resource-commands/{commandId}:reconcile",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.work.resource-command-reconcile.action.binding.01",
+              "serviceKey": "platform",
+              "method": "POST",
+              "path": "/v1/workplace/bookings/{bookingId}/resource-commands/{commandId}:reconcile",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-work",
+              "precedence": 300,
+              "activeAccessModes": [
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.booking.update"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.workplace-resource.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.work.safety-incidents-by-incident-id-emergency-contacts-get.data",
+          "routeKind": "DATA",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.work"
+          },
+          "navigationContextId": "workplace.work",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.work.safety-incidents-by-incident-id-emergency-contacts-get.data.binding.01",
+              "method": "GET",
+              "path": "/api/platform/v1/workplace/safety/incidents/{incidentId}/emergency-contacts",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.work.safety-incidents-by-incident-id-emergency-contacts-get.data.binding.01",
+              "serviceKey": "platform",
+              "method": "GET",
+              "path": "/v1/workplace/safety/incidents/{incidentId}/emergency-contacts",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-work",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "workplace.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.workplace-resource.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.management.safety-emergency-contacts-get.data",
+          "routeKind": "DATA",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.management"
+          },
+          "navigationContextId": "workplace.management",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-emergency-contacts-get.data.binding.01",
+              "method": "GET",
+              "path": "/api/platform/v1/admin/workplace/safety/emergency-contacts",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-emergency-contacts-get.data.binding.01",
+              "serviceKey": "platform",
+              "method": "GET",
+              "path": "/v1/admin/workplace/safety/emergency-contacts",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.operations.read"
+              },
+              "targetBindingKinds": [],
+              "predicatePolicyKeys": [],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.management.safety-emergency-contacts-by-contact-id-get.data",
+          "routeKind": "DATA",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.management"
+          },
+          "navigationContextId": "workplace.management",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-emergency-contacts-by-contact-id-get.data.binding.01",
+              "method": "GET",
+              "path": "/api/platform/v1/admin/workplace/safety/emergency-contacts/{contactId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-emergency-contacts-by-contact-id-get.data.binding.01",
+              "serviceKey": "platform",
+              "method": "GET",
+              "path": "/v1/admin/workplace/safety/emergency-contacts/{contactId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.operations.read"
+              },
+              "targetBindingKinds": [],
+              "predicatePolicyKeys": [],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.management.safety-emergency-contacts-by-contact-id-put.action",
+          "routeKind": "ACTION",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.management"
+          },
+          "navigationContextId": "workplace.management",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-emergency-contacts-by-contact-id-put.action.binding.01",
+              "method": "PUT",
+              "path": "/api/platform/v1/admin/workplace/safety/emergency-contacts/{contactId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-emergency-contacts-by-contact-id-put.action.binding.01",
+              "serviceKey": "platform",
+              "method": "PUT",
+              "path": "/v1/admin/workplace/safety/emergency-contacts/{contactId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.operations.manage"
+              },
+              "targetBindingKinds": [],
+              "predicatePolicyKeys": [],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-preview-post.action",
+          "routeKind": "ACTION",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.management"
+          },
+          "navigationContextId": "workplace.management",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-preview-post.action.binding.01",
+              "method": "POST",
+              "path": "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs:preview",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-preview-post.action.binding.01",
+              "serviceKey": "platform",
+              "method": "POST",
+              "path": "/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs:preview",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.operations.manage"
+              },
+              "targetBindingKinds": [],
+              "predicatePolicyKeys": [],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoff-previews-by-preview-id-get.data",
+          "routeKind": "DATA",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.management"
+          },
+          "navigationContextId": "workplace.management",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoff-previews-by-preview-id-get.data.binding.01",
+              "method": "GET",
+              "path": "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoff-previews/{previewId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoff-previews-by-preview-id-get.data.binding.01",
+              "serviceKey": "platform",
+              "method": "GET",
+              "path": "/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoff-previews/{previewId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.operations.read"
+              },
+              "targetBindingKinds": [],
+              "predicatePolicyKeys": [],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-post.action",
+          "routeKind": "ACTION",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.management"
+          },
+          "navigationContextId": "workplace.management",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-post.action.binding.01",
+              "method": "POST",
+              "path": "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-post.action.binding.01",
+              "serviceKey": "platform",
+              "method": "POST",
+              "path": "/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.operations.manage"
+              },
+              "targetBindingKinds": [],
+              "predicatePolicyKeys": [],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-by-command-id-get.data",
+          "routeKind": "DATA",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.management"
+          },
+          "navigationContextId": "workplace.management",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-by-command-id-get.data.binding.01",
+              "method": "GET",
+              "path": "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs/{commandId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-by-command-id-get.data.binding.01",
+              "serviceKey": "platform",
+              "method": "GET",
+              "path": "/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs/{commandId}",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.operations.read"
+              },
+              "targetBindingKinds": [],
+              "predicatePolicyKeys": [],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-by-command-id-reconcile-post.action",
+          "routeKind": "ACTION",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "workplace",
+            "surfaceKey": "workplace.management"
+          },
+          "navigationContextId": "workplace.management",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-by-command-id-reconcile-post.action.binding.01",
+              "method": "POST",
+              "path": "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs/{commandId}:reconcile",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-by-command-id-reconcile-post.action.binding.01",
+              "serviceKey": "platform",
+              "method": "POST",
+              "path": "/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs/{commandId}:reconcile",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "workplace.operations.manage"
+              },
+              "targetBindingKinds": [],
+              "predicatePolicyKeys": [],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "Workplace + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ]
+    },
+    {
+      "version": 24,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {
+          "routeContractKey": "route.dwaion.work.research-raw-download.data",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-raw-download.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/research/runs/{runId}/downloads/raw",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-raw-download.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/research/runs/{runId}/downloads/raw",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.research-receipt-download.data",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-receipt-download.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/research/runs/{runId}/downloads/receipt",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-receipt-download.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/research/runs/{runId}/downloads/receipt",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.research-audit-download.data",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-audit-download.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/research/runs/{runId}/downloads/audit",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.research-audit-download.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/research/runs/{runId}/downloads/audit",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.routine-evidence.data",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-evidence.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/routines/{routineId}/versions",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.routine-evidence.data.binding.02",
+              "method": "GET",
+              "path": "/api/agent/v1/routines/{routineId}/health",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.routine-evidence.data.binding.03",
+              "method": "GET",
+              "path": "/api/agent/v1/routines/{routineId}/telemetry/download",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-evidence.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/routines/{routineId}/versions",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.routine-evidence.data.binding.02",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/routines/{routineId}/health",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.routine-evidence.data.binding.03",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/routines/{routineId}/telemetry/download",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.routine-webhook-trigger.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-webhook-trigger.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/routines/{routineId}/webhook-events",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-webhook-trigger.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/routines/{routineId}/webhook-events",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.routines.manage"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.routine-version-rollback.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-version-rollback.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/routines/{routineId}/versions/{revision}/rollback",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.routine-version-rollback.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/routines/{routineId}/versions/{revision}/rollback",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.routines.manage"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.artifact-collaboration-comments.data",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "DATA",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-comments.data.binding.01",
+              "method": "GET",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/workspace/comments",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-comments.data.binding.01",
+              "serviceKey": "agent",
+              "method": "GET",
+              "path": "/v1/artifact-collaboration/{artifactId}/workspace/comments",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "dwaion.work-access.v1"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "sideEffectFree": true,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        },
+        {
+          "routeContractKey": "route.dwaion.work.artifact-collaboration-comments.action",
+          "navigationContextId": "dwaion.work",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "dwaion",
+            "surfaceKey": "dwaion.work"
+          },
+          "routeKind": "ACTION",
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-comments.action.binding.01",
+              "method": "POST",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/workspace/comments",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-comments.action.binding.02",
+              "method": "POST",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/workspace/comments/{commentId}/replies",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-comments.action.binding.03",
+              "method": "POST",
+              "path": "/api/agent/v1/artifact-collaboration/{artifactId}/workspace/comments/{commentId}/resolve",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-comments.action.binding.01",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/artifact-collaboration/{artifactId}/workspace/comments",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-comments.action.binding.02",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/artifact-collaboration/{artifactId}/workspace/comments/{commentId}/replies",
+              "pathParameterConstraints": {}
+            },
+            {
+              "bindingKey": "route.dwaion.work.artifact-collaboration-comments.action.binding.03",
+              "serviceKey": "agent",
+              "method": "POST",
+              "path": "/v1/artifact-collaboration/{artifactId}/workspace/comments/{commentId}/resolve",
+              "pathParameterConstraints": {}
+            }
+          ],
+          "accessProfiles": [
+            {
+              "profileKey": "self-authority",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "dwaion.work.artifacts.update"
+              },
+              "targetBindingKinds": [
+                "SELF"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.dwaion-self.v1"
+              ],
+              "readOnly": false
+            }
+          ],
+          "sideEffectFree": null,
+          "owner": "DWAI.ON + Agent Runtime + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {

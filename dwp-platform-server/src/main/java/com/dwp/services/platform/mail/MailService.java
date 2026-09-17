@@ -2,6 +2,8 @@ package com.dwp.services.platform.mail;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import org.jsoup.Jsoup;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,18 +29,52 @@ public class MailService {
     private final MailCommandRepository commands;
     private final MailProviderCatalog providerCatalog;
     private final MailDeliveryCompletionService deliveryCompletion;
+    private final MailNotificationEvents notificationEvents;
+    private final MailWorkspaceRepository workspaceRepository;
+    private final MailProposalOutcomePort proposalOutcomes;
+    private final MailAdminMutationReceipts adminReceipts;
     private final MailSendCommandFingerprint sendFingerprints;
 
+    @Autowired
     public MailService(
             MailQueryRepository queries,
             MailCommandRepository commands,
             MailProviderCatalog providerCatalog,
-            MailDeliveryCompletionService deliveryCompletion) {
+            MailDeliveryCompletionService deliveryCompletion,
+            MailNotificationEvents notificationEvents,
+            MailWorkspaceRepository workspaceRepository,
+            MailProposalOutcomePort proposalOutcomes,
+            MailAdminMutationReceipts adminReceipts) {
         this.queries = queries;
         this.commands = commands;
         this.providerCatalog = providerCatalog;
         this.deliveryCompletion = deliveryCompletion;
+        this.notificationEvents = notificationEvents;
+        this.workspaceRepository = workspaceRepository;
+        this.proposalOutcomes = proposalOutcomes;
+        this.adminReceipts = adminReceipts;
         this.sendFingerprints = new MailSendCommandFingerprint();
+    }
+
+    MailService(
+            MailQueryRepository queries,
+            MailCommandRepository commands,
+            MailProviderCatalog providerCatalog,
+            MailDeliveryCompletionService deliveryCompletion,
+            MailNotificationEvents notificationEvents,
+            MailWorkspaceRepository workspaceRepository) {
+        this(queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
+                workspaceRepository, null, null);
+    }
+
+    MailService(
+            MailQueryRepository queries,
+            MailCommandRepository commands,
+            MailProviderCatalog providerCatalog,
+            MailDeliveryCompletionService deliveryCompletion,
+            MailNotificationEvents notificationEvents) {
+        this(queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
+                null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -240,6 +276,9 @@ public class MailService {
         recordThreadChange(
                 tenantId, userId, threadId, correlationId,
                 "mail.thread.assigned", before, after);
+        notificationEvents.sharedInboxAssigned(
+                tenantId, userId, threadId, request.assignedUserId(),
+                after.version(), correlationId);
         return detail(tenantId, userId, after);
     }
 
@@ -282,17 +321,32 @@ public class MailService {
             UUID threadId,
             String correlationId,
             MailDtos.ReplyRequest request) {
+        return reply(tenantId, userId, threadId, correlationId, request, null);
+    }
+
+    @Transactional
+    public MailDtos.ThreadDetail reply(
+            Long tenantId,
+            Long userId,
+            UUID threadId,
+            String correlationId,
+            MailDtos.ReplyRequest request,
+            MailProposalHandoffBinding proposalBinding) {
         MailDtos.ThreadSummary before = visibleThread(tenantId, userId, threadId);
         requireSharedPermission(
                 tenantId, userId, before, MailQueryRepository.SharedInboxPermission.SEND);
+        validateProposalBinding(tenantId, userId, proposalBinding);
         List<MailWorkspaceDtos.Recipient> recipients = replyRecipients(request);
         String requestFingerprint = sendFingerprints.reply(userId, threadId, request);
         MailCommandRepository.DeliveryCommand deliveryCommand = existingSendCommand(
                 tenantId, userId, threadId, request.idempotencyKey());
         if (deliveryCommand != null) {
             requireMatchingSendCommand(deliveryCommand, threadId, requestFingerprint);
+            completeReplyProposal(
+                    tenantId, userId, threadId, correlationId, proposalBinding);
             return detail(tenantId, userId, before);
         }
+        validateReplyMandatoryContent(tenantId, userId, threadId, request.body());
         boolean inserted = recipients == null
                 ? commands.insertReply(
                         tenantId, userId, threadId, request.body(), request.idempotencyKey())
@@ -303,6 +357,8 @@ public class MailService {
             requireMatchingSendCommand(existingSendCommand(
                     tenantId, userId, threadId, request.idempotencyKey()),
                     threadId, requestFingerprint);
+            completeReplyProposal(
+                    tenantId, userId, threadId, correlationId, proposalBinding);
             return detail(tenantId, userId, before);
         }
         requireMatchingSendCommand(commands.enqueueDelivery(
@@ -324,6 +380,8 @@ public class MailService {
                         "accountId", after.accountId(),
                         "classification", after.classification().name()),
                 correlationId);
+        completeReplyProposal(
+                tenantId, userId, threadId, correlationId, proposalBinding);
         return detail(tenantId, userId, after);
     }
 
@@ -527,6 +585,33 @@ public class MailService {
                         "targetRoute", after.targetRoute() == null ? "" : after.targetRoute(),
                         "requiresHumanConfirmation", true),
                 correlationId);
+        if (request.decision() == ProposalDecision.ACCEPT
+                && after.type() == ProposalType.ESCALATE_NOTIFICATION) {
+            String resultRef = "unsupported-owner:notification";
+            MailQueryRepository.OwnerProposalHandoffRow handoff = queries
+                    .ownerProposalHandoff(tenantId, proposalId, true)
+                    .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+            if (commands.updateProposalOutcomeFromOwner(
+                    tenantId, userId, proposalId, handoff.commandId(),
+                    ProposalType.ESCALATE_NOTIFICATION, "UNKNOWN", resultRef,
+                    handoff.version()) != 1) {
+                conflict();
+            }
+            commands.audit(
+                    tenantId, userId, "mail.action.owner-outcome",
+                    "MAIL_ACTION_PROPOSAL", proposalId.toString(), correlationId,
+                    Map.of("status", "ACCEPTED", "version", handoff.version()),
+                    Map.of("status", "UNKNOWN", "resultRef", resultRef,
+                            "version", handoff.version() + 1));
+            commands.domainEvent(
+                    tenantId, "MAIL_ACTION_PROPOSAL", proposalId,
+                    "mail.action.owner-outcome", Map.of(
+                            "proposalId", proposalId,
+                            "commandId", handoff.commandId(),
+                            "status", "UNKNOWN",
+                            "resultRef", resultRef,
+                            "version", handoff.version() + 1), correlationId);
+        }
         return after;
     }
 
@@ -582,6 +667,75 @@ public class MailService {
     }
 
     @Transactional(readOnly = true)
+    public MailDtos.ProposalHandoff proposalHandoff(
+            Long tenantId, Long userId, UUID proposalId) {
+        requireMailbox(queries.accounts(tenantId, userId));
+        return handoff(queries.proposalHandoff(tenantId, userId, proposalId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND)));
+    }
+
+    @Transactional
+    public MailDtos.ProposalHandoff recordProposalOutcome(
+            Long tenantId,
+            Long userId,
+            UUID proposalId,
+            String correlationId,
+            MailDtos.ProposalOutcomeRequest request) {
+        requireMailbox(queries.accounts(tenantId, userId));
+        if (request.status() == MailDtos.ProposalHandoffStatus.ACCEPTED) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "An owner outcome must resolve, fail, cancel, or mark the result unknown.");
+        }
+        MailQueryRepository.ProposalHandoffRow before = queries
+                .proposalHandoff(tenantId, userId, proposalId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        if (!before.commandId().equals(request.commandId())) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "The proposal command does not match.");
+        }
+        String normalizedResultRef = request.resultRef().trim();
+        if (before.ownerState().equals(request.status().name())
+                && normalizedResultRef.equals(before.resultRef())) {
+            return handoff(before);
+        }
+        if (!("ACCEPTED".equals(before.ownerState()) || "UNKNOWN".equals(before.ownerState()))) {
+            throw new BaseException(ErrorCode.INVALID_STATE, "The proposal outcome is final.");
+        }
+        if (commands.updateProposalOutcome(
+                tenantId, userId, proposalId, request.commandId(),
+                request.status().name(), normalizedResultRef, request.version()) != 1) {
+            conflict();
+        }
+        MailQueryRepository.ProposalHandoffRow after = queries
+                .proposalHandoff(tenantId, userId, proposalId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        commands.audit(
+                tenantId, userId, "mail.action.owner-outcome", "MAIL_ACTION_PROPOSAL",
+                proposalId.toString(), correlationId,
+                Map.of("status", before.ownerState(), "version", before.version()),
+                Map.of("status", after.ownerState(), "version", after.version(),
+                        "commandId", after.commandId(), "resultRef", normalizedResultRef));
+        commands.domainEvent(
+                tenantId, "MAIL_ACTION_PROPOSAL", proposalId,
+                "mail.action.owner-outcome", Map.of(
+                        "proposalId", proposalId,
+                        "commandId", after.commandId(),
+                        "status", after.ownerState(),
+                        "resultRef", normalizedResultRef,
+                        "version", after.version()), correlationId);
+        return handoff(after);
+    }
+
+    private MailDtos.ProposalHandoff handoff(MailQueryRepository.ProposalHandoffRow row) {
+        return new MailDtos.ProposalHandoff(
+                row.proposalId(), row.commandId(), row.ownerRoute(),
+                "/mail/actions?proposalId=" + row.proposalId(),
+                "mail-proposal-" + row.proposalId(),
+                MailDtos.ProposalHandoffStatus.valueOf(row.ownerState()),
+                row.resultRef(), row.updatedAt(), row.version());
+    }
+
+    @Transactional(readOnly = true)
     public MailDtos.AdminOverview adminOverview(Long tenantId) {
         MailQueryRepository.AdminCounts counts = queries.adminCounts(tenantId);
         return new MailDtos.AdminOverview(
@@ -598,7 +752,18 @@ public class MailService {
             Long tenantId,
             Long userId,
             String correlationId,
+            UUID idempotencyKey,
             MailDtos.TenantPolicyRequest request) {
+        String fingerprint = adminReceipts().fingerprint(
+                "POLICY_UPDATE", tenantId, request);
+        MailAdminMutationReceipts.Receipt replay = adminReceipts().claimOrReplay(
+                tenantId, userId, "POLICY_UPDATE", idempotencyKey,
+                fingerprint, correlationId);
+        if (replay != null) {
+            requireAdminReplay(replay, "MAIL_TENANT_POLICY",
+                    MailAdminMutationReceipts.tenantPolicyId(tenantId));
+            return queries.policy(tenantId);
+        }
         MailDtos.TenantPolicy before = queries.policy(tenantId);
         if (commands.updatePolicy(tenantId, userId, request) == 0) conflict();
         MailDtos.TenantPolicy after = queries.policy(tenantId);
@@ -609,6 +774,9 @@ public class MailService {
                 tenantId, userId, "mail.policy.updated", "MAIL_TENANT_POLICY",
                 tenantId.toString(), correlationId,
                 policyState(before), policyState(after));
+        adminReceipts().complete(
+                tenantId, userId, idempotencyKey, "MAIL_TENANT_POLICY",
+                MailAdminMutationReceipts.tenantPolicyId(tenantId));
         return after;
     }
 
@@ -618,9 +786,20 @@ public class MailService {
             Long userId,
             UUID connectionId,
             String correlationId,
+            UUID idempotencyKey,
             MailDtos.ConnectionUpdateRequest request) {
         MailDtos.ConnectionSummary before = queries.connection(tenantId, connectionId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        String fingerprint = adminReceipts().fingerprint(
+                "CONNECTION_UPDATE", connectionId, request);
+        MailAdminMutationReceipts.Receipt replay = adminReceipts().claimOrReplay(
+                tenantId, userId, "CONNECTION_UPDATE", idempotencyKey,
+                fingerprint, correlationId);
+        if (replay != null) {
+            requireAdminReplay(replay, "MAIL_PROVIDER_CONNECTION", connectionId);
+            return queries.connection(tenantId, connectionId)
+                    .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        }
         boolean credentialAvailable = before.credentialConfigured()
                 || (request.credentialRef() != null && !request.credentialRef().isBlank());
         if (request.state() == ConnectionState.ACTIVE
@@ -645,6 +824,9 @@ public class MailService {
                 tenantId, userId, "mail.connection.updated", "MAIL_PROVIDER_CONNECTION",
                 connectionId.toString(), correlationId,
                 connectionState(before), connectionState(after));
+        adminReceipts().complete(
+                tenantId, userId, idempotencyKey,
+                "MAIL_PROVIDER_CONNECTION", connectionId);
         return after;
     }
 
@@ -654,9 +836,20 @@ public class MailService {
             Long userId,
             UUID sharedInboxId,
             String correlationId,
+            UUID idempotencyKey,
             MailDtos.SharedInboxUpdateRequest request) {
         MailDtos.SharedInboxSummary before = queries.sharedInbox(tenantId, sharedInboxId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        String fingerprint = adminReceipts().fingerprint(
+                "SHARED_INBOX_UPDATE", sharedInboxId, request);
+        MailAdminMutationReceipts.Receipt replay = adminReceipts().claimOrReplay(
+                tenantId, userId, "SHARED_INBOX_UPDATE", idempotencyKey,
+                fingerprint, correlationId);
+        if (replay != null) {
+            requireAdminReplay(replay, "MAIL_SHARED_INBOX", sharedInboxId);
+            return queries.sharedInbox(tenantId, sharedInboxId)
+                    .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        }
         if (commands.updateSharedInbox(tenantId, userId, sharedInboxId, request) == 0) {
             conflict();
         }
@@ -666,6 +859,9 @@ public class MailService {
                 tenantId, userId, "mail.shared.inbox.updated", "MAIL_SHARED_INBOX",
                 sharedInboxId.toString(), correlationId,
                 sharedInboxState(before), sharedInboxState(after));
+        adminReceipts().complete(
+                tenantId, userId, idempotencyKey,
+                "MAIL_SHARED_INBOX", sharedInboxId);
         return after;
     }
 
@@ -937,5 +1133,81 @@ public class MailService {
         return new BaseException(
                 ErrorCode.RESOURCE_CONFLICT,
                 "The idempotency key was already used for a different mail send command.");
+    }
+
+    private void validateReplyMandatoryContent(
+            Long tenantId, Long userId, UUID threadId, String body) {
+        // The package-private constructor is retained only for focused unit tests. Production
+        // wiring always supplies the repository through the explicitly autowired constructor.
+        if (workspaceRepository == null) return;
+        UUID accountId = workspaceRepository.replyAccount(tenantId, userId, threadId)
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.FORBIDDEN,
+                        "The sending account is no longer available for this reply."));
+        MailWorkspaceDtos.Signature signature = workspaceRepository.defaultSignatureForReply(
+                tenantId, userId, accountId).orElse(null);
+        if (signature == null || signature.mandatoryContent() == null
+                || signature.mandatoryContent().isBlank()) {
+            return;
+        }
+        String required = signature.bodyFormat() == MailWorkspaceDtos.BodyFormat.HTML
+                ? Jsoup.parseBodyFragment(signature.mandatoryContent()).text()
+                : signature.mandatoryContent();
+        if (!normalizedText(body).contains(normalizedText(required))) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "The reply must include the organization signature mandatory content.");
+        }
+    }
+
+    private void validateProposalBinding(
+            long tenantId,
+            long actorId,
+            MailProposalHandoffBinding binding) {
+        if (binding == null) return;
+        if (proposalOutcomes == null) {
+            throw new BaseException(
+                    ErrorCode.EXTERNAL_SERVICE_ERROR,
+                    "The Mail proposal owner service is unavailable.");
+        }
+        proposalOutcomes.validate(
+                tenantId, actorId, MailProposalOutcomePort.Owner.MAIL, binding);
+    }
+
+    private void completeReplyProposal(
+            long tenantId,
+            long actorId,
+            UUID threadId,
+            String correlationId,
+            MailProposalHandoffBinding binding) {
+        if (binding == null) return;
+        proposalOutcomes.executed(
+                tenantId, actorId, MailProposalOutcomePort.Owner.MAIL, binding,
+                "mail-thread:" + threadId, correlationId);
+    }
+
+    private MailAdminMutationReceipts adminReceipts() {
+        if (adminReceipts == null) {
+            throw new BaseException(
+                    ErrorCode.EXTERNAL_SERVICE_ERROR,
+                    "Mail administrator command custody is unavailable.");
+        }
+        return adminReceipts;
+    }
+
+    private void requireAdminReplay(
+            MailAdminMutationReceipts.Receipt receipt,
+            String aggregateType,
+            UUID aggregateId) {
+        if (!aggregateType.equals(receipt.aggregateType())
+                || !aggregateId.equals(receipt.aggregateId())) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The Mail administrator command replay target does not match.");
+        }
+    }
+
+    private String normalizedText(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", " ").trim();
     }
 }

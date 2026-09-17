@@ -262,6 +262,38 @@ public final class MailDtos {
             @NotNull @Min(0) Long version) {
     }
 
+    public enum ProposalHandoffStatus {
+        ACCEPTED,
+        EXECUTED,
+        CANCELLED,
+        FAILED,
+        UNKNOWN
+    }
+
+    public record ProposalHandoff(
+            UUID proposalId,
+            UUID commandId,
+            String ownerRoute,
+            String returnTo,
+            String focus,
+            ProposalHandoffStatus status,
+            String resultRef,
+            OffsetDateTime updatedAt,
+            long version) {
+    }
+
+    public record ProposalOutcomeRequest(
+            @NotNull UUID commandId,
+            @NotNull ProposalHandoffStatus status,
+            @NotBlank @Size(max = 500) String resultRef,
+            @NotNull @Min(0) Long version) {
+    }
+
+    public record ProposalHandoffCancelRequest(
+            @NotNull UUID commandId,
+            @NotNull @Min(0) Long version) {
+    }
+
     public record ProviderDescriptor(
             ProviderType providerType,
             String name,

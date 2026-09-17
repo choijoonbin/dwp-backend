@@ -40,6 +40,7 @@ public final class WorkplaceBookingOrchestrationDtos {
     public enum NotificationChannel { IN_APP, EMAIL, PUSH }
     public enum ConstraintEvaluationState { SATISFIED, UNSATISFIED, UNSUPPORTED }
     public enum PricingMode { MANAGED, NOT_APPLICABLE }
+    public enum HoldReleaseCommandState { SUCCEEDED, RESULT_UNKNOWN }
 
     @Schema(name = "WorkplaceAuthorizedBookingBeneficiary")
     public record AuthorizedBeneficiary(
@@ -188,6 +189,35 @@ public final class WorkplaceBookingOrchestrationDtos {
             long intentVersion,
             OffsetDateTime serverTime,
             List<ReservationHold> holds) { }
+
+    @Schema(name = "WorkplaceBookingHoldReleaseReference")
+    public record HoldReleaseReference(
+            @NotNull UUID holdId,
+            @NotNull @Min(1) Long expectedHoldVersion) { }
+
+    @Schema(name = "WorkplaceBookingHoldReleaseRequest")
+    public record HoldReleaseRequest(
+            @NotNull @Min(1) Long expectedIntentVersion,
+            @NotEmpty @Size(max = 50) List<@Valid HoldReleaseReference> holds,
+            @NotBlank @Size(max = 500) String reason,
+            boolean explicitConfirmation) { }
+
+    @Schema(name = "WorkplaceBookingHoldReleaseReceipt")
+    public record HoldReleaseReceipt(
+            UUID commandId,
+            UUID intentId,
+            HoldReleaseCommandState state,
+            List<UUID> releasedHoldIds,
+            long intentVersion,
+            boolean idempotentReplay,
+            boolean requeryRequired,
+            String correlationId,
+            OffsetDateTime completedAt) { }
+
+    @Schema(name = "WorkplaceBookingHoldReleaseResult")
+    public record HoldReleaseResult(
+            HoldResponse intent,
+            HoldReleaseReceipt receipt) { }
 
     @Schema(name = "WorkplaceBookingIntentStatus")
     public record BookingIntentStatus(

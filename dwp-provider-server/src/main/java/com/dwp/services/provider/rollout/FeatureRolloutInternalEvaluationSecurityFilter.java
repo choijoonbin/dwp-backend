@@ -23,6 +23,8 @@ import java.security.MessageDigest;
 public class FeatureRolloutInternalEvaluationSecurityFilter extends OncePerRequestFilter {
 
     public static final String PATH = "/internal/provider/v1/feature-rollouts/evaluate";
+    public static final String RECEIPT_PATH =
+            "/internal/provider/v1/feature-rollouts/application-receipts";
     static final String SERVICE_TOKEN_HEADER = "X-DWP-Service-Token";
     static final String SERVICE_IDENTITY_HEADER = "X-DWP-Service-Identity";
     static final String GATEWAY_IDENTITY = "dwp-gateway";
@@ -39,7 +41,8 @@ public class FeatureRolloutInternalEvaluationSecurityFilter extends OncePerReque
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        return !PATH.equals(request.getRequestURI());
+        String path = request.getRequestURI();
+        return !PATH.equals(path) && !RECEIPT_PATH.equals(path);
     }
 
     @Override

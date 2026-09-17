@@ -5,7 +5,11 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.auth.entity.ScimConnector;
 import com.dwp.services.auth.repository.ScimConnectorRepository;
 import com.dwp.services.auth.service.IdentityAuditService;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,32 +18,52 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
+import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
-import java.util.LinkedHashMap;
+import java.util.Collections;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class ScimCredentialService {
 
     private static final String ACTIVE = "ACTIVE";
+    private static final Duration EXPIRING_WINDOW = Duration.ofDays(14);
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final ScimConnectorRepository repository;
     private final JdbcTemplate jdbc;
     private final IdentityAuditService auditService;
+    private final ObjectMapper objectMapper;
+    private final Clock clock;
 
+    @Autowired
     public ScimCredentialService(
             ScimConnectorRepository repository,
             JdbcTemplate jdbc,
-            IdentityAuditService auditService) {
+            IdentityAuditService auditService,
+            ObjectMapper objectMapper) {
+        this(repository, jdbc, auditService, objectMapper, Clock.systemUTC());
+    }
+
+    ScimCredentialService(
+            ScimConnectorRepository repository,
+            JdbcTemplate jdbc,
+            IdentityAuditService auditService,
+            ObjectMapper objectMapper,
+            Clock clock) {
         this.repository = repository;
         this.jdbc = jdbc;
         this.auditService = auditService;
+        this.objectMapper = objectMapper;
+        this.clock = clock;
     }
 
     @Transactional
@@ -49,13 +73,19 @@ public class ScimCredentialService {
             String correlationId,
             ScimConnectorDtos.CreateRequest request) {
         IssuedToken issued = issueToken();
+        Instant issuedAt = clock.instant();
+        List<String> allowedOperations = normalizeOperations(request.allowedOperations());
         ScimConnector connector = ScimConnector.builder()
                 .tenantId(tenantId)
                 .connectorKey(request.connectorKey().trim().toLowerCase(java.util.Locale.ROOT))
                 .displayName(request.displayName().trim())
                 .tokenPrefix(issued.prefix())
                 .tokenHash(hash(issued.token()))
-                .allowedOperations("[\"USERS\",\"GROUPS\"]")
+                .allowedOperations(writeOperations(allowedOperations))
+                .purpose(request.purpose().trim())
+                .ownerUserId(actorId)
+                .credentialIssuedAt(issuedAt)
+                .credentialExpiresAt(issuedAt.plus(Duration.ofDays(request.credentialTtlDays())))
                 .lifecycleState(ACTIVE)
                 .build();
         connector.setCreatedBy(actorId);
@@ -72,7 +102,7 @@ public class ScimCredentialService {
                 tenantId, actorId, "provisioning.scim-connector.created",
                 "SCIM_CONNECTOR", connector.getScimConnectorId().toString(), correlationId,
                 null, snapshot(connector));
-        return new ScimConnectorDtos.CredentialIssued(summary(connector), issued.token());
+        return new ScimConnectorDtos.CredentialIssued(summary(connector, null), issued.token());
     }
 
     @Transactional(readOnly = true)
@@ -131,23 +161,46 @@ public class ScimCredentialService {
             Long tenantId,
             Long actorId,
             String correlationId,
-            UUID connectorId) {
+            UUID connectorId,
+            ScimConnectorDtos.RotateRequest request) {
+        if (!Boolean.TRUE.equals(request.explicitConfirmation())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Explicit confirmation is required to rotate a SCIM credential.");
+        }
         ScimConnector connector = require(tenantId, connectorId);
         if ("RETIRED".equals(connector.getLifecycleState())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "A retired SCIM connector cannot be rotated.");
         }
+        if (valueOrZero(connector.getVersion()) != request.expectedVersion().longValue()) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The SCIM connector changed. Refresh before rotating its credential.");
+        }
         Map<String, Object> before = snapshot(connector);
         IssuedToken issued = issueToken();
+        Instant rotatedAt = clock.instant();
         connector.setTokenPrefix(issued.prefix());
         connector.setTokenHash(hash(issued.token()));
+        connector.setCredentialIssuedAt(rotatedAt);
+        connector.setCredentialExpiresAt(
+                rotatedAt.plus(Duration.ofDays(request.credentialTtlDays())));
+        connector.setCredentialRotatedAt(rotatedAt);
         connector.setLifecycleState(ACTIVE);
         connector.setUpdatedBy(actorId);
-        connector = repository.saveAndFlush(connector);
+        try {
+            connector = repository.saveAndFlush(connector);
+        } catch (OptimisticLockingFailureException exception) {
+            throw new BaseException(
+                    ErrorCode.RESOURCE_CONFLICT,
+                    "The SCIM connector changed. Refresh before rotating its credential.",
+                    exception);
+        }
         auditService.success(
                 tenantId, actorId, "provisioning.scim-connector.rotated",
                 "SCIM_CONNECTOR", connectorId.toString(), correlationId,
-                before, snapshot(connector));
-        return new ScimConnectorDtos.CredentialIssued(summary(connector), issued.token());
+                before, withReason(snapshot(connector), request.reason()));
+        return new ScimConnectorDtos.CredentialIssued(summary(connector, null), issued.token());
     }
 
     @Transactional
@@ -167,7 +220,7 @@ public class ScimCredentialService {
                 tenantId, actorId, "provisioning.scim-connector.lifecycle-changed",
                 "SCIM_CONNECTOR", connectorId.toString(), correlationId,
                 before, snapshot(connector));
-        return summary(connector);
+        return summary(connector, null);
     }
 
     @Transactional
@@ -179,14 +232,30 @@ public class ScimCredentialService {
         byte[] expected = connector.getTokenHash().getBytes(StandardCharsets.US_ASCII);
         byte[] actual = hash(bearerToken).getBytes(StandardCharsets.US_ASCII);
         if (!MessageDigest.isEqual(expected, actual)) throw new ScimAuthenticationException();
-        Instant now = Instant.now();
+        Instant now = clock.instant();
+        if (connector.getCredentialExpiresAt() == null
+                || !connector.getCredentialExpiresAt().isAfter(now)) {
+            throw new ScimAuthenticationException();
+        }
         if (connector.getLastUsedAt() == null
                 || connector.getLastUsedAt().isBefore(now.minus(Duration.ofMinutes(5)))) {
-            connector.setLastUsedAt(now);
-            repository.save(connector);
+            int touched = jdbc.update("""
+                    UPDATE sys_scim_connectors
+                       SET last_used_at = ?
+                     WHERE scim_connector_id = ?
+                       AND token_hash = ?
+                       AND lifecycle_state = 'ACTIVE'
+                       AND credential_expires_at > ?
+                    """,
+                    Timestamp.from(now),
+                    connector.getScimConnectorId(),
+                    connector.getTokenHash(),
+                    Timestamp.from(now));
+            if (touched != 1) throw new ScimAuthenticationException();
         }
         return new ScimConnectorContext.ConnectorIdentity(
-                connector.getScimConnectorId(), connector.getTenantId(), connector.getConnectorKey());
+                connector.getScimConnectorId(), connector.getTenantId(), connector.getConnectorKey(),
+                Set.copyOf(readOperations(connector)));
     }
 
     private ScimConnector require(Long tenantId, UUID connectorId) {
@@ -228,18 +297,16 @@ public class ScimCredentialService {
         return new ScimConnectorDtos.ConnectorSummary(
                 connector.getScimConnectorId(), connector.getConnectorKey(),
                 connector.getDisplayName(), connector.getTokenPrefix(),
-                List.of("USERS", "GROUPS"), connector.getLifecycleState(),
+                readOperations(connector), connector.getPurpose(), connector.getOwnerUserId(),
+                connector.getLifecycleState(), credentialState(connector),
+                connector.getCredentialIssuedAt(), connector.getCredentialExpiresAt(),
+                connector.getCredentialRotatedAt(),
                 connector.getLastUsedAt(), health(connector, evidence),
                 evidence == null ? 0L : evidence.events24h(),
                 evidence == null ? 0L : evidence.failedEvents24h(),
                 evidence == null ? null : evidence.lastSuccessAt(),
                 evidence == null ? null : evidence.lastFailureAt(),
                 valueOrZero(connector.getVersion()));
-    }
-
-    private ScimConnectorDtos.ConnectorSummary summary(ScimConnector connector) {
-        return summary(connector, eventEvidence(connector.getTenantId())
-                .get(connector.getScimConnectorId()));
     }
 
     private Map<UUID, EventEvidence> eventEvidence(Long tenantId) {
@@ -277,6 +344,10 @@ public class ScimCredentialService {
 
     private String health(ScimConnector connector, EventEvidence evidence) {
         if (!ACTIVE.equals(connector.getLifecycleState())) return connector.getLifecycleState();
+        String credentialState = credentialState(connector);
+        if ("EXPIRED".equals(credentialState) || "EXPIRING".equals(credentialState)) {
+            return credentialState;
+        }
         if (evidence != null && evidence.failedEvents24h() > 0
                 && (evidence.lastSuccessAt() == null
                     || evidence.lastFailureAt().isAfter(evidence.lastSuccessAt()))) {
@@ -293,11 +364,67 @@ public class ScimCredentialService {
     }
 
     private Map<String, Object> snapshot(ScimConnector connector) {
-        return Map.of(
-                "connectorId", connector.getScimConnectorId().toString(),
-                "connectorKey", connector.getConnectorKey(),
-                "lifecycleState", connector.getLifecycleState(),
-                "tokenPrefix", connector.getTokenPrefix());
+        Map<String, Object> snapshot = new LinkedHashMap<>();
+        snapshot.put("connectorId", connector.getScimConnectorId().toString());
+        snapshot.put("connectorKey", connector.getConnectorKey());
+        snapshot.put("lifecycleState", connector.getLifecycleState());
+        snapshot.put("tokenPrefix", connector.getTokenPrefix());
+        snapshot.put("allowedOperations", readOperations(connector));
+        snapshot.put("purpose", connector.getPurpose());
+        snapshot.put("ownerUserId", connector.getOwnerUserId());
+        snapshot.put("credentialIssuedAt", connector.getCredentialIssuedAt());
+        snapshot.put("credentialExpiresAt", connector.getCredentialExpiresAt());
+        snapshot.put("credentialRotatedAt", connector.getCredentialRotatedAt());
+        return Collections.unmodifiableMap(snapshot);
+    }
+
+    private Map<String, Object> withReason(Map<String, Object> snapshot, String reason) {
+        Map<String, Object> result = new LinkedHashMap<>(snapshot);
+        result.put("reason", reason.trim());
+        return Collections.unmodifiableMap(result);
+    }
+
+    private String credentialState(ScimConnector connector) {
+        Instant expiresAt = connector.getCredentialExpiresAt();
+        Instant now = clock.instant();
+        if (expiresAt == null || !expiresAt.isAfter(now)) return "EXPIRED";
+        return expiresAt.isAfter(now.plus(EXPIRING_WINDOW)) ? "ACTIVE" : "EXPIRING";
+    }
+
+    private List<String> normalizeOperations(List<String> operations) {
+        if (operations == null) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "At least one SCIM operation scope is required.");
+        }
+        List<String> normalized = operations.stream()
+                .map(value -> value == null ? "" : value.trim().toUpperCase(java.util.Locale.ROOT))
+                .distinct()
+                .sorted()
+                .toList();
+        if (normalized.isEmpty() || normalized.size() != operations.size()
+                || !Set.of("USERS", "GROUPS").containsAll(normalized)) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "SCIM operation scopes must be unique USERS or GROUPS values.");
+        }
+        return normalized;
+    }
+
+    private String writeOperations(List<String> operations) {
+        try {
+            return objectMapper.writeValueAsString(operations);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("SCIM operation scopes could not be serialized.", exception);
+        }
+    }
+
+    private List<String> readOperations(ScimConnector connector) {
+        try {
+            List<String> operations = objectMapper.readerForListOf(String.class)
+                    .readValue(connector.getAllowedOperations());
+            return normalizeOperations(operations);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Stored SCIM operation scopes are invalid.", exception);
+        }
     }
 
     private long valueOrZero(Long value) {

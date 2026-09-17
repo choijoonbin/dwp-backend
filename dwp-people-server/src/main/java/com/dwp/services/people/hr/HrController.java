@@ -103,8 +103,17 @@ public class HrController {
     @PostMapping("/absence/requests")
     public ApiResponse<HrDtos.LeaveRequest> createLeaveRequest(
             @Valid @RequestBody HrDtos.CreateLeaveRequest request,
-            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId) {
-        return ApiResponse.success(service.createLeaveRequest(request, correlationId));
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Mail-Proposal-ID", required = false)
+            UUID mailProposalId,
+            @RequestHeader(value = "X-DWP-Mail-Command-ID", required = false)
+            UUID mailCommandId,
+            @RequestHeader(value = "X-DWP-Mail-Proposal-Version", required = false)
+            Long mailProposalVersion) {
+        HrMailProposalBinding binding = HrMailProposalBinding.optional(
+                mailProposalId, mailCommandId, mailProposalVersion);
+        return ApiResponse.success(
+                service.createLeaveRequest(request, correlationId, binding));
     }
 
     @PostMapping("/absence/requests/{requestId}/withdraw")

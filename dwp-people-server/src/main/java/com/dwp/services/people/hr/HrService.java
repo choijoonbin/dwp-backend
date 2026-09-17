@@ -35,6 +35,7 @@ public class HrService {
     private final HcmPopulationScopeService populationScopes;
     private final AuditOutboxRecorder audit;
     private final HcmWorkspaceService workspaces;
+    private final HrMailProposalOutcomeOperations mailProposalOutcomes;
 
     @org.springframework.beans.factory.annotation.Autowired
     public HrService(
@@ -42,12 +43,14 @@ public class HrService {
             HcmPopulationRepository populationRepository,
             HcmPopulationScopeService populationScopes,
             AuditOutboxRecorder audit,
-            HcmWorkspaceService workspaces) {
+            HcmWorkspaceService workspaces,
+            HrMailProposalOutcomeOperations mailProposalOutcomes) {
         this.repository = repository;
         this.populationRepository = populationRepository;
         this.populationScopes = populationScopes;
         this.audit = audit;
         this.workspaces = workspaces;
+        this.mailProposalOutcomes = mailProposalOutcomes;
     }
 
     HrService(
@@ -56,7 +59,19 @@ public class HrService {
             HcmPopulationScopeService populationScopes,
             AuditOutboxRecorder audit) {
         this(repository, populationRepository, populationScopes, audit,
-                new HcmWorkspaceService(repository, populationRepository, populationScopes));
+                new HcmWorkspaceService(repository, populationRepository, populationScopes),
+                HrMailProposalOutcomeOperations.NOOP);
+    }
+
+    HrService(
+            HrRepository repository,
+            HcmPopulationRepository populationRepository,
+            HcmPopulationScopeService populationScopes,
+            AuditOutboxRecorder audit,
+            HrMailProposalOutcomeOperations mailProposalOutcomes) {
+        this(repository, populationRepository, populationScopes, audit,
+                new HcmWorkspaceService(repository, populationRepository, populationScopes),
+                mailProposalOutcomes);
     }
 
     public HrDtos.HomeOverview home() {
@@ -274,6 +289,14 @@ public class HrService {
     public HrDtos.LeaveRequest createLeaveRequest(
             HrDtos.CreateLeaveRequest request,
             String correlationId) {
+        return createLeaveRequest(request, correlationId, null);
+    }
+
+    @Transactional
+    public HrDtos.LeaveRequest createLeaveRequest(
+            HrDtos.CreateLeaveRequest request,
+            String correlationId,
+            HrMailProposalBinding mailProposalBinding) {
         Context context = context();
         if (!request.endAt().isAfter(request.startAt())) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
@@ -289,6 +312,10 @@ public class HrService {
                 request.startAt(), request.endAt())) {
             throw conflict("The selected interval overlaps an existing submitted or approved leave request.");
         }
+        if (mailProposalBinding != null) {
+            mailProposalOutcomes.preflight(
+                    context.actor().tenantId(), context.actor().userId(), mailProposalBinding);
+        }
         HrDtos.LeaveRequest created;
         try {
             created = repository.createLeaveRequest(
@@ -302,6 +329,11 @@ public class HrService {
                         "The selected interval overlaps an existing submitted or approved leave request.");
             }
             throw exception;
+        }
+        if (mailProposalBinding != null) {
+            mailProposalOutcomes.enqueueExecuted(
+                    context.actor().tenantId(), context.actor().userId(), mailProposalBinding,
+                    created.requestId(), correlationId);
         }
         record(context.actor(), "hr.leave-request.submitted", "LEAVE_REQUEST",
                 created.requestId(), correlationId,

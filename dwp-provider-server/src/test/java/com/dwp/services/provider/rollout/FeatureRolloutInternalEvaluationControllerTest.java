@@ -61,6 +61,38 @@ class FeatureRolloutInternalEvaluationControllerTest {
     }
 
     @Test
+    void applicationReceiptPathUsesTheSamePurposeSpecificGatewayIdentity() throws Exception {
+        FeatureRolloutInternalEvaluationSecurityFilter filter =
+                new FeatureRolloutInternalEvaluationSecurityFilter(
+                        "rollout-secret", new ObjectMapper().findAndRegisterModules());
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "POST", FeatureRolloutInternalEvaluationSecurityFilter.RECEIPT_PATH);
+        request.addHeader("X-DWP-Service-Token", "rollout-secret");
+        request.addHeader("X-DWP-Service-Identity", "dwp-gateway");
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        MockFilterChain chain = new MockFilterChain();
+
+        filter.doFilter(request, response, chain);
+
+        assertThat(chain.getRequest()).isSameAs(request);
+    }
+
+    @Test
+    void applicationReceiptControllerDelegatesOnlyToTheReceiptBoundary() {
+        FeatureRolloutApplicationReceiptService service =
+                mock(FeatureRolloutApplicationReceiptService.class);
+        FeatureRolloutApplicationReceiptController controller =
+                new FeatureRolloutApplicationReceiptController(service);
+        var request = new FeatureRolloutDtos.ApplicationReceiptRequest(
+                UUID.randomUUID(), 41L, "ux.product-surfaces.approvals.v1",
+                "rev-00000000000000000004", "APPLIED", null);
+
+        controller.acknowledge(request);
+
+        verify(service).acknowledge(request);
+    }
+
+    @Test
     void mapsExposureToAStableServerCohortAndOpaqueRevision() {
         FeatureRolloutService rolloutService = mock(FeatureRolloutService.class);
         FeatureRolloutDecisionOutboxRepository outbox =

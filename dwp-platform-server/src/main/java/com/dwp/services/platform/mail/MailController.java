@@ -25,19 +25,29 @@ public class MailController {
     private final MailService service;
     private final MailDraftService drafts;
     private final MailWorkspaceService workspace;
+    private final MailProposalOutcomePort proposalOutcomes;
 
     public MailController(MailService service, MailDraftService drafts) {
-        this(service, drafts, null);
+        this(service, drafts, null, null);
+    }
+
+    public MailController(
+            MailService service,
+            MailDraftService drafts,
+            MailWorkspaceService workspace) {
+        this(service, drafts, workspace, null);
     }
 
     @Autowired
     public MailController(
             MailService service,
             MailDraftService drafts,
-            MailWorkspaceService workspace) {
+            MailWorkspaceService workspace,
+            MailProposalOutcomePort proposalOutcomes) {
         this.service = service;
         this.drafts = drafts;
         this.workspace = workspace;
+        this.proposalOutcomes = proposalOutcomes;
     }
 
     @GetMapping("/home")
@@ -207,10 +217,15 @@ public class MailController {
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Mail-Proposal-ID", required = false) UUID proposalId,
+            @RequestHeader(value = "X-DWP-Mail-Command-ID", required = false) UUID commandId,
+            @RequestHeader(value = "X-DWP-Mail-Proposal-Version", required = false) Long proposalVersion,
             @PathVariable UUID threadId,
             @Valid @RequestBody MailDtos.ReplyRequest request) {
         return ApiResponse.success(service.reply(
-                tenantId, userId, threadId, correlationId, request));
+                tenantId, userId, threadId, correlationId, request,
+                MailProposalHandoffBinding.optional(
+                        proposalId, commandId, proposalVersion)));
     }
 
     @PostMapping("/threads/{threadId}/messages/{messageId}/retry")
@@ -254,6 +269,31 @@ public class MailController {
             @Valid @RequestBody MailDtos.ProposalUpdateRequest request) {
         return ApiResponse.success(service.updateProposal(
                 tenantId, userId, proposalId, correlationId, request));
+    }
+
+    @GetMapping("/proposals/{proposalId}/handoff")
+    public ApiResponse<MailDtos.ProposalHandoff> proposalHandoff(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @PathVariable UUID proposalId) {
+        return ApiResponse.success(service.proposalHandoff(tenantId, userId, proposalId));
+    }
+
+    @PostMapping("/proposals/{proposalId}/handoff/cancel")
+    public ApiResponse<MailDtos.ProposalHandoff> cancelProposalHandoff(
+            @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
+            @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @PathVariable UUID proposalId,
+            @Valid @RequestBody MailDtos.ProposalHandoffCancelRequest request) {
+        if (proposalOutcomes == null) {
+            throw new com.dwp.core.exception.BaseException(
+                    com.dwp.core.common.ErrorCode.EXTERNAL_SERVICE_ERROR,
+                    "The Mail proposal owner service is unavailable.");
+        }
+        return ApiResponse.success(proposalOutcomes.cancel(
+                tenantId, userId, proposalId, request.commandId(),
+                request.version(), correlationId));
     }
 
     private String decoded(String value) {

@@ -20482,6 +20482,21 @@
           "connectorKey": {
             "type": "string"
           },
+          "credentialExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "credentialIssuedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "credentialRotatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "credentialState": {
+            "type": "string"
+          },
           "displayName": {
             "type": "string"
           },
@@ -20509,6 +20524,13 @@
             "type": "string"
           },
           "lifecycleState": {
+            "type": "string"
+          },
+          "ownerUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "purpose": {
             "type": "string"
           },
           "tokenPrefix": {
@@ -20845,20 +20867,43 @@
       },
       "auth_CreateRequest": {
         "properties": {
+          "allowedOperations": {
+            "items": {
+              "pattern": "USERS|GROUPS",
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 1,
+            "type": "array"
+          },
           "connectorKey": {
             "minLength": 1,
             "pattern": "[A-Za-z][A-Za-z0-9_.-]{0,99}",
             "type": "string"
           },
+          "credentialTtlDays": {
+            "format": "int32",
+            "maximum": 365,
+            "minimum": 1,
+            "type": "integer"
+          },
           "displayName": {
             "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "purpose": {
+            "maxLength": 300,
             "minLength": 0,
             "type": "string"
           }
         },
         "required": [
+          "allowedOperations",
           "connectorKey",
-          "displayName"
+          "credentialTtlDays",
+          "displayName",
+          "purpose"
         ],
         "type": "object"
       },
@@ -23489,6 +23534,36 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "auth_RotateRequest": {
+        "properties": {
+          "credentialTtlDays": {
+            "format": "int32",
+            "maximum": 365,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "explicitConfirmation": {
+            "type": "boolean"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "credentialTtlDays",
+          "expectedVersion",
+          "explicitConfirmation",
+          "reason"
+        ],
         "type": "object"
       },
       "auth_ServletContext": {
@@ -42693,6 +42768,9 @@
       },
       "platform_AccessPassPairingReceipt": {
         "properties": {
+          "correlationId": {
+            "type": "string"
+          },
           "deviceId": {
             "format": "uuid",
             "type": "string"
@@ -47194,6 +47272,141 @@
         },
         "type": "object"
       },
+      "platform_ApiResponseEmergencyContactConfigurationResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_EmergencyContactConfigurationResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseEmergencyContactView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_EmergencyContactView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseEmergencyHandoffPreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_EmergencyHandoffPreview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseEmergencyHandoffPreviewResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_EmergencyHandoffPreviewResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseEmergencyHandoffReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_EmergencyHandoffReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponseEvent": {
         "properties": {
           "correlationId": {
@@ -47525,6 +47738,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_FacilityRequest"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseFavoriteReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_FavoriteReceipt"
           },
           "errorCode": {
             "type": "string"
@@ -47903,6 +48143,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_GraphRevisionView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseGroupSendResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_GroupSendResult"
           },
           "errorCode": {
             "type": "string"
@@ -48355,6 +48622,33 @@
         },
         "type": "object"
       },
+      "platform_ApiResponseLifecyclePreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_LifecyclePreview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponseLifecycleResult": {
         "properties": {
           "correlationId": {
@@ -48474,6 +48768,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/platform_AccessZone"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseListActionProposal": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/platform_ActionProposal"
             },
             "type": "array"
           },
@@ -49126,6 +49450,36 @@
         },
         "type": "object"
       },
+      "platform_ApiResponseListEmergencyContactView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/platform_EmergencyContactView"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponseListEventSummary": {
         "properties": {
           "correlationId": {
@@ -49134,6 +49488,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/platform_EventSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseListFavoriteView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/platform_FavoriteView"
             },
             "type": "array"
           },
@@ -49224,6 +49608,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/platform_GraphRevisionView"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseListGroupSendReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/platform_GroupSendReceipt"
             },
             "type": "array"
           },
@@ -49494,6 +49908,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/platform_KioskDevice"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseListOrganizationAsset": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/platform_OrganizationAsset"
             },
             "type": "array"
           },
@@ -50785,6 +51229,33 @@
         },
         "type": "object"
       },
+      "platform_ApiResponseOrganizationAsset": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_OrganizationAsset"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponseOrganizationResponse": {
         "properties": {
           "correlationId": {
@@ -51413,6 +51884,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_Preview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseProposalHandoff": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_ProposalHandoff"
           },
           "errorCode": {
             "type": "string"
@@ -53969,6 +54467,33 @@
         },
         "type": "object"
       },
+      "platform_ApiResponseWorkplaceBookingHoldReleaseResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplaceBookingHoldReleaseResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponseWorkplaceBookingHoldResponse": {
         "properties": {
           "correlationId": {
@@ -54138,6 +54663,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_WorkplaceExploreResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseWorkplaceFacilityClosureCommandReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplaceFacilityClosureCommandReceipt"
           },
           "errorCode": {
             "type": "string"
@@ -54374,6 +54926,87 @@
         },
         "type": "object"
       },
+      "platform_ApiResponseWorkplaceResourceCommandContext": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplaceResourceCommandContext"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseWorkplaceResourceCommandPreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplaceResourceCommandPreview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseWorkplaceResourceCommandReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplaceResourceCommandReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponseWorkplaceServiceCatalog": {
         "properties": {
           "correlationId": {
@@ -54570,6 +55203,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_WorkplaceSiteAccessRule"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseWorkplaceSpacePlanningBoardReportPreview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplaceSpacePlanningBoardReportPreview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponseWorkplaceSpacePlanningBoardReportReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_WorkplaceSpacePlanningBoardReportReceipt"
           },
           "errorCode": {
             "type": "string"
@@ -55687,6 +56374,32 @@
             "type": "string"
           },
           "updatedBy": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_AuditEntry": {
+        "properties": {
+          "actorUserId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "commandEventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "evidence": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -58709,6 +59422,12 @@
       },
       "platform_ComposeContext": {
         "properties": {
+          "accountCapabilities": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/platform_ComposeCapabilities"
+            },
+            "type": "object"
+          },
           "accounts": {
             "items": {
               "$ref": "#/components/schemas/platform_AccountSummary"
@@ -59020,6 +59739,37 @@
           "expectedPassVersion": {
             "format": "int64",
             "minimum": 0,
+            "type": "integer"
+          },
+          "explicitConfirmation": {
+            "type": "boolean"
+          },
+          "previewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "previewId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "platform_ConfirmEmergencyHandoffRequest": {
+        "properties": {
+          "expectedContactVersion": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "expectedIncidentVersion": {
+            "format": "int64",
+            "minimum": 1,
             "type": "integer"
           },
           "explicitConfirmation": {
@@ -61391,8 +62141,22 @@
             "format": "uuid",
             "type": "string"
           },
+          "itemCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "payloadSha256": {
+            "type": "string"
+          },
+          "snapshotCutoff": {
+            "format": "date-time",
+            "type": "string"
+          },
           "state": {
             "type": "string"
+          },
+          "truncated": {
+            "type": "boolean"
           },
           "watermark": {
             "type": "string"
@@ -62255,6 +63019,59 @@
         ],
         "type": "object"
       },
+      "platform_DraftRequest": {
+        "properties": {
+          "body": {
+            "maxLength": 100000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "bodyFormat": {
+            "enum": [
+              "TEXT",
+              "HTML"
+            ],
+            "type": "string"
+          },
+          "defaultForNew": {
+            "type": "boolean"
+          },
+          "defaultForReply": {
+            "type": "boolean"
+          },
+          "mandatoryContent": {
+            "maxLength": 20000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "subject": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "supersedesId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "body",
+          "bodyFormat",
+          "mandatoryContent",
+          "name"
+        ],
+        "type": "object"
+      },
       "platform_DraftSaveRequest": {
         "properties": {
           "body": {
@@ -62430,6 +63247,324 @@
               "RESOURCE"
             ],
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_EmergencyContactConfigurationRequest": {
+        "properties": {
+          "actionMode": {
+            "enum": [
+              "TEL_URI",
+              "GOVERNED_HANDOFF"
+            ],
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "directTelAllowed": {
+            "type": "boolean"
+          },
+          "displayNameEn": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "displayNameKo": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "explicitConfirmation": {
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "HOTLINE",
+              "RADIO",
+              "PUBLIC_EMERGENCY"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sortOrder": {
+            "format": "int32",
+            "maximum": 10000,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "telUri": {
+            "pattern": "^tel:\\+[1-9][0-9]{6,14}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "actionMode",
+          "displayNameEn",
+          "displayNameKo",
+          "kind",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "platform_EmergencyContactConfigurationResult": {
+        "properties": {
+          "contact": {
+            "$ref": "#/components/schemas/platform_EmergencyContactView"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/platform_CommandReceipt"
+          }
+        },
+        "type": "object"
+      },
+      "platform_EmergencyContactView": {
+        "properties": {
+          "actionMode": {
+            "enum": [
+              "TEL_URI",
+              "GOVERNED_HANDOFF"
+            ],
+            "type": "string"
+          },
+          "active": {
+            "type": "boolean"
+          },
+          "contactId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "directTelAllowed": {
+            "type": "boolean"
+          },
+          "displayNameEn": {
+            "type": "string"
+          },
+          "displayNameKo": {
+            "type": "string"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "HOTLINE",
+              "RADIO",
+              "PUBLIC_EMERGENCY"
+            ],
+            "type": "string"
+          },
+          "providerCode": {
+            "type": "string"
+          },
+          "providerConfigurationVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "providerState": {
+            "enum": [
+              "NOT_CONFIGURED",
+              "CONFIGURED_UNVERIFIED",
+              "READY",
+              "DEGRADED",
+              "STALE"
+            ],
+            "type": "string"
+          },
+          "sortOrder": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "telUri": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_EmergencyHandoffPreview": {
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "expectedContactVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expectedIncidentVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "impact": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "incidentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "previewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "providerCode": {
+            "type": "string"
+          },
+          "providerConfigurationVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "providerState": {
+            "enum": [
+              "NOT_CONFIGURED",
+              "CONFIGURED_UNVERIFIED",
+              "READY",
+              "DEGRADED",
+              "STALE"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_EmergencyHandoffPreviewRequest": {
+        "properties": {
+          "contactId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedContactVersion": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "expectedIncidentVersion": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "contactId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "platform_EmergencyHandoffPreviewResult": {
+        "properties": {
+          "preview": {
+            "$ref": "#/components/schemas/platform_EmergencyHandoffPreview"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/platform_CommandReceipt"
+          }
+        },
+        "type": "object"
+      },
+      "platform_EmergencyHandoffReceipt": {
+        "properties": {
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "contactId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "handoffId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "idempotentReplay": {
+            "type": "boolean"
+          },
+          "incidentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "previewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "providerEvidenceReference": {
+            "type": "string"
+          },
+          "providerOperationReference": {
+            "type": "string"
+          },
+          "resultCode": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "ACCEPTED",
+              "RUNNING",
+              "SUCCEEDED",
+              "FAILED",
+              "RESULT_UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "statusHref": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -63630,6 +64765,54 @@
             "type": "string"
           },
           "statusReason": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_FavoriteReceipt": {
+        "properties": {
+          "auditEventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "favorite": {
+            "$ref": "#/components/schemas/platform_FavoriteView"
+          }
+        },
+        "required": [
+          "auditEventId",
+          "commandId",
+          "favorite"
+        ],
+        "type": "object"
+      },
+      "platform_FavoriteView": {
+        "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "resourceId": {
+            "format": "uuid",
             "type": "string"
           },
           "updatedAt": {
@@ -64865,6 +66048,13 @@
             "format": "uuid",
             "type": "string"
           },
+          "recipientMode": {
+            "enum": [
+              "TO",
+              "BCC"
+            ],
+            "type": "string"
+          },
           "subject": {
             "maxLength": 500,
             "minLength": 0,
@@ -64876,8 +66066,59 @@
           "classification",
           "groupVersion",
           "idempotencyKey",
+          "recipientMode",
           "subject"
         ],
+        "type": "object"
+      },
+      "platform_GroupSendReceipt": {
+        "properties": {
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "groupId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "groupVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "recipientCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "recipientMode": {
+            "enum": [
+              "TO",
+              "BCC"
+            ],
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "threadId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_GroupSendResult": {
+        "properties": {
+          "receipt": {
+            "$ref": "#/components/schemas/platform_GroupSendReceipt"
+          },
+          "thread": {
+            "$ref": "#/components/schemas/platform_ThreadDetail"
+          }
+        },
         "type": "object"
       },
       "platform_GuardedExport": {
@@ -66043,63 +67284,21 @@
       },
       "platform_ImpactItem": {
         "properties": {
-          "bookingId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "bookingStatus": {
-            "type": "string"
-          },
-          "bookingVersion": {
-            "format": "int64",
+          "distance": {
+            "format": "int32",
             "type": "integer"
           },
-          "endsAt": {
-            "format": "date-time",
+          "entity": {
+            "$ref": "#/components/schemas/platform_Entity"
+          },
+          "highestCriticality": {
             "type": "string"
           },
-          "eventId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "previewItemId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "recipientUserIds": {
+          "relationTypes": {
             "items": {
-              "format": "int64",
-              "type": "integer"
+              "type": "string"
             },
             "type": "array"
-          },
-          "replacementBlockReason": {
-            "type": "string"
-          },
-          "replacementCandidates": {
-            "items": {
-              "$ref": "#/components/schemas/platform_ReplacementCandidate"
-            },
-            "type": "array"
-          },
-          "reservationOwner": {
-            "enum": [
-              "WORKPLACE",
-              "CALENDAR"
-            ],
-            "type": "string"
-          },
-          "sourceOwnerResourceId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "sourceWorkplaceResourceId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "startsAt": {
-            "format": "date-time",
-            "type": "string"
           }
         },
         "type": "object"
@@ -66131,7 +67330,7 @@
           },
           "items": {
             "items": {
-              "$ref": "#/components/schemas/platform_ImpactItem"
+              "$ref": "#/components/schemas/platform_WorkplaceFacilityClosureImpactItem"
             },
             "type": "array"
           },
@@ -66989,6 +68188,50 @@
         ],
         "type": "object"
       },
+      "platform_LifecyclePreview": {
+        "properties": {
+          "action": {
+            "enum": [
+              "MOVE",
+              "ARCHIVE",
+              "TRASH",
+              "SPAM",
+              "RESTORE",
+              "DELETE_FOREVER"
+            ],
+            "type": "string"
+          },
+          "affectedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "allowed": {
+            "type": "boolean"
+          },
+          "blockers": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "targetFolderId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "targetFolderName": {
+            "type": "string"
+          },
+          "threadId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "platform_LifecycleRequest": {
         "properties": {
           "action": {
@@ -67701,6 +68944,101 @@
           },
           "statusHref": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_OrganizationAsset": {
+        "properties": {
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "assetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "body": {
+            "type": "string"
+          },
+          "bodyFormat": {
+            "enum": [
+              "TEXT",
+              "HTML"
+            ],
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "defaultForNew": {
+            "type": "boolean"
+          },
+          "defaultForReply": {
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "TEMPLATE",
+              "SIGNATURE"
+            ],
+            "type": "string"
+          },
+          "mandatoryContent": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "publicationKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publicationState": {
+            "enum": [
+              "DRAFT",
+              "PENDING_APPROVAL",
+              "APPROVED",
+              "PUBLISHED",
+              "RETIRED"
+            ],
+            "type": "string"
+          },
+          "publicationVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "retiredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "supersedesId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -70509,6 +71847,102 @@
         ],
         "type": "object"
       },
+      "platform_ProposalHandoff": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "focus": {
+            "type": "string"
+          },
+          "ownerRoute": {
+            "type": "string"
+          },
+          "proposalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resultRef": {
+            "type": "string"
+          },
+          "returnTo": {
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACCEPTED",
+              "EXECUTED",
+              "CANCELLED",
+              "FAILED",
+              "UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ProposalOutcomeRequest": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resultRef": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "ACCEPTED",
+              "EXECUTED",
+              "CANCELLED",
+              "FAILED",
+              "UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "commandId",
+          "resultRef",
+          "status",
+          "version"
+        ],
+        "type": "object"
+      },
+      "platform_ProposalUpdateRequest": {
+        "properties": {
+          "proposedPayload": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "proposedPayload",
+          "version"
+        ],
+        "type": "object"
+      },
       "platform_ProviderBinding": {
         "properties": {
           "active": {
@@ -71346,6 +72780,22 @@
             "type": "number"
           }
         },
+        "type": "object"
+      },
+      "platform_ReconcileEmergencyHandoffRequest": {
+        "properties": {
+          "explicitConfirmation": {
+            "type": "boolean"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
         "type": "object"
       },
       "platform_ReconcileNotifications": {
@@ -73555,6 +75005,40 @@
         ],
         "type": "object"
       },
+      "platform_RuleOrderItem": {
+        "properties": {
+          "ruleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ruleId",
+          "version"
+        ],
+        "type": "object"
+      },
+      "platform_RuleOrderRequest": {
+        "properties": {
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/platform_RuleOrderItem"
+            },
+            "maxItems": 100,
+            "minItems": 0,
+            "type": "array"
+          }
+        },
+        "required": [
+          "rules"
+        ],
+        "type": "object"
+      },
       "platform_RuleRunSummary": {
         "properties": {
           "changedCount": {
@@ -75445,6 +76929,19 @@
         },
         "type": "object"
       },
+      "platform_SetFavoriteRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "favorite": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "platform_ShareableGroup": {
         "properties": {
           "displayName": {
@@ -75895,6 +77392,13 @@
           },
           "name": {
             "type": "string"
+          },
+          "publicationState": {
+            "type": "string"
+          },
+          "publicationVersion": {
+            "format": "int32",
+            "type": "integer"
           },
           "scope": {
             "enum": [
@@ -76561,6 +78065,13 @@
           },
           "name": {
             "type": "string"
+          },
+          "publicationState": {
+            "type": "string"
+          },
+          "publicationVersion": {
+            "format": "int32",
+            "type": "integer"
           },
           "scope": {
             "enum": [
@@ -80565,6 +82076,110 @@
         },
         "type": "object"
       },
+      "platform_WorkplaceBookingHoldReleaseReceipt": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "idempotentReplay": {
+            "type": "boolean"
+          },
+          "intentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "intentVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "releasedHoldIds": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "requeryRequired": {
+            "type": "boolean"
+          },
+          "state": {
+            "enum": [
+              "SUCCEEDED",
+              "RESULT_UNKNOWN"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceBookingHoldReleaseReference": {
+        "properties": {
+          "expectedHoldVersion": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "holdId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedHoldVersion",
+          "holdId"
+        ],
+        "type": "object"
+      },
+      "platform_WorkplaceBookingHoldReleaseRequest": {
+        "properties": {
+          "expectedIntentVersion": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "explicitConfirmation": {
+            "type": "boolean"
+          },
+          "holds": {
+            "items": {
+              "$ref": "#/components/schemas/platform_WorkplaceBookingHoldReleaseReference"
+            },
+            "maxItems": 50,
+            "minItems": 0,
+            "type": "array"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedIntentVersion",
+          "holds",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "platform_WorkplaceBookingHoldReleaseResult": {
+        "properties": {
+          "intent": {
+            "$ref": "#/components/schemas/platform_WorkplaceBookingHoldResponse"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/platform_WorkplaceBookingHoldReleaseReceipt"
+          }
+        },
+        "type": "object"
+      },
       "platform_WorkplaceBookingHoldRequest": {
         "properties": {
           "expectedIntentVersion": {
@@ -81203,6 +82818,98 @@
               "$ref": "#/components/schemas/platform_WorkplaceSite"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceFacilityClosureCommandReceipt": {
+        "properties": {
+          "auditTrail": {
+            "items": {
+              "$ref": "#/components/schemas/platform_AuditEntry"
+            },
+            "type": "array"
+          },
+          "bookingsMutated": {
+            "type": "boolean"
+          },
+          "command": {
+            "$ref": "#/components/schemas/platform_ClosureCommand"
+          },
+          "externalDeliveryProven": {
+            "type": "boolean"
+          },
+          "notificationDispatchPublished": {
+            "type": "boolean"
+          },
+          "notificationScheduled": {
+            "type": "boolean"
+          },
+          "owner": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceFacilityClosureImpactItem": {
+        "properties": {
+          "bookingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "bookingStatus": {
+            "type": "string"
+          },
+          "bookingVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "previewItemId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "recipientUserIds": {
+            "items": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "array"
+          },
+          "replacementBlockReason": {
+            "type": "string"
+          },
+          "replacementCandidates": {
+            "items": {
+              "$ref": "#/components/schemas/platform_ReplacementCandidate"
+            },
+            "type": "array"
+          },
+          "reservationOwner": {
+            "enum": [
+              "WORKPLACE",
+              "CALENDAR"
+            ],
+            "type": "string"
+          },
+          "sourceOwnerResourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sourceWorkplaceResourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
           }
         },
         "type": "object"
@@ -81899,6 +83606,320 @@
             "type": "number"
           }
         },
+        "type": "object"
+      },
+      "platform_WorkplaceResourceCommandAction": {
+        "properties": {
+          "availability": {
+            "enum": [
+              "AVAILABLE",
+              "BOOKING_INACTIVE",
+              "PROVIDER_NOT_READY"
+            ],
+            "type": "string"
+          },
+          "commandType": {
+            "enum": [
+              "PARKING_EXTEND",
+              "PARKING_EXIT_STATUS",
+              "LOCKER_UNLOCK",
+              "NFC_KEY_RESEND",
+              "ROOM_PRE_ENTRY"
+            ],
+            "type": "string"
+          },
+          "elevatedConfirmationRequired": {
+            "type": "boolean"
+          },
+          "limitationCode": {
+            "type": "string"
+          },
+          "providerCapability": {
+            "enum": [
+              "NFC",
+              "SPEED_GATE"
+            ],
+            "type": "string"
+          },
+          "providerState": {
+            "enum": [
+              "NOT_CONFIGURED",
+              "CONFIGURED_UNVERIFIED",
+              "READY",
+              "DEGRADED",
+              "STALE"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceResourceCommandContext": {
+        "properties": {
+          "actions": {
+            "items": {
+              "$ref": "#/components/schemas/platform_WorkplaceResourceCommandAction"
+            },
+            "type": "array"
+          },
+          "bookingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "bookingVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceType": {
+            "enum": [
+              "ROOM",
+              "DESK",
+              "LOCKER",
+              "PARKING",
+              "FOCUS_POD",
+              "PHONE_BOOTH",
+              "EQUIPMENT"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceResourceCommandExecuteRequest": {
+        "properties": {
+          "expectedBookingVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "explicitConfirmation": {
+            "type": "boolean"
+          },
+          "previewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "previewId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "platform_WorkplaceResourceCommandPreview": {
+        "properties": {
+          "bookingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "commandType": {
+            "enum": [
+              "PARKING_EXTEND",
+              "PARKING_EXIT_STATUS",
+              "LOCKER_UNLOCK",
+              "NFC_KEY_RESEND",
+              "ROOM_PRE_ENTRY"
+            ],
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "eligible": {
+            "type": "boolean"
+          },
+          "expectedBookingVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "impact": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "limitations": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          },
+          "previewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "providerCapability": {
+            "enum": [
+              "NFC",
+              "SPEED_GATE"
+            ],
+            "type": "string"
+          },
+          "providerCode": {
+            "type": "string"
+          },
+          "providerConfigurationVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "providerState": {
+            "enum": [
+              "NOT_CONFIGURED",
+              "CONFIGURED_UNVERIFIED",
+              "READY",
+              "DEGRADED",
+              "STALE"
+            ],
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceResourceCommandPreviewRequest": {
+        "properties": {
+          "commandType": {
+            "enum": [
+              "PARKING_EXTEND",
+              "PARKING_EXIT_STATUS",
+              "LOCKER_UNLOCK",
+              "NFC_KEY_RESEND",
+              "ROOM_PRE_ENTRY"
+            ],
+            "type": "string"
+          },
+          "expectedBookingVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "parameters": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "commandType",
+          "parameters"
+        ],
+        "type": "object"
+      },
+      "platform_WorkplaceResourceCommandReceipt": {
+        "properties": {
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "bookingId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "commandType": {
+            "enum": [
+              "PARKING_EXTEND",
+              "PARKING_EXIT_STATUS",
+              "LOCKER_UNLOCK",
+              "NFC_KEY_RESEND",
+              "ROOM_PRE_ENTRY"
+            ],
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "idempotentReplay": {
+            "type": "boolean"
+          },
+          "previewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "providerOperationReference": {
+            "type": "string"
+          },
+          "requeryRequired": {
+            "type": "boolean"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resultCode": {
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "SUCCEEDED",
+              "FAILED",
+              "RESULT_UNKNOWN"
+            ],
+            "type": "string"
+          },
+          "statusHref": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceResourceCommandReconcileRequest": {
+        "properties": {
+          "explicitConfirmation": {
+            "type": "boolean"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "reason"
+        ],
         "type": "object"
       },
       "platform_WorkplaceServiceAttachmentScanRequest": {
@@ -83449,6 +85470,338 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceSpacePlanningBoardReportExecuteRequest": {
+        "properties": {
+          "confirmationToken": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "expectedPreviewVersion": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "expectedScenarioVersion": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "explicitConfirmation": {
+            "type": "boolean"
+          },
+          "previewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirmationToken",
+          "expectedPreviewVersion",
+          "expectedScenarioVersion",
+          "previewId",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "platform_WorkplaceSpacePlanningBoardReportPreview": {
+        "properties": {
+          "confirmationToken": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "PDF",
+              "XLSX"
+            ],
+            "type": "string"
+          },
+          "idempotentReplay": {
+            "type": "boolean"
+          },
+          "previewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "previewVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "scenarioId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scenarioVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "snapshot": {
+            "$ref": "#/components/schemas/platform_WorkplaceSpacePlanningBoardReportSnapshot"
+          },
+          "snapshotSha256": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceSpacePlanningBoardReportPreviewRequest": {
+        "properties": {
+          "expectedScenarioVersion": {
+            "format": "int64",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "format": {
+            "enum": [
+              "PDF",
+              "XLSX"
+            ],
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "scenarioId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "expectedScenarioVersion",
+          "format",
+          "reason",
+          "scenarioId"
+        ],
+        "type": "object"
+      },
+      "platform_WorkplaceSpacePlanningBoardReportReceipt": {
+        "properties": {
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "byteSize": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "commandVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "contentHref": {
+            "type": "string"
+          },
+          "contentSha256": {
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fileName": {
+            "type": "string"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "PDF",
+              "XLSX"
+            ],
+            "type": "string"
+          },
+          "idempotentReplay": {
+            "type": "boolean"
+          },
+          "mimeType": {
+            "type": "string"
+          },
+          "previewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scenarioId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scenarioVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "SUCCEEDED",
+              "FAILED",
+              "RESULT_UNKNOWN"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_WorkplaceSpacePlanningBoardReportSnapshot": {
+        "properties": {
+          "affectedResourceCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "calculationVersion": {
+            "type": "string"
+          },
+          "capturedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "co2eUnit": {
+            "type": "string"
+          },
+          "co2eValue": {
+            "type": "number"
+          },
+          "currentAccessibleResourceCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "currentCapacity": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "currentRoomCapacity": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "currentUtilizationPercent": {
+            "type": "number"
+          },
+          "emissionFactorVersion": {
+            "type": "string"
+          },
+          "emissionRegionCode": {
+            "type": "string"
+          },
+          "energyUnit": {
+            "type": "string"
+          },
+          "energyValue": {
+            "type": "number"
+          },
+          "floorId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "floorName": {
+            "type": "string"
+          },
+          "forecastConfidencePercent": {
+            "type": "number"
+          },
+          "forecastState": {
+            "type": "string"
+          },
+          "impactedBookingCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "peakDemand": {
+            "type": "number"
+          },
+          "personLevelDataIncluded": {
+            "type": "boolean"
+          },
+          "personLevelRowCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "proposedAccessibleResourceCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "proposedCapacity": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "proposedRoomCapacity": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "proposedUtilizationPercent": {
+            "type": "number"
+          },
+          "scenarioId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scenarioName": {
+            "type": "string"
+          },
+          "scenarioState": {
+            "type": "string"
+          },
+          "scenarioVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "siteCode": {
+            "type": "string"
+          },
+          "siteId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "siteName": {
+            "type": "string"
+          },
+          "windowEnd": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "windowStart": {
+            "format": "date-time",
+            "type": "string"
           }
         },
         "type": "object"
@@ -111588,6 +113941,16 @@
             }
           }
         ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/auth_RotateRequest"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "content": {
@@ -127512,7 +129875,7 @@
     },
     "/api/platform/v1/admin/announcements/{announcementId}/publish": {
       "post": {
-        "operationId": "platform_publish_4",
+        "operationId": "platform_publish_5",
         "parameters": [
           {
             "in": "header",
@@ -130209,7 +132572,7 @@
     },
     "/api/platform/v1/admin/catalog/relations/{relationId}/retire": {
       "post": {
-        "operationId": "platform_retire_2",
+        "operationId": "platform_retire_3",
         "parameters": [
           {
             "in": "header",
@@ -131039,7 +133402,7 @@
     },
     "/api/platform/v1/admin/home-experience/publish": {
       "post": {
-        "operationId": "platform_publish_3",
+        "operationId": "platform_publish_4",
         "parameters": [
           {
             "in": "header",
@@ -131559,7 +133922,7 @@
     },
     "/api/platform/v1/admin/localization/bundles/{bundleId}/drafts": {
       "post": {
-        "operationId": "platform_createDraft_2",
+        "operationId": "platform_createDraft_3",
         "parameters": [
           {
             "in": "header",
@@ -131797,7 +134160,7 @@
     },
     "/api/platform/v1/admin/localization/revisions/{revisionId}/preview": {
       "get": {
-        "operationId": "platform_preview_10",
+        "operationId": "platform_preview_16",
         "parameters": [
           {
             "in": "path",
@@ -131828,7 +134191,7 @@
     },
     "/api/platform/v1/admin/localization/revisions/{revisionId}/publish": {
       "post": {
-        "operationId": "platform_publish_2",
+        "operationId": "platform_publish_3",
         "parameters": [
           {
             "in": "header",
@@ -131926,7 +134289,7 @@
     },
     "/api/platform/v1/admin/localization/revisions/{revisionId}/submit": {
       "post": {
-        "operationId": "platform_submit_2",
+        "operationId": "platform_submit_3",
         "parameters": [
           {
             "in": "header",
@@ -133085,6 +135448,406 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/platform_ApiResponseSharedInboxSummary"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/mail/writing-assets": {
+      "get": {
+        "operationId": "platform_assets",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "kind",
+            "required": false,
+            "schema": {
+              "enum": [
+                "TEMPLATE",
+                "SIGNATURE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseListOrganizationAsset"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/mail/writing-assets/{kind}/drafts": {
+      "post": {
+        "operationId": "platform_createDraft_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "TEMPLATE",
+                "SIGNATURE"
+              ],
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_DraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseOrganizationAsset"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/mail/writing-assets/{kind}/drafts/{assetId}": {
+      "put": {
+        "operationId": "platform_updateDraft_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "TEMPLATE",
+                "SIGNATURE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_DraftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseOrganizationAsset"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/mail/writing-assets/{kind}/{assetId}/approve": {
+      "post": {
+        "operationId": "platform_approve_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "TEMPLATE",
+                "SIGNATURE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseOrganizationAsset"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/mail/writing-assets/{kind}/{assetId}/publish": {
+      "post": {
+        "operationId": "platform_publish_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "TEMPLATE",
+                "SIGNATURE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseOrganizationAsset"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/mail/writing-assets/{kind}/{assetId}/retire": {
+      "post": {
+        "operationId": "platform_retire_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "TEMPLATE",
+                "SIGNATURE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseOrganizationAsset"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/mail/writing-assets/{kind}/{assetId}/submit": {
+      "post": {
+        "operationId": "platform_submit_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "kind",
+            "required": true,
+            "schema": {
+              "enum": [
+                "TEMPLATE",
+                "SIGNATURE"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "assetId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_TransitionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseOrganizationAsset"
                 }
               }
             },
@@ -135310,7 +138073,7 @@
     },
     "/api/platform/v1/admin/saved-view-ownership/preview": {
       "post": {
-        "operationId": "platform_preview_8",
+        "operationId": "platform_preview_12",
         "parameters": [],
         "requestBody": {
           "content": {
@@ -137125,7 +139888,7 @@
     },
     "/api/platform/v1/admin/workplace/connectors/{kind}/replays:preview": {
       "post": {
-        "operationId": "platform_preview_7",
+        "operationId": "platform_preview_11",
         "parameters": [
           {
             "in": "header",
@@ -138288,7 +141051,7 @@
     },
     "/api/platform/v1/admin/workplace/exceptions/{exceptionId}/recovery:preview": {
       "post": {
-        "operationId": "platform_preview_6",
+        "operationId": "platform_preview_10",
         "parameters": [
           {
             "in": "header",
@@ -140186,7 +142949,7 @@
     },
     "/api/platform/v1/admin/workplace/experience/facilities/closure-commands/{commandId}/notifications/reconcile": {
       "post": {
-        "operationId": "platform_reconcile_1",
+        "operationId": "platform_reconcile_3",
         "parameters": [
           {
             "in": "header",
@@ -140274,7 +143037,7 @@
     },
     "/api/platform/v1/admin/workplace/experience/facilities/closure-commands/{commandId}/notifications/retry": {
       "post": {
-        "operationId": "platform_retry",
+        "operationId": "platform_retry_1",
         "parameters": [
           {
             "in": "header",
@@ -140362,7 +143125,7 @@
     },
     "/api/platform/v1/admin/workplace/experience/facilities/closure-commands/{commandId}/receipt": {
       "get": {
-        "operationId": "platform_receipt_1",
+        "operationId": "platform_receipt_3",
         "parameters": [
           {
             "in": "query",
@@ -140400,7 +143163,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/platform_ApiResponseCommandReceipt"
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceFacilityClosureCommandReceipt"
                 }
               }
             },
@@ -140414,7 +143177,7 @@
     },
     "/api/platform/v1/admin/workplace/experience/facilities/closure-impact-previews/{previewId}": {
       "get": {
-        "operationId": "platform_preview_9",
+        "operationId": "platform_preview_15",
         "parameters": [
           {
             "in": "query",
@@ -140466,7 +143229,7 @@
     },
     "/api/platform/v1/admin/workplace/experience/facilities/closure-impact-previews/{previewId}/commands": {
       "post": {
-        "operationId": "platform_execute_1",
+        "operationId": "platform_execute_4",
         "parameters": [
           {
             "in": "header",
@@ -140984,7 +143747,7 @@
     },
     "/api/platform/v1/admin/workplace/experience/facilities/resources/{resourceId}/closure-impact-previews": {
       "post": {
-        "operationId": "platform_preview_5",
+        "operationId": "platform_preview_9",
         "parameters": [
           {
             "in": "header",
@@ -145291,6 +148054,168 @@
         ]
       }
     },
+    "/api/platform/v1/admin/workplace/safety/emergency-contacts": {
+      "get": {
+        "operationId": "platform_contacts_1",
+        "parameters": [
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseListEmergencyContactView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/safety/emergency-contacts/{contactId}": {
+      "get": {
+        "operationId": "platform_contact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "contactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEmergencyContactView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      },
+      "put": {
+        "operationId": "platform_configure",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "contactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_EmergencyContactConfigurationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEmergencyContactConfigurationResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/platform/v1/admin/workplace/safety/exports/{exportId}/content": {
       "get": {
         "operationId": "platform_export_1",
@@ -146058,6 +148983,380 @@
         ]
       }
     },
+    "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoff-previews/{previewId}": {
+      "get": {
+        "operationId": "platform_preview_14",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incidentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEmergencyHandoffPreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs": {
+      "post": {
+        "operationId": "platform_execute_3",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "incidentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_ConfirmEmergencyHandoffRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEmergencyHandoffReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs/{commandId}": {
+      "get": {
+        "operationId": "platform_handoff",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incidentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commandId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEmergencyHandoffReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs/{commandId}:reconcile": {
+      "post": {
+        "operationId": "platform_reconcile_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "incidentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commandId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_ReconcileEmergencyHandoffRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEmergencyHandoffReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs:preview": {
+      "post": {
+        "operationId": "platform_preview_8",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "incidentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_EmergencyHandoffPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseEmergencyHandoffPreviewResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/exports": {
       "post": {
         "operationId": "platform_createExport",
@@ -146544,7 +149843,7 @@
     },
     "/api/platform/v1/admin/workplace/safety/incidents:preview": {
       "post": {
-        "operationId": "platform_preview_4",
+        "operationId": "platform_preview_7",
         "parameters": [
           {
             "in": "header",
@@ -149243,6 +152542,282 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/platform_ApiResponsePlanningOverview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/space-planning/reports": {
+      "post": {
+        "operationId": "platform_execute_2",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_WorkplaceSpacePlanningBoardReportExecuteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceSpacePlanningBoardReportReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/space-planning/reports/{commandId}": {
+      "get": {
+        "operationId": "platform_receipt_2",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commandId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceSpacePlanningBoardReportReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/space-planning/reports/{commandId}/content": {
+      "get": {
+        "operationId": "platform_content",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commandId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/pdf": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "summary": "Download a guarded aggregate space-planning board report",
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/admin/workplace/space-planning/reports:preview": {
+      "post": {
+        "operationId": "platform_preview_6",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "siteId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_WorkplaceSpacePlanningBoardReportPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceSpacePlanningBoardReportPreview"
                 }
               }
             },
@@ -152480,6 +156055,14 @@
             }
           },
           {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
             "in": "path",
             "name": "deviceId",
             "required": true,
@@ -152511,9 +156094,16 @@
             "description": "OK"
           }
         },
+        "security": [
+          {
+            "platform_DeviceCredential": [],
+            "platform_DeviceTenant": []
+          }
+        ],
         "tags": [
           "platform"
-        ]
+        ],
+        "x-dwp-identity-plane": "DEVICE"
       }
     },
     "/api/platform/v1/device/workplace/devices/{deviceId}/heartbeat": {
@@ -155663,7 +159253,38 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/platform_ApiResponseThreadDetail"
+                  "$ref": "#/components/schemas/platform_ApiResponseGroupSendResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/mail/contact-groups/{groupId}/messages/history": {
+      "get": {
+        "operationId": "platform_groupMessageHistory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "groupId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseListGroupSendReceipt"
                 }
               }
             },
@@ -155928,7 +159549,7 @@
     },
     "/api/platform/v1/mail/deliveries/{deliveryId}/reconcile": {
       "post": {
-        "operationId": "platform_reconcile",
+        "operationId": "platform_reconcile_1",
         "parameters": [
           {
             "in": "path",
@@ -155986,6 +159607,47 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/platform_RescheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseDeliveryReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/mail/deliveries/{deliveryId}/retry": {
+      "post": {
+        "operationId": "platform_retry",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "deliveryId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_VersionRequest"
               }
             }
           },
@@ -156638,6 +160300,46 @@
         ]
       }
     },
+    "/api/platform/v1/mail/organization/rules/order": {
+      "put": {
+        "operationId": "platform_reorderRules",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_RuleOrderRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseOrganizationResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/platform/v1/mail/organization/rules/{ruleId}": {
       "put": {
         "operationId": "platform_updateRule",
@@ -156825,6 +160527,95 @@
         ]
       }
     },
+    "/api/platform/v1/mail/proposals": {
+      "get": {
+        "operationId": "platform_proposals",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "type",
+            "required": false,
+            "schema": {
+              "default": "",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseListActionProposal"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/mail/proposals/{proposalId}": {
+      "put": {
+        "operationId": "platform_updateProposal",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_ProposalUpdateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseActionProposal"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/platform/v1/mail/proposals/{proposalId}/decision": {
       "post": {
         "operationId": "platform_decideProposal",
@@ -156863,6 +160654,86 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/platform_ApiResponseActionProposal"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/mail/proposals/{proposalId}/handoff": {
+      "get": {
+        "operationId": "platform_proposalHandoff",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseProposalHandoff"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/mail/proposals/{proposalId}/handoff/outcome": {
+      "post": {
+        "operationId": "platform_recordProposalOutcome",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_ProposalOutcomeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseProposalHandoff"
                 }
               }
             },
@@ -157744,6 +161615,97 @@
         ]
       }
     },
+    "/api/platform/v1/mail/threads/{threadId}/lifecycle/preview": {
+      "post": {
+        "operationId": "platform_preview_5",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_LifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseLifecyclePreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/mail/threads/{threadId}/messages/{messageId}/attachments/{attachmentId}": {
+      "get": {
+        "operationId": "platform_downloadAttachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "threadId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "messageId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/platform/v1/mail/threads/{threadId}/messages/{messageId}/retry": {
       "post": {
         "operationId": "platform_retryDelivery",
@@ -157893,7 +161855,17 @@
     "/api/platform/v1/mail/writing-assets": {
       "get": {
         "operationId": "platform_writingAssets",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "includeArchived",
+            "required": false,
+            "schema": {
+              "default": false,
+              "type": "boolean"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -160263,7 +164235,7 @@
     },
     "/api/platform/v1/workplace/booking-intents/preview": {
       "post": {
-        "operationId": "platform_preview_3",
+        "operationId": "platform_preview_4",
         "parameters": [
           {
             "in": "header",
@@ -160474,6 +164446,93 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/platform_ApiResponseWorkplaceBookingHoldResponse"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/booking-orchestration/intents/{intentId}/holds:release": {
+      "post": {
+        "operationId": "platform_releaseHolds",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "intentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_WorkplaceBookingHoldReleaseRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceBookingHoldReleaseResult"
                 }
               }
             },
@@ -160998,6 +165057,407 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/platform_ApiResponseWorkplaceBooking"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/bookings/{bookingId}/resource-command-context": {
+      "get": {
+        "operationId": "platform_context_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bookingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceResourceCommandContext"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/bookings/{bookingId}/resource-command-previews/{previewId}": {
+      "get": {
+        "operationId": "platform_preview_13",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bookingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "previewId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceResourceCommandPreview"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/bookings/{bookingId}/resource-commands": {
+      "post": {
+        "operationId": "platform_execute_1",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "bookingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_WorkplaceResourceCommandExecuteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceResourceCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/bookings/{bookingId}/resource-commands/{commandId}": {
+      "get": {
+        "operationId": "platform_receipt_1",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bookingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commandId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceResourceCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/bookings/{bookingId}/resource-commands/{commandId}:reconcile": {
+      "post": {
+        "operationId": "platform_reconcile",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "bookingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "commandId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_WorkplaceResourceCommandReconcileRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceResourceCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/bookings/{bookingId}/resource-commands:preview": {
+      "post": {
+        "operationId": "platform_preview_3",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "bookingId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_WorkplaceResourceCommandPreviewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseWorkplaceResourceCommandPreview"
                 }
               }
             },
@@ -162970,6 +167430,139 @@
         ]
       }
     },
+    "/api/platform/v1/workplace/resource-favorites": {
+      "get": {
+        "operationId": "platform_favorites",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "resourceIds",
+            "required": false,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseListFavoriteView"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/resources/{resourceId}/favorite": {
+      "put": {
+        "operationId": "platform_set",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resourceId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/platform_SetFavoriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseFavoriteReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
     "/api/platform/v1/workplace/safety/incidents/active": {
       "get": {
         "operationId": "platform_active",
@@ -163036,6 +167629,49 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/platform_ApiResponseSafetySheet"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ]
+      }
+    },
+    "/api/platform/v1/workplace/safety/incidents/{incidentId}/emergency-contacts": {
+      "get": {
+        "operationId": "platform_contacts",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "incidentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/platform_ApiResponseListEmergencyContactView"
                 }
               }
             },
@@ -163721,7 +168357,7 @@
     },
     "/api/platform/v1/workplace/service-orders/{orderId}/contacts": {
       "post": {
-        "operationId": "platform_contact",
+        "operationId": "platform_contact_1",
         "parameters": [
           {
             "in": "header",

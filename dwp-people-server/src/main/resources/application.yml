@@ -60,6 +60,12 @@ dwp:
     batch-size: ${DWP_IDENTITY_SYNC_BATCH_SIZE:50}
     maximum-attempts: ${DWP_IDENTITY_SYNC_MAXIMUM_ATTEMPTS:10}
     publish-interval-ms: ${DWP_IDENTITY_SYNC_PUBLISH_INTERVAL_MS:2000}
+  mail-proposal-outcomes:
+    platform-url: ${SERVICE_PLATFORM_URL:http://localhost:8002}
+    service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}
+    batch-size: ${DWP_MAIL_PROPOSAL_OUTCOME_BATCH_SIZE:50}
+    maximum-attempts: ${DWP_MAIL_PROPOSAL_OUTCOME_MAXIMUM_ATTEMPTS:10}
+    publish-interval-ms: ${DWP_MAIL_PROPOSAL_OUTCOME_PUBLISH_INTERVAL_MS:2000}
   provider:
     provisioning-token: ${DWP_PROVIDER_PROVISIONING_TOKEN:}
   observability:

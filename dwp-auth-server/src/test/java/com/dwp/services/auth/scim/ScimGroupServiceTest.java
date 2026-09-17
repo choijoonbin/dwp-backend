@@ -54,7 +54,7 @@ class ScimGroupServiceTest {
     @BeforeEach
     void setContext() {
         ScimConnectorContext.set(new ScimConnectorContext.ConnectorIdentity(
-                CONNECTOR_ID, TENANT_ID, "entra"));
+                CONNECTOR_ID, TENANT_ID, "entra", java.util.Set.of("USERS", "GROUPS")));
     }
 
     @AfterEach

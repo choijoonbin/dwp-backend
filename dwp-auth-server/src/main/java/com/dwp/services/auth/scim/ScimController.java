@@ -101,12 +101,14 @@ public class ScimController {
             @RequestParam(required = false) Integer startIndex,
             @RequestParam(required = false) Integer count,
             @RequestParam(required = false) String cursor) {
+        requireUsers();
         return ResponseEntity.ok().contentType(SCIM_JSON)
                 .body(userService.search(filter, startIndex, count, cursor));
     }
 
     @GetMapping("/Users/{id}")
     public ResponseEntity<ScimModels.UserResponse> user(@PathVariable UUID id) {
+        requireUsers();
         return entity(userService.get(id));
     }
 
@@ -114,6 +116,7 @@ public class ScimController {
     public ResponseEntity<ScimModels.UserResponse> createUser(
             @Valid @RequestBody ScimModels.UserRequest request,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
+        requireUsers();
         ScimUserService.MutationResult result = userService.create(request, correlationId);
         return mutate(result.response(), result.created());
     }
@@ -124,6 +127,7 @@ public class ScimController {
             @Valid @RequestBody ScimModels.UserRequest request,
             @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
+        requireUsers();
         return entity(userService.replace(id, request, ifMatch, correlationId));
     }
 
@@ -133,6 +137,7 @@ public class ScimController {
             @Valid @RequestBody ScimModels.PatchRequest request,
             @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
+        requireUsers();
         return entity(userService.patch(id, request, ifMatch, correlationId));
     }
 
@@ -141,6 +146,7 @@ public class ScimController {
             @PathVariable UUID id,
             @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
+        requireUsers();
         userService.deactivate(id, ifMatch, correlationId);
         return ResponseEntity.noContent().build();
     }
@@ -151,12 +157,14 @@ public class ScimController {
             @RequestParam(required = false) Integer startIndex,
             @RequestParam(required = false) Integer count,
             @RequestParam(required = false) String cursor) {
+        requireGroups();
         return ResponseEntity.ok().contentType(SCIM_JSON)
                 .body(groupService.search(filter, startIndex, count, cursor));
     }
 
     @GetMapping("/Groups/{id}")
     public ResponseEntity<ScimModels.GroupResponse> group(@PathVariable UUID id) {
+        requireGroups();
         return entity(groupService.get(id));
     }
 
@@ -164,6 +172,7 @@ public class ScimController {
     public ResponseEntity<ScimModels.GroupResponse> createGroup(
             @Valid @RequestBody ScimModels.GroupRequest request,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
+        requireGroups();
         ScimGroupService.MutationResult result = groupService.create(request, correlationId);
         return mutate(result.response(), result.created());
     }
@@ -174,6 +183,7 @@ public class ScimController {
             @Valid @RequestBody ScimModels.GroupRequest request,
             @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
+        requireGroups();
         return entity(groupService.replace(id, request, ifMatch, correlationId));
     }
 
@@ -183,6 +193,7 @@ public class ScimController {
             @Valid @RequestBody ScimModels.PatchRequest request,
             @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
+        requireGroups();
         return entity(groupService.patch(id, request, ifMatch, correlationId));
     }
 
@@ -191,6 +202,7 @@ public class ScimController {
             @PathVariable UUID id,
             @RequestHeader(value = HttpHeaders.IF_MATCH, required = false) String ifMatch,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId) {
+        requireGroups();
         groupService.deactivate(id, ifMatch, correlationId);
         return ResponseEntity.noContent().build();
     }
@@ -219,5 +231,13 @@ public class ScimController {
 
     private ResponseEntity<Map<String, Object>> scim(Map<String, Object> body) {
         return ResponseEntity.ok().contentType(SCIM_JSON).body(body);
+    }
+
+    private static void requireUsers() {
+        ScimConnectorContext.requireOperation("USERS");
+    }
+
+    private static void requireGroups() {
+        ScimConnectorContext.requireOperation("GROUPS");
     }
 }

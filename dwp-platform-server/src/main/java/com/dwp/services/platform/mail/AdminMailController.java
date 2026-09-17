@@ -32,31 +32,45 @@ public class AdminMailController {
     public ApiResponse<MailDtos.TenantPolicy> updatePolicy(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Active-Access-Mode", required = false)
+            String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
             @Valid @RequestBody MailDtos.TenantPolicyRequest request) {
+        AdminMailCompletionController.requireElevated(accessMode);
         return ApiResponse.success(service.updatePolicy(
-                tenantId, userId, correlationId, request));
+                tenantId, userId, correlationId, idempotencyKey, request));
     }
 
     @PutMapping("/connections/{connectionId}")
     public ApiResponse<MailDtos.ConnectionSummary> updateConnection(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Active-Access-Mode", required = false)
+            String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
             @PathVariable UUID connectionId,
             @Valid @RequestBody MailDtos.ConnectionUpdateRequest request) {
+        AdminMailCompletionController.requireElevated(accessMode);
         return ApiResponse.success(service.updateConnection(
-                tenantId, userId, connectionId, correlationId, request));
+                tenantId, userId, connectionId, correlationId,
+                idempotencyKey, request));
     }
 
     @PutMapping("/shared-inboxes/{sharedInboxId}")
     public ApiResponse<MailDtos.SharedInboxSummary> updateSharedInbox(
             @RequestHeader("X-DWP-Tenant-ID") Long tenantId,
             @RequestHeader("X-DWP-User-ID") Long userId,
+            @RequestHeader(value = "X-DWP-Active-Access-Mode", required = false)
+            String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader("Idempotency-Key") UUID idempotencyKey,
             @PathVariable UUID sharedInboxId,
             @Valid @RequestBody MailDtos.SharedInboxUpdateRequest request) {
+        AdminMailCompletionController.requireElevated(accessMode);
         return ApiResponse.success(service.updateSharedInbox(
-                tenantId, userId, sharedInboxId, correlationId, request));
+                tenantId, userId, sharedInboxId, correlationId,
+                idempotencyKey, request));
     }
 }

@@ -54,6 +54,7 @@ public final class MailWorkspaceDtos {
     public record ComposeContext(
             List<MailDtos.AccountSummary> accounts,
             ComposeCapabilities capabilities,
+            Map<UUID, ComposeCapabilities> accountCapabilities,
             List<Template> templates,
             List<Signature> signatures,
             Preferences preferences,
@@ -157,6 +158,8 @@ public final class MailWorkspaceDtos {
             UUID accountId,
             boolean editable,
             String mandatoryContent,
+            String publicationState,
+            int publicationVersion,
             boolean active,
             long version,
             OffsetDateTime updatedAt) {
@@ -183,6 +186,8 @@ public final class MailWorkspaceDtos {
             boolean defaultForReply,
             boolean editable,
             String mandatoryContent,
+            String publicationState,
+            int publicationVersion,
             boolean active,
             long version,
             OffsetDateTime updatedAt) {
@@ -611,6 +616,10 @@ public final class MailWorkspaceDtos {
             String state,
             OffsetDateTime expiresAt,
             String watermark,
+            Integer itemCount,
+            Boolean truncated,
+            String payloadSha256,
+            OffsetDateTime snapshotCutoff,
             String downloadUrl) {
     }
 }

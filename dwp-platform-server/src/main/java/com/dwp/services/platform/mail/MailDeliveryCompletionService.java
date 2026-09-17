@@ -15,12 +15,15 @@ class MailDeliveryCompletionService {
 
     private final MailDeliveryRepository deliveries;
     private final MailCommandRepository commands;
+    private final MailInboundMessageService inboundMessages;
 
     MailDeliveryCompletionService(
             MailDeliveryRepository deliveries,
-            MailCommandRepository commands) {
+            MailCommandRepository commands,
+            MailInboundMessageService inboundMessages) {
         this.deliveries = deliveries;
         this.commands = commands;
+        this.inboundMessages = inboundMessages;
     }
 
     @Transactional
@@ -28,9 +31,23 @@ class MailDeliveryCompletionService {
             MailDeliveryRepository.DeliveryJob job,
             String workerId,
             MailConnectorPort.DeliveryReceipt receipt) {
+        complete(job, workerId, receipt, MailConnectorPort.SenderMode.ACCOUNT);
+    }
+
+    @Transactional
+    void complete(
+            MailDeliveryRepository.DeliveryJob job,
+            String workerId,
+            MailConnectorPort.DeliveryReceipt receipt,
+            MailConnectorPort.SenderMode senderMode) {
         if (deliveries.markDelivered(job, workerId, receipt) == 0) return;
         if (job.providerType() == ProviderType.DWP_SANDBOX) {
-            deliveries.mirrorSandboxDelivery(job, receipt);
+            for (MailDeliveryRepository.InboundMessage inbound
+                    : deliveries.mirrorSandboxDelivery(job, receipt, senderMode)) {
+                inboundMessages.inboundMessageMaterialized(
+                        job.tenantId(), inbound.threadId(), inbound.messageId(),
+                        inbound.receivedAt());
+            }
         }
         OffsetDateTime acceptedAt = OffsetDateTime.ofInstant(
                 receipt.acceptedAt(), ZoneOffset.UTC);

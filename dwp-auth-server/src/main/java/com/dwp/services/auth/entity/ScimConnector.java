@@ -59,6 +59,21 @@ public class ScimConnector extends BaseEntity {
     @Column(name = "last_used_at")
     private Instant lastUsedAt;
 
+    @Column(name = "purpose", nullable = false, length = 300)
+    private String purpose;
+
+    @Column(name = "owner_user_id")
+    private Long ownerUserId;
+
+    @Column(name = "credential_issued_at", nullable = false)
+    private Instant credentialIssuedAt;
+
+    @Column(name = "credential_expires_at", nullable = false)
+    private Instant credentialExpiresAt;
+
+    @Column(name = "credential_rotated_at")
+    private Instant credentialRotatedAt;
+
     @Version
     @Column(nullable = false)
     private Long version;

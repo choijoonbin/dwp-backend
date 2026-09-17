@@ -1,6 +1,7 @@
 package com.dwp.services.provider.settings;
 
 import com.dwp.services.provider.rollout.FeatureRolloutDtos;
+import com.dwp.services.provider.rollout.FeatureRolloutApplicationReceiptService;
 import com.dwp.services.provider.rollout.FeatureRolloutService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.stereotype.Component;
@@ -17,9 +18,13 @@ public class FeatureRolloutSettingsOwner implements SettingsOwnerAdapter {
     static final String READ_PERMISSION = "FEATURE_ROLLOUT_READ";
 
     private final FeatureRolloutService rolloutService;
+    private final FeatureRolloutApplicationReceiptService applicationReceipts;
 
-    public FeatureRolloutSettingsOwner(FeatureRolloutService rolloutService) {
+    public FeatureRolloutSettingsOwner(
+            FeatureRolloutService rolloutService,
+            FeatureRolloutApplicationReceiptService applicationReceipts) {
         this.rolloutService = rolloutService;
+        this.applicationReceipts = applicationReceipts;
     }
 
     @Override
@@ -73,16 +78,41 @@ public class FeatureRolloutSettingsOwner implements SettingsOwnerAdapter {
                 ? definition.settingId()
                 : evaluation.rolloutRevisionId().toString();
         Instant resolvedAt = evaluation.evaluatedAt();
+        FeatureRolloutApplicationReceiptService.ApplicationSnapshot application =
+                applicationReceipts.snapshot(definition.settingId(), tenantId);
+        String applicationVersion = application.observationSupported()
+                ? application.publishedVersion()
+                : version;
+        List<SettingsContracts.TargetObservation> observations = application.receipts().stream()
+                .map(receipt -> new SettingsContracts.TargetObservation(
+                        receipt.targetId(),
+                        observationState(receipt.observationState()),
+                        receipt.observedVersion(),
+                        receipt.observedAt(),
+                        receipt.lastSuccessAt(),
+                        receipt.errorCode()))
+                .toList();
         return new SettingsContracts.OwnerSnapshot(
                 evaluation.value(),
-                version,
+                applicationVersion,
                 List.of(new SettingsContracts.Provenance(
-                        0, sourceType, sourceScope, sourceId, version,
+                        0, sourceType, sourceScope, sourceId, applicationVersion,
                         false, evaluation.reasonCode(), resolvedAt)),
                 new SettingsContracts.ApplicationEvidence(
-                        version, SettingsContracts.DesiredState.PUBLISHED,
-                        version, null, false, 0, List.of()),
+                        applicationVersion, SettingsContracts.DesiredState.PUBLISHED,
+                        applicationVersion, application.publishAcceptedAt(),
+                        application.observationSupported(),
+                        application.expectedTargetCount(), observations),
                 resolvedAt);
+    }
+
+    private SettingsContracts.ObservationState observationState(String state) {
+        return switch (state) {
+            case "APPLIED" -> SettingsContracts.ObservationState.APPLIED;
+            case "FAILED" -> SettingsContracts.ObservationState.FAILED;
+            default -> throw new IllegalStateException(
+                    "Unsupported feature rollout observation state: " + state);
+        };
     }
 
     private SettingsContracts.Definition definition(FeatureRolloutDtos.FeatureFlag flag) {

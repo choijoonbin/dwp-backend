@@ -8,6 +8,7 @@ import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.support.EncodedResource;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.jdbc.datasource.init.ScriptUtils;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -16,10 +17,13 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 
 import java.sql.Connection;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Testcontainers(disabledWithoutDocker = true)
 class Core006LocalPilotRolloutSeedPostgresTest {
@@ -304,5 +308,92 @@ class Core006LocalPilotRolloutSeedPostgresTest {
             assertThat(event.opaqueRevision()).isEqualTo(revision);
             assertThat(event.createdAt()).isNotNull();
         });
+    }
+
+    @Test
+    void persistsImmutableTenantIsolatedApplicationReceiptsAndLatestTruth() {
+        FeatureRolloutRepository rolloutRepository = new FeatureRolloutRepository(
+                new NamedParameterJdbcTemplate(dataSource), new ObjectMapper());
+        FeatureRolloutRepository.FlagRow flag = rolloutRepository
+                .flag("ux.product-surfaces.approvals.v1")
+                .orElseThrow();
+        UUID tenantId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+        UUID appliedId = UUID.fromString("56000000-0000-0000-0000-000000000001");
+        UUID duplicateEvidenceId = UUID.fromString("56000000-0000-0000-0000-000000000099");
+        UUID failedId = UUID.fromString("56000000-0000-0000-0000-000000000002");
+        Instant appliedAt = Instant.parse("2026-09-17T06:00:00Z");
+        Instant heartbeatAt = appliedAt.plusSeconds(5);
+        Instant failedAt = appliedAt.plusSeconds(10);
+        FeatureRolloutApplicationReceiptRepository receipts =
+                new FeatureRolloutApplicationReceiptRepository(
+                        new NamedParameterJdbcTemplate(dataSource));
+
+        assertThat(receipts.append(
+                appliedId,
+                tenantId,
+                flag.flagId(),
+                FeatureRolloutApplicationReceiptService.GATEWAY_TARGET,
+                2,
+                "APPLIED",
+                null,
+                appliedAt)).isTrue();
+        assertThat(receipts.append(
+                appliedId,
+                tenantId,
+                flag.flagId(),
+                FeatureRolloutApplicationReceiptService.GATEWAY_TARGET,
+                2,
+                "APPLIED",
+                null,
+                appliedAt)).isFalse();
+        assertThat(receipts.append(
+                duplicateEvidenceId,
+                tenantId,
+                flag.flagId(),
+                FeatureRolloutApplicationReceiptService.GATEWAY_TARGET,
+                2,
+                "APPLIED",
+                null,
+                heartbeatAt)).isFalse();
+        FeatureRolloutApplicationReceiptRepository.ReceiptRow canonical = receipts.receipt(
+                        tenantId,
+                        flag.flagId(),
+                        FeatureRolloutApplicationReceiptService.GATEWAY_TARGET,
+                        2,
+                        "APPLIED",
+                        null)
+                .orElseThrow();
+        assertThat(canonical.receiptId()).isEqualTo(appliedId);
+        assertThat(receipts.refreshProjection(canonical, heartbeatAt)).isTrue();
+        assertThat(receipts.append(
+                failedId,
+                tenantId,
+                flag.flagId(),
+                FeatureRolloutApplicationReceiptService.GATEWAY_TARGET,
+                2,
+                "FAILED",
+                "CACHE_REJECTED",
+                failedAt)).isTrue();
+
+        assertThat(receipts.current(tenantId, flag.flagId())).singleElement()
+                .satisfies(state -> {
+                    assertThat(state.observationState()).isEqualTo("FAILED");
+                    assertThat(state.observedAt()).isEqualTo(failedAt);
+                    assertThat(state.lastSuccessAt()).isEqualTo(heartbeatAt);
+                    assertThat(state.errorCode()).isEqualTo("CACHE_REJECTED");
+                });
+        assertThat(receipts.refreshProjection(canonical, failedAt.plusSeconds(10))).isFalse();
+        assertThat(receipts.current(tenantId, flag.flagId())).singleElement()
+                .satisfies(state -> {
+                    assertThat(state.observationState()).isEqualTo("FAILED");
+                    assertThat(state.observedAt()).isEqualTo(failedAt);
+                    assertThat(state.lastSuccessAt()).isEqualTo(heartbeatAt);
+                });
+        assertThat(receipts.current(UUID.randomUUID(), flag.flagId())).isEmpty();
+        assertThatThrownBy(() -> jdbc.update("""
+                UPDATE prv_feature_rollout_application_receipts
+                   SET error_code = 'MUTATION_NOT_ALLOWED'
+                 WHERE receipt_id = ?
+                """, appliedId)).isInstanceOf(DataAccessException.class);
     }
 }

@@ -366,6 +366,53 @@ public class WorkplaceBookingOrchestrationRepository
                 """, this::hold, tenantId, holdId).stream().findFirst();
     }
 
+    public boolean releaseHold(
+            long tenantId,
+            long actorId,
+            UUID intentId,
+            UUID holdId,
+            long expectedVersion,
+            OffsetDateTime now) {
+        return jdbc.update("""
+                UPDATE wp_reservation_holds
+                   SET hold_state = 'RELEASED', version = version + 1, updated_at = ?
+                 WHERE tenant_id = ? AND actor_user_id = ? AND intent_id = ? AND hold_id = ?
+                   AND version = ? AND hold_state = 'ACTIVE'
+                """, now, tenantId, actorId, intentId, holdId, expectedVersion) == 1;
+    }
+
+    public Optional<HoldReleaseCommandRow> holdReleaseCommand(
+            long tenantId, long actorId, UUID intentId, String idempotencyKey) {
+        return jdbc.query("""
+                SELECT * FROM wp_hold_release_commands
+                 WHERE tenant_id = ? AND actor_user_id = ? AND intent_id = ?
+                   AND idempotency_key = ?
+                """, (rs, ignored) -> new HoldReleaseCommandRow(
+                rs.getObject("command_id", UUID.class), rs.getLong("tenant_id"),
+                rs.getLong("actor_user_id"), rs.getObject("intent_id", UUID.class),
+                rs.getString("idempotency_key"), rs.getString("request_fingerprint"),
+                HoldReleaseCommandState.valueOf(rs.getString("command_state")),
+                uuids(rs.getString("released_hold_ids")), rs.getLong("intent_version"),
+                rs.getString("reason"), rs.getBoolean("explicit_confirmation"),
+                rs.getString("correlation_id"), rs.getObject("created_at", OffsetDateTime.class),
+                rs.getObject("completed_at", OffsetDateTime.class)),
+                tenantId, actorId, intentId, idempotencyKey).stream().findFirst();
+    }
+
+    public void createHoldReleaseCommand(HoldReleaseCommandRow row) {
+        jdbc.update("""
+                INSERT INTO wp_hold_release_commands (
+                    command_id, tenant_id, actor_user_id, intent_id, idempotency_key,
+                    request_fingerprint, command_state, released_hold_ids, intent_version,
+                    reason, explicit_confirmation, correlation_id, created_at, completed_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?, ?)
+                """, row.commandId(), row.tenantId(), row.actorUserId(), row.intentId(),
+                row.idempotencyKey(), row.requestFingerprint(), row.state().name(),
+                json(row.releasedHoldIds()), row.intentVersion(), row.reason(),
+                row.explicitConfirmation(), row.correlationId(), row.createdAt(),
+                row.completedAt());
+    }
+
     public boolean updateIntentState(
             long tenantId, long actorId, UUID intentId, long expectedVersion,
             IntentState current, IntentState next, OffsetDateTime now) {

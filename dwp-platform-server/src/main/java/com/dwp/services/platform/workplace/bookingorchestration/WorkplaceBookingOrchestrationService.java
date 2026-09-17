@@ -264,6 +264,121 @@ public class WorkplaceBookingOrchestrationService
     }
 
     @Transactional
+    public HoldReleaseResult releaseHolds(
+            long tenantId,
+            long actorId,
+            String idempotencyKey,
+            String correlationId,
+            UUID intentId,
+            HoldReleaseRequest request) {
+        requireActor(tenantId, actorId);
+        if (request == null || !request.explicitConfirmation()) {
+            throw invalid("Hold release requires explicit confirmation.");
+        }
+        if (request.holds() == null || request.holds().isEmpty()
+                || request.holds().size() > 50) {
+            throw invalid("Hold release requires between 1 and 50 holds.");
+        }
+        if (request.reason() == null || request.reason().isBlank()
+                || request.reason().trim().length() > 500) {
+            throw invalid("Hold release requires a reason of at most 500 characters.");
+        }
+        if (request.expectedIntentVersion() == null || request.expectedIntentVersion() < 1) {
+            throw invalid("Hold release requires a positive expectedIntentVersion.");
+        }
+        String key = requireIdempotencyKey(idempotencyKey);
+        String scope = "booking-intent:" + intentId + ":holds:release";
+        String fingerprint = fingerprint(scope, request);
+        HoldReleaseCommandRow replay = repository.holdReleaseCommand(
+                tenantId, actorId, intentId, key).orElse(null);
+        if (replay != null) {
+            requireFingerprint(replay.requestFingerprint(), fingerprint);
+            return new HoldReleaseResult(
+                    holdResponse(requireIntent(tenantId, actorId, intentId)),
+                    holdReleaseReceipt(replay, true));
+        }
+
+        IntentRow intent = requireIntent(tenantId, actorId, intentId);
+        if (intent.state() != IntentState.HELD) {
+            throw conflict("Only an intent with active reservation holds can release them.");
+        }
+        if (intent.version() != request.expectedIntentVersion()) {
+            throw versionConflict("The booking intent changed. Refresh its hold status.");
+        }
+
+        Map<UUID, HoldReleaseReference> requested = new LinkedHashMap<>();
+        for (HoldReleaseReference reference : request.holds()) {
+            if (reference == null || reference.holdId() == null
+                    || reference.expectedHoldVersion() == null
+                    || reference.expectedHoldVersion() < 1) {
+                throw invalid("Every released hold requires an id and positive expectedHoldVersion.");
+            }
+            if (requested.put(reference.holdId(), reference) != null) {
+                throw invalid("A reservation hold can be released only once.");
+            }
+        }
+        List<HoldRow> active = repository.holds(tenantId, intentId).stream()
+                .filter(hold -> hold.state() == HoldState.ACTIVE)
+                .toList();
+        Set<UUID> activeIds = active.stream().map(HoldRow::holdId)
+                .collect(Collectors.toCollection(LinkedHashSet::new));
+        if (activeIds.isEmpty() || !activeIds.equals(requested.keySet())) {
+            throw conflict("Release every current active hold after refreshing the booking intent.");
+        }
+        for (HoldRow hold : active) {
+            HoldReleaseReference reference = requested.get(hold.holdId());
+            if (hold.actorUserId() != actorId
+                    || hold.version() != reference.expectedHoldVersion()) {
+                throw versionConflict("A reservation hold changed. Refresh its status before release.");
+            }
+        }
+
+        OffsetDateTime now = now();
+        for (HoldRow hold : active) {
+            HoldReleaseReference reference = requested.get(hold.holdId());
+            if (!repository.releaseHold(
+                    tenantId, actorId, intentId, hold.holdId(),
+                    reference.expectedHoldVersion(), now)) {
+                throw versionConflict("A reservation hold changed while it was being released.");
+            }
+        }
+        if (!repository.updateIntentState(
+                tenantId, actorId, intentId, intent.version(), IntentState.HELD,
+                IntentState.PREVIEWED, now)) {
+            throw versionConflict("The booking intent changed while holds were being released.");
+        }
+
+        String canonicalCorrelation = correlation(correlationId);
+        UUID commandId = UUID.randomUUID();
+        HoldReleaseCommandRow command = new HoldReleaseCommandRow(
+                commandId, tenantId, actorId, intentId, key, fingerprint,
+                HoldReleaseCommandState.SUCCEEDED, List.copyOf(activeIds),
+                intent.version() + 1, request.reason().trim(), true,
+                canonicalCorrelation, now, now);
+        repository.createHoldReleaseCommand(command);
+        repository.auditAndOutbox(
+                tenantId, actorId, "workplace.booking.holds.released", "BOOKING_INTENT",
+                intentId, intent.version() + 1, "ReservationHoldsReleased",
+                canonicalCorrelation, Map.of(
+                        "commandId", commandId,
+                        "intentId", intentId,
+                        "releasedHoldIds", activeIds,
+                        "reason", request.reason().trim()), now);
+        return new HoldReleaseResult(
+                holdResponse(requireIntent(tenantId, actorId, intentId)),
+                holdReleaseReceipt(command, false));
+    }
+
+    private HoldReleaseReceipt holdReleaseReceipt(
+            HoldReleaseCommandRow row, boolean idempotentReplay) {
+        return new HoldReleaseReceipt(
+                row.commandId(), row.intentId(), row.state(), row.releasedHoldIds(),
+                row.intentVersion(), idempotentReplay,
+                row.state() == HoldReleaseCommandState.RESULT_UNKNOWN,
+                row.correlationId(), row.completedAt());
+    }
+
+    @Transactional
     public BatchStartResponse startBatch(
             long tenantId,
             long actorId,

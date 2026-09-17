@@ -1,6 +1,7 @@
 package com.dwp.services.provider.settings;
 
 import com.dwp.services.provider.rollout.FeatureRolloutDtos;
+import com.dwp.services.provider.rollout.FeatureRolloutApplicationReceiptService;
 import com.dwp.services.provider.rollout.FeatureRolloutService;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.Test;
@@ -28,7 +29,8 @@ class FeatureRolloutSettingsOwnerTest {
     void projectsExistingFeatureFlagMetadataWithoutCreatingAnotherOwnerStore() {
         FeatureRolloutService service = mock(FeatureRolloutService.class);
         when(service.flags()).thenReturn(List.of(flag()));
-        FeatureRolloutSettingsOwner owner = new FeatureRolloutSettingsOwner(service);
+        FeatureRolloutSettingsOwner owner = new FeatureRolloutSettingsOwner(
+                service, mock(FeatureRolloutApplicationReceiptService.class));
 
         SettingsContracts.Definition definition = owner.definitions().get(0);
 
@@ -44,8 +46,10 @@ class FeatureRolloutSettingsOwnerTest {
     }
 
     @Test
-    void resolvesTheOwnerDecisionButDoesNotInventApplicationObservation() {
+    void resolvesTheOwnerDecisionAsUnobservedUntilGatewayProvidesAReceipt() {
         FeatureRolloutService service = mock(FeatureRolloutService.class);
+        FeatureRolloutApplicationReceiptService receipts =
+                mock(FeatureRolloutApplicationReceiptService.class);
         FeatureRolloutDtos.FeatureFlag flag = flag();
         FeatureRolloutDtos.Evaluation evaluation = new FeatureRolloutDtos.Evaluation(
                 flag.featureKey(), TENANT_ID, "acme", JSON.valueToTree(true),
@@ -53,7 +57,11 @@ class FeatureRolloutSettingsOwnerTest {
                 1200, false, NOW);
         when(service.flags()).thenReturn(List.of(flag));
         when(service.resolveEffectiveValue(flag.featureKey(), TENANT_ID)).thenReturn(evaluation);
-        FeatureRolloutSettingsOwner owner = new FeatureRolloutSettingsOwner(service);
+        when(receipts.snapshot(flag.featureKey(), TENANT_ID)).thenReturn(
+                new FeatureRolloutApplicationReceiptService.ApplicationSnapshot(
+                        true, "rev-00000000000000000007", NOW.minusSeconds(30),
+                        1, List.of()));
+        FeatureRolloutSettingsOwner owner = new FeatureRolloutSettingsOwner(service, receipts);
 
         SettingsContracts.OwnerSnapshot snapshot = owner.resolve(
                 owner.definitions().get(0),
@@ -62,20 +70,62 @@ class FeatureRolloutSettingsOwnerTest {
                         TENANT_ID.toString(), "production"));
 
         assertThat(snapshot.effectiveValue()).isEqualTo(JSON.valueToTree(true));
-        assertThat(snapshot.effectiveVersion()).isEqualTo("rollout:" + ROLLOUT_ID);
+        assertThat(snapshot.effectiveVersion()).isEqualTo("rev-00000000000000000007");
         assertThat(snapshot.provenance()).singleElement()
                 .satisfies(item -> {
                     assertThat(item.sourceType())
                             .isEqualTo(SettingsContracts.SourceType.ACTIVE_ROLLOUT);
                     assertThat(item.decisionCode()).isEqualTo("ROLLOUT_MATCH");
                 });
-        assertThat(snapshot.applicationEvidence().observationSupported()).isFalse();
+        assertThat(snapshot.applicationEvidence().observationSupported()).isTrue();
+        assertThat(snapshot.applicationEvidence().expectedTargetCount()).isEqualTo(1);
+        assertThat(snapshot.applicationEvidence().observations()).isEmpty();
+    }
+
+    @Test
+    void projectsOnlyTheTrustedSampledRequestPathReceiptAsApplicationEvidence() {
+        FeatureRolloutService service = mock(FeatureRolloutService.class);
+        FeatureRolloutApplicationReceiptService receipts =
+                mock(FeatureRolloutApplicationReceiptService.class);
+        FeatureRolloutDtos.FeatureFlag flag = flag();
+        when(service.resolveEffectiveValue(flag.featureKey(), TENANT_ID)).thenReturn(
+                new FeatureRolloutDtos.Evaluation(
+                        flag.featureKey(), TENANT_ID, "acme", JSON.valueToTree(true),
+                        "ROLLOUT_MATCH", ROLLOUT_ID, 4, BigDecimal.valueOf(25),
+                        1200, false, NOW));
+        when(receipts.snapshot(flag.featureKey(), TENANT_ID)).thenReturn(
+                new FeatureRolloutApplicationReceiptService.ApplicationSnapshot(
+                        true, "rev-00000000000000000007", NOW.minusSeconds(30), 1,
+                        List.of(new FeatureRolloutApplicationReceiptService.TargetReceipt(
+                                FeatureRolloutApplicationReceiptService.GATEWAY_TARGET,
+                                "APPLIED", "rev-00000000000000000007",
+                                NOW.minusSeconds(5), NOW.minusSeconds(5), null))));
+        FeatureRolloutSettingsOwner owner = new FeatureRolloutSettingsOwner(service, receipts);
+
+        SettingsContracts.OwnerSnapshot snapshot = owner.resolve(
+                definition(),
+                new SettingsContracts.ScopeTarget(
+                        SettingsContracts.ScopeType.TENANT, TENANT_ID.toString(), null));
+
+        assertThat(snapshot.applicationEvidence().observations()).singleElement()
+                .satisfies(observation -> {
+                    assertThat(observation.targetId())
+                            .isEqualTo(FeatureRolloutApplicationReceiptService.GATEWAY_TARGET);
+                    assertThat(observation.state())
+                            .isEqualTo(SettingsContracts.ObservationState.APPLIED);
+                    assertThat(observation.observedVersion())
+                            .isEqualTo("rev-00000000000000000007");
+                });
+        assertThat(new SettingsApplicationStatusEvaluator()
+                .evaluate(snapshot.applicationEvidence(), NOW).state())
+                .isEqualTo(SettingsContracts.ApplicationState.CONVERGED);
     }
 
     @Test
     void rejectsNonUuidTenantTargetsBeforeCallingTheOwner() {
         FeatureRolloutService service = mock(FeatureRolloutService.class);
-        FeatureRolloutSettingsOwner owner = new FeatureRolloutSettingsOwner(service);
+        FeatureRolloutSettingsOwner owner = new FeatureRolloutSettingsOwner(
+                service, mock(FeatureRolloutApplicationReceiptService.class));
 
         assertThatThrownBy(() -> owner.resolve(
                 definition(),
@@ -88,7 +138,8 @@ class FeatureRolloutSettingsOwnerTest {
     @Test
     void removesAnEnvironmentDimensionTheRolloutOwnerDoesNotSupport() {
         FeatureRolloutSettingsOwner owner = new FeatureRolloutSettingsOwner(
-                mock(FeatureRolloutService.class));
+                mock(FeatureRolloutService.class),
+                mock(FeatureRolloutApplicationReceiptService.class));
 
         SettingsContracts.ScopeTarget target = owner.canonicalTarget(
                 new SettingsContracts.ScopeTarget(

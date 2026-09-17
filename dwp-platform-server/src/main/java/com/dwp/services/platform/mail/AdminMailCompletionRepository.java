@@ -21,6 +21,40 @@ import java.util.UUID;
 @Repository
 class AdminMailCompletionRepository {
 
+    /**
+     * Evidence rows below are intentionally retained by RESTRICT foreign keys. Keep this
+     * predicate shared by preview, deletion, and post-delete verification so an approved
+     * candidate set can never expand at execution time.
+     */
+    private static final String PURGE_IMMUTABLE_EVIDENCE_EXISTS = """
+            EXISTS (
+                SELECT 1
+                  FROM mail_group_recipient_snapshots snapshot
+                 WHERE snapshot.tenant_id = thread.tenant_id
+                   AND (snapshot.thread_id = thread.thread_id
+                        OR EXISTS (
+                            SELECT 1
+                              FROM mail_messages evidence_message
+                             WHERE evidence_message.tenant_id = thread.tenant_id
+                               AND evidence_message.thread_id = thread.thread_id
+                               AND evidence_message.message_id = snapshot.message_id)))
+            OR EXISTS (
+                SELECT 1
+                  FROM mail_group_send_history history
+                 WHERE history.tenant_id = thread.tenant_id
+                   AND history.thread_id = thread.thread_id)
+            OR EXISTS (
+                SELECT 1
+                  FROM mail_draft_command_receipts receipt
+                 WHERE receipt.tenant_id = thread.tenant_id
+                   AND receipt.thread_id = thread.thread_id)
+            OR EXISTS (
+                SELECT 1
+                  FROM mail_rule_backfill_applications application
+                 WHERE application.tenant_id = thread.tenant_id
+                   AND application.thread_id = thread.thread_id)
+            """;
+
     private static final TypeReference<Map<String, Object>> MAP = new TypeReference<>() { };
     private static final TypeReference<List<String>> STRINGS = new TypeReference<>() { };
     private static final TypeReference<List<Map<String, Object>>> MAPS = new TypeReference<>() { };
@@ -169,18 +203,44 @@ class AdminMailCompletionRepository {
                 """, CONNECTION_OPERATION, tenantId, actorId, key);
     }
 
-    UUID insertConnectionOperation(
+    Optional<UUID> insertConnectionOperation(
             long tenantId, long actorId, UUID connectionId, String kind, String scope,
             Map<String, Object> payload, UUID key, String fingerprint, String correlationId) {
-        return jdbc.queryForObject("""
+        return jdbc.query("""
                 INSERT INTO mail_connection_operations (
                     tenant_id, connection_id, actor_user_id, operation_kind,
                     operation_scope, request_payload, idempotency_key,
                     request_fingerprint, correlation_id)
                 VALUES (?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?)
+                ON CONFLICT (tenant_id, actor_user_id, idempotency_key) DO NOTHING
                 RETURNING operation_id
-                """, UUID.class, tenantId, connectionId, actorId, kind, scope,
-                json(payload), key, fingerprint, correlationId);
+                """, (rs, ignored) -> uuid(rs, "operation_id"),
+                tenantId, connectionId, actorId, kind, scope,
+                json(payload), key, fingerprint, correlationId).stream().findFirst();
+    }
+
+    Optional<UUID> insertDurableTestSendOperation(
+            long tenantId,
+            long actorId,
+            UUID connectionId,
+            String scope,
+            Map<String, Object> payload,
+            UUID key,
+            String fingerprint,
+            String correlationId) {
+        return jdbc.query("""
+                INSERT INTO mail_connection_operations (
+                    tenant_id, connection_id, actor_user_id, operation_kind,
+                    operation_scope, request_payload, operation_state,
+                    idempotency_key, request_fingerprint, correlation_id,
+                    evidence_generated_at, error_code)
+                VALUES (?, ?, ?, 'TEST_SEND', ?, ?::jsonb, 'UNKNOWN', ?, ?, ?,
+                        CURRENT_TIMESTAMP, 'TEST_SEND_RESULT_UNKNOWN')
+                ON CONFLICT (tenant_id, actor_user_id, idempotency_key) DO NOTHING
+                RETURNING operation_id
+                """, (result, ignored) -> uuid(result, "operation_id"),
+                tenantId, connectionId, actorId, scope, json(payload), key,
+                fingerprint, correlationId).stream().findFirst();
     }
 
     void completeConnectionOperation(
@@ -202,6 +262,172 @@ class AdminMailCompletionRepository {
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
                  WHERE tenant_id = ? AND connection_id = ? AND version = ?
                 """, actorId, tenantId, connectionId, version);
+    }
+
+    Optional<SyncAccountRow> lockSyncAccount(long tenantId, UUID accountId) {
+        return one("""
+                SELECT account.account_id, account.email_address,
+                       account.owner_user_id, account.synchronization_cursor,
+                       inbox.shared_inbox_id
+                  FROM mail_accounts account
+                  LEFT JOIN mail_shared_inboxes inbox
+                    ON inbox.tenant_id = account.tenant_id
+                   AND inbox.account_id = account.account_id
+                   AND inbox.lifecycle_state = 'ACTIVE'
+                 WHERE account.tenant_id = ? AND account.account_id = ?
+                   AND account.connection_state = 'ACTIVE'
+                 FOR UPDATE OF account
+                """, (result, ignored) -> new SyncAccountRow(
+                uuid(result, "account_id"), result.getString("email_address"),
+                nullableLong(result, "owner_user_id"),
+                result.getString("synchronization_cursor"),
+                uuid(result, "shared_inbox_id")), tenantId, accountId);
+    }
+
+    Optional<UUID> synchronizationFolder(
+            long tenantId, UUID accountId, String providerFolderReference) {
+        return jdbc.query("""
+                SELECT folder_id
+                  FROM mail_folders
+                 WHERE tenant_id = ? AND account_id = ?
+                   AND lifecycle_state = 'ACTIVE'
+                 ORDER BY CASE WHEN provider_folder_ref = ? THEN 0
+                               WHEN folder_type = 'INBOX' THEN 1 ELSE 2 END,
+                          sort_order, folder_id
+                 LIMIT 1
+                """, (result, ignored) -> uuid(result, "folder_id"),
+                tenantId, accountId, providerFolderReference).stream().findFirst();
+    }
+
+    Optional<InboundIdentity> inboundMessage(
+            long tenantId,
+            UUID accountId,
+            String providerThreadReference,
+            String providerMessageReference) {
+        return one("""
+                SELECT thread.thread_id, message.message_id
+                  FROM mail_threads thread
+                  JOIN mail_messages message
+                    ON message.tenant_id = thread.tenant_id
+                   AND message.thread_id = thread.thread_id
+                 WHERE thread.tenant_id = ? AND thread.account_id = ?
+                   AND thread.provider_thread_ref = ?
+                   AND message.provider_message_ref = ?
+                """, (result, ignored) -> new InboundIdentity(
+                uuid(result, "thread_id"), uuid(result, "message_id")),
+                tenantId, accountId, providerThreadReference, providerMessageReference);
+    }
+
+    InboundMaterialized materializeInboundMessage(
+            long tenantId,
+            long actorId,
+            SyncAccountRow account,
+            UUID folderId,
+            InboundMessageRow message,
+            List<InboundAttachmentRow> attachments) {
+        List<UUID> insertedThreads = jdbc.query("""
+                INSERT INTO mail_threads (
+                    thread_id, tenant_id, account_id, folder_id, shared_inbox_id,
+                    provider_thread_ref, subject, preview, participants,
+                    latest_message_at, unread, importance, triage_lane,
+                    workflow_state, has_attachments, external_sender,
+                    classification, message_count, created_by, updated_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, TRUE, 'NORMAL',
+                        'PRIORITY', 'OPEN', ?, ?, ?, 1, ?, ?)
+                ON CONFLICT (account_id, provider_thread_ref) DO NOTHING
+                RETURNING thread_id
+                """, (result, ignored) -> uuid(result, "thread_id"),
+                UUID.randomUUID(), tenantId, account.id(), folderId,
+                account.sharedInboxId(), message.providerThreadReference(),
+                message.subject(), message.preview(), json(message.participants()),
+                message.occurredAt(), !attachments.isEmpty(), message.externalSender(),
+                message.classification(), actorId, actorId);
+        boolean threadCreated = !insertedThreads.isEmpty();
+        UUID threadId = threadCreated ? insertedThreads.getFirst() : jdbc.queryForObject("""
+                SELECT thread_id FROM mail_threads
+                 WHERE tenant_id = ? AND account_id = ? AND provider_thread_ref = ?
+                """, UUID.class, tenantId, account.id(), message.providerThreadReference());
+        if (threadId == null) {
+            throw new IllegalStateException("Provider thread could not be materialized");
+        }
+
+        UUID messageId = UUID.randomUUID();
+        List<UUID> insertedMessages = jdbc.query("""
+                INSERT INTO mail_messages (
+                    message_id, tenant_id, thread_id, provider_message_ref,
+                    sender_email, sender_name, recipients, message_direction,
+                    body_format, body_content, attachments, sent_at, created_by)
+                VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, 'INBOUND', ?, ?, ?::jsonb, ?, ?)
+                ON CONFLICT (thread_id, provider_message_ref) DO NOTHING
+                RETURNING message_id
+                """, (result, ignored) -> uuid(result, "message_id"),
+                messageId, tenantId, threadId, message.providerMessageReference(),
+                message.senderEmail(), message.senderName(), json(message.recipients()),
+                message.bodyFormat(), message.body(), json(message.attachmentProjection()),
+                message.occurredAt(), actorId);
+        if (insertedMessages.isEmpty()) {
+            InboundIdentity existing = inboundMessage(
+                    tenantId, account.id(), message.providerThreadReference(),
+                    message.providerMessageReference()).orElseThrow(() ->
+                    new IllegalStateException("Provider message conflict could not be resolved"));
+            return new InboundMaterialized(existing.threadId(), existing.messageId(), false);
+        }
+
+        if (!threadCreated) {
+            jdbc.update("""
+                    UPDATE mail_threads
+                       SET folder_id = CASE WHEN latest_message_at <= ? THEN ? ELSE folder_id END,
+                           subject = CASE WHEN latest_message_at <= ? THEN ? ELSE subject END,
+                           preview = CASE WHEN latest_message_at <= ? THEN ? ELSE preview END,
+                           participants = CASE WHEN latest_message_at <= ?
+                                               THEN ?::jsonb ELSE participants END,
+                           latest_message_at = GREATEST(latest_message_at, ?),
+                           unread = TRUE, workflow_state = 'OPEN',
+                           has_attachments = has_attachments OR ?,
+                           external_sender = external_sender OR ?,
+                           message_count = message_count + 1,
+                           version = version + 1,
+                           updated_at = CURRENT_TIMESTAMP, updated_by = ?
+                     WHERE tenant_id = ? AND thread_id = ?
+                    """, message.occurredAt(), folderId,
+                    message.occurredAt(), message.subject(),
+                    message.occurredAt(), message.preview(),
+                    message.occurredAt(), json(message.participants()),
+                    message.occurredAt(), !attachments.isEmpty(), message.externalSender(),
+                    actorId, tenantId, threadId);
+        }
+        for (InboundAttachmentRow attachment : attachments) {
+            jdbc.update("""
+                    INSERT INTO mail_compose_attachments (
+                        attachment_id, tenant_id, uploader_user_id, thread_id,
+                        storage_reference, file_name, content_type, size_bytes,
+                        checksum_sha256, scan_state, scan_evidence)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ON CONFLICT (attachment_id) DO NOTHING
+                    """, attachment.id(), tenantId,
+                    account.ownerUserId() == null ? actorId : account.ownerUserId(),
+                    threadId, attachment.storageReference(), attachment.fileName(),
+                    attachment.contentType(), attachment.sizeBytes(),
+                    attachment.checksumSha256(), attachment.scanState(),
+                    attachment.scanEvidence());
+        }
+        return new InboundMaterialized(threadId, messageId, true);
+    }
+
+    int updateAccountSyncCursor(
+            long tenantId,
+            UUID accountId,
+            String expectedCursor,
+            String nextCursor,
+            long actorId) {
+        return jdbc.update("""
+                UPDATE mail_accounts
+                   SET synchronization_cursor = ?, synchronization_state = 'READY',
+                       version = version + 1, updated_at = CURRENT_TIMESTAMP,
+                       updated_by = ?
+                 WHERE tenant_id = ? AND account_id = ?
+                   AND synchronization_cursor IS NOT DISTINCT FROM ?
+                """, nextCursor, actorId, tenantId, accountId, expectedCursor);
     }
 
     Optional<SharedInboxRow> sharedInbox(long tenantId, UUID inboxId) {
@@ -398,6 +624,15 @@ class AdminMailCompletionRepository {
                 """, POLICY, tenantId);
     }
 
+    void lockRetentionLifecycle(long tenantId) {
+        jdbc.queryForObject("""
+                SELECT tenant_id
+                  FROM mail_tenant_policies
+                 WHERE tenant_id = ?
+                   FOR UPDATE
+                """, Long.class, tenantId);
+    }
+
     List<PolicyHistoryRow> policyHistory(long tenantId, int limit) {
         return jdbc.query("""
                 SELECT history_id, policy_version, changed_by, diff_summary,
@@ -485,17 +720,23 @@ class AdminMailCompletionRepository {
                        (SELECT count(*) FROM mail_messages message
                          WHERE message.tenant_id = thread.tenant_id
                            AND message.thread_id = thread.thread_id) message_count,
-                       connection.provider_type
+                       connection.provider_type,
+                       (%s) immutable_evidence_blocked
                   FROM mail_threads thread
-                  JOIN mail_accounts account ON account.account_id = thread.account_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
                   JOIN mail_provider_connections connection
-                    ON connection.connection_id = account.connection_id
+                    ON connection.tenant_id = account.tenant_id
+                   AND connection.connection_id = account.connection_id
                  WHERE thread.tenant_id = ? AND thread.workflow_state = 'TRASHED'
                    AND thread.updated_at < ?
                  ORDER BY thread.thread_id
-                """, (rs, ignored) -> new CandidateRow(
+                """.formatted(PURGE_IMMUTABLE_EVIDENCE_EXISTS),
+                (rs, ignored) -> new CandidateRow(
                 uuid(rs, "thread_id"), rs.getInt("message_count"),
-                rs.getString("provider_type")), tenantId, before);
+                rs.getString("provider_type"),
+                rs.getBoolean("immutable_evidence_blocked")), tenantId, before);
         return new CandidateSet(rows);
     }
 
@@ -560,6 +801,11 @@ class AdminMailCompletionRepository {
                 PURGE_JOB, tenantId, actorId, key);
     }
 
+    Optional<PurgeJobRow> purgeJobBySnapshot(long tenantId, UUID snapshotId) {
+        return one(PURGE_JOB_BY + " AND candidate_snapshot_id = ?",
+                PURGE_JOB, tenantId, snapshotId);
+    }
+
     Optional<PurgeJobRow> purgeJob(long tenantId, UUID jobId) {
         return one(PURGE_JOB_BY + " AND job_id = ?", PURGE_JOB, tenantId, jobId);
     }
@@ -580,6 +826,18 @@ class AdminMailCompletionRepository {
     }
 
     DeleteCounts deletePurgeCandidates(long tenantId, OffsetDateTime before) {
+        List<String> attachmentStorageReferences = jdbc.queryForList("""
+                SELECT DISTINCT attachment.storage_reference
+                  FROM mail_compose_attachments attachment
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = attachment.tenant_id
+                   AND thread.thread_id = attachment.thread_id
+                 WHERE thread.tenant_id = ?
+                   AND thread.workflow_state = 'TRASHED'
+                   AND thread.updated_at < ?
+                   AND NOT (%s)
+                """.formatted(PURGE_IMMUTABLE_EVIDENCE_EXISTS),
+                String.class, tenantId, before);
         Integer messages = jdbc.queryForObject("""
                 SELECT count(*) FROM mail_messages message
                  WHERE message.tenant_id = ? AND EXISTS (
@@ -587,12 +845,30 @@ class AdminMailCompletionRepository {
                      WHERE thread.tenant_id = message.tenant_id
                        AND thread.thread_id = message.thread_id
                        AND thread.workflow_state = 'TRASHED'
-                       AND thread.updated_at < ?)
-                """, Integer.class, tenantId, before);
+                       AND thread.updated_at < ?
+                       AND NOT (%s))
+                """.formatted(PURGE_IMMUTABLE_EVIDENCE_EXISTS),
+                Integer.class, tenantId, before);
         int threads = jdbc.update("""
-                DELETE FROM mail_threads
-                 WHERE tenant_id = ? AND workflow_state = 'TRASHED' AND updated_at < ?
-                """, tenantId, before);
+                DELETE FROM mail_threads thread
+                 WHERE thread.tenant_id = ?
+                   AND thread.workflow_state = 'TRASHED'
+                   AND thread.updated_at < ?
+                   AND NOT (%s)
+                """.formatted(PURGE_IMMUTABLE_EVIDENCE_EXISTS), tenantId, before);
+        for (String storageReference : attachmentStorageReferences) {
+            jdbc.update("""
+                    INSERT INTO sys_tenant_media_cleanup_outbox (
+                        tenant_id, storage_key, cleanup_reason)
+                    SELECT ?, ?, 'MAIL_RETENTION_PURGE'
+                     WHERE NOT EXISTS (
+                         SELECT 1
+                           FROM mail_compose_attachments attachment
+                          WHERE attachment.tenant_id = ?
+                            AND attachment.storage_reference = ?)
+                    ON CONFLICT DO NOTHING
+                    """, tenantId, storageReference, tenantId, storageReference);
+        }
         return new DeleteCounts(threads, messages == null ? 0 : messages);
     }
 
@@ -611,9 +887,13 @@ class AdminMailCompletionRepository {
 
     long remainingPurgeCandidates(long tenantId, OffsetDateTime before) {
         Long count = jdbc.queryForObject("""
-                SELECT count(*) FROM mail_threads
-                 WHERE tenant_id = ? AND workflow_state = 'TRASHED' AND updated_at < ?
-                """, Long.class, tenantId, before);
+                SELECT count(*) FROM mail_threads thread
+                 WHERE thread.tenant_id = ?
+                   AND thread.workflow_state = 'TRASHED'
+                   AND thread.updated_at < ?
+                   AND NOT (%s)
+                """.formatted(PURGE_IMMUTABLE_EVIDENCE_EXISTS),
+                Long.class, tenantId, before);
         return count == null ? 0 : count;
     }
 
@@ -729,8 +1009,10 @@ class AdminMailCompletionRepository {
                  WHERE tenant_id = ? AND delivery_id = ? AND version = ?
                    AND delivery_status = 'FAILED'
                    AND accepted_at IS NULL AND provider_message_ref IS NULL
+                   AND provider_thread_ref IS NULL
                    AND lease_owner IS NULL AND lease_expires_at IS NULL
                    AND request_fingerprint IS NOT NULL
+                   AND COALESCE(last_error_code, '') <> 'MAIL_PROVIDER_RESULT_UNKNOWN'
                 """, tenantId, deliveryId, version);
     }
 
@@ -765,21 +1047,38 @@ class AdminMailCompletionRepository {
                 EXPORT, tenantId, actorId, key);
     }
 
-    Optional<ExportRow> export(long tenantId, UUID exportId) {
-        return one(EXPORT_BY + " AND export_id = ?", EXPORT, tenantId, exportId);
+    Optional<ExportRow> export(long tenantId, long actorId, UUID exportId) {
+        return one(EXPORT_BY + " AND actor_user_id = ? AND export_id = ?",
+                EXPORT, tenantId, actorId, exportId);
     }
 
-    UUID insertExport(
-            long tenantId, long actorId, Map<String, Object> filters, String purpose,
-            String watermark, UUID key, OffsetDateTime expiresAt) {
-        return jdbc.queryForObject("""
+    Optional<UUID> insertExport(
+            UUID exportId,
+            long tenantId,
+            long actorId,
+            Map<String, Object> filters,
+            String purpose,
+            String watermark,
+            UUID key,
+            OffsetDateTime expiresAt,
+            String snapshotPayload,
+            String payloadSha256,
+            int itemCount,
+            boolean truncated,
+            OffsetDateTime snapshotCutoff) {
+        return jdbc.query("""
                 INSERT INTO mail_delivery_audit_exports (
-                    tenant_id, actor_user_id, filters, purpose, export_state,
-                    storage_reference, watermark, idempotency_key, expires_at)
-                VALUES (?, ?, ?::jsonb, ?, 'READY', 'DATABASE_SNAPSHOT', ?, ?, ?)
+                    export_id, tenant_id, actor_user_id, filters, purpose, export_state,
+                    storage_reference, watermark, idempotency_key, expires_at,
+                    snapshot_payload, payload_sha256, item_count, truncated, snapshot_cutoff)
+                VALUES (?, ?, ?, ?::jsonb, ?, 'READY', ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT (tenant_id, actor_user_id, idempotency_key) DO NOTHING
                 RETURNING export_id
-                """, UUID.class, tenantId, actorId, json(filters), purpose,
-                watermark, key, expiresAt);
+                """, (result, ignored) -> uuid(result, "export_id"),
+                exportId, tenantId, actorId, json(filters), purpose,
+                "DATABASE_SNAPSHOT:" + payloadSha256, watermark, key, expiresAt,
+                snapshotPayload, payloadSha256, itemCount, truncated, snapshotCutoff)
+                .stream().findFirst();
     }
 
     void audit(
@@ -838,6 +1137,11 @@ class AdminMailCompletionRepository {
 
     private static OffsetDateTime offset(ResultSet rs, String name) throws SQLException {
         return rs.getObject(name, OffsetDateTime.class);
+    }
+
+    private static Long nullableLong(ResultSet rs, String name) throws SQLException {
+        long value = rs.getLong(name);
+        return rs.wasNull() ? null : value;
     }
 
     private static final RowMapper<ConnectionRow> CONNECTION = (rs, ignored) -> new ConnectionRow(
@@ -929,7 +1233,8 @@ class AdminMailCompletionRepository {
 
     private static final String EXPORT_BY = """
             SELECT export_id, actor_user_id, filters, purpose, export_state,
-                   storage_reference, watermark, idempotency_key, created_at, expires_at
+                   storage_reference, watermark, idempotency_key, created_at, expires_at,
+                   snapshot_payload, payload_sha256, item_count, truncated, snapshot_cutoff
               FROM mail_delivery_audit_exports WHERE tenant_id = ?
             """;
 
@@ -938,7 +1243,11 @@ class AdminMailCompletionRepository {
             map(rs.getString("filters")), rs.getString("purpose"),
             rs.getString("export_state"), rs.getString("storage_reference"),
             rs.getString("watermark"), uuid(rs, "idempotency_key"),
-            offset(rs, "created_at"), offset(rs, "expires_at"));
+            offset(rs, "created_at"), offset(rs, "expires_at"),
+            rs.getString("snapshot_payload"), rs.getString("payload_sha256"),
+            rs.getObject("item_count", Integer.class),
+            rs.getObject("truncated", Boolean.class),
+            offset(rs, "snapshot_cutoff"));
 
     record SourceStamp(String sourceId, OffsetDateTime observedAt) { }
     record ExceptionRow(String kind, String severity, String resourceRef, int impactCount,
@@ -953,6 +1262,38 @@ class AdminMailCompletionRepository {
         }
     }
     record AccountRow(UUID id, String email, String providerAccountRef, String cursor) { }
+    record SyncAccountRow(
+            UUID id,
+            String email,
+            Long ownerUserId,
+            String cursor,
+            UUID sharedInboxId) { }
+    record InboundIdentity(UUID threadId, UUID messageId) { }
+    record InboundMessageRow(
+            String providerMessageReference,
+            String providerThreadReference,
+            OffsetDateTime occurredAt,
+            String senderEmail,
+            String senderName,
+            List<Map<String, Object>> recipients,
+            String subject,
+            String body,
+            String bodyFormat,
+            String preview,
+            List<Map<String, Object>> participants,
+            boolean externalSender,
+            String classification,
+            List<Map<String, Object>> attachmentProjection) { }
+    record InboundAttachmentRow(
+            UUID id,
+            String storageReference,
+            String fileName,
+            String contentType,
+            long sizeBytes,
+            String checksumSha256,
+            String scanState,
+            String scanEvidence) { }
+    record InboundMaterialized(UUID threadId, UUID messageId, boolean inserted) { }
     record ConnectionOperationRow(UUID id, UUID connectionId, String kind, String state,
                                   UUID idempotencyKey, String fingerprint, String correlationId,
                                   OffsetDateTime evidenceAt, String errorCode,
@@ -977,15 +1318,41 @@ class AdminMailCompletionRepository {
     record LegalHoldRow(UUID id, String name, String caseRef, Map<String, Object> scope,
                         String status, OffsetDateTime startsAt, OffsetDateTime expiresAt,
                         long version) { }
-    record CandidateRow(UUID threadId, int messageCount, String providerType) { }
+    record CandidateRow(
+            UUID threadId,
+            int messageCount,
+            String providerType,
+            boolean immutableEvidenceBlocked) { }
     record CandidateSet(List<CandidateRow> rows) {
         CandidateSet { rows = List.copyOf(rows); }
-        int threadCount() { return rows.size(); }
-        int messageCount() { return rows.stream().mapToInt(CandidateRow::messageCount).sum(); }
-        boolean hasExternalProvider() {
-            return rows.stream().anyMatch(row -> !"DWP_SANDBOX".equals(row.providerType()));
+        int totalThreadCount() { return rows.size(); }
+        int totalMessageCount() { return rows.stream().mapToInt(CandidateRow::messageCount).sum(); }
+        int eligibleThreadCount() {
+            return (int) rows.stream().filter(row -> !row.immutableEvidenceBlocked()).count();
         }
-        List<UUID> threadIds() { return rows.stream().map(CandidateRow::threadId).toList(); }
+        int eligibleMessageCount() {
+            return rows.stream().filter(row -> !row.immutableEvidenceBlocked())
+                    .mapToInt(CandidateRow::messageCount).sum();
+        }
+        int blockedThreadCount() {
+            return (int) rows.stream().filter(CandidateRow::immutableEvidenceBlocked).count();
+        }
+        int blockedMessageCount() {
+            return rows.stream().filter(CandidateRow::immutableEvidenceBlocked)
+                    .mapToInt(CandidateRow::messageCount).sum();
+        }
+        boolean hasExternalProvider() {
+            return rows.stream().filter(row -> !row.immutableEvidenceBlocked())
+                    .anyMatch(row -> !"DWP_SANDBOX".equals(row.providerType()));
+        }
+        List<UUID> eligibleThreadIds() {
+            return rows.stream().filter(row -> !row.immutableEvidenceBlocked())
+                    .map(CandidateRow::threadId).toList();
+        }
+        List<UUID> blockedThreadIds() {
+            return rows.stream().filter(CandidateRow::immutableEvidenceBlocked)
+                    .map(CandidateRow::threadId).toList();
+        }
     }
     record PurgePreviewRow(UUID id, long actorId, Map<String, Object> scope,
                            List<String> resourceTypes, OffsetDateTime before,
@@ -1015,5 +1382,7 @@ class AdminMailCompletionRepository {
     record ExportRow(UUID id, long actorId, Map<String, Object> filters, String purpose,
                      String state, String storageReference, String watermark,
                      UUID idempotencyKey, OffsetDateTime createdAt,
-                     OffsetDateTime expiresAt) { }
+                     OffsetDateTime expiresAt, String snapshotPayload,
+                     String payloadSha256, Integer itemCount, Boolean truncated,
+                     OffsetDateTime snapshotCutoff) { }
 }

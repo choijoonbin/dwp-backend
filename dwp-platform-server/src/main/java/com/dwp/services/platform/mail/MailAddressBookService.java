@@ -244,6 +244,12 @@ public class MailAddressBookService {
             UUID groupId,
             String correlationId,
             MailAddressBookDtos.GroupMessageRequest request) {
+        if (request.recipientMode() == MailAddressBookDtos.GroupRecipientMode.BCC) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Group BCC delivery is unavailable until the active provider supplies "
+                            + "per-recipient privacy and delivery evidence.");
+        }
         String fingerprint = fingerprints.groupMessage(groupId, request);
         var receipt = receipts.reserve(
                 tenantId, userId, GROUP_MESSAGE_SEND,

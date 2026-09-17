@@ -6,6 +6,7 @@ import com.dwp.services.auth.scim.ScimCredentialService;
 import com.dwp.services.auth.security.AuthenticatedUserResolver;
 import com.dwp.services.auth.security.TenantContextResolver;
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
@@ -58,10 +59,12 @@ public class ScimConnectorAdminController {
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            HttpServletResponse response,
             @Valid @RequestBody ScimConnectorDtos.CreateRequest request) {
         AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
+        preventCredentialCaching(response);
         return ApiResponse.success(service.create(tenantId, actorId, correlationId, request));
     }
 
@@ -70,11 +73,15 @@ public class ScimConnectorAdminController {
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
-            @PathVariable UUID connectorId) {
+            @PathVariable UUID connectorId,
+            HttpServletResponse response,
+            @Valid @RequestBody ScimConnectorDtos.RotateRequest request) {
         AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
-        return ApiResponse.success(service.rotate(tenantId, actorId, correlationId, connectorId));
+        preventCredentialCaching(response);
+        return ApiResponse.success(service.rotate(
+                tenantId, actorId, correlationId, connectorId, request));
     }
 
     @PatchMapping("/{connectorId}/lifecycle")
@@ -89,5 +96,11 @@ public class ScimConnectorAdminController {
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         return ApiResponse.success(service.lifecycle(
                 tenantId, actorId, correlationId, connectorId, request.state()));
+    }
+
+    private void preventCredentialCaching(HttpServletResponse response) {
+        response.setHeader("Cache-Control", "no-store, no-cache, max-age=0");
+        response.setHeader("Pragma", "no-cache");
+        response.setDateHeader("Expires", 0);
     }
 }

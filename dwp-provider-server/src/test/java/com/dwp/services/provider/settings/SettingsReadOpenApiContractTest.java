@@ -29,6 +29,8 @@ class SettingsReadOpenApiContractTest {
     private static final String CATALOG_PATH = "/v1/admin/settings";
     private static final String EFFECTIVE_PATH =
             "/v1/admin/settings/{settingId}/effective";
+    private static final String RECEIPT_PATH =
+            "/internal/provider/v1/feature-rollouts/application-receipts";
     private static final String GATEWAY_PREFIX = "/api/provider";
 
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -113,6 +115,15 @@ class SettingsReadOpenApiContractTest {
         assertReadResponse(
                 gateway, GATEWAY_PREFIX + EFFECTIVE_PATH,
                 "#/components/schemas/provider_ApiResponseResolution");
+        assertThat(provider.path("paths").path(RECEIPT_PATH).path("post")
+                .path("requestBody").path("content").path("application/json")
+                .path("schema").path("$ref").asText())
+                .isEqualTo("#/components/schemas/FeatureRolloutApplicationReceiptRequest");
+        assertThat(provider.path("paths").path(RECEIPT_PATH).path("post")
+                .path("responses").path("200").path("content").elements().next()
+                .path("schema").path("$ref").asText())
+                .isEqualTo("#/components/schemas/ApiResponseFeatureRolloutApplicationReceipt");
+        assertThat(gateway.path("paths").has(GATEWAY_PREFIX + RECEIPT_PATH)).isFalse();
 
         assertThat(provider.path("components").path("schemas").path("Resolution")
                 .path("properties").fieldNames())

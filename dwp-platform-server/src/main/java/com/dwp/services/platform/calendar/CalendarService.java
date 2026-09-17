@@ -2,7 +2,10 @@ package com.dwp.services.platform.calendar;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.platform.mail.MailProposalHandoffBinding;
+import com.dwp.services.platform.mail.MailProposalOutcomePort;
 import com.dwp.services.platform.workplace.WorkplaceRoomAccessPort;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -36,18 +39,30 @@ public class CalendarService {
     private final CalendarSchedulingEvaluator schedulingEvaluator;
     private final CalendarSchedulingHorizon schedulingHorizon;
     private final RoomBookingPolicyService roomBookingPolicy;
+    private final MailProposalOutcomePort mailProposalOutcomes;
 
     public CalendarService(
             CalendarRepository repository,
             WorkplaceRoomAccessPort roomAccess,
             CalendarSchedulingHorizon schedulingHorizon,
             RoomBookingPolicyService roomBookingPolicy) {
+        this(repository, roomAccess, schedulingHorizon, roomBookingPolicy, null);
+    }
+
+    @Autowired
+    public CalendarService(
+            CalendarRepository repository,
+            WorkplaceRoomAccessPort roomAccess,
+            CalendarSchedulingHorizon schedulingHorizon,
+            RoomBookingPolicyService roomBookingPolicy,
+            MailProposalOutcomePort mailProposalOutcomes) {
         this.repository = repository;
         this.occurrenceProjector = new CalendarOccurrenceProjector(repository);
         this.roomAccessGuard = new CalendarRoomAccessGuard(roomAccess);
         this.schedulingEvaluator = new CalendarSchedulingEvaluator(repository, roomAccessGuard);
         this.schedulingHorizon = schedulingHorizon;
         this.roomBookingPolicy = roomBookingPolicy;
+        this.mailProposalOutcomes = mailProposalOutcomes;
     }
 
     @Transactional(readOnly = true)
@@ -199,7 +214,7 @@ public class CalendarService {
             CalendarDtos.CreateEventRequest request) {
         return create(
                 tenantId, userId, personPublicId, organizerName,
-                locale, correlationId, null, request);
+                locale, correlationId, null, request, null);
     }
 
     @Transactional
@@ -212,6 +227,22 @@ public class CalendarService {
             String correlationId,
             String verifiedGroupRefs,
             CalendarDtos.CreateEventRequest request) {
+        return create(tenantId, userId, personPublicId, organizerName, locale,
+                correlationId, verifiedGroupRefs, request, null);
+    }
+
+    @Transactional
+    public CalendarDtos.EventSummary create(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String organizerName,
+            String locale,
+            String correlationId,
+            String verifiedGroupRefs,
+            CalendarDtos.CreateEventRequest request,
+            MailProposalHandoffBinding proposalBinding) {
+        validateMailProposal(tenantId, userId, proposalBinding);
         repository.linkIdentity(tenantId, userId, personPublicId);
         String requestFingerprint = CalendarRequestFingerprint.create(request);
         repository.lockEventIdempotency(tenantId, userId, request.idempotencyKey());
@@ -228,8 +259,11 @@ public class CalendarService {
                             "The calendar idempotency state is unavailable."));
             roomAccessGuard.requireBook(
                     tenantId, userId, verifiedGroupRefs, existing.resource());
-            return occurrenceProjector.summary(
+            CalendarDtos.EventSummary result = occurrenceProjector.summary(
                     tenantId, userId, personPublicId, existing, false, locale);
+            completeMailProposal(
+                    tenantId, userId, result.eventId(), correlationId, proposalBinding);
+            return result;
         }
         CalendarRepository.PolicyRow policy = validateEvent(
                 tenantId, request.startsAt(), request.endsAt(), request.timeZone(),
@@ -264,8 +298,11 @@ public class CalendarService {
                         repository, tenantId, userId, personPublicId, verifiedGroupRefs,
                         eventId, korean(locale))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        return occurrenceProjector.summary(
+        CalendarDtos.EventSummary result = occurrenceProjector.summary(
                 tenantId, userId, personPublicId, created, false, locale);
+        completeMailProposal(
+                tenantId, userId, result.eventId(), correlationId, proposalBinding);
+        return result;
     }
 
     @Transactional
@@ -824,6 +861,32 @@ public class CalendarService {
 
     private boolean korean(String locale) {
         return locale != null && locale.toLowerCase(Locale.ROOT).startsWith("ko");
+    }
+
+    private void validateMailProposal(
+            long tenantId,
+            long actorId,
+            MailProposalHandoffBinding binding) {
+        if (binding == null) return;
+        if (mailProposalOutcomes == null) {
+            throw new BaseException(
+                    ErrorCode.EXTERNAL_SERVICE_ERROR,
+                    "The Mail proposal owner service is unavailable.");
+        }
+        mailProposalOutcomes.validate(
+                tenantId, actorId, MailProposalOutcomePort.Owner.CALENDAR, binding);
+    }
+
+    private void completeMailProposal(
+            long tenantId,
+            long actorId,
+            UUID eventId,
+            String correlationId,
+            MailProposalHandoffBinding binding) {
+        if (binding == null) return;
+        mailProposalOutcomes.executed(
+                tenantId, actorId, MailProposalOutcomePort.Owner.CALENDAR, binding,
+                "calendar-event:" + eventId, correlationId);
     }
 
     private BaseException invalid(String message) {

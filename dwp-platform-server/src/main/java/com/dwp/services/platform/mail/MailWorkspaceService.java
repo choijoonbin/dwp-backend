@@ -2,9 +2,13 @@ package com.dwp.services.platform.mail;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.platform.contract.ExecutionContext;
+import com.dwp.platform.contract.MailConnectorPort;
 import com.dwp.services.platform.media.TenantMediaStorage;
 import org.jsoup.Jsoup;
 import org.jsoup.safety.Safelist;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -34,6 +38,7 @@ import static com.dwp.services.platform.mail.MailWorkspaceDtos.*;
 @Service
 public class MailWorkspaceService {
 
+    private static final long BYTES_PER_MIB = 1024L * 1024L;
     private static final Set<String> ALLOWED_TEMPLATE_VARIABLES = Set.of(
             "displayName", "department", "recipientName");
     private static final Pattern TEMPLATE_VARIABLE = Pattern.compile("\\{\\{\\s*([A-Za-z][A-Za-z0-9]*)\\s*}}", Pattern.UNICODE_CASE);
@@ -49,16 +54,41 @@ public class MailWorkspaceService {
     private final MailQueryRepository queries;
     private final MailService mail;
     private final TenantMediaStorage storage;
+    private final List<MailAttachmentScanner> attachmentScanners;
+    private final MailConnectorRegistry connectors;
 
+    @Autowired
     public MailWorkspaceService(
             MailWorkspaceRepository repository,
             MailQueryRepository queries,
             MailService mail,
-            TenantMediaStorage storage) {
+            TenantMediaStorage storage,
+            List<MailAttachmentScanner> attachmentScanners,
+            MailConnectorRegistry connectors) {
         this.repository = repository;
         this.queries = queries;
         this.mail = mail;
         this.storage = storage;
+        this.attachmentScanners = List.copyOf(attachmentScanners);
+        this.connectors = connectors;
+    }
+
+    MailWorkspaceService(
+            MailWorkspaceRepository repository,
+            MailQueryRepository queries,
+            MailService mail,
+            TenantMediaStorage storage,
+            List<MailAttachmentScanner> attachmentScanners) {
+        this(repository, queries, mail, storage, attachmentScanners,
+                new MailConnectorRegistry(List.of(new DwpSandboxMailConnector())));
+    }
+
+    MailWorkspaceService(
+            MailWorkspaceRepository repository,
+            MailQueryRepository queries,
+            MailService mail,
+            TenantMediaStorage storage) {
+        this(repository, queries, mail, storage, List.of());
     }
 
     @Transactional
@@ -67,12 +97,19 @@ public class MailWorkspaceService {
         if (accounts.isEmpty()) throw new BaseException(ErrorCode.NOT_FOUND, "No mail account is available.");
         Preferences preferences = effectivePreferences(tenantId, userId);
         int maximumMb = repository.maximumAttachmentMb(tenantId);
-        String displayName = accounts.stream().filter(MailDtos.AccountSummary::defaultAccount)
-                .findFirst().orElse(accounts.get(0)).displayName();
+        MailDtos.AccountSummary selected = accounts.stream()
+                .filter(MailDtos.AccountSummary::defaultAccount)
+                .findFirst().orElse(accounts.get(0));
+        String displayName = selected.displayName();
+        Map<UUID, ComposeCapabilities> accountCapabilities = new LinkedHashMap<>();
+        for (MailDtos.AccountSummary account : accounts) {
+            accountCapabilities.put(account.accountId(), accountCapabilities(
+                    tenantId, userId, account.accountId(), maximumMb));
+        }
         return new ComposeContext(
                 accounts,
-                new ComposeCapabilities(true, true, true, true, true, true,
-                        maximumMb * 1024L * 1024L),
+                accountCapabilities.get(selected.accountId()),
+                Map.copyOf(accountCapabilities),
                 repository.templates(tenantId, userId, false),
                 repository.signatures(tenantId, userId, false),
                 preferences,
@@ -82,8 +119,10 @@ public class MailWorkspaceService {
 
     public Attachment uploadAttachment(
             long tenantId, long userId, MultipartFile file) {
+        requireAttachmentScanningAvailable();
         ValidatedAttachment validated = validateAttachment(tenantId, file);
         UUID attachmentId = UUID.randomUUID();
+        String scanEvidence = scanAttachment(tenantId, userId, attachmentId, validated);
         String storageReference = storage.store(
                 tenantId, "mail/compose/" + userId,
                 validated.extension(), validated.content());
@@ -91,7 +130,7 @@ public class MailWorkspaceService {
             return repository.createAttachment(
                     tenantId, userId, attachmentId, storageReference,
                     validated.fileName(), validated.contentType(), validated.content().length,
-                    validated.checksum(), "DWP_CONTENT_POLICY:" + validated.contentType());
+                    validated.checksum(), scanEvidence);
         } catch (RuntimeException failure) {
             try {
                 storage.delete(tenantId, storageReference);
@@ -110,6 +149,19 @@ public class MailWorkspaceService {
         storage.delete(tenantId, reference);
     }
 
+    @Transactional(readOnly = true)
+    public AttachmentDownload downloadAttachment(
+            long tenantId, long userId, UUID threadId, UUID messageId, UUID attachmentId) {
+        MailWorkspaceRepository.AttachmentContentReference attachment = repository
+                .visibleAttachment(tenantId, userId, threadId, messageId, attachmentId)
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.NOT_FOUND, "The mail attachment was not found."));
+        Resource resource = storage.load(tenantId, attachment.storageReference());
+        return new AttachmentDownload(
+                resource, attachment.fileName(), attachment.contentType(),
+                attachment.sizeBytes(), attachment.checksumSha256());
+    }
+
     @Transactional
     public AdvancedComposeResult compose(
             long tenantId, long userId, String correlationId, AdvancedComposeRequest request) {
@@ -117,39 +169,48 @@ public class MailWorkspaceService {
         if (recipients.stream().noneMatch(recipient -> recipient.type() == RecipientType.TO)) {
             throw invalid("At least one To recipient is required.");
         }
-        UUID accountId = repository.composeAccount(tenantId, userId, request.accountId())
-                .orElseThrow(() -> new BaseException(
-                        ErrorCode.FORBIDDEN, "The selected sending account is not available."));
-        validateAssetSelection(
-                tenantId, userId, accountId, request.templateId(), request.signatureId());
         List<UUID> attachmentIds = distinctIds(request.attachmentIds());
-        if (!repository.attachmentsReady(tenantId, userId, attachmentIds)) {
-            throw conflict("Every attachment must be owned by the sender and ready before sending.");
-        }
         OffsetDateTime requestedSchedule = normalizedSchedule(
                 request.scheduleAt(), request.timeZone());
-        OffsetDateTime scheduledAt = requestedSchedule == null
-                ? preferenceDelay(tenantId, userId) : requestedSchedule;
         String body = request.bodyFormat() == BodyFormat.HTML
                 ? sanitizedHtml(request.body()) : request.body().trim();
         validateTemplateVariables(request.subject(), body);
+        repository.lockAdvancedComposeCommand(tenantId, userId, request.idempotencyKey());
+        var command = repository.advancedComposeCommand(
+                tenantId, userId, request.idempotencyKey()).orElse(null);
+        UUID accountId = command == null
+                ? repository.composeAccount(tenantId, userId, request.accountId())
+                        .orElseThrow(() -> new BaseException(
+                                ErrorCode.FORBIDDEN,
+                                "The selected sending account is not available."))
+                : command.accountId();
         String fingerprint = sha256(String.join("\u001f",
                 String.valueOf(userId), accountId.toString(), jsonRecipients(recipients),
                 request.subject().trim(), body, request.bodyFormat().name(),
                 attachmentIds.toString(), String.valueOf(requestedSchedule),
                 requestedSchedule == null ? "" : value(request.timeZone()),
                 String.valueOf(request.templateId()), String.valueOf(request.signatureId())));
-        repository.lockAdvancedComposeCommand(tenantId, userId, request.idempotencyKey());
-        var replay = repository.advancedComposeReplay(
-                tenantId, userId, request.idempotencyKey(), fingerprint).orElse(null);
-        if (replay != null) {
-            if (replay.threadId() == null) {
+        if (command != null) {
+            if (!fingerprint.equals(command.requestFingerprint())) {
                 throw conflict("The idempotency key was already used for a different message.");
             }
             return new AdvancedComposeResult(
-                    mail.thread(tenantId, userId, replay.threadId()),
-                    repository.delivery(tenantId, userId, replay.deliveryId()).orElseThrow());
+                    mail.thread(tenantId, userId, command.threadId()),
+                    repository.delivery(tenantId, userId, command.deliveryId()).orElseThrow());
         }
+        validateProviderCapabilities(
+                tenantId, userId, accountId, recipients, request.bodyFormat(),
+                attachmentIds, requestedSchedule);
+        requireAttachmentScanningAvailable(attachmentIds);
+        validateSendAssetSelection(
+                tenantId, userId, accountId, request.templateId(), request.signatureId(),
+                body, request.bodyFormat());
+        if (!repository.attachmentsReady(tenantId, userId, attachmentIds)) {
+            throw conflict("Every attachment must be owned by the sender and ready before sending.");
+        }
+        validateAttachmentTotalSize(tenantId, userId, attachmentIds, null);
+        OffsetDateTime scheduledAt = requestedSchedule == null
+                ? preferenceDelay(tenantId, userId) : requestedSchedule;
         var created = repository.createAdvancedCompose(
                 tenantId, userId, accountId, recipients, request.subject(), body,
                 request.bodyFormat(), attachmentIds, scheduledAt, request.idempotencyKey(),
@@ -200,23 +261,21 @@ public class MailWorkspaceService {
         if (recipients.stream().noneMatch(recipient -> recipient.type() == RecipientType.TO)) {
             throw invalid("At least one To recipient is required.");
         }
-        UUID accountId = repository.composeAccount(tenantId, userId, options.accountId())
-                .orElseThrow(() -> new BaseException(
-                        ErrorCode.FORBIDDEN, "The selected sending account is not available."));
-        validateAssetSelection(
-                tenantId, userId, accountId, options.templateId(), options.signatureId());
         List<UUID> attachmentIds = distinctIds(options.attachmentIds());
-        if (!repository.attachmentsReadyForThread(
-                tenantId, userId, attachmentIds, threadId)) {
-            throw conflict("Every attachment must be ready before sending.");
-        }
         OffsetDateTime requestedSchedule = normalizedSchedule(
                 options.scheduledAt(), options.timeZone());
-        OffsetDateTime scheduledAt = requestedSchedule == null
-                ? preferenceDelay(tenantId, userId) : requestedSchedule;
         String body = options.bodyFormat() == BodyFormat.HTML
                 ? sanitizedHtml(request.body()) : request.body().trim();
         validateTemplateVariables(request.subject(), body);
+        repository.lockAdvancedComposeCommand(tenantId, userId, request.idempotencyKey());
+        var command = repository.advancedComposeCommand(
+                tenantId, userId, request.idempotencyKey()).orElse(null);
+        UUID accountId = command == null
+                ? repository.composeAccount(tenantId, userId, options.accountId())
+                        .orElseThrow(() -> new BaseException(
+                                ErrorCode.FORBIDDEN,
+                                "The selected sending account is not available."))
+                : command.accountId();
         String fingerprint = sha256(String.join("\u001f",
                 String.valueOf(userId), threadId.toString(), accountId.toString(),
                 jsonRecipients(recipients), request.subject().trim(), body,
@@ -225,15 +284,27 @@ public class MailWorkspaceService {
                 requestedSchedule == null ? "" : value(options.timeZone()),
                 String.valueOf(options.templateId()),
                 String.valueOf(options.signatureId()), String.valueOf(request.version())));
-        repository.lockAdvancedComposeCommand(tenantId, userId, request.idempotencyKey());
-        var replay = repository.advancedComposeReplay(
-                tenantId, userId, request.idempotencyKey(), fingerprint).orElse(null);
-        if (replay != null) {
-            if (replay.threadId() == null || !threadId.equals(replay.threadId())) {
+        if (command != null) {
+            if (!fingerprint.equals(command.requestFingerprint())
+                    || !threadId.equals(command.threadId())) {
                 throw conflict("The idempotency key was already used for a different draft send.");
             }
             return mail.thread(tenantId, userId, threadId);
         }
+        validateProviderCapabilities(
+                tenantId, userId, accountId, recipients, options.bodyFormat(),
+                attachmentIds, requestedSchedule);
+        requireAttachmentScanningAvailable(attachmentIds);
+        validateSendAssetSelection(
+                tenantId, userId, accountId, options.templateId(), options.signatureId(),
+                body, options.bodyFormat());
+        if (!repository.attachmentsReadyForThread(
+                tenantId, userId, attachmentIds, threadId)) {
+            throw conflict("Every attachment must be ready before sending.");
+        }
+        validateAttachmentTotalSize(tenantId, userId, attachmentIds, threadId);
+        OffsetDateTime scheduledAt = requestedSchedule == null
+                ? preferenceDelay(tenantId, userId) : requestedSchedule;
         var created = repository.sendAdvancedDraft(
                 tenantId, userId, threadId, request.version(), accountId, recipients,
                 request.subject(), body, options.bodyFormat(), attachmentIds, scheduledAt,
@@ -253,9 +324,36 @@ public class MailWorkspaceService {
 
     @Transactional(readOnly = true)
     public WritingAssets writingAssets(long tenantId, long userId) {
+        return writingAssets(tenantId, userId, false);
+    }
+
+    @Transactional(readOnly = true)
+    public WritingAssets writingAssets(long tenantId, long userId, boolean includeArchived) {
         return new WritingAssets(
-                repository.templates(tenantId, userId, false),
-                repository.signatures(tenantId, userId, false));
+                repository.templates(tenantId, userId, includeArchived),
+                repository.signatures(tenantId, userId, includeArchived));
+    }
+
+    @Transactional(readOnly = true)
+    public void validateReplyBody(
+            long tenantId, long userId, UUID threadId, String body) {
+        UUID accountId = repository.replyAccount(tenantId, userId, threadId)
+                .orElseThrow(() -> new BaseException(
+                        ErrorCode.FORBIDDEN,
+                        "The sending account is no longer available for this reply."));
+        Signature signature = repository.defaultSignatureForReply(
+                tenantId, userId, accountId).orElse(null);
+        if (signature == null || signature.mandatoryContent() == null
+                || signature.mandatoryContent().isBlank()) {
+            return;
+        }
+        String required = signature.bodyFormat() == BodyFormat.HTML
+                ? Jsoup.parseBodyFragment(
+                        sanitizedHtml(signature.mandatoryContent())).text()
+                : signature.mandatoryContent().trim();
+        if (!normalizedText(body).contains(normalizedText(required))) {
+            throw invalid("The reply must include the organization signature mandatory content.");
+        }
     }
 
     @Transactional
@@ -453,13 +551,14 @@ public class MailWorkspaceService {
             throw new BaseException(ErrorCode.INVALID_STATE,
                     "This delivery has current evidence and does not need reconciliation.");
         }
-        if (!repository.touchDeliveryEvidence(tenantId, userId, deliveryId, request.version())) {
+        if (!repository.reconcileSandboxDelivery(
+                tenantId, userId, deliveryId, request.version())) {
             throw conflict("The delivery evidence changed. Refresh before reconciling.");
         }
         repository.audit(tenantId, userId, "mail.delivery.reconciled", "MAIL_DELIVERY",
                 deliveryId.toString(), UUID.randomUUID().toString(), Map.of(
                         "state", before.state(), "version", before.version()), Map.of(
-                        "outcome", "CURRENT_OUTBOX_EVIDENCE_RELOADED"));
+                        "outcome", "SANDBOX_DELIVERY_REQUEUED"));
         return delivery(tenantId, userId, deliveryId);
     }
 
@@ -544,6 +643,209 @@ public class MailWorkspaceService {
                             ErrorCode.NOT_FOUND, "The selected signature was not found."));
             requireAssetAccount(accountId, signature.accountId());
         }
+    }
+
+    private void validateSendAssetSelection(
+            long tenantId,
+            long userId,
+            UUID accountId,
+            UUID templateId,
+            UUID signatureId,
+            String body,
+            BodyFormat bodyFormat) {
+        if (templateId != null) {
+            Template template = repository.templateForSend(
+                            tenantId, userId, accountId, templateId)
+                    .orElseThrow(() -> new BaseException(
+                            ErrorCode.NOT_FOUND, "The selected template was not found."));
+            requireMandatoryContent(body, bodyFormat, template.mandatoryContent(), "template");
+        }
+
+        Signature signature;
+        if (signatureId != null) {
+            signature = repository.signatureForSend(
+                            tenantId, userId, accountId, signatureId)
+                    .orElseThrow(() -> new BaseException(
+                            ErrorCode.NOT_FOUND, "The selected signature was not found."));
+        } else {
+            UUID preferredSignatureId = repository.preferredSignatureId(tenantId, userId)
+                    .orElse(null);
+            if (preferredSignatureId != null) {
+                signature = repository.signatureForSend(
+                                tenantId, userId, accountId, preferredSignatureId)
+                        .orElseThrow(() -> conflict(
+                                "The default signature is no longer available. Refresh before sending."));
+            } else {
+                signature = repository.defaultSignatureForNew(tenantId, userId, accountId)
+                        .orElse(null);
+            }
+        }
+        if (signature != null) {
+            requireMandatoryContent(body, bodyFormat, signature.mandatoryContent(), "signature");
+        }
+    }
+
+    private void requireMandatoryContent(
+            String body, BodyFormat bodyFormat, String mandatoryContent, String assetType) {
+        if (mandatoryContent == null || mandatoryContent.isBlank()) return;
+        String required = bodyFormat == BodyFormat.HTML
+                ? sanitizedHtml(mandatoryContent) : mandatoryContent.trim();
+        if (!body.contains(required)) {
+            throw invalid("The message must include the selected "
+                    + assetType + " mandatory content.");
+        }
+    }
+
+    private String normalizedText(String value) {
+        return value == null ? "" : value.replaceAll("\\s+", " ").trim();
+    }
+
+    private void validateAttachmentTotalSize(
+            long tenantId, long userId, List<UUID> attachmentIds, UUID threadId) {
+        if (attachmentIds.isEmpty()) return;
+        long maximumBytes = Math.multiplyExact(
+                repository.maximumAttachmentMb(tenantId), BYTES_PER_MIB);
+        if (!repository.attachmentsWithinTotalSize(
+                tenantId, userId, attachmentIds, threadId, maximumBytes)) {
+            throw invalid("The combined attachment size exceeds the organization limit.");
+        }
+    }
+
+    private ComposeCapabilities accountCapabilities(
+            long tenantId, long userId, UUID accountId, int maximumAttachmentMb) {
+        long maximumAttachmentBytes = Math.multiplyExact(
+                (long) maximumAttachmentMb, BYTES_PER_MIB);
+        ComposeCapabilities unavailable = new ComposeCapabilities(
+                false, false, false, false, false, false, maximumAttachmentBytes);
+        MailWorkspaceRepository.ComposeProviderContext provider = repository
+                .composeProviderContext(tenantId, userId, accountId)
+                .orElse(null);
+        MailConnectorPort.SenderMode senderMode = repository
+                .composeSenderMode(tenantId, userId, accountId)
+                .orElse(null);
+        if (provider == null || senderMode == null) return unavailable;
+        MailConnectorPort connector = connectors.connector(provider.providerType()).orElse(null);
+        if (connector == null) return unavailable;
+        Set<MailConnectorPort.Capability> capabilities = connector.manifest().capabilities();
+        if (!capabilities.contains(MailConnectorPort.Capability.SEND)
+                || senderMode == MailConnectorPort.SenderMode.SEND_ON_BEHALF
+                && !capabilities.contains(MailConnectorPort.Capability.SEND_ON_BEHALF)) {
+            return unavailable;
+        }
+        try {
+            MailConnectorPort.ConnectionContext connection =
+                    new MailConnectorPort.ConnectionContext(
+                            new ExecutionContext(
+                                    Long.toString(tenantId), Long.toString(userId), Set.of(),
+                                    "mail-compose-capabilities:" + accountId),
+                            provider.connectionId(), provider.credentialReference(),
+                            provider.mailDomain());
+            if (connector.readiness(connection).state()
+                    != MailConnectorPort.ReadinessState.READY) {
+                return unavailable;
+            }
+        } catch (RuntimeException failure) {
+            return unavailable;
+        }
+        return new ComposeCapabilities(
+                true,
+                true,
+                capabilities.contains(MailConnectorPort.Capability.BCC),
+                capabilities.contains(MailConnectorPort.Capability.HTML_BODY),
+                capabilities.contains(MailConnectorPort.Capability.ATTACHMENTS)
+                        && !attachmentScanners.isEmpty(),
+                true,
+                maximumAttachmentBytes);
+    }
+
+    private void validateProviderCapabilities(
+            long tenantId,
+            long userId,
+            UUID accountId,
+            List<Recipient> recipients,
+            BodyFormat bodyFormat,
+            List<UUID> attachmentIds,
+            OffsetDateTime requestedSchedule) {
+        ComposeCapabilities capabilities = accountCapabilities(
+                tenantId, userId, accountId, repository.maximumAttachmentMb(tenantId));
+        if (!capabilities.multipleRecipients()) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "The selected account provider is not ready for sending.");
+        }
+        if (recipients.stream().anyMatch(recipient -> recipient.type() == RecipientType.CC)
+                && !capabilities.cc()) {
+            throw invalid("The selected account provider does not support Cc recipients.");
+        }
+        if (recipients.stream().anyMatch(recipient -> recipient.type() == RecipientType.BCC)
+                && !capabilities.bcc()) {
+            throw invalid("The selected account provider does not support Bcc recipients.");
+        }
+        if (bodyFormat == BodyFormat.HTML && !capabilities.html()) {
+            throw invalid("The selected account provider does not support HTML messages.");
+        }
+        if (!attachmentIds.isEmpty() && !capabilities.attachments()) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Attachments are unavailable for the selected account provider.");
+        }
+        if (requestedSchedule != null && !capabilities.scheduling()) {
+            throw invalid("The selected account provider does not support scheduled sending.");
+        }
+    }
+
+    private void requireAttachmentScanningAvailable(List<UUID> attachmentIds) {
+        if (!attachmentIds.isEmpty()) requireAttachmentScanningAvailable();
+    }
+
+    private void requireAttachmentScanningAvailable() {
+        if (attachmentScanners.isEmpty()) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Mail attachments are unavailable until a trusted content scanner is configured.");
+        }
+    }
+
+    private String scanAttachment(
+            long tenantId,
+            long userId,
+            UUID attachmentId,
+            ValidatedAttachment attachment) {
+        List<String> evidence = new ArrayList<>();
+        for (MailAttachmentScanner scanner : attachmentScanners) {
+            MailAttachmentScanner.ScanResult result;
+            try {
+                result = scanner.scan(new MailAttachmentScanner.ScanRequest(
+                        tenantId, userId, attachmentId, attachment.fileName(),
+                        attachment.contentType(), attachment.checksum(), attachment.content()));
+            } catch (RuntimeException failure) {
+                throw new BaseException(
+                        ErrorCode.INVALID_STATE,
+                        "The attachment content scanner is unavailable.",
+                        failure);
+            }
+            if (result == null) {
+                throw new BaseException(
+                        ErrorCode.INVALID_STATE,
+                        "The attachment content scanner returned no verdict.");
+            }
+            if (result.verdict() == MailAttachmentScanner.Verdict.REJECTED) {
+                throw invalid("The attachment was rejected by the content scanner.");
+            }
+            if (result.evidence() == null || result.evidence().isBlank()) {
+                throw new BaseException(
+                        ErrorCode.INVALID_STATE,
+                        "The attachment content scanner returned no evidence.");
+            }
+            evidence.add(result.evidence());
+        }
+        String combined = String.join(" | ", evidence);
+        if (combined.length() > 320) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "The attachment content scanner evidence is too large.");
+        }
+        return combined;
     }
 
     private void requireAssetAccount(UUID composeAccountId, UUID assetAccountId) {
@@ -810,5 +1112,13 @@ public class MailWorkspaceService {
     }
 
     private record DetectedMedia(String contentType, String extension) {
+    }
+
+    public record AttachmentDownload(
+            Resource resource,
+            String fileName,
+            String contentType,
+            long sizeBytes,
+            String checksumSha256) {
     }
 }

@@ -31,7 +31,7 @@ superset. It expands projection bindings and descriptor-to-route reverse
 indexes, validates same-bundle references and computes SHA-256 over canonical
 JSON with the mutable `checksum` and `bundleStatus` members omitted. The
 canonical source contains a version 1 base plus append-only version 2 through
-21 waves. It emits complete snapshots rather than deltas:
+24 waves. It emits complete snapshots rather than deltas:
 
 - `product-surfaces-v1.bundle-v1.json` — W0/Canary, checksum `bc34f47b…`
 - `product-surfaces-v1.bundle-v2.json` — W1a Approvals, checksum `5b634a35…`
@@ -46,12 +46,15 @@ canonical source contains a version 1 base plus append-only version 2 through
 - `product-surfaces-v1.bundle-v19.json` — immutable Approvals release extension, checksum `32bec6d3…`
 - `product-surfaces-v1.bundle-v20.json` — exhaustive human Workplace and exact room-support authorization closure, checksum `1acbce34…`
 - `product-surfaces-v1.bundle-v21.json` — Workplace operations extension plus exact DWAI.ON AI runtime-control closure, checksum `4cd1732d…`
-- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v21
+- `product-surfaces-v1.bundle-v22.json` — append-only Workplace resource operations and DWAI.ON work/control-plane closure, checksum `1629b75f…`
+- `product-surfaces-v1.bundle-v23.json` — append-only Workplace provider-bound resource commands, space-planning report export, and safety emergency-contact/handoff closure, checksum `4687f384…`
+- `product-surfaces-v1.bundle-v24.json` — append-only DWAI.ON research downloads, routine evidence/rollback/webhook, and artifact comments closure, checksum `be3db891…`
+- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v24
 - `product-surfaces-v1.index.json` — checksummed version/artifact index
 
 Auth classpath resources use the same names with `.generated.json` before the
 extension. Every contract snapshot is byte-identical to its Auth seed peer;
-the latest Auth alias is byte-identical to bundle v21. The generator verifies
+the latest Auth alias is byte-identical to bundle v24. The generator verifies
 all files, checksums, aliases, descriptor preservation and monotonic reverse
 references in both generate and `--check` modes.
 
@@ -75,6 +78,10 @@ Version 21 appends the four exact AI runtime-control bindings under
 `UPDATE` or `MANAGE`; emergency control requires `MANAGE`. All four bind to the
 tenant `dwaion.management` CONFIG_SCOPE, and all three mutations are ACTION
 contracts that require current/expected decision-revision equality at runtime.
+
+Version 22 preserves the immutable version 21 bytes and appends Workplace
+resource-favorite and booking-hold release operations together with the DWAI.ON
+work, research, collaboration, model-routing and control-plane descriptors.
 
 Bundle version 1 contains only the W0 registry, Named Reviewer and the
 Communications/Services technical canary, including its exact responsibility,
@@ -184,7 +191,7 @@ corrupt or unavailable durable state also fails closed. A higher approved
 revision with `E_p=false` is the only rollout path from `110` to `100`.
 
 Runtime loaders reject `test.*` keys and never read test registry overrides.
-The checksummed seed index imports versions 1 through 21 in order, all as `DRAFT`.
+The checksummed seed index imports versions 1 through 24 in order, all as `DRAFT`.
 It contains no active version field or pointer. Activation is an explicit CAS
 pointer transition after independent approval; loading a seed does not approve
 or activate it.

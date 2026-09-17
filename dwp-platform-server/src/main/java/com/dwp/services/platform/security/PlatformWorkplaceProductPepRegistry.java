@@ -22,7 +22,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-/** Owner-service consumer for the generated Workplace v21 route projection. */
+/** Owner-service consumer for the generated Workplace v24 route projection. */
 @Component
 public final class PlatformWorkplaceProductPepRegistry {
 
@@ -31,9 +31,9 @@ public final class PlatformWorkplaceProductPepRegistry {
     public static final String OWNER_SERVICE = "dwp-platform-server";
     public static final String SERVICE_KEY = "platform";
     static final String RESOURCE =
-            "product-authorization/platform-workplace-pep-v21.generated.json";
+            "product-authorization/platform-workplace-pep-v24.generated.json";
     static final String REGISTRY_CHECKSUM =
-            "4cd1732df91d197cc47fca94699b0fb702ab1f6f2c557d3d17ce0e069d65af85";
+            "be3db891d27cd0b94aa88ac706d9bc87d4b991c9f9d8e505e26b296647728b84";
     private static final Set<String> EXACT_ROOM_BINDINGS = Set.of(
             "GET /v1/rooms/policy",
             "GET /v1/rooms/availability",
@@ -113,42 +113,42 @@ public final class PlatformWorkplaceProductPepRegistry {
         try (InputStream input = getClass().getClassLoader().getResourceAsStream(RESOURCE)) {
             if (input == null) {
                 throw new IllegalStateException(
-                        "Generated Workplace v21 PEP projection is absent.");
+                        "Generated Workplace v24 PEP projection is absent.");
             }
             JsonNode value = objectMapper.readTree(input);
             if (!(value instanceof ObjectNode object)) {
                 throw new IllegalStateException(
-                        "Generated Workplace v21 PEP projection must be an object.");
+                        "Generated Workplace v24 PEP projection must be an object.");
             }
             return object;
         } catch (IOException exception) {
             throw new IllegalStateException(
-                    "Generated Workplace v21 PEP projection cannot be read.", exception);
+                    "Generated Workplace v24 PEP projection cannot be read.", exception);
         }
     }
 
     private void validateEnvelope(ObjectNode projection) {
         JsonNode registry = projection.path("registryRef");
         require(projection.path("schemaVersion").asInt() == 1
-                        && "platform-workplace-pep-v21".equals(
+                        && "platform-workplace-pep-v24".equals(
                         projection.path("projectionKey").asText())
                         && SERVICE_KEY.equals(projection.path("ownerServiceKey").asText())
                         && "product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 21
+                        && registry.path("version").asInt() == 24
                         && REGISTRY_CHECKSUM.equals(registry.path("sha256").asText()),
-                "Unexpected Workplace v21 PEP envelope.");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 709
-                        && projection.path("projectedRouteContractCount").asInt() == 304
-                        && projection.path("bindingPairCount").asInt() == 306
+                "Unexpected Workplace v24 PEP envelope.");
+        require(projection.path("sourceRegistryRouteCount").asInt() == 776
+                        && projection.path("projectedRouteContractCount").asInt() == 326
+                        && projection.path("bindingPairCount").asInt() == 328
                         && requiredArray(projection, "capabilities").size() == 26
                         && requiredArray(projection, "accessPolicies").size() == 1
                         && requiredArray(projection, "entitlementExpressions").size() == 1
                         && requiredArray(projection, "predicatePolicies").size() == 1,
-                "Workplace v21 PEP release counts changed.");
+                "Workplace v24 PEP release counts changed.");
         ObjectNode payload = projection.deepCopy();
         JsonNode expected = payload.remove("projectionChecksum");
         require(expected != null && expected.asText().equals(sha256(payload)),
-                "Workplace v21 PEP projection checksum mismatch.");
+                "Workplace v24 PEP projection checksum mismatch.");
     }
 
     private List<Binding> compile(ObjectNode projection) {
@@ -271,8 +271,8 @@ public final class PlatformWorkplaceProductPepRegistry {
     private void validateClosure() {
         Set<String> routeKeys = bindings.stream().map(Binding::routeContractKey)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        require(routeKeys.size() == 304 && bindings.size() == 306,
-                "Workplace PEP route or binding closure drifted from v21.");
+        require(routeKeys.size() == 326 && bindings.size() == 328,
+                "Workplace PEP route or binding closure drifted from v24.");
         require(routeKeys.containsAll(Set.of(
                         "route.workplace.work.home.page",
                         "route.workplace.work.wayfinding.page",
@@ -296,7 +296,7 @@ public final class PlatformWorkplaceProductPepRegistry {
                         "route.workplace.management.policy.page",
                         "route.workplace.management.room-operations.page",
                         "route.workplace.management.room-policy.page")),
-                "Workplace v21 page closure is incomplete.");
+                "Workplace v24 page closure is incomplete.");
         require(bindings.stream().map(Binding::routeKind).collect(
                         java.util.stream.Collectors.toSet())
                         .equals(Set.of("PAGE", "DATA", "ACTION")),
@@ -313,7 +313,7 @@ public final class PlatformWorkplaceProductPepRegistry {
                         .map(binding -> binding.method() + " " + binding.servicePath())
                         .collect(java.util.stream.Collectors.toSet())
                         .equals(EXACT_ROOM_BINDINGS),
-                "Workplace v21 exact room support closure drifted.");
+                "Workplace v24 exact room support closure drifted.");
 
         Map<String, Set<String>> methodPaths = new LinkedHashMap<>();
         for (Binding binding : bindings) {

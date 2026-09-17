@@ -145,7 +145,8 @@ class NotificationNoiseQualityHistoryPostgresIntegrationTest {
                                         List.of("APP.MESSAGING:VIEW"))),
                         "approvals=APP.APPROVALS:VIEW,hcm=APP.HCM:VIEW,"
                                 + "messaging=APP.MESSAGING:VIEW,space=APP.SPACES:VIEW,"
-                                + "meetings=APP.MEETINGS:VIEW,workplace=APP.WORKPLACE:VIEW");
+                                + "meetings=APP.MEETINGS:VIEW,workplace=APP.WORKPLACE:VIEW,"
+                                + "mail=APP.MAIL:VIEW");
         materializer = new DirectNotificationMaterializer(
                 materializationTransactions,
                 new NotificationProducerOwnershipPolicy(

@@ -522,6 +522,10 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
 
     private boolean hasWorkplaceAdminAuthority(HttpServletRequest request) {
         String path = request.getRequestURI();
+        if (isWorkplaceBoardReportExport(path)) {
+            return hasAuthority(
+                    request.getHeader(PERMISSIONS_HEADER), "ADMIN.WORKPLACE", "EXPORT");
+        }
         String requiredPermission = switch (request.getMethod()) {
             case "GET", "HEAD" -> isWorkplaceConnectorReplayStatus(path)
                     ? "MANAGE" : "VIEW";
@@ -533,6 +537,15 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         };
         return hasAuthority(
                 request.getHeader(PERMISSIONS_HEADER), "ADMIN.WORKPLACE", requiredPermission);
+    }
+
+    private boolean isWorkplaceBoardReportExport(String path) {
+        String base = "/v1/admin/workplace/space-planning/reports";
+        return path.equals(base)
+                || path.equals(base + ":preview")
+                || path.matches("^" + base
+                + "/[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}"
+                + "-[89aAbB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}(/content)?$");
     }
 
     private boolean isSensitiveWorkplaceOperation(String path) {
@@ -585,13 +598,54 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     }
 
     private boolean hasMailAdminAuthority(HttpServletRequest request) {
-        String requiredPermission = switch (request.getMethod()) {
-            case "GET", "HEAD" -> "VIEW";
-            case "POST", "PUT", "PATCH", "DELETE" -> "MANAGE";
-            default -> "MANAGE";
-        };
+        String requiredPermission = mailAdminPermission(
+                request.getMethod(), request.getRequestURI());
         return hasAuthority(
                 request.getHeader(PERMISSIONS_HEADER), "ADMIN.MAIL", requiredPermission);
+    }
+
+    private String mailAdminPermission(String method, String path) {
+        if (path.startsWith("/v1/admin/mail/writing-assets")) {
+            if ("GET".equals(method) || "HEAD".equals(method)) return "VIEW";
+            if (path.endsWith("/submit")) return "WRITING_ASSET_SUBMIT";
+            if (path.endsWith("/approve")) return "WRITING_ASSET_APPROVE";
+            if (path.endsWith("/publish")) return "WRITING_ASSET_PUBLISH";
+            if (path.endsWith("/retire")) return "WRITING_ASSET_RETIRE";
+            return "WRITING_ASSET_EDIT";
+        }
+        if (path.startsWith("/v1/admin/mail/delivery-audit")) {
+            if (path.contains("/exports")) return "EXPORT";
+            if ("GET".equals(method) || "HEAD".equals(method)) return "AUDIT_READ";
+            return "RECOVERY";
+        }
+        if (path.startsWith("/v1/admin/mail/retention/holds")) {
+            return "GET".equals(method) || "HEAD".equals(method)
+                    ? "VIEW" : "HOLD_MANAGE";
+        }
+        if (path.startsWith("/v1/admin/mail/retention/purge-previews")
+                || path.contains("/retention/purges/") && path.endsWith("/approvals")
+                || path.startsWith("/v1/admin/mail/retention/purge-jobs")) {
+            return "PURGE_AUTHORIZE";
+        }
+        if (path.contains("/retention/purges/") && path.endsWith("/execute")) {
+            return "PURGE_EXECUTE";
+        }
+        if (path.startsWith("/v1/admin/mail/connections")) {
+            return "GET".equals(method) || "HEAD".equals(method)
+                    ? "VIEW" : "CONNECTION_MANAGE";
+        }
+        if (path.startsWith("/v1/admin/mail/shared-inboxes")) {
+            return "GET".equals(method) || "HEAD".equals(method)
+                    ? "VIEW" : "SHARED_INBOX_MANAGE";
+        }
+        if (path.equals("/v1/admin/mail/policy")
+                && !("GET".equals(method) || "HEAD".equals(method))) {
+            return "POLICY_MANAGE";
+        }
+        return switch (method) {
+            case "GET", "HEAD" -> "VIEW";
+            default -> "MANAGE";
+        };
     }
 
     private boolean hasDwaionAgentAdminAuthority(HttpServletRequest request) {

@@ -2,6 +2,7 @@ package com.dwp.services.platform.mail;
 
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.UUID;
 
 import static com.dwp.services.platform.mail.MailTypes.DeliveryMode.SEND;
@@ -57,6 +58,26 @@ class MailSendCommandFingerprintTest {
         assertThat(fingerprints.reply(
                 7L, threadId, new MailDtos.ReplyRequest("changed body", key)))
                 .isNotEqualTo(baseline);
+        assertThat(fingerprints.reply(
+                7L, threadId, new MailDtos.ReplyRequest(
+                        "same body", key, "REPLY_ALL", List.of(
+                        new MailWorkspaceDtos.Recipient(
+                                MailWorkspaceDtos.RecipientType.TO,
+                                "Recipient", "recipient@example.com")))))
+                .isNotEqualTo(baseline);
+        String replyAll = fingerprints.reply(
+                7L, threadId, new MailDtos.ReplyRequest(
+                        "same body", key, "REPLY_ALL", List.of(
+                        new MailWorkspaceDtos.Recipient(
+                                MailWorkspaceDtos.RecipientType.TO,
+                                "Recipient", "recipient@example.com"))));
+        assertThat(fingerprints.reply(
+                7L, threadId, new MailDtos.ReplyRequest(
+                        "same body", key, "REPLY_ALL", List.of(
+                        new MailWorkspaceDtos.Recipient(
+                                MailWorkspaceDtos.RecipientType.TO,
+                                "Other", "other@example.com")))))
+                .isNotEqualTo(replyAll);
     }
 
     @Test

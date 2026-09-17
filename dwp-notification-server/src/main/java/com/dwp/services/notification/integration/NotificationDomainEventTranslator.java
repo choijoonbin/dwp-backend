@@ -45,7 +45,8 @@ public class NotificationDomainEventTranslator {
     public NotificationDomainEventTranslator(
             ObjectMapper objectMapper,
             @Value("${dwp.notification.domain-events.producer-sources:"
-                    + "urn:dwp:messaging=dwp-messaging-server}") String producerSources) {
+                    + "urn:dwp:messaging=dwp-messaging-server,"
+                    + "urn:dwp:platform:mail=dwp-platform-server}") String producerSources) {
         this.objectMapper = objectMapper;
         this.producerSources = parseProducerSources(producerSources);
     }

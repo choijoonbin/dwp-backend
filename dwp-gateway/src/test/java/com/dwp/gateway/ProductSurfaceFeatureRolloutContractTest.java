@@ -4,6 +4,7 @@ import com.dwp.gateway.filter.ProductSurfaceRolloutHeaderFilter;
 import com.dwp.gateway.filter.ProviderServiceIdentityFilter;
 import com.dwp.gateway.filter.VerifiedIdentityFilter;
 import com.dwp.gateway.productsurface.FeatureRolloutDecisionCache;
+import com.dwp.gateway.productsurface.FeatureRolloutApplicationReceiptClient;
 import com.dwp.gateway.productsurface.FeatureRolloutEvaluationClient;
 import com.dwp.gateway.productsurface.FeatureRolloutInvalidationConsumer;
 import com.dwp.gateway.productsurface.GeneratedProductRouteCatalog;
@@ -40,6 +41,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -324,6 +326,83 @@ class ProductSurfaceFeatureRolloutContractTest {
                 .isEqualTo("trusted-provider-service-token");
         assertThat(captured.get().headers().getFirst("X-DWP-Service-Identity"))
                 .isEqualTo("dwp-gateway");
+    }
+
+    @Test
+    void authoritativeDecisionEmitsOneReceiptAfterCacheAcceptanceAndNoneOnCacheHit() {
+        String flag = FeatureRolloutEvaluationClient.uiFlag("approvals");
+        ExchangeFunction exchange = request -> Mono.just(ClientResponse.create(HttpStatus.OK)
+                .header("Content-Type", "application/json")
+                .body("""
+                        {"success":true,"data":{
+                          "flagKey":"ux.product-surfaces.approvals.v1",
+                          "enabled":true,
+                          "reasonCode":"ROLLOUT_MATCH",
+                          "opaqueRevision":"rev-00000000000000000009",
+                          "cohort":"eligible-25",
+                          "evaluatedAt":"2026-08-24T00:00:00Z"
+                        }}
+                        """)
+                .build());
+        FeatureRolloutApplicationReceiptClient receipts =
+                mock(FeatureRolloutApplicationReceiptClient.class);
+        when(receipts.applied(anyLong(), any(), any())).thenReturn(Mono.empty());
+        FeatureRolloutEvaluationClient client = new FeatureRolloutEvaluationClient(
+                WebClient.builder().exchangeFunction(exchange),
+                new FeatureRolloutDecisionCache(Duration.ofSeconds(60), 100),
+                mock(ProductSurfaceRolloutSafetyLatch.class),
+                receipts,
+                "http://provider.test",
+                "trusted-provider-service-token",
+                Duration.ofSeconds(2));
+        var metadata = metadata();
+
+        FeatureRolloutDecisionCache.FlagDecision result =
+                client.evaluate(7L, flag, metadata).block();
+        FeatureRolloutDecisionCache.FlagDecision cached =
+                client.evaluate(7L, flag, metadata).block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.authoritative()).isTrue();
+        assertThat(cached).isEqualTo(result);
+        verify(receipts, times(1)).applied(7L, result, metadata);
+    }
+
+    @Test
+    void receiptFailureDoesNotChangeTheAlreadyAppliedAuthorityDecision() {
+        String flag = FeatureRolloutEvaluationClient.uiFlag("approvals");
+        ExchangeFunction exchange = request -> Mono.just(ClientResponse.create(HttpStatus.OK)
+                .header("Content-Type", "application/json")
+                .body("""
+                        {"success":true,"data":{
+                          "flagKey":"ux.product-surfaces.approvals.v1",
+                          "enabled":true,
+                          "reasonCode":"ROLLOUT_MATCH",
+                          "opaqueRevision":"rev-00000000000000000009",
+                          "cohort":"eligible-25",
+                          "evaluatedAt":"2026-08-24T00:00:00Z"
+                        }}
+                        """)
+                .build());
+        FeatureRolloutApplicationReceiptClient receipts =
+                mock(FeatureRolloutApplicationReceiptClient.class);
+        when(receipts.applied(anyLong(), any(), any()))
+                .thenReturn(Mono.error(new IllegalStateException("receipt unavailable")));
+        FeatureRolloutEvaluationClient client = new FeatureRolloutEvaluationClient(
+                WebClient.builder().exchangeFunction(exchange),
+                new FeatureRolloutDecisionCache(Duration.ofSeconds(60), 100),
+                mock(ProductSurfaceRolloutSafetyLatch.class),
+                receipts,
+                "http://provider.test",
+                "trusted-provider-service-token",
+                Duration.ofSeconds(2));
+
+        FeatureRolloutDecisionCache.FlagDecision result =
+                client.evaluate(7L, flag, metadata()).block();
+
+        assertThat(result).isNotNull();
+        assertThat(result.authoritative()).isTrue();
+        assertThat(result.enabled()).isTrue();
     }
 
     @Test

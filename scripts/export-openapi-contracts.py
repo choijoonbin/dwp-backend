@@ -21,9 +21,9 @@ CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 AGENT_AI_CONTROL_SNAPSHOT = CONTRACT_ROOT / "agent-ai-control.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v21.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v24.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 21
+PRODUCT_AUTHORIZATION_VERSION = 24
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 TELEMETRY_PUBLIC_PATH = "/api/platform/v1/observability/product-surface-events"
 TELEMETRY_TRUSTED_HEADERS = {"X-DWP-Tenant-ID", "X-DWP-Rollout-Cohort"}

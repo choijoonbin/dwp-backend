@@ -84,6 +84,7 @@ class MailAddressBookPostgresIntegrationTest {
                 addressBook.recipients(owner.tenantId(), owner.userId(), groupId);
         var send = new MailAddressBookDtos.GroupMessageRequest(
                 "Launch", "Please review the launch plan.", INTERNAL,
+                MailAddressBookDtos.GroupRecipientMode.TO,
                 UUID.randomUUID(), revised.version());
         MailGroupComposeRepository compose = new MailGroupComposeRepository(
                 jdbc, new MailJsonCodec(new ObjectMapper()));
@@ -97,7 +98,10 @@ class MailAddressBookPostgresIntegrationTest {
         Map<String, Object> persisted = jdbc.queryForMap("""
                 SELECT jsonb_array_length(thread.participants) AS participant_count,
                        jsonb_array_length(message.recipients) AS recipient_count,
-                       delivery.delivery_status
+                       message.recipients -> 0 ->> 'type' AS recipient_mode,
+                       delivery.delivery_status,
+                       history.receipt_state,
+                       history.recipient_mode AS history_recipient_mode
                   FROM mail_threads thread
                   JOIN mail_messages message
                     ON message.tenant_id = thread.tenant_id
@@ -105,12 +109,24 @@ class MailAddressBookPostgresIntegrationTest {
                   JOIN mail_delivery_outbox delivery
                     ON delivery.tenant_id = thread.tenant_id
                    AND delivery.thread_id = thread.thread_id
+                  JOIN mail_group_send_history history
+                    ON history.tenant_id = thread.tenant_id
+                   AND history.thread_id = thread.thread_id
                  WHERE thread.tenant_id = ? AND thread.thread_id = ?
                 """, owner.tenantId(), delivery.threadId());
         assertThat(persisted)
                 .containsEntry("participant_count", 2)
                 .containsEntry("recipient_count", 2)
-                .containsEntry("delivery_status", "QUEUED");
+                .containsEntry("recipient_mode", "TO")
+                .containsEntry("delivery_status", "QUEUED")
+                .containsEntry("receipt_state", "ACCEPTED")
+                .containsEntry("history_recipient_mode", "TO");
+        assertThat(delivery.receipt()).isNotNull();
+        assertThat(delivery.receipt().recipientMode())
+                .isEqualTo(MailAddressBookDtos.GroupRecipientMode.TO);
+        assertThat(compose.history(owner.tenantId(), owner.userId(), groupId, 20))
+                .extracting(MailAddressBookDtos.GroupSendReceipt::receiptId)
+                .containsExactly(delivery.receipt().receiptId());
 
         jdbc.update("""
                 UPDATE mail_messages
@@ -129,6 +145,10 @@ class MailAddressBookPostgresIntegrationTest {
                 .orElseThrow();
         assertThat(claimed.recipients()).containsExactly(
                 "kim.updated@example.com", "lee.external@example.com");
+        assertThat(claimed.toRecipients()).containsExactly(
+                "kim.updated@example.com", "lee.external@example.com");
+        assertThat(claimed.ccRecipients()).isEmpty();
+        assertThat(claimed.bccRecipients()).isEmpty();
         assertThatThrownBy(() -> jdbc.update("""
                 UPDATE mail_group_recipient_snapshots
                    SET recipient_count = 1
@@ -245,6 +265,7 @@ class MailAddressBookPostgresIntegrationTest {
                 .locations(
                         "filesystem:src/main/resources/db/migration",
                         "filesystem:../dwp-core/src/main/resources/db/migration")
+                .target("282")
                 .cleanDisabled(false)
                 .load();
         flyway.clean();

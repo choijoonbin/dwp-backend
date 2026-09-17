@@ -643,6 +643,12 @@ public abstract class WorkplaceBookingOrchestrationRepositorySupport {
             long actorUserId, long beneficiaryUserId, HoldState state,
             OffsetDateTime startsAt, OffsetDateTime endsAt, OffsetDateTime expiresAt,
             long version, OffsetDateTime createdAt, OffsetDateTime updatedAt) { }
+    public record HoldReleaseCommandRow(
+            UUID commandId, long tenantId, long actorUserId, UUID intentId,
+            String idempotencyKey, String requestFingerprint, HoldReleaseCommandState state,
+            List<UUID> releasedHoldIds, long intentVersion, String reason,
+            boolean explicitConfirmation, String correlationId,
+            OffsetDateTime createdAt, OffsetDateTime completedAt) { }
     public record BatchRow(
             UUID batchId, long tenantId, UUID intentId, long actorUserId, BatchState state,
             FailurePolicy failurePolicy, String reason, boolean explicitConfirmation,

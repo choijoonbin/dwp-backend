@@ -43,4 +43,21 @@ class MailQueryRepositoryTest {
                 .satisfies(recipient -> assertThat(recipient)
                         .containsEntry("email", "hidden@example.com"));
     }
+
+    @Test
+    void outboundRecipientsHideBccFromAnotherSharedMailboxReader() {
+        List<Map<String, Object>> recipients = repository.visibleRecipients(
+                "OUTBOUND",
+                """
+                [
+                  {"type":"TO","email":"visible@example.com"},
+                  {"type":"BCC","email":"hidden@example.com"}
+                ]
+                """,
+                false);
+
+        assertThat(recipients)
+                .extracting(recipient -> recipient.get("email"))
+                .containsExactly("visible@example.com");
+    }
 }

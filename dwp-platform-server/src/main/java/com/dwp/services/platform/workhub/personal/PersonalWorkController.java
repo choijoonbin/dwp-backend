@@ -2,6 +2,7 @@ package com.dwp.services.platform.workhub.personal;
 
 import io.swagger.v3.oas.annotations.Parameter;
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.platform.mail.MailProposalHandoffBinding;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -63,8 +64,14 @@ public class PersonalWorkController {
     public ApiResponse<Task> create(@Parameter(hidden = true) @ModelAttribute(value = "personalWorkContext", binding = false) AccessContext context,
             @RequestHeader("Idempotency-Key") UUID commandId,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "X-DWP-Mail-Proposal-ID", required = false) UUID mailProposalId,
+            @RequestHeader(value = "X-DWP-Mail-Command-ID", required = false) UUID mailCommandId,
+            @RequestHeader(value = "X-DWP-Mail-Proposal-Version", required = false) Long mailProposalVersion,
             @Valid @RequestBody CreateTaskRequest request) {
-        return ApiResponse.success(service.create(context, commandId, correlationId, request));
+        return ApiResponse.success(service.create(
+                context, commandId, correlationId, request,
+                MailProposalHandoffBinding.optional(
+                        mailProposalId, mailCommandId, mailProposalVersion)));
     }
 
     @PutMapping("/personal-tasks/{taskId}")

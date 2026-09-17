@@ -177,7 +177,7 @@ class WorkplaceProductSurfacePepContractTest {
     }
 
     @Test
-    void v21PageDataAndActionBindingsReachActualWorkplaceRoutes()
+    void v24PageDataAndActionBindingsReachActualWorkplaceRoutes()
             throws Exception {
         mvc.perform(exactExplore())
                 .andExpect(status().isOk())
@@ -219,7 +219,7 @@ class WorkplaceProductSurfacePepContractTest {
                     assertThat(binding.servicePath()).startsWith("/v1/");
                     assertThat(binding.resolvedAuthorities()).isNotEmpty();
                 });
-        assertThat(registry.bindingContracts()).hasSize(306);
+        assertThat(registry.bindingContracts()).hasSize(328);
         assertThat(registry.bindingContracts())
                 .extracting(
                         PlatformWorkplaceProductPepRegistry.BindingContract::routeContractKey,
@@ -276,6 +276,94 @@ class WorkplaceProductSurfacePepContractTest {
                                 "route.workplace.work.booking-intent-hold.action", "ACTION", "POST",
                                 "/api/platform/v1/workplace/booking-intents/{intentId}/holds",
                                 "/v1/workplace/booking-intents/{intentId}/holds"),
+                        tuple(
+                                "route.workplace.work.booking-intent-holds-release.action", "ACTION", "POST",
+                                "/api/platform/v1/workplace/booking-orchestration/intents/{intentId}/holds:release",
+                                "/v1/workplace/booking-orchestration/intents/{intentId}/holds:release"),
+                        tuple(
+                                "route.workplace.work.resource-favorites-get.data", "DATA", "GET",
+                                "/api/platform/v1/workplace/resource-favorites",
+                                "/v1/workplace/resource-favorites"),
+                        tuple(
+                                "route.workplace.work.resource-favorite-set.action", "ACTION", "PUT",
+                                "/api/platform/v1/workplace/resources/{resourceId}/favorite",
+                                "/v1/workplace/resources/{resourceId}/favorite"),
+                        tuple(
+                                "route.workplace.work.resource-command-context.data", "DATA", "GET",
+                                "/api/platform/v1/workplace/bookings/{bookingId}/resource-command-context",
+                                "/v1/workplace/bookings/{bookingId}/resource-command-context"),
+                        tuple(
+                                "route.workplace.work.resource-command-preview.action", "ACTION", "POST",
+                                "/api/platform/v1/workplace/bookings/{bookingId}/resource-commands:preview",
+                                "/v1/workplace/bookings/{bookingId}/resource-commands:preview"),
+                        tuple(
+                                "route.workplace.work.resource-command-preview-get.data", "DATA", "GET",
+                                "/api/platform/v1/workplace/bookings/{bookingId}/resource-command-previews/{previewId}",
+                                "/v1/workplace/bookings/{bookingId}/resource-command-previews/{previewId}"),
+                        tuple(
+                                "route.workplace.work.resource-command-execute.action", "ACTION", "POST",
+                                "/api/platform/v1/workplace/bookings/{bookingId}/resource-commands",
+                                "/v1/workplace/bookings/{bookingId}/resource-commands"),
+                        tuple(
+                                "route.workplace.work.resource-command-receipt.data", "DATA", "GET",
+                                "/api/platform/v1/workplace/bookings/{bookingId}/resource-commands/{commandId}",
+                                "/v1/workplace/bookings/{bookingId}/resource-commands/{commandId}"),
+                        tuple(
+                                "route.workplace.work.resource-command-reconcile.action", "ACTION", "POST",
+                                "/api/platform/v1/workplace/bookings/{bookingId}/resource-commands/{commandId}:reconcile",
+                                "/v1/workplace/bookings/{bookingId}/resource-commands/{commandId}:reconcile"),
+                        tuple(
+                                "route.workplace.management.space-planning-report-preview.data", "DATA", "POST",
+                                "/api/platform/v1/admin/workplace/space-planning/reports:preview",
+                                "/v1/admin/workplace/space-planning/reports:preview"),
+                        tuple(
+                                "route.workplace.management.space-planning-report-execute.action", "ACTION", "POST",
+                                "/api/platform/v1/admin/workplace/space-planning/reports",
+                                "/v1/admin/workplace/space-planning/reports"),
+                        tuple(
+                                "route.workplace.management.space-planning-report-receipt.data", "DATA", "GET",
+                                "/api/platform/v1/admin/workplace/space-planning/reports/{commandId}",
+                                "/v1/admin/workplace/space-planning/reports/{commandId}"),
+                        tuple(
+                                "route.workplace.management.space-planning-report-content.data", "DATA", "GET",
+                                "/api/platform/v1/admin/workplace/space-planning/reports/{commandId}/content",
+                                "/v1/admin/workplace/space-planning/reports/{commandId}/content"),
+                        tuple(
+                                "route.workplace.work.safety-incidents-by-incident-id-emergency-contacts-get.data", "DATA", "GET",
+                                "/api/platform/v1/workplace/safety/incidents/{incidentId}/emergency-contacts",
+                                "/v1/workplace/safety/incidents/{incidentId}/emergency-contacts"),
+                        tuple(
+                                "route.workplace.management.safety-emergency-contacts-get.data", "DATA", "GET",
+                                "/api/platform/v1/admin/workplace/safety/emergency-contacts",
+                                "/v1/admin/workplace/safety/emergency-contacts"),
+                        tuple(
+                                "route.workplace.management.safety-emergency-contacts-by-contact-id-get.data", "DATA", "GET",
+                                "/api/platform/v1/admin/workplace/safety/emergency-contacts/{contactId}",
+                                "/v1/admin/workplace/safety/emergency-contacts/{contactId}"),
+                        tuple(
+                                "route.workplace.management.safety-emergency-contacts-by-contact-id-put.action", "ACTION", "PUT",
+                                "/api/platform/v1/admin/workplace/safety/emergency-contacts/{contactId}",
+                                "/v1/admin/workplace/safety/emergency-contacts/{contactId}"),
+                        tuple(
+                                "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-preview-post.action", "ACTION", "POST",
+                                "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs:preview",
+                                "/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs:preview"),
+                        tuple(
+                                "route.workplace.management.safety-incidents-by-incident-id-emergency-handoff-previews-by-preview-id-get.data", "DATA", "GET",
+                                "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoff-previews/{previewId}",
+                                "/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoff-previews/{previewId}"),
+                        tuple(
+                                "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-post.action", "ACTION", "POST",
+                                "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs",
+                                "/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs"),
+                        tuple(
+                                "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-by-command-id-get.data", "DATA", "GET",
+                                "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs/{commandId}",
+                                "/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs/{commandId}"),
+                        tuple(
+                                "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-by-command-id-reconcile-post.action", "ACTION", "POST",
+                                "/api/platform/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs/{commandId}:reconcile",
+                                "/v1/admin/workplace/safety/incidents/{incidentId}/emergency-handoffs/{commandId}:reconcile"),
                         tuple(
                                 "route.workplace.work.booking-batch-start.action", "ACTION", "POST",
                                 "/api/platform/v1/workplace/booking-batches",

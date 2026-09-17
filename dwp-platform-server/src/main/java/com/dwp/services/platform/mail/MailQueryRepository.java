@@ -19,6 +19,28 @@ class MailQueryRepository {
 
     enum SharedInboxPermission { READ, SEND, ASSIGN, MANAGE }
 
+    record ProposalHandoffRow(
+            UUID proposalId,
+            UUID commandId,
+            String ownerRoute,
+            String ownerState,
+            String resultRef,
+            OffsetDateTime updatedAt,
+            long version) {
+    }
+
+    record OwnerProposalHandoffRow(
+            UUID proposalId,
+            UUID commandId,
+            ProposalType proposalType,
+            Long decidedBy,
+            String ownerRoute,
+            String ownerState,
+            String resultRef,
+            OffsetDateTime updatedAt,
+            long version) {
+    }
+
     private final JdbcTemplate jdbc;
     private final MailJsonCodec json;
 
@@ -32,14 +54,19 @@ class MailQueryRepository {
                 SELECT account.account_id, account.email_address, account.display_name,
                        account.account_kind, connection.provider_type,
                        account.connection_state, account.synchronization_state,
-                       account.is_default
+                       CASE WHEN preference.default_account_id IS NOT NULL
+                            THEN account.account_id = preference.default_account_id
+                            ELSE account.is_default END AS is_default
                   FROM mail_accounts account
                   JOIN mail_provider_connections connection
                     ON connection.tenant_id = account.tenant_id
                    AND connection.connection_id = account.connection_id
+                  LEFT JOIN mail_user_preferences preference
+                    ON preference.tenant_id = account.tenant_id
+                   AND preference.user_id = ?
                  WHERE account.tenant_id = ?
                 """ + MailAccessSql.ACCOUNT_ACCESS + """
-                 ORDER BY account.is_default DESC, account.account_kind, account.display_name
+                 ORDER BY is_default DESC, account.account_kind, account.display_name
                 """, (result, ignored) -> new MailDtos.AccountSummary(
                 result.getObject("account_id", UUID.class),
                 result.getString("email_address"),
@@ -48,7 +75,7 @@ class MailQueryRepository {
                 ProviderType.valueOf(result.getString("provider_type")),
                 result.getString("connection_state"),
                 result.getString("synchronization_state"),
-                result.getBoolean("is_default")), tenantId, userId, userId);
+                result.getBoolean("is_default")), userId, tenantId, userId, userId);
     }
 
     List<MailDtos.ThreadSummary> threads(
@@ -104,7 +131,12 @@ class MailQueryRepository {
                    ))
                    AND (? = FALSE OR thread.shared_inbox_id IS NOT NULL)
                    AND (? = '' OR LOWER(thread.subject) LIKE ? OR LOWER(thread.preview) LIKE ?
-                        OR LOWER(thread.participants::text) LIKE ?)
+                        OR EXISTS (
+                            SELECT 1
+                              FROM jsonb_array_elements(thread.participants) participant(value)
+                             WHERE UPPER(TRIM(COALESCE(participant.value ->> 'type', 'TO')))
+                                   <> 'BCC'
+                               AND LOWER(participant.value::text) LIKE ?))
                  ORDER BY
                        CASE thread.importance
                            WHEN 'URGENT' THEN 0 WHEN 'HIGH' THEN 1
@@ -202,7 +234,12 @@ class MailQueryRepository {
                           AND selected_membership.folder_id = ?::uuid))
                    AND (? = FALSE OR thread.shared_inbox_id IS NOT NULL)
                    AND (? = '' OR LOWER(thread.subject) LIKE ? OR LOWER(thread.preview) LIKE ?
-                        OR LOWER(thread.participants::text) LIKE ?)
+                        OR EXISTS (
+                            SELECT 1
+                              FROM jsonb_array_elements(thread.participants) participant(value)
+                             WHERE UPPER(TRIM(COALESCE(participant.value ->> 'type', 'TO')))
+                                   <> 'BCC'
+                               AND LOWER(participant.value::text) LIKE ?))
                    AND (?::uuid IS NULL OR thread.account_id = ?::uuid)
                    AND (? = '' OR account.account_kind = ?)
                    AND (?::uuid IS NULL OR thread.shared_inbox_id = ?::uuid)
@@ -215,10 +252,14 @@ class MailQueryRepository {
                           AND searched_sender.thread_id = thread.thread_id
                           AND LOWER(searched_sender.sender_email) LIKE ?))
                    AND (? = '' OR EXISTS (
-                       SELECT 1 FROM mail_messages searched_recipient
+                       SELECT 1
+                         FROM mail_messages searched_recipient
+                         CROSS JOIN LATERAL jsonb_array_elements(
+                             searched_recipient.recipients) recipient(value)
                         WHERE searched_recipient.tenant_id = thread.tenant_id
                           AND searched_recipient.thread_id = thread.thread_id
-                          AND LOWER(searched_recipient.recipients::text) LIKE ?))
+                          AND UPPER(TRIM(COALESCE(recipient.value ->> 'type', 'TO'))) <> 'BCC'
+                          AND LOWER(recipient.value::text) LIKE ?))
                    AND (?::date IS NULL OR thread.latest_message_at >= ?::date)
                    AND (?::date IS NULL OR thread.latest_message_at < (?::date + INTERVAL '1 day'))
                    AND (?::boolean IS NULL OR thread.unread = ?::boolean)
@@ -341,7 +382,12 @@ class MailQueryRepository {
                    ))
                    AND (? = FALSE OR thread.shared_inbox_id IS NOT NULL)
                    AND (? = '' OR LOWER(thread.subject) LIKE ? OR LOWER(thread.preview) LIKE ?
-                        OR LOWER(thread.participants::text) LIKE ?)
+                        OR EXISTS (
+                            SELECT 1
+                              FROM jsonb_array_elements(thread.participants) participant(value)
+                             WHERE UPPER(TRIM(COALESCE(participant.value ->> 'type', 'TO')))
+                                   <> 'BCC'
+                               AND LOWER(participant.value::text) LIKE ?))
                 """, Long.class,
                 tenantId, userId, userId,
                 lane, lane,
@@ -364,6 +410,7 @@ class MailQueryRepository {
         return jdbc.query("""
                 SELECT message.message_id, message.sender_email, message.sender_name,
                        message.recipients::text, message.message_direction,
+                       message.created_by,
                        message.body_format, message.body_content,
                        message.attachments::text, message.sent_at,
                        CASE
@@ -395,7 +442,8 @@ class MailQueryRepository {
                 result.getString("sender_name"),
                 visibleRecipients(
                         result.getString("message_direction"),
-                        result.getString("recipients")),
+                        result.getString("recipients"),
+                        result.getLong("created_by") == userId),
                 result.getString("message_direction"),
                 result.getString("body_format"),
                 result.getString("body_content"),
@@ -407,8 +455,14 @@ class MailQueryRepository {
     }
 
     List<Map<String, Object>> visibleRecipients(String direction, String recipientsJson) {
+        return visibleRecipients(
+                direction, recipientsJson, !"INBOUND".equalsIgnoreCase(direction));
+    }
+
+    List<Map<String, Object>> visibleRecipients(
+            String direction, String recipientsJson, boolean senderView) {
         List<Map<String, Object>> recipients = json.mapList(recipientsJson);
-        if (!"INBOUND".equalsIgnoreCase(direction)) return recipients;
+        if (!"INBOUND".equalsIgnoreCase(direction) && senderView) return recipients;
         return recipients.stream()
                 .filter(recipient -> recipient.entrySet().stream().noneMatch(entry ->
                         "type".equalsIgnoreCase(entry.getKey())
@@ -474,7 +528,8 @@ class MailQueryRepository {
             SharedInboxPermission permission) {
         String permissionPredicate = switch (permission) {
             case READ -> "access_grant.can_read = TRUE";
-            case SEND -> "(access_grant.can_send_as = TRUE OR access_grant.can_send_on_behalf = TRUE)";
+            case SEND -> "(access_grant.can_send_as = TRUE "
+                    + "OR access_grant.can_send_on_behalf = TRUE)";
             case ASSIGN -> "access_grant.can_assign = TRUE";
             case MANAGE -> "access_grant.can_manage = TRUE";
         };
@@ -619,7 +674,7 @@ class MailQueryRepository {
                    AND proposal.proposal_status = 'PROPOSED' AND proposal.version = ?
                    AND thread.tenant_id = proposal.tenant_id
                    AND thread.thread_id = proposal.thread_id
-                """ + MailAccessSql.THREAD_ACCESS,
+                """ + MailAccessSql.THREAD_MANAGE_ACCESS,
                 json.write(payload), userId, tenantId, proposalId, version, userId, userId);
     }
 
@@ -644,6 +699,61 @@ class MailQueryRepository {
                 """ + MailAccessSql.THREAD_ACCESS,
                 (result, ignored) -> proposal(result), tenantId, proposalId, userId, userId)
                 .stream().findFirst();
+    }
+
+    Optional<ProposalHandoffRow> proposalHandoff(
+            Long tenantId, Long userId, UUID proposalId) {
+        return jdbc.query("""
+                SELECT proposal.proposal_id, proposal.owner_command_id,
+                       proposal.target_route, proposal.owner_state,
+                       proposal.result_ref, proposal.owner_updated_at,
+                       proposal.version
+                  FROM mail_action_proposals proposal
+                  JOIN mail_threads thread
+                    ON thread.tenant_id = proposal.tenant_id
+                   AND thread.thread_id = proposal.thread_id
+                  JOIN mail_accounts account
+                    ON account.tenant_id = thread.tenant_id
+                   AND account.account_id = thread.account_id
+                 WHERE proposal.tenant_id = ? AND proposal.proposal_id = ?
+                   AND proposal.owner_command_id IS NOT NULL
+                   AND proposal.owner_state IS NOT NULL
+                """ + MailAccessSql.THREAD_ACCESS,
+                (result, ignored) -> new ProposalHandoffRow(
+                        result.getObject("proposal_id", UUID.class),
+                        result.getObject("owner_command_id", UUID.class),
+                        result.getString("target_route"),
+                        result.getString("owner_state"),
+                        result.getString("result_ref"),
+                        result.getObject("owner_updated_at", OffsetDateTime.class),
+                        result.getLong("version")),
+                tenantId, proposalId, userId, userId).stream().findFirst();
+    }
+
+    Optional<OwnerProposalHandoffRow> ownerProposalHandoff(
+            long tenantId, UUID proposalId, boolean lock) {
+        String sql = """
+                SELECT proposal.proposal_id, proposal.owner_command_id,
+                       proposal.proposal_type, proposal.decided_by,
+                       proposal.target_route, proposal.owner_state,
+                       proposal.result_ref, proposal.owner_updated_at,
+                       proposal.version
+                  FROM mail_action_proposals proposal
+                 WHERE proposal.tenant_id = ? AND proposal.proposal_id = ?
+                   AND proposal.owner_command_id IS NOT NULL
+                   AND proposal.owner_state IS NOT NULL
+                """ + (lock ? " FOR UPDATE" : "");
+        return jdbc.query(sql, (result, ignored) -> new OwnerProposalHandoffRow(
+                        result.getObject("proposal_id", UUID.class),
+                        result.getObject("owner_command_id", UUID.class),
+                        ProposalType.valueOf(result.getString("proposal_type")),
+                        result.getObject("decided_by", Long.class),
+                        result.getString("target_route"),
+                        result.getString("owner_state"),
+                        result.getString("result_ref"),
+                        result.getObject("owner_updated_at", OffsetDateTime.class),
+                        result.getLong("version")),
+                tenantId, proposalId).stream().findFirst();
     }
 
     MailDtos.HomeMetrics metrics(Long tenantId, Long userId) {
@@ -896,6 +1006,11 @@ class MailQueryRepository {
     private MailDtos.ThreadSummary thread(ResultSet result) throws SQLException {
         List<MailDtos.Participant> participants = json.mapList(
                         result.getString("participants")).stream()
+                .filter(value -> value.entrySet().stream().noneMatch(entry ->
+                        "type".equalsIgnoreCase(entry.getKey())
+                                && entry.getValue() != null
+                                && "BCC".equalsIgnoreCase(
+                                String.valueOf(entry.getValue()).trim())))
                 .map(value -> new MailDtos.Participant(
                         String.valueOf(value.getOrDefault("name", "")),
                         String.valueOf(value.getOrDefault("email", ""))))

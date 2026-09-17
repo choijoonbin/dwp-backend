@@ -10,6 +10,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 import static com.dwp.services.platform.mail.MailTypes.ProviderType;
@@ -70,9 +71,29 @@ class MailDeliveryRepository {
                        account.account_id, account.provider_account_ref,
                        account.email_address AS sender_email,
                        account.display_name AS sender_name,
-                       thread.subject, message.body_content,
+                       thread.subject, message.body_format, message.body_content,
                        COALESCE(snapshot.recipients, message.recipients)::text AS recipients,
                        snapshot.recipients_sha256,
+                       jsonb_array_length(message.attachments) AS expected_attachment_count,
+                       COALESCE((
+                           SELECT jsonb_agg(jsonb_build_object(
+                                      'attachmentId', attachment.attachment_id,
+                                      'storageReference', attachment.storage_reference,
+                                      'fileName', attachment.file_name,
+                                      'contentType', attachment.content_type,
+                                      'sizeBytes', attachment.size_bytes,
+                                      'checksumSha256', attachment.checksum_sha256)
+                                      ORDER BY attachment.created_at, attachment.attachment_id)
+                             FROM mail_compose_attachments attachment
+                            WHERE attachment.tenant_id = leased.tenant_id
+                              AND attachment.thread_id = leased.thread_id
+                              AND attachment.scan_state = 'READY'
+                              AND EXISTS (
+                                  SELECT 1
+                                    FROM jsonb_array_elements(message.attachments) projected
+                                   WHERE projected ->> 'attachmentId'
+                                         = attachment.attachment_id::text)
+                       ), '[]'::jsonb)::text AS delivery_attachments,
                        (
                            SELECT previous.provider_message_ref
                              FROM mail_messages previous
@@ -102,29 +123,35 @@ class MailDeliveryRepository {
                     ON snapshot.tenant_id = leased.tenant_id
                    AND snapshot.delivery_id = leased.delivery_id
                  ORDER BY leased.created_at, leased.delivery_id
-                """, (result, ignored) -> new DeliveryJob(
-                result.getObject("delivery_id", UUID.class),
-                result.getLong("tenant_id"),
-                result.getObject("thread_id", UUID.class),
-                result.getObject("message_id", UUID.class),
-                result.getObject("idempotency_key", UUID.class),
-                result.getInt("attempt_count"),
-                result.getString("correlation_id"),
-                result.getLong("created_by"),
-                result.getObject("connection_id", UUID.class),
-                ProviderType.valueOf(result.getString("provider_type")),
-                uri(result.getString("credential_ref")),
-                result.getString("mail_domain"),
-                result.getObject("account_id", UUID.class),
-                result.getString("provider_account_ref"),
-                result.getString("sender_email"),
-                result.getString("sender_name"),
-                result.getString("subject"),
-                result.getString("body_content"),
-                recipients(
-                        result.getString("recipients"),
-                        result.getString("recipients_sha256")),
-                result.getString("reply_to_provider_message_ref")),
+                """, (result, ignored) -> {
+                    RecipientLists recipients = recipients(
+                            result.getString("recipients"),
+                            result.getString("recipients_sha256"));
+                    return new DeliveryJob(
+                            result.getObject("delivery_id", UUID.class),
+                            result.getLong("tenant_id"),
+                            result.getObject("thread_id", UUID.class),
+                            result.getObject("message_id", UUID.class),
+                            result.getObject("idempotency_key", UUID.class),
+                            result.getInt("attempt_count"),
+                            result.getString("correlation_id"),
+                            result.getLong("created_by"),
+                            result.getObject("connection_id", UUID.class),
+                            ProviderType.valueOf(result.getString("provider_type")),
+                            uri(result.getString("credential_ref")),
+                            result.getString("mail_domain"),
+                            result.getObject("account_id", UUID.class),
+                            result.getString("provider_account_ref"),
+                            result.getString("sender_email"),
+                            result.getString("sender_name"),
+                            result.getString("subject"),
+                            result.getString("body_format"),
+                            result.getString("body_content"),
+                            recipients.to(), recipients.cc(), recipients.bcc(),
+                            result.getInt("expected_attachment_count"),
+                            deliveryAttachments(result.getString("delivery_attachments")),
+                            result.getString("reply_to_provider_message_ref"));
+                },
                 batchSize, workerId, leaseSeconds);
     }
 
@@ -187,27 +214,89 @@ class MailDeliveryRepository {
                   FROM mail_threads thread, mail_accounts account
                  WHERE delivery.tenant_id = ? AND delivery.thread_id = ?
                    AND delivery.message_id = ? AND delivery.delivery_status = 'FAILED'
+                   AND delivery.accepted_at IS NULL
+                   AND delivery.provider_message_ref IS NULL
+                   AND delivery.provider_thread_ref IS NULL
+                   AND delivery.lease_owner IS NULL AND delivery.lease_expires_at IS NULL
+                   AND delivery.request_fingerprint IS NOT NULL
+                   AND COALESCE(delivery.last_error_code, '') <> 'MAIL_PROVIDER_RESULT_UNKNOWN'
                    AND thread.tenant_id = delivery.tenant_id
                    AND thread.thread_id = delivery.thread_id
-                """ + MailAccessSql.THREAD_ACCESS,
+                """ + MailAccessSql.THREAD_SEND_ACCESS,
                 tenantId, threadId, messageId, userId, userId);
     }
 
     void releaseExpiredLeases() {
         jdbc.update("""
                 UPDATE mail_delivery_outbox
-                   SET delivery_status = 'RETRY_WAIT',
-                       next_attempt_at = CURRENT_TIMESTAMP,
+                   SET delivery_status = 'FAILED',
                        lease_owner = NULL, lease_expires_at = NULL,
-                       last_error_code = COALESCE(last_error_code, 'DELIVERY_LEASE_EXPIRED'),
+                       last_error_code = 'MAIL_PROVIDER_RESULT_UNKNOWN',
                        updated_at = CURRENT_TIMESTAMP
                  WHERE delivery_status = 'LEASED' AND lease_expires_at < CURRENT_TIMESTAMP
                 """);
     }
 
-    void mirrorSandboxDelivery(
+    Optional<MailConnectorPort.SenderMode> authorizedSenderMode(DeliveryJob job) {
+        return jdbc.query("""
+                SELECT CASE
+                           WHEN account.account_kind = 'PERSONAL' THEN 'ACCOUNT'
+                           WHEN access_grant.can_send_as THEN 'SEND_AS'
+                           ELSE 'SEND_ON_BEHALF'
+                       END AS sender_mode
+                  FROM mail_accounts account
+                  LEFT JOIN mail_tenant_policies policy
+                    ON policy.tenant_id = account.tenant_id
+                  LEFT JOIN mail_shared_inboxes inbox
+                    ON inbox.tenant_id = account.tenant_id
+                   AND inbox.account_id = account.account_id
+                   AND inbox.lifecycle_state = 'ACTIVE'
+                  LEFT JOIN mail_shared_inbox_members membership
+                    ON membership.tenant_id = inbox.tenant_id
+                   AND membership.account_id = inbox.account_id
+                   AND membership.shared_inbox_id = inbox.shared_inbox_id
+                   AND membership.user_id = ?
+                   AND membership.lifecycle_state = 'ACTIVE'
+                  LEFT JOIN mail_shared_inbox_access_grants access_grant
+                    ON access_grant.tenant_id = membership.tenant_id
+                   AND access_grant.shared_inbox_id = membership.shared_inbox_id
+                   AND access_grant.user_id = membership.user_id
+                   AND access_grant.member_state = 'ACTIVE'
+                 WHERE account.tenant_id = ? AND account.account_id = ?
+                   AND account.connection_state = 'ACTIVE'
+                   AND (
+                       (account.account_kind = 'PERSONAL' AND account.owner_user_id = ?)
+                       OR (
+                           account.account_kind = 'SHARED'
+                           AND policy.allow_shared_inboxes = TRUE
+                           AND membership.user_id IS NOT NULL
+                           AND access_grant.can_read = TRUE
+                           AND (access_grant.can_send_as = TRUE
+                                OR access_grant.can_send_on_behalf = TRUE)
+                           AND (access_grant.expires_at IS NULL
+                                OR access_grant.expires_at > CURRENT_TIMESTAMP)
+                       )
+                   )
+                """, (result, ignored) -> MailConnectorPort.SenderMode.valueOf(
+                        result.getString("sender_mode")),
+                job.createdBy(), job.tenantId(), job.accountId(), job.createdBy())
+                .stream().findFirst();
+    }
+
+    List<InboundMessage> mirrorSandboxDelivery(
             DeliveryJob job,
             MailConnectorPort.DeliveryReceipt receipt) {
+        return mirrorSandboxDelivery(job, receipt, MailConnectorPort.SenderMode.ACCOUNT);
+    }
+
+    List<InboundMessage> mirrorSandboxDelivery(
+            DeliveryJob job,
+            MailConnectorPort.DeliveryReceipt receipt,
+            MailConnectorPort.SenderMode senderMode) {
+        List<InboundMessage> inboundMessages = new java.util.ArrayList<>();
+        String senderName = senderMode == MailConnectorPort.SenderMode.SEND_ON_BEHALF
+                ? job.senderName() + " (sent on behalf)"
+                : job.senderName();
         for (String recipient : job.recipients()) {
             List<UUID> targetThreads = jdbc.query("""
                     INSERT INTO mail_threads (
@@ -250,12 +339,23 @@ class MailDeliveryRepository {
                     RETURNING thread_id
                     """, (result, ignored) -> result.getObject("thread_id", UUID.class),
                     UUID.randomUUID(), receipt.providerThreadReference(),
-                    job.subject(), preview(job.body()), job.senderName(), job.senderEmail(),
+                    job.subject(), preview(job.body()), senderName, job.senderEmail(),
                     OffsetDateTime.ofInstant(receipt.acceptedAt(), ZoneOffset.UTC),
                     job.senderEmail(), job.createdBy(), job.createdBy(),
                     job.tenantId(), recipient, job.accountId());
             for (UUID targetThread : targetThreads) {
-                jdbc.update("""
+                Long recipientOwner = jdbc.queryForObject("""
+                        SELECT account.owner_user_id
+                          FROM mail_threads thread
+                          JOIN mail_accounts account
+                            ON account.tenant_id = thread.tenant_id
+                           AND account.account_id = thread.account_id
+                         WHERE thread.tenant_id = ? AND thread.thread_id = ?
+                        """, Long.class, job.tenantId(), targetThread);
+                String mirroredAttachments = mirrorAttachments(
+                        job, targetThread,
+                        recipientOwner == null ? job.createdBy() : recipientOwner);
+                List<UUID> insertedMessages = jdbc.query("""
                         INSERT INTO mail_messages (
                             message_id, tenant_id, thread_id, provider_message_ref,
                             sender_email, sender_name, recipients, message_direction,
@@ -263,28 +363,111 @@ class MailDeliveryRepository {
                         VALUES (?, ?, ?, ?, ?, ?,
                                 jsonb_build_array(jsonb_build_object(
                                     'name', ?, 'email', LOWER(?), 'type', 'TO')),
-                                'INBOUND', 'TEXT', ?, '[]'::jsonb, ?, ?)
+                                'INBOUND', ?, ?, ?::jsonb, ?, ?)
                         ON CONFLICT (thread_id, provider_message_ref) DO NOTHING
-                        """, UUID.randomUUID(), job.tenantId(), targetThread,
-                        receipt.providerMessageReference(), job.senderEmail(), job.senderName(),
-                        recipient, recipient, job.body(),
+                        RETURNING message_id
+                        """, (result, ignored) -> result.getObject("message_id", UUID.class),
+                        UUID.randomUUID(), job.tenantId(), targetThread,
+                        receipt.providerMessageReference(), job.senderEmail(), senderName,
+                        recipient, recipient, job.bodyFormat(), job.body(), mirroredAttachments,
                         OffsetDateTime.ofInstant(receipt.acceptedAt(), ZoneOffset.UTC),
                         job.createdBy());
+                if (!insertedMessages.isEmpty()) {
+                    inboundMessages.add(new InboundMessage(
+                            targetThread, insertedMessages.getFirst(),
+                            OffsetDateTime.ofInstant(receipt.acceptedAt(), ZoneOffset.UTC)));
+                }
             }
         }
+        return List.copyOf(inboundMessages);
     }
 
-    private List<String> recipients(String rawJson, String expectedSha256) {
+    int markFollowUpsReplied(
+            Long tenantId, UUID threadId, UUID messageId, OffsetDateTime receivedAt) {
+        return jdbc.update("""
+                UPDATE mail_follow_up_trackers tracker
+                   SET tracker_status = 'REPLIED', last_checked_at = message.sent_at,
+                       version = tracker.version + 1, updated_at = CURRENT_TIMESTAMP
+                  FROM mail_messages message
+                 WHERE tracker.tenant_id = ? AND tracker.thread_id = ?
+                   AND tracker.tracker_status IN ('WAITING', 'OVERDUE')
+                   AND tracker.created_at <= message.sent_at
+                   AND message.tenant_id = tracker.tenant_id
+                   AND message.thread_id = tracker.thread_id
+                   AND message.message_id = ?
+                   AND message.message_direction = 'INBOUND'
+                   AND message.sent_at <= ?
+                """, tenantId, threadId, messageId, receivedAt);
+    }
+
+    private String mirrorAttachments(DeliveryJob job, UUID targetThread, Long recipientOwner) {
+        if (job.attachments().isEmpty()) return "[]";
+        List<Map<String, Object>> projection = new java.util.ArrayList<>();
+        for (DeliveryAttachment source : job.attachments()) {
+            UUID attachmentId = UUID.randomUUID();
+            jdbc.update("""
+                    INSERT INTO mail_compose_attachments (
+                        attachment_id, tenant_id, uploader_user_id, thread_id,
+                        storage_reference, file_name, content_type, size_bytes,
+                        checksum_sha256, scan_state, scan_evidence)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'READY',
+                            'DWP_SANDBOX_DELIVERY')
+                    """, attachmentId, job.tenantId(), recipientOwner, targetThread,
+                    source.storageReference(), source.fileName(), source.contentType(),
+                    source.sizeBytes(), source.checksumSha256());
+            projection.add(Map.of(
+                    "attachmentId", attachmentId,
+                    "fileName", source.fileName(),
+                    "contentType", source.contentType(),
+                    "sizeBytes", source.sizeBytes(),
+                    "checksumSha256", source.checksumSha256()));
+        }
+        return json.write(projection);
+    }
+
+    private RecipientLists recipients(String rawJson, String expectedSha256) {
         List<Map<String, Object>> recipientSnapshot = json.mapList(rawJson);
         if (expectedSha256 != null
                 && !expectedSha256.equals(MailRecipientSnapshot.fingerprint(recipientSnapshot))) {
             throw new IllegalStateException("Group recipient snapshot integrity check failed.");
         }
-        return recipientSnapshot.stream()
+        return new RecipientLists(
+                recipientAddresses(recipientSnapshot, "TO"),
+                recipientAddresses(recipientSnapshot, "CC"),
+                recipientAddresses(recipientSnapshot, "BCC"));
+    }
+
+    private List<String> recipientAddresses(
+            List<Map<String, Object>> recipients, String expectedType) {
+        return recipients.stream()
+                .filter(value -> expectedType.equals(recipientType(value)))
                 .map(value -> String.valueOf(value.getOrDefault("email", "")).trim())
                 .filter(value -> !value.isBlank())
                 .distinct()
                 .toList();
+    }
+
+    private String recipientType(Map<String, Object> recipient) {
+        Object rawType = recipient.entrySet().stream()
+                .filter(entry -> "type".equalsIgnoreCase(entry.getKey()))
+                .map(Map.Entry::getValue)
+                .findFirst()
+                .orElse("TO");
+        String type = String.valueOf(rawType).trim().toUpperCase(java.util.Locale.ROOT);
+        if (!List.of("TO", "CC", "BCC").contains(type)) {
+            throw new IllegalStateException("Mail recipient type is invalid.");
+        }
+        return type;
+    }
+
+    private List<DeliveryAttachment> deliveryAttachments(String rawJson) {
+        return json.mapList(rawJson).stream().map(value -> new DeliveryAttachment(
+                UUID.fromString(String.valueOf(value.get("attachmentId"))),
+                String.valueOf(value.get("storageReference")),
+                String.valueOf(value.get("fileName")),
+                String.valueOf(value.get("contentType")),
+                ((Number) value.get("sizeBytes")).longValue(),
+                String.valueOf(value.get("checksumSha256")))).toList();
     }
 
     private URI uri(String value) {
@@ -314,8 +497,100 @@ class MailDeliveryRepository {
             String senderEmail,
             String senderName,
             String subject,
+            String bodyFormat,
             String body,
-            List<String> recipients,
+            List<String> toRecipients,
+            List<String> ccRecipients,
+            List<String> bccRecipients,
+            int expectedAttachmentCount,
+            List<DeliveryAttachment> attachments,
             String replyToProviderMessageReference) {
+
+        DeliveryJob {
+            toRecipients = List.copyOf(toRecipients);
+            ccRecipients = List.copyOf(ccRecipients);
+            bccRecipients = List.copyOf(bccRecipients);
+            attachments = List.copyOf(attachments);
+        }
+
+        DeliveryJob(
+                UUID deliveryId,
+                Long tenantId,
+                UUID threadId,
+                UUID messageId,
+                UUID idempotencyKey,
+                int attemptCount,
+                String correlationId,
+                Long createdBy,
+                UUID connectionId,
+                ProviderType providerType,
+                URI credentialReference,
+                String mailDomain,
+                UUID accountId,
+                String providerAccountReference,
+                String senderEmail,
+                String senderName,
+                String subject,
+                String body,
+                List<String> recipients,
+                String replyToProviderMessageReference) {
+            this(deliveryId, tenantId, threadId, messageId, idempotencyKey, attemptCount,
+                    correlationId, createdBy, connectionId, providerType, credentialReference,
+                    mailDomain, accountId, providerAccountReference, senderEmail, senderName,
+                    subject, "TEXT", body, recipients, List.of(), List.of(), 0, List.of(),
+                    replyToProviderMessageReference);
+        }
+
+        DeliveryJob(
+                UUID deliveryId,
+                Long tenantId,
+                UUID threadId,
+                UUID messageId,
+                UUID idempotencyKey,
+                int attemptCount,
+                String correlationId,
+                Long createdBy,
+                UUID connectionId,
+                ProviderType providerType,
+                URI credentialReference,
+                String mailDomain,
+                UUID accountId,
+                String providerAccountReference,
+                String senderEmail,
+                String senderName,
+                String subject,
+                String body,
+                List<String> toRecipients,
+                List<String> ccRecipients,
+                List<String> bccRecipients,
+                String replyToProviderMessageReference) {
+            this(deliveryId, tenantId, threadId, messageId, idempotencyKey, attemptCount,
+                    correlationId, createdBy, connectionId, providerType, credentialReference,
+                    mailDomain, accountId, providerAccountReference, senderEmail, senderName,
+                    subject, "TEXT", body, toRecipients, ccRecipients, bccRecipients,
+                    0, List.of(), replyToProviderMessageReference);
+        }
+
+        List<String> recipients() {
+            return java.util.stream.Stream.of(toRecipients, ccRecipients, bccRecipients)
+                    .flatMap(List::stream)
+                    .distinct()
+                    .toList();
+        }
+    }
+
+    record DeliveryAttachment(
+            UUID attachmentId,
+            String storageReference,
+            String fileName,
+            String contentType,
+            long sizeBytes,
+            String checksumSha256) {
+    }
+
+    record InboundMessage(UUID threadId, UUID messageId, OffsetDateTime receivedAt) {
+    }
+
+    private record RecipientLists(List<String> to, List<String> cc, List<String> bcc) {
     }
 }

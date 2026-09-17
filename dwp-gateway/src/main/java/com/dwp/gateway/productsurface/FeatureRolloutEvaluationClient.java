@@ -1,5 +1,6 @@
 package com.dwp.gateway.productsurface;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -49,13 +50,16 @@ public class FeatureRolloutEvaluationClient {
     private final WebClient providerClient;
     private final FeatureRolloutDecisionCache cache;
     private final ProductSurfaceRolloutSafetyLatch safetyLatch;
+    private final FeatureRolloutApplicationReceiptClient applicationReceipts;
     private final String serviceToken;
     private final Duration timeout;
 
+    @Autowired
     public FeatureRolloutEvaluationClient(
             WebClient.Builder webClientBuilder,
             FeatureRolloutDecisionCache cache,
             ProductSurfaceRolloutSafetyLatch safetyLatch,
+            FeatureRolloutApplicationReceiptClient applicationReceipts,
             @Value("${SERVICE_PROVIDER_URL:http://localhost:8004}") String providerServiceUrl,
             @Value("${dwp.provider.service-token:}") String serviceToken,
             @Value("${dwp.product-surface.rollout-evaluation-timeout:2s}") Duration timeout) {
@@ -63,6 +67,30 @@ public class FeatureRolloutEvaluationClient {
         this.cache = cache;
         this.safetyLatch = Objects.requireNonNull(
                 safetyLatch, "A rollout safety latch is required");
+        this.applicationReceipts = Objects.requireNonNull(
+                applicationReceipts, "A rollout application receipt client is required");
+        this.serviceToken = serviceToken == null ? "" : serviceToken.strip();
+        if (timeout == null || timeout.isZero() || timeout.isNegative()
+                || timeout.compareTo(Duration.ofSeconds(10)) > 0) {
+            throw new IllegalArgumentException(
+                    "Feature rollout evaluation timeout must be between 1ms and 10s");
+        }
+        this.timeout = timeout;
+    }
+
+    public FeatureRolloutEvaluationClient(
+            WebClient.Builder webClientBuilder,
+            FeatureRolloutDecisionCache cache,
+            ProductSurfaceRolloutSafetyLatch safetyLatch,
+            String providerServiceUrl,
+            String serviceToken,
+            Duration timeout) {
+        this.providerClient = webClientBuilder.baseUrl(providerServiceUrl).build();
+        this.cache = cache;
+        this.safetyLatch = Objects.requireNonNull(
+                safetyLatch, "A rollout safety latch is required");
+        this.applicationReceipts = new FeatureRolloutApplicationReceiptClient(
+                webClientBuilder, providerServiceUrl, "", Duration.ofMillis(500));
         this.serviceToken = serviceToken == null ? "" : serviceToken.strip();
         if (timeout == null || timeout.isZero() || timeout.isNegative()
                 || timeout.compareTo(Duration.ofSeconds(10)) > 0) {
@@ -100,14 +128,23 @@ public class FeatureRolloutEvaluationClient {
                         "Provider returned an empty rollout decision")))
                 .map(ProviderEnvelope::data)
                 .map(data -> validated(flagKey, data))
+                .timeout(timeout)
                 .flatMap(decision -> Mono.justOrEmpty(
                                 cache.putAndResolve(authTenantId, decision))
                         .switchIfEmpty(Mono.error(new IllegalStateException(
                                 "Provider returned a stale rollout decision"))))
-                .timeout(timeout)
+                .flatMap(decision -> acknowledgeApplication(
+                        authTenantId, decision, metadata).thenReturn(decision))
                 .onErrorResume(ignored -> Mono.just(cache.current(authTenantId, flagKey)
                         .orElseGet(() -> FeatureRolloutDecisionCache.FlagDecision
                                 .unavailable(flagKey))));
+    }
+
+    private Mono<Void> acknowledgeApplication(
+            long authTenantId,
+            FeatureRolloutDecisionCache.FlagDecision decision,
+            RequestMetadata metadata) {
+        return applicationReceipts.applied(authTenantId, decision, metadata);
     }
 
     public Mono<List<ProductSurfaceContextDtos.ProductRollout>> evaluateProducts(

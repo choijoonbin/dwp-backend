@@ -57,14 +57,24 @@ public class FeatureRolloutDecisionOutboxRepository {
     }
 
     public long revision(String flagKey) {
-        Long revision = jdbc.queryForObject("""
-                SELECT COALESCE(revision.opaque_revision, 0)
+        return revisionSnapshot(flagKey).opaqueRevision();
+    }
+
+    public RevisionSnapshot revisionSnapshot(String flagKey) {
+        return jdbc.query("""
+                SELECT COALESCE(revision.opaque_revision, 0) AS opaque_revision,
+                       COALESCE(revision.updated_at, flag.created_at) AS published_at
                   FROM prv_feature_flags flag
                   LEFT JOIN prv_feature_rollout_decision_revision revision
                     ON revision.feature_flag_id = flag.feature_flag_id
                  WHERE flag.feature_key = ?
-                """, Long.class, flagKey);
-        return revision == null ? 0 : revision;
+                """, (result, ignored) -> new RevisionSnapshot(
+                        result.getLong("opaque_revision"),
+                        instant(result, "published_at")), flagKey)
+                .stream()
+                .findFirst()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Unknown feature rollout flag"));
     }
 
     @Transactional
@@ -160,5 +170,8 @@ public class FeatureRolloutDecisionOutboxRepository {
             String state,
             int attempt,
             Instant createdAt) {
+    }
+
+    public record RevisionSnapshot(long opaqueRevision, Instant publishedAt) {
     }
 }

@@ -1,6 +1,7 @@
 package com.dwp.services.platform.calendar;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.platform.mail.MailProposalHandoffBinding;
 import jakarta.validation.Valid;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -74,10 +75,15 @@ public class CalendarController {
             @RequestHeader(value = "Accept-Language", required = false) String locale,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @RequestHeader(value = "X-DWP-Group-Refs", required = false) String groupRefs,
+            @RequestHeader(value = "X-DWP-Mail-Proposal-ID", required = false) UUID mailProposalId,
+            @RequestHeader(value = "X-DWP-Mail-Command-ID", required = false) UUID mailCommandId,
+            @RequestHeader(value = "X-DWP-Mail-Proposal-Version", required = false) Long mailProposalVersion,
             @Valid @RequestBody CalendarDtos.CreateEventRequest request) {
         return ApiResponse.success(service.create(
                 tenantId, userId, personPublicId, decoded(displayName),
-                locale, correlationId, groupRefs, request));
+                locale, correlationId, groupRefs, request,
+                MailProposalHandoffBinding.optional(
+                        mailProposalId, mailCommandId, mailProposalVersion)));
     }
 
     @PutMapping("/events/{eventId}")

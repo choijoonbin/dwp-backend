@@ -237,12 +237,18 @@ class ProductAuthorizationContractValidatorTest {
                 generatedDocument("product-surfaces-v1.bundle-v20.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionTwentyOne = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v21.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(21);
-        assertThat(index.latestChecksum()).isEqualTo(versionTwentyOne.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionTwentyTwo = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v22.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionTwentyThree = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v23.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionTwentyFour = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v24.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(24);
+        assertThat(index.latestChecksum()).isEqualTo(versionTwentyFour.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
-                        12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L);
+                        12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -353,6 +359,48 @@ class ProductAuthorizationContractValidatorTest {
                         "route.dwaion.management.ai-control-bootstrap.action",
                         "route.dwaion.management.ai-control-update.action",
                         "route.dwaion.management.ai-control-emergency.action");
+        assertStrictCapabilitySuperset(versionTwentyOne, versionTwentyTwo);
+        assertThat(versionTwentyTwo.capabilities()).hasSize(160);
+        assertThat(versionTwentyTwo.routes()).hasSize(749)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionTwentyOne.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.workplace.work.resource-favorites-get.data",
+                        "route.workplace.work.resource-favorite-set.action",
+                        "route.workplace.work.booking-intent-holds-release.action",
+                        "route.dwaion.management.control-plane-command.action");
+        assertThat(versionTwentyThree.capabilities())
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionTwentyTwo.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertThat(versionTwentyThree.routes()).hasSize(768)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionTwentyTwo.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.workplace.work.resource-command-context.data",
+                        "route.workplace.work.resource-command-execute.action",
+                        "route.workplace.management.space-planning-report-execute.action",
+                        "route.workplace.work.safety-incidents-by-incident-id-emergency-contacts-get.data",
+                        "route.workplace.management.safety-incidents-by-incident-id-emergency-handoffs-by-command-id-reconcile-post.action");
+        assertThat(versionTwentyFour.capabilities())
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionTwentyThree.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertThat(versionTwentyFour.routes()).hasSize(776)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionTwentyThree.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.dwaion.work.research-raw-download.data",
+                        "route.dwaion.work.routine-webhook-trigger.action",
+                        "route.dwaion.work.artifact-collaboration-comments.action");
         assertThat(versionSix.routes()).filteredOn(value -> value.routeContractKey().equals(
                 "route.services.work.request-information-response.action"))
                 .singleElement().satisfies(route -> {

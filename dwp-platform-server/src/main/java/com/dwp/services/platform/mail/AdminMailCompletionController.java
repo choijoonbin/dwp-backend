@@ -1,6 +1,8 @@
 package com.dwp.services.platform.mail;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import jakarta.validation.Valid;
 import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
@@ -24,6 +26,8 @@ import static com.dwp.services.platform.mail.MailWorkspaceDtos.*;
 @RestController
 @RequestMapping("/v1/admin/mail")
 public class AdminMailCompletionController {
+
+    private static final String ACTIVE_ACCESS_MODE = "X-DWP-Active-Access-Mode";
 
     private final AdminMailCompletionService service;
 
@@ -63,9 +67,11 @@ public class AdminMailCompletionController {
     public ApiResponse<ConnectionOperation> testSend(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID connectionId,
             @Valid @RequestBody ConnectionOperationRequest request) {
+        requireElevated(accessMode);
         return ApiResponse.success(service.connectionOperation(
                 tenantId, actorId, connectionId, "TEST_SEND", correlationId, request));
     }
@@ -81,9 +87,11 @@ public class AdminMailCompletionController {
     public ApiResponse<SharedInboxAccess> addSharedInboxMember(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID inboxId,
             @Valid @RequestBody SharedInboxMemberRequest request) {
+        requireElevated(accessMode);
         return ApiResponse.success(service.addSharedInboxMember(
                 tenantId, actorId, inboxId, correlationId, request));
     }
@@ -92,10 +100,12 @@ public class AdminMailCompletionController {
     public ApiResponse<SharedInboxAccess> updateSharedInboxMember(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID inboxId,
             @PathVariable UUID memberId,
             @Valid @RequestBody SharedInboxMemberRequest request) {
+        requireElevated(accessMode);
         return ApiResponse.success(service.updateSharedInboxMember(
                 tenantId, actorId, inboxId, memberId, correlationId, request));
     }
@@ -104,10 +114,12 @@ public class AdminMailCompletionController {
     public ApiResponse<SharedInboxAccess> revokeSharedInboxMember(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID inboxId,
             @PathVariable UUID memberId,
             @Valid @RequestBody SharedInboxMemberRevokeRequest request) {
+        requireElevated(accessMode);
         return ApiResponse.success(service.revokeSharedInboxMember(
                 tenantId, actorId, inboxId, memberId, correlationId, request));
     }
@@ -128,8 +140,10 @@ public class AdminMailCompletionController {
     public ApiResponse<LegalHold> createLegalHold(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @Valid @RequestBody LegalHoldRequest request) {
+        requireElevated(accessMode);
         return ApiResponse.success(service.createLegalHold(
                 tenantId, actorId, correlationId, request));
     }
@@ -138,9 +152,11 @@ public class AdminMailCompletionController {
     public ApiResponse<LegalHold> updateLegalHold(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID holdId,
             @Valid @RequestBody LegalHoldRequest request) {
+        requireElevated(accessMode);
         return ApiResponse.success(service.updateLegalHold(
                 tenantId, actorId, holdId, correlationId, request));
     }
@@ -149,9 +165,11 @@ public class AdminMailCompletionController {
     public ApiResponse<LegalHold> releaseLegalHold(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID holdId,
             @Valid @RequestBody LegalHoldReleaseRequest request) {
+        requireElevated(accessMode);
         return ApiResponse.success(service.releaseLegalHold(
                 tenantId, actorId, holdId, correlationId, request));
     }
@@ -168,8 +186,10 @@ public class AdminMailCompletionController {
     public ApiResponse<PurgeApproval> approvePurge(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @PathVariable UUID snapshotId,
             @Valid @RequestBody PurgeApprovalRequest request) {
+        requireElevated(accessMode);
         return ApiResponse.success(service.approvePurge(
                 tenantId, actorId, snapshotId, request));
     }
@@ -178,9 +198,11 @@ public class AdminMailCompletionController {
     public ApiResponse<PurgeJob> executePurge(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID snapshotId,
             @Valid @RequestBody PurgeExecuteRequest request) {
+        requireElevated(accessMode);
         return ApiResponse.success(service.executePurge(
                 tenantId, actorId, snapshotId, correlationId, request));
     }
@@ -207,9 +229,11 @@ public class AdminMailCompletionController {
     public ApiResponse<DeliveryAuditItem> reconcileDelivery(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID deliveryId,
             @Valid @RequestBody DeliveryRecoveryRequest request) {
+        requireElevated(accessMode);
         return ApiResponse.success(service.recoverDelivery(
                 tenantId, actorId, deliveryId, "RECONCILE", correlationId, request));
     }
@@ -218,9 +242,11 @@ public class AdminMailCompletionController {
     public ApiResponse<DeliveryAuditItem> retryDelivery(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID deliveryId,
             @Valid @RequestBody DeliveryRecoveryRequest request) {
+        requireElevated(accessMode);
         return ApiResponse.success(service.recoverDelivery(
                 tenantId, actorId, deliveryId, "RETRY", correlationId, request));
     }
@@ -229,9 +255,11 @@ public class AdminMailCompletionController {
     public ApiResponse<DeliveryAuditItem> cancelDelivery(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
             @PathVariable UUID deliveryId,
             @Valid @RequestBody DeliveryRecoveryRequest request) {
+        requireElevated(accessMode);
         return ApiResponse.success(service.recoverDelivery(
                 tenantId, actorId, deliveryId, "CANCEL", correlationId, request));
     }
@@ -240,7 +268,9 @@ public class AdminMailCompletionController {
     public ApiResponse<DeliveryExport> createDeliveryExport(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @Valid @RequestBody DeliveryExportRequest request) {
+        requireElevated(accessMode);
         return ApiResponse.success(service.createDeliveryExport(tenantId, actorId, request));
     }
 
@@ -248,7 +278,9 @@ public class AdminMailCompletionController {
     public ResponseEntity<byte[]> downloadDeliveryExport(
             @RequestHeader("X-DWP-Tenant-ID") long tenantId,
             @RequestHeader("X-DWP-User-ID") long actorId,
+            @RequestHeader(value = ACTIVE_ACCESS_MODE, required = false) String accessMode,
             @PathVariable UUID exportId) {
+        requireElevated(accessMode);
         byte[] payload = service.deliveryExportJson(tenantId, actorId, exportId)
                 .getBytes(StandardCharsets.UTF_8);
         return ResponseEntity.ok()
@@ -257,5 +289,13 @@ public class AdminMailCompletionController {
                         .filename("mail-delivery-audit-" + exportId + ".json")
                         .build().toString())
                 .body(payload);
+    }
+
+    static void requireElevated(String accessMode) {
+        if (!"ELEVATED".equalsIgnoreCase(accessMode)) {
+            throw new BaseException(
+                    ErrorCode.STEP_UP_REQUIRED,
+                    "Fresh elevated access is required for this Mail administration command.");
+        }
     }
 }

@@ -2,10 +2,13 @@ package com.dwp.services.platform.workhub.personal;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.platform.mail.MailProposalHandoffBinding;
+import com.dwp.services.platform.mail.MailProposalOutcomePort;
 import com.dwp.services.platform.audit.PlatformAuditService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.nio.charset.StandardCharsets;
@@ -34,14 +37,23 @@ public class PersonalWorkService {
     private final List<PersonalWorkSourceResolver> resolvers;
     private final PlatformAuditService audit;
     private final ObjectMapper mapper;
+    private final MailProposalOutcomePort mailProposalOutcomes;
 
     public PersonalWorkService(PersonalWorkRepository repository, PersonalWorkAccess access,
             List<PersonalWorkSourceResolver> resolvers, PlatformAuditService audit, ObjectMapper mapper) {
+        this(repository, access, resolvers, audit, mapper, null);
+    }
+
+    @Autowired
+    public PersonalWorkService(PersonalWorkRepository repository, PersonalWorkAccess access,
+            List<PersonalWorkSourceResolver> resolvers, PlatformAuditService audit,
+            ObjectMapper mapper, MailProposalOutcomePort mailProposalOutcomes) {
         this.repository = repository;
         this.access = access;
         this.resolvers = List.copyOf(resolvers);
         this.audit = audit;
         this.mapper = mapper;
+        this.mailProposalOutcomes = mailProposalOutcomes;
     }
 
     @Transactional(readOnly = true)
@@ -78,7 +90,18 @@ public class PersonalWorkService {
 
     @Transactional
     public Task create(AccessContext context, UUID commandId, String correlationId, CreateTaskRequest request) {
+        return create(context, commandId, correlationId, request, null);
+    }
+
+    @Transactional
+    public Task create(
+            AccessContext context,
+            UUID commandId,
+            String correlationId,
+            CreateTaskRequest request,
+            MailProposalHandoffBinding proposalBinding) {
         access.write(context);
+        validateMailProposal(context, proposalBinding);
         validateFields(request.title(), request.description(), request.priority());
         validateReference(request.sourceReference());
         List<ChecklistItem> checklist = validateChecklist(request.checklist() == null ? List.of() : request.checklist());
@@ -91,7 +114,10 @@ public class PersonalWorkService {
             recordTask(context, correlationId, "CREATED", null, created);
             return created;
         });
-        return response(context, result);
+        Task response = response(context, result);
+        completeMailProposal(
+                context, response.taskId(), correlationId, proposalBinding);
+        return response;
     }
 
     @Transactional
@@ -424,6 +450,32 @@ public class PersonalWorkService {
 
     private void pageBounds(int page, int size) {
         if (page < 0 || page > 10000 || size < 1 || size > 100) throw invalid("Invalid page or size.");
+    }
+
+    private void validateMailProposal(
+            AccessContext context,
+            MailProposalHandoffBinding binding) {
+        if (binding == null) return;
+        if (mailProposalOutcomes == null) {
+            throw new BaseException(
+                    ErrorCode.EXTERNAL_SERVICE_ERROR,
+                    "The Mail proposal owner service is unavailable.");
+        }
+        mailProposalOutcomes.validate(
+                context.tenantId(), context.userId(),
+                MailProposalOutcomePort.Owner.WORK, binding);
+    }
+
+    private void completeMailProposal(
+            AccessContext context,
+            UUID taskId,
+            String correlationId,
+            MailProposalHandoffBinding binding) {
+        if (binding == null) return;
+        mailProposalOutcomes.executed(
+                context.tenantId(), context.userId(),
+                MailProposalOutcomePort.Owner.WORK, binding,
+                "personal-work-task:" + taskId, correlationId);
     }
 
     private BaseException invalid(String message) { return new BaseException(ErrorCode.INVALID_INPUT_VALUE, message); }

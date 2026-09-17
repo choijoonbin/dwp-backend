@@ -34,6 +34,12 @@ class MailServiceTest {
     private MailProviderCatalog providerCatalog;
     @Mock
     private MailDeliveryCompletionService deliveryCompletion;
+    @Mock
+    private MailNotificationEvents notificationEvents;
+    @Mock
+    private MailWorkspaceRepository workspaceRepository;
+    @Mock
+    private MailAdminMutationReceipts adminReceipts;
 
     private MailService service;
     private final MailSendCommandFingerprint sendFingerprints =
@@ -41,7 +47,8 @@ class MailServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new MailService(queries, commands, providerCatalog, deliveryCompletion);
+        service = new MailService(
+                queries, commands, providerCatalog, deliveryCompletion, notificationEvents);
     }
 
     @Test
@@ -93,8 +100,130 @@ class MailServiceTest {
     }
 
     @Test
+    void proposedActionPayloadCanBeEditedWithOptimisticVersioning() {
+        UUID proposalId = UUID.randomUUID();
+        UUID threadId = UUID.randomUUID();
+        MailDtos.ActionProposal before = proposal(
+                proposalId, threadId, ProposalStatus.PROPOSED, 2L);
+        Map<String, Object> revisedPayload = Map.of(
+                "requiresConfirmation", true,
+                "durationMinutes", 45,
+                "title", "Updated review");
+        MailDtos.ActionProposal after = new MailDtos.ActionProposal(
+                before.proposalId(), before.threadId(), before.type(),
+                before.actionContractVersion(), before.status(), before.title(),
+                before.summary(), before.evidence(), revisedPayload,
+                before.confidence(), before.riskLevel(), before.requiredResourceKey(),
+                before.requiredPermissionCode(), before.targetRoute(), before.expiresAt(), 3L);
+        when(queries.proposal(1L, 7L, proposalId))
+                .thenReturn(Optional.of(before))
+                .thenReturn(Optional.of(after));
+        when(queries.thread(1L, 7L, threadId))
+                .thenReturn(Optional.of(thread(threadId, false, 0L)));
+        when(queries.updateProposalPayload(
+                1L, 7L, proposalId, revisedPayload, 2L)).thenReturn(1);
+
+        MailDtos.ActionProposal result = service.updateProposal(
+                1L, 7L, proposalId, "corr-proposal-edit",
+                new MailDtos.ProposalUpdateRequest(revisedPayload, 2L));
+
+        assertThat(result.proposedPayload()).isEqualTo(revisedPayload);
+        assertThat(result.version()).isEqualTo(3L);
+        verify(commands).audit(
+                eq(1L), eq(7L), eq("mail.proposal.updated"),
+                eq("MAIL_ACTION_PROPOSAL"), eq(proposalId.toString()),
+                eq("corr-proposal-edit"), anyMap(), anyMap());
+        verify(commands).domainEvent(
+                eq(1L), eq("MAIL_ACTION_PROPOSAL"), eq(proposalId),
+                eq("mail.proposal.updated"), anyMap(), eq("corr-proposal-edit"));
+    }
+
+    @Test
+    void acceptedProposalExposesAStableOwnerHandoffAndReturnFocus() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        OffsetDateTime updatedAt = OffsetDateTime.now();
+        when(queries.accounts(1L, 7L)).thenReturn(List.of(account()));
+        when(queries.proposalHandoff(1L, 7L, proposalId)).thenReturn(Optional.of(
+                new MailQueryRepository.ProposalHandoffRow(
+                        proposalId, commandId, "/calendar/schedule?action=create",
+                        "ACCEPTED", null, updatedAt, 3L)));
+
+        MailDtos.ProposalHandoff handoff = service.proposalHandoff(1L, 7L, proposalId);
+
+        assertThat(handoff.commandId()).isEqualTo(commandId);
+        assertThat(handoff.ownerRoute()).isEqualTo("/calendar/schedule?action=create");
+        assertThat(handoff.returnTo()).isEqualTo("/mail/actions?proposalId=" + proposalId);
+        assertThat(handoff.focus()).isEqualTo("mail-proposal-" + proposalId);
+        assertThat(handoff.status()).isEqualTo(MailDtos.ProposalHandoffStatus.ACCEPTED);
+    }
+
+    @Test
+    void ownerOutcomeProjectsExecutionEvidenceAndPublishesAudit() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        MailQueryRepository.ProposalHandoffRow before =
+                new MailQueryRepository.ProposalHandoffRow(
+                        proposalId, commandId, "/calendar/schedule?action=create",
+                        "ACCEPTED", null, OffsetDateTime.now(), 3L);
+        MailQueryRepository.ProposalHandoffRow after =
+                new MailQueryRepository.ProposalHandoffRow(
+                        proposalId, commandId, "/calendar/schedule?action=create",
+                        "EXECUTED", "calendar:event:42", OffsetDateTime.now(), 4L);
+        when(queries.accounts(1L, 7L)).thenReturn(List.of(account()));
+        when(queries.proposalHandoff(1L, 7L, proposalId))
+                .thenReturn(Optional.of(before))
+                .thenReturn(Optional.of(after));
+        when(commands.updateProposalOutcome(
+                1L, 7L, proposalId, commandId, "EXECUTED", "calendar:event:42", 3L))
+                .thenReturn(1);
+
+        MailDtos.ProposalHandoff result = service.recordProposalOutcome(
+                1L, 7L, proposalId, "corr-owner",
+                new MailDtos.ProposalOutcomeRequest(
+                        commandId, MailDtos.ProposalHandoffStatus.EXECUTED,
+                        "calendar:event:42", 3L));
+
+        assertThat(result.status()).isEqualTo(MailDtos.ProposalHandoffStatus.EXECUTED);
+        assertThat(result.resultRef()).isEqualTo("calendar:event:42");
+        verify(commands).audit(
+                eq(1L), eq(7L), eq("mail.action.owner-outcome"),
+                eq("MAIL_ACTION_PROPOSAL"), eq(proposalId.toString()),
+                eq("corr-owner"), anyMap(), anyMap());
+        verify(commands).domainEvent(
+                eq(1L), eq("MAIL_ACTION_PROPOSAL"), eq(proposalId),
+                eq("mail.action.owner-outcome"), anyMap(), eq("corr-owner"));
+    }
+
+    @Test
+    void repeatedOwnerOutcomeReturnsTheRecordedResultWithoutAnotherMutation() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        MailQueryRepository.ProposalHandoffRow completed =
+                new MailQueryRepository.ProposalHandoffRow(
+                        proposalId, commandId, "/calendar/schedule?action=create",
+                        "EXECUTED", "calendar:event:42", OffsetDateTime.now(), 4L);
+        when(queries.accounts(1L, 7L)).thenReturn(List.of(account()));
+        when(queries.proposalHandoff(1L, 7L, proposalId)).thenReturn(Optional.of(completed));
+
+        MailDtos.ProposalHandoff result = service.recordProposalOutcome(
+                1L, 7L, proposalId, "corr-owner-replay",
+                new MailDtos.ProposalOutcomeRequest(
+                        commandId, MailDtos.ProposalHandoffStatus.EXECUTED,
+                        "calendar:event:42", 3L));
+
+        assertThat(result.version()).isEqualTo(4L);
+        verify(commands, never()).updateProposalOutcome(
+                eq(1L), eq(7L), eq(proposalId), eq(commandId),
+                eq("EXECUTED"), eq("calendar:event:42"), eq(3L));
+    }
+
+    @Test
     void externalConnectionCannotActivateWithoutVaultedCredentialReference() {
         UUID connectionId = UUID.randomUUID();
+        MailService adminService = new MailService(
+                queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
+                null, null, adminReceipts);
         when(queries.connection(1L, connectionId)).thenReturn(Optional.of(
                 new MailDtos.ConnectionSummary(
                         connectionId, "microsoft-graph", "Microsoft 365",
@@ -103,8 +232,9 @@ class MailServiceTest {
                         List.of("READ", "SEND"), false,
                         null, null, 0L)));
 
-        assertThatThrownBy(() -> service.updateConnection(
+        assertThatThrownBy(() -> adminService.updateConnection(
                 1L, 10L, connectionId, "corr-connection",
+                UUID.randomUUID(),
                 new MailDtos.ConnectionUpdateRequest(
                         "Microsoft 365", "sk.com", null,
                         ConnectionState.ACTIVE, 0L)))
@@ -115,6 +245,9 @@ class MailServiceTest {
     @Test
     void externalConnectionCannotActivateBeforeItsRuntimeAdapterIsDeployed() {
         UUID connectionId = UUID.randomUUID();
+        MailService adminService = new MailService(
+                queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
+                null, null, adminReceipts);
         when(queries.connection(1L, connectionId)).thenReturn(Optional.of(
                 new MailDtos.ConnectionSummary(
                         connectionId, "microsoft-graph", "Microsoft 365",
@@ -125,13 +258,40 @@ class MailServiceTest {
         when(providerCatalog.isRuntimeAvailable(ProviderType.MICROSOFT_GRAPH))
                 .thenReturn(false);
 
-        assertThatThrownBy(() -> service.updateConnection(
+        assertThatThrownBy(() -> adminService.updateConnection(
                 1L, 10L, connectionId, "corr-runtime",
+                UUID.randomUUID(),
                 new MailDtos.ConnectionUpdateRequest(
                         "Microsoft 365", "sk.com", null,
                         ConnectionState.ACTIVE, 0L)))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("runtime adapter");
+    }
+
+    @Test
+    void legacyAdminPolicyExactReplayReturnsCurrentStateWithoutMutatingAgain() {
+        UUID idempotencyKey = UUID.randomUUID();
+        UUID policyId = MailAdminMutationReceipts.tenantPolicyId(1L);
+        MailDtos.TenantPolicy current = policy();
+        MailDtos.TenantPolicyRequest request = new MailDtos.TenantPolicyRequest(
+                true, true, true, true, true, 365, 25, 0L);
+        MailService adminService = new MailService(
+                queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
+                null, null, adminReceipts);
+        when(adminReceipts.claimOrReplay(
+                1L, 7L, "POLICY_UPDATE", idempotencyKey, null, "corr-policy-replay"))
+                .thenReturn(new MailAdminMutationReceipts.Receipt(
+                        "POLICY_UPDATE", "a".repeat(64),
+                        "MAIL_TENANT_POLICY", policyId, OffsetDateTime.now()));
+        when(queries.policy(1L)).thenReturn(current);
+
+        MailDtos.TenantPolicy replay = adminService.updatePolicy(
+                1L, 7L, "corr-policy-replay", idempotencyKey, request);
+
+        assertThat(replay).isEqualTo(current);
+        verify(commands, never()).updatePolicy(1L, 7L, request);
+        verify(adminReceipts, never()).complete(
+                1L, 7L, idempotencyKey, "MAIL_TENANT_POLICY", policyId);
     }
 
     @Test
@@ -311,6 +471,113 @@ class MailServiceTest {
         assertThat(result.thread().threadId()).isEqualTo(threadId);
         verify(commands, never()).insertReply(
                 eq(1L), eq(7L), eq(threadId), eq("재전송된 요청"), eq(idempotencyKey));
+    }
+
+    @Test
+    void exactReplyReplayDoesNotReevaluateLaterSignaturePolicy() {
+        service = new MailService(
+                queries, commands, providerCatalog, deliveryCompletion,
+                notificationEvents, workspaceRepository);
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailDtos.ReplyRequest request =
+                new MailDtos.ReplyRequest("Previously accepted body", idempotencyKey);
+        when(queries.thread(1L, 7L, threadId))
+                .thenReturn(Optional.of(thread(threadId, false, 1L)));
+        when(commands.deliveryCommand(1L, 7L, idempotencyKey)).thenReturn(
+                new MailCommandRepository.DeliveryCommand(
+                        threadId, 7L, sendFingerprints.reply(7L, threadId, request)));
+        when(queries.messages(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
+
+        MailDtos.ThreadDetail result = service.reply(
+                1L, 7L, threadId, "corr-signature-replay", request);
+
+        assertThat(result.thread().threadId()).isEqualTo(threadId);
+        verify(workspaceRepository, never()).replyAccount(1L, 7L, threadId);
+        verify(commands, never()).insertReply(
+                eq(1L), eq(7L), eq(threadId), eq(request.body()), eq(idempotencyKey));
+    }
+
+    @Test
+    void newReplyFailsClosedWhenDefaultSignatureMandatoryContentIsMissing() {
+        service = new MailService(
+                queries, commands, providerCatalog, deliveryCompletion,
+                notificationEvents, workspaceRepository);
+        UUID threadId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        when(queries.thread(1L, 7L, threadId))
+                .thenReturn(Optional.of(thread(threadId, false, 1L)));
+        when(workspaceRepository.replyAccount(1L, 7L, threadId))
+                .thenReturn(Optional.of(accountId));
+        when(workspaceRepository.defaultSignatureForReply(1L, 7L, accountId))
+                .thenReturn(Optional.of(new MailWorkspaceDtos.Signature(
+                        UUID.randomUUID(), "Organization signature", "Signature body",
+                        MailWorkspaceDtos.BodyFormat.HTML,
+                        MailWorkspaceDtos.AssetScope.ORGANIZATION, null,
+                        false, true, false,
+                        "<p>Required legal notice</p>", "PUBLISHED", 1, true, 3L,
+                        OffsetDateTime.now())));
+
+        assertThatThrownBy(() -> service.reply(
+                1L, 7L, threadId, "corr-signature-required",
+                new MailDtos.ReplyRequest("Ordinary reply", idempotencyKey)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("mandatory content");
+
+        verify(commands, never()).insertReply(
+                eq(1L), eq(7L), eq(threadId), eq("Ordinary reply"), eq(idempotencyKey));
+    }
+
+    @Test
+    void replyAllPersistsTheReviewedExplicitRecipients() {
+        UUID threadId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        List<MailWorkspaceDtos.Recipient> suppliedRecipients = List.of(
+                new MailWorkspaceDtos.Recipient(
+                        MailWorkspaceDtos.RecipientType.TO,
+                        " Customer ", "Customer@Example.com"),
+                new MailWorkspaceDtos.Recipient(
+                        MailWorkspaceDtos.RecipientType.CC,
+                        "Project", "project@example.com"));
+        List<MailWorkspaceDtos.Recipient> persistedRecipients = List.of(
+                new MailWorkspaceDtos.Recipient(
+                        MailWorkspaceDtos.RecipientType.TO,
+                        "Customer", "customer@example.com"),
+                new MailWorkspaceDtos.Recipient(
+                        MailWorkspaceDtos.RecipientType.CC,
+                        "Project", "project@example.com"));
+        MailDtos.ReplyRequest request = new MailDtos.ReplyRequest(
+                "Reviewed recipients", idempotencyKey, "REPLY_ALL", suppliedRecipients);
+        String fingerprint = sendFingerprints.reply(7L, threadId, request);
+        MailDtos.ThreadSummary before = thread(threadId, false, 1L);
+        MailDtos.ThreadSummary after = thread(threadId, false, 2L);
+        when(queries.thread(1L, 7L, threadId))
+                .thenReturn(Optional.of(before))
+                .thenReturn(Optional.of(after));
+        when(commands.insertReply(
+                1L, 7L, threadId, request.body(), idempotencyKey, persistedRecipients))
+                .thenReturn(true);
+        when(commands.enqueueDelivery(
+                1L, 7L, threadId, idempotencyKey,
+                "corr-reply-all", fingerprint))
+                .thenReturn(new MailCommandRepository.DeliveryCommand(
+                        threadId, 7L, fingerprint));
+        when(queries.messages(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
+
+        MailDtos.ThreadDetail result = service.reply(
+                1L, 7L, threadId, "corr-reply-all", request);
+
+        assertThat(result.thread().version()).isEqualTo(2L);
+        verify(commands).insertReply(
+                1L, 7L, threadId, request.body(), idempotencyKey, persistedRecipients);
+        verify(commands).audit(
+                eq(1L), eq(7L), eq("mail.reply.sent"), eq("MAIL_THREAD"),
+                eq(threadId.toString()), eq("corr-reply-all"), anyMap(), anyMap());
     }
 
     @Test
@@ -507,6 +774,45 @@ class MailServiceTest {
     }
 
     @Test
+    void sharedInboxAssignmentPublishesTheAssigneeNotificationIntent() {
+        UUID threadId = UUID.randomUUID();
+        UUID accountId = UUID.randomUUID();
+        UUID sharedInboxId = UUID.randomUUID();
+        MailDtos.ThreadSummary before = new MailDtos.ThreadSummary(
+                threadId, accountId, "People Help", "INBOX",
+                sharedInboxId, "People Help", "문의", "확인 부탁드립니다.",
+                List.of(new MailDtos.Participant("구성원", "member@sk.com")),
+                OffsetDateTime.now(), true, false, Importance.HIGH,
+                TriageLane.PRIORITY, WorkflowState.OPEN, null,
+                null, null, false, false, Classification.INTERNAL, 1, 4L);
+        MailDtos.ThreadSummary after = new MailDtos.ThreadSummary(
+                threadId, accountId, "People Help", "INBOX",
+                sharedInboxId, "People Help", "문의", "확인 부탁드립니다.",
+                before.participants(), before.latestMessageAt(), true, false, Importance.HIGH,
+                TriageLane.ASSIGNED, WorkflowState.OPEN, null,
+                99L, "담당자", false, false, Classification.INTERNAL, 1, 5L);
+        when(queries.thread(1L, 7L, threadId))
+                .thenReturn(Optional.of(before))
+                .thenReturn(Optional.of(after));
+        when(queries.hasSharedInboxPermission(
+                1L, sharedInboxId, 7L,
+                MailQueryRepository.SharedInboxPermission.ASSIGN)).thenReturn(true);
+        when(queries.isActiveSharedInboxMember(1L, sharedInboxId, 99L)).thenReturn(true);
+        when(commands.assign(1L, 7L, threadId, 99L, "담당자", 4L)).thenReturn(1);
+        when(queries.messages(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.comments(1L, 7L, threadId)).thenReturn(List.of());
+        when(queries.proposals(1L, 7L, threadId, 20)).thenReturn(List.of());
+
+        MailDtos.ThreadDetail result = service.assign(
+                1L, 7L, threadId, "corr-assign",
+                new MailDtos.AssignRequest(99L, "담당자", 4L));
+
+        assertThat(result.thread().assignedUserId()).isEqualTo(99L);
+        verify(notificationEvents).sharedInboxAssigned(
+                1L, 7L, threadId, 99L, 5L, "corr-assign");
+    }
+
+    @Test
     void readOnlySharedInboxGrantCannotCreateInternalComments() {
         UUID threadId = UUID.randomUUID();
         UUID sharedInboxId = UUID.randomUUID();
@@ -536,6 +842,10 @@ class MailServiceTest {
     @Test
     void sharedInboxUpdateUsesTenantScopedVersionAndWritesAuditEvidence() {
         UUID sharedInboxId = UUID.randomUUID();
+        UUID idempotencyKey = UUID.randomUUID();
+        MailService adminService = new MailService(
+                queries, commands, providerCatalog, deliveryCompletion, notificationEvents,
+                null, null, adminReceipts);
         MailDtos.SharedInboxSummary before = sharedInbox(sharedInboxId, "People Help", 240, 2L);
         MailDtos.SharedInboxSummary after = sharedInbox(sharedInboxId, "People Care", 120, 3L);
         when(queries.sharedInbox(1L, sharedInboxId))
@@ -545,8 +855,8 @@ class MailServiceTest {
                 "People Care", "구성원 문의를 함께 처리합니다.", 120, "ACTIVE", 2L);
         when(commands.updateSharedInbox(1L, 7L, sharedInboxId, request)).thenReturn(1);
 
-        MailDtos.SharedInboxSummary result = service.updateSharedInbox(
-                1L, 7L, sharedInboxId, "corr-shared", request);
+        MailDtos.SharedInboxSummary result = adminService.updateSharedInbox(
+                1L, 7L, sharedInboxId, "corr-shared", idempotencyKey, request);
 
         assertThat(result.displayName()).isEqualTo("People Care");
         assertThat(result.serviceTargetMinutes()).isEqualTo(120);

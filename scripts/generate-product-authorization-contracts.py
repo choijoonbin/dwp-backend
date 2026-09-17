@@ -99,8 +99,17 @@ LEGACY_PLATFORM_WORKPLACE_PEP_V18_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.
 LEGACY_PLATFORM_WORKPLACE_PEP_V20_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.with_name(
     "platform-workplace-pep-v20.generated.json"
 )
-PLATFORM_WORKPLACE_PEP_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.with_name(
+LEGACY_PLATFORM_WORKPLACE_PEP_V21_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.with_name(
     "platform-workplace-pep-v21.generated.json"
+)
+LEGACY_PLATFORM_WORKPLACE_PEP_V22_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.with_name(
+    "platform-workplace-pep-v22.generated.json"
+)
+LEGACY_PLATFORM_WORKPLACE_PEP_V23_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.with_name(
+    "platform-workplace-pep-v23.generated.json"
+)
+PLATFORM_WORKPLACE_PEP_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.with_name(
+    "platform-workplace-pep-v24.generated.json"
 )
 HCM_PEOPLE_PEP_OUTPUT = (
     ROOT
@@ -112,7 +121,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21)
+BUNDLE_VERSIONS = (1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24)
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -188,6 +197,12 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 46, "routes": 686, "PAGE": 111, "DATA": 207, "ACTION": 368},
     21: {"capabilities": 159, "accessPolicies": 22, "entitlementExpressions": 16,
          "predicatePolicies": 46, "routes": 709, "PAGE": 112, "DATA": 217, "ACTION": 380},
+    22: {"capabilities": 160, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 749, "PAGE": 118, "DATA": 228, "ACTION": 403},
+    23: {"capabilities": 160, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 768, "PAGE": 118, "DATA": 239, "ACTION": 411},
+    24: {"capabilities": 160, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 46, "routes": 776, "PAGE": 118, "DATA": 244, "ACTION": 414},
 }
 IMMUTABLE_RELEASE_CHECKSUMS = {
     1: "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67",
@@ -211,6 +226,9 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     19: "32bec6d3fb912af6072139aec72228281597c5b4fbb15f8b4af947c20721644c",
     20: "1acbce34c450c650aa3e8f1c11995b831f177ee4a6139dd8217ea5bdd22e7a60",
     21: "4cd1732df91d197cc47fca94699b0fb702ab1f6f2c557d3d17ce0e069d65af85",
+    22: "1629b75f62c7bb524dc70faaecac73499b9f9b0fb126ab38221b6e4773f35ede",
+    23: "4687f384ce79faacf4e2b1eb9c6b8eca3f2109dd62a88ac01c5deda22e1925c7",
+    24: "be3db891d27cd0b94aa88ac706d9bc87d4b991c9f9d8e505e26b296647728b84",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -2439,6 +2457,9 @@ def verify_no_out_of_lineage_artifacts() -> None:
         LEGACY_PLATFORM_WORKPLACE_PEP_V17_OUTPUT,
         LEGACY_PLATFORM_WORKPLACE_PEP_V18_OUTPUT,
         LEGACY_PLATFORM_WORKPLACE_PEP_V20_OUTPUT,
+        LEGACY_PLATFORM_WORKPLACE_PEP_V21_OUTPUT,
+        LEGACY_PLATFORM_WORKPLACE_PEP_V22_OUTPUT,
+        LEGACY_PLATFORM_WORKPLACE_PEP_V23_OUTPUT,
         PLATFORM_WORKPLACE_PEP_OUTPUT,
         PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT,
         HCM_PEOPLE_PEP_OUTPUT,
@@ -2592,7 +2613,7 @@ def main() -> int:
                 "predicatePolicies": 1,
             },
         )
-        platform_workplace_pep = build_approvals_pep(
+        platform_workplace_pep_v21 = build_approvals_pep(
             snapshots[20],
             "platform",
             "platform-workplace-pep-v21",
@@ -2606,6 +2627,54 @@ def main() -> int:
                 "predicatePolicies": 1,
             },
             version=21,
+            product_key="workplace",
+        )
+        platform_workplace_pep_v22 = build_approvals_pep(
+            snapshots[21],
+            "platform",
+            "platform-workplace-pep-v22",
+            {
+                "routes": 307,
+                "bindings": 309,
+                "routeKinds": {"ACTION": 174, "DATA": 104, "PAGE": 29},
+                "capabilities": 26,
+                "accessPolicies": 1,
+                "entitlementExpressions": 1,
+                "predicatePolicies": 1,
+            },
+            version=22,
+            product_key="workplace",
+        )
+        platform_workplace_pep_v23 = build_approvals_pep(
+            snapshots[22],
+            "platform",
+            "platform-workplace-pep-v23",
+            {
+                "routes": 326,
+                "bindings": 328,
+                "routeKinds": {"ACTION": 182, "DATA": 115, "PAGE": 29},
+                "capabilities": 26,
+                "accessPolicies": 1,
+                "entitlementExpressions": 1,
+                "predicatePolicies": 1,
+            },
+            version=23,
+            product_key="workplace",
+        )
+        platform_workplace_pep = build_approvals_pep(
+            snapshots[23],
+            "platform",
+            "platform-workplace-pep-v24",
+            {
+                "routes": 326,
+                "bindings": 328,
+                "routeKinds": {"ACTION": 182, "DATA": 115, "PAGE": 29},
+                "capabilities": 26,
+                "accessPolicies": 1,
+                "entitlementExpressions": 1,
+                "predicatePolicies": 1,
+            },
+            version=24,
             product_key="workplace",
         )
         platform_telemetry_dimensions = build_platform_telemetry_dimensions(
@@ -2692,6 +2761,21 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                LEGACY_PLATFORM_WORKPLACE_PEP_V21_OUTPUT,
+                render(platform_workplace_pep_v21),
+                args.check,
+            ),
+            write_or_check(
+                LEGACY_PLATFORM_WORKPLACE_PEP_V22_OUTPUT,
+                render(platform_workplace_pep_v22),
+                args.check,
+            ),
+            write_or_check(
+                LEGACY_PLATFORM_WORKPLACE_PEP_V23_OUTPUT,
+                render(platform_workplace_pep_v23),
+                args.check,
+            ),
+            write_or_check(
                 PLATFORM_WORKPLACE_PEP_OUTPUT,
                 render(platform_workplace_pep),
                 args.check,
@@ -2735,6 +2819,18 @@ def main() -> int:
         verify_approvals_pep(APPROVAL_RELEASE15_PEP_OUTPUT, approval_release15_pep)
         verify_approvals_pep(APPROVAL_RELEASE19_PEP_OUTPUT, approval_release19_pep)
         verify_approvals_pep(PLATFORM_APPROVALS_PEP_OUTPUT, platform_approvals_pep)
+        verify_approvals_pep(
+            LEGACY_PLATFORM_WORKPLACE_PEP_V21_OUTPUT,
+            platform_workplace_pep_v21,
+        )
+        verify_approvals_pep(
+            LEGACY_PLATFORM_WORKPLACE_PEP_V22_OUTPUT,
+            platform_workplace_pep_v22,
+        )
+        verify_approvals_pep(
+            LEGACY_PLATFORM_WORKPLACE_PEP_V23_OUTPUT,
+            platform_workplace_pep_v23,
+        )
         verify_approvals_pep(PLATFORM_WORKPLACE_PEP_OUTPUT, platform_workplace_pep)
         verify_platform_telemetry_dimensions(platform_telemetry_dimensions)
         verify_approvals_pep(HCM_PEOPLE_PEP_OUTPUT, hcm_people_pep)

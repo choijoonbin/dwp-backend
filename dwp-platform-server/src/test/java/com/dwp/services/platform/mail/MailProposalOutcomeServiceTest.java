@@ -1,0 +1,290 @@
+package com.dwp.services.platform.mail;
+
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.time.OffsetDateTime;
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+import static com.dwp.services.platform.mail.MailProposalOutcomePort.Owner.HR;
+import static com.dwp.services.platform.mail.MailTypes.ProposalType.CREATE_CALENDAR_EVENT;
+import static com.dwp.services.platform.mail.MailTypes.ProposalType.CREATE_LEAVE_REQUEST;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyMap;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+@ExtendWith(MockitoExtension.class)
+class MailProposalOutcomeServiceTest {
+
+    private static final long TENANT_ID = 1L;
+    private static final long ACTOR_ID = 7L;
+
+    @Mock
+    private MailQueryRepository queries;
+    @Mock
+    private MailCommandRepository commands;
+
+    private MailProposalOutcomeService service;
+
+    @BeforeEach
+    void setUp() {
+        service = new MailProposalOutcomeService(queries, commands);
+    }
+
+    @Test
+    void correctHrOwnerActorAndBindingRecordTheExecutedOutcome() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        UUID leaveRequestId = UUID.randomUUID();
+        String resultRef = "hr-leave-request:" + leaveRequestId;
+        var binding = new MailProposalHandoffBinding(proposalId, commandId, 3L);
+        var before = row(
+                proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                "ACCEPTED", null, 3L);
+        var after = row(
+                proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                "EXECUTED", resultRef, 4L);
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                .thenReturn(Optional.of(before));
+        when(commands.updateProposalOutcomeFromOwner(
+                TENANT_ID, ACTOR_ID, proposalId, commandId,
+                CREATE_LEAVE_REQUEST, "EXECUTED", resultRef, 3L))
+                .thenReturn(1);
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, false))
+                .thenReturn(Optional.of(after));
+
+        MailDtos.ProposalHandoff result = service.executed(
+                TENANT_ID, ACTOR_ID, HR, binding, resultRef, "corr-executed");
+
+        assertThat(result.status()).isEqualTo(MailDtos.ProposalHandoffStatus.EXECUTED);
+        assertThat(result.resultRef()).isEqualTo(resultRef);
+        assertThat(result.version()).isEqualTo(4L);
+        verify(commands).audit(
+                eq(TENANT_ID), eq(ACTOR_ID), eq("mail.action.owner-outcome"),
+                eq("MAIL_ACTION_PROPOSAL"), eq(proposalId.toString()),
+                eq("corr-executed"), anyMap(), anyMap());
+        verify(commands).domainEvent(
+                eq(TENANT_ID), eq("MAIL_ACTION_PROPOSAL"), eq(proposalId),
+                eq("mail.action.owner-outcome"), anyMap(), eq("corr-executed"));
+    }
+
+    @Test
+    void exactExecutedReplayReturnsTheRecordedResultWithoutAnotherMutation() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        String resultRef = "hr-leave-request:" + UUID.randomUUID();
+        var completed = row(
+                proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                "EXECUTED", resultRef, 4L);
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                .thenReturn(Optional.of(completed));
+
+        MailDtos.ProposalHandoff result = service.executed(
+                TENANT_ID, ACTOR_ID, HR,
+                new MailProposalHandoffBinding(proposalId, commandId, 3L),
+                resultRef, "corr-replay");
+
+        assertThat(result.status()).isEqualTo(MailDtos.ProposalHandoffStatus.EXECUTED);
+        assertThat(result.version()).isEqualTo(4L);
+        verify(commands, never()).updateProposalOutcomeFromOwner(
+                eq(TENANT_ID), eq(ACTOR_ID), eq(proposalId), eq(commandId),
+                eq(CREATE_LEAVE_REQUEST), eq("EXECUTED"), eq(resultRef), eq(3L));
+        verify(commands, never()).audit(
+                eq(TENANT_ID), eq(ACTOR_ID), eq("mail.action.owner-outcome"),
+                eq("MAIL_ACTION_PROPOSAL"), eq(proposalId.toString()),
+                eq("corr-replay"), anyMap(), anyMap());
+    }
+
+    @Test
+    void forgedActorCannotRecordAnotherUsersOwnerOutcome() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        var binding = new MailProposalHandoffBinding(proposalId, commandId, 3L);
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                .thenReturn(Optional.of(row(
+                        proposalId, commandId, CREATE_LEAVE_REQUEST, 99L,
+                        "ACCEPTED", null, 3L)));
+
+        assertError(ErrorCode.FORBIDDEN, () -> service.executed(
+                TENANT_ID, ACTOR_ID, HR, binding,
+                "hr-leave-request:" + UUID.randomUUID(), "corr-forged-actor"));
+
+        verify(commands, never()).updateProposalOutcomeFromOwner(
+                eq(TENANT_ID), eq(ACTOR_ID), eq(proposalId), eq(commandId),
+                eq(CREATE_LEAVE_REQUEST), eq("EXECUTED"),
+                org.mockito.ArgumentMatchers.anyString(), eq(3L));
+    }
+
+    @Test
+    void forgedOwnerCannotExecuteAProposalOwnedByAnotherApplication() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                .thenReturn(Optional.of(row(
+                        proposalId, commandId, CREATE_CALENDAR_EVENT, ACTOR_ID,
+                        "ACCEPTED", null, 3L)));
+
+        assertError(ErrorCode.FORBIDDEN, () -> service.executed(
+                TENANT_ID, ACTOR_ID, HR,
+                new MailProposalHandoffBinding(proposalId, commandId, 3L),
+                "hr-leave-request:" + UUID.randomUUID(), "corr-forged-owner"));
+    }
+
+    @Test
+    void forgedCommandBindingCannotExecuteTheProposal() {
+        UUID proposalId = UUID.randomUUID();
+        UUID recordedCommandId = UUID.randomUUID();
+        UUID forgedCommandId = UUID.randomUUID();
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                .thenReturn(Optional.of(row(
+                        proposalId, recordedCommandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                        "ACCEPTED", null, 3L)));
+
+        assertError(ErrorCode.INVALID_STATE, () -> service.executed(
+                TENANT_ID, ACTOR_ID, HR,
+                new MailProposalHandoffBinding(proposalId, forgedCommandId, 3L),
+                "hr-leave-request:" + UUID.randomUUID(), "corr-forged-command"));
+    }
+
+    @Test
+    void acceptingActorCanCancelAnUnexecutedHandoff() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        var before = row(
+                proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                "ACCEPTED", null, 3L);
+        var after = row(
+                proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                "CANCELLED", "cancelled-by-user:" + ACTOR_ID, 4L);
+        when(queries.accounts(TENANT_ID, ACTOR_ID)).thenReturn(List.of(account()));
+        when(queries.proposalHandoff(TENANT_ID, ACTOR_ID, proposalId))
+                .thenReturn(Optional.of(visible(before)));
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                .thenReturn(Optional.of(before));
+        when(commands.cancelProposalOutcome(
+                TENANT_ID, ACTOR_ID, proposalId, commandId, 3L,
+                "cancelled-by-user:" + ACTOR_ID))
+                .thenReturn(1);
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, false))
+                .thenReturn(Optional.of(after));
+
+        MailDtos.ProposalHandoff result = service.cancel(
+                TENANT_ID, ACTOR_ID, proposalId, commandId, 3L, "corr-cancel");
+
+        assertThat(result.status()).isEqualTo(MailDtos.ProposalHandoffStatus.CANCELLED);
+        assertThat(result.resultRef()).isEqualTo("cancelled-by-user:" + ACTOR_ID);
+        verify(commands).cancelProposalOutcome(
+                TENANT_ID, ACTOR_ID, proposalId, commandId, 3L,
+                "cancelled-by-user:" + ACTOR_ID);
+    }
+
+    @Test
+    void visibleProposalStillCannotBeCancelledByANonAcceptingActor() {
+        long forgedActor = 19L;
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        var before = row(
+                proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                "ACCEPTED", null, 3L);
+        when(queries.accounts(TENANT_ID, forgedActor)).thenReturn(List.of(account()));
+        when(queries.proposalHandoff(TENANT_ID, forgedActor, proposalId))
+                .thenReturn(Optional.of(visible(before)));
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                .thenReturn(Optional.of(before));
+
+        assertError(ErrorCode.FORBIDDEN, () -> service.cancel(
+                TENANT_ID, forgedActor, proposalId, commandId, 3L,
+                "corr-cancel-forged"));
+
+        verify(commands, never()).cancelProposalOutcome(
+                eq(TENANT_ID), eq(forgedActor), eq(proposalId), eq(commandId),
+                eq(3L), org.mockito.ArgumentMatchers.anyString());
+    }
+
+    @Test
+    void terminalExecutedOutcomeRejectsAChangedReplayResult() {
+        UUID proposalId = UUID.randomUUID();
+        UUID commandId = UUID.randomUUID();
+        var completed = row(
+                proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                "EXECUTED", "hr-leave-request:" + UUID.randomUUID(), 4L);
+        when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                .thenReturn(Optional.of(completed));
+
+        assertError(ErrorCode.INVALID_STATE, () -> service.executed(
+                TENANT_ID, ACTOR_ID, HR,
+                new MailProposalHandoffBinding(proposalId, commandId, 3L),
+                "hr-leave-request:" + UUID.randomUUID(), "corr-terminal"));
+
+        verify(commands, never()).updateProposalOutcomeFromOwner(
+                eq(TENANT_ID), eq(ACTOR_ID), eq(proposalId), eq(commandId),
+                eq(CREATE_LEAVE_REQUEST), eq("EXECUTED"),
+                org.mockito.ArgumentMatchers.anyString(), eq(3L));
+    }
+
+    @Test
+    void remotePreflightRejectsCancelledExecutedAndUnknownOwnerStates() {
+        for (String state : List.of("CANCELLED", "EXECUTED", "UNKNOWN")) {
+            UUID proposalId = UUID.randomUUID();
+            UUID commandId = UUID.randomUUID();
+            long version = 4L;
+            when(queries.ownerProposalHandoff(TENANT_ID, proposalId, true))
+                    .thenReturn(Optional.of(row(
+                            proposalId, commandId, CREATE_LEAVE_REQUEST, ACTOR_ID,
+                            state, state.equals("CANCELLED")
+                                    ? "cancelled-by-user:" + ACTOR_ID
+                                    : "hr-leave-request:" + UUID.randomUUID(),
+                            version)));
+
+            assertError(ErrorCode.INVALID_STATE, () -> service.validateNewExecution(
+                    TENANT_ID, ACTOR_ID, HR,
+                    new MailProposalHandoffBinding(proposalId, commandId, version)));
+        }
+    }
+
+    private void assertError(
+            ErrorCode expected,
+            org.assertj.core.api.ThrowableAssert.ThrowingCallable invocation) {
+        assertThatThrownBy(invocation)
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(expected));
+    }
+
+    private MailQueryRepository.OwnerProposalHandoffRow row(
+            UUID proposalId,
+            UUID commandId,
+            MailTypes.ProposalType type,
+            Long decidedBy,
+            String state,
+            String resultRef,
+            long version) {
+        return new MailQueryRepository.OwnerProposalHandoffRow(
+                proposalId, commandId, type, decidedBy,
+                "/hr/absence?action=create", state, resultRef,
+                OffsetDateTime.parse("2026-09-17T00:00:00Z"), version);
+    }
+
+    private MailQueryRepository.ProposalHandoffRow visible(
+            MailQueryRepository.OwnerProposalHandoffRow row) {
+        return new MailQueryRepository.ProposalHandoffRow(
+                row.proposalId(), row.commandId(), row.ownerRoute(), row.ownerState(),
+                row.resultRef(), row.updatedAt(), row.version());
+    }
+
+    private MailDtos.AccountSummary account() {
+        return new MailDtos.AccountSummary(
+                UUID.randomUUID(), "member@sk.com", "Member", "PERSONAL",
+                MailTypes.ProviderType.DWP_SANDBOX, "ACTIVE", "READY", true);
+    }
+}
