@@ -1,0 +1,16 @@
+{
+  "automaticTransportRetries": false,
+  "gate": "W4-SIBLING-DB-AND-TELEMETRY-BOUNDARY",
+  "gateVerifierMutationTests": 7,
+  "homeRuntimeBoundaryMutationTests": 5,
+  "ownerImplementationImports": 0,
+  "ownerServerDependencies": 0,
+  "schemaVersion": 1,
+  "sensitiveLogArguments": 0,
+  "sensitiveMetricArguments": 0,
+  "serviceBoundaryMutationTests": 64,
+  "siblingDatabaseReferences": 0,
+  "status": "PASS",
+  "testedCommit": "dd3410bb34067c7d742749ed38e39387e91e8947",
+  "transportRedirectsAllowed": false
+}

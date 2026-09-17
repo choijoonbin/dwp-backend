@@ -13,6 +13,9 @@ dependencies {
     implementation 'io.github.erdtman:java-json-canonicalization:1.1'
     implementation 'org.apache.pdfbox:pdfbox:3.0.8'
     implementation 'org.jsoup:jsoup:1.17.2'
+    // Optional, fail-closed distributed admission for Home shadow-comparison metrics.
+    // The client is created only when the Home admission property is enabled.
+    implementation 'io.lettuce:lettuce-core'
 
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'

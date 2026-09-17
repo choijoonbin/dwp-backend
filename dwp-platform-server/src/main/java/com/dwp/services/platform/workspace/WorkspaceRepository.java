@@ -116,7 +116,8 @@ public class WorkspaceRepository {
                 SELECT app.app_key, app.name_ko, app.name_en,
                        app.description_ko, app.description_en, app.owner_name,
                        app.category, app.launch_mode, app.launch_target, app.icon_key,
-                       app.resource_key, app.health_state,
+                       app.resource_key, app.required_permission_code, app.badge_source_key,
+                       app.health_state,
                        COALESCE(preference.pinned, FALSE) AS pinned,
                        preference.last_used_at, COALESCE(preference.launch_count, 0) AS launch_count,
                        COALESCE(preference.version, 0) AS preference_version
@@ -224,6 +225,8 @@ public class WorkspaceRepository {
                 result.getString("launch_target"),
                 result.getString("icon_key"),
                 result.getString("resource_key"),
+                result.getString("required_permission_code"),
+                result.getString("badge_source_key"),
                 result.getString("health_state"),
                 result.getBoolean("pinned"),
                 result.getObject("last_used_at", OffsetDateTime.class),
@@ -267,10 +270,21 @@ public class WorkspaceRepository {
             String launchTarget,
             String iconKey,
             String resourceKey,
+            String requiredPermissionCode,
+            String badgeSourceKey,
             String health,
             boolean pinned,
             OffsetDateTime lastUsedAt,
             long launchCount,
             long version) {
+        public AppRow(
+                String id, String name, String description, String owner, String category,
+                String launchMode, String launchTarget, String iconKey, String resourceKey,
+                String health, boolean pinned, OffsetDateTime lastUsedAt,
+                long launchCount, long version) {
+            this(id, name, description, owner, category, launchMode, launchTarget,
+                    iconKey, resourceKey, "VIEW", null, health, pinned, lastUsedAt,
+                    launchCount, version);
+        }
     }
 }

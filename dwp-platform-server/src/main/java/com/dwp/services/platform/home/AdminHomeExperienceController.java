@@ -1,7 +1,10 @@
 package com.dwp.services.platform.home;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.platform.audit.PlatformAuditService;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.http.CacheControl;
@@ -32,9 +35,12 @@ public class AdminHomeExperienceController {
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
 
     private final HomeExperienceService service;
+    private final PlatformAuditService audit;
 
-    public AdminHomeExperienceController(HomeExperienceService service) {
+    public AdminHomeExperienceController(
+            HomeExperienceService service, PlatformAuditService audit) {
         this.service = service;
+        this.audit = audit;
     }
 
     @GetMapping
@@ -90,6 +96,12 @@ public class AdminHomeExperienceController {
                 service.updateComposition(tenantId, actorId, correlationId, request));
     }
 
+    @PostMapping("/composition/preview")
+    public ApiResponse<HomeExperienceDtos.HomeCompositionPolicyPreview> previewComposition(
+            @Valid @RequestBody HomeExperienceDtos.PreviewHomeCompositionPolicyRequest request) {
+        return ApiResponse.success(service.previewComposition(request));
+    }
+
     @PostMapping(path = "/background", consumes = "multipart/form-data")
     public ApiResponse<HomeExperienceDtos.HomeExperienceResponse> uploadBackground(
             @RequestHeader(TENANT_HEADER) Long tenantId,
@@ -128,6 +140,15 @@ public class AdminHomeExperienceController {
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestParam(defaultValue = "20") @Min(1) int limit) {
         return ApiResponse.success(service.history(tenantId, limit));
+    }
+
+    @GetMapping("/audit-events")
+    @Operation(operationId = "listHomeStudioAuditEvents")
+    public ApiResponse<PlatformAuditService.AuditPage> auditEvents(
+            @RequestHeader(TENANT_HEADER) Long tenantId,
+            @RequestParam(defaultValue = "0") @Min(0) @Max(1_000) int page,
+            @RequestParam(defaultValue = "50") @Min(1) @Max(100) int size) {
+        return ApiResponse.success(audit.listHomeStudio(tenantId, page, size));
     }
 
     @PostMapping("/revisions/{revisionId}/rollback")

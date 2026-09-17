@@ -27,7 +27,7 @@ public class ProductSurfaceStepUpRouteResolver {
 
     private static final String BUNDLE_KEY = "product-surfaces";
     private static final java.util.Set<Long> STEP_UP_RUNTIME_BUNDLE_VERSIONS =
-            java.util.Set.of(2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L);
+            java.util.Set.of(2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L);
     private static final String AUTHORITY_ENDPOINT_KEY =
             "product-surface-step-up-challenge.issue";
     private static final String AUTHORITY_PUBLIC_PATH =
@@ -66,7 +66,7 @@ public class ProductSurfaceStepUpRouteResolver {
         if (!STEP_UP_RUNTIME_BUNDLE_VERSIONS.contains(stored.version())) throw unavailable();
         ProductAuthorizationContractRepository.ActivePointer sealedPointer = null;
         ProductAuthorizationContractDtos.BundleContract contract;
-        if (java.util.Set.of(9L, 10L, 11L, 12L, 13L, 14L).contains(stored.version())) {
+        if (java.util.Set.of(9L, 10L, 11L, 12L, 13L, 14L, 15L, 16L).contains(stored.version())) {
             if (seals == null) throw unavailable();
             sealedPointer = repository.findActivePointer(BUNDLE_KEY).orElseThrow(this::unavailable);
             try {

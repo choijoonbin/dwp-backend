@@ -98,6 +98,7 @@ class PlatformApprovalHomeRolloutTruthTableTest {
         request.addHeader(PlatformSecurityFilter.USER_HEADER, "11");
         request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "7");
         request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "WORKSPACE_MEMBER");
+        request.addHeader("X-DWP-Identity-Plane", "TENANT");
         request.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, "APP.APPROVALS:VIEW");
         request.addHeader(PlatformSecurityFilter.ROLLOUT_STATE_HEADER, state);
         request.addHeader(PlatformSecurityFilter.ROLLOUT_REVISION_HEADER,

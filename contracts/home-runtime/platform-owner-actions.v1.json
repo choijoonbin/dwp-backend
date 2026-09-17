@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "providerKey": "platform",
+  "ownerProductKey": "core.workspace",
+  "actions": [
+    {
+      "contractId": "core.workspace|core.workspace.daily-brief|1.0.0|dismiss-recommendation|home.recommendation.dismiss",
+      "definitionKey": "core.workspace.daily-brief",
+      "definitionVersion": "1.0.0",
+      "definitionManifestHash": "9b7f48b7ea4ef429120db330a4972c3315ad682759fa86e49c212c42bdd02406",
+      "actionId": "dismiss-recommendation",
+      "labelKey": "home.action.dismissRecommendation",
+      "commandKey": "home.recommendation.dismiss",
+      "requiredAuthority": "APP.WORK:VIEW",
+      "parameterKeys": ["recommendationKey"],
+      "requiresConfirmation": true,
+      "enabledByDefault": false
+    }
+  ]
+}

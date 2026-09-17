@@ -69,6 +69,35 @@ public class HomePreferenceController {
                 request));
     }
 
+    @PutMapping("/current-mode")
+    public ApiResponse<HomePreferenceDtos.HomePreferenceResponse> updateCurrentMode(
+            @RequestHeader(TENANT_HEADER) Long tenantId,
+            @RequestHeader(USER_HEADER) Long userId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody HomePreferenceDtos.UpdateHomeCurrentModeRequest request) {
+        return ApiResponse.success(service.updateCurrentMode(
+                tenantId,
+                userId,
+                HomePreferenceService.WORKSPACE_HOME,
+                correlationId,
+                request));
+    }
+
+    @PutMapping("/surfaces/{surfaceKey}/current-mode")
+    public ApiResponse<HomePreferenceDtos.HomePreferenceResponse> updateSurfaceCurrentMode(
+            @RequestHeader(TENANT_HEADER) Long tenantId,
+            @RequestHeader(USER_HEADER) Long userId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @PathVariable String surfaceKey,
+            @Valid @RequestBody HomePreferenceDtos.UpdateHomeCurrentModeRequest request) {
+        return ApiResponse.success(service.updateCurrentMode(
+                tenantId,
+                userId,
+                surfaceKey,
+                correlationId,
+                request));
+    }
+
     @PostMapping("/reset")
     public ApiResponse<HomePreferenceDtos.HomePreferenceResponse> reset(
             @RequestHeader(TENANT_HEADER) Long tenantId,

@@ -24,6 +24,8 @@ SERVICE_PACKAGES = {
     "dwp-gateway": "com.dwp.gateway",
 }
 
+EXTERNAL_DWP_SERVICE_TARGETS = {"dwp-agent-runtime"}
+
 SHARED_MODULES = {
     "dwp-core",
     "dwp-audit",
@@ -63,6 +65,7 @@ SIGNED_WORKLOAD_FIELDS = {
 }
 PURPOSE_TOKEN_HEADERS = {
     "X-DWP-Provisioning-Token", "X-DWP-Identity-Sync-Token", "X-DWP-Approval-Recovery-Token",
+    "X-DWP-Widget-Registry-Token",
     "X-DWP-Approval-Form-User-Token",
     "X-DWP-Approval-Workflow-Runtime-Token",
     "X-DWP-Approval-Policy-Impact-Token",
@@ -73,6 +76,87 @@ PURPOSE_TOKEN_HEADERS = {
     "X-DWP-Approval-System-Sla-Token",
     "X-DWP-Approval-Retention-Execution-Token",
 }
+HOME_PROVIDER_TOKEN_MARKER = "HomeWidgetProviderContract.SERVICE_TOKEN_HEADER"
+HOME_PROVIDER_TARGETS = {
+    "dwp-approval-server",
+    "dwp-meeting-server",
+    "dwp-notification-server",
+    "dwp-space-server",
+    "dwp-messaging-server",
+    "dwp-people-server",
+}
+HOME_PROVIDER_FACTORY_TARGETS = HOME_PROVIDER_TARGETS | {"dwp-agent-runtime"}
+HOME_PROVIDER_FACTORY = {
+    "id": "platform-home-provider-client-factory",
+    "classification": "home-runtime-owner-provider-factory",
+    "sourceService": "dwp-platform-server",
+    "path": (
+        "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/"
+        "HomeProviderClientConfiguration.java"
+    ),
+    "targetServices": HOME_PROVIDER_FACTORY_TARGETS,
+}
+HOME_PROVIDER_CLIENT = {
+    "id": "platform-home-owner-provider-transport",
+    "classification": "home-runtime-owner-provider-transport",
+    "sourceService": "dwp-platform-server",
+    "path": (
+        "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/"
+        "HttpWidgetProviderClient.java"
+    ),
+    "targetServices": HOME_PROVIDER_TARGETS,
+}
+HOME_PROVIDER_PROOF_HEADERS = {
+    "X-DWP-Approval-Signature-Source-Token",
+    "X-DWP-Notification-Approval-System-Sla-Token",
+    "X-DWP-Approval-System-Sla-Token",
+}
+HOME_PROVIDER_FACTORY_REQUIRED = {
+    "RestClient.Builder",
+    "dwp.platform.home-runtime.providers.approval.url",
+    "dwp.platform.home-runtime.providers.approval.token",
+    "dwp.platform.home-runtime.providers.meeting.url",
+    "dwp.platform.home-runtime.providers.meeting.token",
+    "dwp.platform.home-runtime.providers.notification.url",
+    "dwp.platform.home-runtime.providers.notification.token",
+    "dwp.platform.home-runtime.providers.space.url",
+    "dwp.platform.home-runtime.providers.space.token",
+    "dwp.platform.home-runtime.providers.messaging.url",
+    "dwp.platform.home-runtime.providers.messaging.token",
+    "dwp.platform.home-runtime.providers.people.url",
+    "dwp.platform.home-runtime.providers.people.token",
+    "dwp.platform.home-runtime.providers.dwaion.url",
+    "dwp.platform.home-runtime.providers.dwaion.signing-secret",
+    "dwp.platform.home-runtime.providers.dwaion.key-id",
+    "new HttpWidgetProviderClient",
+    "new DwaionHomeWidgetProviderClient",
+    "runtime.commandsEnabled()",
+    "runtime.providerTimeout()",
+}
+HOME_PROVIDER_TRANSPORT_REQUIRED = {
+    "HomeWidgetProviderContract.BATCH_PATH",
+    "HomeWidgetProviderContract.COMMAND_PATH",
+    HOME_PROVIDER_TOKEN_MARKER,
+    "HomeWidgetProviderContract.SERVICE_IDENTITY_HEADER",
+    "dwp-platform-server",
+    "OWNER_PROVIDERS",
+    "HomeWidgetProviderContract.MAX_WIDGETS_PER_BATCH",
+    "HomeWidgetProviderContract.MAX_ITEM_LIMIT",
+    "PROVIDER_DEADLINE_EXPIRED",
+    "PROVIDER_ENVELOPE_MISMATCH",
+    "PROVIDER_COMMAND_ENVELOPE_MISMATCH",
+    "CircuitBreaker.decorateSupplier",
+    "Bulkhead.decorateSupplier",
+    ".connectTimeout(timeout)",
+    ".followRedirects(HttpClient.Redirect.NEVER)",
+    "requestFactory.setReadTimeout(timeout)",
+    "OutboundHttpHeaders.propagateObservability",
+    "X-DWP-Home-Deadline-At",
+}
+HOME_PROVIDER_FORBIDDEN = {
+    "/api/", "Authorization", "Cookie", "@Retry", "RestClient.builder()",
+    "X-DWP-Product-Surface-Token", "X-DWP-Identity-Sync-Token",
+} | HOME_PROVIDER_PROOF_HEADERS
 # Generic internal clients may use owner-specific purpose credentials that are
 # not part of the Approval proof families above. Keep those credentials out of
 # the Approval forbidden-set algebra while still requiring an explicit token in
@@ -218,6 +302,89 @@ def java_without_comments(source: str) -> str:
     )
 
 
+def home_provider_identity(entry: dict[str, Any], profile: dict[str, Any]) -> bool:
+    targets = string_entries(entry.get("targetServices"))
+    return (
+        entry.get("id") == profile["id"]
+        and entry.get("classification") == profile["classification"]
+        and entry.get("interfaceType") == "internal-http"
+        and entry.get("sourceService") == profile["sourceService"]
+        and entry.get("path") == profile["path"]
+        and set(targets) == profile["targetServices"]
+        and len(targets) == len(profile["targetServices"])
+        and entry.get("retryMode") == "none"
+        and entry.get("failureMode") == "fail-contained"
+    )
+
+
+def home_provider_contract_trigger(entry: dict[str, Any], profile: dict[str, Any]) -> bool:
+    return any((
+        entry.get("id") == profile["id"],
+        entry.get("classification") == profile["classification"],
+        entry.get("path") == profile["path"],
+    ))
+
+
+def home_provider_manifest_violations(entry: dict[str, Any]) -> list[str]:
+    violations: list[str] = []
+    profiles = (
+        (HOME_PROVIDER_FACTORY, HOME_PROVIDER_FACTORY_REQUIRED),
+        (HOME_PROVIDER_CLIENT, HOME_PROVIDER_TRANSPORT_REQUIRED),
+    )
+    for profile, required in profiles:
+        if not home_provider_contract_trigger(entry, profile):
+            continue
+        prefix = f"httpClients:{entry.get('id')} {profile['classification']}"
+        if not home_provider_identity(entry, profile):
+            violations.append(f"{prefix} must use the exact Home owner provider boundary")
+        if not required <= set(string_entries(entry.get("requiredMarkers"))):
+            violations.append(f"{prefix} must require every bounded Home provider marker")
+        if not HOME_PROVIDER_FORBIDDEN <= set(string_entries(entry.get("forbiddenMarkers"))):
+            violations.append(f"{prefix} must forbid browser, borrowed, retry and raw-builder markers")
+    return violations
+
+
+def home_provider_source_violations(entry: dict[str, Any], source: str) -> list[str]:
+    source = java_without_comments(source)
+    violations: list[str] = []
+    if entry.get("path") == HOME_PROVIDER_FACTORY["path"]:
+        if len(re.findall(r"RestClient\.Builder\s+builder", source)) != 8:
+            violations.append(
+                f"{entry['path']} must inject one Boot RestClient.Builder per owner bean "
+                "and pass it through the sealed factory"
+            )
+        if source.count("new HttpWidgetProviderClient") != 1:
+            violations.append(f"{entry['path']} must construct the owner transport in one sealed factory")
+        if not re.search(
+                r"runtime\.providerTimeout\(\),\s*builder,\s*circuitBreakers,\s*bulkheads", source):
+            violations.append(f"{entry['path']} must pass the injected builder and runtime bounds")
+    elif entry.get("path") == HOME_PROVIDER_CLIENT["path"]:
+        patterns = {
+            "exact batch route": r"\.uri\(HomeWidgetProviderContract\.BATCH_PATH\)",
+            "exact command route": r"\.uri\(HomeWidgetProviderContract\.COMMAND_PATH\)",
+            "owner token": r"\.header\(HomeWidgetProviderContract\.SERVICE_TOKEN_HEADER,\s*serviceToken\)",
+            "platform identity": (
+                r"\.header\(HomeWidgetProviderContract\.SERVICE_IDENTITY_HEADER,\s*"
+                r"\"dwp-platform-server\"\)"
+            ),
+            "redirect denial": r"\.followRedirects\(HttpClient\.Redirect\.NEVER\)",
+            "deadline bound": r"deadline\.isAfter\(now\.plus\(MAX_DEADLINE_AHEAD\)\)",
+            "authority expiry bound": r"deadline\.isAfter\(context\.authorityRevalidateAt\(\)\)",
+            "batch bound": r"requests\.size\(\)\s*>\s*HomeWidgetProviderContract\.MAX_WIDGETS_PER_BATCH",
+            "item bound": r"request\.itemLimit\(\)\s*>\s*HomeWidgetProviderContract\.MAX_ITEM_LIMIT",
+            "recipient tenant check": r"response\.tenantId\(\)\s*!=\s*context\.tenantId\(\)",
+            "recipient user check": r"response\.userId\(\)\s*!=\s*context\.userId\(\)",
+            "authority revision check": (
+                r"context\.authorityDecisionRevision\(\)\.equals\("
+                r"response\.authorityDecisionRevision\(\)\)"
+            ),
+        }
+        for label, pattern in patterns.items():
+            if not re.search(pattern, source):
+                violations.append(f"{entry['path']} is missing executable {label}")
+    return violations
+
+
 def executable_literal_matches(pattern: str, source: str) -> list[re.Match[str]]:
     """Match literals only when their enclosing expression starts in executable Java."""
     masked = JAVA_NON_CODE_RE.sub(
@@ -247,7 +414,8 @@ def signed_workload_manifest_violations(entry: dict[str, Any]) -> list[str]:
     if workload.get("method") != "POST":
         violations.append(f"{prefix} method must be POST")
     path = workload.get("path")
-    if not isinstance(path, str) or not re.fullmatch(r"/internal/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+", path):
+    if not isinstance(path, str) or not re.fullmatch(
+            r"/internal/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)?", path):
         violations.append(f"{prefix} path must be an exact canonical /internal/ path")
     header = workload.get("header")
     if not isinstance(header, str) or not re.fullmatch(r"X-DWP-[A-Za-z0-9-]+-Assertion", header):
@@ -283,6 +451,8 @@ def signed_workload_manifest_violations(entry: dict[str, Any]) -> list[str]:
 
 def signed_workload_source_violations(entry: dict[str, Any], source: str) -> list[str]:
     """Check declared source wiring, not cryptographic or owner-authorization correctness."""
+    if entry.get("classification") == "home-runtime-dwaion-provider":
+        return home_signed_workload_source_violations(entry, source)
     violations: list[str] = []
     workload = entry["signedWorkload"]
     prefix = f"{entry['path']} signedWorkload"
@@ -349,6 +519,68 @@ def signed_workload_source_violations(entry: dict[str, Any], source: str) -> lis
             violations.append(f"{prefix} signer is missing executable {label}")
     for forbidden in SIGNED_WORKLOAD_FORBIDDEN:
         if any(forbidden in value for value in (java_without_comments(source), protocol, signer)):
+            violations.append(f"{prefix} source contains forbidden marker {forbidden!r}")
+    return violations
+
+
+def home_signed_workload_source_violations(
+        entry: dict[str, Any], source: str) -> list[str]:
+    """Validate the dedicated Home profile without treating it as a Work-source claim."""
+    violations: list[str] = []
+    workload = entry["signedWorkload"]
+    prefix = f"{entry['path']} signedWorkload"
+    protocol_path = Path(workload["protocolSource"])
+    signer_path = Path(workload["signerSource"])
+    protocol = java_without_comments((ROOT / protocol_path).read_text(encoding="utf-8"))
+    signer = java_without_comments((ROOT / signer_path).read_text(encoding="utf-8"))
+    client = java_without_comments(source)
+    protocol_name = ".".join(
+        protocol_path.parts[protocol_path.parts.index("java") + 1:]
+    ).removesuffix(".java")
+    for name, value in {
+        "PATH": workload["path"], "ASSERTION_HEADER": workload["header"],
+        "ISSUER": workload["issuer"], "AUDIENCE": workload["audience"],
+    }.items():
+        constants = [match.group(1) for match in executable_literal_matches(
+            rf'\bstatic\s+final\s+String\s+{name}\s*=\s*"([^"\\]*)"\s*;', protocol
+        )]
+        if constants != [value]:
+            violations.append(
+                f"{prefix} protocol {name} must equal the declared literal exactly once"
+            )
+    for label, code in (("client", client), ("signer", signer)):
+        if not re.search(rf"\bimport\s+static\s+{re.escape(protocol_name)}\.\*\s*;", code):
+            violations.append(f"{prefix} {label} must import the declared protocol constants")
+    for label, pattern in {
+        "exact endpoint": r"\.uri\(\s*PATH\s*\)",
+        "exact raw body": r"\.body\(\s*body\s*\)",
+        "signed request": r"\.header\(\s*ASSERTION_HEADER\s*,\s*assertion\s*\)",
+        "no redirect": r"\.followRedirects\(\s*HttpClient\.Redirect\.NEVER\s*\)",
+        "explicit correlation": r'headers\.set\(\s*"X-Correlation-ID"\s*,\s*context\.correlationId\(\)\s*\)',
+        "explicit traceparent": r'headers\.set\(\s*"traceparent"\s*,\s*context\.traceparent\(\)\s*\)',
+        "explicit tracestate": r'headers\.set\(\s*"tracestate"\s*,\s*context\.tracestate\(\)\s*\)',
+        "body size bound": r"body\.length\s*>\s*262_144",
+        "definition version allowlist": r"DEFINITION_VERSION\.equals\(",
+        "manifest allowlist": r"DEFINITION_MANIFEST_HASH\.equals\(",
+        "binding catalog revision": r'rendererBindingRevision\(\)\s*\.matches\(\s*"\[0-9a-f\]\{64\}"\s*\)',
+    }.items():
+        if not re.search(pattern, client):
+            violations.append(f"{prefix} client is missing {label}")
+    for label, pattern in {
+        "recipient subject": r'claims\.put\(\s*"sub"\s*,\s*Long\.toString\(context\.userId\(\)\)\s*\)',
+        "recipient tenant": r'claims\.put\(\s*"tid"\s*,\s*Long\.toString\(context\.tenantId\(\)\)\s*\)',
+        "exact path": r'claims\.put\(\s*"htu"\s*,\s*PATH\s*\)',
+        "body digest": r'claims\.put\(\s*"bodySha256"\s*,\s*sha256\(exactBody\)\s*\)',
+        "fresh nonce": r'claims\.put\(\s*"jti"\s*,\s*nonce\.get\(\)\.toString\(\)\s*\)',
+        "HMAC algorithm": r'Mac\.getInstance\(\s*"HmacSHA256"\s*\)',
+        "versioned envelope": r'String\s+input\s*=\s*"dwp1\."\s*\+',
+        "minimum key length": r'configuredSecret\.length\s*<\s*32',
+        "assertion size bound": r'MAX_ASSERTION_BYTES',
+    }.items():
+        if not re.search(pattern, signer):
+            violations.append(f"{prefix} signer is missing {label}")
+    for forbidden in SIGNED_WORKLOAD_FORBIDDEN:
+        if any(forbidden in value for value in (client, protocol, signer)):
             violations.append(f"{prefix} source contains forbidden marker {forbidden!r}")
     return violations
 
@@ -1079,7 +1311,8 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                 )
                 if interface_type in {"gateway-verifier", "internal-http"}:
                     for target_service in target_services:
-                        if target_service not in SERVICE_PACKAGES:
+                        if (target_service not in SERVICE_PACKAGES
+                                and target_service not in EXTERNAL_DWP_SERVICE_TARGETS):
                             violations.append(
                                 f"{section}:{entry_id} has unknown DWP targetService {target_service}"
                             )
@@ -1111,23 +1344,30 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                                 f"{section}:{entry_id} gateway-verifier must require {trace_marker}"
                             )
                 elif interface_type == "internal-http":
-                    if "signedWorkload" not in entry and not any("/internal/" in marker for marker in required_markers):
-                        violations.append(
-                            f"{section}:{entry_id} internal-http contracts must require an /internal/ path marker"
-                        )
-                    if "OutboundHttpHeaders.propagateObservability" not in required_markers:
-                        violations.append(
-                            f"{section}:{entry_id} internal-http contracts must propagate observability headers"
-                        )
-                    if "/api/" not in forbidden_markers:
-                        violations.append(
-                            f"{section}:{entry_id} internal-http contracts must forbid Gateway /api/ calls"
-                        )
-                    if ("signedWorkload" not in entry and "ownerToken" not in entry
-                            and not INTERNAL_PURPOSE_TOKEN_HEADERS.intersection(required_markers)):
-                        violations.append(
-                            f"{section}:{entry_id} internal-http contracts must require a purpose-specific service token"
-                        )
+                    home_provider = (
+                        home_provider_identity(entry, HOME_PROVIDER_FACTORY)
+                        or home_provider_identity(entry, HOME_PROVIDER_CLIENT)
+                    )
+                    if not home_provider:
+                        if "signedWorkload" not in entry and not any("/internal/" in marker for marker in required_markers):
+                            violations.append(
+                                f"{section}:{entry_id} internal-http contracts must require an /internal/ path marker"
+                            )
+                        if (entry.get("classification") != "home-runtime-dwaion-provider"
+                                and "OutboundHttpHeaders.propagateObservability"
+                                not in required_markers):
+                            violations.append(
+                                f"{section}:{entry_id} internal-http contracts must propagate observability headers"
+                            )
+                        if "/api/" not in forbidden_markers:
+                            violations.append(
+                                f"{section}:{entry_id} internal-http contracts must forbid Gateway /api/ calls"
+                            )
+                        if ("signedWorkload" not in entry and "ownerToken" not in entry
+                                and not INTERNAL_PURPOSE_TOKEN_HEADERS.intersection(required_markers)):
+                            violations.append(
+                                f"{section}:{entry_id} internal-http contracts must require a purpose-specific service token"
+                            )
                 elif interface_type == "external-connector":
                     for target_service in target_services:
                         if target_service in SERVICE_PACKAGES:
@@ -1153,6 +1393,7 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                 violations.extend(information_replay_manifest_violations(entry))
                 violations.extend(workflow_planning_manifest_violations(entry))
                 violations.extend(current_proof_manifest_violations(entry))
+                violations.extend(home_provider_manifest_violations(entry))
             elif section == "crossDatabaseExceptions":
                 allowed_databases = validate_string_list(
                     violations, section, str(entry_id), entry, "allowedDatabases"
@@ -1287,6 +1528,7 @@ def http_client_policy_violations(policy: dict[str, Any]) -> list[str]:
             violations.extend(information_replay_source_violations(contract, source))
             violations.extend(workflow_planning_source_violations(contract, source))
             violations.extend(current_proof_source_violations(contract, source))
+            violations.extend(home_provider_source_violations(contract, source))
             for required in string_entries(contract["requiredMarkers"]):
                 if required not in source:
                     violations.append(

@@ -274,6 +274,62 @@ public class HomeTemplateService {
     }
 
     @Transactional
+    public HomeTemplateDtos.HomeTemplateResponse restore(
+            Long tenantId,
+            Long actorId,
+            String permissions,
+            UUID templateId,
+            UUID revisionId,
+            UUID commandId,
+            String correlationId,
+            Long version) {
+        access.requireTemplateManage(permissions);
+        String fingerprint = views.fingerprint(Map.of(
+                "operation", "RESTORE_TEMPLATE", "templateId", templateId,
+                "revisionId", revisionId, "version", version));
+        HomeTemplateDtos.HomeTemplateResponse replay = commandReceipts.replay(
+                tenantId, actorId, commandId, "RESTORE_TEMPLATE", templateId.toString(),
+                fingerprint, HomeTemplateDtos.HomeTemplateResponse.class);
+        if (replay != null) return replay;
+        views.requirePolicy(tenantId, HomePreferenceService.WORKSPACE_HOME);
+        scopeLock.lock(tenantId);
+        replay = commandReceipts.replay(
+                tenantId, actorId, commandId, "RESTORE_TEMPLATE", templateId.toString(),
+                fingerprint, HomeTemplateDtos.HomeTemplateResponse.class);
+        if (replay != null) return replay;
+        HomeTemplate template = requireTemplateForUpdate(tenantId, templateId);
+        requireVersion(template, version);
+        HomeTemplateRevision revision = revisions
+                .findByTemplateRevisionIdAndTemplateIdAndTenantId(
+                        revisionId, templateId, tenantId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        HomeTemplateDtos.HomeTemplateSnapshot snapshot = revisionResponse(revision).snapshot();
+        if (snapshot.name() == null || snapshot.name().isBlank()
+                || snapshot.name().trim().length() > 80) {
+            throw invalid("The home template revision contains an invalid name.");
+        }
+        HomeTemplateDtos.TemplateAudience audience = normalizedAudience(snapshot.audience());
+        HomePreferenceDtos.HomeLayoutPayload layout = preferenceService.normalizeForSurface(
+                HomePreferenceService.WORKSPACE_HOME, snapshot.layout());
+        Object before = snapshot(template);
+        template.setName(snapshot.name().trim());
+        template.setAudiencePayload(objectMapper.valueToTree(audience));
+        template.setLayoutPayload(objectMapper.valueToTree(layout));
+        template.setSchemaVersion(HomePreferenceDtos.SCHEMA_VERSION);
+        template.setLifecycleState(DRAFT);
+        template.setPublishedAt(null);
+        template.setPublishedBy(null);
+        save(template);
+        appendRevision(template, "RESTORE", commandId, fingerprint, actorId);
+        audit.success(tenantId, actorId, "home-template.revision-restored", "HOME_TEMPLATE",
+                templateId.toString(), correlationId, before, snapshot(template));
+        HomeTemplateDtos.HomeTemplateResponse result = response(template);
+        commandReceipts.record(tenantId, actorId, commandId, "RESTORE_TEMPLATE",
+                templateId.toString(), fingerprint, result);
+        return result;
+    }
+
+    @Transactional
     public HomeViewDtos.HomeViewResponse apply(
             Long tenantId,
             Long userId,

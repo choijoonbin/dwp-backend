@@ -1,0 +1,1034 @@
+{
+  "fixtureVersion": 1,
+  "canonicalization": {
+    "algorithm": "RFC8785-JCS",
+    "encoding": "UTF-8",
+    "hash": "SHA-256",
+    "hashScope": "manifest",
+    "stringPrecondition": "NFC"
+  },
+  "registryMode": "SHADOW",
+  "runtimeActivationReady": false,
+  "fixtures": [
+    {
+      "definitionId": "36000000-0000-0000-0000-000000000001",
+      "versionId": "36100000-0000-0000-0000-000000000001",
+      "rendererBindingId": "36200000-0000-0000-0000-000000000001",
+      "releaseChannelId": "36300000-0000-0000-0000-000000000001",
+      "legacyWidgetKey": "focus-queue",
+      "providerKey": "approval",
+      "enabledByDefault": false,
+      "semanticVersion": "1.0.0",
+      "expectedSha256": "d203595d9b713745a5e46e3545f29bd47cf403d016b6773aabc13b24d29f1600",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "approval.focus-queue",
+        "owner": {
+          "productKey": "core.approvals",
+          "sourceAppResourceKey": "APP.APPROVALS"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.approval.focus-queue",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "ACTION.APPROVAL_TASK:VIEW",
+          "APP.APPROVALS:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "large",
+          "allowedSizes": [
+            "medium",
+            "large",
+            "full"
+          ],
+          "defaultHeight": "standard",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "APPROVAL.FOCUS_QUEUE.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.approval.focus-queue"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "backendEvidence": [
+        {
+          "type": "MANIFEST",
+          "ref": "fixture:wave4-owner-widget-manifests.v1:approval.focus-queue",
+          "sha256": "d203595d9b713745a5e46e3545f29bd47cf403d016b6773aabc13b24d29f1600"
+        },
+        {
+          "type": "SECURITY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-approval-server/src/test/java/com/dwp/services/approval/home/ApprovalHomeWidgetProviderControllerTest.java#security",
+          "sha256": "580964872904f99d6d07f76111249fa938aa6dad639150889cb64be2166bdeb9"
+        },
+        {
+          "type": "PRIVACY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-approval-server/src/test/java/com/dwp/services/approval/home/ApprovalHomeWidgetProviderControllerTest.java#payload-boundary",
+          "sha256": "580964872904f99d6d07f76111249fa938aa6dad639150889cb64be2166bdeb9"
+        }
+      ]
+    },
+    {
+      "definitionId": "36000000-0000-0000-0000-000000000002",
+      "versionId": "36100000-0000-0000-0000-000000000002",
+      "rendererBindingId": "36200000-0000-0000-0000-000000000002",
+      "releaseChannelId": "36300000-0000-0000-0000-000000000002",
+      "legacyWidgetKey": "my-requests",
+      "providerKey": "approval",
+      "enabledByDefault": false,
+      "semanticVersion": "1.0.0",
+      "expectedSha256": "a80bb5bc85786cc1b045eae227dd4b083de6089e41f037ff735e79fdd8ef8d12",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "approval.my-requests",
+        "owner": {
+          "productKey": "core.approvals",
+          "sourceAppResourceKey": "APP.APPROVALS"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.approval.my-requests",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "ACTION.APPROVAL_REQUEST:VIEW",
+          "APP.APPROVALS:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "medium",
+          "allowedSizes": [
+            "medium",
+            "large",
+            "full"
+          ],
+          "defaultHeight": "standard",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "APPROVAL.MY_REQUESTS.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.approval.my-requests"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "backendEvidence": [
+        {
+          "type": "MANIFEST",
+          "ref": "fixture:wave4-owner-widget-manifests.v1:approval.my-requests",
+          "sha256": "a80bb5bc85786cc1b045eae227dd4b083de6089e41f037ff735e79fdd8ef8d12"
+        },
+        {
+          "type": "SECURITY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-approval-server/src/test/java/com/dwp/services/approval/home/ApprovalHomeWidgetProviderControllerTest.java#security",
+          "sha256": "580964872904f99d6d07f76111249fa938aa6dad639150889cb64be2166bdeb9"
+        },
+        {
+          "type": "PRIVACY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-approval-server/src/test/java/com/dwp/services/approval/home/ApprovalHomeWidgetProviderControllerTest.java#payload-boundary",
+          "sha256": "580964872904f99d6d07f76111249fa938aa6dad639150889cb64be2166bdeb9"
+        }
+      ]
+    },
+    {
+      "definitionId": "36000000-0000-0000-0000-000000000003",
+      "versionId": "36100000-0000-0000-0000-000000000003",
+      "rendererBindingId": "36200000-0000-0000-0000-000000000003",
+      "releaseChannelId": "36300000-0000-0000-0000-000000000003",
+      "legacyWidgetKey": "meeting-next-prep",
+      "providerKey": "meeting",
+      "enabledByDefault": false,
+      "semanticVersion": "1.0.0",
+      "expectedSha256": "12b4b13ad8838b821931247cbaae7bb694d80f0301138c75d5364759410aeb71",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "meetings.next-prep",
+        "owner": {
+          "productKey": "core.meetings",
+          "sourceAppResourceKey": "APP.MEETINGS"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.meetings.next-prep",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.MEETINGS:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "medium",
+          "allowedSizes": [
+            "quarter",
+            "compact",
+            "medium",
+            "large"
+          ],
+          "defaultHeight": "standard",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "MEETINGS.NEXT_PREP.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.meetings.next-prep"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "backendEvidence": [
+        {
+          "type": "MANIFEST",
+          "ref": "fixture:wave4-owner-widget-manifests.v1:meetings.next-prep",
+          "sha256": "12b4b13ad8838b821931247cbaae7bb694d80f0301138c75d5364759410aeb71"
+        },
+        {
+          "type": "SECURITY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-meeting-server/src/test/java/com/dwp/services/meeting/videomeeting/home/MeetingHomeWidgetProviderControllerTest.java#security",
+          "sha256": "04c6ce150dc77806e516535b91c645f4331c18957cfdbc76c1e08345f4adf45b"
+        },
+        {
+          "type": "PRIVACY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-meeting-server/src/test/java/com/dwp/services/meeting/videomeeting/home/MeetingHomeWidgetProviderControllerTest.java#payload-boundary",
+          "sha256": "04c6ce150dc77806e516535b91c645f4331c18957cfdbc76c1e08345f4adf45b"
+        }
+      ]
+    },
+    {
+      "definitionId": "36000000-0000-0000-0000-000000000004",
+      "versionId": "36100000-0000-0000-0000-000000000004",
+      "rendererBindingId": "36200000-0000-0000-0000-000000000004",
+      "releaseChannelId": "36300000-0000-0000-0000-000000000004",
+      "legacyWidgetKey": "meeting-followups",
+      "providerKey": "meeting",
+      "enabledByDefault": false,
+      "semanticVersion": "1.0.0",
+      "expectedSha256": "9a18a83a2b704e4cad302365305ff112ad444629ff49ccca310a98d7c94b5e3b",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "meetings.followup-candidates",
+        "owner": {
+          "productKey": "core.meetings",
+          "sourceAppResourceKey": "APP.MEETINGS"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.meetings.followup-candidates",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.MEETINGS:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "medium",
+          "allowedSizes": [
+            "quarter",
+            "compact",
+            "medium",
+            "large"
+          ],
+          "defaultHeight": "standard",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "MEETINGS.FOLLOWUP_CANDIDATES.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.meetings.followup-candidates"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "backendEvidence": [
+        {
+          "type": "MANIFEST",
+          "ref": "fixture:wave4-owner-widget-manifests.v1:meetings.followup-candidates",
+          "sha256": "9a18a83a2b704e4cad302365305ff112ad444629ff49ccca310a98d7c94b5e3b"
+        },
+        {
+          "type": "SECURITY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-meeting-server/src/test/java/com/dwp/services/meeting/videomeeting/home/MeetingHomeWidgetProviderControllerTest.java#security",
+          "sha256": "04c6ce150dc77806e516535b91c645f4331c18957cfdbc76c1e08345f4adf45b"
+        },
+        {
+          "type": "PRIVACY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-meeting-server/src/test/java/com/dwp/services/meeting/videomeeting/home/MeetingHomeWidgetProviderControllerTest.java#payload-boundary",
+          "sha256": "04c6ce150dc77806e516535b91c645f4331c18957cfdbc76c1e08345f4adf45b"
+        }
+      ]
+    },
+    {
+      "definitionId": "36000000-0000-0000-0000-000000000005",
+      "versionId": "36100000-0000-0000-0000-000000000005",
+      "rendererBindingId": "36200000-0000-0000-0000-000000000005",
+      "releaseChannelId": "36300000-0000-0000-0000-000000000005",
+      "legacyWidgetKey": "application-dock",
+      "providerKey": "notification",
+      "enabledByDefault": true,
+      "semanticVersion": "1.0.0",
+      "expectedSha256": "99f8e3d68f8c7b7d6fb175b6bedb24653bf838a47d87eaa11861078ea789d930",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "notification.app-badges",
+        "owner": {
+          "productKey": "core.notifications",
+          "sourceAppResourceKey": "APP.NOTIFICATIONS"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.notification.app-badges",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.NOTIFICATIONS:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "full",
+          "allowedSizes": [
+            "full"
+          ],
+          "defaultHeight": "short",
+          "allowedHeights": [
+            "short"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "NOTIFICATION.APP_BADGES.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.notification.app-badges"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "backendEvidence": [
+        {
+          "type": "MANIFEST",
+          "ref": "fixture:wave4-owner-widget-manifests.v1:notification.app-badges",
+          "sha256": "99f8e3d68f8c7b7d6fb175b6bedb24653bf838a47d87eaa11861078ea789d930"
+        },
+        {
+          "type": "SECURITY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-notification-server/src/test/java/com/dwp/services/notification/home/NotificationHomeWidgetProviderControllerTest.java#security",
+          "sha256": "cf3ca722228977b92d679f490e4208678d0fc6fb3381809c505e2fcf8d667c74"
+        },
+        {
+          "type": "PRIVACY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-notification-server/src/test/java/com/dwp/services/notification/home/NotificationHomeWidgetProviderControllerTest.java#payload-boundary",
+          "sha256": "cf3ca722228977b92d679f490e4208678d0fc6fb3381809c505e2fcf8d667c74"
+        }
+      ]
+    },
+    {
+      "definitionId": "36000000-0000-0000-0000-000000000006",
+      "versionId": "36100000-0000-0000-0000-000000000006",
+      "rendererBindingId": "36200000-0000-0000-0000-000000000006",
+      "releaseChannelId": "36300000-0000-0000-0000-000000000006",
+      "legacyWidgetKey": "notification-response-queue",
+      "providerKey": "notification",
+      "enabledByDefault": false,
+      "semanticVersion": "1.0.0",
+      "expectedSha256": "1095138bdafd1c04e638e65f458f207f7d4616cc395e3da82969c34a0b5ce14b",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "notification.response-queue",
+        "owner": {
+          "productKey": "core.notifications",
+          "sourceAppResourceKey": "APP.NOTIFICATIONS"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.notification.response-queue",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.NOTIFICATIONS:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "medium",
+          "allowedSizes": [
+            "quarter",
+            "compact",
+            "medium",
+            "large"
+          ],
+          "defaultHeight": "standard",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "NOTIFICATION.RESPONSE_QUEUE.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.notification.response-queue"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "backendEvidence": [
+        {
+          "type": "MANIFEST",
+          "ref": "fixture:wave4-owner-widget-manifests.v1:notification.response-queue",
+          "sha256": "1095138bdafd1c04e638e65f458f207f7d4616cc395e3da82969c34a0b5ce14b"
+        },
+        {
+          "type": "SECURITY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-notification-server/src/test/java/com/dwp/services/notification/home/NotificationHomeWidgetProviderControllerTest.java#security",
+          "sha256": "cf3ca722228977b92d679f490e4208678d0fc6fb3381809c505e2fcf8d667c74"
+        },
+        {
+          "type": "PRIVACY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-notification-server/src/test/java/com/dwp/services/notification/home/NotificationHomeWidgetProviderControllerTest.java#payload-boundary",
+          "sha256": "cf3ca722228977b92d679f490e4208678d0fc6fb3381809c505e2fcf8d667c74"
+        }
+      ]
+    },
+    {
+      "definitionId": "36000000-0000-0000-0000-000000000007",
+      "versionId": "36100000-0000-0000-0000-000000000007",
+      "rendererBindingId": "36200000-0000-0000-0000-000000000007",
+      "releaseChannelId": "36300000-0000-0000-0000-000000000007",
+      "legacyWidgetKey": "space-change-feed",
+      "providerKey": "space",
+      "enabledByDefault": false,
+      "semanticVersion": "1.0.0",
+      "expectedSha256": "679133ea378aebfe3259d41615e084a74b3f02136ca273edd023df3896e45ce1",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "space.change-feed",
+        "owner": {
+          "productKey": "core.spaces",
+          "sourceAppResourceKey": "APP.SPACES"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.space.change-feed",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.SPACES:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "medium",
+          "allowedSizes": [
+            "quarter",
+            "compact",
+            "medium",
+            "large",
+            "full"
+          ],
+          "defaultHeight": "tall",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall",
+            "expanded"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "SPACE.CHANGE_FEED.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.space.change-feed"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "backendEvidence": [
+        {
+          "type": "MANIFEST",
+          "ref": "fixture:wave4-owner-widget-manifests.v1:space.change-feed",
+          "sha256": "679133ea378aebfe3259d41615e084a74b3f02136ca273edd023df3896e45ce1"
+        },
+        {
+          "type": "SECURITY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-space-server/src/test/java/com/dwp/services/space/home/SpaceHomeWidgetProviderControllerTest.java#security",
+          "sha256": "2f88dfa2c820313eaed234581c31f7baae4be556b4539c10878220277fd0a7ab"
+        },
+        {
+          "type": "PRIVACY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-space-server/src/test/java/com/dwp/services/space/home/SpaceHomeWidgetProviderControllerTest.java#payload-boundary",
+          "sha256": "2f88dfa2c820313eaed234581c31f7baae4be556b4539c10878220277fd0a7ab"
+        }
+      ]
+    },
+    {
+      "definitionId": "36000000-0000-0000-0000-000000000008",
+      "versionId": "36100000-0000-0000-0000-000000000008",
+      "rendererBindingId": "36200000-0000-0000-0000-000000000008",
+      "releaseChannelId": "36300000-0000-0000-0000-000000000008",
+      "legacyWidgetKey": "space-response-queue",
+      "providerKey": "space",
+      "enabledByDefault": false,
+      "semanticVersion": "1.0.0",
+      "expectedSha256": "cf00ea0674e3dcaec95b5dac3c74305e156815911d74570056e13721e4873457",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "space.response-queue",
+        "owner": {
+          "productKey": "core.spaces",
+          "sourceAppResourceKey": "APP.SPACES"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.space.response-queue",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.SPACES:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "medium",
+          "allowedSizes": [
+            "quarter",
+            "compact",
+            "medium",
+            "large"
+          ],
+          "defaultHeight": "standard",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "SPACE.RESPONSE_QUEUE.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.space.response-queue"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "backendEvidence": [
+        {
+          "type": "MANIFEST",
+          "ref": "fixture:wave4-owner-widget-manifests.v1:space.response-queue",
+          "sha256": "cf00ea0674e3dcaec95b5dac3c74305e156815911d74570056e13721e4873457"
+        },
+        {
+          "type": "SECURITY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-space-server/src/test/java/com/dwp/services/space/home/SpaceHomeWidgetProviderControllerTest.java#security",
+          "sha256": "2f88dfa2c820313eaed234581c31f7baae4be556b4539c10878220277fd0a7ab"
+        },
+        {
+          "type": "PRIVACY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-space-server/src/test/java/com/dwp/services/space/home/SpaceHomeWidgetProviderControllerTest.java#payload-boundary",
+          "sha256": "2f88dfa2c820313eaed234581c31f7baae4be556b4539c10878220277fd0a7ab"
+        }
+      ]
+    },
+    {
+      "definitionId": "36000000-0000-0000-0000-000000000009",
+      "versionId": "36100000-0000-0000-0000-000000000009",
+      "rendererBindingId": "36200000-0000-0000-0000-000000000009",
+      "releaseChannelId": "36300000-0000-0000-0000-000000000009",
+      "legacyWidgetKey": "messaging-response-queue",
+      "providerKey": "messaging",
+      "enabledByDefault": false,
+      "semanticVersion": "1.0.0",
+      "expectedSha256": "3ade20ba736ad8436a43b7877006b0393be15fd42ca711aaf1631990cabc65a1",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "messaging.response-queue",
+        "owner": {
+          "productKey": "core.messaging",
+          "sourceAppResourceKey": "APP.MESSAGING"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.messaging.response-queue",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.MESSAGING:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "medium",
+          "allowedSizes": [
+            "quarter",
+            "compact",
+            "medium",
+            "large"
+          ],
+          "defaultHeight": "standard",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "MESSAGING.RESPONSE_QUEUE.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.messaging.response-queue"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "backendEvidence": [
+        {
+          "type": "MANIFEST",
+          "ref": "fixture:wave4-owner-widget-manifests.v1:messaging.response-queue",
+          "sha256": "3ade20ba736ad8436a43b7877006b0393be15fd42ca711aaf1631990cabc65a1"
+        },
+        {
+          "type": "SECURITY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-messaging-server/src/test/java/com/dwp/services/messaging/home/MessagingHomeWidgetProviderControllerTest.java#security",
+          "sha256": "90d2adb4e477cc5ed47e841d86e3fa602ab2e7b2a9ec34213ccc992e822642cc"
+        },
+        {
+          "type": "PRIVACY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-messaging-server/src/test/java/com/dwp/services/messaging/home/MessagingHomeWidgetProviderControllerTest.java#payload-boundary",
+          "sha256": "90d2adb4e477cc5ed47e841d86e3fa602ab2e7b2a9ec34213ccc992e822642cc"
+        }
+      ]
+    },
+    {
+      "definitionId": "36000000-0000-0000-0000-000000000010",
+      "versionId": "36100000-0000-0000-0000-000000000010",
+      "rendererBindingId": "36200000-0000-0000-0000-000000000010",
+      "releaseChannelId": "36300000-0000-0000-0000-000000000010",
+      "legacyWidgetKey": "messaging-change-feed",
+      "providerKey": "messaging",
+      "enabledByDefault": false,
+      "semanticVersion": "1.0.0",
+      "expectedSha256": "c25cb2b6e21b33e7fa1712956cae92f56fafd5cdb6b426c55db9a64924bcf0bc",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "messaging.change-feed",
+        "owner": {
+          "productKey": "core.messaging",
+          "sourceAppResourceKey": "APP.MESSAGING"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.messaging.change-feed",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.MESSAGING:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "medium",
+          "allowedSizes": [
+            "quarter",
+            "compact",
+            "medium",
+            "large",
+            "full"
+          ],
+          "defaultHeight": "tall",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall",
+            "expanded"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "MESSAGING.CHANGE_FEED.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.messaging.change-feed"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "backendEvidence": [
+        {
+          "type": "MANIFEST",
+          "ref": "fixture:wave4-owner-widget-manifests.v1:messaging.change-feed",
+          "sha256": "c25cb2b6e21b33e7fa1712956cae92f56fafd5cdb6b426c55db9a64924bcf0bc"
+        },
+        {
+          "type": "SECURITY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-messaging-server/src/test/java/com/dwp/services/messaging/home/MessagingHomeWidgetProviderControllerTest.java#security",
+          "sha256": "90d2adb4e477cc5ed47e841d86e3fa602ab2e7b2a9ec34213ccc992e822642cc"
+        },
+        {
+          "type": "PRIVACY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-messaging-server/src/test/java/com/dwp/services/messaging/home/MessagingHomeWidgetProviderControllerTest.java#payload-boundary",
+          "sha256": "90d2adb4e477cc5ed47e841d86e3fa602ab2e7b2a9ec34213ccc992e822642cc"
+        }
+      ]
+    },
+    {
+      "definitionId": "36000000-0000-0000-0000-000000000011",
+      "versionId": "36100000-0000-0000-0000-000000000011",
+      "rendererBindingId": "36200000-0000-0000-0000-000000000011",
+      "releaseChannelId": "36300000-0000-0000-0000-000000000011",
+      "legacyWidgetKey": "hr-education",
+      "providerKey": "people",
+      "enabledByDefault": false,
+      "semanticVersion": "1.0.0",
+      "expectedSha256": "05806990658c73ffaf4e5f5656721778641dfef19b4734c96d1f4fa9f3463eb8",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "hr.edu",
+        "owner": {
+          "productKey": "core.people",
+          "sourceAppResourceKey": "APP.HCM"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.hr.edu",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.HCM:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "medium",
+          "allowedSizes": [
+            "quarter",
+            "compact",
+            "medium",
+            "large"
+          ],
+          "defaultHeight": "standard",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "HR.EDU.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.hr.edu"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "backendEvidence": [
+        {
+          "type": "MANIFEST",
+          "ref": "fixture:wave4-owner-widget-manifests.v1:hr.edu",
+          "sha256": "05806990658c73ffaf4e5f5656721778641dfef19b4734c96d1f4fa9f3463eb8"
+        },
+        {
+          "type": "SECURITY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-people-server/src/test/java/com/dwp/services/people/home/PeopleHomeWidgetProviderControllerTest.java#security",
+          "sha256": "d0ae07f2aa44e7813e5fe7771f3747ac08f7cf4b8ff7bfe1f70c6ef6a816b0ca"
+        },
+        {
+          "type": "PRIVACY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-people-server/src/test/java/com/dwp/services/people/home/PeopleHomeWidgetProviderControllerTest.java#payload-boundary",
+          "sha256": "d0ae07f2aa44e7813e5fe7771f3747ac08f7cf4b8ff7bfe1f70c6ef6a816b0ca"
+        }
+      ]
+    },
+    {
+      "definitionId": "36000000-0000-0000-0000-000000000012",
+      "versionId": "36100000-0000-0000-0000-000000000012",
+      "rendererBindingId": "36200000-0000-0000-0000-000000000012",
+      "releaseChannelId": "36300000-0000-0000-0000-000000000012",
+      "legacyWidgetKey": "hr-team-pulse",
+      "providerKey": "people",
+      "enabledByDefault": false,
+      "semanticVersion": "1.0.0",
+      "expectedSha256": "9cf2e1770e377a3a7a7721ee795beaf9ad1649bac8a8977046e9990f9c6604df",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "hr.team-pulse",
+        "owner": {
+          "productKey": "core.people",
+          "sourceAppResourceKey": "APP.HCM"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.hr.team-pulse",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.HCM:VIEW",
+          "DATA.WORKFORCE:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "medium",
+          "allowedSizes": [
+            "quarter",
+            "compact",
+            "medium",
+            "large"
+          ],
+          "defaultHeight": "standard",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "HR.TEAM_PULSE.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.hr.team-pulse"
+        },
+        "privacy": {
+          "classification": "RESTRICTED",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "backendEvidence": [
+        {
+          "type": "MANIFEST",
+          "ref": "fixture:wave4-owner-widget-manifests.v1:hr.team-pulse",
+          "sha256": "9cf2e1770e377a3a7a7721ee795beaf9ad1649bac8a8977046e9990f9c6604df"
+        },
+        {
+          "type": "SECURITY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-people-server/src/test/java/com/dwp/services/people/home/PeopleHomeWidgetProviderControllerTest.java#security",
+          "sha256": "d0ae07f2aa44e7813e5fe7771f3747ac08f7cf4b8ff7bfe1f70c6ef6a816b0ca"
+        },
+        {
+          "type": "PRIVACY",
+          "ref": "git:6e453915088b0274eb87638cbaa30c468a796d24:dwp-people-server/src/test/java/com/dwp/services/people/home/PeopleHomeWidgetProviderControllerTest.java#payload-boundary",
+          "sha256": "d0ae07f2aa44e7813e5fe7771f3747ac08f7cf4b8ff7bfe1f70c6ef6a816b0ca"
+        }
+      ]
+    }
+  ]
+}

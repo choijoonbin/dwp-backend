@@ -49031,6 +49031,38 @@
           "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 26,
+      "capabilities": [
+        {"contractKey":"workplace.home.read","resolvedCapabilityCode":"APP.WORK:VIEW","mappingVersion":1,"productKey":"workplace","surfaceKey":"workplace.work","resourceKey":"APP.WORK","action":"VIEW","authorityMode":"PERMISSION","responsibilityRequirement":"NOT_REQUIRED","scopeResolver":"SELF","riskTier":"LOW","activationPolicy":null,"sodPolicyId":null,"requiresProductEntitlement":false,"sunsetAt":null,"legacySource":null,"owner":"Workplace + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"}
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {"routeContractKey":"route.workplace.work.home-read-model.data","navigationContextId":"workplace.work","subject":{"type":"PRODUCT","productKey":"workplace","surfaceKey":"workplace.work"},"routeKind":"DATA","sideEffectFree":true,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"home-reader","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"workplace.home.read"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":[],"readOnly":true}],"gatewayApiBindings":[{"bindingKey":"route.workplace.work.home-read-model.data.binding.01","method":"GET","path":"/api/platform/v2/home","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.workplace.work.home-read-model.data.binding.01","method":"GET","path":"/v2/home","pathParameterConstraints":{},"serviceKey":"platform"}],"owner":"Workplace + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"}
+      ]
+    },
+    {
+      "version": 27,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {"routeContractKey":"route.workplace.work.home-widget-action-execute.action","navigationContextId":"workplace.work","subject":{"type":"PRODUCT","productKey":"workplace","surfaceKey":"workplace.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"home-command","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"workplace.home.read"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":[],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.workplace.work.home-widget-action-execute.action.binding.01","method":"POST","path":"/api/platform/v2/home/widget-actions:execute","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.workplace.work.home-widget-action-execute.action.binding.01","method":"POST","path":"/v2/home/widget-actions:execute","pathParameterConstraints":{},"serviceKey":"platform"}],"owner":"Workplace + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"}
+      ]
+    },
+    {
+      "version": 28,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {"routeContractKey":"route.workplace.work.home-shadow-receipt.action","navigationContextId":"workplace.work","subject":{"type":"PRODUCT","productKey":"workplace","surfaceKey":"workplace.work"},"routeKind":"ACTION","sideEffectFree":null,"uiRouteId":null,"uiRoutePattern":null,"accessProfiles":[{"profileKey":"home-shadow-observer","precedence":300,"activeAccessModes":["NORMAL","ELEVATED"],"requiredAccess":{"type":"CAPABILITY","capabilityContractKey":"workplace.home.read"},"targetBindingKinds":["SELF"],"predicatePolicyKeys":[],"readOnly":false}],"gatewayApiBindings":[{"bindingKey":"route.workplace.work.home-shadow-receipt.action.binding.01","method":"POST","path":"/api/platform/v2/home/shadow-receipts","pathParameterConstraints":{}}],"servicePepBindings":[{"bindingKey":"route.workplace.work.home-shadow-receipt.action.binding.01","method":"POST","path":"/v2/home/shadow-receipts","pathParameterConstraints":{},"serviceKey":"platform"}],"owner":"Workplace + Platform + Security","policyVersion":1,"lifecycleState":"ACTIVE"}
+      ]
     }
   ],
   "descriptorEnrichments": {

@@ -23,7 +23,7 @@ final class WidgetRegistryJsonContract {
     static final Pattern APP_RESOURCE_KEY = Pattern.compile(
             "^APP\\.[A-Z][A-Z0-9_]*(?:\\.[A-Z0-9_]+)*$");
     static final Pattern AUTHORITY = Pattern.compile(
-            "^APP\\.[A-Z][A-Z0-9_.]*:[A-Z][A-Z0-9_]*$");
+            "^(?:APP|ACTION|DATA)\\.[A-Z][A-Z0-9_.]*:[A-Z][A-Z0-9_]*$");
     static final Pattern FIELD_KEY = Pattern.compile("^[a-z][A-Za-z0-9]*$");
     static final Pattern SEMANTIC_VERSION = Pattern.compile(
             "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)"

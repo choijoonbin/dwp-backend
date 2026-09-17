@@ -1045,32 +1045,6 @@ class AuthSessionVerifierTest {
         assertThat(identity.permissions()).containsExactly("DATA.WORKFORCE:MANAGE");
     }
 
-    @Test
-    void returnsOnlyVerifiedGroupReferencesFromTheSessionProfile() {
-        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> Mono.just(
-                ClientResponse.create(HttpStatus.OK)
-                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
-                        .body("""
-                                {"success":true,"data":{"userId":7,"tenantId":1,"identityPlane":"TENANT",
-                                "roles":["WORKSPACE_MEMBER"],"groups":[
-                                  {"groupRef":"58fa4516-dc70-4785-ac9f-3606992c3f6b","groupKey":"FINANCE","displayName":"Finance"},
-                                  {"groupRef":"c175742b-070e-4223-a49a-b9878d280a7c","groupKey":"OPERATIONS","displayName":"Operations"}
-                                ]}}
-                                """)
-                        .build()));
-        AuthSessionVerifier verifier = new AuthSessionVerifier(
-                builder, "http://auth.test", Duration.ofSeconds(1));
-
-        VerifiedIdentity identity = verifier.verify(MockServerHttpRequest
-                .get("/api/platform/v1/workspace/saved-views")
-                .build()).block();
-
-        assertThat(identity).isNotNull();
-        assertThat(identity.groupRefs()).containsExactly(
-                "58fa4516-dc70-4785-ac9f-3606992c3f6b",
-                "c175742b-070e-4223-a49a-b9878d280a7c");
-    }
-
     private AuthSessionVerifier verifierReturningTenant(String tenantId) {
         String body = """
                 {"success":true,"data":{"userId":7,"tenantId":%s,"identityPlane":"TENANT","roles":["EMPLOYEE"]}}

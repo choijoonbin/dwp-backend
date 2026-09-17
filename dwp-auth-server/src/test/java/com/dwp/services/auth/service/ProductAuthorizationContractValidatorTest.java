@@ -245,12 +245,19 @@ class ProductAuthorizationContractValidatorTest {
                 generatedDocument("product-surfaces-v1.bundle-v24.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionTwentyFive = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v25.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(25);
-        assertThat(index.latestChecksum()).isEqualTo(versionTwentyFive.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionTwentySix = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v26.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionTwentySeven = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v27.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionTwentyEight = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v28.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(28);
+        assertThat(index.latestChecksum()).isEqualTo(versionTwentyEight.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
-                        12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L);
+                        12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L,
+                        26L, 27L, 28L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -414,6 +421,34 @@ class ProductAuthorizationContractValidatorTest {
                         .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
                         .toList())
                 .contains("route.dwaion.work.artifact-collaboration-review-decision.action");
+        assertStrictCapabilitySuperset(versionTwentyFive, versionTwentySix);
+        assertThat(versionTwentySix.routes()).hasSize(778)
+                .containsAll(versionTwentyFive.routes())
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .contains("route.workplace.work.home-read-model.data");
+        assertThat(versionTwentySeven.capabilities())
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionTwentySix.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertThat(versionTwentySeven.routes()).hasSize(779)
+                .containsAll(versionTwentySix.routes())
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .contains("route.workplace.work.home-widget-action-execute.action");
+        assertThat(versionTwentyEight.capabilities())
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionTwentySeven.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertThat(versionTwentyEight.capabilities())
+                .filteredOn(value -> "workplace.home.read".equals(value.contractKey()))
+                .singleElement()
+                .satisfies(value -> assertThat(value.routeContractKeys())
+                        .contains("route.workplace.work.home-shadow-receipt.action"));
+        assertThat(versionTwentyEight.routes()).hasSize(780)
+                .containsAll(versionTwentySeven.routes())
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .contains("route.workplace.work.home-shadow-receipt.action");
         assertThat(versionSix.routes()).filteredOn(value -> value.routeContractKey().equals(
                 "route.services.work.request-information-response.action"))
                 .singleElement().satisfies(route -> {

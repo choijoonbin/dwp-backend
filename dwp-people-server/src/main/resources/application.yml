@@ -81,6 +81,7 @@ dwp:
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   people:
     service-token: ${DWP_PEOPLE_SERVICE_TOKEN:}
+    home-runtime-service-token: ${DWP_PEOPLE_HOME_RUNTIME_SERVICE_TOKEN:}
     product-authorization-v3-enabled: ${DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED:false}
     step-up:
       public-key-pem: ${DWP_PEOPLE_STEP_UP_PUBLIC_KEY_PEM:}

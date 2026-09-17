@@ -11,6 +11,9 @@ public interface HomeTemplateRevisionRepository
     Optional<HomeTemplateRevision> findTopByTemplateIdOrderByRevisionNumberDesc(
             UUID templateId);
 
+    Optional<HomeTemplateRevision> findByTemplateRevisionIdAndTemplateIdAndTenantId(
+            UUID templateRevisionId, UUID templateId, Long tenantId);
+
     List<HomeTemplateRevision> findTop50ByTemplateIdAndTenantIdOrderByRevisionNumberDesc(
             UUID templateId, Long tenantId);
 }

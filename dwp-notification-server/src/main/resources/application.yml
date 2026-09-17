@@ -85,6 +85,7 @@ dwp:
       daily-limit: ${DWP_NOTIFICATION_TEST_DELIVERY_DAILY_LIMIT:10}
     bulk-undo-window: ${DWP_NOTIFICATION_BULK_UNDO_WINDOW:PT10M}
     service-token: ${DWP_NOTIFICATION_SERVICE_TOKEN:}
+    home-runtime-service-token: ${DWP_NOTIFICATION_HOME_RUNTIME_SERVICE_TOKEN:}
     gateway-source: ${DWP_NOTIFICATION_GATEWAY_SOURCE:dwp-gateway}
     producer-tokens: ${DWP_NOTIFICATION_PRODUCER_TOKENS:}
     producer-app-bindings: >-

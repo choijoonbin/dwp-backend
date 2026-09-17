@@ -2,6 +2,7 @@ package com.dwp.services.meeting.security;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
+import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.dwp.services.meeting.videomeeting.api.MeetingMediaWebhookController;
 import com.dwp.services.meeting.videomeeting.domain.MeetingFollowupAssertionVerifier;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -99,10 +100,17 @@ public class MeetingSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return path.startsWith("/actuator/health")
                 || path.startsWith("/v3/api-docs")
+                || isHomeProviderPost(request, path)
                 || path.equals(MeetingMediaWebhookController.PATH)
                 || ("POST".equals(request.getMethod())
                 && path.equals(MeetingFollowupAssertionVerifier.PATH))
                 || path.equals("/error");
+    }
+
+    private boolean isHomeProviderPost(HttpServletRequest request, String path) {
+        return "POST".equals(request.getMethod())
+                && (HomeWidgetProviderContract.BATCH_PATH.equals(path)
+                || HomeWidgetProviderContract.COMMAND_PATH.equals(path));
     }
 
     @Override

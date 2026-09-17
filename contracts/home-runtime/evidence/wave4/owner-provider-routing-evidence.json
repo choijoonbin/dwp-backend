@@ -1,0 +1,32 @@
+{
+  "corruptedOwnerUnavailableResults": 2,
+  "crossOwnerLeakCount": 0,
+  "definitionCount": 12,
+  "gate": "W4-OWNER-PROVIDER-ROUTING",
+  "junit": {
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "tests": 2
+  },
+  "preservedSiblingResults": 10,
+  "providerCount": 6,
+  "providerDefinitionCounts": {
+    "approval": 2,
+    "meeting": 2,
+    "messaging": 2,
+    "notification": 2,
+    "people": 2,
+    "space": 2
+  },
+  "schemaVersion": 1,
+  "status": "PASS",
+  "strictValidatorCorruptions": [
+    "TENANT",
+    "USER",
+    "AUTHORITY_REVISION",
+    "FOREIGN_DEFINITION"
+  ],
+  "testedCommit": "32e7a073277e95dc407369657cbe5a201f1efdeb",
+  "validAvailableResults": 12
+}

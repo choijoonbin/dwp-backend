@@ -1,0 +1,26 @@
+{
+  "backendEvidenceTypes": [
+    "MANIFEST",
+    "PRIVACY",
+    "SECURITY"
+  ],
+  "certificationStatus": "NOT_RUN",
+  "definitionCount": 12,
+  "enabledByDefaultCount": 1,
+  "enabledByDefaultDefinitions": [
+    "notification.app-badges"
+  ],
+  "frontendCertificationEvidenceCount": 0,
+  "gate": "W4-OWNER-WIDGET-SEED",
+  "mutationTests": {
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "tests": 5
+  },
+  "registryMode": "SHADOW",
+  "runtimeActivationReady": false,
+  "schemaVersion": 1,
+  "status": "PASS",
+  "testedCommit": "32e7a073277e95dc407369657cbe5a201f1efdeb"
+}

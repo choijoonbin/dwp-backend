@@ -41,6 +41,9 @@ public class HomePreference extends BaseEntity {
     @Column(name = "surface_key", nullable = false, length = 80)
     private String surfaceKey = HomeSurfaceKeys.WORKSPACE_HOME;
 
+    @Column(name = "current_mode", length = 16)
+    private String currentMode;
+
     @Builder.Default
     @Column(name = "schema_version", nullable = false)
     private Integer schemaVersion = 1;

@@ -1,5 +1,6 @@
 package com.dwp.services.platform.home.personalization;
 
+import com.dwp.core.common.ApiResponse;
 import com.dwp.services.platform.home.preference.HomePreferenceDtos;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.swagger.v3.oas.annotations.media.Schema;
@@ -23,8 +24,21 @@ public final class HomeViewDtos {
     public record CreateHomeViewRequest(
             @NotBlank @Pattern(regexp = "[a-z][a-z0-9-]{0,79}") String viewKey,
             @NotBlank @Size(max = 80) String name,
+            @Pattern(regexp = "CLASSIC|FLOW_V1|MZ_V1") String modeKey,
             boolean makeDefault,
             @NotNull @Valid HomePreferenceDtos.HomeLayoutPayload layout) {
+
+        public CreateHomeViewRequest {
+            if (modeKey != null) modeKey = HomeModeKeys.canonical(modeKey);
+        }
+
+        public CreateHomeViewRequest(
+                String viewKey,
+                String name,
+                boolean makeDefault,
+                HomePreferenceDtos.HomeLayoutPayload layout) {
+            this(viewKey, name, null, makeDefault, layout);
+        }
     }
 
     public record UpdateHomeViewRequest(
@@ -54,9 +68,12 @@ public final class HomeViewDtos {
     }
 
     public record DeviceLayoutOverlay(
-            @NotNull @Size(max = 30) List<@NotNull @Pattern(regexp = "[a-z][a-z0-9-]{0,39}") String> widgetOrder,
+            @NotNull @Size(max = 30) List<@NotNull
+                    @Pattern(regexp = "[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*")
+                    @Size(max = 160) String> widgetOrder,
             @NotNull @Size(max = 30) Map<
-                    @NotNull @Pattern(regexp = "[a-z][a-z0-9-]{0,39}") String,
+                    @NotNull @Pattern(regexp = "[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*")
+                    @Size(max = 160) String,
                     @NotNull @Pattern(regexp = "fifth|quarter|compact|medium|large|full") String> widgetSizes,
             @NotBlank @Pattern(regexp = "comfortable|compact")
             @Schema(allowableValues = {"comfortable", "compact"}) String density) {
@@ -70,13 +87,14 @@ public final class HomeViewDtos {
     }
 
     @Schema(requiredProperties = {
-            "viewId", "viewKey", "surfaceKey", "name", "isDefault",
+            "viewId", "viewKey", "surfaceKey", "modeKey", "name", "isDefault",
             "customized", "schemaVersion", "layout", "version", "widgetConfigurations"
     })
     public record HomeViewResponse(
             UUID viewId,
             String viewKey,
             String surfaceKey,
+            String modeKey,
             String name,
             boolean isDefault,
             boolean customized,
@@ -86,6 +104,28 @@ public final class HomeViewDtos {
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt,
             Map<String, WidgetConfigurationPayload> widgetConfigurations) {
+
+        public HomeViewResponse {
+            modeKey = HomeModeKeys.canonical(modeKey);
+        }
+
+        public HomeViewResponse(
+                UUID viewId,
+                String viewKey,
+                String surfaceKey,
+                String name,
+                boolean isDefault,
+                boolean customized,
+                Integer schemaVersion,
+                HomePreferenceDtos.HomeLayoutPayload layout,
+                Long version,
+                OffsetDateTime createdAt,
+                OffsetDateTime updatedAt,
+                Map<String, WidgetConfigurationPayload> widgetConfigurations) {
+            this(viewId, viewKey, surfaceKey, HomeModeKeys.CLASSIC, name, isDefault,
+                    customized, schemaVersion, layout, version, createdAt, updatedAt,
+                    widgetConfigurations);
+        }
     }
 
     @Schema(requiredProperties = {
@@ -94,12 +134,18 @@ public final class HomeViewDtos {
     public record DeviceLayoutResponse(
             UUID deviceLayoutId,
             UUID viewId,
-            @Schema(allowableValues = {"DESKTOP", "MOBILE"})
+            @Schema(allowableValues = {
+                    "DESKTOP_WIDE", "DESKTOP_STANDARD", "MOBILE_STANDARD", "MOBILE_COMPACT"
+            })
             String deviceClass,
             DeviceLayoutOverlay overlay,
             Long version,
             Long viewVersion,
             OffsetDateTime updatedAt) {
+
+        public DeviceLayoutResponse {
+            deviceClass = HomeDeviceClasses.canonical(deviceClass);
+        }
     }
 
     @Schema(requiredProperties = {
@@ -140,5 +186,32 @@ public final class HomeViewDtos {
     }
 
     public record DeleteHomeViewResponse(UUID deletedViewId, UUID activeViewId) {
+    }
+
+    @Schema(requiredProperties = {
+            "operation", "expectedVersion", "actualVersion", "submittedDraft",
+            "latestView", "changedFields"
+    })
+    public record HomeViewConflictResponse(
+            @Schema(allowableValues = {
+                    "UPDATE_VIEW", "RESET_VIEW", "DELETE_VIEW", "ACTIVATE_VIEW",
+                    "UPDATE_WIDGET_CONFIGURATION", "UPDATE_DEVICE_LAYOUT",
+                    "RESTORE_REVISION", "APPLY_TEMPLATE", "APPLY_AI", "APPLY_UNDO"
+            })
+            String operation,
+            Long expectedVersion,
+            Long actualVersion,
+            Object submittedDraft,
+            HomeViewResponse latestView,
+            Long expectedDeviceVersion,
+            Long actualDeviceVersion,
+            DeviceLayoutResponse latestDeviceLayout,
+            List<String> changedFields) {
+    }
+
+    /** Concrete generic binding used by the public OpenAPI conflict response. */
+    @Schema(name = "HomeViewConflictEnvelope")
+    public static final class HomeViewConflictEnvelope
+            extends ApiResponse<HomeViewConflictResponse> {
     }
 }

@@ -1,0 +1,38 @@
+{
+  "contracts": {
+    "contracts/openapi/gateway-public.json": {
+      "paths": {
+        "/api/platform/v2/home": [
+          "get"
+        ],
+        "/api/platform/v2/home/widget-actions:execute": [
+          "post"
+        ]
+      },
+      "sha256": "55fdd51fba037555b7ef9b490f802d35cbd358fd2f5443acb1c23944c367675d"
+    },
+    "contracts/openapi/platform.json": {
+      "paths": {
+        "/v2/home": [
+          "get"
+        ],
+        "/v2/home/widget-actions:execute": [
+          "post"
+        ]
+      },
+      "sha256": "27bb761f0ec43b0f98d42b5d9835df0b1b62ef16ba8a1927f9640d57bffaaf94"
+    }
+  },
+  "gate": "W4-CONTRACT-CANONICAL",
+  "internalOwnerProviderPathsExported": false,
+  "productAuthorizationRegistryVersion": 16,
+  "schemaVersion": 1,
+  "status": "PASS",
+  "testedCommit": "32e7a073277e95dc407369657cbe5a201f1efdeb",
+  "unitTests": {
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "tests": 9
+  }
+}

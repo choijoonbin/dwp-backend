@@ -1,5 +1,6 @@
 package com.dwp.services.platform.home;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
@@ -75,23 +76,66 @@ public final class HomeExperienceDtos {
             @NotNull @Min(0) Long version) {
     }
 
+    public record PreviewHomeCompositionPolicyRequest(
+            @NotNull @Valid HomeCompositionPolicy policy) {
+    }
+
+    public record HomeCompositionPolicyPreview(
+            HomeCompositionPolicy policy,
+            List<String> enabledModes,
+            String effectiveDefaultMode,
+            List<String> warnings) {
+    }
+
     @Schema(requiredProperties = {
             "schemaVersion", "experienceVariant", "personalCustomizationEnabled",
             "governedZones"
     })
     public record HomeCompositionPolicy(
             Integer schemaVersion,
-            @Schema(allowableValues = {"CLASSIC", "FLOW_V1"})
+            @Schema(allowableValues = {"CLASSIC", "FLOW_V1", "MZ_V1"})
             String experienceVariant,
             Boolean personalCustomizationEnabled,
-            List<GovernedHomeZone> governedZones) {
+            List<GovernedHomeZone> governedZones,
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            Map<String, HomeModeLayoutContract> modeLayouts,
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            List<@Pattern(regexp = "CLASSIC|FLOW_V1|MZ_V1") String> allowedModes,
+            @JsonInclude(JsonInclude.Include.NON_NULL)
+            @Schema(allowableValues = {"CLASSIC", "FLOW_V1", "MZ_V1"})
+            String defaultMode) {
+
+        public HomeCompositionPolicy(
+                Integer schemaVersion,
+                String experienceVariant,
+                Boolean personalCustomizationEnabled,
+                List<GovernedHomeZone> governedZones) {
+            this(schemaVersion, experienceVariant, personalCustomizationEnabled, governedZones,
+                    null, null, null);
+        }
+
+        public HomeCompositionPolicy(
+                Integer schemaVersion,
+                String experienceVariant,
+                Boolean personalCustomizationEnabled,
+                List<GovernedHomeZone> governedZones,
+                Map<String, HomeModeLayoutContract> modeLayouts) {
+            this(schemaVersion, experienceVariant, personalCustomizationEnabled, governedZones,
+                    modeLayouts, null, null);
+        }
 
         public HomeCompositionPolicy(
                 Integer schemaVersion,
                 Boolean personalCustomizationEnabled,
                 List<GovernedHomeZone> governedZones) {
-            this(schemaVersion, null, personalCustomizationEnabled, governedZones);
+            this(schemaVersion, null, personalCustomizationEnabled, governedZones,
+                    null, null, null);
         }
+    }
+
+    public record HomeModeLayoutContract(
+            @Schema(allowableValues = {"MODE_SCOPED_VIEW"}) String layoutScope,
+            List<String> deviceClasses) {
     }
 
     public record GovernedHomeZone(
@@ -151,11 +195,12 @@ public final class HomeExperienceDtos {
             Integer backgroundHeight,
             HomeLaunchpadConfiguration launchpadConfiguration,
             HomeCompositionPolicy compositionPolicy,
-            @Schema(allowableValues = {"CLASSIC", "FLOW_V1"})
+            @Schema(allowableValues = {"CLASSIC", "FLOW_V1", "MZ_V1"})
             String effectiveExperienceVariant,
             Boolean advancedPersonalizationEnabled,
             Boolean composerEnabled,
             @Schema(allowableValues = {"LEGACY", "VIEWS"}) String homePreferenceStore,
+            List<String> homeContractCapabilities,
             Long version,
             OffsetDateTime updatedAt,
             Long updatedBy) {
@@ -189,6 +234,7 @@ public final class HomeExperienceDtos {
                     backgroundWidth, backgroundHeight, launchpadConfiguration,
                     compositionPolicy, effectiveExperienceVariant,
                     advancedPersonalizationEnabled, composerEnabled, homePreferenceStore,
+                    List.of(),
                     version, updatedAt, updatedBy);
         }
     }

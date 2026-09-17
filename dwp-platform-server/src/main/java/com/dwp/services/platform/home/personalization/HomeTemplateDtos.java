@@ -75,7 +75,7 @@ public final class HomeTemplateDtos {
             UUID templateRevisionId,
             UUID templateId,
             Long revisionNumber,
-            @Schema(allowableValues = {"CREATE", "UPDATE", "PUBLISH", "REVOKE"})
+            @Schema(allowableValues = {"CREATE", "UPDATE", "PUBLISH", "REVOKE", "RESTORE"})
             String source,
             HomeTemplateSnapshot snapshot,
             OffsetDateTime createdAt,

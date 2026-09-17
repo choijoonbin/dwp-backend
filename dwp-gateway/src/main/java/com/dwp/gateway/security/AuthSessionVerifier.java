@@ -191,6 +191,27 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.equals("/api/platform/v1/home/overview")) {
             return "APP.WORK,APP.ACTIVITY,APP.CALENDAR,APP.COMMUNICATIONS";
         }
+        if (path.equals("/api/platform/v2/home")
+                || path.equals("/api/platform/v2/home/widget-actions:execute")
+                || path.equals("/api/platform/v2/home/shadow-receipts")) {
+            // The effective Home v2 response includes the governed app dock and can
+            // compose widgets owned by any entitled application. Approval and workforce
+            // widgets also declare ACTION/DATA authorities outside the APP namespace.
+            // Owner services still re-authorize the exact widget and recipient context.
+            return "APP.,ACTION.APPROVAL_,DATA.WORKFORCE";
+        }
+        if (path.equals("/api/platform/v1/widget-catalog/effective")) {
+            return "APP.";
+        }
+        if (path.equals("/api/platform/v1/admin/widget-catalog")
+                || path.startsWith("/api/platform/v1/admin/widget-catalog/")
+                || path.startsWith("/api/platform/v1/admin/widget-policies/")) {
+            return "ADMIN.HOME_WIDGET_POLICY";
+        }
+        if (path.equals("/api/platform/v1/admin/home-experience")
+                || path.startsWith("/api/platform/v1/admin/home-experience/")) {
+            return "ADMIN.HOME_EXPERIENCE";
+        }
         if (path.equals("/api/platform/v1/home-templates")
                 || path.startsWith("/api/platform/v1/home-templates/")) {
             return "ADMIN.HOME_TEMPLATE";

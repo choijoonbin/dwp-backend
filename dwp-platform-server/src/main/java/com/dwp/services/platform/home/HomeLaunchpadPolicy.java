@@ -57,22 +57,12 @@ public class HomeLaunchpadPolicy {
                                 "지식, 업무 도구 및 거버넌스",
                                 "Knowledge, business tools, and governance",
                                 40)),
-                List.of(
-                        placement("APP.WORK", "work", 10),
-                        placement("APP.ASK", "work", 20),
-                        placement("APP.ACTIVITY", "work", 30),
-                        placement("APP.APPROVALS", "work", 40),
-                        placement("APP.COMMUNICATIONS", "connect", 10),
-                        placement("APP.CALENDAR", "connect", 20),
-                        placement("APP.MAIL", "connect", 30),
-                        placement("APP.COLLABORATION", "connect", 40),
-                        placement("APP.SPACES", "connect", 45),
-                        placement("APP.EMPLOYEE_SERVICES", "services", 10),
-                        placement("APP.HCM", "services", 20),
-                        placement("APP.KNOWLEDGE", "systems", 10),
-                        placement("APP.BUSINESS_ERP", "systems", 20),
-                        placement("APP.LEGACY_OPERATIONS", "systems", 30),
-                        placement("APP.ADMINISTRATION", "systems", 40)));
+                ApprovedHomeApplicationCatalog.applications().stream()
+                        .map(application -> placement(
+                                application.resourceKey(),
+                                application.groupKey(),
+                                application.sortOrder()))
+                        .toList());
     }
 
     public HomeExperienceDtos.HomeLaunchpadConfiguration normalize(
@@ -186,7 +176,7 @@ public class HomeLaunchpadPolicy {
     }
 
     private String canonicalResourceKey(String resourceKey) {
-        return "APP.HRIS".equals(resourceKey) ? "APP.HCM" : resourceKey;
+        return ApprovedHomeApplicationCatalog.canonicalResourceKey(resourceKey);
     }
 
     private HomeExperienceDtos.HomeLaunchpadGroup group(

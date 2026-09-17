@@ -295,9 +295,16 @@ public class FeatureRolloutEvaluationClient {
         boolean effectiveUi = effectiveEnforcement && ui.authoritative() && ui.enabled();
         String state = bits(effectiveShadow, effectiveEnforcement, effectiveUi);
         if (!VALID_STATES.contains(state)) throw new InvalidRolloutStateException();
-        String cohort = ui.authoritative() && (!ui.enabled() || effectiveUi)
+        // The cohort belongs to the deepest enabled rollout axis. Reading only the UI
+        // axis collapses states 100/110 to baseline because a disabled UI decision may
+        // only carry baseline/holdout, making staged shadow and read-only rings impossible.
+        String cohort = effectiveUi
                 ? ui.cohort()
-                : "baseline";
+                : effectiveEnforcement
+                        ? enforcement.cohort()
+                        : effectiveShadow
+                                ? shadow.cohort()
+                                : ui.authoritative() ? ui.cohort() : "baseline";
         return new ProductSurfaceContextDtos.ProductRollout(
                 productKey,
                 state,

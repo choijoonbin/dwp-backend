@@ -1091,5 +1091,69 @@ class CurrentSignatureAndSlaProofBoundaryTest(unittest.TestCase):
                 self.assertTrue(CHECKER_MODULE.current_proof_source_violations(self.entry(name, profile), source, changed))
 
 
+class HomeProviderTransportBoundaryTest(unittest.TestCase):
+
+    def setUp(self) -> None:
+        policy = json.loads(
+            (CHECKER.parents[1] / "docs/architecture/service-interface-contracts.json")
+            .read_text(encoding="utf-8")
+        )
+        self.policy = policy
+
+    def test_factory_and_transport_contracts_are_exact_and_cannot_be_borrowed(self) -> None:
+        self.assertFalse(any(
+            "purpose-specific service token" in problem
+            for problem in CHECKER_MODULE.policy_manifest_violations(self.policy)
+        ))
+        for profile in (CHECKER_MODULE.HOME_PROVIDER_FACTORY, CHECKER_MODULE.HOME_PROVIDER_CLIENT):
+            index = next(index for index, entry in enumerate(self.policy["httpClients"])
+                         if entry["id"] == profile["id"])
+            mutations = {
+                "id": "borrowed-home-provider",
+                "classification": "borrowed-transport",
+                "sourceService": "dwp-approval-server",
+                "path": "dwp-platform-server/src/main/java/Borrowed.java",
+                "targetServices": ["dwp-approval-server"],
+                "retryMode": "idempotent-only",
+                "failureMode": "fail-closed",
+            }
+            for field, value in mutations.items():
+                with self.subTest(profile=profile["id"], field=field):
+                    changed = copy.deepcopy(self.policy)
+                    changed["httpClients"][index][field] = value
+                    self.assertTrue(CHECKER_MODULE.policy_manifest_violations(changed))
+
+            for field in ("requiredMarkers", "forbiddenMarkers"):
+                for marker in self.policy["httpClients"][index][field]:
+                    with self.subTest(profile=profile["id"], field=field, marker=marker):
+                        changed = copy.deepcopy(self.policy)
+                        changed["httpClients"][index][field].remove(marker)
+                        self.assertTrue(CHECKER_MODULE.policy_manifest_violations(changed))
+
+    def test_factory_preserves_boot_builder_and_transport_enforces_bounds(self) -> None:
+        for profile in (CHECKER_MODULE.HOME_PROVIDER_FACTORY, CHECKER_MODULE.HOME_PROVIDER_CLIENT):
+            entry = next(entry for entry in self.policy["httpClients"]
+                         if entry["id"] == profile["id"])
+            source = (CHECKER.parents[1] / profile["path"]).read_text(encoding="utf-8")
+            self.assertEqual([], CHECKER_MODULE.home_provider_source_violations(entry, source))
+            self.assertNotIn("RestClient.builder()", source)
+
+        transport = next(entry for entry in self.policy["httpClients"]
+                         if entry["id"] == CHECKER_MODULE.HOME_PROVIDER_CLIENT["id"])
+        source = (CHECKER.parents[1] / transport["path"]).read_text(encoding="utf-8")
+        mutations = (
+            (".followRedirects(HttpClient.Redirect.NEVER)",
+             ".followRedirects(HttpClient.Redirect.NORMAL)"),
+            ("deadline.isAfter(now.plus(MAX_DEADLINE_AHEAD))", "false"),
+            ("response.tenantId() != context.tenantId()", "false"),
+            ("response.userId() != context.userId()", "false"),
+        )
+        for old, new in mutations:
+            with self.subTest(marker=old):
+                self.assertTrue(CHECKER_MODULE.home_provider_source_violations(
+                    transport, source.replace(old, new)
+                ))
+
+
 if __name__ == "__main__":
     unittest.main()

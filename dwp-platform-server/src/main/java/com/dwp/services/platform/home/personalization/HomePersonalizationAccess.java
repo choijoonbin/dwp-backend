@@ -2,6 +2,7 @@ package com.dwp.services.platform.home.personalization;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.platform.home.HomeModeV4ActivationGate;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -20,10 +21,16 @@ public class HomePersonalizationAccess {
     @Value("${dwp.platform.home.composer-enabled:false}")
     private boolean composerEnabled;
 
+    private final HomeModeV4ActivationGate modeV4ActivationGate;
+
+    public HomePersonalizationAccess(HomeModeV4ActivationGate modeV4ActivationGate) {
+        this.modeV4ActivationGate = modeV4ActivationGate;
+    }
+
     public void requirePersonalization() {
-        if (!personalizationEnabled) {
+        if (!personalizationEnabled || !modeV4ActivationGate.active()) {
             throw new BaseException(ErrorCode.FORBIDDEN,
-                    "Advanced home personalization is not enabled.");
+                    "Advanced home personalization is not activated for this fleet.");
         }
     }
 

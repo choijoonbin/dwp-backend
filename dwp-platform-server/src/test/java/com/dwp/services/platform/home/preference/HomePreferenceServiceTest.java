@@ -17,6 +17,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -143,6 +144,133 @@ class HomePreferenceServiceTest {
                 eq("corr-home"),
                 anyMap(),
                 anyMap());
+    }
+
+    @Test
+    void persistsPersonalCurrentModeSeparatelyFromTenantAllowedAndDefaultModes() {
+        HomeCompositionPolicyReader modes = new HomeCompositionPolicyReader() {
+            @Override public boolean personalCustomizationEnabled(Long tenantId) { return true; }
+            @Override public Set<String> allowedModes(Long tenantId) {
+                return Set.of("CLASSIC", "FLOW_V1", "MZ_V1");
+            }
+            @Override public String defaultMode(Long tenantId) { return "FLOW_V1"; }
+            @Override public boolean modeEnabled(String mode) { return true; }
+        };
+        HomePreferenceService modeService = new HomePreferenceService(
+                repository, objectMapper, auditService, modes, scopeLock);
+        when(repository.findByTenantIdAndUserIdAndSurfaceKey(
+                7L, 11L, HomePreferenceService.WORKSPACE_HOME)).thenReturn(Optional.empty());
+        when(repository.saveAndFlush(any(HomePreference.class))).thenAnswer(invocation -> {
+            HomePreference saved = invocation.getArgument(0);
+            saved.setVersion(0L);
+            return saved;
+        });
+
+        HomePreferenceDtos.HomePreferenceResponse result = modeService.update(
+                7L, 11L, HomePreferenceService.WORKSPACE_HOME, "mode-change",
+                new HomePreferenceDtos.UpdateHomePreferenceRequest(
+                        workspaceLayout(workspaceWidgets(), null, "balanced"),
+                        "MZ_V1", 0L));
+
+        assertThat(result.allowedModes()).containsExactly("CLASSIC", "FLOW_V1", "MZ_V1");
+        assertThat(result.defaultMode()).isEqualTo("FLOW_V1");
+        assertThat(result.currentMode()).isEqualTo("MZ_V1");
+        verify(repository).saveAndFlush(argThat(preference ->
+                "MZ_V1".equals(preference.getCurrentMode())));
+    }
+
+    @Test
+    void changesCurrentModeWithoutLayoutCustomizationPermissionOrMutation() {
+        HomeCompositionPolicyReader modes = new HomeCompositionPolicyReader() {
+            @Override public boolean personalCustomizationEnabled(Long tenantId) { return false; }
+            @Override public Set<String> allowedModes(Long tenantId) {
+                return Set.of("CLASSIC", "FLOW_V1", "MZ_V1");
+            }
+            @Override public String defaultMode(Long tenantId) { return "CLASSIC"; }
+            @Override public boolean modeEnabled(String mode) { return true; }
+        };
+        HomePreferenceService modeService = new HomePreferenceService(
+                repository, objectMapper, auditService, modes, scopeLock);
+        when(repository.findByTenantIdAndUserIdAndSurfaceKey(
+                7L, 11L, HomePreferenceService.WORKSPACE_HOME)).thenReturn(Optional.empty());
+        when(repository.saveAndFlush(any(HomePreference.class))).thenAnswer(invocation -> {
+            HomePreference saved = invocation.getArgument(0);
+            saved.setVersion(0L);
+            return saved;
+        });
+
+        HomePreferenceDtos.HomePreferenceResponse result = modeService.updateCurrentMode(
+                7L,
+                11L,
+                HomePreferenceService.WORKSPACE_HOME,
+                "mode-only",
+                new HomePreferenceDtos.UpdateHomeCurrentModeRequest("MZ_V1", 0L));
+
+        assertThat(result.currentMode()).isEqualTo("MZ_V1");
+        assertThat(result.customized()).isFalse();
+        assertThat(result.layout()).isEqualTo(
+                modeService.defaultLayoutForSurface(HomePreferenceService.WORKSPACE_HOME));
+        verify(repository).saveAndFlush(argThat(preference ->
+                "MZ_V1".equals(preference.getCurrentMode())
+                        && !preference.isCustomized()));
+        verify(auditService).success(
+                eq(7L), eq(11L), eq("home-preference.current-mode.updated"),
+                eq("HOME_PREFERENCE"), eq("11:workspace-home"), eq("mode-only"),
+                anyMap(), anyMap());
+    }
+
+    @Test
+    void exposesTenantAllowlistSeparatelyFromRuntimeModeAvailability() {
+        HomeCompositionPolicyReader modes = new HomeCompositionPolicyReader() {
+            @Override public boolean personalCustomizationEnabled(Long tenantId) { return true; }
+            @Override public Set<String> allowedModes(Long tenantId) {
+                return Set.of("CLASSIC", "FLOW_V1", "MZ_V1");
+            }
+            @Override public String defaultMode(Long tenantId) { return "CLASSIC"; }
+            @Override public boolean modeEnabled(String mode) { return !"MZ_V1".equals(mode); }
+        };
+        HomePreferenceService modeService = new HomePreferenceService(
+                repository, objectMapper, auditService, modes, scopeLock);
+        when(repository.findByTenantIdAndUserIdAndSurfaceKey(
+                7L, 11L, HomePreferenceService.WORKSPACE_HOME)).thenReturn(Optional.empty());
+
+        HomePreferenceDtos.HomePreferenceResponse result = modeService.get(
+                7L, 11L, HomePreferenceService.WORKSPACE_HOME);
+
+        assertThat(result.allowedModes()).containsExactly("CLASSIC", "FLOW_V1", "MZ_V1");
+        assertThat(result.enabledModes()).containsExactly("CLASSIC", "FLOW_V1");
+        assertThat(result.disabledModeReasons()).containsEntry(
+                "MZ_V1", "ROLLOUT_OR_KILL_SWITCH_DISABLED");
+    }
+
+    @Test
+    void reconcilesAStoredModeAfterTenantPolicyRevocation() {
+        HomeCompositionPolicyReader modes = new HomeCompositionPolicyReader() {
+            @Override public boolean personalCustomizationEnabled(Long tenantId) { return true; }
+            @Override public Set<String> allowedModes(Long tenantId) {
+                return Set.of("CLASSIC");
+            }
+            @Override public String defaultMode(Long tenantId) { return "CLASSIC"; }
+        };
+        HomePreferenceService modeService = new HomePreferenceService(
+                repository, objectMapper, auditService, modes, scopeLock);
+        HomePreference preference = HomePreference.builder()
+                .tenantId(7L).userId(11L).surfaceKey(HomePreferenceService.WORKSPACE_HOME)
+                .schemaVersion(HomePreferenceDtos.SCHEMA_VERSION)
+                .layoutPayload(objectMapper.valueToTree(
+                        workspaceLayout(workspaceWidgets(), null, "balanced")))
+                .currentMode("MZ_V1").version(4L).customized(true).build();
+        when(repository.findByTenantIdAndUserIdAndSurfaceKey(
+                7L, 11L, HomePreferenceService.WORKSPACE_HOME))
+                .thenReturn(Optional.of(preference));
+
+        HomePreferenceDtos.HomePreferenceResponse result = modeService.get(
+                7L, 11L, HomePreferenceService.WORKSPACE_HOME);
+
+        assertThat(result.currentMode()).isEqualTo("CLASSIC");
+        assertThat(result.integrityStatus())
+                .isEqualTo(HomePreferenceDtos.HomePreferenceIntegrityStatus.RECONCILED);
+        assertThat(result.warnings()).contains("CURRENT_MODE_RECONCILED");
     }
 
     @Test

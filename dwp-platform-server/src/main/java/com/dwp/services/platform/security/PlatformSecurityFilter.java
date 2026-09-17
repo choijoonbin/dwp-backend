@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -53,6 +54,9 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     static final String ROLLOUT_COHORT_HEADER = PlatformSecurityHeaders.ROLLOUT_COHORT;
     static final String ROLLOUT_REVISION_HEADER = PlatformSecurityHeaders.ROLLOUT_REVISION;
     static final String ROLLOUT_STATE_HEADER = PlatformSecurityHeaders.ROLLOUT_STATE;
+    static final String CONTROL_PLANE_HEADER = "X-DWP-Control-Plane";
+    static final String WIDGET_OWNER_SCOPE_HEADER =
+            "X-DWP-Widget-Owner-Product-Keys";
     private static final Set<String> ADMIN_ROLES = Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN");
     private static final String SUPPORT_EXPERIENCE_PREVIEW_PATH =
             "/v1/admin/tenant-experience-preview";
@@ -189,6 +193,17 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                     "Provider control-plane roles cannot coexist with tenant or workspace roles.");
             return;
         }
+        boolean providerWidgetRegistryPath = providerWidgetRegistryPath(path);
+        boolean providerWidgetRegistryAccess = providerWidgetRegistryPath
+                && "WIDGET_REGISTRY_PROVIDER".equals(request.getHeader(CONTROL_PLANE_HEADER))
+                && "PROVIDER".equals(request.getHeader("X-DWP-Identity-Plane"))
+                && RolePlaneBoundary.isProviderIdentity(parseValues(request.getHeader(ROLES_HEADER)))
+                && validProviderOwnerScope(request);
+        if (providerWidgetRegistryPath && !providerWidgetRegistryAccess) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Provider Widget Registry identity and trusted route are required.");
+            return;
+        }
         List<String> resolvedCanaryRoutes = List.of();
         List<String> resolvedApprovalRoutes = List.of();
         boolean approvalStateChanging = false;
@@ -217,6 +232,28 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         if (supportAccess && !authorizedSupportRequest(request)) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "The support session does not permit this platform resource.");
+            return;
+        }
+        boolean personalHomePath = pathFamily(path, "/v1/home-views") || pathFamily(path, "/v1/home-experience")
+                || pathFamily(path, "/v1/home-templates")
+                || pathFamily(path, "/v1/home-composer/proposals")
+                || pathFamily(path, "/v1/home-preferences")
+                || pathFamily(path, "/v2/home");
+        if (personalHomePath
+                && (supportAccess
+                || !"TENANT".equals(request.getHeader("X-DWP-Identity-Plane"))
+                || !isBlank(request.getHeader("X-DWP-Provider-Tenant-ID"))
+                || !isBlank(request.getHeader(ACTOR_TENANT_HEADER)))) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Personal Home settings require a tenant data-plane identity.");
+            return;
+        }
+        boolean adminHomeExperiencePath = pathFamily(path, "/v1/admin/home-experience");
+        boolean delegatedHomeExperienceAccess = adminHomeExperiencePath && !supportAccess
+                && "TENANT".equals(request.getHeader("X-DWP-Identity-Plane"))
+                && hasHomeExperienceAuthority(request);
+        if (adminHomeExperiencePath && !delegatedHomeExperienceAccess) {
+            writeError(response, ErrorCode.FORBIDDEN, "Home Experience administration permission is required.");
             return;
         }
         PlatformProductAuthorizationSupport.TrustedAuthorityEvidence trustedAuthority = null;
@@ -389,11 +426,12 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                     "An application-scoped access responsibility is required.");
             return;
         }
-        if (!supportAccess && !auditAdminPath && !savedViewCustodyPath
+        if (!supportAccess && !providerWidgetRegistryAccess
+                && !auditAdminPath && !savedViewCustodyPath
                 && !scopedAppAccess && !delegatedCommunicationsAccess && !delegatedServicesAccess
                 && !delegatedCalendarAccess && !delegatedRoomsAccess
                 && !delegatedWorkplaceAccess && !delegatedMailAccess
-                && !delegatedDwaionAgentAccess
+                && !delegatedDwaionAgentAccess && !delegatedHomeExperienceAccess
                 && path.startsWith("/v1/admin/")
                 && !hasRole(request.getHeader(ROLES_HEADER), ADMIN_ROLES)) {
             writeError(response, ErrorCode.FORBIDDEN, "Tenant administrator permission is required.");
@@ -420,6 +458,26 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             PlatformApprovalsAuthorizationContext.clear();
             PlatformCanaryAuthorizationContext.clear();
         }
+    }
+
+    private static boolean providerWidgetRegistryPath(String path) {
+        return path.equals("/v1/admin/widget-definitions")
+                || path.startsWith("/v1/admin/widget-definitions/")
+                || path.startsWith("/v1/admin/widget-definition-versions/")
+                || path.equals("/v1/admin/widget-runtime-controls")
+                || path.startsWith("/v1/admin/widget-runtime-controls/")
+                || path.startsWith("/v1/admin/widget-registry/");
+    }
+
+    private boolean validProviderOwnerScope(HttpServletRequest request) {
+        var values = request.getHeaders(WIDGET_OWNER_SCOPE_HEADER);
+        List<String> headers = values == null ? List.of() : Collections.list(values);
+        if (headers.size() != 1 || headers.getFirst().length() > 3_872) return false;
+        Set<String> owners = parseValues(headers.getFirst());
+        return !owners.isEmpty()
+                && owners.size() <= 32
+                && owners.stream().allMatch(owner -> owner.length() <= 120
+                        && owner.matches("^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$"));
     }
 
     private boolean hasScopedAppAccess(HttpServletRequest request) {
@@ -664,8 +722,18 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 requiredPermission);
     }
 
+    private boolean hasHomeExperienceAuthority(HttpServletRequest request) {
+        String method = request.getMethod();
+        String required = "GET".equals(method) || "HEAD".equals(method) ? "VIEW" : "MANAGE";
+        return hasAuthority(request.getHeader(PERMISSIONS_HEADER), "ADMIN.HOME_EXPERIENCE", required);
+    }
+
     private boolean isBlank(String value) {
         return value == null || value.isBlank();
+    }
+
+    private boolean pathFamily(String path, String prefix) {
+        return path.equals(prefix) || path.startsWith(prefix + "/");
     }
 
     private boolean hasRole(String rolesHeader, Set<String> allowedRoles) {

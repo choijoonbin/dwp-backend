@@ -10,12 +10,20 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
 public class PlatformAuditService {
 
     private static final int MAX_SNAPSHOT_LENGTH = 32_000;
+    private static final java.util.Set<String> OUTCOMES =
+            java.util.Set.of("SUCCESS", "DENIED", "FAILED");
+    static final Set<String> HOME_STUDIO_TARGET_TYPES = Set.of(
+            "HOME_COMPOSITION_POLICY",
+            "HOME_EXPERIENCE",
+            "HOME_LAUNCHPAD_CONFIGURATION",
+            "HOME_TEMPLATE");
 
     private final PlatformAuditEventRepository repository;
     private final ObjectMapper objectMapper;
@@ -49,6 +57,24 @@ public class PlatformAuditService {
                 correlationId, before, after);
     }
 
+    /** Records a metadata-only user event with an explicit security outcome. */
+    public UUID event(
+            Long tenantId,
+            Long actorId,
+            String action,
+            String targetType,
+            String targetId,
+            String correlationId,
+            String outcome) {
+        String normalized = outcome == null ? "" : outcome.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!OUTCOMES.contains(normalized)) {
+            throw new IllegalArgumentException("Unsupported audit outcome.");
+        }
+        return recordEvent(
+                tenantId, "USER", actorId, action, targetType, targetId,
+                correlationId, normalized, null, null);
+    }
+
     public void serviceSuccess(
             Long tenantId,
             String action,
@@ -72,6 +98,22 @@ public class PlatformAuditService {
             String correlationId,
             Object before,
             Object after) {
+        return recordEvent(
+                tenantId, actorType, actorId, action, targetType, targetId,
+                correlationId, "SUCCESS", before, after);
+    }
+
+    private UUID recordEvent(
+            Long tenantId,
+            String actorType,
+            Long actorId,
+            String action,
+            String targetType,
+            String targetId,
+            String correlationId,
+            String outcome,
+            Object before,
+            Object after) {
         UUID auditEventId = UUID.randomUUID();
         repository.save(PlatformAuditEvent.builder()
                 .auditEventId(auditEventId)
@@ -81,7 +123,7 @@ public class PlatformAuditService {
                 .action(action)
                 .targetType(targetType)
                 .targetId(targetId)
-                .outcome("SUCCESS")
+                .outcome(outcome)
                 .correlationId(correlationId)
                 .beforeSnapshot(snapshot(before))
                 .afterSnapshot(snapshot(after))
@@ -97,6 +139,18 @@ public class PlatformAuditService {
         Page<PlatformAuditEvent> result = repository.findByTenantId(
                 tenantId,
                 PageRequest.of(safePage, safeSize, Sort.by(Sort.Direction.DESC, "occurredAt")));
+        return toPage(result);
+    }
+
+    @Transactional(readOnly = true)
+    public AuditPage listHomeStudio(Long tenantId, int page, int size) {
+        int safePage = Math.min(1_000, Math.max(0, page));
+        int safeSize = Math.min(100, Math.max(1, size));
+        Page<PlatformAuditEvent> result = repository.findByTenantIdAndTargetTypeIn(
+                tenantId,
+                HOME_STUDIO_TARGET_TYPES,
+                PageRequest.of(safePage, safeSize, Sort.by(
+                        Sort.Order.desc("occurredAt"), Sort.Order.desc("auditEventId"))));
         return toPage(result);
     }
 

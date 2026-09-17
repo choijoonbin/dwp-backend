@@ -13,6 +13,10 @@ public enum ErrorCode {
             "RESOURCE_NOT_AVAILABLE",
             "The requested resource is not available."),
     RESOURCE_CONFLICT(HttpStatus.CONFLICT, "E1009", "The resource conflicts with its current state."),
+    HOME_VIEW_VERSION_CONFLICT(
+            HttpStatus.CONFLICT,
+            "HOME_VIEW_VERSION_CONFLICT",
+            "The home view changed after this draft was opened."),
     SAVED_VIEW_CUSTODY_STALE(
             HttpStatus.CONFLICT,
             "SAVED_VIEW_CUSTODY_STALE",

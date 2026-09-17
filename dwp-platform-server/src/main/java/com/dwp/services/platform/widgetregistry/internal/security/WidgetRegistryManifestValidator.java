@@ -18,9 +18,11 @@ final class WidgetRegistryManifestValidator {
     private static final Set<String> HEIGHT_VALUES = Set.of(
             "short", "standard", "tall", "expanded");
     private static final Set<String> CONTEXT_VALUES = Set.of(
-            "CLASSIC_PERSONAL", "FLOW_PERSONAL", "FLOW_GOVERNED");
+            "CLASSIC_PERSONAL", "FLOW_PERSONAL", "FLOW_GOVERNED",
+            "MZ_PERSONAL", "MZ_GOVERNED");
     private static final List<String> CONTEXT_RANK = List.of(
-            "CLASSIC_PERSONAL", "FLOW_PERSONAL", "FLOW_GOVERNED");
+            "CLASSIC_PERSONAL", "FLOW_PERSONAL", "FLOW_GOVERNED",
+            "MZ_PERSONAL", "MZ_GOVERNED");
     private static final List<String> SIZE_RANK = List.of(
             "fifth", "quarter", "compact", "medium", "large", "full");
     private static final List<String> HEIGHT_RANK = List.of(
@@ -105,18 +107,21 @@ final class WidgetRegistryManifestValidator {
                 "defaultHeight", "allowedHeights");
         WidgetRegistryJsonContract.exactObject(placement, fields, Set.of());
         Set<String> contexts = WidgetRegistryJsonContract.textArray(
-                placement, "supportedContexts", 1, 3, 1, 32, null);
+                placement, "supportedContexts", 1, 5, 1, 32, null);
         WidgetRegistryJsonContract.require(CONTEXT_VALUES.containsAll(contexts));
         WidgetRegistryJsonContract.requireSorted(placement, "supportedContexts", CONTEXT_RANK);
         String policyClass = WidgetRegistryJsonContract.enumText(
                 placement, "policyClass", Set.of("PERSONAL", "GOVERNED"));
         WidgetRegistryJsonContract.bool(placement, "canHide");
         WidgetRegistryJsonContract.require(
-                !("PERSONAL".equals(policyClass) && contexts.contains("FLOW_GOVERNED")));
+                !("PERSONAL".equals(policyClass)
+                        && (contexts.contains("FLOW_GOVERNED") || contexts.contains("MZ_GOVERNED"))));
         WidgetRegistryJsonContract.require(
                 !("GOVERNED".equals(policyClass)
-                        && (!contexts.contains("FLOW_GOVERNED")
-                        || contexts.contains("FLOW_PERSONAL"))));
+                        && (!(contexts.contains("FLOW_GOVERNED")
+                                || contexts.contains("MZ_GOVERNED"))
+                        || contexts.contains("FLOW_PERSONAL")
+                        || contexts.contains("MZ_PERSONAL"))));
         String defaultSize = WidgetRegistryJsonContract.enumText(
                 placement, "defaultSize", SIZE_VALUES);
         Set<String> sizes = WidgetRegistryJsonContract.textArray(

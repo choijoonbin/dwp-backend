@@ -65,6 +65,7 @@ dwp:
   approval:
     service-token: ${DWP_APPROVAL_SERVICE_TOKEN:}
     runtime-service-token: ${DWP_APPROVAL_RUNTIME_SERVICE_TOKEN:}
+    home-runtime-service-token: ${DWP_APPROVAL_HOME_RUNTIME_SERVICE_TOKEN:}
     product-authorization-v2-enabled: ${DWP_APPROVAL_PRODUCT_AUTHORIZATION_V2_ENABLED:false}
     # Forward-only gate. Enable only after every Approval pod advertises the
     # management-scope-v1 compatibility fence; never use old-binary rollback.

@@ -129,7 +129,9 @@ class PublicOpenApiConfiguration {
             if (widgetSizes != null) {
                 widgetSizes.setMaxProperties(30);
                 widgetSizes.setPropertyNames(
-                        new StringSchema().pattern("[a-z][a-z0-9-]{0,39}"));
+                        new StringSchema()
+                                .maxLength(160)
+                                .pattern("[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*"));
                 widgetSizes.setAdditionalProperties(new StringSchema()
                         ._enum(List.of(
                                 "fifth", "quarter", "compact",

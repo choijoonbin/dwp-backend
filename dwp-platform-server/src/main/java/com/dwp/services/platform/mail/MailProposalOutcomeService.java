@@ -22,7 +22,7 @@ import java.util.UUID;
 import static com.dwp.services.platform.mail.MailTypes.ProposalType;
 
 @Service
-final class MailProposalOutcomeService implements MailProposalOutcomePort {
+class MailProposalOutcomeService implements MailProposalOutcomePort {
 
     private static final Set<String> CONTROL_FIELDS = Set.of("requiresConfirmation");
     private static final Map<Owner, Set<String>> OWNER_FIELDS = Map.of(

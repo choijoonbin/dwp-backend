@@ -1,0 +1,125 @@
+{
+  "authorityRevisionForces200": true,
+  "bulkheadVerified": true,
+  "circuitBreakerVerified": true,
+  "commandIdempotencyVerified": true,
+  "commandReceiptBindingVerified": true,
+  "commandsEnabled": false,
+  "crossTenantLeakCount": 0,
+  "duplicateActionIdsRejected": true,
+  "forbiddenLeakCount": 0,
+  "forbiddenUsesStaleFallback": false,
+  "gate": "W4-RUNTIME-SECURITY-RESILIENCE",
+  "junitByClass": {
+    "HomeRuntimeAuthorizationEtagTest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 2
+    },
+    "HomeRuntimeCacheSecurityTest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 2
+    },
+    "HomeRuntimeMetricsPrivacyTest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 1
+    },
+    "HomeRuntimePreProdSloTest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 1
+    },
+    "HomeRuntimeRollbackGateTest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 1
+    },
+    "HomeWidgetCommandServiceTest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 7
+    },
+    "HttpWidgetProviderClientResilienceTest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 7
+    },
+    "ProviderResultValidatorSecurityTest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 23
+    },
+    "ProviderResultValidatorTest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 8
+    },
+    "RecipientBoundWidgetCacheTest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 2
+    },
+    "WidgetRuntimeBrokerIsolationSecurityTest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 1
+    },
+    "WidgetRuntimeBrokerOwnerProviderContractTest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 2
+    },
+    "WidgetRuntimeBrokerTest": {
+      "errors": 0,
+      "failures": 0,
+      "skipped": 0,
+      "tests": 5
+    }
+  },
+  "junitTotal": {
+    "errors": 0,
+    "failures": 0,
+    "skipped": 0,
+    "tests": 62
+  },
+  "lastSuccessOrderingVerified": true,
+  "lateTimeoutMutatesCacheOrMetrics": false,
+  "malformedUsesStaleFallback": false,
+  "recipientCacheDimensions": [
+    "tenant",
+    "user",
+    "authorityFingerprint",
+    "authorityRevision",
+    "locale",
+    "timeZone",
+    "mode",
+    "deviceClass",
+    "view",
+    "catalog",
+    "policy",
+    "safety",
+    "provider",
+    "definitions",
+    "requestFingerprint"
+  ],
+  "schemaVersion": 1,
+  "stableEtagAcrossAuthorityExpiry": true,
+  "status": "PASS",
+  "successMayBeExpired": false,
+  "telemetryLeakCount": 0,
+  "testedCommit": "dd3410bb34067c7d742749ed38e39387e91e8947"
+}

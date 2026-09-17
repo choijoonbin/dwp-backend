@@ -2,6 +2,7 @@ package com.dwp.services.platform.home.personalization;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.platform.home.HomeModeV4ActivationGate;
 import org.junit.jupiter.api.Test;
 import org.springframework.test.util.ReflectionTestUtils;
 
@@ -13,7 +14,9 @@ class HomePersonalizationAccessTest {
 
     @Test
     void phaseTwoAndComposerRemainFailClosedWhenFlagsAreOff() {
-        HomePersonalizationAccess access = new HomePersonalizationAccess();
+        HomeModeV4ActivationGate gate = new HomeModeV4ActivationGate(false);
+        gate.markContinuityReady();
+        HomePersonalizationAccess access = new HomePersonalizationAccess(gate);
 
         assertThatThrownBy(access::requirePersonalization)
                 .isInstanceOfSatisfying(BaseException.class, exception ->
@@ -21,6 +24,20 @@ class HomePersonalizationAccessTest {
         assertThatThrownBy(access::requireComposer)
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+    }
+
+    @Test
+    void modeScopedApisRemainClosedUntilTheFleetActivationInterlockOpens() {
+        HomeModeV4ActivationGate gate = new HomeModeV4ActivationGate(true);
+        HomePersonalizationAccess access = new HomePersonalizationAccess(gate);
+        ReflectionTestUtils.setField(access, "personalizationEnabled", true);
+
+        assertThatThrownBy(access::requirePersonalization)
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+
+        gate.markContinuityReady();
+        assertThatCode(access::requirePersonalization).doesNotThrowAnyException();
     }
 
     @Test
@@ -51,7 +68,9 @@ class HomePersonalizationAccessTest {
     }
 
     private HomePersonalizationAccess enabledAccess() {
-        HomePersonalizationAccess access = new HomePersonalizationAccess();
+        HomeModeV4ActivationGate gate = new HomeModeV4ActivationGate(true);
+        gate.markContinuityReady();
+        HomePersonalizationAccess access = new HomePersonalizationAccess(gate);
         ReflectionTestUtils.setField(access, "personalizationEnabled", true);
         return access;
     }

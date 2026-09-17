@@ -52,6 +52,7 @@ dwp:
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
   space:
     service-token: ${DWP_SPACE_SERVICE_TOKEN:}
+    home-runtime-service-token: ${DWP_SPACE_HOME_RUNTIME_SERVICE_TOKEN:}
     identity-sync-token: ${DWP_IDENTITY_SYNC_TOKEN:}
     entitlement-sync-enabled: ${DWP_SPACE_ENTITLEMENT_SYNC_ENABLED:true}
     entitlement-poll-interval-ms: ${DWP_SPACE_ENTITLEMENT_POLL_INTERVAL_MS:2000}

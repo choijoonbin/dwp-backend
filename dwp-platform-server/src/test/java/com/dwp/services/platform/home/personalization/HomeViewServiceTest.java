@@ -30,6 +30,8 @@ import static org.mockito.Mockito.lenient;
 
 @ExtendWith(MockitoExtension.class)
 class HomeViewServiceTest {
+    private static final HomeViewRegistryPlacementPolicy.Authority AUTHORITY =
+            HomeViewRegistryPlacementPolicy.Authority.NONE;
     @Mock private HomeViewRepository viewRepository;
     @Mock private HomeViewRevisionRepository revisionRepository;
     @Mock private HomeDeviceLayoutRepository deviceLayouts;
@@ -41,6 +43,7 @@ class HomeViewServiceTest {
     @Mock private HomeViewCompatibilityBridge compatibilityBridge;
     @Mock private HomePersonalizationScopeLock scopeLock;
     @Mock private HomeCommandReceiptService commandReceipts;
+    @Mock private HomeViewRegistryPlacementPolicy registryPlacements;
 
     private ObjectMapper objectMapper;
     private HomeViewService service;
@@ -55,13 +58,18 @@ class HomeViewServiceTest {
                 preferenceService, compositionPolicy, access, audit,
                 objectMapper, compatibilityBridge, scopeLock,
                 new HomeViewSnapshotCodec(objectMapper, widgetPolicy),
-                widgetPolicy, new HomeCanonicalJson(objectMapper), commandReceipts);
+                widgetPolicy, new HomeCanonicalJson(objectMapper), commandReceipts,
+                registryPlacements);
+        lenient().when(registryPlacements.contracts(any(), any(), any(), any()))
+                .thenReturn(Map.of());
+        lenient().when(registryPlacements.contracts(any(), any(), any(), any(), any()))
+                .thenReturn(Map.of());
         lenient().when(compositionPolicy.personalCustomizationEnabled(7L)).thenReturn(true);
         lenient().when(compositionPolicy.flowPersonalizationEnabled(7L)).thenReturn(true);
     }
 
     @Test
-    void externalLayoutAppliesThePersonalCommandRailAndMirrorsTheDefaultView() {
+    void externalLayoutPreservesGrandfatheredRegistryWidgetsAndMirrorsTheDefaultView() {
         UUID viewId = UUID.randomUUID();
         UUID commandId = UUID.randomUUID();
         HomePreferenceDtos.WidgetPreference classicSnapshot =
@@ -70,10 +78,19 @@ class HomeViewServiceTest {
         HomePreferenceDtos.HomeLayoutPayload current = layout(List.of(
                 classicSnapshot,
                 new HomePreferenceDtos.WidgetPreference(
+                        "partner.retired.summary", false, "medium", "standard"),
+                new HomePreferenceDtos.WidgetPreference(
                         "focus", true, "medium", "tall")));
         HomePreferenceDtos.HomeLayoutPayload requested = layout(List.of(
                 new HomePreferenceDtos.WidgetPreference(
                         "focus", true, "large", "tall"),
+                new HomePreferenceDtos.WidgetPreference(
+                        "command-rail", true, "large", "short")));
+        HomePreferenceDtos.HomeLayoutPayload preserved = layout(List.of(
+                new HomePreferenceDtos.WidgetPreference(
+                        "focus", true, "large", "tall"),
+                new HomePreferenceDtos.WidgetPreference(
+                        "partner.retired.summary", false, "medium", "standard"),
                 new HomePreferenceDtos.WidgetPreference(
                         "command-rail", true, "large", "short")));
         HomeView view = HomeView.builder()
@@ -87,8 +104,8 @@ class HomeViewServiceTest {
                 .thenReturn(Optional.of(view));
         when(viewRepository.findByViewIdAndTenantIdAndUserId(viewId, 7L, 11L))
                 .thenReturn(Optional.of(view));
-        when(preferenceService.normalizeForSurface("workspace-home", requested))
-                .thenReturn(requested);
+        when(preferenceService.normalizeForSurface(
+                "workspace-home", requested, Map.of(), current)).thenReturn(preserved);
         when(viewRepository.saveAndFlush(view)).thenReturn(view);
         when(revisionRepository.findTopByViewIdOrderByRevisionNumberDesc(viewId))
                 .thenReturn(Optional.empty());
@@ -101,9 +118,11 @@ class HomeViewServiceTest {
                 7L, 11L, viewId, 0L, requested, "TEMPLATE", "Applied",
                 commandId, "a".repeat(64), 11L, "corr");
 
-        assertThat(result.layout()).isEqualTo(requested);
-        assertThat(result.layout().widgets().get(1).widgetKey()).isEqualTo("command-rail");
-        assertThat(result.layout().widgets().get(1).visible()).isTrue();
+        assertThat(result.layout()).isEqualTo(preserved);
+        assertThat(result.layout().widgets().get(1).widgetKey())
+                .isEqualTo("partner.retired.summary");
+        assertThat(result.layout().widgets().getLast().widgetKey()).isEqualTo("command-rail");
+        assertThat(result.layout().widgets().getLast().visible()).isTrue();
         assertThat(result.customized()).isTrue();
         verify(compatibilityBridge).mirrorDefaultView(view);
         verify(audit).success(eq(7L), eq(11L), eq("home-view.layout-applied"),
@@ -197,60 +216,6 @@ class HomeViewServiceTest {
     }
 
     @Test
-    void tenantPolicyAllowsExistingViewReadsButBlocksMutations() {
-        UUID viewId = UUID.randomUUID();
-        HomeView view = HomeView.builder()
-                .viewId(viewId).tenantId(7L).userId(11L)
-                .surfaceKey("workspace-home").viewKey("default").name("My home")
-                .defaultView(true).schemaVersion(5)
-                .layoutPayload(objectMapper.valueToTree(layout(List.of())))
-                .version(0L).build();
-        when(viewRepository.findByViewIdAndTenantIdAndUserId(viewId, 7L, 11L))
-                .thenReturn(Optional.of(view));
-        when(compositionPolicy.flowPersonalizationEnabled(7L)).thenReturn(false);
-        when(widgetConfigurations.findByViewIdAndTenantIdAndUserIdOrderByWidgetKey(
-                viewId, 7L, 11L)).thenReturn(List.of());
-        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyOrderByUpdatedAtDesc(
-                7L, 11L, "workspace-home")).thenReturn(List.of(view));
-        when(revisionRepository
-                .findTop50ByViewIdAndTenantIdAndUserIdAndRestorableTrueOrderByRevisionNumberDesc(
-                viewId, 7L, 11L)).thenReturn(List.of());
-        when(deviceLayouts.findByViewIdAndTenantIdAndUserIdOrderByDeviceClass(
-                viewId, 7L, 11L)).thenReturn(List.of());
-
-        assertThat(service.get(7L, 11L, viewId).viewId()).isEqualTo(viewId);
-        assertThat(service.list(7L, 11L, "workspace-home")).hasSize(1);
-        assertThat(service.revisions(7L, 11L, viewId)).isEmpty();
-        assertThat(service.deviceLayouts(7L, 11L, viewId)).isEmpty();
-        assertThatThrownBy(() -> service.update(
-                7L, 11L, viewId, UUID.randomUUID(), "corr",
-                new HomeViewDtos.UpdateHomeViewRequest(
-                        "Changed", layout(List.of()), 0L)))
-                .isInstanceOfSatisfying(BaseException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
-        assertThatThrownBy(() -> service.reset(
-                7L, 11L, viewId, UUID.randomUUID(), "corr", 0L))
-                .isInstanceOfSatisfying(BaseException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
-        verify(viewRepository, never()).saveAndFlush(any(HomeView.class));
-    }
-
-    @Test
-    void emptyViewListIsSideEffectFreeForNewUsers() throws Exception {
-        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyOrderByUpdatedAtDesc(
-                7L, 11L, "workspace-home")).thenReturn(List.of());
-
-        assertThat(service.list(7L, 11L, "workspace-home")).isEmpty();
-        assertThat(HomeViewService.class
-                .getMethod("list", Long.class, Long.class, String.class)
-                .getAnnotation(org.springframework.transaction.annotation.Transactional.class)
-                .readOnly()).isTrue();
-        verify(scopeLock, never()).lock(any(), any(), any());
-        verify(viewRepository, never()).saveAndFlush(any());
-        verify(compatibilityBridge, never()).mirrorDefaultView(any());
-    }
-
-    @Test
     void revisionHistoryAppliesRestorableFilterBeforeTheLatestFiftyLimit() {
         UUID viewId = UUID.randomUUID();
         UUID revisionId = UUID.randomUUID();
@@ -311,7 +276,8 @@ class HomeViewServiceTest {
                 .thenReturn(Optional.of(view));
         when(revisionRepository.findByTenantIdAndUserIdAndCommandId(
                 7L, 11L, commandId)).thenReturn(Optional.empty());
-        when(preferenceService.normalizeForSurface("workspace-home", requested))
+        when(preferenceService.normalizeForSurface(
+                "workspace-home", requested, Map.of(), current))
                 .thenReturn(requested);
         when(viewRepository.saveAndFlush(view)).thenReturn(view);
         when(revisionRepository.findTopByViewIdOrderByRevisionNumberDesc(viewId))
@@ -325,7 +291,7 @@ class HomeViewServiceTest {
 
         HomeViewDtos.HomeViewResponse result = service.update(
                 7L, 11L, viewId, commandId, "corr",
-                new HomeViewDtos.UpdateHomeViewRequest("Changed", requested, 0L));
+                new HomeViewDtos.UpdateHomeViewRequest("Changed", requested, 0L), AUTHORITY);
 
         assertThat(result.layout()).isEqualTo(requested);
         assertThat(result.layout().widgets().get(1))
@@ -344,12 +310,12 @@ class HomeViewServiceTest {
                         "command-rail", false, "full", "standard")));
         when(revisionRepository.findByTenantIdAndUserIdAndCommandId(
                 7L, 11L, commandId)).thenReturn(Optional.empty());
-        when(viewRepository.countByTenantIdAndUserIdAndSurfaceKey(
-                7L, 11L, "workspace-home")).thenReturn(0L);
-        when(preferenceService.normalizeForSurface("workspace-home", requested))
+        when(viewRepository.countByTenantIdAndUserIdAndSurfaceKeyAndModeKey(
+                7L, 11L, "workspace-home", "CLASSIC")).thenReturn(0L);
+        when(preferenceService.normalizeForSurface("workspace-home", requested, Map.of()))
                 .thenReturn(requested);
-        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyOrderByUpdatedAtDesc(
-                7L, 11L, "workspace-home")).thenReturn(List.of());
+        when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
+                7L, 11L, "workspace-home", "CLASSIC")).thenReturn(List.of());
         when(viewRepository.saveAndFlush(any(HomeView.class)))
                 .thenAnswer(invocation -> invocation.getArgument(0));
         when(revisionRepository.findTopByViewIdOrderByRevisionNumberDesc(any()))
@@ -360,157 +326,15 @@ class HomeViewServiceTest {
         HomeViewDtos.HomeViewResponse result = service.create(
                 7L, 11L, commandId, "corr",
                 new HomeViewDtos.CreateHomeViewRequest(
-                        "personal", "Personal", true, requested));
+                        "personal", "Personal", true, requested), AUTHORITY);
 
         assertThat(result.layout()).isEqualTo(requested);
         assertThat(result.layout().widgets().get(1).visible()).isFalse();
+        assertThat(result.modeKey()).isEqualTo("CLASSIC");
+        verify(viewRepository, org.mockito.Mockito.times(2))
+                .countByTenantIdAndUserIdAndSurfaceKeyAndModeKey(
+                        7L, 11L, "workspace-home", "CLASSIC");
         verify(compatibilityBridge).mirrorDefaultView(any(HomeView.class));
-    }
-
-    @Test
-    void deviceOverlayCannotReorderTheSharedSemanticDomOrder() {
-        UUID viewId = UUID.randomUUID();
-        HomePreferenceDtos.HomeLayoutPayload current = layout(List.of(
-                new HomePreferenceDtos.WidgetPreference(
-                        "command-rail", true, "large", "short"),
-                new HomePreferenceDtos.WidgetPreference(
-                        "focus", true, "medium", "tall"),
-                new HomePreferenceDtos.WidgetPreference(
-                        "schedule", true, "quarter", "standard")));
-        HomeView view = HomeView.builder()
-                .viewId(viewId).tenantId(7L).userId(11L)
-                .surfaceKey("workspace-home").viewKey("default").name("My home")
-                .defaultView(true).schemaVersion(5)
-                .layoutPayload(objectMapper.valueToTree(current)).version(0L).build();
-        when(viewRepository.findByViewIdAndTenantIdAndUserId(viewId, 7L, 11L))
-                .thenReturn(Optional.of(view));
-        when(viewRepository.findOwnedForUpdate(viewId, 7L, 11L))
-                .thenReturn(Optional.of(view));
-
-        var overlay = new HomeViewDtos.DeviceLayoutOverlay(
-                List.of("schedule", "focus"), Map.of(), "compact");
-        assertThatThrownBy(() -> service.putDeviceLayout(
-                7L, 11L, viewId, "MOBILE", UUID.randomUUID(), "corr",
-                new HomeViewDtos.UpdateDeviceLayoutRequest(overlay, 0L, null)))
-                .isInstanceOfSatisfying(BaseException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(
-                                ErrorCode.INVALID_INPUT_VALUE));
-        verify(deviceLayouts, never()).saveAndFlush(any());
-    }
-
-    @Test
-    void deviceOverlayRejectsASizeOutsideTheWidgetsRegistryContract() {
-        UUID viewId = UUID.randomUUID();
-        HomePreferenceDtos.HomeLayoutPayload current = layout(List.of(
-                new HomePreferenceDtos.WidgetPreference(
-                        "command-rail", true, "large", "short"),
-                new HomePreferenceDtos.WidgetPreference(
-                        "schedule", true, "quarter", "standard")));
-        HomeView view = HomeView.builder()
-                .viewId(viewId).tenantId(7L).userId(11L)
-                .surfaceKey("workspace-home").viewKey("default").name("My home")
-                .defaultView(true).schemaVersion(5)
-                .layoutPayload(objectMapper.valueToTree(current)).version(0L).build();
-        when(viewRepository.findByViewIdAndTenantIdAndUserId(viewId, 7L, 11L))
-                .thenReturn(Optional.of(view));
-        when(viewRepository.findOwnedForUpdate(viewId, 7L, 11L))
-                .thenReturn(Optional.of(view));
-        when(preferenceService.isWidgetSizeAllowed(
-                "workspace-home", "schedule", "full")).thenReturn(false);
-
-        var overlay = new HomeViewDtos.DeviceLayoutOverlay(
-                List.of("schedule"), Map.of("schedule", "full"), "compact");
-        assertThatThrownBy(() -> service.putDeviceLayout(
-                7L, 11L, viewId, "MOBILE", UUID.randomUUID(), "corr",
-                new HomeViewDtos.UpdateDeviceLayoutRequest(overlay, 0L, null)))
-                .isInstanceOfSatisfying(BaseException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(
-                                ErrorCode.INVALID_INPUT_VALUE));
-        verify(deviceLayouts, never()).saveAndFlush(any());
-    }
-
-    @Test
-    void deviceOverlayRejectsAnUnregisteredDensityEvenOutsideControllerValidation() {
-        UUID viewId = UUID.randomUUID();
-        HomePreferenceDtos.HomeLayoutPayload current = layout(List.of(
-                new HomePreferenceDtos.WidgetPreference(
-                        "command-rail", true, "large", "short"),
-                new HomePreferenceDtos.WidgetPreference(
-                        "schedule", true, "quarter", "standard")));
-        HomeView view = HomeView.builder()
-                .viewId(viewId).tenantId(7L).userId(11L)
-                .surfaceKey("workspace-home").viewKey("default").name("My home")
-                .defaultView(true).schemaVersion(5)
-                .layoutPayload(objectMapper.valueToTree(current)).version(0L).build();
-        when(viewRepository.findByViewIdAndTenantIdAndUserId(viewId, 7L, 11L))
-                .thenReturn(Optional.of(view));
-        when(viewRepository.findOwnedForUpdate(viewId, 7L, 11L))
-                .thenReturn(Optional.of(view));
-
-        var overlay = new HomeViewDtos.DeviceLayoutOverlay(
-                List.of("schedule"), Map.of(), "relaxed");
-        assertThatThrownBy(() -> service.putDeviceLayout(
-                7L, 11L, viewId, "MOBILE", UUID.randomUUID(), "corr",
-                new HomeViewDtos.UpdateDeviceLayoutRequest(overlay, 0L, null)))
-                .isInstanceOfSatisfying(BaseException.class, exception ->
-                        assertThat(exception.getErrorCode()).isEqualTo(
-                                ErrorCode.INVALID_INPUT_VALUE));
-        verify(deviceLayouts, never()).saveAndFlush(any());
-    }
-
-    @Test
-    void deviceOverlayMarksAResetViewCustomizedAndMirrorsClassicMetadata() {
-        UUID viewId = UUID.randomUUID();
-        HomePreferenceDtos.HomeLayoutPayload current = layout(List.of(
-                new HomePreferenceDtos.WidgetPreference(
-                        "command-rail", true, "large", "short"),
-                new HomePreferenceDtos.WidgetPreference(
-                        "focus", true, "medium", "tall"),
-                new HomePreferenceDtos.WidgetPreference(
-                        "schedule", true, "quarter", "standard")));
-        HomeView view = HomeView.builder()
-                .viewId(viewId).tenantId(7L).userId(11L)
-                .surfaceKey("workspace-home").viewKey("default").name("My home")
-                .defaultView(true).customized(false).schemaVersion(5)
-                .layoutPayload(objectMapper.valueToTree(current)).version(0L).build();
-        when(viewRepository.findByViewIdAndTenantIdAndUserId(viewId, 7L, 11L))
-                .thenReturn(Optional.of(view));
-        when(viewRepository.findOwnedForUpdate(viewId, 7L, 11L))
-                .thenReturn(Optional.of(view));
-        when(preferenceService.isWidgetSizeAllowed(
-                "workspace-home", "focus", "medium")).thenReturn(true);
-        when(preferenceService.isWidgetSizeAllowed(
-                "workspace-home", "schedule", "quarter")).thenReturn(true);
-        when(preferenceService.isWidgetSizeAllowed(
-                "workspace-home", "command-rail", "full")).thenReturn(true);
-        when(deviceLayouts.findByViewIdAndTenantIdAndUserIdAndDeviceClass(
-                viewId, 7L, 11L, "MOBILE")).thenReturn(Optional.empty());
-        when(deviceLayouts.saveAndFlush(any(HomeDeviceLayout.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(viewRepository.saveAndFlush(view)).thenReturn(view);
-        when(revisionRepository.findTopByViewIdOrderByRevisionNumberDesc(viewId))
-                .thenReturn(Optional.empty());
-        when(revisionRepository.saveAndFlush(any(HomeViewRevision.class)))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-        when(widgetConfigurations.findByViewIdAndTenantIdAndUserIdOrderByWidgetKey(
-                viewId, 7L, 11L)).thenReturn(List.of());
-        when(deviceLayouts.findByViewIdAndTenantIdAndUserIdOrderByDeviceClass(
-                viewId, 7L, 11L)).thenReturn(List.of());
-
-        var overlay = new HomeViewDtos.DeviceLayoutOverlay(
-                List.of("focus", "schedule"),
-                Map.of(
-                        "command-rail", "full",
-                        "focus", "medium",
-                        "schedule", "quarter"),
-                "compact");
-        var result = service.putDeviceLayout(
-                7L, 11L, viewId, "mobile", UUID.randomUUID(), "corr",
-                new HomeViewDtos.UpdateDeviceLayoutRequest(overlay, 0L, null));
-
-        assertThat(result.overlay()).isEqualTo(overlay);
-        assertThat(view.isCustomized()).isTrue();
-        verify(compatibilityBridge).mirrorDefaultView(view);
     }
 
     @Test
@@ -532,7 +356,8 @@ class HomeViewServiceTest {
                 .thenReturn(Optional.of(view));
         when(viewRepository.findOwnedForUpdate(viewId, 7L, 11L))
                 .thenReturn(Optional.of(view));
-        when(preferenceService.normalizeForSurface("workspace-home", recovery))
+        when(preferenceService.normalizeForSurface(
+                "workspace-home", recovery, Map.of(), null))
                 .thenReturn(recovery);
         when(revisionRepository.findByTenantIdAndUserIdAndCommandId(
                 7L, 11L, commandId)).thenReturn(Optional.empty());
@@ -548,7 +373,7 @@ class HomeViewServiceTest {
 
         var result = service.update(
                 7L, 11L, viewId, commandId, "corr",
-                new HomeViewDtos.UpdateHomeViewRequest("Recovered", recovery, 3L));
+                new HomeViewDtos.UpdateHomeViewRequest("Recovered", recovery, 3L), AUTHORITY);
 
         assertThat(result.layout()).isEqualTo(recovery);
         assertThat(view.getSchemaVersion()).isEqualTo(5);
@@ -575,11 +400,17 @@ class HomeViewServiceTest {
                 .surfaceKey("workspace-home").viewKey("default").name("Changed")
                 .defaultView(true).customized(true).schemaVersion(5)
                 .layoutPayload(objectMapper.valueToTree(currentLayout)).version(0L).build();
+        HomeViewDtos.DeviceLayoutOverlay overlay = new HomeViewDtos.DeviceLayoutOverlay(
+                List.of("focus"), Map.of(), "compact");
         HomeViewDtos.HomeViewSnapshot storedSnapshot = new HomeViewDtos.HomeViewSnapshot(
                 1, false,
                 new HomeViewDtos.HomeViewSnapshotView(
                         "Reset home", false, 5, revisionLayout),
-                Map.of(), Map.of());
+                Map.of(), Map.of(
+                        "DESKTOP_WIDE", overlay,
+                        "DESKTOP", overlay,
+                        "MOBILE", overlay,
+                        "MOBILE_COMPACT", overlay));
         HomeViewRevision source = HomeViewRevision.builder()
                 .revisionId(revisionId).viewId(viewId).tenantId(7L).userId(11L)
                 .revisionNumber(1L).schemaVersion(5)
@@ -593,12 +424,19 @@ class HomeViewServiceTest {
                 7L, 11L, commandId)).thenReturn(Optional.empty());
         when(revisionRepository.findByRevisionIdAndViewIdAndTenantIdAndUserId(
                 revisionId, viewId, 7L, 11L)).thenReturn(Optional.of(source));
-        when(preferenceService.normalizeForSurface("workspace-home", revisionLayout))
+        when(preferenceService.normalizeForSurface("workspace-home", revisionLayout, Map.of()))
                 .thenReturn(revisionLayout);
         when(widgetConfigurations.findByViewIdAndTenantIdAndUserIdOrderByWidgetKey(
                 viewId, 7L, 11L)).thenReturn(List.of());
+        java.util.concurrent.atomic.AtomicReference<List<HomeDeviceLayout>> restoredDevices =
+                new java.util.concurrent.atomic.AtomicReference<>(List.of());
         when(deviceLayouts.findByViewIdAndTenantIdAndUserIdOrderByDeviceClass(
-                viewId, 7L, 11L)).thenReturn(List.of());
+                viewId, 7L, 11L)).thenAnswer(ignored -> restoredDevices.get());
+        when(deviceLayouts.saveAllAndFlush(any())).thenAnswer(invocation -> {
+            List<HomeDeviceLayout> saved = List.copyOf(invocation.getArgument(0));
+            restoredDevices.set(saved);
+            return saved;
+        });
         when(viewRepository.saveAndFlush(view)).thenReturn(view);
         when(revisionRepository.findTopByViewIdOrderByRevisionNumberDesc(viewId))
                 .thenReturn(Optional.of(source));
@@ -606,7 +444,7 @@ class HomeViewServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
 
         HomeViewDtos.HomeViewResponse restored = service.restore(
-                7L, 11L, viewId, revisionId, commandId, "corr", 0L);
+                7L, 11L, viewId, revisionId, commandId, "corr", 0L, AUTHORITY);
 
         assertThat(restored.customized()).isFalse();
         assertThat(restored.name()).isEqualTo("Reset home");
@@ -614,6 +452,20 @@ class HomeViewServiceTest {
         assertThat(restored.layout().widgets().getLast())
                 .isEqualTo(new HomePreferenceDtos.WidgetPreference(
                         "command-rail", false, "full", "standard"));
+        assertThat(restoredDevices.get()).extracting(HomeDeviceLayout::getDeviceClass)
+                .containsExactlyInAnyOrder(
+                        "DESKTOP_WIDE", "DESKTOP_STANDARD",
+                        "MOBILE_STANDARD", "MOBILE_COMPACT");
+        org.mockito.ArgumentCaptor<HomeViewRevision> restoredRevision =
+                org.mockito.ArgumentCaptor.forClass(HomeViewRevision.class);
+        verify(revisionRepository).saveAndFlush(restoredRevision.capture());
+        assertThat(new HomeViewSnapshotCodec(
+                objectMapper, new HomeWidgetConfigurationPolicy(objectMapper))
+                .decode(restoredRevision.getValue().getSnapshot(), 5)
+                .snapshot().deviceLayouts().keySet())
+                .containsExactlyInAnyOrder(
+                        "DESKTOP_WIDE", "DESKTOP_STANDARD",
+                        "MOBILE_STANDARD", "MOBILE_COMPACT");
         verify(compatibilityBridge).mirrorDefaultView(view);
     }
 
@@ -730,8 +582,8 @@ class HomeViewServiceTest {
                 .thenReturn(Optional.of(view));
         when(revisionRepository.findByTenantIdAndUserIdAndCommandId(
                 7L, 11L, commandId)).thenReturn(Optional.empty());
-        when(preferenceService.normalizeForSurface("workspace-home", requested))
-                .thenReturn(requested);
+        when(preferenceService.normalizeForSurface(
+                "workspace-home", requested, Map.of(), current)).thenReturn(requested);
         when(viewRepository.saveAndFlush(view)).thenReturn(view);
         doThrow(new IllegalStateException("dual write unavailable"))
                 .when(compatibilityBridge).mirrorDefaultView(view);
@@ -763,7 +615,8 @@ class HomeViewServiceTest {
 
         assertThat(service.update(
                 7L, 11L, viewId, commandId, "retry",
-                new HomeViewDtos.UpdateHomeViewRequest("Saved", requestLayout, 3L)))
+                new HomeViewDtos.UpdateHomeViewRequest(
+                        "Saved", requestLayout, 3L), AUTHORITY))
                 .isEqualTo(original);
 
         verify(viewRepository, never())

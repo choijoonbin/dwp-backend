@@ -1,0 +1,54 @@
+{
+  "contractVersion": "home-launchpad.v1",
+  "schemaVersion": 1,
+  "groups": [
+    {
+      "groupKey": "work",
+      "sortOrder": 10,
+      "apps": [
+        { "appId": "dwp-work", "resourceKey": "APP.WORK", "requiredPermissionCode": "VIEW", "sortOrder": 10, "route": "/work", "iconKey": "work", "badgeSourceKey": null },
+        { "appId": "dwp-ask", "resourceKey": "APP.ASK", "requiredPermissionCode": "VIEW", "sortOrder": 20, "route": "/dwaion", "iconKey": "ask", "badgeSourceKey": null },
+        { "appId": "dwp-activity", "resourceKey": "APP.ACTIVITY", "requiredPermissionCode": "VIEW", "sortOrder": 30, "route": "/activity", "iconKey": "activity", "badgeSourceKey": null },
+        { "appId": "dwp-approvals", "resourceKey": "APP.APPROVALS", "requiredPermissionCode": "VIEW", "sortOrder": 40, "route": "/approvals/home", "iconKey": "approvals", "badgeSourceKey": "approvals" },
+        { "appId": "dwp-notifications", "resourceKey": "APP.NOTIFICATIONS", "requiredPermissionCode": "VIEW", "sortOrder": 50, "route": "/notifications/home", "iconKey": "notifications", "badgeSourceKey": "notifications" }
+      ]
+    },
+    {
+      "groupKey": "connect",
+      "sortOrder": 20,
+      "apps": [
+        { "appId": "dwp-communications", "resourceKey": "APP.COMMUNICATIONS", "requiredPermissionCode": "VIEW", "sortOrder": 10, "route": "/communications", "iconKey": "communications", "badgeSourceKey": "communications" },
+        { "appId": "dwp-calendar", "resourceKey": "APP.CALENDAR", "requiredPermissionCode": "VIEW", "sortOrder": 20, "route": "/calendar/home", "iconKey": "calendar", "badgeSourceKey": null },
+        { "appId": "ref-app-mail", "resourceKey": "APP.MAIL", "requiredPermissionCode": "VIEW", "sortOrder": 30, "route": "/mail/home", "iconKey": "mail", "badgeSourceKey": null },
+        { "appId": "dwp-spaces", "resourceKey": "APP.SPACES", "requiredPermissionCode": "VIEW", "sortOrder": 40, "route": "/spaces/home", "iconKey": "spaces", "badgeSourceKey": "space" },
+        { "appId": "dwp-rooms", "resourceKey": "APP.WORKPLACE", "requiredPermissionCode": "VIEW", "sortOrder": 50, "route": "/workplace/home", "iconKey": "rooms", "badgeSourceKey": null },
+        { "appId": "dwp-messaging", "resourceKey": "APP.MESSAGING", "requiredPermissionCode": "VIEW", "sortOrder": 60, "route": "/messages/home", "iconKey": "messaging", "badgeSourceKey": "messaging" },
+        { "appId": "dwp-meetings", "resourceKey": "APP.MEETINGS", "requiredPermissionCode": "VIEW", "sortOrder": 70, "route": "/meetings/home", "iconKey": "meetings", "badgeSourceKey": null }
+      ]
+    },
+    {
+      "groupKey": "services",
+      "sortOrder": 30,
+      "apps": [
+        { "appId": "ref-app-service", "resourceKey": "APP.EMPLOYEE_SERVICES", "requiredPermissionCode": "VIEW", "sortOrder": 10, "route": "/services", "iconKey": "services", "badgeSourceKey": null },
+        { "appId": "ref-app-people", "resourceKey": "APP.HCM", "requiredPermissionCode": "VIEW", "sortOrder": 20, "route": "/hr", "iconKey": "hcm", "badgeSourceKey": "hcm" }
+      ]
+    },
+    {
+      "groupKey": "systems",
+      "sortOrder": 40,
+      "apps": [
+        { "appId": "ref-app-knowledge", "resourceKey": "APP.KNOWLEDGE", "requiredPermissionCode": "VIEW", "sortOrder": 10, "route": "/apps?app=ref-app-knowledge", "iconKey": "knowledge", "badgeSourceKey": null },
+        { "appId": "ref-app-erp", "resourceKey": "APP.BUSINESS_ERP", "requiredPermissionCode": "VIEW", "sortOrder": 20, "route": "/apps?app=ref-app-erp", "iconKey": "erp", "badgeSourceKey": null },
+        { "appId": "ref-app-legacy", "resourceKey": "APP.LEGACY_OPERATIONS", "requiredPermissionCode": "VIEW", "sortOrder": 30, "route": "/apps?app=ref-app-legacy", "iconKey": "legacy", "badgeSourceKey": null },
+        { "appId": "dwp-admin", "resourceKey": "APP.ADMINISTRATION", "requiredPermissionCode": "VIEW", "sortOrder": 40, "route": "/admin", "iconKey": "admin", "badgeSourceKey": null }
+      ]
+    }
+  ],
+  "legacyResourceAliases": {
+    "APP.MAIL_CALENDAR": "APP.MAIL",
+    "APP.COLLABORATION": "APP.MESSAGING",
+    "APP.ROOMS": "APP.WORKPLACE",
+    "APP.HRIS": "APP.HCM"
+  }
+}

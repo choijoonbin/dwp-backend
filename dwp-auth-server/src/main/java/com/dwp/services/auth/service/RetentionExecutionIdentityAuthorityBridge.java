@@ -25,7 +25,7 @@ public final class RetentionExecutionIdentityAuthorityBridge implements Retentio
         try {
             var bundle=contracts.findActive("product-surfaces").orElseThrow(RetentionExecutionProtocol::unavailable);
             var pointer=contracts.findActivePointer("product-surfaces").orElseThrow(RetentionExecutionProtocol::unavailable);
-            if(!Set.of(10L, 11L, 12L, 13L, 14L).contains(bundle.version()) || !"ACTIVE".equals(bundle.bundleStatus()) || !bundle.bundleId().equals(pointer.bundleId())) throw unavailable();
+            if(!Set.of(10L, 11L, 12L, 13L, 14L, 15L, 16L).contains(bundle.version()) || !"ACTIVE".equals(bundle.bundleStatus()) || !bundle.bundleId().equals(pointer.bundleId())) throw unavailable();
             var registry=new Registry(seals.loadActive(bundle,pointer));var route=registry.routesByKey().get(ROUTE);var cap=registry.capabilitiesByKey().get(CAPABILITY);
             if(route==null || !"ACTION".equals(route.routeKind()) || cap==null || !"ACTIVE".equals(cap.lifecycleState())
                     || !PERMISSION.equals(cap.resolvedCapabilityCode()) || !"EXECUTE".equals(cap.action()) || !"HIGH".equals(cap.riskTier())

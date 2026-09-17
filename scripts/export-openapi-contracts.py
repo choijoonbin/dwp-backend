@@ -21,9 +21,9 @@ CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 AGENT_AI_CONTROL_SNAPSHOT = CONTRACT_ROOT / "agent-ai-control.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v24.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v28.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 24
+PRODUCT_AUTHORIZATION_VERSION = 28
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 TELEMETRY_PUBLIC_PATH = "/api/platform/v1/observability/product-surface-events"
 TELEMETRY_TRUSTED_HEADERS = {"X-DWP-Tenant-ID", "X-DWP-Rollout-Cohort"}
@@ -96,6 +96,26 @@ EXPECTED_DECISION_REVISION_PARAMETER = {
         "rolloutStates": ["110", "111"],
     },
 }
+RESPONSE_DECISION_REVISION_HEADER = {
+    "description": (
+        "Current server-owned product authority decision revision. Reuse this value as "
+        "X-DWP-Expected-Decision-Revision for a subsequent governed mutation."
+    ),
+    "schema": {"type": "string", "minLength": 1, "maxLength": 200},
+    "x-dwp-conditional-present": {
+        "rolloutStates": ["100", "110", "111"],
+        "authority": "GATEWAY",
+    },
+}
+HOME_RUNTIME_PATHS = frozenset({
+    "/api/platform/v2/home",
+    "/api/platform/v2/home/shadow-receipts",
+    "/api/platform/v2/home/widget-actions:execute",
+})
+HOME_RUNTIME_MUTATION_PATHS = frozenset({
+    "/api/platform/v2/home/shadow-receipts",
+    "/api/platform/v2/home/widget-actions:execute",
+})
 
 APPROVAL_SIGNATURE_FEATURE_OPERATIONS = frozenset({
     ("get", "/v1/admin/signatures/diagnostics"),
@@ -153,9 +173,35 @@ def prefixed(prefix: str) -> Callable[[str], str | None]:
     return transform
 
 
+PROVIDER_WIDGET_REGISTRY_PREFIXES = (
+    "/v1/admin/widget-definitions",
+    "/v1/admin/widget-definition-versions",
+    "/v1/admin/widget-runtime-controls",
+    "/v1/admin/widget-registry",
+)
+PLATFORM_V2_PUBLIC_PATHS = frozenset({
+    "/v2/home",
+    "/v2/home/shadow-receipts",
+    "/v2/home/widget-actions:execute",
+})
+
+
+def platform_path(path: str) -> str | None:
+    if path.startswith("/internal/"):
+        return None
+    if path in PLATFORM_V2_PUBLIC_PATHS:
+        return f"/api/platform{path}"
+    if not (path.startswith("/v1/") or path == "/v1"):
+        return None
+    if any(path == prefix or path.startswith(f"{prefix}/")
+           for prefix in PROVIDER_WIDGET_REGISTRY_PREFIXES):
+        return f"/api/provider{path}"
+    return f"/api/platform{path}"
+
+
 SERVICES = (
     ServiceContract("auth", 8001, auth_path),
-    ServiceContract("platform", 8002, prefixed("/api/platform")),
+    ServiceContract("platform", 8002, platform_path),
     ServiceContract("people", 8003, prefixed("/api/people")),
     ServiceContract("provider", 8004, prefixed("/api/provider")),
     ServiceContract("approval", 8005, prefixed("/api/approvals")),
@@ -562,11 +608,33 @@ def add_product_governance_contract(document: dict[str, Any]) -> None:
                     f"{method.upper()} {path}"
                 )
             canonical_revision = copy.deepcopy(EXPECTED_DECISION_REVISION_PARAMETER)
+            if path in HOME_RUNTIME_MUTATION_PATHS:
+                canonical_revision["description"] = (
+                    "Required and fail-closed for the Home Runtime authority states "
+                    "100/110/111; state 000 never enters the Home Runtime owner contract."
+                )
+                canonical_revision["x-dwp-conditional-required"]["rolloutStates"] = [
+                    "100", "110", "111"
+                ]
             if revision_collisions:
                 parameters[revision_collisions[0][0]] = canonical_revision
             else:
                 parameters.append(canonical_revision)
             revision_injected += 1
+        if path in HOME_RUNTIME_PATHS:
+            for status, response in operation.get("responses", {}).items():
+                if status not in {"200", "202", "204", "304"} \
+                        or not isinstance(response, dict):
+                    continue
+                headers = response.setdefault("headers", {})
+                if "X-DWP-Decision-Revision" in headers:
+                    raise RuntimeError(
+                        f"Gateway decision revision response header collision: "
+                        f"{method.upper()} {path} {status}"
+                    )
+                headers["X-DWP-Decision-Revision"] = copy.deepcopy(
+                    RESPONSE_DECISION_REVISION_HEADER
+                )
     if injected == 0:
         raise RuntimeError("Gateway public contract has no exported governed PRODUCT operation")
     if revision_injected == 0:

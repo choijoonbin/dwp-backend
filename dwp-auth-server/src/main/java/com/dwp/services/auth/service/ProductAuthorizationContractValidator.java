@@ -109,7 +109,7 @@ public class ProductAuthorizationContractValidator {
         require(contract.schemaVersion() == 1, "Unsupported registry schemaVersion.");
         require("product-surfaces".equals(contract.bundleKey()), "Unexpected registry bundleKey.");
         require(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(contract.version()),
-                "Registry descriptor version must be one of the closed versions 1 through 24.");
+                "Registry descriptor version must be one of the closed versions 1 through 28.");
         require(Set.of("DRAFT", "APPROVED", "ACTIVE", "RETIRED").contains(contract.bundleStatus()),
                 "Invalid bundle status.");
         require("SHA-256".equals(contract.checksumAlgorithm()), "Only SHA-256 is supported.");
@@ -395,8 +395,11 @@ public class ProductAuthorizationContractValidator {
                             .equals(nullSafeMap(pep.queryParameterConstraints())),
                     bindingKey + ": query constraint mismatch.");
             require(SERVICE_KEYS.contains(pep.serviceKey()), bindingKey + ": unknown service.");
-            String prefix = "auth".equals(pep.serviceKey()) ? "/auth/" : "/v1/";
-            require(pep.path().startsWith(prefix) && !pep.path().contains("/**")
+            boolean validServicePath = "auth".equals(pep.serviceKey())
+                    ? pep.path().startsWith("/auth/")
+                    : pep.path().startsWith("/v1/")
+                            || "platform".equals(pep.serviceKey()) && pep.path().startsWith("/v2/");
+            require(validServicePath && !pep.path().contains("/**")
                             && !publicBinding.path().contains("/**"),
                     bindingKey + ": invalid service path grammar.");
             nullSafeMap(publicBinding.pathParameterConstraints()).forEach((parameter, constraint) -> {

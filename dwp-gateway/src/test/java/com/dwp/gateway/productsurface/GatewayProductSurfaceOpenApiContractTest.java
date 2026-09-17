@@ -122,11 +122,51 @@ class GatewayProductSurfaceOpenApiContractTest {
     }
 
     @Test
+    void homeRuntimeResponsesExposeTheReusableGatewayDecisionRevision() throws Exception {
+        JsonNode gateway = read(repositoryRoot(), "contracts/openapi/gateway-public.json");
+        Map<GatewayOperation, String> operations = Map.of(
+                new GatewayOperation("/api/platform/v2/home", "get"), "200",
+                new GatewayOperation("/api/platform/v2/home/shadow-receipts", "post"), "202",
+                new GatewayOperation(
+                        "/api/platform/v2/home/widget-actions:execute", "post"), "202");
+
+        operations.forEach((operation, status) -> {
+            JsonNode header = gateway.path("paths").path(operation.path())
+                    .path(operation.method()).path("responses").path(status)
+                    .path("headers").path("X-DWP-Decision-Revision");
+            assertThat(header.isObject()).isTrue();
+            assertThat(header.path("schema").path("maxLength").asInt()).isEqualTo(200);
+            assertThat(header.path("x-dwp-conditional-present")
+                    .path("rolloutStates"))
+                    .extracting(JsonNode::asText)
+                    .containsExactly("100", "110", "111");
+        });
+        assertThat(gateway.path("paths").path("/api/platform/v2/home")
+                .path("get").path("responses").path("304")
+                .path("headers").has("X-DWP-Decision-Revision")).isTrue();
+
+        for (String path : Set.of(
+                "/api/platform/v2/home/shadow-receipts",
+                "/api/platform/v2/home/widget-actions:execute")) {
+            JsonNode revision = StreamSupport.stream(
+                            gateway.path("paths").path(path).path("post")
+                                    .path("parameters").spliterator(), false)
+                    .filter(parameter -> "X-DWP-Expected-Decision-Revision".equals(
+                            parameter.path("name").asText()))
+                    .findFirst().orElseThrow();
+            assertThat(revision.path("x-dwp-conditional-required")
+                    .path("rolloutStates"))
+                    .extracting(JsonNode::asText)
+                    .containsExactly("100", "110", "111");
+        }
+    }
+
+    @Test
     void everyActiveStateChangingProductBindingExposesTheConditionalRevisionHeader()
             throws Exception {
         Path root = repositoryRoot();
         JsonNode registry = read(root,
-                "contracts/product-authorization/product-surfaces-v1.bundle-v3.json");
+                "contracts/product-authorization/product-surfaces-v1.json");
         JsonNode gateway = read(root, "contracts/openapi/gateway-public.json");
         Set<GatewayOperation> expected = new HashSet<>();
 
@@ -138,9 +178,16 @@ class GatewayProductSurfaceOpenApiContractTest {
                 continue;
             }
             for (JsonNode binding : route.path("gatewayApiBindings")) {
-                expected.add(new GatewayOperation(
+                GatewayOperation operation = new GatewayOperation(
                         binding.path("path").asText(),
-                        binding.path("method").asText().toLowerCase()));
+                        binding.path("method").asText().toLowerCase());
+                // The registry also fail-closes owner routes that are not yet part of the
+                // browser-facing Gateway OpenAPI. The exporter can only decorate operations
+                // that the composed public contract actually exposes.
+                if (gateway.path("paths").path(operation.path())
+                        .path(operation.method()).isObject()) {
+                    expected.add(operation);
+                }
             }
         }
         expected.add(new GatewayOperation(
@@ -168,8 +215,17 @@ class GatewayProductSurfaceOpenApiContractTest {
                     .singleElement()
                     .satisfies(parameter -> {
                         assertThat(parameter.path("required").asBoolean(true)).isFalse();
-                        assertThat(parameter.path("description").asText())
-                                .contains("110/111", "000/100", "fail-closed");
+                        boolean homeRuntimeMutation = binding.path().equals(
+                                "/api/platform/v2/home/shadow-receipts")
+                                || binding.path().equals(
+                                "/api/platform/v2/home/widget-actions:execute");
+                        if (homeRuntimeMutation) {
+                            assertThat(parameter.path("description").asText())
+                                    .contains("100/110/111", "state 000", "fail-closed");
+                        } else {
+                            assertThat(parameter.path("description").asText())
+                                    .contains("110/111", "000/100", "fail-closed");
+                        }
                         assertThat(parameter.path("schema").path("type").asText())
                                 .isEqualTo("string");
                         assertThat(parameter.path("schema").path("minLength").asInt())
@@ -178,10 +234,17 @@ class GatewayProductSurfaceOpenApiContractTest {
                                 .isEqualTo(200);
                         assertThat(parameter.path("x-dwp-conditional-required")
                                 .path("enforcement").asText()).isEqualTo("FAIL_CLOSED");
-                        assertThat(parameter.path("x-dwp-conditional-required")
-                                .path("rolloutStates"))
-                                .extracting(JsonNode::asText)
-                                .containsExactly("110", "111");
+                        if (homeRuntimeMutation) {
+                            assertThat(parameter.path("x-dwp-conditional-required")
+                                    .path("rolloutStates"))
+                                    .extracting(JsonNode::asText)
+                                    .containsExactly("100", "110", "111");
+                        } else {
+                            assertThat(parameter.path("x-dwp-conditional-required")
+                                    .path("rolloutStates"))
+                                    .extracting(JsonNode::asText)
+                                    .containsExactly("110", "111");
+                        }
                     });
         });
 

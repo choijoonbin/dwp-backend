@@ -82,6 +82,47 @@ class ProductSurfaceFeatureRolloutContractTest {
     }
 
     @Test
+    void stagedCohortFollowsTheDeepestEnabledAxis() {
+        ProductSurfaceContextDtos.ProductRollout shadow =
+                FeatureRolloutEvaluationClient.combine(
+                        "workplace",
+                        decision(FeatureRolloutEvaluationClient.CONTEXT_SHADOW_FLAG,
+                                true, 1, "eligible-10"),
+                        decision(FeatureRolloutEvaluationClient.productEnforcementFlag(
+                                        "workplace"),
+                                false, 1, "holdout"),
+                        decision(FeatureRolloutEvaluationClient.uiFlag("workplace"),
+                                false, 1, "holdout"));
+        ProductSurfaceContextDtos.ProductRollout readOnly =
+                FeatureRolloutEvaluationClient.combine(
+                        "workplace",
+                        decision(FeatureRolloutEvaluationClient.CONTEXT_SHADOW_FLAG,
+                                true, 2, "full"),
+                        decision(FeatureRolloutEvaluationClient.productEnforcementFlag(
+                                        "workplace"),
+                                true, 2, "eligible-25"),
+                        decision(FeatureRolloutEvaluationClient.uiFlag("workplace"),
+                                false, 2, "holdout"));
+        ProductSurfaceContextDtos.ProductRollout canary =
+                FeatureRolloutEvaluationClient.combine(
+                        "workplace",
+                        decision(FeatureRolloutEvaluationClient.CONTEXT_SHADOW_FLAG,
+                                true, 3, "full"),
+                        decision(FeatureRolloutEvaluationClient.productEnforcementFlag(
+                                        "workplace"),
+                                true, 3, "full"),
+                        decision(FeatureRolloutEvaluationClient.uiFlag("workplace"),
+                                true, 3, "eligible-50"));
+
+        assertThat(shadow.state()).isEqualTo("100");
+        assertThat(shadow.cohort()).isEqualTo("eligible-10");
+        assertThat(readOnly.state()).isEqualTo("110");
+        assertThat(readOnly.cohort()).isEqualTo("eligible-25");
+        assertThat(canary.state()).isEqualTo("111");
+        assertThat(canary.cohort()).isEqualTo("eligible-50");
+    }
+
+    @Test
     void uiEvaluationFailureFallsBackToCompatibilityShellWithoutDisablingEnforcement() {
         ProductSurfaceContextDtos.ProductRollout rollout =
                 FeatureRolloutEvaluationClient.combine(
@@ -681,6 +722,76 @@ class ProductSurfaceFeatureRolloutContractTest {
     }
 
     @Test
+    void homeWebVitalsReceiveOnlyTenantAuthoritativeHomeRolloutDimensions() {
+        FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
+        when(client.evaluateProducts(eq(7L), eq(List.of("workplace")), any()))
+                .thenReturn(Mono.just(List.of(
+                        new ProductSurfaceContextDtos.ProductRollout(
+                                "workplace",
+                                "110",
+                                new ProductSurfaceContextDtos.RolloutFlags(true, true, false),
+                                "eligible-25",
+                                "home-rum-rollout-17",
+                                ProductSurfaceContextDtos.AuthorityStatus.AVAILABLE))));
+        ProductSurfaceRolloutHeaderFilter filter = new ProductSurfaceRolloutHeaderFilter(
+                client, productRouteCatalog(), new ObjectMapper());
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/platform/v1/observability/web-vitals")
+                        .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                        .header(ProductSurfaceRolloutHeaderFilter.HOME_RUNTIME_STATE_HEADER,
+                                "COMMAND_CANARY")
+                        .header(ProductSurfaceRolloutHeaderFilter.HOME_ROLLOUT_RING_HEADER, "GA")
+                        .body("{\"name\":\"LCP\",\"value\":1200,\"delta\":10,"
+                                + "\"id\":\"vital-17\",\"rating\":\"good\","
+                                + "\"navigationType\":\"navigate\",\"routeGroup\":\"home\","
+                                + "\"homeMode\":\"FLOW_V1\","
+                                + "\"homeRuntime\":\"COMMAND_CANARY\","
+                                + "\"rolloutRing\":\"GA\","
+                                + "\"deviceClass\":\"DESKTOP_WIDE\"}"));
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter.filter(exchange, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get()).isNotNull();
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceRolloutHeaderFilter.HOME_RUNTIME_STATE_HEADER))
+                .isEqualTo("READ_ONLY_ACTIVE");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceRolloutHeaderFilter.HOME_ROLLOUT_RING_HEADER))
+                .isEqualTo("PILOT");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceRolloutHeaderFilter.HOME_ROLLOUT_REVISION_HEADER))
+                .isEqualTo("home-rum-rollout-17");
+        assertThat(readBody(forwarded.get())).contains("\"routeGroup\":\"home\"");
+        verify(client).evaluateProducts(eq(7L), eq(List.of("workplace")), any());
+    }
+
+    @Test
+    void homeWebVitalsFailClosedWithoutVerifiedTenant() {
+        FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
+        ProductSurfaceRolloutHeaderFilter filter = new ProductSurfaceRolloutHeaderFilter(
+                client, productRouteCatalog(), new ObjectMapper());
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.post("/api/platform/v1/observability/web-vitals")
+                        .body("{\"name\":\"LCP\",\"routeGroup\":\"home\"}"));
+        AtomicBoolean forwarded = new AtomicBoolean();
+
+        filter.filter(exchange, ignored -> {
+            forwarded.set(true);
+            return Mono.empty();
+        }).block();
+
+        assertThat(exchange.getResponse().getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(forwarded).isFalse();
+        verify(client, org.mockito.Mockito.never())
+                .evaluateProducts(anyLong(), any(), any());
+    }
+
+    @Test
     void approvalRequestsReceiveOnlyTenantAuthoritativeRolloutEvidence() {
         FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
         when(client.evaluateProducts(eq(7L), eq(List.of("approvals")), any()))
@@ -718,6 +829,48 @@ class ProductSurfaceFeatureRolloutContractTest {
                 ProductSurfaceRolloutHeaderFilter.REVISION_HEADER))
                 .isEqualTo("rollout-authoritative-revision");
         verify(client).evaluateProducts(eq(7L), eq(List.of("approvals")), any());
+    }
+
+    @Test
+    void homeRuntimeRouteStripsForgedHeadersAndInjectsBoundedServerDecision() {
+        FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
+        when(client.evaluateProducts(eq(7L), eq(List.of("workplace")), any()))
+                .thenReturn(Mono.just(List.of(
+                        new ProductSurfaceContextDtos.ProductRollout(
+                                "workplace",
+                                "110",
+                                new ProductSurfaceContextDtos.RolloutFlags(true, true, false),
+                                "eligible-10",
+                                "home-rollout-17",
+                                ProductSurfaceContextDtos.AuthorityStatus.AVAILABLE))));
+        ProductSurfaceRolloutHeaderFilter filter = new ProductSurfaceRolloutHeaderFilter(
+                client, productRouteCatalog(), new ObjectMapper());
+        MockServerWebExchange exchange = MockServerWebExchange.from(
+                MockServerHttpRequest.get("/api/platform/v2/home")
+                        .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
+                        .header(ProductSurfaceRolloutHeaderFilter.HOME_RUNTIME_STATE_HEADER,
+                                "COMMAND_CANARY")
+                        .header(ProductSurfaceRolloutHeaderFilter.HOME_ROLLOUT_RING_HEADER, "GA")
+                        .header(ProductSurfaceRolloutHeaderFilter.HOME_ROLLOUT_REVISION_HEADER,
+                                "forged")
+                        .build());
+        AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                new AtomicReference<>();
+
+        filter.filter(exchange, filtered -> {
+            forwarded.set(filtered.getRequest());
+            return Mono.empty();
+        }).block();
+
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceRolloutHeaderFilter.HOME_RUNTIME_STATE_HEADER))
+                .isEqualTo("READ_ONLY_ACTIVE");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceRolloutHeaderFilter.HOME_ROLLOUT_RING_HEADER))
+                .isEqualTo("INTERNAL");
+        assertThat(forwarded.get().getHeaders().getFirst(
+                ProductSurfaceRolloutHeaderFilter.HOME_ROLLOUT_REVISION_HEADER))
+                .isEqualTo("home-rollout-17");
     }
 
     @Test

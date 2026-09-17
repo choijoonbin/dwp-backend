@@ -2,6 +2,7 @@ package com.dwp.services.platform.home.personalization;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.platform.home.preference.HomeLayoutPolicy;
 import com.dwp.services.platform.home.preference.HomePreferenceDtos;
 import com.dwp.services.platform.home.preference.HomePreferenceService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -20,7 +21,7 @@ import java.util.Set;
 import java.util.UUID;
 
 abstract class HomeViewServiceSupport {
-    protected static final Set<String> DEVICE_CLASSES = Set.of("DESKTOP", "MOBILE");
+    protected static final Set<String> DEVICE_CLASSES = HomeDeviceClasses.CANONICAL;
     private static final Set<String> DEVICE_DENSITIES = Set.of("comfortable", "compact");
 
     protected final HomeViewRepository views;
@@ -75,7 +76,8 @@ abstract class HomeViewServiceSupport {
                 configurations.put(value.getWidgetKey(),
                         widgetConfigurationPolicy.decode(value.getConfigurationPayload())));
         return new HomeViewDtos.HomeViewResponse(
-                view.getViewId(), view.getViewKey(), view.getSurfaceKey(), view.getName(),
+                view.getViewId(), view.getViewKey(), view.getSurfaceKey(),
+                HomeModeKeys.canonical(view.getModeKey()), view.getName(),
                 view.isDefaultView(), view.isCustomized(), HomePreferenceDtos.SCHEMA_VERSION,
                 currentLayout(view),
                 version(view), offset(view.getCreatedAt()), offset(view.getUpdatedAt()),
@@ -93,6 +95,14 @@ abstract class HomeViewServiceSupport {
                     preferenceService.defaultLayoutForSurface(view.getSurfaceKey());
             if (fallback == null) throw exception;
             return fallback;
+        }
+    }
+
+    HomePreferenceDtos.HomeLayoutPayload storedLayoutForPreservation(HomeView view) {
+        try {
+            return layout(view.getLayoutPayload());
+        } catch (RuntimeException exception) {
+            return null;
         }
     }
 
@@ -123,9 +133,14 @@ abstract class HomeViewServiceSupport {
     }
 
     protected void clearDefaults(Long tenantId, Long userId, String surfaceKey) {
+        clearDefaults(tenantId, userId, surfaceKey, HomeModeKeys.CLASSIC);
+    }
+
+    protected void clearDefaults(
+            Long tenantId, Long userId, String surfaceKey, String modeKey) {
         List<HomeView> existing = views
-                .findByTenantIdAndUserIdAndSurfaceKeyOrderByUpdatedAtDesc(
-                        tenantId, userId, surfaceKey).stream()
+                .findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
+                        tenantId, userId, surfaceKey, HomeModeKeys.canonical(modeKey)).stream()
                 .filter(HomeView::isDefaultView).toList();
         existing.forEach(value -> value.setDefaultView(false));
         if (existing.isEmpty()) return;
@@ -151,6 +166,13 @@ abstract class HomeViewServiceSupport {
 
     protected void validateDeviceOverlay(
             HomeView view, HomeViewDtos.DeviceLayoutOverlay overlay) {
+        validateDeviceOverlay(view, overlay, Map.of());
+    }
+
+    protected void validateDeviceOverlay(
+            HomeView view,
+            HomeViewDtos.DeviceLayoutOverlay overlay,
+            Map<String, HomeLayoutPolicy.RegistryWidgetContract> registryWidgets) {
         if (overlay == null || overlay.widgetOrder() == null || overlay.widgetSizes() == null
                 || overlay.widgetOrder().stream().anyMatch(java.util.Objects::isNull)
                 || overlay.widgetSizes().entrySet().stream().anyMatch(entry ->
@@ -170,7 +192,7 @@ abstract class HomeViewServiceSupport {
         }
         if (overlay.widgetSizes().entrySet().stream().anyMatch(entry ->
                 !preferenceService.isWidgetSizeAllowed(
-                        view.getSurfaceKey(), entry.getKey(), entry.getValue()))) {
+                        view.getSurfaceKey(), entry.getKey(), entry.getValue(), registryWidgets))) {
             throw invalid("A device overlay widget size is not allowed for this widget.");
         }
         List<String> semanticOrder = current.widgets().stream()
@@ -227,22 +249,36 @@ abstract class HomeViewServiceSupport {
 
     protected void reconcileDeviceLayouts(
             HomeView view, Map<String, HomeViewDtos.DeviceLayoutOverlay> desired) {
+        reconcileDeviceLayouts(view, desired, Map.of());
+    }
+
+    protected void reconcileDeviceLayouts(
+            HomeView view,
+            Map<String, HomeViewDtos.DeviceLayoutOverlay> desired,
+            Map<String, HomeLayoutPolicy.RegistryWidgetContract> registryWidgets) {
         if (desired.size() > DEVICE_CLASSES.size() || desired.entrySet().stream()
-                .anyMatch(entry -> entry.getKey() == null
-                        || entry.getValue() == null
-                        || !DEVICE_CLASSES.contains(entry.getKey()))) {
+                .anyMatch(entry -> entry.getKey() == null || entry.getValue() == null)) {
             throw invalid("The revision contains invalid device layouts.");
         }
-        desired.values().forEach(overlay -> validateDeviceOverlay(view, overlay));
+        Map<String, HomeViewDtos.DeviceLayoutOverlay> canonical = new LinkedHashMap<>();
+        desired.forEach((deviceClass, overlay) -> {
+            String canonicalClass = HomeDeviceClasses.canonical(deviceClass);
+            if (canonical.putIfAbsent(canonicalClass, overlay) != null) {
+                throw invalid("A revision contains duplicate device class aliases.");
+            }
+        });
+        canonical.values().forEach(overlay ->
+                validateDeviceOverlay(view, overlay, registryWidgets));
         List<HomeDeviceLayout> existing = deviceLayouts
                 .findByViewIdAndTenantIdAndUserIdOrderByDeviceClass(
                         view.getViewId(), view.getTenantId(), view.getUserId());
         Map<String, HomeDeviceLayout> byClass = new LinkedHashMap<>();
         existing.forEach(value -> byClass.put(value.getDeviceClass(), value));
         List<HomeDeviceLayout> removed = existing.stream()
-                .filter(value -> !desired.containsKey(value.getDeviceClass())).toList();
+                .filter(value -> !canonical.containsKey(
+                        HomeDeviceClasses.canonical(value.getDeviceClass()))).toList();
         List<HomeDeviceLayout> replacements = new ArrayList<>();
-        desired.forEach((deviceClass, overlay) -> {
+        canonical.forEach((deviceClass, overlay) -> {
             HomeDeviceLayout value = byClass.getOrDefault(
                     deviceClass,
                     HomeDeviceLayout.builder().deviceLayoutId(UUID.randomUUID())
@@ -316,7 +352,8 @@ abstract class HomeViewServiceSupport {
             HomeDeviceLayout value, long viewVersion) {
         try {
             return new HomeViewDtos.DeviceLayoutResponse(
-                    value.getDeviceLayoutId(), value.getViewId(), value.getDeviceClass(),
+                    value.getDeviceLayoutId(), value.getViewId(),
+                    HomeDeviceClasses.canonical(value.getDeviceClass()),
                     objectMapper.treeToValue(value.getOverlayPayload(),
                             HomeViewDtos.DeviceLayoutOverlay.class),
                     value.getVersion() == null ? 0L : value.getVersion(),
@@ -363,6 +400,7 @@ abstract class HomeViewServiceSupport {
                 "viewId", view.getViewId(),
                 "viewKey", view.getViewKey(),
                 "surfaceKey", view.getSurfaceKey(),
+                "modeKey", HomeModeKeys.canonical(view.getModeKey()),
                 "isDefault", view.isDefaultView(),
                 "customized", view.isCustomized(),
                 "schemaVersion", view.getSchemaVersion(),

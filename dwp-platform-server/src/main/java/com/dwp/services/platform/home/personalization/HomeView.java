@@ -41,6 +41,17 @@ public class HomeView extends HomePersonalizationEntity {
     @Column(name = "surface_key", nullable = false, length = 80)
     private String surfaceKey;
 
+    @Builder.Default
+    @Column(name = "mode_key", nullable = false, length = 16)
+    private String modeKey = HomeModeKeys.CLASSIC;
+
+    @Column(name = "legacy_source_view_id")
+    private UUID legacySourceViewId;
+
+    @Builder.Default
+    @Column(name = "legacy_unscoped", nullable = false)
+    private boolean legacyUnscoped = false;
+
     @Column(name = "view_key", nullable = false, length = 80)
     private String viewKey;
 

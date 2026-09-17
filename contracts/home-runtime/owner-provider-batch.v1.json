@@ -1,0 +1,461 @@
+{
+  "schemaVersion": 1,
+  "visibility": "INTERNAL_ONLY",
+  "serviceIdentity": "dwp-platform-server",
+  "paths": {
+    "batch": "/internal/home/v1/widget-data:batch",
+    "command": "/internal/home/v1/widget-actions:execute"
+  },
+  "forbiddenAmbientHeaders": [
+    "Authorization",
+    "Cookie",
+    "X-DWP-Support-Session-ID",
+    "X-DWP-Provider-Tenant-ID",
+    "X-DWP-Actor-Tenant-ID"
+  ],
+  "authProfiles": {
+    "service-token-v1": {
+      "owners": [
+        "approval",
+        "meeting",
+        "notification",
+        "space",
+        "messaging",
+        "people"
+      ],
+      "requiredHeaders": [
+        "X-DWP-Service-Identity",
+        "X-DWP-Service-Token",
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID",
+        "X-DWP-Current-Decision-Revision",
+        "X-DWP-Current-Revalidate-At",
+        "X-DWP-Home-Deadline-At"
+      ]
+    },
+    "dwp1-hmac-sha256": {
+      "owners": [
+        "dwaion"
+      ],
+      "requiredHeaders": [
+        "X-DWP-Home-Assertion",
+        "X-DWP-Tenant-ID",
+        "X-DWP-User-ID",
+        "X-DWP-Identity-Plane",
+        "X-DWP-Permissions",
+        "X-DWP-Roles",
+        "X-DWP-Group-Refs",
+        "X-DWP-Current-Decision-Revision",
+        "X-DWP-Current-Revalidate-At",
+        "X-DWP-Home-Deadline-At"
+      ],
+      "forbiddenHeaders": [
+        "Authorization",
+        "Cookie",
+        "X-DWP-Service-Identity",
+        "X-DWP-Service-Token",
+        "X-DWP-Support-Session-ID",
+        "X-DWP-Provider-Tenant-ID",
+        "X-DWP-Actor-Tenant-ID"
+      ]
+    }
+  },
+  "owners": {
+    "approval": {
+      "module": "dwp-approval-server",
+      "tokenProperty": "dwp.approval.home-runtime-service-token",
+      "definitions": [
+        "approval.focus-queue",
+        "approval.my-requests"
+      ],
+      "definitionBindings": {
+        "approval.focus-queue": {
+          "rendererKey": "home.approval.focus-queue",
+          "legacyWidgetKey": "focus-queue",
+          "legacySurfaceSlot": null,
+          "sourceAppResourceKey": "APP.APPROVALS",
+          "requiredAuthorities": [
+            "APP.APPROVALS:VIEW",
+            "ACTION.APPROVAL_TASK:VIEW"
+          ],
+          "providerStates": [
+            "AVAILABLE",
+            "EMPTY",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        },
+        "approval.my-requests": {
+          "rendererKey": "home.approval.my-requests",
+          "legacyWidgetKey": "my-requests",
+          "legacySurfaceSlot": null,
+          "sourceAppResourceKey": "APP.APPROVALS",
+          "requiredAuthorities": [
+            "APP.APPROVALS:VIEW",
+            "ACTION.APPROVAL_REQUEST:VIEW"
+          ],
+          "providerStates": [
+            "AVAILABLE",
+            "EMPTY",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        }
+      },
+      "providerKey": "approval",
+      "platformTokenProperty": "dwp.platform.home-runtime.providers.approval.token",
+      "platformUrlProperty": "dwp.platform.home-runtime.providers.approval.url",
+      "deploymentTokenEnvironment": {
+        "platform": "DWP_HOME_PROVIDER_APPROVAL_TOKEN",
+        "owner": "DWP_APPROVAL_HOME_RUNTIME_SERVICE_TOKEN"
+      }
+    },
+    "meeting": {
+      "module": "dwp-meeting-server",
+      "tokenProperty": "dwp.meeting.home-runtime-service-token",
+      "definitions": [
+        "meetings.next-prep",
+        "meetings.followup-candidates"
+      ],
+      "definitionBindings": {
+        "meetings.next-prep": {
+          "rendererKey": "home.meetings.next-prep",
+          "legacyWidgetKey": "meeting-next-prep",
+          "legacySurfaceSlot": null,
+          "sourceAppResourceKey": "APP.MEETINGS",
+          "requiredAuthorities": [
+            "APP.MEETINGS:VIEW"
+          ],
+          "providerStates": [
+            "AVAILABLE",
+            "EMPTY",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        },
+        "meetings.followup-candidates": {
+          "rendererKey": "home.meetings.followup-candidates",
+          "legacyWidgetKey": "meeting-followups",
+          "legacySurfaceSlot": null,
+          "sourceAppResourceKey": "APP.MEETINGS",
+          "requiredAuthorities": [
+            "APP.MEETINGS:VIEW"
+          ],
+          "providerStates": [
+            "PARTIAL",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        }
+      },
+      "providerKey": "meeting",
+      "platformTokenProperty": "dwp.platform.home-runtime.providers.meeting.token",
+      "platformUrlProperty": "dwp.platform.home-runtime.providers.meeting.url",
+      "deploymentTokenEnvironment": {
+        "platform": "DWP_HOME_PROVIDER_MEETING_TOKEN",
+        "owner": "DWP_MEETING_HOME_RUNTIME_SERVICE_TOKEN"
+      }
+    },
+    "notification": {
+      "module": "dwp-notification-server",
+      "tokenProperty": "dwp.notification.home-runtime-service-token",
+      "definitions": [
+        "notification.app-badges",
+        "notification.response-queue"
+      ],
+      "definitionBindings": {
+        "notification.app-badges": {
+          "rendererKey": "home.notification.app-badges",
+          "legacyWidgetKey": "application-dock",
+          "legacySurfaceSlot": "application-dock",
+          "sourceAppResourceKey": "APP.NOTIFICATIONS",
+          "requiredAuthorities": [
+            "APP.NOTIFICATIONS:VIEW"
+          ],
+          "providerStates": [
+            "AVAILABLE",
+            "EMPTY",
+            "PARTIAL",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        },
+        "notification.response-queue": {
+          "rendererKey": "home.notification.response-queue",
+          "legacyWidgetKey": "notification-response-queue",
+          "legacySurfaceSlot": null,
+          "sourceAppResourceKey": "APP.NOTIFICATIONS",
+          "requiredAuthorities": [
+            "APP.NOTIFICATIONS:VIEW"
+          ],
+          "providerStates": [
+            "AVAILABLE",
+            "EMPTY",
+            "PARTIAL",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        }
+      },
+      "providerKey": "notification",
+      "platformTokenProperty": "dwp.platform.home-runtime.providers.notification.token",
+      "platformUrlProperty": "dwp.platform.home-runtime.providers.notification.url",
+      "deploymentTokenEnvironment": {
+        "platform": "DWP_HOME_PROVIDER_NOTIFICATION_TOKEN",
+        "owner": "DWP_NOTIFICATION_HOME_RUNTIME_SERVICE_TOKEN"
+      }
+    },
+    "space": {
+      "module": "dwp-space-server",
+      "tokenProperty": "dwp.space.home-runtime-service-token",
+      "definitions": [
+        "space.change-feed",
+        "space.response-queue"
+      ],
+      "definitionBindings": {
+        "space.change-feed": {
+          "rendererKey": "home.space.change-feed",
+          "legacyWidgetKey": "space-change-feed",
+          "legacySurfaceSlot": null,
+          "sourceAppResourceKey": "APP.SPACES",
+          "requiredAuthorities": [
+            "APP.SPACES:VIEW"
+          ],
+          "providerStates": [
+            "AVAILABLE",
+            "EMPTY",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        },
+        "space.response-queue": {
+          "rendererKey": "home.space.response-queue",
+          "legacyWidgetKey": "space-response-queue",
+          "legacySurfaceSlot": null,
+          "sourceAppResourceKey": "APP.SPACES",
+          "requiredAuthorities": [
+            "APP.SPACES:VIEW"
+          ],
+          "providerStates": [
+            "AVAILABLE",
+            "EMPTY",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        }
+      },
+      "providerKey": "space",
+      "platformTokenProperty": "dwp.platform.home-runtime.providers.space.token",
+      "platformUrlProperty": "dwp.platform.home-runtime.providers.space.url",
+      "deploymentTokenEnvironment": {
+        "platform": "DWP_HOME_PROVIDER_SPACE_TOKEN",
+        "owner": "DWP_SPACE_HOME_RUNTIME_SERVICE_TOKEN"
+      }
+    },
+    "messaging": {
+      "module": "dwp-messaging-server",
+      "tokenProperty": "dwp.messaging.home-runtime-service-token",
+      "definitions": [
+        "messaging.response-queue",
+        "messaging.change-feed"
+      ],
+      "definitionBindings": {
+        "messaging.response-queue": {
+          "rendererKey": "home.messaging.response-queue",
+          "legacyWidgetKey": "messaging-response-queue",
+          "legacySurfaceSlot": null,
+          "sourceAppResourceKey": "APP.MESSAGING",
+          "requiredAuthorities": [
+            "APP.MESSAGING:VIEW"
+          ],
+          "providerStates": [
+            "AVAILABLE",
+            "EMPTY",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        },
+        "messaging.change-feed": {
+          "rendererKey": "home.messaging.change-feed",
+          "legacyWidgetKey": "messaging-change-feed",
+          "legacySurfaceSlot": null,
+          "sourceAppResourceKey": "APP.MESSAGING",
+          "requiredAuthorities": [
+            "APP.MESSAGING:VIEW"
+          ],
+          "providerStates": [
+            "AVAILABLE",
+            "EMPTY",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        }
+      },
+      "providerKey": "messaging",
+      "platformTokenProperty": "dwp.platform.home-runtime.providers.messaging.token",
+      "platformUrlProperty": "dwp.platform.home-runtime.providers.messaging.url",
+      "deploymentTokenEnvironment": {
+        "platform": "DWP_HOME_PROVIDER_MESSAGING_TOKEN",
+        "owner": "DWP_MESSAGING_HOME_RUNTIME_SERVICE_TOKEN"
+      }
+    },
+    "people": {
+      "module": "dwp-people-server",
+      "tokenProperty": "dwp.people.home-runtime-service-token",
+      "definitions": [
+        "hr.edu",
+        "hr.team-pulse"
+      ],
+      "definitionBindings": {
+        "hr.edu": {
+          "rendererKey": "home.hr.edu",
+          "legacyWidgetKey": "hr-education",
+          "legacySurfaceSlot": null,
+          "sourceAppResourceKey": "APP.HCM",
+          "requiredAuthorities": [
+            "APP.HCM:VIEW"
+          ],
+          "compatibilityAuthorities": [
+            "APP.HRIS:VIEW"
+          ],
+          "providerStates": [
+            "AVAILABLE",
+            "EMPTY",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        },
+        "hr.team-pulse": {
+          "rendererKey": "home.hr.team-pulse",
+          "legacyWidgetKey": "hr-team-pulse",
+          "legacySurfaceSlot": null,
+          "sourceAppResourceKey": "APP.HCM",
+          "requiredAuthorities": [
+            "APP.HCM:VIEW",
+            "DATA.WORKFORCE:VIEW"
+          ],
+          "compatibilityAuthorities": [
+            "APP.HRIS:VIEW"
+          ],
+          "providerStates": [
+            "AVAILABLE",
+            "EMPTY",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        }
+      },
+      "providerKey": "people",
+      "platformTokenProperty": "dwp.platform.home-runtime.providers.people.token",
+      "platformUrlProperty": "dwp.platform.home-runtime.providers.people.url",
+      "deploymentTokenEnvironment": {
+        "platform": "DWP_HOME_PROVIDER_PEOPLE_TOKEN",
+        "owner": "DWP_PEOPLE_HOME_RUNTIME_SERVICE_TOKEN"
+      }
+    },
+    "dwaion": {
+      "module": "external:dwp_agent",
+      "externalOwner": true,
+      "authProfile": "dwp1-hmac-sha256",
+      "definitions": [
+        "dwaion.artifact"
+      ],
+      "definitionBindings": {
+        "dwaion.artifact": {
+          "rendererKey": "home.dwaion.artifact",
+          "legacyWidgetKey": "dwaion-artifact",
+          "legacySurfaceSlot": null,
+          "sourceAppResourceKey": "APP.DWAION_ARTIFACTS",
+          "requiredAuthorities": [
+            "APP.ASK:VIEW",
+            "APP.DWAION_ARTIFACTS:VIEW"
+          ],
+          "definitionVersion": "1.1.0",
+          "manifestHash": "eb2152b7f1cf21611bb4a2c1781f7f267c5cd0c6d489d4edc8f680bb4fa6af54",
+          "rendererBindingRevisionPolicy": "CURRENT_ACTIVE_CATALOG_SHA256",
+          "providerStates": [
+            "AVAILABLE",
+            "EMPTY",
+            "PARTIAL",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        }
+      },
+      "providerKey": "dwaion",
+      "platformUrlProperty": "dwp.platform.home-runtime.providers.dwaion.url",
+      "platformSigningSecretProperty": "dwp.platform.home-runtime.providers.dwaion.signing-secret",
+      "platformKeyIdProperty": "dwp.platform.home-runtime.providers.dwaion.key-id",
+      "deploymentSigningEnvironment": {
+        "platform": "DWP_DWAION_HOME_IDENTITY_SIGNING_SECRET",
+        "owner": "DWP_DWAION_HOME_IDENTITY_SIGNING_SECRET",
+        "keyId": "DWP_DWAION_HOME_IDENTITY_KEY_ID"
+      },
+      "signedWorkload": {
+        "profile": "dwp1-hmac-sha256",
+        "method": "POST",
+        "path": "/internal/home/v1/widget-data:batch",
+        "header": "X-DWP-Home-Assertion",
+        "issuer": "dwp-platform-server",
+        "audience": "dwp-agent-home",
+        "ttlSeconds": 30,
+        "bodySha256": true,
+        "singleUseJti": true,
+        "recipientBound": true,
+        "claims": [
+          "v",
+          "kid",
+          "iss",
+          "aud",
+          "sub",
+          "tid",
+          "pid",
+          "cid",
+          "traceparent",
+          "tracestate",
+          "ip",
+          "htm",
+          "htu",
+          "permissions",
+          "roles",
+          "groups",
+          "authorityRevision",
+          "authorityRevalidateAt",
+          "deadlineAt",
+          "bodySha256",
+          "iat",
+          "nbf",
+          "exp",
+          "jti"
+        ],
+        "fixturePath": "contracts/home-runtime/dwaion-signed-workload.v1.json",
+        "fixtureAssertionSha256": "ac7ff7568c38f0110d8807ba359400fb3a380589ea0c239607e871e724cf3909"
+      },
+      "sourceRoute": "/dwaion/artifacts",
+      "ownerEvidenceCommit": "7092a93ea7446d08af6e45bb88e7225dd9ed4148",
+      "evidence": {
+        "security": {
+          "ref": "contract:contracts/home-runtime/dwaion-signed-workload.v1.json",
+          "sha256": "dd2ab8edc36e7d52db73d3f6ae954111819ad763742e23f24eb12986faae0482"
+        },
+        "privacy": {
+          "ref": "git:7092a93ea7446d08af6e45bb88e7225dd9ed4148:tests/test_artifact_home_projection.py",
+          "sha256": "2b61d64f15ccbb14e680289c851221e4a2899517466178bfe061d4e0164d2fb3"
+        }
+      }
+    }
+  },
+  "commandPolicy": "SOURCE_ROUTE_ONLY_UNTIL_AN_OWNER_MANIFEST_DECLARES_A_COMMAND",
+  "states": [
+    "AVAILABLE",
+    "EMPTY",
+    "PARTIAL",
+    "FORBIDDEN",
+    "UNAVAILABLE",
+    "STALE"
+  ],
+  "activation": "DORMANT_UNTIL_REGISTRY_SHADOW_DEFINITION_AND_CERTIFIED_RENDERER_BINDING",
+  "brokerDerivedStates": [
+    "STALE"
+  ]
+}

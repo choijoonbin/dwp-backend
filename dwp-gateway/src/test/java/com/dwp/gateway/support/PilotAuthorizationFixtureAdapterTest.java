@@ -11,15 +11,15 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class PilotAuthorizationFixtureAdapterTest {
 
     @Test
-    void loadsV22LineageWithoutChangingTheFixedCaseAuthority() throws Exception {
+    void loadsV28LineageWithoutChangingTheFixedCaseAuthority() throws Exception {
         try (var input = getClass().getClassLoader().getResourceAsStream(
                 "product-authorization/pilot-fixtures.v1.generated.json")) {
             assertThat(input).isNotNull();
             var fixture = new com.fasterxml.jackson.databind.ObjectMapper().readTree(input);
             assertThat(fixture.path("fixtureChecksum").asText())
-                    .isEqualTo("4c8cad692a39431ede34e073c9be31a5a5e1314b0a5fd9ce42604cc9d893f187");
-            assertThat(fixture.path("registryLineage").path("latestAliasVersion").asInt()).isEqualTo(22);
-            assertThat(fixture.path("registryLineage").path("versions").size()).isEqualTo(22);
+                    .isEqualTo("7badf06358ebd58b9a45c1bfb20163b5b532451c6ce9a7a059a6f453bbd13a71");
+            assertThat(fixture.path("registryLineage").path("latestAliasVersion").asInt()).isEqualTo(28);
+            assertThat(fixture.path("registryLineage").path("versions").size()).isEqualTo(28);
             assertThat(fixture.path("registryLineage").path("versions").get(9).path("sha256").asText())
                     .isEqualTo("1f97638c95a192f0ec7f01053c3965f79b7a3ee4eb9781ea56e3cf8eccc6889b");
             assertThat(fixture.path("registryLineage").path("versions").get(8).path("sha256").asText())

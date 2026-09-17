@@ -14,6 +14,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -26,6 +27,7 @@ public class HomeViewService extends HomeViewServiceSupport {
     private final PlatformAuditService audit;
     private final HomePersonalizationScopeLock scopeLock;
     private final HomeCommandReceiptService commandReceipts;
+    private final HomeViewRegistryPlacementPolicy registryPlacements;
 
     public HomeViewService(
             HomeViewRepository views,
@@ -42,7 +44,8 @@ public class HomeViewService extends HomeViewServiceSupport {
             HomeViewSnapshotCodec snapshotCodec,
             HomeWidgetConfigurationPolicy widgetConfigurationPolicy,
             HomeCanonicalJson canonicalJson,
-            HomeCommandReceiptService commandReceipts) {
+            HomeCommandReceiptService commandReceipts,
+            HomeViewRegistryPlacementPolicy registryPlacements) {
         super(views, revisions, deviceLayouts, widgetConfigurations, preferenceService,
                 objectMapper, compatibilityBridge, snapshotCodec, widgetConfigurationPolicy,
                 canonicalJson);
@@ -51,14 +54,22 @@ public class HomeViewService extends HomeViewServiceSupport {
         this.audit = audit;
         this.scopeLock = scopeLock;
         this.commandReceipts = commandReceipts;
+        this.registryPlacements = registryPlacements;
     }
 
     @Transactional(readOnly = true)
     public List<HomeViewDtos.HomeViewResponse> list(
             Long tenantId, Long userId, String surfaceKey) {
+        return list(tenantId, userId, surfaceKey, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<HomeViewDtos.HomeViewResponse> list(
+            Long tenantId, Long userId, String surfaceKey, String rawModeKey) {
         access.requirePersonalization();
-        return views.findByTenantIdAndUserIdAndSurfaceKeyOrderByUpdatedAtDesc(
-                        tenantId, userId, surfaceKey)
+        String modeKey = resolveMode(tenantId, surfaceKey, rawModeKey);
+        return views.findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
+                        tenantId, userId, surfaceKey, modeKey)
                 .stream().map(this::response).toList();
     }
 
@@ -75,39 +86,50 @@ public class HomeViewService extends HomeViewServiceSupport {
             Long userId,
             UUID commandId,
             String correlationId,
-            HomeViewDtos.CreateHomeViewRequest request) {
+            HomeViewDtos.CreateHomeViewRequest request,
+            HomeViewRegistryPlacementPolicy.Authority authority) {
         access.requirePersonalization();
+        String requestedModeKey = request.modeKey();
+        String receiptModeSelector = requestedModeKey == null
+                ? "EFFECTIVE" : HomeModeKeys.canonical(requestedModeKey);
         String fingerprint = fingerprint(Map.of(
                 "operation", "CREATE_VIEW", "surfaceKey", HomePreferenceService.WORKSPACE_HOME,
+                "modeSelector", receiptModeSelector,
                 "request", request));
-        String receiptTarget = HomePreferenceService.WORKSPACE_HOME + ":" + request.viewKey();
+        String receiptTarget = HomePreferenceService.WORKSPACE_HOME + ":" + receiptModeSelector
+                + ":" + request.viewKey();
         HomeViewDtos.HomeViewResponse receiptReplay = commandReceipts.replay(
                 tenantId, userId, commandId, "CREATE_VIEW", receiptTarget,
                 fingerprint, HomeViewDtos.HomeViewResponse.class);
         if (receiptReplay != null) return receiptReplay;
-        requirePersonalization(tenantId, HomePreferenceService.WORKSPACE_HOME);
-        scopeLock.lock(tenantId, userId, HomePreferenceService.WORKSPACE_HOME);
+        String modeKey = resolveMode(
+                tenantId, HomePreferenceService.WORKSPACE_HOME, requestedModeKey);
+        requirePersonalization(tenantId, HomePreferenceService.WORKSPACE_HOME, modeKey);
+        scopeLock.lock(tenantId, userId, HomePreferenceService.WORKSPACE_HOME, modeKey);
         receiptReplay = commandReceipts.replay(
                 tenantId, userId, commandId, "CREATE_VIEW", receiptTarget,
                 fingerprint, HomeViewDtos.HomeViewResponse.class);
         if (receiptReplay != null) return receiptReplay;
         HomeView replay = replay(tenantId, userId, commandId, fingerprint);
         if (replay != null) return response(replay);
-        if (views.countByTenantIdAndUserIdAndSurfaceKey(
-                tenantId, userId, HomePreferenceService.WORKSPACE_HOME) >= MAX_VIEWS) {
-            throw invalid("A user can own up to ten home views per surface.");
+        if (views.countByTenantIdAndUserIdAndSurfaceKeyAndModeKey(
+                tenantId, userId, HomePreferenceService.WORKSPACE_HOME, modeKey) >= MAX_VIEWS) {
+            throw invalid("A user can own up to ten home views per surface and mode.");
         }
         HomePreferenceDtos.HomeLayoutPayload requestedLayout = preferenceService.normalizeForSurface(
-                HomePreferenceService.WORKSPACE_HOME, request.layout());
-        boolean first = views.countByTenantIdAndUserIdAndSurfaceKey(
-                tenantId, userId, HomePreferenceService.WORKSPACE_HOME) == 0;
+                HomePreferenceService.WORKSPACE_HOME, request.layout(),
+                registryPlacements.contracts(
+                        tenantId, HomePreferenceService.WORKSPACE_HOME, modeKey, authority));
+        boolean first = views.countByTenantIdAndUserIdAndSurfaceKeyAndModeKey(
+                tenantId, userId, HomePreferenceService.WORKSPACE_HOME, modeKey) == 0;
         if (first || request.makeDefault()) clearDefaults(
-                tenantId, userId, HomePreferenceService.WORKSPACE_HOME);
+                tenantId, userId, HomePreferenceService.WORKSPACE_HOME, modeKey);
         HomeView view = HomeView.builder()
                 .viewId(UUID.randomUUID())
                 .tenantId(tenantId)
                 .userId(userId)
                 .surfaceKey(HomePreferenceService.WORKSPACE_HOME)
+                .modeKey(modeKey)
                 .viewKey(request.viewKey())
                 .name(request.name().trim())
                 .defaultView(first || request.makeDefault())
@@ -126,6 +148,16 @@ public class HomeViewService extends HomeViewServiceSupport {
         return result;
     }
 
+    private String resolveMode(Long tenantId, String surfaceKey, String rawModeKey) {
+        if (rawModeKey != null && !rawModeKey.isBlank()) {
+            return HomeModeKeys.canonical(rawModeKey);
+        }
+        if (!HomePreferenceService.WORKSPACE_HOME.equals(surfaceKey)) {
+            return HomeModeKeys.CLASSIC;
+        }
+        return HomeModeKeys.canonical(compositionPolicy.effectiveExperienceVariant(tenantId));
+    }
+
     @Transactional
     public HomeViewDtos.HomeViewResponse update(
             Long tenantId,
@@ -133,7 +165,8 @@ public class HomeViewService extends HomeViewServiceSupport {
             UUID viewId,
             UUID commandId,
             String correlationId,
-            HomeViewDtos.UpdateHomeViewRequest request) {
+            HomeViewDtos.UpdateHomeViewRequest request,
+            HomeViewRegistryPlacementPolicy.Authority authority) {
         access.requirePersonalization();
         String fingerprint = fingerprint(Map.of(
                 "operation", "UPDATE_VIEW", "viewId", viewId, "request", request));
@@ -142,8 +175,8 @@ public class HomeViewService extends HomeViewServiceSupport {
                 fingerprint, HomeViewDtos.HomeViewResponse.class);
         if (receiptReplay != null) return receiptReplay;
         HomeView owned = requireOwned(tenantId, userId, viewId);
-        requirePersonalization(tenantId, owned.getSurfaceKey());
-        scopeLock.lock(tenantId, userId, owned.getSurfaceKey());
+        requirePersonalization(tenantId, owned.getSurfaceKey(), owned.getModeKey());
+        scopeLock.lock(tenantId, userId, owned.getSurfaceKey(), owned.getModeKey());
         receiptReplay = commandReceipts.replay(
                 tenantId, userId, commandId, "UPDATE_VIEW", viewId.toString(),
                 fingerprint, HomeViewDtos.HomeViewResponse.class);
@@ -151,10 +184,18 @@ public class HomeViewService extends HomeViewServiceSupport {
         HomeView replay = replay(tenantId, userId, commandId, fingerprint);
         if (replay != null) return response(replay);
         HomeView view = requireOwnedForUpdate(tenantId, userId, viewId);
-        requireVersion(view, request.version());
+        if (request.version() == null || version(view) != request.version()) {
+            throw HomeViewConflictFactory.view(
+                    "UPDATE_VIEW", request.version(), version(view), request, response(view),
+                    HomeViewConflictFactory.changedFields(
+                            view.getName(), currentLayout(view), request));
+        }
         Object before = snapshot(view);
         HomePreferenceDtos.HomeLayoutPayload layout = preferenceService.normalizeForSurface(
-                view.getSurfaceKey(), request.layout());
+                view.getSurfaceKey(), request.layout(),
+                registryPlacements.contracts(
+                        tenantId, view.getSurfaceKey(), view.getModeKey(), authority),
+                storedLayoutForPreservation(view));
         view.setName(request.name().trim());
         view.setLayoutPayload(objectMapper.valueToTree(layout));
         view.setSchemaVersion(HomePreferenceDtos.SCHEMA_VERSION);
@@ -195,14 +236,15 @@ public class HomeViewService extends HomeViewServiceSupport {
                 fingerprint, HomeViewDtos.HomeViewResponse.class);
         if (replay != null) return replay;
         HomeView observed = requireOwned(tenantId, userId, viewId);
-        requirePersonalization(tenantId, observed.getSurfaceKey());
-        scopeLock.lock(tenantId, userId, observed.getSurfaceKey());
+        requirePersonalization(tenantId, observed.getSurfaceKey(), observed.getModeKey());
+        scopeLock.lock(tenantId, userId, observed.getSurfaceKey(), observed.getModeKey());
         replay = commandReceipts.replay(
                 tenantId, userId, commandId, "RESET_VIEW", viewId.toString(),
                 fingerprint, HomeViewDtos.HomeViewResponse.class);
         if (replay != null) return replay;
         HomeView view = requireOwnedForUpdate(tenantId, userId, viewId);
-        requireVersion(view, version);
+        requireVersion(view, version, "RESET_VIEW",
+                new HomeViewDtos.VersionRequest(version), List.of("version"));
         HomeViewDtos.HomeViewSnapshot before = snapshotCodec.capture(
                 view,
                 widgetConfigurations.findByViewIdAndTenantIdAndUserIdOrderByWidgetKey(
@@ -247,17 +289,18 @@ public class HomeViewService extends HomeViewServiceSupport {
                 fingerprint, HomeViewDtos.HomeViewResponse.class);
         if (replay != null) return replay;
         HomeView owned = requireOwned(tenantId, userId, viewId);
-        requirePersonalization(tenantId, owned.getSurfaceKey());
-        scopeLock.lock(tenantId, userId, owned.getSurfaceKey());
+        requirePersonalization(tenantId, owned.getSurfaceKey(), owned.getModeKey());
+        scopeLock.lock(tenantId, userId, owned.getSurfaceKey(), owned.getModeKey());
         replay = commandReceipts.replay(
                 tenantId, userId, commandId, "ACTIVATE_VIEW", viewId.toString(),
                 fingerprint, HomeViewDtos.HomeViewResponse.class);
         if (replay != null) return replay;
         HomeView view = requireOwnedForUpdate(tenantId, userId, viewId);
-        requireVersion(view, version);
+        requireVersion(view, version, "ACTIVATE_VIEW",
+                new HomeViewDtos.VersionRequest(version), List.of("version"));
         requireIntegrity(view);
         if (!view.isDefaultView()) {
-            clearDefaults(tenantId, userId, view.getSurfaceKey());
+            clearDefaults(tenantId, userId, view.getSurfaceKey(), view.getModeKey());
             view.setDefaultView(true);
             save(view);
             mirrorDefaultView(view);
@@ -281,16 +324,18 @@ public class HomeViewService extends HomeViewServiceSupport {
                 tenantId, userId, commandId, "DELETE_VIEW", viewId.toString(),
                 fingerprint, HomeViewDtos.DeleteHomeViewResponse.class);
         if (replay != null) return replay;
-        requirePersonalization(tenantId, HomePreferenceService.WORKSPACE_HOME);
-        scopeLock.lock(tenantId, userId, HomePreferenceService.WORKSPACE_HOME);
+        HomeView observed = requireOwned(tenantId, userId, viewId);
+        requirePersonalization(tenantId, observed.getSurfaceKey(), observed.getModeKey());
+        scopeLock.lock(tenantId, userId, observed.getSurfaceKey(), observed.getModeKey());
         replay = commandReceipts.replay(
                 tenantId, userId, commandId, "DELETE_VIEW", viewId.toString(),
                 fingerprint, HomeViewDtos.DeleteHomeViewResponse.class);
         if (replay != null) return replay;
         HomeView view = requireOwnedForUpdate(tenantId, userId, viewId);
-        requireVersion(view, version);
-        long count = views.countByTenantIdAndUserIdAndSurfaceKey(
-                tenantId, userId, view.getSurfaceKey());
+        requireVersion(view, version, "DELETE_VIEW",
+                new HomeViewDtos.VersionRequest(version), List.of("version"));
+        long count = views.countByTenantIdAndUserIdAndSurfaceKeyAndModeKey(
+                tenantId, userId, view.getSurfaceKey(), view.getModeKey());
         if (count <= 1 || view.isDefaultView()) {
             throw invalid("The active default or last home view cannot be deleted.");
         }
@@ -305,8 +350,8 @@ public class HomeViewService extends HomeViewServiceSupport {
         view.setDeletedAt(OffsetDateTime.now(ZoneOffset.UTC));
         view.setDeletedBy(userId);
         save(view);
-        UUID active = views.findByTenantIdAndUserIdAndSurfaceKeyOrderByUpdatedAtDesc(
-                        tenantId, userId, view.getSurfaceKey()).stream()
+        UUID active = views.findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
+                        tenantId, userId, view.getSurfaceKey(), view.getModeKey()).stream()
                 .filter(HomeView::isDefaultView).map(HomeView::getViewId).findFirst().orElse(null);
         audit.success(tenantId, userId, "home-view.deleted", "HOME_VIEW",
                 viewId.toString(), correlationId, before, null);
@@ -336,7 +381,8 @@ public class HomeViewService extends HomeViewServiceSupport {
             UUID revisionId,
             UUID commandId,
             String correlationId,
-            Long version) {
+            Long version,
+            HomeViewRegistryPlacementPolicy.Authority authority) {
         access.requirePersonalization();
         String rawFingerprint = fingerprint(Map.of(
                 "operation", "RESTORE_VIEW", "viewId", viewId,
@@ -348,8 +394,8 @@ public class HomeViewService extends HomeViewServiceSupport {
                 requestFingerprint, HomeViewDtos.HomeViewResponse.class);
         if (receiptReplay != null) return receiptReplay;
         HomeView observed = requireOwned(tenantId, userId, viewId);
-        requirePersonalization(tenantId, observed.getSurfaceKey());
-        scopeLock.lock(tenantId, userId, observed.getSurfaceKey());
+        requirePersonalization(tenantId, observed.getSurfaceKey(), observed.getModeKey());
+        scopeLock.lock(tenantId, userId, observed.getSurfaceKey(), observed.getModeKey());
         receiptReplay = commandReceipts.replay(
                 tenantId, userId, commandId, "RESTORE_VIEW", viewId.toString(),
                 requestFingerprint, HomeViewDtos.HomeViewResponse.class);
@@ -357,7 +403,8 @@ public class HomeViewService extends HomeViewServiceSupport {
         HomeView replay = replay(tenantId, userId, commandId, requestFingerprint);
         if (replay != null) return response(replay);
         HomeView view = requireOwnedForUpdate(tenantId, userId, viewId);
-        requireVersion(view, version);
+        requireVersion(view, version, "RESTORE_REVISION",
+                Map.of("revisionId", revisionId, "version", version), List.of("version"));
         HomeViewRevision source = revisions
                 .findByRevisionIdAndViewIdAndTenantIdAndUserId(
                         revisionId, viewId, tenantId, userId)
@@ -370,8 +417,10 @@ public class HomeViewService extends HomeViewServiceSupport {
         HomeViewSnapshotCodec.DecodedSnapshot decoded = snapshotCodec.decode(
                 source.getSnapshot(), source.getSchemaVersion());
         HomePreferenceDtos.HomeLayoutPayload revisionLayout = decoded.snapshot().view().layout();
+        var registryWidgets = registryPlacements.contracts(
+                tenantId, view.getSurfaceKey(), view.getModeKey(), authority, revisionLayout);
         HomePreferenceDtos.HomeLayoutPayload restored = preferenceService.normalizeForSurface(
-                view.getSurfaceKey(), revisionLayout);
+                view.getSurfaceKey(), revisionLayout, registryWidgets);
         Object before = snapshot(view);
         view.setLayoutPayload(objectMapper.valueToTree(restored));
         view.setSchemaVersion(HomePreferenceDtos.SCHEMA_VERSION);
@@ -389,7 +438,7 @@ public class HomeViewService extends HomeViewServiceSupport {
         }
         // V171 legacy backfill predates child state; its empty maps are authoritative.
         reconcileWidgetConfigurations(view, decoded.snapshot().widgetConfigurations());
-        reconcileDeviceLayouts(view, decoded.snapshot().deviceLayouts());
+        reconcileDeviceLayouts(view, decoded.snapshot().deviceLayouts(), registryWidgets);
         save(view);
         mirrorDefaultView(view);
         appendRevision(
@@ -421,9 +470,9 @@ public class HomeViewService extends HomeViewServiceSupport {
             String rawDeviceClass,
             UUID commandId,
             String correlationId,
-            HomeViewDtos.UpdateDeviceLayoutRequest request) {
-        String deviceClass = rawDeviceClass.toUpperCase();
-        if (!DEVICE_CLASSES.contains(deviceClass)) throw invalid("Unsupported device class.");
+            HomeViewDtos.UpdateDeviceLayoutRequest request,
+            HomeViewRegistryPlacementPolicy.Authority authority) {
+        String deviceClass = HomeDeviceClasses.canonical(rawDeviceClass);
         access.requirePersonalization();
         String fingerprint = fingerprint(Map.of(
                 "operation", "PUT_DEVICE_LAYOUT", "viewId", viewId,
@@ -434,24 +483,40 @@ public class HomeViewService extends HomeViewServiceSupport {
                 fingerprint, HomeViewDtos.DeviceLayoutResponse.class);
         if (replay != null) return replay;
         HomeView owned = requireOwned(tenantId, userId, viewId);
-        requirePersonalization(tenantId, owned.getSurfaceKey());
-        scopeLock.lock(tenantId, userId, owned.getSurfaceKey());
+        requirePersonalization(tenantId, owned.getSurfaceKey(), owned.getModeKey());
+        scopeLock.lock(tenantId, userId, owned.getSurfaceKey(), owned.getModeKey());
         replay = commandReceipts.replay(
                 tenantId, userId, commandId, "PUT_DEVICE_LAYOUT", receiptTarget,
                 fingerprint, HomeViewDtos.DeviceLayoutResponse.class);
         if (replay != null) return replay;
         HomeView view = requireOwnedForUpdate(tenantId, userId, viewId);
-        requireVersion(view, request.viewVersion());
-        requireIntegrity(view);
-        validateDeviceOverlay(view, request.overlay());
-        HomeDeviceLayout layout = deviceLayouts
+        HomeDeviceLayout existingLayout = deviceLayouts
                 .findByViewIdAndTenantIdAndUserIdAndDeviceClass(
                         viewId, tenantId, userId, deviceClass)
-                .orElseGet(() -> HomeDeviceLayout.builder()
+                .orElse(null);
+        if (request.viewVersion() == null || version(view) != request.viewVersion()) {
+            throw deviceVersionConflict(
+                    view, request, existingLayout,
+                    List.of("version", "deviceLayouts." + deviceClass));
+        }
+        requireIntegrity(view);
+        validateDeviceOverlay(
+                view, request.overlay(),
+                registryPlacements.contracts(
+                        tenantId, view.getSurfaceKey(), view.getModeKey(),
+                        authority, currentLayout(view)));
+        HomeDeviceLayout layout = existingLayout == null
+                ? HomeDeviceLayout.builder()
                         .deviceLayoutId(UUID.randomUUID()).viewId(viewId)
-                        .tenantId(tenantId).userId(userId).deviceClass(deviceClass).build());
-        if (layout.getVersion() != null && request.version() != null
-                && !layout.getVersion().equals(request.version())) conflict();
+                        .tenantId(tenantId).userId(userId).deviceClass(deviceClass).build()
+                : existingLayout;
+        Long actualDeviceVersion = existingLayout == null ? null
+                : (layout.getVersion() == null ? 0L : layout.getVersion());
+        if (!Objects.equals(actualDeviceVersion, request.version())) {
+            throw deviceVersionConflict(
+                    view, request, existingLayout,
+                    List.of("deviceLayouts." + deviceClass + ".version"));
+        }
         layout.setOverlayPayload(objectMapper.valueToTree(request.overlay()));
         view.setCustomized(true);
         touch(view);
@@ -487,14 +552,15 @@ public class HomeViewService extends HomeViewServiceSupport {
                 fingerprint, HomeViewDtos.HomeViewResponse.class);
         if (replay != null) return replay;
         HomeView owned = requireOwned(tenantId, userId, viewId);
-        requirePersonalization(tenantId, owned.getSurfaceKey());
-        scopeLock.lock(tenantId, userId, owned.getSurfaceKey());
+        requirePersonalization(tenantId, owned.getSurfaceKey(), owned.getModeKey());
+        scopeLock.lock(tenantId, userId, owned.getSurfaceKey(), owned.getModeKey());
         replay = commandReceipts.replay(
                 tenantId, userId, commandId, "PUT_WIDGET_CONFIGURATION", receiptTarget,
                 fingerprint, HomeViewDtos.HomeViewResponse.class);
         if (replay != null) return replay;
         HomeView view = requireOwnedForUpdate(tenantId, userId, viewId);
-        requireVersion(view, request.viewVersion());
+        requireVersion(view, request.viewVersion(), "UPDATE_WIDGET_CONFIGURATION", request,
+                List.of("version", "widgetConfigurations." + widgetKey));
         requireIntegrity(view);
         widgetConfigurationPolicy.validate(
                 currentLayout(view), widgetKey, request.configuration());
@@ -544,8 +610,8 @@ public class HomeViewService extends HomeViewServiceSupport {
             if (receiptReplay != null) return receiptReplay;
         }
         HomeView owned = requireOwned(tenantId, userId, viewId);
-        requirePersonalization(tenantId, owned.getSurfaceKey());
-        scopeLock.lock(tenantId, userId, owned.getSurfaceKey());
+        requirePersonalization(tenantId, owned.getSurfaceKey(), owned.getModeKey());
+        scopeLock.lock(tenantId, userId, owned.getSurfaceKey(), owned.getModeKey());
         if (ownsReceipt) {
             HomeViewDtos.HomeViewResponse receiptReplay = commandReceipts.replay(
                     tenantId, userId, commandId, operation, viewId.toString(),
@@ -555,10 +621,13 @@ public class HomeViewService extends HomeViewServiceSupport {
         HomeView replay = replay(tenantId, userId, commandId, scopedFingerprint);
         if (replay != null) return response(replay);
         HomeView view = requireOwnedForUpdate(tenantId, userId, viewId);
-        requireVersion(view, expectedVersion);
+        requireVersion(view, expectedVersion, "APPLY_" + source,
+                Map.of("viewVersion", expectedVersion, "layout", requested),
+                List.of("version", "layout"));
         Object before = snapshot(view);
         HomePreferenceDtos.HomeLayoutPayload layout = preferenceService.normalizeForSurface(
-                view.getSurfaceKey(), requested);
+                view.getSurfaceKey(), requested, Map.of(),
+                storedLayoutForPreservation(view));
         view.setLayoutPayload(objectMapper.valueToTree(layout));
         view.setSchemaVersion(HomePreferenceDtos.SCHEMA_VERSION);
         view.setIntegrityState("VALID");
@@ -583,21 +652,51 @@ public class HomeViewService extends HomeViewServiceSupport {
 
     void lockPersonalizationScopeForView(Long tenantId, Long userId, UUID viewId) {
         HomeView view = requireOwned(tenantId, userId, viewId);
-        requirePersonalization(tenantId, view.getSurfaceKey());
-        scopeLock.lock(tenantId, userId, view.getSurfaceKey());
+        requirePersonalization(tenantId, view.getSurfaceKey(), view.getModeKey());
+        scopeLock.lock(tenantId, userId, view.getSurfaceKey(), view.getModeKey());
     }
 
     void requirePolicy(Long tenantId, String surfaceKey) {
-        requirePersonalization(tenantId, surfaceKey);
+        requirePersonalization(tenantId, surfaceKey, HomeModeKeys.CLASSIC);
     }
 
-    private void requirePersonalization(Long tenantId, String surfaceKey) {
+    private void requirePersonalization(Long tenantId, String surfaceKey, String modeKey) {
         access.requirePersonalization();
-        if (HomePreferenceService.WORKSPACE_HOME.equals(surfaceKey)
-                && !compositionPolicy.flowPersonalizationEnabled(tenantId)) {
+        if (!HomePreferenceService.WORKSPACE_HOME.equals(surfaceKey)) return;
+        boolean enabled = switch (HomeModeKeys.canonical(modeKey)) {
+            case HomeModeKeys.FLOW_V1 -> compositionPolicy.flowPersonalizationEnabled(tenantId);
+            case HomeModeKeys.MZ_V1 -> compositionPolicy.mzPersonalizationEnabled(tenantId);
+            default -> compositionPolicy.personalCustomizationEnabled(tenantId);
+        };
+        if (!enabled) {
             throw new BaseException(ErrorCode.FORBIDDEN,
-                    "Flow home personalization is disabled by tenant policy or rollout.");
+                    "Home personalization is disabled by tenant policy or rollout.");
         }
+    }
+
+    private void requireVersion(
+            HomeView view,
+            Long expected,
+            String operation,
+            Object submittedDraft,
+            List<String> changedFields) {
+        if (expected == null || version(view) != expected) {
+            throw HomeViewConflictFactory.view(
+                    operation, expected, version(view), submittedDraft,
+                    response(view), changedFields);
+        }
+    }
+
+    private HomeViewConflictException deviceVersionConflict(
+            HomeView view, HomeViewDtos.UpdateDeviceLayoutRequest request,
+            HomeDeviceLayout latestLayout, List<String> changedFields) {
+        Long actualDeviceVersion = latestLayout == null ? null
+                : (latestLayout.getVersion() == null ? 0L : latestLayout.getVersion());
+        HomeViewDtos.DeviceLayoutResponse latestDeviceLayout = latestLayout == null ? null
+                : deviceResponse(latestLayout, version(view));
+        return HomeViewConflictFactory.device(
+                version(view), request, actualDeviceVersion, response(view),
+                latestDeviceLayout, changedFields);
     }
 
 }

@@ -321,7 +321,8 @@ public class HomeComposerService {
             HomePreferenceDtos.HomeLayoutPayload candidate = objectMapper.treeToValue(
                     layout, HomePreferenceDtos.HomeLayoutPayload.class);
             HomePreferenceDtos.HomeLayoutPayload normalized =
-                    preferenceService.normalizeForSurface(surfaceKey, candidate);
+                    preferenceService.normalizeForSurface(
+                            surfaceKey, candidate, Map.of(), original);
             return normalized;
         } catch (JsonProcessingException exception) {
             throw invalid("The composer patch did not produce a valid home layout.");

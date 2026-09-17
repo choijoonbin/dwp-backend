@@ -1,0 +1,512 @@
+{
+  "fixtureVersion": 3,
+  "canonicalization": {
+    "algorithm": "RFC8785-JCS",
+    "encoding": "UTF-8",
+    "hash": "SHA-256",
+    "hashScope": "manifest",
+    "stringPrecondition": "NFC"
+  },
+  "fixtures": [
+    {
+      "legacyWidgetKey": "command-rail",
+      "expectedSha256": "36de53926e21ef11e61c78f6325fdf35b37998fe42403e0df0e70d71e3f4df13",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "core.workspace.command-rail",
+        "owner": {
+          "productKey": "core.workspace",
+          "sourceAppResourceKey": "APP.WORK"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.command-rail",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.WORK:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "large",
+          "allowedSizes": [
+            "large",
+            "full"
+          ],
+          "defaultHeight": "short",
+          "allowedHeights": [
+            "short",
+            "standard"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "HOME.OVERVIEW.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.command-rail"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "semanticVersion": "1.0.1",
+      "provenance": "Wave3 canonical correction v1.0.1 aligned with existing static Home semantics; supersedes v1.0.0; ADM-009 command-rail golden resealed to the corrected content"
+    },
+    {
+      "legacyWidgetKey": "daily-brief",
+      "expectedSha256": "9b7f48b7ea4ef429120db330a4972c3315ad682759fa86e49c212c42bdd02406",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "core.workspace.daily-brief",
+        "owner": {
+          "productKey": "core.workspace",
+          "sourceAppResourceKey": "APP.WORK"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.daily-brief",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.WORK:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "full",
+          "allowedSizes": [
+            "compact",
+            "large",
+            "full"
+          ],
+          "defaultHeight": "standard",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall"
+          ]
+        },
+        "configurationContract": {
+          "sourceKey": "RECOMMENDATION",
+          "fieldKeys": [
+            "title",
+            "reason",
+            "action"
+          ],
+          "filterPresets": [
+            "RECOMMENDED",
+            "NEXT_ACTIONS"
+          ],
+          "itemLimit": {
+            "min": 1,
+            "max": 20
+          }
+        },
+        "dataCapabilities": [
+          "HOME.RECOMMENDATIONS.READ"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": true
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.workday-insights"
+        },
+        "privacy": {
+          "classification": "INTERNAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "semanticVersion": "1.0.0"
+    },
+    {
+      "legacyWidgetKey": "focus",
+      "expectedSha256": "36d1b02326e4725a235749e173dfdf50a0423ef30f42d7ccab97946ba826d893",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "core.work.focus",
+        "owner": {
+          "productKey": "core.work",
+          "sourceAppResourceKey": "APP.WORK"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.focus",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.WORK:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "medium",
+          "allowedSizes": [
+            "quarter",
+            "compact",
+            "medium",
+            "large",
+            "full"
+          ],
+          "defaultHeight": "tall",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall",
+            "expanded"
+          ]
+        },
+        "configurationContract": {
+          "sourceKey": "WORK",
+          "fieldKeys": [
+            "title",
+            "status",
+            "priority",
+            "dueAt"
+          ],
+          "filterPresets": [
+            "ASSIGNED_TO_ME",
+            "DUE_SOON",
+            "HIGH_PRIORITY"
+          ],
+          "itemLimit": {
+            "min": 1,
+            "max": 20
+          }
+        },
+        "dataCapabilities": [
+          "WORK.ITEMS.LIST"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": true
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.focus"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "semanticVersion": "1.0.0"
+    },
+    {
+      "legacyWidgetKey": "schedule",
+      "expectedSha256": "7f3e090997a213e9d3e6f8184e1458e57382c5f31db79f00fbf678d36f884f5d",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "core.calendar.schedule",
+        "owner": {
+          "productKey": "core.calendar",
+          "sourceAppResourceKey": "APP.CALENDAR"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.schedule",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.CALENDAR:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "quarter",
+          "allowedSizes": [
+            "fifth",
+            "quarter",
+            "compact",
+            "medium"
+          ],
+          "defaultHeight": "standard",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall"
+          ]
+        },
+        "configurationContract": {
+          "sourceKey": "CALENDAR",
+          "fieldKeys": [
+            "title",
+            "startAt",
+            "endAt",
+            "location"
+          ],
+          "filterPresets": [
+            "TODAY",
+            "NEXT_7_DAYS"
+          ],
+          "itemLimit": {
+            "min": 1,
+            "max": 20
+          }
+        },
+        "dataCapabilities": [
+          "CALENDAR.EVENTS.LIST"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": true
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.schedule"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "semanticVersion": "1.0.0"
+    },
+    {
+      "legacyWidgetKey": "activity",
+      "expectedSha256": "fbab61015ec3b20c2faf9810b1758aebbd7517029baa64cb6b99190815836ca1",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "core.activity.activity",
+        "owner": {
+          "productKey": "core.activity",
+          "sourceAppResourceKey": "APP.ACTIVITY"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.activity",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.ACTIVITY:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "quarter",
+          "allowedSizes": [
+            "fifth",
+            "quarter",
+            "compact",
+            "medium"
+          ],
+          "defaultHeight": "tall",
+          "allowedHeights": [
+            "short",
+            "standard",
+            "tall"
+          ]
+        },
+        "configurationContract": {
+          "sourceKey": "ACTIVITY",
+          "fieldKeys": [
+            "eventType",
+            "title",
+            "occurredAt",
+            "actor"
+          ],
+          "filterPresets": [
+            "RECENT",
+            "MY_ACTIVITY"
+          ],
+          "itemLimit": {
+            "min": 1,
+            "max": 20
+          }
+        },
+        "dataCapabilities": [
+          "ACTIVITY.EVENTS.LIST"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": true
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.activity"
+        },
+        "privacy": {
+          "classification": "INTERNAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "semanticVersion": "1.0.0"
+    },
+    {
+      "legacyWidgetKey": "focus-balance",
+      "expectedSha256": "5f4c5990a0b1b417832c93074f92a00cbb8c9e4f4e49240073120c485a8c9436",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "core.work.focus-balance",
+        "owner": {
+          "productKey": "core.calendar",
+          "sourceAppResourceKey": "APP.CALENDAR"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.focus-balance",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.CALENDAR:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "medium",
+          "allowedSizes": [
+            "quarter",
+            "compact",
+            "medium"
+          ],
+          "defaultHeight": "short",
+          "allowedHeights": [
+            "short",
+            "standard"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "CALENDAR.EVENTS.LIST"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.focus-balance"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "provenance": "Wave3 canonical correction v1.0.1 restores the V221 calendar owner/source and the static Home authority, data capability, and preset policy; supersedes v1.0.0; first-party extension outside the ADM-009 five-widget golden fixture",
+      "semanticVersion": "1.0.1"
+    },
+    {
+      "legacyWidgetKey": "meeting-load",
+      "expectedSha256": "90d31f29e1dbc8e26a49475174aca5ecd76d557f3b7d39975f58ff1f047bb6c3",
+      "manifest": {
+        "schemaVersion": 1,
+        "definitionKey": "core.calendar.meeting-load",
+        "owner": {
+          "productKey": "core.calendar",
+          "sourceAppResourceKey": "APP.CALENDAR"
+        },
+        "renderer": {
+          "kind": "NATIVE",
+          "rendererKey": "home.meeting-load",
+          "minimumHostApiVersion": 1
+        },
+        "supportedSurfaces": [
+          "workspace-home"
+        ],
+        "requiredAuthorities": [
+          "APP.CALENDAR:VIEW"
+        ],
+        "placement": {
+          "supportedContexts": [
+            "CLASSIC_PERSONAL",
+            "FLOW_PERSONAL"
+          ],
+          "policyClass": "PERSONAL",
+          "canHide": true,
+          "defaultSize": "medium",
+          "allowedSizes": [
+            "quarter",
+            "compact",
+            "medium"
+          ],
+          "defaultHeight": "short",
+          "allowedHeights": [
+            "short",
+            "standard"
+          ]
+        },
+        "configurationContract": null,
+        "dataCapabilities": [
+          "CALENDAR.EVENTS.LIST"
+        ],
+        "actionCapabilities": [],
+        "sharing": {
+          "presetEligible": false
+        },
+        "operations": {
+          "freshnessSeconds": 30,
+          "analyticsKey": "home.meeting-load"
+        },
+        "privacy": {
+          "classification": "CONFIDENTIAL",
+          "retention": "NONE",
+          "recipientContextBinding": true
+        }
+      },
+      "provenance": "Wave3 canonical correction v1.0.1 restores the static Home preset policy; supersedes v1.0.0; V221 calendar first-party extension outside the ADM-009 five-widget golden fixture",
+      "semanticVersion": "1.0.1"
+    }
+  ],
+  "sourceGoldenFixture": {
+    "path": "DWP-R1-ADM-009-widget-ecosystem-governance/fixtures/widget-manifests.v1.golden.json",
+    "exactFixtureCount": 5,
+    "extensionCount": 2
+  }
+}

@@ -1,0 +1,296 @@
+{
+  "backendCommit": "dd3410bb34067c7d742749ed38e39387e91e8947",
+  "checks": [
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/canonical-contract-evidence.json",
+          "sha256": "c3c6c282b3823f6c22e07ec7fd8ead74e642c6218e363bfefc24359bfea5125d"
+        }
+      ],
+      "command": [
+        "python3",
+        "-m",
+        "unittest",
+        "scripts.tests.test_export_openapi_contracts",
+        "-v"
+      ],
+      "id": "W4-CONTRACT-CANONICAL",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/gateway-identity-evidence.json",
+          "sha256": "389905f971a4c589e5e94ed7c17c8d7b12134b01e7e2fcc3aa1ebae166e9324b"
+        }
+      ],
+      "command": [
+        "./gradlew",
+        ":dwp-gateway:test",
+        "--tests",
+        "com.dwp.gateway.HomeV2GatewaySecurityTest"
+      ],
+      "id": "W4-GATEWAY-IDENTITY",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/provider-identity-evidence.json",
+          "sha256": "a8b55212081a630051d4e7ed0affbcad1adf3da58a989b610424c604a7b64363"
+        }
+      ],
+      "command": [
+        "./gradlew",
+        ":dwp-platform-contracts:test",
+        ":dwp-approval-server:test",
+        ":dwp-meeting-server:test",
+        ":dwp-notification-server:test",
+        ":dwp-space-server:test",
+        ":dwp-messaging-server:test",
+        ":dwp-people-server:test",
+        "--tests",
+        "*HomeWidgetProvider*",
+        "--tests",
+        "*HomeProvider*"
+      ],
+      "id": "W4-PROVIDER-IDENTITY",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/owner-widget-seed-evidence.json",
+          "sha256": "ddf0dff106e6614770f429adbdd82f9fe946d827e878a9ded5d637fb6447fcdc"
+        }
+      ],
+      "command": [
+        "./gradlew",
+        "checkWave4OwnerWidgetSeed"
+      ],
+      "id": "W4-OWNER-WIDGET-SEED",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/owner-provider-routing-evidence.json",
+          "sha256": "fe2ff3171c0f6107e458e2fdf7a9e23e4da417d6049944b236e7c26b35c3675c"
+        }
+      ],
+      "command": [
+        "./gradlew",
+        ":dwp-platform-server:test",
+        "--tests",
+        "*OwnerProvider*"
+      ],
+      "id": "W4-OWNER-PROVIDER-ROUTING",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/runtime-security-evidence.json",
+          "sha256": "fb5cea234771f8b1ed7ff099f54de1466d222cee9c04f8f37c2a220619953a07"
+        }
+      ],
+      "command": [
+        "./gradlew",
+        ":dwp-platform-server:test",
+        "--tests",
+        "*HomeRuntimeAuthorization*"
+      ],
+      "id": "W4-AUTHORIZATION-CACHE",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/runtime-security-evidence.json",
+          "sha256": "fb5cea234771f8b1ed7ff099f54de1466d222cee9c04f8f37c2a220619953a07"
+        }
+      ],
+      "command": [
+        "./gradlew",
+        ":dwp-platform-server:test",
+        "--tests",
+        "*HomeRuntimeCache*"
+      ],
+      "id": "W4-CACHE-INVALIDATION",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/runtime-security-evidence.json",
+          "sha256": "fb5cea234771f8b1ed7ff099f54de1466d222cee9c04f8f37c2a220619953a07"
+        },
+        {
+          "path": "contracts/home-runtime/evidence/wave4/owner-provider-routing-evidence.json",
+          "sha256": "fe2ff3171c0f6107e458e2fdf7a9e23e4da417d6049944b236e7c26b35c3675c"
+        }
+      ],
+      "command": [
+        "./gradlew",
+        ":dwp-platform-server:test",
+        "--tests",
+        "*WidgetRuntimeBroker*"
+      ],
+      "id": "W4-FAILURE-ISOLATION",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/runtime-security-evidence.json",
+          "sha256": "fb5cea234771f8b1ed7ff099f54de1466d222cee9c04f8f37c2a220619953a07"
+        }
+      ],
+      "command": [
+        "./gradlew",
+        ":dwp-platform-server:test",
+        "--tests",
+        "*ProviderResultValidator*"
+      ],
+      "id": "W4-FRESHNESS-STATE",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/runtime-security-evidence.json",
+          "sha256": "fb5cea234771f8b1ed7ff099f54de1466d222cee9c04f8f37c2a220619953a07"
+        },
+        {
+          "path": "contracts/home-runtime/evidence/wave4/boundary-evidence.json",
+          "sha256": "eaec23d1e18733ec866a0d3c6519376d89dd1307db3e7ccb6aa5ec636f04eb6e"
+        }
+      ],
+      "command": [
+        "./gradlew",
+        ":dwp-platform-server:test",
+        "--tests",
+        "*HomeRuntimeMetricsPrivacy*"
+      ],
+      "id": "W4-PRIVACY-TELEMETRY",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/boundary-evidence.json",
+          "sha256": "eaec23d1e18733ec866a0d3c6519376d89dd1307db3e7ccb6aa5ec636f04eb6e"
+        }
+      ],
+      "command": [
+        "python3",
+        "scripts/check-home-runtime-boundaries.py"
+      ],
+      "id": "W4-SIBLING-DB-BOUNDARY",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/runtime-security-evidence.json",
+          "sha256": "fb5cea234771f8b1ed7ff099f54de1466d222cee9c04f8f37c2a220619953a07"
+        }
+      ],
+      "command": [
+        "./gradlew",
+        ":dwp-platform-server:test",
+        "--tests",
+        "*HomeWidgetCommandService*"
+      ],
+      "id": "W4-COMMAND-RECEIPT",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/home-v2-runtime-slo.json",
+          "sha256": "3a9a68c19946c199843b38c0cf05c3e58ca7a43b96e8b278e0462ebe2e10169e"
+        }
+      ],
+      "command": [
+        "./gradlew",
+        ":dwp-platform-server:test",
+        "--tests",
+        "com.dwp.services.platform.home.runtime.HomeRuntimePreProdSloTest"
+      ],
+      "id": "W4-SLO",
+      "status": "PASS"
+    },
+    {
+      "artifacts": [
+        {
+          "path": "contracts/home-runtime/evidence/wave4/home-runtime-rollback.json",
+          "sha256": "bc89840c26d2555d158b2fcb78bd4e1e1af2abcd7c91229ffa467bc79601ba55"
+        }
+      ],
+      "command": [
+        "./gradlew",
+        ":dwp-platform-server:test",
+        "--tests",
+        "com.dwp.services.platform.home.runtime.HomeRuntimeRollbackGateTest"
+      ],
+      "id": "W4-ROLLBACK",
+      "status": "PASS"
+    }
+  ],
+  "commandsEnabled": false,
+  "contractHashes": {
+    "contracts/home-runtime/owner-provider-batch.v1.json": "df053746139735b7114e7551fe984d0d63dd4e32e97286ebcd7cba1758992fdd",
+    "contracts/openapi/gateway-public.json": "55fdd51fba037555b7ef9b490f802d35cbd358fd2f5443acb1c23944c367675d",
+    "contracts/openapi/platform.json": "27bb761f0ec43b0f98d42b5d9835df0b1b62ef16ba8a1927f9640d57bffaaf94",
+    "contracts/product-authorization/product-surfaces-v1.bundle-v16.json": "0a61d4ca70686df394824cd0391cdb34b62e717880b5f17b23db2b84bc0d6cf8",
+    "contracts/widget-registry/wave4-owner-widget-manifests.v1.json": "08f508e714aaeadab3b2e532d0705fd8b545469f950b99d0b0651025337149d1",
+    "docs/architecture/service-interface-contracts.json": "3bf1d08128032218211b39b9a88758d3a699815d93b3b678925f590e3430ca1d"
+  },
+  "evidenceScope": "BACKEND_PREPRODUCTION",
+  "gateId": "W4_RUNTIME_GATE",
+  "limitations": [
+    "Registry remains SHADOW and non-authoritative.",
+    "Widget commands remain disabled.",
+    "Production LCP, INP, and canary telemetry remain Wave 6 PENDING."
+  ],
+  "nextWave": "WAVE5",
+  "productionReleaseReady": false,
+  "providerCoverage": {
+    "activeDefinitions": 1,
+    "scope": "WAVE4_OWNER_PROVIDER_DEFINITIONS",
+    "shadowDefinitions": 12,
+    "verifiedDefinitions": 1,
+    "verifiedShadowDefinitions": 12
+  },
+  "registryAuthoritative": false,
+  "rollback": {
+    "cachePurgeVerified": true,
+    "commandKillSwitchVerified": true,
+    "providerKillSwitchVerified": true,
+    "recoveryTimeSeconds": 1,
+    "status": "PASS",
+    "v2KillSwitchVerified": true
+  },
+  "schemaVersion": 1,
+  "security": {
+    "crossTenantLeakCount": 0,
+    "forbiddenLeakCount": 0,
+    "telemetryLeakCount": 0
+  },
+  "slo": {
+    "hardFailureRate": 0.0,
+    "liveProduction": false,
+    "sampleCount": 2000,
+    "serverP95Ms": 0.812,
+    "status": "PASS"
+  },
+  "status": "PASS",
+  "wave6ProductionTelemetry": {
+    "canary": "PENDING",
+    "inpP75": null,
+    "lcpP75": null,
+    "status": "PENDING"
+  }
+}

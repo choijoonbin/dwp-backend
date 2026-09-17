@@ -22,7 +22,24 @@ class HomeLaunchpadPolicyTest {
                 .containsExactly("work", "connect", "services", "systems");
         assertThat(result.placements())
                 .extracting(HomeExperienceDtos.HomeAppPlacement::resourceKey)
-                .contains("APP.WORK", "APP.HCM", "APP.ADMINISTRATION");
+                .containsExactly(
+                        "APP.WORK", "APP.ASK", "APP.ACTIVITY", "APP.APPROVALS",
+                        "APP.NOTIFICATIONS", "APP.COMMUNICATIONS", "APP.CALENDAR",
+                        "APP.MAIL", "APP.SPACES", "APP.WORKPLACE", "APP.MESSAGING",
+                        "APP.MEETINGS", "APP.EMPLOYEE_SERVICES", "APP.HCM",
+                        "APP.KNOWLEDGE", "APP.BUSINESS_ERP", "APP.LEGACY_OPERATIONS",
+                        "APP.ADMINISTRATION");
+        Map<String, Long> groupCounts = result.placements().stream()
+                .collect(java.util.stream.Collectors.groupingBy(
+                        HomeExperienceDtos.HomeAppPlacement::groupKey,
+                        java.util.LinkedHashMap::new,
+                        java.util.stream.Collectors.counting()));
+        assertThat(groupCounts)
+                .containsExactly(
+                        Map.entry("work", 5L),
+                        Map.entry("connect", 7L),
+                        Map.entry("services", 2L),
+                        Map.entry("systems", 4L));
     }
 
     @Test
@@ -61,6 +78,27 @@ class HomeLaunchpadPolicyTest {
                                         "APP.WORK", "missing", 20)));
 
         assertThatThrownBy(() -> policy.normalize(duplicate)).isInstanceOf(BaseException.class);
+    }
+
+    @Test
+    void canonicalizesEverySupportedLegacyAliasBeforeDeduplication() {
+        HomeExperienceDtos.HomeLaunchpadConfiguration requested =
+                new HomeExperienceDtos.HomeLaunchpadConfiguration(
+                        1,
+                        List.of(group("connect", 10), group("services", 20)),
+                        List.of(
+                                new HomeExperienceDtos.HomeAppPlacement(
+                                        "APP.MAIL_CALENDAR", "connect", 10),
+                                new HomeExperienceDtos.HomeAppPlacement(
+                                        "APP.COLLABORATION", "connect", 20),
+                                new HomeExperienceDtos.HomeAppPlacement(
+                                        "APP.ROOMS", "connect", 30),
+                                new HomeExperienceDtos.HomeAppPlacement(
+                                        "APP.HRIS", "services", 10)));
+
+        assertThat(policy.normalize(requested).placements())
+                .extracting(HomeExperienceDtos.HomeAppPlacement::resourceKey)
+                .containsExactly("APP.MAIL", "APP.MESSAGING", "APP.WORKPLACE", "APP.HCM");
     }
 
     @Test
