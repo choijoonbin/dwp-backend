@@ -95,7 +95,7 @@ class HomeNativeProviderContractTest {
     }
 
     @Test
-    void dwaionIsExplicitlyInactiveAndCannotLeakDataDuringWaveFour() {
+    void dwaionIsExplicitlyUnavailableWithoutSigningConfigurationAndCannotLeakData() {
         HomeRuntimeContext context = context();
         WidgetProviderPort.Request request = request(
                 "dwaion.artifact", "dwaion-artifact", "APP.DWAION_ARTIFACTS");

@@ -1,6 +1,7 @@
 package com.dwp.services.platform.home.runtime;
 
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.test.web.servlet.MockMvc;
 
 import java.time.Duration;
@@ -8,9 +9,11 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -41,6 +44,16 @@ class HomeReadModelControllerTest {
                 .andExpect(header().string("X-DWP-Home-Commands-Enabled", "false"))
                 .andExpect(header().string("X-DWP-Widget-Registry-Authoritative", "false"))
                 .andExpect(jsonPath("$.data.schemaVersion").value(3));
+        ArgumentCaptor<HomeRuntimeContext> context = ArgumentCaptor.forClass(
+                HomeRuntimeContext.class);
+        verify(service).read(context.capture(),
+                any(HomeRuntimeRolloutDecision.TrustedInput.class),
+                eq("CLASSIC"), eq("DESKTOP_STANDARD"));
+        assertThat(context.getValue())
+                .returns("corr-controller-1", HomeRuntimeContext::correlationId)
+                .returns("00-11111111111111111111111111111111-2222222222222222-01",
+                        HomeRuntimeContext::traceparent)
+                .returns("vendor=controller", HomeRuntimeContext::tracestate);
     }
 
     @Test
@@ -74,6 +87,10 @@ class HomeReadModelControllerTest {
                 .header("X-DWP-Home-Runtime-State", "SHADOW_COMPARE")
                 .header("X-DWP-Home-Rollout-Ring", "CONTROL")
                 .header("X-DWP-Home-Rollout-Revision", "rollout-17")
+                .header("X-Correlation-ID", "corr-controller-1")
+                .header("traceparent",
+                        "00-11111111111111111111111111111111-2222222222222222-01")
+                .header("tracestate", "vendor=controller")
                 .header("Accept-Language", "ko-KR");
     }
 

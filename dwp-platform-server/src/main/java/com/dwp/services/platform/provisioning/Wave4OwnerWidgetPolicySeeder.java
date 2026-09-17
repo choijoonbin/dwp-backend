@@ -50,12 +50,35 @@ final class Wave4OwnerWidgetPolicySeeder {
                 ON CONFLICT (tenant_id, definition_id, revision_number) DO NOTHING
                 """, tenantId, tenantId);
         jdbc.update("""
+                INSERT INTO adm_tenant_widget_policy_revisions (
+                    policy_revision_id, tenant_id, definition_id, revision_number,
+                    policy_state, enabled, selector_type, channel, version_id,
+                    supported_surface_keys, audience_selector, required_widget,
+                    locked_configuration, sharing_policy, impact_revision,
+                    reason_code, reason_text, created_by)
+                SELECT md5('dwaion-home-provider-v1.1-policy:' || ? )::uuid,
+                       ?, definition_id, 2, 'PUBLISHED', TRUE,
+                       'CHANNEL', 'STABLE', NULL,
+                       '["workspace-home"]'::jsonb,
+                       '{"schemaVersion":1,"mode":"ALL_ENTITLED","roleCodes":[],"groupRefs":[]}'::jsonb,
+                       FALSE, '{}'::jsonb, 'PRIVATE', NULL,
+                       'DWAION_HOME_SIGNED_OWNER_PROVIDER',
+                       'Recipient-bound DWAI-ON title projection with signed single-use transport',
+                       1
+                  FROM plt_widget_definitions
+                 WHERE definition_key = 'dwaion.artifact'
+                ON CONFLICT (tenant_id, definition_id, revision_number) DO NOTHING
+                """, tenantId, tenantId);
+        jdbc.update("""
                 INSERT INTO adm_tenant_widget_policy_heads (
                     policy_head_id, tenant_id, definition_id, current_revision_id,
                     version, updated_by)
                 SELECT md5('wave4-owner-widget-policy-head:' || ? || ':' || definition_id)::uuid,
                        ?, definition_id,
-                       md5('wave4-owner-widget-policy:' || ? || ':' || definition_id)::uuid,
+                       CASE WHEN definition_key = 'dwaion.artifact'
+                            THEN md5('dwaion-home-provider-v1.1-policy:' || ? )::uuid
+                            ELSE md5('wave4-owner-widget-policy:' || ? || ':' || definition_id)::uuid
+                       END,
                        0, 1
                   FROM plt_widget_definitions
                  WHERE definition_key IN (
@@ -67,6 +90,20 @@ final class Wave4OwnerWidgetPolicySeeder {
                     'hr.edu', 'hr.team-pulse',
                     'workplace.booking', 'dwaion.artifact')
                 ON CONFLICT (tenant_id, definition_id) DO NOTHING
-                """, tenantId, tenantId, tenantId);
+                """, tenantId, tenantId, tenantId, tenantId);
+        jdbc.update("""
+                UPDATE adm_tenant_widget_policy_heads head
+                   SET current_revision_id = md5(
+                           'dwaion-home-provider-v1.1-policy:' || head.tenant_id)::uuid,
+                       version = head.version + 1,
+                       updated_by = 1,
+                       updated_at = CURRENT_TIMESTAMP
+                  FROM plt_widget_definitions definition
+                 WHERE head.tenant_id = ?
+                   AND head.definition_id = definition.definition_id
+                   AND definition.definition_key = 'dwaion.artifact'
+                   AND head.current_revision_id IS DISTINCT FROM md5(
+                           'dwaion-home-provider-v1.1-policy:' || head.tenant_id)::uuid
+                """, tenantId);
     }
 }

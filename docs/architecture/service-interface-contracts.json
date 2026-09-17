@@ -429,7 +429,11 @@
         "dwp.platform.home-runtime.providers.people.token",
         "new HttpWidgetProviderClient",
         "runtime.commandsEnabled()",
-        "runtime.providerTimeout()"
+        "runtime.providerTimeout()",
+        "dwp.platform.home-runtime.providers.dwaion.url",
+        "dwp.platform.home-runtime.providers.dwaion.signing-secret",
+        "dwp.platform.home-runtime.providers.dwaion.key-id",
+        "new DwaionHomeWidgetProviderClient"
       ],
       "forbiddenMarkers": [
         "/api/",
@@ -1559,6 +1563,65 @@
         "X-DWP-User-ID",
         "X-DWP-Approval-Retention-Execution-Token",
         "X-DWP-Widget-Registry-Token"
+      ]
+    },
+    {
+      "id": "platform-home-dwaion-signed-provider",
+      "classification": "home-runtime-dwaion-provider",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-agent-runtime"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/DwaionHomeWidgetProviderClient.java",
+      "purpose": "Read a least-data, recipient-bound DWAI-ON artifact title projection for the Home runtime.",
+      "auth": "Dedicated dwp1 signed workload binds exact body, recipient, current authority, deadline, correlation, trace context and single-use nonce. Definition version and manifest hash are immutable allowlists; rendererBindingRevision is the current ACTIVE Registry catalog SHA-256 and must be echoed exactly. No Gateway or purpose-token impersonation.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "signedWorkload": {
+        "profile": "dwp1-hmac-sha256",
+        "protocolSource": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/DwaionHomeWorkloadProtocol.java",
+        "signerSource": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/DwaionHomeWorkloadAssertionSigner.java",
+        "method": "POST",
+        "path": "/internal/home/v1/widget-data:batch",
+        "header": "X-DWP-Home-Assertion",
+        "issuer": "dwp-platform-server",
+        "audience": "dwp-agent-home",
+        "ttlSeconds": 30
+      },
+      "requiredMarkers": [
+        "HttpClient.Redirect.NEVER",
+        "DwaionHomeWorkloadAssertionSigner",
+        "X-Correlation-ID",
+        "traceparent",
+        "tracestate",
+        "APP.ASK:VIEW",
+        "APP.DWAION_ARTIFACTS:VIEW",
+        "262_144",
+        "DEFINITION_VERSION",
+        "DEFINITION_MANIFEST_HASH",
+        "rendererBindingRevision()"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "Authorization",
+        "@Retry",
+        "X-DWP-Service-Token",
+        "X-DWP-Service-Identity",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "X-DWP-Widget-Registry-Token",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Approval-Workflow-Runtime-Token",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Workflow-Planning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "X-DWP-Approval-Retention-Execution-Token"
       ]
     }
   ],

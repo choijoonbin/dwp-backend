@@ -36,7 +36,9 @@ class HomeRuntimeRollbackGateTest {
                 .contains("enabled: ${DWP_HOME_RUNTIME_ENABLED:false}")
                 .contains("shadow-enabled: ${DWP_HOME_RUNTIME_SHADOW_ENABLED:true}")
                 .contains("commands-enabled: ${DWP_HOME_RUNTIME_COMMANDS_ENABLED:false}")
-                .contains("token: ${DWP_HOME_PROVIDER_MEETING_TOKEN:}");
+                .contains("token: ${DWP_HOME_PROVIDER_MEETING_TOKEN:}")
+                .contains("signing-secret: ${DWP_DWAION_HOME_IDENTITY_SIGNING_SECRET:}")
+                .contains("key-id: ${DWP_DWAION_HOME_IDENTITY_KEY_ID:platform-dwaion-home-v1}");
 
         verifyReadKillSwitch();
         verifyCommandKillSwitch();

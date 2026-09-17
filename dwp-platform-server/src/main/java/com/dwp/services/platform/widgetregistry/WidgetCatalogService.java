@@ -177,11 +177,11 @@ public class WidgetCatalogService {
                     "36400000-0000-0000-0000-000000000001",
                     "36500000-0000-0000-0000-000000000001"),
             new BaselineWidget(
-                    "dwaion.artifact", "1.0.0",
-                    "a525bf1c6b926984a0978386f74aeb055c6e81db0813b9ea6b2443384de188e7",
+                    "dwaion.artifact", "1.1.0",
+                    "eb2152b7f1cf21611bb4a2c1781f7f267c5cd0c6d489d4edc8f680bb4fa6af54",
                     "home.dwaion.artifact", "ai.agent-runtime", "APP.DWAION_ARTIFACTS",
                     "36400000-0000-0000-0000-000000000002",
-                    "36500000-0000-0000-0000-000000000002"));
+                    "36500000-0000-0000-0000-000000000003"));
     private final WidgetRegistryLedger ledger;
     private final WidgetDefinitionRepository definitions;
     private final WidgetDefinitionVersionRepository versions;

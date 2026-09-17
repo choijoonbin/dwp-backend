@@ -21,7 +21,9 @@ class HomeStudioPlatformSecurityFilterTest {
             "/v1/home-experience/background",
             "/v1/home-templates/00000000-0000-0000-0000-000000000001",
             "/v1/home-composer/proposals",
-            "/v1/home-preferences"
+            "/v1/home-preferences",
+            "/v2/home",
+            "/v2/home/widget-actions:execute"
     })
     void accountHomeSettingsAcceptOnlyTenantDataPlaneIdentity(String path) throws Exception {
         MockHttpServletRequest tenant = request(path, "TENANT", "EMPLOYEE");
@@ -43,7 +45,8 @@ class HomeStudioPlatformSecurityFilterTest {
             "/v1/home-experience",
             "/v1/home-templates",
             "/v1/home-composer/proposals",
-            "/v1/home-preferences"
+            "/v1/home-preferences",
+            "/v2/home"
     })
     void missingIdentityPlaneFailsClosed(String path) throws Exception {
         MockHttpServletRequest missingPlane = request(path, null, "EMPLOYEE");
@@ -79,6 +82,25 @@ class HomeStudioPlatformSecurityFilterTest {
             filter.doFilter(denied, response, new MockFilterChain());
             assertThat(response.getStatus()).isEqualTo(403);
         }
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+            "X-DWP-Support-Session-ID",
+            "X-DWP-Provider-Tenant-ID",
+            "X-DWP-Actor-Tenant-ID"
+    })
+    void runtimeHomeRejectsAmbientCrossPlaneHeaders(String header) throws Exception {
+        MockHttpServletRequest request = request("/v2/home", "TENANT", "EMPLOYEE");
+        request.addHeader(header, "ambient-value");
+        if (header.equals("X-DWP-Support-Session-ID")) {
+            request.addHeader("X-DWP-Support-Scopes", "PLATFORM_READ");
+        }
+        MockHttpServletResponse denied = new MockHttpServletResponse();
+
+        filter.doFilter(request, denied, new MockFilterChain());
+
+        assertThat(denied.getStatus()).isEqualTo(403);
     }
 
     @Test

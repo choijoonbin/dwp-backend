@@ -37,6 +37,21 @@ class ProviderResultValidatorTest {
     }
 
     @Test
+    void rejectsAProviderThatDoesNotEchoTheRequestedBindingCatalogRevision() {
+        HomeWidgetProviderContract.WidgetResult valid = valid(
+                Map.of("title", "safe"), List.of(), List.of());
+        HomeWidgetProviderContract.WidgetResult mismatched =
+                new HomeWidgetProviderContract.WidgetResult(
+                        valid.instanceId(), valid.definitionKey(),
+                        valid.definitionManifestHash(), "f".repeat(64), valid.state(),
+                        valid.source(), valid.payload(), valid.actions(), valid.redactions());
+
+        assertThatThrownBy(() -> validator.validate(
+                response(mismatched), context, List.of(request)))
+                .isInstanceOf(WidgetProviderException.class);
+    }
+
+    @Test
     void rejectsNullResultCollectionAndAuthorityRevision() {
         HomeWidgetProviderContract.BatchResponse nullResults =
                 new HomeWidgetProviderContract.BatchResponse(

@@ -207,10 +207,13 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         boolean personalHomePath = pathFamily(path, "/v1/home-views") || pathFamily(path, "/v1/home-experience")
                 || pathFamily(path, "/v1/home-templates")
                 || pathFamily(path, "/v1/home-composer/proposals")
-                || pathFamily(path, "/v1/home-preferences");
+                || pathFamily(path, "/v1/home-preferences")
+                || pathFamily(path, "/v2/home");
         if (personalHomePath
                 && (supportAccess
-                || !"TENANT".equals(request.getHeader("X-DWP-Identity-Plane")))) {
+                || !"TENANT".equals(request.getHeader("X-DWP-Identity-Plane"))
+                || !isBlank(request.getHeader("X-DWP-Provider-Tenant-ID"))
+                || !isBlank(request.getHeader(ACTOR_TENANT_HEADER)))) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "Personal Home settings require a tenant data-plane identity.");
             return;

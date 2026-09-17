@@ -2,6 +2,7 @@ package com.dwp.services.platform.home.runtime;
 
 import io.github.resilience4j.bulkhead.BulkheadRegistry;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -78,6 +79,29 @@ public class HomeProviderClientConfiguration {
             @Value("${dwp.platform.home-runtime.providers.people.url:http://localhost:8003}") String url,
             @Value("${dwp.platform.home-runtime.providers.people.token:}") String token) {
         return client("people", url, token, runtime, builder, circuitBreakers, bulkheads);
+    }
+
+    @Bean
+    WidgetProviderPort dwaionHomeWidgetProvider(
+            RestClient.Builder builder,
+            ObjectMapper objectMapper,
+            CircuitBreakerRegistry circuitBreakers,
+            BulkheadRegistry bulkheads,
+            HomeRuntimeProperties runtime,
+            @Value("${dwp.platform.home-runtime.providers.dwaion.url:http://localhost:8010}")
+            String url,
+            @Value("${dwp.platform.home-runtime.providers.dwaion.signing-secret:}")
+            String signingSecret,
+            @Value("${dwp.platform.home-runtime.providers.dwaion.key-id:platform-dwaion-home-v1}")
+            String keyId) {
+        if (signingSecret == null || signingSecret.isBlank()) {
+            return new InactiveDwaionWidgetProvider();
+        }
+        DwaionHomeWorkloadAssertionSigner signer =
+                new DwaionHomeWorkloadAssertionSigner(keyId, signingSecret, objectMapper);
+        return new DwaionHomeWidgetProviderClient(
+                url, runtime.providerTimeout(), builder, objectMapper, signer,
+                circuitBreakers, bulkheads);
     }
 
     private WidgetProviderPort client(

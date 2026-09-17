@@ -116,6 +116,9 @@ public class HomeReadModelController {
             @RequestHeader("X-DWP-Home-Runtime-State") String runtimeState,
             @RequestHeader("X-DWP-Home-Rollout-Ring") String rolloutRing,
             @RequestHeader("X-DWP-Home-Rollout-Revision") String rolloutRevision,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "traceparent", required = false) String traceparent,
+            @RequestHeader(value = "tracestate", required = false) String tracestate,
             @RequestHeader(value = "Accept-Language", defaultValue = "ko-KR") String locale,
             @RequestHeader(value = HttpHeaders.IF_NONE_MATCH, required = false) String ifNoneMatch,
             @RequestParam(required = false)
@@ -127,7 +130,8 @@ public class HomeReadModelController {
         requireDeploymentAvailable();
         HomeRuntimeContext context = HomeRuntimeContext.create(
                 tenantId, userId, personPublicId, permissions, roles, groupRefs,
-                decisionRevision, revalidateAt, locale, timeZone);
+                decisionRevision, revalidateAt, locale, timeZone,
+                correlationId, traceparent, tracestate);
         HomeRuntimeRolloutDecision.TrustedInput trustedRollout =
                 HomeRuntimeRolloutDecision.TrustedInput.parse(
                         runtimeState, rolloutRing, rolloutRevision);
@@ -215,6 +219,9 @@ public class HomeReadModelController {
             @RequestHeader("X-DWP-Home-Runtime-State") String runtimeState,
             @RequestHeader("X-DWP-Home-Rollout-Ring") String rolloutRing,
             @RequestHeader("X-DWP-Home-Rollout-Revision") String rolloutRevision,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @RequestHeader(value = "traceparent", required = false) String traceparent,
+            @RequestHeader(value = "tracestate", required = false) String tracestate,
             @RequestHeader(value = "Accept-Language", defaultValue = "ko-KR") String locale,
             @RequestHeader("Idempotency-Key") UUID commandId,
             @RequestParam(required = false)
@@ -227,7 +234,8 @@ public class HomeReadModelController {
         requireDeploymentAvailable();
         HomeRuntimeContext context = HomeRuntimeContext.create(
                 tenantId, userId, personPublicId, permissions, roles, groupRefs,
-                decisionRevision, revalidateAt, locale, timeZone);
+                decisionRevision, revalidateAt, locale, timeZone,
+                correlationId, traceparent, tracestate);
         HomeRuntimeRolloutDecision.TrustedInput trustedRollout =
                 HomeRuntimeRolloutDecision.TrustedInput.parse(
                         runtimeState, rolloutRing, rolloutRevision);

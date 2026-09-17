@@ -64,7 +64,7 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
     private static final Path FIXTURE =
             Path.of("../contracts/widget-registry/native-widget-manifests.v1.json");
     private static final String EXPECTED_BINDING_CATALOG_REVISION =
-            "b03bdd59271207ced7deaa29375ce63f4863137a4b7789d2b7c8c3a13bf345b7";
+            "2fcb00cb8df02d953d5e4be94d7659dd937f951a02fba3aeabefa73de30a024b";
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
@@ -194,6 +194,20 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
                 List.of("core.workspace")));
 
         assertThat(policyProjection(newTenantId)).isEqualTo(policyProjection(migratedTenantId));
+        for (long tenantId : new long[]{migratedTenantId, newTenantId}) {
+            assertThat(jdbc.queryForObject("""
+                    SELECT policy.revision_number || '|' || policy.enabled::text || '|'
+                           || policy.reason_code
+                      FROM adm_tenant_widget_policy_heads head
+                      JOIN adm_tenant_widget_policy_revisions policy
+                        ON policy.policy_revision_id = head.current_revision_id
+                      JOIN plt_widget_definitions definition
+                        ON definition.definition_id = head.definition_id
+                     WHERE head.tenant_id = ?
+                       AND definition.definition_key = 'dwaion.artifact'
+                    """, String.class, tenantId)).isEqualTo(
+                    "2|true|DWAION_HOME_SIGNED_OWNER_PROVIDER");
+        }
         String authorities = requiredAuthorities();
         assertShadowCatalogAvailable(migratedTenantId, authorities);
         assertShadowCatalogAvailable(newTenantId, authorities);

@@ -101,6 +101,9 @@ class HomeReadModelOwnerProviderRoutingTest {
                         .header("X-DWP-Permissions", permissions(definitions))
                         .header("X-DWP-Roles", "MEMBER")
                         .header("X-DWP-Current-Decision-Revision", "decision-23")
+                        .header("X-DWP-Home-Runtime-State", "SHADOW_COMPARE")
+                        .header("X-DWP-Home-Rollout-Ring", "CONTROL")
+                        .header("X-DWP-Home-Rollout-Revision", "rollout-owner-routing-1")
                         .header("X-DWP-Current-Revalidate-At",
                                 OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(5).toString()))
                 .andExpect(status().isOk())

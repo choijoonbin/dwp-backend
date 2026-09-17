@@ -26,9 +26,13 @@ public record HomeRuntimeContext(
         OffsetDateTime authorityRevalidateAt,
         String locale,
         String timeZone,
-        String fingerprint) {
+        String fingerprint,
+        String correlationId,
+        String traceparent,
+        String tracestate) {
 
     private static final int MAX_AUTHORITY_HEADER = 16_384;
+    private static final int MAX_SIGNED_AUTHORITY_MATERIAL = 6_000;
 
     public static HomeRuntimeContext create(
             Long tenantId,
@@ -41,6 +45,24 @@ public record HomeRuntimeContext(
             String revalidateAt,
             String locale,
             String timeZone) {
+        return create(tenantId, userId, personPublicId, permissions, roles, groupRefs,
+                decisionRevision, revalidateAt, locale, timeZone, null, null, null);
+    }
+
+    public static HomeRuntimeContext create(
+            Long tenantId,
+            Long userId,
+            UUID personPublicId,
+            String permissions,
+            String roles,
+            String groupRefs,
+            String decisionRevision,
+            String revalidateAt,
+            String locale,
+            String timeZone,
+            String correlationId,
+            String traceparent,
+            String tracestate) {
         if (tenantId == null || tenantId <= 0 || userId == null || userId <= 0) {
             throw new BaseException(ErrorCode.UNAUTHORIZED);
         }
@@ -52,6 +74,12 @@ public record HomeRuntimeContext(
         Set<String> permissionSet = values(permissions, true);
         Set<String> roleSet = values(roles, true);
         Set<String> groups = values(groupRefs, false);
+        int signedAuthoritySize = joinedSize(permissionSet)
+                + joinedSize(roleSet) + joinedSize(groups);
+        if (signedAuthoritySize > MAX_SIGNED_AUTHORITY_MATERIAL) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "Home authority context is too large for signed delegation.");
+        }
         String resolvedLocale = bounded(locale, 80);
         String resolvedTimeZone = bounded(timeZone, 80);
         String material = tenantId + "\n" + userId + "\n"
@@ -61,6 +89,21 @@ public record HomeRuntimeContext(
                 + String.join(",", permissionSet.stream().sorted().toList()) + "\n"
                 + String.join(",", roleSet.stream().sorted().toList()) + "\n"
                 + String.join(",", groups.stream().sorted().toList());
+        String fingerprint = sha256(material);
+        String resolvedCorrelationId = bounded(correlationId, 160);
+        if (resolvedCorrelationId == null) {
+            resolvedCorrelationId = "home-" + UUID.randomUUID();
+        } else if (!resolvedCorrelationId.matches("[A-Za-z0-9._:@+-]{1,160}")) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "Invalid Home correlation context.");
+        }
+        String resolvedTraceparent = bounded(traceparent, 256);
+        if (resolvedTraceparent != null && !resolvedTraceparent.matches(
+                "(?i)[0-9a-f]{2}-[0-9a-f]{32}-[0-9a-f]{16}-[0-9a-f]{2}")) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "Invalid Home trace context.");
+        }
+        String resolvedTracestate = bounded(tracestate, 512);
         return new HomeRuntimeContext(
                 tenantId,
                 userId,
@@ -72,7 +115,28 @@ public record HomeRuntimeContext(
                 revalidate,
                 resolvedLocale == null ? "ko-KR" : resolvedLocale,
                 resolvedTimeZone == null ? "Asia/Seoul" : resolvedTimeZone,
-                sha256(material));
+                fingerprint,
+                resolvedCorrelationId,
+                resolvedTraceparent,
+                resolvedTracestate);
+    }
+
+    /** Compatibility constructor for focused tests and non-HTTP callers. */
+    public HomeRuntimeContext(
+            long tenantId,
+            long userId,
+            UUID personPublicId,
+            Set<String> permissions,
+            Set<String> roles,
+            Set<String> groupRefs,
+            String authorityDecisionRevision,
+            OffsetDateTime authorityRevalidateAt,
+            String locale,
+            String timeZone,
+            String fingerprint) {
+        this(tenantId, userId, personPublicId, permissions, roles, groupRefs,
+                authorityDecisionRevision, authorityRevalidateAt, locale, timeZone,
+                fingerprint, "home-" + UUID.randomUUID(), null, null);
     }
 
     public boolean has(String authority) {
@@ -123,11 +187,22 @@ public record HomeRuntimeContext(
         if (header.length() > MAX_AUTHORITY_HEADER) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE, "Home authority context is too large.");
         }
-        return Arrays.stream(header.split(","))
+        Set<String> result = Arrays.stream(header.split(","))
                 .map(String::trim)
                 .filter(value -> !value.isBlank())
                 .map(value -> uppercase ? value.toUpperCase(Locale.ROOT) : value)
                 .collect(Collectors.toUnmodifiableSet());
+        if (result.size() > 256 || result.stream().anyMatch(value ->
+                !value.matches("[A-Za-z0-9._:@+-]{1,160}"))) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "Home authority context contains an invalid authority set.");
+        }
+        return result;
+    }
+
+    private static int joinedSize(Set<String> values) {
+        if (values.isEmpty()) return 0;
+        return values.stream().mapToInt(String::length).sum() + values.size() - 1;
     }
 
     private static OffsetDateTime parseFuture(String raw) {

@@ -314,6 +314,97 @@
         "platform": "DWP_HOME_PROVIDER_PEOPLE_TOKEN",
         "owner": "DWP_PEOPLE_HOME_RUNTIME_SERVICE_TOKEN"
       }
+    },
+    "dwaion": {
+      "module": "external:dwp_agent",
+      "externalOwner": true,
+      "authProfile": "dwp1-hmac-sha256",
+      "definitions": [
+        "dwaion.artifact"
+      ],
+      "definitionBindings": {
+        "dwaion.artifact": {
+          "rendererKey": "home.dwaion.artifact",
+          "legacyWidgetKey": "dwaion-artifact",
+          "legacySurfaceSlot": null,
+          "sourceAppResourceKey": "APP.DWAION_ARTIFACTS",
+          "requiredAuthorities": [
+            "APP.ASK:VIEW",
+            "APP.DWAION_ARTIFACTS:VIEW"
+          ],
+          "definitionVersion": "1.1.0",
+          "manifestHash": "eb2152b7f1cf21611bb4a2c1781f7f267c5cd0c6d489d4edc8f680bb4fa6af54",
+          "rendererBindingRevisionPolicy": "CURRENT_ACTIVE_CATALOG_SHA256",
+          "providerStates": [
+            "AVAILABLE",
+            "EMPTY",
+            "PARTIAL",
+            "FORBIDDEN",
+            "UNAVAILABLE"
+          ]
+        }
+      },
+      "providerKey": "dwaion",
+      "platformUrlProperty": "dwp.platform.home-runtime.providers.dwaion.url",
+      "platformSigningSecretProperty": "dwp.platform.home-runtime.providers.dwaion.signing-secret",
+      "platformKeyIdProperty": "dwp.platform.home-runtime.providers.dwaion.key-id",
+      "deploymentSigningEnvironment": {
+        "platform": "DWP_DWAION_HOME_IDENTITY_SIGNING_SECRET",
+        "owner": "DWP_DWAION_HOME_IDENTITY_SIGNING_SECRET",
+        "keyId": "DWP_DWAION_HOME_IDENTITY_KEY_ID"
+      },
+      "signedWorkload": {
+        "profile": "dwp1-hmac-sha256",
+        "method": "POST",
+        "path": "/internal/home/v1/widget-data:batch",
+        "header": "X-DWP-Home-Assertion",
+        "issuer": "dwp-platform-server",
+        "audience": "dwp-agent-home",
+        "ttlSeconds": 30,
+        "bodySha256": true,
+        "singleUseJti": true,
+        "recipientBound": true,
+        "claims": [
+          "v",
+          "kid",
+          "iss",
+          "aud",
+          "sub",
+          "tid",
+          "pid",
+          "cid",
+          "traceparent",
+          "tracestate",
+          "ip",
+          "htm",
+          "htu",
+          "permissions",
+          "roles",
+          "groups",
+          "authorityRevision",
+          "authorityRevalidateAt",
+          "deadlineAt",
+          "bodySha256",
+          "iat",
+          "nbf",
+          "exp",
+          "jti"
+        ],
+        "fixturePath": "contracts/home-runtime/dwaion-signed-workload.v1.json",
+        "fixtureAssertionSha256": "ac7ff7568c38f0110d8807ba359400fb3a380589ea0c239607e871e724cf3909"
+      },
+      "sourceRoute": "/dwaion/artifacts",
+      "ownerEvidenceCommit": "7092a93ea7446d08af6e45bb88e7225dd9ed4148",
+      "evidence": {
+        "security": {
+          "ref": "contract:contracts/home-runtime/dwaion-signed-workload.v1.json",
+          "sha256": "dd2ab8edc36e7d52db73d3f6ae954111819ad763742e23f24eb12986faae0482"
+        },
+        "privacy": {
+          "ref": "git:7092a93ea7446d08af6e45bb88e7225dd9ed4148:tests/test_artifact_home_projection.py",
+          "sha256": "2b61d64f15ccbb14e680289c851221e4a2899517466178bfe061d4e0164d2fb3"
+        }
+      }
     }
   },
   "commandPolicy": "SOURCE_ROUTE_ONLY_UNTIL_AN_OWNER_MANIFEST_DECLARES_A_COMMAND",

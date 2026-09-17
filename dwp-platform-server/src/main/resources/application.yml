@@ -163,6 +163,10 @@ dwp:
         people:
           url: ${DWP_HOME_PROVIDER_PEOPLE_URL:http://localhost:8003}
           token: ${DWP_HOME_PROVIDER_PEOPLE_TOKEN:}
+        dwaion:
+          url: ${DWP_HOME_PROVIDER_DWAION_URL:http://localhost:8010}
+          signing-secret: ${DWP_DWAION_HOME_IDENTITY_SIGNING_SECRET:}
+          key-id: ${DWP_DWAION_HOME_IDENTITY_KEY_ID:platform-dwaion-home-v1}
     product-authorization-approvals-v2-enabled: ${DWP_PLATFORM_PRODUCT_AUTHORIZATION_APPROVALS_V2_ENABLED:false}
     product-authorization-dwaion-v6-enabled: ${DWP_PLATFORM_PRODUCT_AUTHORIZATION_DWAION_V6_ENABLED:false}
     product-surface-telemetry:

@@ -24,6 +24,8 @@ SERVICE_PACKAGES = {
     "dwp-gateway": "com.dwp.gateway",
 }
 
+EXTERNAL_DWP_SERVICE_TARGETS = {"dwp-agent-runtime"}
+
 SHARED_MODULES = {
     "dwp-core",
     "dwp-audit",
@@ -122,7 +124,11 @@ HOME_PROVIDER_FACTORY_REQUIRED = {
     "dwp.platform.home-runtime.providers.messaging.token",
     "dwp.platform.home-runtime.providers.people.url",
     "dwp.platform.home-runtime.providers.people.token",
+    "dwp.platform.home-runtime.providers.dwaion.url",
+    "dwp.platform.home-runtime.providers.dwaion.signing-secret",
+    "dwp.platform.home-runtime.providers.dwaion.key-id",
     "new HttpWidgetProviderClient",
+    "new DwaionHomeWidgetProviderClient",
     "runtime.commandsEnabled()",
     "runtime.providerTimeout()",
 }
@@ -334,7 +340,7 @@ def home_provider_source_violations(entry: dict[str, Any], source: str) -> list[
     source = java_without_comments(source)
     violations: list[str] = []
     if entry.get("path") == HOME_PROVIDER_FACTORY["path"]:
-        if len(re.findall(r"RestClient\.Builder\s+builder", source)) != 7:
+        if len(re.findall(r"RestClient\.Builder\s+builder", source)) != 8:
             violations.append(
                 f"{entry['path']} must inject one Boot RestClient.Builder per owner bean "
                 "and pass it through the sealed factory"
@@ -400,7 +406,8 @@ def signed_workload_manifest_violations(entry: dict[str, Any]) -> list[str]:
     if workload.get("method") != "POST":
         violations.append(f"{prefix} method must be POST")
     path = workload.get("path")
-    if not isinstance(path, str) or not re.fullmatch(r"/internal/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+", path):
+    if not isinstance(path, str) or not re.fullmatch(
+            r"/internal/(?:[A-Za-z0-9_-]+/)*[A-Za-z0-9_-]+(?::[A-Za-z0-9_-]+)?", path):
         violations.append(f"{prefix} path must be an exact canonical /internal/ path")
     header = workload.get("header")
     if not isinstance(header, str) or not re.fullmatch(r"X-DWP-[A-Za-z0-9-]+-Assertion", header):
@@ -436,6 +443,8 @@ def signed_workload_manifest_violations(entry: dict[str, Any]) -> list[str]:
 
 def signed_workload_source_violations(entry: dict[str, Any], source: str) -> list[str]:
     """Check declared source wiring, not cryptographic or owner-authorization correctness."""
+    if entry.get("classification") == "home-runtime-dwaion-provider":
+        return home_signed_workload_source_violations(entry, source)
     violations: list[str] = []
     workload = entry["signedWorkload"]
     prefix = f"{entry['path']} signedWorkload"
@@ -502,6 +511,68 @@ def signed_workload_source_violations(entry: dict[str, Any], source: str) -> lis
             violations.append(f"{prefix} signer is missing executable {label}")
     for forbidden in SIGNED_WORKLOAD_FORBIDDEN:
         if any(forbidden in value for value in (java_without_comments(source), protocol, signer)):
+            violations.append(f"{prefix} source contains forbidden marker {forbidden!r}")
+    return violations
+
+
+def home_signed_workload_source_violations(
+        entry: dict[str, Any], source: str) -> list[str]:
+    """Validate the dedicated Home profile without treating it as a Work-source claim."""
+    violations: list[str] = []
+    workload = entry["signedWorkload"]
+    prefix = f"{entry['path']} signedWorkload"
+    protocol_path = Path(workload["protocolSource"])
+    signer_path = Path(workload["signerSource"])
+    protocol = java_without_comments((ROOT / protocol_path).read_text(encoding="utf-8"))
+    signer = java_without_comments((ROOT / signer_path).read_text(encoding="utf-8"))
+    client = java_without_comments(source)
+    protocol_name = ".".join(
+        protocol_path.parts[protocol_path.parts.index("java") + 1:]
+    ).removesuffix(".java")
+    for name, value in {
+        "PATH": workload["path"], "ASSERTION_HEADER": workload["header"],
+        "ISSUER": workload["issuer"], "AUDIENCE": workload["audience"],
+    }.items():
+        constants = [match.group(1) for match in executable_literal_matches(
+            rf'\bstatic\s+final\s+String\s+{name}\s*=\s*"([^"\\]*)"\s*;', protocol
+        )]
+        if constants != [value]:
+            violations.append(
+                f"{prefix} protocol {name} must equal the declared literal exactly once"
+            )
+    for label, code in (("client", client), ("signer", signer)):
+        if not re.search(rf"\bimport\s+static\s+{re.escape(protocol_name)}\.\*\s*;", code):
+            violations.append(f"{prefix} {label} must import the declared protocol constants")
+    for label, pattern in {
+        "exact endpoint": r"\.uri\(\s*PATH\s*\)",
+        "exact raw body": r"\.body\(\s*body\s*\)",
+        "signed request": r"\.header\(\s*ASSERTION_HEADER\s*,\s*assertion\s*\)",
+        "no redirect": r"\.followRedirects\(\s*HttpClient\.Redirect\.NEVER\s*\)",
+        "explicit correlation": r'headers\.set\(\s*"X-Correlation-ID"\s*,\s*context\.correlationId\(\)\s*\)',
+        "explicit traceparent": r'headers\.set\(\s*"traceparent"\s*,\s*context\.traceparent\(\)\s*\)',
+        "explicit tracestate": r'headers\.set\(\s*"tracestate"\s*,\s*context\.tracestate\(\)\s*\)',
+        "body size bound": r"body\.length\s*>\s*262_144",
+        "definition version allowlist": r"DEFINITION_VERSION\.equals\(",
+        "manifest allowlist": r"DEFINITION_MANIFEST_HASH\.equals\(",
+        "binding catalog revision": r'rendererBindingRevision\(\)\s*\.matches\(\s*"\[0-9a-f\]\{64\}"\s*\)',
+    }.items():
+        if not re.search(pattern, client):
+            violations.append(f"{prefix} client is missing {label}")
+    for label, pattern in {
+        "recipient subject": r'claims\.put\(\s*"sub"\s*,\s*Long\.toString\(context\.userId\(\)\)\s*\)',
+        "recipient tenant": r'claims\.put\(\s*"tid"\s*,\s*Long\.toString\(context\.tenantId\(\)\)\s*\)',
+        "exact path": r'claims\.put\(\s*"htu"\s*,\s*PATH\s*\)',
+        "body digest": r'claims\.put\(\s*"bodySha256"\s*,\s*sha256\(exactBody\)\s*\)',
+        "fresh nonce": r'claims\.put\(\s*"jti"\s*,\s*nonce\.get\(\)\.toString\(\)\s*\)',
+        "HMAC algorithm": r'Mac\.getInstance\(\s*"HmacSHA256"\s*\)',
+        "versioned envelope": r'String\s+input\s*=\s*"dwp1\."\s*\+',
+        "minimum key length": r'configuredSecret\.length\s*<\s*32',
+        "assertion size bound": r'MAX_ASSERTION_BYTES',
+    }.items():
+        if not re.search(pattern, signer):
+            violations.append(f"{prefix} signer is missing {label}")
+    for forbidden in SIGNED_WORKLOAD_FORBIDDEN:
+        if any(forbidden in value for value in (client, protocol, signer)):
             violations.append(f"{prefix} source contains forbidden marker {forbidden!r}")
     return violations
 
@@ -1232,7 +1303,8 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                 )
                 if interface_type in {"gateway-verifier", "internal-http"}:
                     for target_service in target_services:
-                        if target_service not in SERVICE_PACKAGES:
+                        if (target_service not in SERVICE_PACKAGES
+                                and target_service not in EXTERNAL_DWP_SERVICE_TARGETS):
                             violations.append(
                                 f"{section}:{entry_id} has unknown DWP targetService {target_service}"
                             )
@@ -1273,7 +1345,9 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                             violations.append(
                                 f"{section}:{entry_id} internal-http contracts must require an /internal/ path marker"
                             )
-                        if "OutboundHttpHeaders.propagateObservability" not in required_markers:
+                        if (entry.get("classification") != "home-runtime-dwaion-provider"
+                                and "OutboundHttpHeaders.propagateObservability"
+                                not in required_markers):
                             violations.append(
                                 f"{section}:{entry_id} internal-http contracts must propagate observability headers"
                             )

@@ -1,7 +1,6 @@
 package com.dwp.services.platform.home.runtime;
 
 import com.dwp.platform.contract.home.HomeWidgetProviderContract;
-import org.springframework.stereotype.Component;
 
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -12,7 +11,6 @@ import java.util.Map;
  * Explicit fail-closed marker for the DWAI.ON projection. The catalog may expose the design slot,
  * but no data or action is released until the owner publishes a recipient-bound provider API.
  */
-@Component
 public class InactiveDwaionWidgetProvider implements WidgetProviderPort {
 
     @Override

@@ -69,4 +69,32 @@ class HomeRuntimeContextTest {
                         assertThat(failure.getErrorCode())
                                 .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
     }
+
+    @Test
+    void boundsAuthoritySetsAndGeneratesPerRequestCorrelationFallbacks() {
+        OffsetDateTime future = OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(5);
+        String oversized = java.util.stream.IntStream.range(0, 257)
+                .mapToObj(value -> "APP.SCOPE" + value + ":VIEW")
+                .collect(java.util.stream.Collectors.joining(","));
+        assertThatThrownBy(() -> HomeRuntimeContext.create(
+                11L, 22L, null, oversized, "MEMBER", "team-a",
+                "decision-7", future.toString(), "ko-KR", "Asia/Seoul"))
+                .isInstanceOf(BaseException.class);
+        String oversizedSignedMaterial = java.util.stream.IntStream.range(0, 120)
+                .mapToObj(value -> "APP." + "X".repeat(70) + value + ":VIEW")
+                .collect(java.util.stream.Collectors.joining(","));
+        assertThatThrownBy(() -> HomeRuntimeContext.create(
+                11L, 22L, null, oversizedSignedMaterial, "MEMBER", "team-a",
+                "decision-7", future.toString(), "ko-KR", "Asia/Seoul"))
+                .isInstanceOf(BaseException.class);
+
+        HomeRuntimeContext first = HomeRuntimeContext.create(
+                11L, 22L, null, "APP.WORK:VIEW", "MEMBER", "team-a",
+                "decision-7", future.toString(), "ko-KR", "Asia/Seoul");
+        HomeRuntimeContext second = HomeRuntimeContext.create(
+                11L, 22L, null, "APP.WORK:VIEW", "MEMBER", "team-a",
+                "decision-7", future.toString(), "ko-KR", "Asia/Seoul");
+        assertThat(first.fingerprint()).isEqualTo(second.fingerprint());
+        assertThat(first.correlationId()).isNotEqualTo(second.correlationId());
+    }
 }
