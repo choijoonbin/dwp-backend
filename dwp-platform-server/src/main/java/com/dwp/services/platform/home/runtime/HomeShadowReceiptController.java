@@ -50,29 +50,29 @@ public class HomeShadowReceiptController {
     private final Validator validator;
     private final MeterRegistry meters;
     private final HomeReadModelService readModels;
-    private final ReceiptAdmissionGuard admission;
+    private final HomeShadowReceiptAdmissionGuard admission;
 
     @Autowired
     public HomeShadowReceiptController(
             ObjectMapper objectMapper,
             Validator validator,
             MeterRegistry meters,
-            HomeReadModelService readModels) {
-        this(objectMapper, validator, meters, readModels,
-                new ReceiptAdmissionGuard(Clock.systemUTC()));
+            HomeReadModelService readModels,
+            HomeShadowReceiptAdmissionGuard admission) {
+        this.objectMapper = objectMapper;
+        this.validator = validator;
+        this.meters = meters;
+        this.readModels = readModels;
+        this.admission = admission;
     }
 
     HomeShadowReceiptController(
             ObjectMapper objectMapper,
             Validator validator,
             MeterRegistry meters,
-            HomeReadModelService readModels,
-            ReceiptAdmissionGuard admission) {
-        this.objectMapper = objectMapper;
-        this.validator = validator;
-        this.meters = meters;
-        this.readModels = readModels;
-        this.admission = admission;
+            HomeReadModelService readModels) {
+        this(objectMapper, validator, meters, readModels,
+                new LocalReceiptAdmissionGuard(Clock.systemUTC()));
     }
 
     /** Isolated comparator-test constructor; production always injects the read-model service. */
@@ -154,7 +154,12 @@ public class HomeShadowReceiptController {
             long tenantId,
             long userId) {
         validate(request, current);
-        if (admission.admit(tenantId, userId, current.revision(), request)) {
+        HomeShadowReceiptAdmissionGuard.Admission result = admission.admit(
+                tenantId, userId, current.revision(), request);
+        meters.counter(
+                "dwp.home.shadow.receipt.admission",
+                "outcome", result.name()).increment();
+        if (result == HomeShadowReceiptAdmissionGuard.Admission.ADMITTED) {
             request.reasons().forEach(reason -> meters.counter(
                     "dwp.home.shadow.compare",
                     "mode", request.homeMode(),
@@ -255,7 +260,8 @@ public class HomeShadowReceiptController {
     public record ShadowReceiptResponse(boolean accepted, String receiptVersion) {
     }
 
-    static final class ReceiptAdmissionGuard {
+    static final class LocalReceiptAdmissionGuard
+            implements HomeShadowReceiptAdmissionGuard {
         private static final int MAX_RECEIPTS = 4_096;
         private static final int MAX_RECIPIENTS = 2_048;
         private static final int MAX_RECEIPTS_PER_WINDOW = 60;
@@ -267,11 +273,12 @@ public class HomeShadowReceiptController {
         private final Map<String, Instant> receipts = new LinkedHashMap<>();
         private final Map<String, RateWindow> recipients = new LinkedHashMap<>();
 
-        ReceiptAdmissionGuard(Clock clock) {
+        LocalReceiptAdmissionGuard(Clock clock) {
             this.clock = clock;
         }
 
-        synchronized boolean admit(
+        @Override
+        public synchronized Admission admit(
                 long tenantId,
                 long userId,
                 String decisionRevision,
@@ -294,19 +301,21 @@ public class HomeShadowReceiptController {
                     + "|" + request.rolloutRing();
             String receipt = digest(salt + "|" + recipient + "|"
                     + decisionRevision + "|" + semanticPayload);
-            if (receipts.containsKey(receipt)) return false;
+            if (receipts.containsKey(receipt)) return Admission.DUPLICATE;
 
             RateWindow window = recipients.get(recipient);
             if (window == null || !window.expiresAt().isAfter(now)) {
                 window = new RateWindow(0, now.plus(RATE_WINDOW));
             }
-            if (window.count() >= MAX_RECEIPTS_PER_WINDOW) return false;
+            if (window.count() >= MAX_RECEIPTS_PER_WINDOW) {
+                return Admission.RATE_LIMITED;
+            }
 
             recipients.put(recipient, new RateWindow(window.count() + 1, window.expiresAt()));
             receipts.put(receipt, now.plus(DEDUPE_TTL));
             trimToBound(receipts, MAX_RECEIPTS);
             trimToBound(recipients, MAX_RECIPIENTS);
-            return true;
+            return Admission.ADMITTED;
         }
 
         private <T> void trimToBound(Map<String, T> values, int maximum) {

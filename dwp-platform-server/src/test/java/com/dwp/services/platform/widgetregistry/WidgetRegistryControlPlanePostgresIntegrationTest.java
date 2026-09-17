@@ -64,7 +64,7 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
     private static final Path FIXTURE =
             Path.of("../contracts/widget-registry/native-widget-manifests.v1.json");
     private static final String EXPECTED_BINDING_CATALOG_REVISION =
-            "d9cdfe69d6d5c7f2fc04cd2423365b6b1101d91e56069ffe1b82fb5b1c854643";
+            "b03bdd59271207ced7deaa29375ce63f4863137a4b7789d2b7c8c3a13bf345b7";
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
@@ -679,7 +679,7 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
         assertThat(response.mode()).isEqualTo("SHADOW");
         assertThat(response.bindingCatalogRevision()).isEqualTo(EXPECTED_BINDING_CATALOG_REVISION);
         assertThat(response.contexts()).hasSize(1);
-        assertThat(response.contexts().getFirst().items()).hasSize(19);
+        assertThat(response.contexts().getFirst().items()).hasSize(20);
         List<WidgetRegistryDtos.EffectiveItem> baseline = response.contexts().getFirst().items()
                 .stream().filter(item -> item.definitionId().toString().startsWith("30000000"))
                 .toList();
@@ -695,12 +695,19 @@ class WidgetRegistryControlPlanePostgresIntegrationTest {
                 .toList()).hasSize(12).allSatisfy(item ->
                         assertThat(item.effectiveState())
                                 .isEqualTo(WidgetRegistryDtos.EffectiveCatalogState.DENY));
+        assertThat(response.contexts().getFirst().items().stream()
+                .filter(item -> "workplace.booking".equals(item.definitionKey()))
+                .toList()).singleElement().satisfies(item ->
+                        assertThat(item.effectiveState())
+                                .isEqualTo(WidgetRegistryDtos.EffectiveCatalogState.DENY));
+        assertThat(response.contexts().getFirst().items())
+                .noneMatch(item -> "dwaion.artifact".equals(item.definitionKey()));
 
         var runtime = catalog.runtimeCatalog(
                 tenantId, "workspace-home", authorities, "", "", "CLASSIC");
         assertThat(runtime.registryMode()).isEqualTo("SHADOW");
         assertThat(runtime.bindingRevision()).isEqualTo(EXPECTED_BINDING_CATALOG_REVISION);
-        assertThat(runtime.definitions()).hasSize(19).allSatisfy(definition ->
+        assertThat(runtime.definitions()).hasSize(20).allSatisfy(definition ->
                 assertThat(definition.rendererBindingRevision())
                         .isEqualTo(EXPECTED_BINDING_CATALOG_REVISION));
     }

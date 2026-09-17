@@ -60,21 +60,24 @@ public class WorkplaceNativeWidgetProvider implements WidgetProviderPort {
                     "PROVIDER_DEADLINE_EXCEEDED",
                     "The Workplace Home provider deadline elapsed during execution.");
         }
-        List<WorkplaceDtos.Booking> projected = bookings.stream()
+        List<HomeBooking> projected = bookings.stream()
                 .filter(booking -> booking.endsAt().isAfter(now))
                 .limit(Math.max(1, Math.min(maximumItems,
                         HomeWidgetProviderContract.MAX_ITEM_LIMIT)))
+                .map(HomeBooking::from)
                 .toList();
         String resultVersion = canonicalJson.fingerprint(projected);
         List<HomeWidgetProviderContract.WidgetResult> results = new ArrayList<>();
         for (Request request : requests) {
-            if (!"APP.WORKPLACE".equals(request.definition().sourceAppResourceKey())) {
+            if (!"workplace.booking".equals(request.definition().definitionKey())
+                    || !"APP.WORKPLACE".equals(
+                    request.definition().sourceAppResourceKey())) {
                 throw new WidgetProviderException(
                         WidgetProviderException.Kind.MALFORMED,
                         "DEFINITION_NOT_SUPPORTED",
                         "The Workplace provider does not own the requested definition.");
             }
-            List<WorkplaceDtos.Booking> items = projected.stream()
+            List<HomeBooking> items = projected.stream()
                     .limit(Math.max(1, Math.min(request.itemLimit(),
                             HomeWidgetProviderContract.MAX_ITEM_LIMIT)))
                     .toList();
@@ -90,9 +93,9 @@ public class WorkplaceNativeWidgetProvider implements WidgetProviderPort {
             List<HomeWidgetProviderContract.Action> actions = items.isEmpty()
                     ? List.of()
                     : List.of(new HomeWidgetProviderContract.Action(
-                            "open-workplace", "home.action.openWorkplace",
+                            "open-source", "home.action.openSource",
                             HomeWidgetProviderContract.ActionKind.SOURCE_ROUTE,
-                            "/workplace/home", null, null, true));
+                            "/workplace/home", null, null, false));
             results.add(new HomeWidgetProviderContract.WidgetResult(
                     request.instanceId(), request.definition().definitionKey(),
                     request.definition().manifestHash(),
@@ -115,5 +118,29 @@ public class WorkplaceNativeWidgetProvider implements WidgetProviderPort {
                     "The Workplace Home provider deadline elapsed before disclosure.");
         }
         return response;
+    }
+
+    /** Explicit least-data Home projection; the full booking DTO never crosses this boundary. */
+    private record HomeBooking(
+            java.util.UUID bookingId,
+            String resourceName,
+            String resourceType,
+            String siteName,
+            String floorName,
+            OffsetDateTime startsAt,
+            OffsetDateTime endsAt,
+            String status,
+            boolean canCheckIn,
+            boolean canCancel,
+            OffsetDateTime checkInOpensAt,
+            OffsetDateTime checkInClosesAt) {
+
+        private static HomeBooking from(WorkplaceDtos.Booking booking) {
+            return new HomeBooking(
+                    booking.bookingId(), booking.resourceName(), booking.resourceType().name(),
+                    booking.siteName(), booking.floorName(), booking.startsAt(), booking.endsAt(),
+                    booking.status().name(), booking.canCheckIn(), booking.canCancel(),
+                    booking.checkInOpensAt(), booking.checkInClosesAt());
+        }
     }
 }

@@ -402,7 +402,7 @@ public class WidgetRuntimeBroker {
         return switch (sourceAppResourceKey) {
             case "APP.WORK", "APP.CALENDAR", "APP.ACTIVITY" -> "platform";
             case "APP.WORKPLACE" -> "workplace";
-            case "APP.ASK" -> "dwaion";
+            case "APP.DWAION_ARTIFACTS" -> "dwaion";
             case "APP.APPROVALS" -> "approval";
             case "APP.MEETINGS" -> "meeting";
             case "APP.NOTIFICATIONS" -> "notification";

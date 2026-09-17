@@ -116,7 +116,7 @@ class HomeRuntimeRolloutDecisionResolverTest {
         when(catalog.isHomeRuntimeBaseline(any())).thenReturn(true);
         when(catalog.authorityEvidence()).thenReturn(
                 new WidgetRegistryActivationInterlock.AuthorityEvidence(
-                        "SHADOW", false, 19, "binding-revision-1234567890", 7));
+                        "SHADOW", false, 21, "binding-revision-1234567890", 7));
         return new HomeRuntimeRolloutDecisionResolver(
                 runtime, rollout, new HomeModeV4ActivationGate(false), controls,
                 interlock, catalog);

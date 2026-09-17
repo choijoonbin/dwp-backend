@@ -11,6 +11,9 @@ dependencies {
     implementation 'software.amazon.awssdk:s3:2.53.3'
     implementation 'software.amazon.awssdk:url-connection-client:2.53.3'
     implementation 'io.github.erdtman:java-json-canonicalization:1.1'
+    // Optional, fail-closed distributed admission for Home shadow-comparison metrics.
+    // The client is created only when the Home admission property is enabled.
+    implementation 'io.lettuce:lettuce-core'
 
     implementation 'org.flywaydb:flyway-core'
     implementation 'org.flywaydb:flyway-database-postgresql'

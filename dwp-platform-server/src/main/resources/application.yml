@@ -132,6 +132,18 @@ dwp:
       stale-if-error: ${DWP_HOME_RUNTIME_STALE_IF_ERROR:PT5M}
       maximum-cache-entries: ${DWP_HOME_RUNTIME_MAXIMUM_CACHE_ENTRIES:10000}
       maximum-provider-payload-bytes: ${DWP_HOME_RUNTIME_MAXIMUM_PROVIDER_PAYLOAD_BYTES:262144}
+      # Distributed receipt admission is opt-in and fail closed. Enable it for every
+      # multi-pod shadow cohort; without it comparison receipts return 202 but do not
+      # contribute to parity metrics.
+      shadow-receipt-admission:
+        redis-enabled: ${DWP_HOME_SHADOW_RECEIPT_REDIS_ENABLED:false}
+        privacy-hash-secret: ${DWP_HOME_SHADOW_RECEIPT_PRIVACY_HASH_SECRET:}
+        redis:
+          host: ${REDIS_HOST:localhost}
+          port: ${REDIS_PORT:6379}
+          password: ${REDIS_PASSWORD:}
+          ssl-enabled: ${DWP_HOME_SHADOW_RECEIPT_REDIS_SSL_ENABLED:false}
+          timeout: ${DWP_HOME_SHADOW_RECEIPT_REDIS_TIMEOUT:PT0.5S}
       providers:
         approval:
           url: ${DWP_HOME_PROVIDER_APPROVAL_URL:http://localhost:8005}

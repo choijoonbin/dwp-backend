@@ -18,16 +18,24 @@ final class Wave4OwnerWidgetPolicySeeder {
                     reason_code, reason_text, created_by)
                 SELECT md5('wave4-owner-widget-policy:' || ? || ':' || definition_id)::uuid,
                        ?, definition_id, 1, 'PUBLISHED',
-                       definition_key = 'notification.app-badges',
+                       definition_key IN ('notification.app-badges', 'workplace.booking'),
                        'CHANNEL', 'STABLE', NULL,
                        '["workspace-home"]'::jsonb,
                        '{"schemaVersion":1,"mode":"ALL_ENTITLED","roleCodes":[],"groupRefs":[]}'::jsonb,
                        FALSE, '{}'::jsonb, 'PRIVATE', NULL,
                        CASE WHEN definition_key = 'notification.app-badges'
                             THEN 'WAVE4_APP_BADGE_PROJECTION'
+                            WHEN definition_key = 'workplace.booking'
+                            THEN 'WAVE6_WORKPLACE_HOME_PROJECTION'
+                            WHEN definition_key = 'dwaion.artifact'
+                            THEN 'WAVE6_OWNER_PROVIDER_PENDING'
                             ELSE 'WAVE5_RENDERER_PENDING' END,
                        CASE WHEN definition_key = 'notification.app-badges'
                             THEN 'Wave 4 authoritative app badge projection'
+                            WHEN definition_key = 'workplace.booking'
+                            THEN 'Wave 6 recipient-bound Workplace booking projection'
+                            WHEN definition_key = 'dwaion.artifact'
+                            THEN 'DWAI.ON Home slot stays disabled until its owner provider is available'
                             ELSE 'Wave 4 owner provider registered; renderer activation deferred to Wave 5' END,
                        1
                   FROM plt_widget_definitions
@@ -37,7 +45,8 @@ final class Wave4OwnerWidgetPolicySeeder {
                     'notification.app-badges', 'notification.response-queue',
                     'space.change-feed', 'space.response-queue',
                     'messaging.response-queue', 'messaging.change-feed',
-                    'hr.edu', 'hr.team-pulse')
+                    'hr.edu', 'hr.team-pulse',
+                    'workplace.booking', 'dwaion.artifact')
                 ON CONFLICT (tenant_id, definition_id, revision_number) DO NOTHING
                 """, tenantId, tenantId);
         jdbc.update("""
@@ -55,7 +64,8 @@ final class Wave4OwnerWidgetPolicySeeder {
                     'notification.app-badges', 'notification.response-queue',
                     'space.change-feed', 'space.response-queue',
                     'messaging.response-queue', 'messaging.change-feed',
-                    'hr.edu', 'hr.team-pulse')
+                    'hr.edu', 'hr.team-pulse',
+                    'workplace.booking', 'dwaion.artifact')
                 ON CONFLICT (tenant_id, definition_id) DO NOTHING
                 """, tenantId, tenantId, tenantId);
     }

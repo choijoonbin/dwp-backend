@@ -64,8 +64,27 @@ class HomeNativeProviderContractTest {
             assertThat(result.state()).isEqualTo(HomeWidgetProviderContract.State.AVAILABLE);
             assertThat(result.source().sourceKey()).isEqualTo("WORKPLACE_HOME");
             assertThat(result.payload()).containsKey("items");
+            assertThat(objectMapper.valueToTree(result.payload()).toString())
+                    .doesNotContain("resourceId")
+                    .doesNotContain("purpose")
+                    .doesNotContain("visibleToColleagues")
+                    .doesNotContain("checkedInAt")
+                    .doesNotContain("releasedAt")
+                    .doesNotContain("version");
             assertThat(result.actions()).singleElement().satisfies(action ->
-                    assertThat(action.sourceRoute()).isEqualTo("/workplace/home"));
+                    assertThat(action)
+                            .returns("open-source", HomeWidgetProviderContract.Action::actionId)
+                            .returns("home.action.openSource",
+                                    HomeWidgetProviderContract.Action::labelKey)
+                            .returns(HomeWidgetProviderContract.ActionKind.SOURCE_ROUTE,
+                                    HomeWidgetProviderContract.Action::kind)
+                            .returns("/workplace/home",
+                                    HomeWidgetProviderContract.Action::sourceRoute)
+                            .returns(null, HomeWidgetProviderContract.Action::commandKey)
+                            .returns(null,
+                                    HomeWidgetProviderContract.Action::expectedResultVersion)
+                            .returns(false,
+                                    HomeWidgetProviderContract.Action::requiresConfirmation));
         });
         verify(workplace).myBookings(
                 org.mockito.ArgumentMatchers.eq(context.tenantId()),
@@ -79,7 +98,7 @@ class HomeNativeProviderContractTest {
     void dwaionIsExplicitlyInactiveAndCannotLeakDataDuringWaveFour() {
         HomeRuntimeContext context = context();
         WidgetProviderPort.Request request = request(
-                "dwaion.artifact", "dwaion-artifact", "APP.ASK");
+                "dwaion.artifact", "dwaion-artifact", "APP.DWAION_ARTIFACTS");
 
         HomeWidgetProviderContract.BatchResponse response = new InactiveDwaionWidgetProvider()
                 .readBatch(context, List.of(request),
@@ -89,7 +108,8 @@ class HomeNativeProviderContractTest {
 
         assertThat(response.results()).singleElement().satisfies(result -> {
             assertThat(result.state()).isEqualTo(HomeWidgetProviderContract.State.UNAVAILABLE);
-            assertThat(result.source().reasonCode()).isEqualTo("PROVIDER_INACTIVE_WAVE4");
+            assertThat(result.source().reasonCode())
+                    .isEqualTo("OWNER_PROVIDER_NOT_CONFIGURED");
             assertThat(result.source().retryable()).isFalse();
             assertThat(result.payload()).isEmpty();
             assertThat(result.actions()).isEmpty();
@@ -125,7 +145,7 @@ class HomeNativeProviderContractTest {
     private HomeRuntimeContext context() {
         return HomeRuntimeContext.create(
                 71L, 82L, UUID.randomUUID(),
-                "APP.WORKPLACE:VIEW,APP.ASK:VIEW", "MEMBER", "team-a",
+                "APP.WORKPLACE:VIEW,APP.DWAION_ARTIFACTS:VIEW", "MEMBER", "team-a",
                 "decision-17", OffsetDateTime.now(ZoneOffset.UTC).plusMinutes(5).toString(),
                 "ko-KR", "Asia/Seoul");
     }
@@ -139,7 +159,8 @@ class HomeNativeProviderContractTest {
                         UUID.randomUUID(), definitionKey, legacyKey, UUID.randomUUID(), "1.0.0",
                         "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                         "binding-1", "home." + legacyKey,
-                        sourceApp.equals("APP.ASK") ? "ai.agent-runtime" : "core.workplace",
+                        sourceApp.equals("APP.DWAION_ARTIFACTS")
+                                ? "ai.agent-runtime" : "core.workplace",
                         sourceApp, List.of(sourceApp + ":VIEW"),
                         "CONFIDENTIAL", "NONE", 30,
                         WidgetRegistryDtos.EffectiveCatalogState.AVAILABLE, List.of());

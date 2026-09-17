@@ -109,26 +109,26 @@ class WidgetRegistryMigrationPostgresIntegrationTest {
 
         assertOwnerProviderFixturePersisted();
 
-        assertThat(count("plt_widget_definitions")).isEqualTo(19);
-        assertThat(count("plt_widget_definition_versions")).isEqualTo(22);
-        assertThat(count("plt_widget_renderer_bindings")).isEqualTo(19);
-        assertThat(count("plt_widget_release_channels")).isEqualTo(19);
-        assertThat(count("plt_widget_evidence")).isEqualTo(46);
+        assertThat(count("plt_widget_definitions")).isEqualTo(21);
+        assertThat(count("plt_widget_definition_versions")).isEqualTo(24);
+        assertThat(count("plt_widget_renderer_bindings")).isEqualTo(21);
+        assertThat(count("plt_widget_release_channels")).isEqualTo(21);
+        assertThat(count("plt_widget_evidence")).isEqualTo(52);
         long activeTenants = jdbc.queryForObject(
                 "SELECT count(*) FROM sys_service_tenants WHERE lifecycle_state <> 'RETIRED'",
                 Long.class);
-        assertThat(count("adm_tenant_widget_policy_heads")).isEqualTo(activeTenants * 19);
+        assertThat(count("adm_tenant_widget_policy_heads")).isEqualTo(activeTenants * 21);
         assertThat(jdbc.queryForObject("""
                 SELECT count(*) FROM adm_tenant_widget_policy_revisions
                  WHERE audience_selector = '{"schemaVersion":1,"mode":"ALL_ENTITLED","roleCodes":[],"groupRefs":[]}'::jsonb
-                """, Long.class)).isEqualTo(activeTenants * 19);
+                """, Long.class)).isEqualTo(activeTenants * 21);
         assertThat(jdbc.queryForMap("""
                 SELECT migration_mode, runtime_activation_ready, registry_revision
                   FROM plt_widget_registry_state WHERE environment = 'GLOBAL'
                 """))
                 .containsEntry("migration_mode", "SHADOW")
                 .containsEntry("runtime_activation_ready", false)
-                .containsEntry("registry_revision", 23L);
+                .containsEntry("registry_revision", 25L);
 
         assertThat(jdbc.queryForList("""
                 SELECT d.legacy_widget_key, v.semantic_version
@@ -209,24 +209,25 @@ class WidgetRegistryMigrationPostgresIntegrationTest {
                  WHERE h.tenant_id = ?
                  ORDER BY d.legacy_widget_key
                 """, String.class, tenantId)).containsExactly(
-                        "activity", "application-dock", "command-rail", "daily-brief", "focus",
+                        "activity", "application-dock", "command-rail", "daily-brief",
+                        "dwaion-artifact", "focus",
                         "focus-balance", "focus-queue", "hr-education", "hr-team-pulse",
                         "meeting-followups", "meeting-load", "meeting-next-prep",
                         "messaging-change-feed", "messaging-response-queue", "my-requests",
                         "notification-response-queue", "schedule", "space-change-feed",
-                        "space-response-queue");
+                        "space-response-queue", "workplace-booking");
         assertThat(jdbc.queryForObject("""
                 SELECT count(*)
                   FROM adm_tenant_widget_policy_revisions r
                  WHERE r.tenant_id = ? AND r.revision_number = 1
                    AND r.policy_state = 'PUBLISHED' AND r.enabled
-                """, Integer.class, tenantId)).isEqualTo(8);
+                """, Integer.class, tenantId)).isEqualTo(9);
         assertThat(jdbc.queryForObject("""
                 SELECT count(*)
                   FROM adm_tenant_widget_policy_revisions r
                  WHERE r.tenant_id = ? AND r.revision_number = 1
                    AND r.policy_state = 'PUBLISHED' AND NOT r.enabled
-                """, Integer.class, tenantId)).isEqualTo(11);
+                """, Integer.class, tenantId)).isEqualTo(12);
         assertThat(jdbc.queryForObject("""
                 SELECT required_widget
                   FROM adm_tenant_widget_policy_revisions r

@@ -55,7 +55,8 @@ public final class ApprovedHomeApplicationCatalog {
             "APP.MAIL_CALENDAR", "APP.MAIL",
             "APP.COLLABORATION", "APP.MESSAGING",
             "APP.ROOMS", "APP.WORKPLACE",
-            "APP.HRIS", "APP.HCM");
+            "APP.HRIS", "APP.HCM",
+            "APP.DWAION_ARTIFACTS", "APP.ASK");
     private static final Map<String, Application> BY_RESOURCE = index();
 
     private ApprovedHomeApplicationCatalog() {

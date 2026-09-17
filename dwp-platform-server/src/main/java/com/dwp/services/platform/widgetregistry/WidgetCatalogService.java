@@ -169,7 +169,19 @@ public class WidgetCatalogService {
                     "9cf2e1770e377a3a7a7721ee795beaf9ad1649bac8a8977046e9990f9c6604df",
                     "home.hr.team-pulse", "core.people", "APP.HCM",
                     "36000000-0000-0000-0000-000000000012",
-                    "36100000-0000-0000-0000-000000000012"));
+                    "36100000-0000-0000-0000-000000000012"),
+            new BaselineWidget(
+                    "workplace.booking", "1.0.0",
+                    "3da8f665137fd670411f87893af302133cea70fda9a402fce690f85686c2869e",
+                    "home.workplace.booking", "core.workplace", "APP.WORKPLACE",
+                    "36400000-0000-0000-0000-000000000001",
+                    "36500000-0000-0000-0000-000000000001"),
+            new BaselineWidget(
+                    "dwaion.artifact", "1.0.0",
+                    "a525bf1c6b926984a0978386f74aeb055c6e81db0813b9ea6b2443384de188e7",
+                    "home.dwaion.artifact", "ai.agent-runtime", "APP.DWAION_ARTIFACTS",
+                    "36400000-0000-0000-0000-000000000002",
+                    "36500000-0000-0000-0000-000000000002"));
     private final WidgetRegistryLedger ledger;
     private final WidgetDefinitionRepository definitions;
     private final WidgetDefinitionVersionRepository versions;
