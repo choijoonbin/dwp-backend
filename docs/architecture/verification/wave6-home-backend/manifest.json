@@ -2,11 +2,11 @@
   "schemaVersion": 1,
   "gateId": "DWP-HOME-WAVE6-BACKEND-GUARDED-ROLLOUT",
   "status": "PASS_PREPRODUCTION_INPUT",
-  "sealedAtUtc": "2026-09-16T15:41:07+00:00",
-  "scope": "Wave 6 Home runtime authority, rollout, provider isolation, command idempotency, trusted telemetry and OpenAPI contracts",
+  "sealedAtUtc": "2026-09-17T00:57:22+00:00",
+  "scope": "Wave 6 Home runtime authority, distributed shadow admission, Flow expressive-mesh owner contracts, rollout, provider isolation, command idempotency, trusted telemetry and OpenAPI contracts",
   "baseCommit": "23906591226f4eb0822667507e8b6df40bb84585",
   "initialImplementationCommit": "4f290885831c76c5facbbabb5e77d0204ce1e9d0",
-  "productCommit": "e310f78a7d126b0ae409745cb90033e401a5981f",
+  "productCommit": "5ed6e350cb731b81f0483efe70db9aaa70dde3b2",
   "activationDefaults": {
     "runtimeEnabled": false,
     "shadowEnabled": true,
@@ -20,10 +20,13 @@
     "stable authority fingerprint and early receipt replay for durable command idempotency",
     "exact provider-definition-version-action command allowlist with current control revalidation",
     "recipient-bound provider isolation, stale fallback and partial-failure behavior",
-    "bounded legacy-v2 semantic shadow comparison receipt admission",
+    "distributed atomic, privacy-hashed and bounded shadow-comparison receipt admission",
     "trusted Web Vitals dimensions and bounded Home runtime metrics",
     "security violation counters at provider scope/authority and owner receipt rejection points",
-    "generated Platform and Gateway OpenAPI snapshots"
+    "generated Platform and Gateway OpenAPI snapshots",
+    "recipient-bound least-data Workplace booking projection and exact source-route action contract",
+    "fail-closed disabled DWAI.ON artifact slot with exact artifact authority and no payload or actions",
+    "append-only exact-drift Registry manifests, evidence, channels and tenant policies for the Flow expressive mesh"
   ],
   "verification": {
     "platformIntegratedHomeTelemetry": {
@@ -74,9 +77,23 @@
       "p0": 0,
       "p1": 0,
       "nonBlocking": [
-        "Shadow receipt admission dedupe and rate limiting are process-local, so multi-pod comparison metrics can duplicate.",
-        "Actual release automation transition receipts and production observations remain LIVE_PENDING."
+        "DWAI.ON artifact data remains deliberately disabled and UNAVAILABLE until the owner service publishes an authenticated recipient-bound artifact provider endpoint.",
+        "Actual Redis TLS deployment evidence, release-automation transition receipts and production observations remain LIVE_PENDING."
       ]
+    },
+    "distributedShadowAdmissionImpact": {
+      "status": "PASS",
+      "classes": 2,
+      "tests": 6,
+      "failed": 0,
+      "note": "Real Redis 7.4 integration proves cross-connection atomic dedupe, rate/capacity bounds, HMAC privacy and outage fail-closed behavior; comparator regression remains sealed."
+    },
+    "expressiveMeshProviderImpact": {
+      "status": "PASS",
+      "classes": 3,
+      "logicalTests": 19,
+      "failed": 0,
+      "note": "Focused provider plus Registry migration/control-plane tests passed after correcting only newly introduced fixture and migration-parser issues."
     }
   },
   "safety": {
@@ -92,7 +109,10 @@
       "reason"
     ],
     "rollbackMetricSource": "release_automation",
-    "rollbackMetricBoundary": "No request-level rollback emission; live source requires a durable before/after transition receipt."
+    "rollbackMetricBoundary": "No request-level rollback emission; live source requires a durable before/after transition receipt.",
+    "shadowReceiptAdmission": "REDIS_ATOMIC_HMAC_SHA256_TTL_AND_CAPACITY_BOUNDED_FAIL_CLOSED",
+    "workplaceProjection": "RECIPIENT_BOUND_LEAST_DATA_READ_ONLY_SOURCE_ROUTE",
+    "dwaionProjection": "POLICY_DISABLED_OWNER_PROVIDER_NOT_CONFIGURED_EMPTY_PAYLOAD_AND_ACTIONS"
   },
   "verificationScopePolicy": {
     "sessionHomeChangesOnly": true,
@@ -102,8 +122,8 @@
   },
   "sourceIntegrity": {
     "algorithm": "sha256(sorted lines: <file-sha256><two spaces><repo-relative-path><newline>)",
-    "sha256": "460b5ceb89c01d0a0078463eed06d5e92c4ab502835a757fe4be9fbf07794edc",
-    "fileCount": 76,
+    "sha256": "94ff208004fe1ec6e413fc3a6fc58d2e88035e0b5365917d64723b52f7910a1c",
+    "fileCount": 86,
     "files": [
       {
         "path": "contracts/home-runtime/platform-owner-actions.v1.json",
@@ -196,6 +216,16 @@
         "sha256": "791c5b0a692ccef7ce996c3b12ec665894e9d6318da9afad737588023cf7f0fa"
       },
       {
+        "path": "dwp-platform-server/build.gradle",
+        "bytes": 1761,
+        "sha256": "f37ff7187a1434a232710885e7dc26ea617330ec30b7094c9dc92d052dee1c14"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/ApprovedHomeApplicationCatalog.java",
+        "bytes": 6664,
+        "sha256": "c3529b167c7eb59a6c9627d6fce67e6ef4617c9e408c3bddf32834744147bb19"
+      },
+      {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeOwnerActionContracts.java",
         "bytes": 3415,
         "sha256": "7b851b250fc0ee6d97c91a217a222fdf4c075062be939ea5fde75f44e38fefd3"
@@ -261,9 +291,19 @@
         "sha256": "9fe6aaf8496774345dd17290255ba5160037f94e5a3cc2c09605dc99d29e4375"
       },
       {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeShadowReceiptAdmissionConfiguration.java",
+        "bytes": 3478,
+        "sha256": "c23b0cfd3a048d0266f6fb5d95e110f4d5a93753f6e9e932c4573f7a15903f7b"
+      },
+      {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeShadowReceiptAdmissionGuard.java",
+        "bytes": 429,
+        "sha256": "4d02e03cde2b67c97f935eab93a4aef59a29392c5007026f9df32ad9050355ed"
+      },
+      {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeShadowReceiptController.java",
-        "bytes": 15315,
-        "sha256": "34a806879102b9b1216f28c45f5304e9e1bd073d99e49c67f92ca5bb186d30b7"
+        "bytes": 15779,
+        "sha256": "b351eedea5b39c5f9fbf3fcce25c17d17a68872b700093220d26ec798881caf7"
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/HomeWidgetCommandService.java",
@@ -277,8 +317,8 @@
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/InactiveDwaionWidgetProvider.java",
-        "bytes": 2784,
-        "sha256": "5569d4ab273439a257fc950c58ab80163af2df03755b80e7fee8aea8115a30ad"
+        "bytes": 3375,
+        "sha256": "f809a4073fff5fcee9762bf9d07a05ad2c18c62d488b0e59a20d38ece53fddfb"
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/PlatformNativeWidgetProvider.java",
@@ -296,19 +336,24 @@
         "sha256": "6e639fd5b545c495faf6092f6b3afa520930448c6ed6e476c8af4d07f5d42cec"
       },
       {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/RedisHomeShadowReceiptAdmissionGuard.java",
+        "bytes": 7064,
+        "sha256": "ca997f12dd940c7690bd2ed2274b57bd0f3990094339f07b5ca7e89b8a5235df"
+      },
+      {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/WidgetProviderException.java",
         "bytes": 1266,
         "sha256": "8be13cccc302a9ca5cca21c5b10a13ab83c574051b62286a546e914d64bd0bec"
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/WidgetRuntimeBroker.java",
-        "bytes": 23763,
-        "sha256": "49319be2d1b3c0ecf9b51f95cfa50686aec4dab8768c477908bf25eb5e76a1a4"
+        "bytes": 23776,
+        "sha256": "8592101866ada73104af3d7ecf40bd99018c7d51515af0dacd31944b91faa804"
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/home/runtime/WorkplaceNativeWidgetProvider.java",
-        "bytes": 5901,
-        "sha256": "5682336fde29bc6c5912f97410e841d557e4586f24bf8f3106001eae0be1ee77"
+        "bytes": 7054,
+        "sha256": "f779ace5b192111f02aeb5b149b71ddf1ca6a0f526620c0da387124539bd1981"
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/observability/WebVitalsController.java",
@@ -316,9 +361,14 @@
         "sha256": "39c268a1bbf25372c801128330664919b71dcceb8f726f676c189567fbd5fee3"
       },
       {
+        "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/provisioning/Wave4OwnerWidgetPolicySeeder.java",
+        "bytes": 4236,
+        "sha256": "79363206e74da38c6725a6ae294db69535951d12f3b948ebc5f02a9382d47254"
+      },
+      {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetCatalogService.java",
-        "bytes": 37361,
-        "sha256": "53bf810be5a312a017abe9ce6fe8dd8cee1da559def50c9d446184d5966ba817"
+        "bytes": 38110,
+        "sha256": "450da489a394fdf61ee24d43854af51f3ba9f46b276852c9521770bf7dc45fd9"
       },
       {
         "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/WidgetRegistryDtos.java",
@@ -367,8 +417,8 @@
       },
       {
         "path": "dwp-platform-server/src/main/resources/application.yml",
-        "bytes": 10978,
-        "sha256": "d12837e92f90e6bfcbaf40351560b1c2f5beb2e6b2e7800e4ec19fbb43e3a963"
+        "bytes": 11636,
+        "sha256": "b907230c0597ba4f943d22686f3b9869ef5cfea735d0e8f2a1953758886b9bce"
       },
       {
         "path": "dwp-platform-server/src/main/resources/db/migration/V263__wire_home_runtime_rollout_controls.sql",
@@ -376,9 +426,14 @@
         "sha256": "a60fcdd938582e2c6716f016b4d6cebdb8af3397dd8cfd57e4e29e937cd037e0"
       },
       {
+        "path": "dwp-platform-server/src/main/resources/db/migration/V264__register_flow_expressive_mesh_providers.sql",
+        "bytes": 20204,
+        "sha256": "4d2e2cb1d195bc0bbff52cc668fe6eafc4acaf8915c4e07d9c78a1198cba0de8"
+      },
+      {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeNativeProviderContractTest.java",
-        "bytes": 8180,
-        "sha256": "c913466b09c93d2565e66bc31fa27eed709447b6f883904d7c060d481418d3fa"
+        "bytes": 9529,
+        "sha256": "61bb0aca4f8eafa02bcd67510bccf15cc67439ab6fc356725d6426a800a8a650"
       },
       {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeOwnerActionCommandGateTest.java",
@@ -428,7 +483,7 @@
       {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeRuntimeRolloutDecisionResolverTest.java",
         "bytes": 7317,
-        "sha256": "1bf148fd26d7c62f85b07b6f60e83df63500a8aafca48c1413a68920dd0d91a2"
+        "sha256": "4c170dd8af11afbfa41293b7cfdb212cef3207a356320c7d15b1f8a5118c73a5"
       },
       {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/HomeWidgetCommandServiceTest.java",
@@ -439,6 +494,11 @@
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/RecipientBoundWidgetCacheTest.java",
         "bytes": 3996,
         "sha256": "ba45c1a6a8b2d32d82c0fe918facb5d45def4ac091ffcd6045e484eb0f262e1d"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/RedisHomeShadowReceiptAdmissionGuardTest.java",
+        "bytes": 5067,
+        "sha256": "77720ddbf5041876dba61cbdb63be5210b3607ebd923f4d95da0966112324faa"
       },
       {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/home/runtime/TestFixtures.java",
@@ -459,6 +519,16 @@
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/observability/WebVitalsControllerTest.java",
         "bytes": 3389,
         "sha256": "15f76687a8dca995e7f52c43bf74ecfb18597bf94ad2992bf85a334b771016a1"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/widgetregistry/WidgetRegistryControlPlanePostgresIntegrationTest.java",
+        "bytes": 42761,
+        "sha256": "9ffe59fd079e9667e07886be60ffd8c1f00d92f9c17b524205b3de9a26dc2a1e"
+      },
+      {
+        "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/widgetregistry/WidgetRegistryMigrationPostgresIntegrationTest.java",
+        "bytes": 21791,
+        "sha256": "ec957d1f54a61e4ebe7d837b321af840d76ce55e24a1e2477f4a2c08367b098b"
       },
       {
         "path": "dwp-platform-server/src/test/java/com/dwp/services/platform/widgetregistry/WidgetRuntimeControlExpiryTest.java",
@@ -486,5 +556,12 @@
         "sha256": "613d2b3dc8a41070c244fce8624aca713217dbdba491c7036849ee182d7d8ef7"
       }
     ]
+  },
+  "livePrerequisites": {
+    "shadowReceiptRedisEnabledOnEveryPod": true,
+    "redisTlsRequired": true,
+    "sharedPrivacyHashSecretMinimumBytes": 32,
+    "secretValueMayAppearInEvidence": false,
+    "dwaionOwnerEndpointRequiredForAvailableState": true
   }
 }
