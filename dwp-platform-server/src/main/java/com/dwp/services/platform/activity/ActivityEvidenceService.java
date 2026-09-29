@@ -2,7 +2,6 @@ package com.dwp.services.platform.activity;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,16 +19,11 @@ public class ActivityEvidenceService {
     private final ActivityEvidenceRepository repository;
     private final boolean localFixtures;
 
-    @Autowired
     public ActivityEvidenceService(
             ActivityEvidenceRepository repository,
             @Value("${dwp.platform.activity.local-fixtures-enabled:false}") boolean localFixtures) {
         this.repository = repository;
         this.localFixtures = localFixtures;
-    }
-
-    ActivityEvidenceService(ActivityEvidenceRepository repository) {
-        this(repository, false);
     }
 
     public ActivityEvidenceDtos.Evidence evidence(Long tenant, Long user, String permissions, UUID eventId) {

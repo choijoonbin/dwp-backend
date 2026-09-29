@@ -26,7 +26,7 @@ class ActivityControllerTest {
     void setUp() {
         repository = mock(ActivityRepository.class);
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
-        ActivityService service = new ActivityService(repository, new ActivityCursor(mapper));
+        ActivityService service = new ActivityService(repository, new ActivityCursor(mapper), false);
         var security = new PlatformSecurityFilter("trusted", "runtime", false, mapper,
                 new PlatformCanaryPepRegistry(mapper), new PlatformApprovalsPepRegistry(mapper));
         mvc = standaloneSetup(new ActivityController(service))

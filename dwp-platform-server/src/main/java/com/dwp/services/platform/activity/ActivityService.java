@@ -3,7 +3,6 @@ package com.dwp.services.platform.activity;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.workspace.WorkspaceDtos;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
@@ -24,7 +23,6 @@ public class ActivityService {
     private final ActivityCursor cursor;
     private final boolean localFixtures;
 
-    @Autowired
     public ActivityService(
             ActivityRepository repository,
             ActivityCursor cursor,
@@ -32,10 +30,6 @@ public class ActivityService {
         this.repository = repository;
         this.cursor = cursor;
         this.localFixtures = localFixtures;
-    }
-
-    ActivityService(ActivityRepository repository, ActivityCursor cursor) {
-        this(repository, cursor, false);
     }
 
     public WorkspaceDtos.ActivityFeed list(
@@ -60,11 +54,6 @@ public class ActivityService {
         return repository.detail(tenant, user, require(tenant, user, permissions), korean(locale), id,
                         localFixtures)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-    }
-
-    @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)
-    public WorkspaceDtos.ExecutionSummary summary(Long tenant, Long user, String permissions) {
-        return summary(tenant, user, permissions, null);
     }
 
     @Transactional(readOnly = true, isolation = Isolation.REPEATABLE_READ)

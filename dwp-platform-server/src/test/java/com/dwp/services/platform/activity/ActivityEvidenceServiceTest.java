@@ -12,7 +12,7 @@ import static org.mockito.Mockito.*;
 
 class ActivityEvidenceServiceTest {
     private final ActivityEvidenceRepository repository = mock(ActivityEvidenceRepository.class);
-    private final ActivityEvidenceService service = new ActivityEvidenceService(repository);
+    private final ActivityEvidenceService service = new ActivityEvidenceService(repository, false);
     private final UUID event = UUID.randomUUID();
     private final UUID audit = UUID.randomUUID();
     private static final String ACCESS = "APP.ACTIVITY:VIEW,APP.WORK:VIEW";

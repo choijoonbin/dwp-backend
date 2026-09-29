@@ -93,7 +93,7 @@ class PersonalWorkActivityPostgresIntegrationTest {
         personal = new PersonalWorkService(new PersonalWorkRepository(jdbc), new PersonalWorkAccess(),
                 List.of(), audit, mapper);
         var repository = new ActivityRepository(new NamedParameterJdbcTemplate(jdbc));
-        activity = new ActivityService(repository, new ActivityCursor(mapper));
+        activity = new ActivityService(repository, new ActivityCursor(mapper), false);
         evidence = new ActivityEvidenceRepository(new NamedParameterJdbcTemplate(jdbc));
     }
 
@@ -233,13 +233,14 @@ class PersonalWorkActivityPostgresIntegrationTest {
         assertThat(deleted.sourceAccess()).isEqualTo("DELETED");
         assertThat(deleted.sourceRoute()).isNull();
         assertThat(evidence.evidence(tenant, 41L,
-                Set.of("APP.ACTIVITY:VIEW", "APP.WORK:VIEW"), deleted.id())).isPresent();
+                Set.of("APP.ACTIVITY:VIEW", "APP.WORK:VIEW"), deleted.id(), false)).isPresent();
 
         assertThat(activity.list(tenant, 41L, "APP.ACTIVITY:VIEW", "en",
                 ActivityQuery.defaults()).events()).isEmpty();
         assertThatThrownBy(() -> activity.detail(tenant, 41L, "APP.ACTIVITY:VIEW", "en", deleted.id()))
                 .isInstanceOf(BaseException.class);
-        assertThat(evidence.evidence(tenant, 41L, Set.of("APP.ACTIVITY:VIEW"), deleted.id())).isEmpty();
+        assertThat(evidence.evidence(
+                tenant, 41L, Set.of("APP.ACTIVITY:VIEW"), deleted.id(), false)).isEmpty();
         assertThatThrownBy(() -> activity.detail(tenant, 42L, ACTIVITY_ACCESS, "en", deleted.id()))
                 .isInstanceOf(BaseException.class);
         assertThatThrownBy(() -> activity.detail(tenant + 1, 41L, ACTIVITY_ACCESS, "en", deleted.id()))

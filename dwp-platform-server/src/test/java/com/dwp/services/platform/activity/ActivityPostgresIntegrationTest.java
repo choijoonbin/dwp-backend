@@ -109,7 +109,7 @@ class ActivityPostgresIntegrationTest {
                 """, work, tenant);
         saveAudit(tenant, audit);
         service = new ActivityService(new ActivityRepository(new NamedParameterJdbcTemplate(jdbc)),
-                new ActivityCursor(new ObjectMapper().findAndRegisterModules()));
+                new ActivityCursor(new ObjectMapper().findAndRegisterModules()), false);
     }
 
     @Test
@@ -153,7 +153,7 @@ class ActivityPostgresIntegrationTest {
         assertThat(event.auditId()).isEqualTo(audit.toString());
         assertThat(event.correlationId()).isEqualTo("corr");
         assertThat(event.sourceRoute()).isEqualTo("/work?item=WK-TEST");
-        assertThat(service.summary(tenant, 7L, ACCESS).total()).isZero();
+        assertThat(service.summary(tenant, 7L, ACCESS, "en").total()).isZero();
         assertThatThrownBy(() -> repository.addWorkActivity(tenant, 7L, row, "WAITING",
                 "변경", "Changed", "요약", "Summary", audit, "corr")).isInstanceOf(DataAccessException.class);
         assertThatThrownBy(() -> jdbc.update("UPDATE wrk_activity_events SET event_state='RUNNING' WHERE activity_event_id=?",
@@ -208,7 +208,7 @@ class ActivityPostgresIntegrationTest {
                 .isEqualTo(localEvent);
         assertThatThrownBy(() -> localService.detail(tenant, 7L, ACCESS, "en", localEvent))
                 .isInstanceOf(BaseException.class);
-        assertThat(localService.summary(tenant, 900018L, ACCESS).total()).isZero();
+        assertThat(localService.summary(tenant, 900018L, ACCESS, "en").total()).isZero();
 
         // A fixture created by an older script must not become visible merely because
         // it was incorrectly labelled LIVE. The reserved marker is fail-closed.
@@ -231,7 +231,7 @@ class ActivityPostgresIntegrationTest {
                 .extracting(WorkspaceDtos.ActivityEvent::id).containsExactly(localEvent);
         assertThatThrownBy(() -> localService.detail(tenant, 900018L, ACCESS, "en", staleLiveFixture))
                 .isInstanceOf(BaseException.class);
-        assertThat(localService.summary(tenant, 900018L, ACCESS).total()).isZero();
+        assertThat(localService.summary(tenant, 900018L, ACCESS, "en").total()).isZero();
     }
 
     @Test
@@ -266,7 +266,7 @@ class ActivityPostgresIntegrationTest {
         event("EXECUTION", "RUNNING", "run-two", 1L, 1, now, "retry one");
         event("EXECUTION", "FAILED", "run-two", 2L, 1, now, "failed one");
         event("EXECUTION", "NEEDS_INPUT", "run-two", 0L, 2, now, "retry two");
-        var summary = service.summary(tenant, 7L, ACCESS);
+        var summary = service.summary(tenant, 7L, ACCESS, "en");
         assertThat(summary.total()).isEqualTo(2); assertThat(summary.completed()).isEqualTo(1);
         assertThat(summary.needsInput()).isEqualTo(1); assertThat(summary.running()).isZero();
         assertThat(summary.failed()).isZero();
@@ -285,7 +285,7 @@ class ActivityPostgresIntegrationTest {
         var activityOnly = service.list(tenant, 7L, "APP.ACTIVITY:VIEW", "en", ActivityQuery.defaults());
         assertThat(activityOnly.events()).isEmpty();
         assertThat(activityOnly.coverage().supportedObjectTypes()).isEmpty();
-        var activityOnlySummary = service.summary(tenant, 7L, "APP.ACTIVITY:VIEW");
+        var activityOnlySummary = service.summary(tenant, 7L, "APP.ACTIVITY:VIEW", "en");
         assertThat(activityOnlySummary.total()).isZero();
         assertThat(activityOnlySummary.coverage().supportedObjectTypes()).isEmpty();
         for (long wrongTenant : new long[] {tenant + 1}) {
@@ -303,15 +303,15 @@ class ActivityPostgresIntegrationTest {
     @Test
     void foreignSourceOrNonTaskProjectionCannotAuthorizeHistoryDetailOrExecutionCounts() {
         UUID id = event("EXECUTION", "RUNNING", "native-run", 0L, 1, OffsetDateTime.now(), "native task");
-        assertThat(service.summary(tenant, 7L, ACCESS).total()).isEqualTo(1);
+        assertThat(service.summary(tenant, 7L, ACCESS, "en").total()).isEqualTo(1);
         jdbc.update("UPDATE wrk_items SET source_system='IT Service' WHERE work_item_id=?", work);
         assertThat(service.list(tenant, 7L, ACCESS, "en", ActivityQuery.defaults()).events()).isEmpty();
         assertThatThrownBy(() -> service.detail(tenant, 7L, ACCESS, "en", id)).isInstanceOf(BaseException.class);
-        assertThat(service.summary(tenant, 7L, ACCESS).total()).isZero();
+        assertThat(service.summary(tenant, 7L, ACCESS, "en").total()).isZero();
         jdbc.update("UPDATE wrk_items SET source_system='DWP_WORKSPACE',work_type='SERVICE' WHERE work_item_id=?", work);
         assertThat(service.list(tenant, 7L, ACCESS, "en", ActivityQuery.defaults()).events()).isEmpty();
         assertThatThrownBy(() -> service.detail(tenant, 7L, ACCESS, "en", id)).isInstanceOf(BaseException.class);
-        assertThat(service.summary(tenant, 7L, ACCESS).total()).isZero();
+        assertThat(service.summary(tenant, 7L, ACCESS, "en").total()).isZero();
     }
 
     @Test
@@ -378,7 +378,7 @@ class ActivityPostgresIntegrationTest {
                   ?,?,?, 'LIVE')
                 """, UUID.randomUUID(), tenant, work.toString(), UUID.randomUUID().toString(), audit);
         assertThat(service.list(tenant, 7L, ACCESS, "en", ActivityQuery.defaults()).events()).isEmpty();
-        assertThat(service.summary(tenant, 7L, ACCESS).total()).isZero();
+        assertThat(service.summary(tenant, 7L, ACCESS, "en").total()).isZero();
     }
 
     @Test

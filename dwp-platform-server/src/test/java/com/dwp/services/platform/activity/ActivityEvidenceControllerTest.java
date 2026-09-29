@@ -28,7 +28,7 @@ class ActivityEvidenceControllerTest {
         var mapper = new ObjectMapper().findAndRegisterModules();
         var security = new PlatformSecurityFilter("trusted", "runtime", false, mapper,
                 new PlatformCanaryPepRegistry(mapper), new PlatformApprovalsPepRegistry(mapper));
-        mvc = standaloneSetup(new ActivityEvidenceController(new ActivityEvidenceService(repository)))
+        mvc = standaloneSetup(new ActivityEvidenceController(new ActivityEvidenceService(repository, false)))
                 .setControllerAdvice(new GlobalExceptionHandler(new StaticMessageSource())).addFilters(security).build();
         when(repository.sources(anyLong(), anyLong(), anySet(), any(), anyBoolean()))
                 .thenReturn(List.of());

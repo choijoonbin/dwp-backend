@@ -123,7 +123,7 @@ class PersonalWorkActivityBackfillPostgresTest {
 
         var activity = new ActivityService(
                 new ActivityRepository(new NamedParameterJdbcTemplate(jdbc)),
-                new ActivityCursor(new ObjectMapper().findAndRegisterModules()));
+                new ActivityCursor(new ObjectMapper().findAndRegisterModules()), false);
         WorkspaceDtos.ActivityEvent event = activity.list(tenant, user,
                 "APP.ACTIVITY:VIEW,APP.WORK:VIEW", "en", ActivityQuery.defaults())
                 .events().stream().filter(candidate -> command.equals(candidate.idempotencyKey()))
