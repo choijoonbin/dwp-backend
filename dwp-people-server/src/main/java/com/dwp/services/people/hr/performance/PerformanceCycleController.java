@@ -1,6 +1,7 @@
 package com.dwp.services.people.hr.performance;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.people.security.HcmStepUpHeaders;
 import jakarta.validation.Valid;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -84,9 +85,15 @@ public class PerformanceCycleController {
             @PathVariable UUID cycleId,
             @RequestHeader(IDEMPOTENCY_HEADER) String idempotencyKey,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @RequestHeader(HcmStepUpHeaders.CHALLENGE) String challenge,
+            @RequestHeader(HcmStepUpHeaders.DECISION_REVISION) String decisionRevision,
+            @RequestHeader(HcmStepUpHeaders.EXPECTED_OBJECT_VERSION)
+            Long expectedObjectVersion,
             @Valid @RequestBody PerformanceCycleDtos.PublishCycleRequest request) {
         return ApiResponse.success(
-                service.publish(cycleId, request, idempotencyKey, correlationId));
+                service.publish(cycleId, request, idempotencyKey, correlationId,
+                        new HcmStepUpHeaders(challenge, idempotencyKey,
+                                decisionRevision, expectedObjectVersion)));
     }
 
     @GetMapping("/command-receipts/{receiptId}")

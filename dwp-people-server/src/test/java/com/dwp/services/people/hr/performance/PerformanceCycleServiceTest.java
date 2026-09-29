@@ -3,6 +3,8 @@ package com.dwp.services.people.hr.performance;
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.security.HcmHighRiskCommandGuard;
+import com.dwp.services.people.security.HcmStepUpHeaders;
 import com.dwp.services.people.security.PeopleRequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.AfterEach;
@@ -24,6 +26,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -48,6 +52,7 @@ class PerformanceCycleServiceTest {
     private final PerformanceParticipantPreviewService previewService = mock(
             PerformanceParticipantPreviewService.class);
     private final AuditOutboxRecorder audit = mock(AuditOutboxRecorder.class);
+    private final HcmHighRiskCommandGuard highRisk = mock(HcmHighRiskCommandGuard.class);
     private final PerformanceCycleAuthorityPort authority = request ->
             new PerformanceCycleAuthorityPort.AuthorityEvidence(
                     request.tenantId(), request.actorId(), request.subjectPrincipalPublicId(),
@@ -60,7 +65,8 @@ class PerformanceCycleServiceTest {
             new PerformanceCycleCanonicalizer(new ObjectMapper().findAndRegisterModules()),
             audit,
             Clock.fixed(NOW, ZoneOffset.UTC),
-            () -> authority);
+            () -> authority,
+            highRisk);
 
     @BeforeEach
     void acceptsReceiptReservationByDefault() {
@@ -114,7 +120,8 @@ class PerformanceCycleServiceTest {
                             new ObjectMapper().findAndRegisterModules()),
                     audit,
                     Clock.fixed(NOW, ZoneOffset.UTC),
-                    () -> invalidPort);
+                    () -> invalidPort,
+                    highRisk);
 
             assertThatThrownBy(localService::cycles)
                     .isInstanceOf(BaseException.class)
@@ -155,10 +162,12 @@ class PerformanceCycleServiceTest {
                 commandId, 2, UUID.randomUUID(), 8, UUID.randomUUID(),
                 "Approved after independent calibration review.");
 
-        assertThatThrownBy(() -> service.publish(CYCLE_ID, request, "publish-1", null))
+        assertThatThrownBy(() -> service.publish(
+                CYCLE_ID, request, "publish-1", null, stepUpHeaders("publish-1", 2)))
                 .isInstanceOf(BaseException.class)
                 .extracting(error -> ((BaseException) error).getErrorCode())
                 .isEqualTo(ErrorCode.SOD_CONFLICT);
+        verifyNoInteractions(highRisk);
     }
 
     @Test
@@ -182,7 +191,8 @@ class PerformanceCycleServiceTest {
                 "Approved after independent calibration review.");
 
         assertThatThrownBy(() -> service.publish(
-                CYCLE_ID, request, "publish-stale", null))
+                CYCLE_ID, request, "publish-stale", null,
+                stepUpHeaders("publish-stale", 2)))
                 .isInstanceOf(BaseException.class)
                 .extracting(error -> ((BaseException) error).getErrorCode())
                 .isEqualTo(ErrorCode.OBJECT_VERSION_CONFLICT);
@@ -199,6 +209,84 @@ class PerformanceCycleServiceTest {
                 org.mockito.ArgumentMatchers.anyString(),
                 org.mockito.ArgumentMatchers.any(),
                 org.mockito.ArgumentMatchers.any(),
+                org.mockito.ArgumentMatchers.anyList());
+        verifyNoInteractions(highRisk);
+    }
+
+    @Test
+    void rejectsPublishWhenStepUpGuardFailsBeforeAnyCommandMutation() {
+        actor("DATA.HR_TALENT:APPROVE");
+        UUID previewId = UUID.randomUUID();
+        PerformanceCycleDtos.CycleDetail current = cycle("VALIDATED", 2, 99L);
+        var request = publishRequest(previewId);
+        HcmStepUpHeaders headers = stepUpHeaders("publish-step-up", 2);
+        when(queries.receiptByIdempotency(
+                TENANT, SUBJECT, "performance.cycle.publish", "publish-step-up"))
+                .thenReturn(Optional.empty());
+        when(queries.cycle(TENANT, CYCLE_ID)).thenReturn(Optional.of(current));
+        when(queries.preview(TENANT, previewId))
+                .thenReturn(Optional.of(readyPreview(current, previewId)));
+        doThrow(new BaseException(
+                ErrorCode.STEP_UP_REQUIRED, "A command-bound challenge is required."))
+                .when(highRisk).require(anyString(), anyString(), anyString(),
+                        anyLong(), anyString(), any(), any());
+
+        assertThatThrownBy(() -> service.publish(
+                CYCLE_ID, request, "publish-step-up", null, headers))
+                .isInstanceOf(BaseException.class)
+                .extracting(error -> ((BaseException) error).getErrorCode())
+                .isEqualTo(ErrorCode.STEP_UP_REQUIRED);
+
+        verify(commands, never()).insertAcceptedReceipt(
+                anyLong(), anyLong(), any(), any(), anyString(), anyString(),
+                anyString(), any(), anyLong(), anyString(), any());
+        verify(commands, never()).publish(
+                anyLong(), anyLong(), any(), any(), anyLong(), any(), any(), any(),
+                anyLong(), anyString(), any(), any(),
+                org.mockito.ArgumentMatchers.anyList());
+    }
+
+    @Test
+    void verifiesExactPublishCommandBeforeReceiptAndCycleMutation() {
+        actor("DATA.HR_TALENT:APPROVE");
+        UUID previewId = UUID.randomUUID();
+        PerformanceCycleDtos.CycleDetail current = cycle("VALIDATED", 2, 99L);
+        var request = publishRequest(previewId);
+        HcmStepUpHeaders headers = stepUpHeaders("publish-verified", 2);
+        String requestHash = commandHash("performance.cycle.publish", CYCLE_ID, request);
+        var receipt = new PerformanceCycleDtos.CommandReceipt(
+                request.commandId(), "PUBLISH", "performance.cycle.publish",
+                CYCLE_ID, 2, 3L, "SUCCEEDED", CYCLE_ID, null, NOW, NOW);
+        var receiptRecord = new PerformanceCycleQueryRepository.ReceiptRecord(
+                receipt, "publish-verified", requestHash);
+        when(queries.receiptByIdempotency(
+                TENANT, SUBJECT, "performance.cycle.publish", "publish-verified"))
+                .thenReturn(Optional.empty());
+        when(queries.cycle(TENANT, CYCLE_ID)).thenReturn(Optional.of(current));
+        when(queries.preview(TENANT, previewId))
+                .thenReturn(Optional.of(readyPreview(current, previewId)));
+        when(queries.receiptById(TENANT, request.commandId()))
+                .thenReturn(Optional.of(receiptRecord));
+
+        PerformanceCycleDtos.CycleCommandResult result = service.publish(
+                CYCLE_ID, request, "publish-verified", null, headers);
+
+        assertThat(result.receipt()).isSameAs(receipt);
+        var ordered = inOrder(highRisk, commands);
+        ordered.verify(highRisk).require(
+                "hcm.operations.talent.approve",
+                "PERFORMANCE_CYCLE",
+                CYCLE_ID.toString(),
+                current.aggregateVersion(),
+                "/api/people/v1/hris/performance/cycles/" + CYCLE_ID + "/publish",
+                request,
+                headers);
+        ordered.verify(commands).insertAcceptedReceipt(
+                anyLong(), anyLong(), any(), any(), anyString(), anyString(),
+                anyString(), any(), anyLong(), anyString(), any());
+        ordered.verify(commands).publish(
+                anyLong(), anyLong(), any(), any(), anyLong(), any(), any(), any(),
+                anyLong(), anyString(), any(), any(),
                 org.mockito.ArgumentMatchers.anyList());
     }
 
@@ -357,6 +445,28 @@ class PerformanceCycleServiceTest {
                 UUID.randomUUID(), expectedRevision, "FY27 Review", UUID.randomUUID(),
                 NOW.plusSeconds(3_600), null, "UTC", UUID.randomUUID(), UUID.randomUUID(),
                 List.of(stage()));
+    }
+
+    private PerformanceCycleDtos.PublishCycleRequest publishRequest(UUID previewId) {
+        return new PerformanceCycleDtos.PublishCycleRequest(
+                UUID.randomUUID(), 2, previewId, 8, UUID.randomUUID(),
+                "Approved after independent calibration review.");
+    }
+
+    private PerformanceCycleDtos.PopulationPreview readyPreview(
+            PerformanceCycleDtos.CycleDetail current,
+            UUID previewId) {
+        return new PerformanceCycleDtos.PopulationPreview(
+                previewId, VERSION_ID, UUID.randomUUID(), 8,
+                current.version().populationRuleVersionId(), current.aggregateVersion(),
+                "READY", 1, 1, "b".repeat(64), 2,
+                NOW.minusSeconds(60), NOW.plusSeconds(600), List.of());
+    }
+
+    private HcmStepUpHeaders stepUpHeaders(String idempotencyKey, long expectedVersion) {
+        return new HcmStepUpHeaders(
+                "signed-challenge", idempotencyKey,
+                "psr-" + "a".repeat(64), expectedVersion);
     }
 
     private PerformanceCycleDtos.StageInput stage() {

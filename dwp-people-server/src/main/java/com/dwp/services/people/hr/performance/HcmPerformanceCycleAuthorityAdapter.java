@@ -57,7 +57,7 @@ final class HcmPerformanceCycleAuthorityAdapter implements PerformanceCycleAutho
     private static final String CREATE_CAPABILITY = "hcm.operations.talent.create";
     private static final String UPDATE_CAPABILITY =
             WorkforceSnapshotContract.PERFORMANCE_PREVIEW_CAPABILITY;
-    private static final String APPROVE_CAPABILITY = "hcm.operations.talent.approve";
+    static final String APPROVE_CAPABILITY = "hcm.operations.talent.approve";
     private static final String POPULATION_PREDICATE =
             "predicate.hcm-domain-target-population.v1";
     private static final String TARGET_POPULATION = "TARGET_POPULATION";

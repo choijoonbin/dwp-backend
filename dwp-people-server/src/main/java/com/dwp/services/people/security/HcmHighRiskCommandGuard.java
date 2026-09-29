@@ -46,7 +46,7 @@ public class HcmHighRiskCommandGuard {
                 || !targetType.equals(stepUp.targetType())
                 || !"people".equals(stepUp.ownerServiceKey())
                 || !"dwp-people-server".equals(stepUp.audience())
-                || !authority.publicPath().equals(publicPath)) {
+                || !matchesCommandPath(authority.publicPath(), stepUp, targetId, publicPath)) {
             throw new BaseException(ErrorCode.FORBIDDEN,
                     "The exact HCM route does not authorize this high-risk command.");
         }
@@ -90,6 +90,22 @@ public class HcmHighRiskCommandGuard {
         // The caller is @Transactional. A later mutation failure rolls this insert
         // back; a concurrent replay blocks on the unique challenge/nonce key.
         replay.consume(challenge);
+    }
+
+    private boolean matchesCommandPath(
+            String publicPathTemplate,
+            HcmV3PepRegistry.StepUpBinding stepUp,
+            String targetId,
+            String commandPath) {
+        if (blank(publicPathTemplate) || blank(commandPath)) return false;
+        String pathParameter = stepUp.targetIdPathParameter();
+        if (blank(pathParameter)) return publicPathTemplate.equals(commandPath);
+        if (blank(targetId)) return false;
+        String token = "{" + pathParameter + "}";
+        int tokenIndex = publicPathTemplate.indexOf(token);
+        return tokenIndex >= 0
+                && tokenIndex == publicPathTemplate.lastIndexOf(token)
+                && publicPathTemplate.replace(token, targetId).equals(commandPath);
     }
 
     private boolean blank(String value) {

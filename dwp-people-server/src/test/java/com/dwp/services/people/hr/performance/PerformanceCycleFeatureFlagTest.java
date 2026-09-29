@@ -3,6 +3,7 @@ package com.dwp.services.people.hr.performance;
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.security.HcmHighRiskCommandGuard;
 import com.dwp.services.people.security.PeopleRequestContext;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
@@ -89,6 +90,11 @@ class PerformanceCycleFeatureFlagTest {
         @Bean
         AuditOutboxRecorder auditOutboxRecorder() {
             return mock(AuditOutboxRecorder.class);
+        }
+
+        @Bean
+        HcmHighRiskCommandGuard hcmHighRiskCommandGuard() {
+            return mock(HcmHighRiskCommandGuard.class);
         }
     }
 }

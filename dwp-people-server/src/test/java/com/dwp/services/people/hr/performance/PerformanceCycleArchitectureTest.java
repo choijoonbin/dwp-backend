@@ -1,9 +1,12 @@
 package com.dwp.services.people.hr.performance;
 
+import com.dwp.services.people.security.HcmStepUpHeaders;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.bind.annotation.PatchMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 import java.io.IOException;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Locale;
@@ -22,6 +25,18 @@ class PerformanceCycleArchitectureTest {
 
         assertThat(mapping).isNotNull();
         assertThat(mapping.value()).containsExactly("/cycles/{cycleId}");
+    }
+
+    @Test
+    void publishRequiresCanonicalStepUpHeaders() throws NoSuchMethodException {
+        Method publish = PerformanceCycleController.class.getMethod(
+                "publish", UUID.class, String.class, String.class,
+                String.class, String.class, Long.class,
+                PerformanceCycleDtos.PublishCycleRequest.class);
+
+        assertRequiredHeader(publish, 3, HcmStepUpHeaders.CHALLENGE);
+        assertRequiredHeader(publish, 4, HcmStepUpHeaders.DECISION_REVISION);
+        assertRequiredHeader(publish, 5, HcmStepUpHeaders.EXPECTED_OBJECT_VERSION);
     }
 
     @Test
@@ -52,5 +67,13 @@ class PerformanceCycleArchitectureTest {
         } catch (IOException exception) {
             throw new IllegalStateException(exception);
         }
+    }
+
+    private void assertRequiredHeader(Method method, int parameter, String name) {
+        RequestHeader header = method.getParameters()[parameter]
+                .getAnnotation(RequestHeader.class);
+        assertThat(header).isNotNull();
+        assertThat(header.value()).isEqualTo(name);
+        assertThat(header.required()).isTrue();
     }
 }

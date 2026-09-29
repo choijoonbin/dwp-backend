@@ -4,6 +4,8 @@ import com.dwp.audit.AuditEvent;
 import com.dwp.core.audit.AuditOutboxRecorder;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.security.HcmHighRiskCommandGuard;
+import com.dwp.services.people.security.HcmStepUpHeaders;
 import com.dwp.services.people.security.PeopleRequestContext;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
@@ -14,6 +16,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 import java.util.function.Supplier;
@@ -32,12 +35,16 @@ public class PerformanceCycleService {
     private static final String RECEIPT_READ_ACTION = "performance.cycle.receipt.read";
     private static final String APPLICATION_ENTITLEMENT = "APP.HRIS";
     private static final String AUTHORITY_PURPOSE = "HRIS_PERFORMANCE_CYCLE";
+    private static final String PUBLISH_TARGET_TYPE = "PERFORMANCE_CYCLE";
+    private static final String PUBLISH_PUBLIC_PATH_PREFIX =
+            "/api/people/v1/hris/performance/cycles/";
 
     private final PerformanceCycleQueryRepository queries;
     private final PerformanceCycleCommandRepository commands;
     private final PerformanceParticipantPreviewService previewService;
     private final PerformanceCycleCanonicalizer canonicalizer;
     private final AuditOutboxRecorder audit;
+    private final HcmHighRiskCommandGuard highRisk;
     private final Clock clock;
     private final Supplier<PerformanceCycleAuthorityPort> authoritySupplier;
 
@@ -48,11 +55,12 @@ public class PerformanceCycleService {
             PerformanceParticipantPreviewService previewService,
             com.fasterxml.jackson.databind.ObjectMapper objectMapper,
             AuditOutboxRecorder audit,
+            HcmHighRiskCommandGuard highRisk,
             org.springframework.beans.factory.ObjectProvider<PerformanceCycleAuthorityPort>
                     authorityProvider) {
         this(queries, commands, previewService,
                 new PerformanceCycleCanonicalizer(objectMapper), audit, Clock.systemUTC(),
-                authorityProvider::getIfAvailable);
+                authorityProvider::getIfAvailable, highRisk);
     }
 
     PerformanceCycleService(
@@ -62,7 +70,8 @@ public class PerformanceCycleService {
             PerformanceCycleCanonicalizer canonicalizer,
             AuditOutboxRecorder audit,
             Clock clock,
-            Supplier<PerformanceCycleAuthorityPort> authoritySupplier) {
+            Supplier<PerformanceCycleAuthorityPort> authoritySupplier,
+            HcmHighRiskCommandGuard highRisk) {
         this.queries = queries;
         this.commands = commands;
         this.previewService = previewService;
@@ -70,6 +79,7 @@ public class PerformanceCycleService {
         this.audit = audit;
         this.clock = clock;
         this.authoritySupplier = authoritySupplier;
+        this.highRisk = Objects.requireNonNull(highRisk);
     }
 
     @Transactional(readOnly = true)
@@ -290,7 +300,8 @@ public class PerformanceCycleService {
             UUID cycleId,
             PerformanceCycleDtos.PublishCycleRequest request,
             String idempotencyKey,
-            String correlationId) {
+            String correlationId,
+            HcmStepUpHeaders headers) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         PerformanceCycleAuthorization.requirePublish(actor);
         UUID subjectId = PerformanceCycleAuthorization.requireSubject(actor);
@@ -301,13 +312,6 @@ public class PerformanceCycleService {
         Optional<PerformanceCycleDtos.CycleCommandResult> replay = replayCycle(
                 actor, subjectId, key, PUBLISH_ACTION, request.commandId(), requestHash, cycleId);
         if (replay.isPresent()) return replay.get();
-        if (!reserveReceipt(actor, subjectId, request.commandId(), key,
-                "PUBLISH", PUBLISH_ACTION, cycleId,
-                request.expectedRevision(), requestHash, authority)) {
-            return replayCycle(actor, subjectId, key, PUBLISH_ACTION,
-                    request.commandId(), requestHash, cycleId).orElseThrow(
-                    () -> conflict("The command receipt winner is unavailable.", null));
-        }
         PerformanceCycleDtos.CycleDetail current = requireCycle(actor.tenantId(), cycleId);
         requireRevision(current, request.expectedRevision());
         if (!"VALIDATED".equals(current.lifecycleState()) || current.version() == null) {
@@ -333,6 +337,21 @@ public class PerformanceCycleService {
             throw new BaseException(
                     ErrorCode.OBJECT_VERSION_CONFLICT,
                     "The population preview is stale or does not match this cycle version.");
+        }
+        highRisk.require(
+                HcmPerformanceCycleAuthorityAdapter.APPROVE_CAPABILITY,
+                PUBLISH_TARGET_TYPE,
+                cycleId.toString(),
+                current.aggregateVersion(),
+                PUBLISH_PUBLIC_PATH_PREFIX + cycleId + "/publish",
+                request,
+                headers);
+        if (!reserveReceipt(actor, subjectId, request.commandId(), key,
+                "PUBLISH", PUBLISH_ACTION, cycleId,
+                request.expectedRevision(), requestHash, authority)) {
+            return replayCycle(actor, subjectId, key, PUBLISH_ACTION,
+                    request.commandId(), requestHash, cycleId).orElseThrow(
+                    () -> conflict("The command receipt winner is unavailable.", null));
         }
         commands.publish(actor.tenantId(), actor.userId(), cycleId,
                 current.version().cycleVersionId(), request.expectedRevision(),

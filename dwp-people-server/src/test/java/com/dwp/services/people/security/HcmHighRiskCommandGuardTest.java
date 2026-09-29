@@ -28,6 +28,8 @@ class HcmHighRiskCommandGuardTest {
     private static final String CAPABILITY = "hcm.org-design.publish";
     private static final String PATH =
             "/api/people/v1/workforce/organization/scenarios/scenario-1/publish";
+    private static final String PATH_TEMPLATE =
+            "/api/people/v1/workforce/organization/scenarios/{scenarioId}/publish";
     private static final String REVISION = "psr-" + "a".repeat(64);
 
     private final HcmStepUpVerifier verifier = mock(HcmStepUpVerifier.class);
@@ -43,7 +45,7 @@ class HcmHighRiskCommandGuardTest {
                         ROUTE, "ACTION", "full-management", false,
                         Set.of("predicate.hcm-org-publish-sod.v1"), Set.of("OBJECT"),
                         ROUTE + ".binding.01", CAPABILITY, "STEPUP-MGMT-HIGH-V1",
-                        "POST", PATH,
+                        "POST", PATH_TEMPLATE,
                         new HcmV3PepRegistry.StepUpBinding(
                                 "ORG_SCENARIO", "scenarioId", List.of(),
                                 "people", "dwp-people-server")),
@@ -102,6 +104,19 @@ class HcmHighRiskCommandGuardTest {
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.STEP_UP_CHALLENGE_MISMATCH));
+        verify(replay, never()).consume(any());
+    }
+
+    @Test
+    void concreteCommandPathMustMaterializeTheAuthorizedTarget() {
+        assertThatThrownBy(() -> guard.require(
+                CAPABILITY, "ORG_SCENARIO", "scenario-1", 7L,
+                "/api/people/v1/workforce/organization/scenarios/scenario-2/publish",
+                java.util.Map.of("version", 7), headers()))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+
+        verify(verifier, never()).verify(any(), any());
         verify(replay, never()).consume(any());
     }
 
