@@ -452,16 +452,6 @@ public class SafetyOperationsService {
         return content;
     }
 
-    @Transactional
-    public boolean recordDispatchOutcome(DispatchOutcome outcome) {
-        if (outcome.tenantId() <= 0 || outcome.state() == AttemptState.QUEUED
-                || outcome.state() == AttemptState.DISPATCHING
-                || outcome.state() == AttemptState.OFFLINE_QUEUED) {
-            throw invalid("Only terminal provider dispatch outcomes may be recorded.");
-        }
-        return incidents.recordOutcome(outcome);
-    }
-
     @Transactional(readOnly = true)
     public CommandReceipt command(long tenantId, UUID incidentId, UUID commandId) {
         CommandRow command = incidents.command(tenantId, incidentId, commandId)
@@ -602,12 +592,6 @@ public class SafetyOperationsService {
 
     private static <T> List<T> distinct(List<T> values) {
         return values.stream().distinct().toList();
-    }
-
-    private static void validateScope(List<UUID> floors, List<UUID> zones) {
-        if (floors == null || zones == null || (floors.isEmpty() && zones.isEmpty())) {
-            throw invalid("At least one floor or zone is required.");
-        }
     }
 
     private static String key(String value) {

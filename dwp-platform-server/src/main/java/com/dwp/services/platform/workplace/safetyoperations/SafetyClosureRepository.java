@@ -93,13 +93,6 @@ public class SafetyClosureRepository extends SafetyRepositorySupport {
                 rs.getObject("created_at", OffsetDateTime.class));
     }
 
-    Optional<ClosureRow> pendingClosure(long tenantId, UUID incidentId) {
-        return jdbc.query("""
-                SELECT * FROM wp_safety_closure_requests
-                 WHERE tenant_id=? AND incident_id=? AND request_state='PENDING_APPROVAL'
-                """, this::closureRow, tenantId, incidentId).stream().findFirst();
-    }
-
     Optional<ClosureRow> closure(long tenantId, UUID incidentId, UUID requestId) {
         return jdbc.query("""
                 SELECT * FROM wp_safety_closure_requests

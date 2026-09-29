@@ -551,13 +551,6 @@ public class WorkplaceVisitService {
         }
     }
 
-    private static String requireIdentity(String value) {
-        if (value == null || !value.matches("[0-9a-f]{64}")) {
-            throw new BaseException(ErrorCode.UNAUTHORIZED, "A valid kiosk device identity is required.");
-        }
-        return value;
-    }
-
     private static String guestsFingerprint(List<GuestRefInput> guests) {
         List<String> guestFingerprints = guests.stream().map(guest -> fingerprint(
                         guest.opaqueRef(), guest.maskedLabel(),
@@ -591,10 +584,6 @@ public class WorkplaceVisitService {
 
     private static BaseException conflict(String message) {
         return new BaseException(ErrorCode.RESOURCE_CONFLICT, message);
-    }
-
-    private static BaseException forbidden(String message) {
-        return new BaseException(ErrorCode.FORBIDDEN, message);
     }
 
     @FunctionalInterface private interface Mutation {

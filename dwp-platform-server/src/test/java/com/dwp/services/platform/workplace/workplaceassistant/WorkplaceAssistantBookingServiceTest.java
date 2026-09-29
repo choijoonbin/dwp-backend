@@ -95,7 +95,8 @@ class WorkplaceAssistantBookingServiceTest {
         when(repository.applyValidation(eq(tenantId), eq(actorId), eq(requestId), eq(1L),
                 any(), eq(intentId), eq(List.of()), eq(NOW))).thenReturn(true);
         when(audit.command(tenantId, actorId, "VALIDATE_REQUEST", "validate-key"))
-                .thenReturn(Optional.empty(), Optional.of(command));
+                .thenReturn(Optional.empty())
+                .thenReturn(Optional.of(command));
         when(authority.preview(eq(tenantId), eq(actorId), eq(personId), eq("신뢰 사용자"),
                 eq("group:trusted"), eq("ko-KR"), eq("derived-key"), eq("corr-23"), any()))
                 .thenReturn(preview);

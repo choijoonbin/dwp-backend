@@ -251,29 +251,6 @@ class WorkplaceCatalogRepository {
         return floor(tenantId, id, korean).orElse(null);
     }
 
-    FloorRow updateFloorBackground(
-            Long tenantId,
-            Long actorId,
-            UUID floorId,
-            Long version,
-            String path,
-            String assetKey,
-            String contentType,
-            long sizeBytes,
-            String sha256,
-            boolean korean) {
-        int updated = jdbc.update("""
-                UPDATE wp_floors
-                   SET background_asset_path = ?, background_asset_key = ?,
-                       background_content_type = ?, background_size_bytes = ?,
-                       background_sha256 = ?, version = version + 1,
-                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                 WHERE tenant_id = ? AND floor_id = ? AND version = ?
-                """, path, assetKey, contentType, sizeBytes, sha256, actorId,
-                tenantId, floorId, version);
-        return updated == 0 ? null : floor(tenantId, floorId, korean).orElse(null);
-    }
-
     ResourceRow saveResource(
             Long tenantId,
             Long actorId,

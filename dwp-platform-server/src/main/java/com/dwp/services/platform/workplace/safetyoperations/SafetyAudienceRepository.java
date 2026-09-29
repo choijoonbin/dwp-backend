@@ -164,7 +164,8 @@ public class SafetyAudienceRepository {
                    AND (?::uuid[]='{}'::uuid[] OR EXISTS(
                        SELECT 1 FROM wp_visit_zone_selections s
                         WHERE s.tenant_id=v.tenant_id AND s.visit_id=v.visit_id
-                          AND s.zone_id=ANY(?::uuid[]))) AND """ + " " + condition,
+                          AND s.zone_id=ANY(?::uuid[]))) AND %s
+                """.formatted(condition),
                 (rs, n) -> new CandidateRow(
                         rs.getString(1) == null ? sha256("guest:" + rs.getObject(2, UUID.class)) : rs.getString(1),
                         null, rs.getString(3), scheduled

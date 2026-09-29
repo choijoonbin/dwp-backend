@@ -322,10 +322,6 @@ public class WorkplaceVisitManagementService {
     private static BaseException conflict(String message) {
         return new BaseException(ErrorCode.RESOURCE_CONFLICT, message);
     }
-    private static BaseException forbidden(String message) {
-        return new BaseException(ErrorCode.FORBIDDEN, message);
-    }
-
     private record ResourceVersion(UUID id, long version) { }
     @FunctionalInterface private interface ResourceMutation { ResourceVersion apply(); }
 }
