@@ -21,6 +21,10 @@ import java.util.function.Supplier;
 
 /** Resolves tenant and population authority owner-side; the consumer supplies neither. */
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "dwp.hris.performance.wave1.enabled",
+        havingValue = "true",
+        matchIfMissing = false)
 final class HrisWorkforceSnapshotAuthorityVerifier
         implements WorkforceSnapshotRequestVerifier {
 
@@ -30,6 +34,7 @@ final class HrisWorkforceSnapshotAuthorityVerifier
     private final Supplier<HcmPepContext.Evidence> evidenceSupplier;
     private final Clock clock;
 
+    @org.springframework.beans.factory.annotation.Autowired
     HrisWorkforceSnapshotAuthorityVerifier(
             HcmPopulationScopeService populations,
             HrisWorkforceSnapshotCursorCodec cursors) {

@@ -16,7 +16,11 @@ import java.util.UUID;
 
 /** HRM-owned, tenant and effective-date bound source for the PER snapshot port. */
 @Repository
-final class HrisWorkforceSnapshotRepository {
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "dwp.hris.performance.wave1.enabled",
+        havingValue = "true",
+        matchIfMissing = false)
+class HrisWorkforceSnapshotRepository {
 
     private static final UUID EMPTY_ORGANIZATION = new UUID(0L, 0L);
     private final NamedParameterJdbcTemplate jdbc;

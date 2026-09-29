@@ -20,6 +20,10 @@ import java.util.HexFormat;
 
 /** Authenticated, opaque cursor codec owned by HRM. */
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "dwp.hris.performance.wave1.enabled",
+        havingValue = "true",
+        matchIfMissing = false)
 final class HrisWorkforceSnapshotCursorCodec {
 
     private static final String VERSION = "1";

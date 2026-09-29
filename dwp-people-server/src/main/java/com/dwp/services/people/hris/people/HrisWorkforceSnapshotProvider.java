@@ -14,6 +14,10 @@ import java.util.List;
 
 /** HRM owner implementation; every page revalidates the current target population. */
 @Component
+@org.springframework.boot.autoconfigure.condition.ConditionalOnProperty(
+        name = "dwp.hris.performance.wave1.enabled",
+        havingValue = "true",
+        matchIfMissing = false)
 final class HrisWorkforceSnapshotProvider implements WorkforceSnapshotProvider {
 
     private final HcmPopulationScopeService populations;
