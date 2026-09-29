@@ -43,20 +43,6 @@ public class HomeRuntimeProperties {
                 16_384, Math.min(maximumProviderPayloadBytes, 1_048_576));
     }
 
-    /** Test/source compatibility constructor. Commands remain fail-closed unless explicitly enabled. */
-    public HomeRuntimeProperties(
-            boolean enabled,
-            boolean shadowEnabled,
-            Duration overallDeadline,
-            Duration providerTimeout,
-            Duration cacheTtl,
-            Duration staleIfError,
-            int maximumCacheEntries,
-            int maximumProviderPayloadBytes) {
-        this(enabled, shadowEnabled, false, overallDeadline, providerTimeout, cacheTtl,
-                staleIfError, maximumCacheEntries, maximumProviderPayloadBytes);
-    }
-
     public boolean enabled() {
         return enabled;
     }

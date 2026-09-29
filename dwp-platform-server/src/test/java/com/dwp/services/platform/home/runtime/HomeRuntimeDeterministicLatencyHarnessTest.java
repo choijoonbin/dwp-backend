@@ -71,7 +71,11 @@ class HomeRuntimeDeterministicLatencyHarnessTest {
         HomeReadModelDtos.HomeReadModel model = new HomeReadModelDtos.HomeReadModel(
                 2, "CLASSIC", null, null, List.of(), List.of(), now, now.plusSeconds(30),
                 false, List.of(), "change-1", "SHADOW");
-        when(service.read(any(), eq("CLASSIC"), eq("DESKTOP_STANDARD")))
+        when(service.read(
+                any(),
+                any(HomeRuntimeRolloutDecision.TrustedInput.class),
+                eq("CLASSIC"),
+                eq("DESKTOP_STANDARD")))
                 .thenReturn(new HomeReadModelDtos.ReadResult(model, "\"change-1\""));
         MockMvc mvc = standaloneSetup(new HomeReadModelController(
                 service, mock(HomeWidgetCommandService.class), properties)).build();
@@ -90,6 +94,9 @@ class HomeRuntimeDeterministicLatencyHarnessTest {
                             .header("X-DWP-Current-Decision-Revision", "decision-17")
                             .header("X-DWP-Current-Revalidate-At",
                                     now.plusMinutes(5).toString())
+                            .header("X-DWP-Home-Runtime-State", "SHADOW_COMPARE")
+                            .header("X-DWP-Home-Rollout-Ring", "CONTROL")
+                            .header("X-DWP-Home-Rollout-Revision", "rollout-17")
                             .header("Accept-Language", "ko-KR"))
                     .andReturn().getResponse().getStatus();
             if (status != 200) hardFailures++;

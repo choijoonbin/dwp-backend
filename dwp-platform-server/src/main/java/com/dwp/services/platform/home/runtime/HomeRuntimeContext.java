@@ -121,24 +121,6 @@ public record HomeRuntimeContext(
                 resolvedTracestate);
     }
 
-    /** Compatibility constructor for focused tests and non-HTTP callers. */
-    public HomeRuntimeContext(
-            long tenantId,
-            long userId,
-            UUID personPublicId,
-            Set<String> permissions,
-            Set<String> roles,
-            Set<String> groupRefs,
-            String authorityDecisionRevision,
-            OffsetDateTime authorityRevalidateAt,
-            String locale,
-            String timeZone,
-            String fingerprint) {
-        this(tenantId, userId, personPublicId, permissions, roles, groupRefs,
-                authorityDecisionRevision, authorityRevalidateAt, locale, timeZone,
-                fingerprint, "home-" + UUID.randomUUID(), null, null);
-    }
-
     public boolean has(String authority) {
         return permissions.contains(authority.toUpperCase(Locale.ROOT));
     }

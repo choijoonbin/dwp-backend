@@ -82,7 +82,7 @@ class RecipientBoundWidgetCacheTest {
 
     private HomeRuntimeProperties properties() {
         return new HomeRuntimeProperties(
-                true, false, Duration.ofMillis(900), Duration.ofMillis(400),
+                true, false, false, Duration.ofMillis(900), Duration.ofMillis(400),
                 Duration.ofSeconds(30), Duration.ofMinutes(5), 100, 262_144);
     }
 }

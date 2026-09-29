@@ -67,18 +67,6 @@ public final class HttpWidgetProviderClient implements WidgetProviderPort {
         this.bulkhead = bulkheads.bulkhead("homeRuntime-" + providerKey);
     }
 
-    /** Compatibility constructor for read-only clients and tests. */
-    public HttpWidgetProviderClient(
-            String providerKey,
-            String baseUrl,
-            String serviceToken,
-            Duration timeout,
-            RestClient.Builder builder,
-            CircuitBreakerRegistry circuitBreakers,
-            BulkheadRegistry bulkheads) {
-        this(providerKey, baseUrl, serviceToken, false, timeout, builder, circuitBreakers, bulkheads);
-    }
-
     @Override
     public String providerKey() {
         return providerKey;

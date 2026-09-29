@@ -1,6 +1,6 @@
 package com.dwp.services.platform.home.runtime;
 
-import com.dwp.core.exception.BaseException;
+import com.dwp.core.exception.GlobalExceptionHandler;
 import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.dwp.services.platform.home.overview.HomeOverviewController;
 import com.dwp.services.platform.home.overview.HomeOverviewDtos;
@@ -8,6 +8,8 @@ import com.dwp.services.platform.home.overview.HomeOverviewService;
 import io.github.resilience4j.bulkhead.BulkheadRegistry;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.support.StaticMessageSource;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestClient;
 
 import java.time.Duration;
@@ -20,24 +22,46 @@ import java.util.Set;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
 class HomeRuntimeRollbackDrillTest {
 
     @Test
-    void v2KillSwitchPreservesLegacyV1ReadPathAndPurgesRuntimeCache() {
+    void v2KillSwitchPreservesLegacyV1ReadPathAndPurgesRuntimeCache() throws Exception {
         HomeRuntimeProperties disabled = properties(false, false);
         HomeReadModelService v2 = mock(HomeReadModelService.class);
-        HomeReadModelController v2Controller = new HomeReadModelController(
-                v2, mock(HomeWidgetCommandService.class), disabled);
+        MockMvc v2Mvc = standaloneSetup(new HomeReadModelController(
+                        v2, mock(HomeWidgetCommandService.class), disabled))
+                .setControllerAdvice(new GlobalExceptionHandler(new StaticMessageSource()))
+                .build();
         HomeRuntimeContext context = TestFixtures.context();
 
-        assertThatThrownBy(() -> v2Controller.read(
-                context.tenantId(), context.userId(), context.personPublicId(),
-                context.permissionsHeader(), context.rolesHeader(), context.groupsHeader(),
-                context.authorityDecisionRevision(), context.authorityRevalidateAt().toString(),
-                context.locale(), null, "CLASSIC", "DESKTOP_STANDARD", context.timeZone()))
-                .isInstanceOf(BaseException.class);
+        v2Mvc.perform(get("/v2/home")
+                        .queryParam("mode", "CLASSIC")
+                        .queryParam("deviceClass", "DESKTOP_STANDARD")
+                        .queryParam("timeZone", context.timeZone())
+                        .header("X-DWP-Tenant-ID", context.tenantId())
+                        .header("X-DWP-User-ID", context.userId())
+                        .header("X-DWP-Person-Public-ID", context.personPublicId())
+                        .header("X-DWP-Permissions", context.permissionsHeader())
+                        .header("X-DWP-Roles", context.rolesHeader())
+                        .header("X-DWP-Group-Refs", context.groupsHeader())
+                        .header("X-DWP-Current-Decision-Revision",
+                                context.authorityDecisionRevision())
+                        .header("X-DWP-Current-Revalidate-At",
+                                context.authorityRevalidateAt().toString())
+                        .header("X-DWP-Home-Runtime-State", "SHADOW_COMPARE")
+                        .header("X-DWP-Home-Rollout-Ring", "CONTROL")
+                        .header("X-DWP-Home-Rollout-Revision", "rollout-rollback")
+                        .header("Accept-Language", context.locale()))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_AVAILABLE"));
+        verifyNoInteractions(v2);
 
         HomeOverviewService legacy = mock(HomeOverviewService.class);
         HomeOverviewDtos.HomeOverviewResponse legacyResponse =
