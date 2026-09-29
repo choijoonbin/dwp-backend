@@ -7,6 +7,7 @@ import com.dwp.services.platform.calendar.CalendarRepository;
 import com.dwp.services.platform.calendar.CalendarService;
 import com.dwp.services.platform.calendar.CalendarTypes;
 import com.dwp.services.platform.calendar.RoomService;
+import com.dwp.services.platform.mail.MailProposalOutcomePort;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
@@ -36,6 +37,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.mockito.Mockito.mock;
 
 /** Actual native owners, scoped access adapter and all production DB triggers remain enabled. */
 @Testcontainers(disabledWithoutDocker = true)
@@ -60,7 +62,11 @@ class WorkplaceExperienceRoomCapacityPostgresTest {
         context.registerBean(JdbcTemplate.class, () -> jdbc);
         context.registerBean(CalendarRepository.class, () -> new CalendarRepository(jdbc, mapper));
         context.registerBean(WorkplaceRoomAccessPort.class, () -> access);
+        context.registerBean(MailProposalOutcomePort.class, () -> mock(MailProposalOutcomePort.class));
         context.registerBean(Class.forName("com.dwp.services.platform.calendar.CalendarSchedulingHorizon"));
+        context.registerBean(Class.forName("com.dwp.services.platform.calendar.CalendarOccurrenceRepository"));
+        context.registerBean(Class.forName("com.dwp.services.platform.calendar.CalendarOccurrenceProjector"));
+        context.registerBean(Class.forName("com.dwp.services.platform.calendar.CalendarOccurrenceCommandService"));
         context.registerBean(Class.forName("com.dwp.services.platform.calendar.RoomBookingPolicyService"));
         context.registerBean(Class.forName("com.dwp.services.platform.calendar.RoomRepository"));
         context.registerBean(CalendarService.class); context.registerBean(RoomService.class); context.refresh();

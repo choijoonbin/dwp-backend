@@ -11,7 +11,6 @@ import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 import java.util.UUID;
 
 import static com.dwp.services.platform.workplace.workplaceservices.WorkplaceServicesDtos.*;

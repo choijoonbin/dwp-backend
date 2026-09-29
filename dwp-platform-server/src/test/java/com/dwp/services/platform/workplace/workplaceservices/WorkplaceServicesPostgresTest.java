@@ -1498,6 +1498,7 @@ class WorkplaceServicesPostgresTest {
 
         var migration = Flyway.configure().dataSource(legacySource)
                 .schemas(schema).baselineOnMigrate(true).baselineVersion("276")
+                .target("277")
                 .locations("filesystem:src/main/resources/db/migration")
                 .load().migrate();
 

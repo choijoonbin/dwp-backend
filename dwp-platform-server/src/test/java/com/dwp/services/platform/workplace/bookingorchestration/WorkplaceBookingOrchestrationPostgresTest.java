@@ -39,7 +39,6 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -761,7 +760,7 @@ class WorkplaceBookingOrchestrationPostgresTest {
                 VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, 1)
                 """, UUID.randomUUID(), one.tenant(), intentOne, itemOneOther,
                 one.resource(), ACTOR, ACTOR, starts(), starts().plusHours(1),
-                starts().minusMinutes(1)));
+                futureExpiry()));
 
         assertConstraint(() -> jdbc.update("""
                 INSERT INTO wp_booking_batch_items (
@@ -786,7 +785,7 @@ class WorkplaceBookingOrchestrationPostgresTest {
                     offer_state, expires_at, accepted_batch_id, version)
                 VALUES (?, ?, ?, ?, ?, 'ACCEPTED', ?, ?, 1)
                 """, UUID.randomUUID(), one.tenant(), waitlist, holdOne,
-                one.resource(), starts().minusMinutes(1), batchTwo));
+                one.resource(), futureExpiry(), batchTwo));
 
         assertThat(holdTwo).isNotNull();
     }
@@ -944,7 +943,7 @@ class WorkplaceBookingOrchestrationPostgresTest {
                     expires_at, version)
                 VALUES (?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?, 1)
                 """, id, fixture.tenant(), intent, item, fixture.resource(), ACTOR, ACTOR,
-                starts(), starts().plusHours(1), starts().minusMinutes(1));
+                starts(), starts().plusHours(1), futureExpiry());
         return id;
     }
 
@@ -997,6 +996,10 @@ class WorkplaceBookingOrchestrationPostgresTest {
 
     private static OffsetDateTime starts() {
         return OffsetDateTime.ofInstant(FIXED, ZoneOffset.UTC).plusDays(2);
+    }
+
+    private static OffsetDateTime futureExpiry() {
+        return OffsetDateTime.now(Clock.systemUTC()).plusHours(1);
     }
 
     private static <T> T tx(Supplier<T> action) {

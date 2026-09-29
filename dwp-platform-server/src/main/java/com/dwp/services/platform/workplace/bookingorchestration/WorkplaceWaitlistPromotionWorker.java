@@ -28,7 +28,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
-import static com.dwp.services.platform.workplace.WorkplaceTypes.ResourceType;
 import static com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationDtos.*;
 import static com.dwp.services.platform.workplace.bookingorchestration.WorkplaceBookingOrchestrationRepository.*;
 
