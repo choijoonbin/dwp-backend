@@ -83,7 +83,8 @@ class CalendarRoomsSecurityContextMockMvcTest {
 
         verify(service).create(
                 eq(3L), eq(17L), eq(null), eq(null), eq("en-US"), eq(null),
-                eq("group-a,group-b"), any(CalendarDtos.CreateEventRequest.class), eq(null));
+                eq("group-a,group-b"), any(CalendarDtos.CreateEventRequest.class), eq(null),
+                eq(null), eq(null));
     }
 
     @Test

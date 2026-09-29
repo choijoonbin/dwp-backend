@@ -361,7 +361,8 @@ class ServicesProductSurfacePepEvidenceTest {
 
         verify(service).catalog(anyLong(), any());
         verify(service).myRequest(anyLong(), anyLong(), any());
-        verify(service).createRequest(anyLong(), anyLong(), any(), any());
+        verify(service).createRequest(
+                anyLong(), anyLong(), any(), any(), any(), any());
 
         assertThat(ownerPep.bindingContracts())
                 .extracting(
