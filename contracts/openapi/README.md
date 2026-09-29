@@ -11,4 +11,13 @@ The contract lifecycle is:
 
 `scripts/export-openapi-contracts.py --write` captures normalized service documents and composes `gateway-public.json`. The composed contract applies the actual Gateway prefixes, excludes `/internal/**`, namespaces component names, and is the source contract for browser clients. CI starts the real services and runs the same command with `--check`; controller drift therefore cannot merge without an explicit contract update.
 
+HRIS Wave 1 owner APIs that are deliberately default-off are retained in
+`hris-wave1-design-time.json`. The exporter merges this reviewed overlay into both live and
+approved service documents. An enabled live controller must retain the recorded controller method;
+the exporter then canonicalizes its stable operation ID while preserving the exact springdoc
+schemas. Query-dispatched People 360 variants are recorded as `x-dwp-controller-variants` because
+OpenAPI permits only one operation for a method/path pair. Payroll and Time are approved-snapshot
+inputs during the default contract profile and can be checked against running services explicitly
+with `--service payroll` or `--service time`.
+
 OpenAPI endpoints are absent by default. `scripts/devctl.py` enables them only for the local/CI process environment, while production readiness checks reject an enabled endpoint in a production environment.

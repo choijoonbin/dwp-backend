@@ -1,0 +1,201 @@
+{
+  "info": {
+    "title": "DWP Time Service API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/hris/work-plan-receipts/{receiptId}": {
+      "get": {
+        "operationId": "hrisTimeWorkPlanReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receiptId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "work-regime-owner-controller"
+        ],
+        "x-dwp-controller-method": "receipt",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/work-plans": {
+      "get": {
+        "operationId": "hrisTimeWorkPlans",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "effectiveOn",
+            "required": true,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "work-regime-owner-controller"
+        ],
+        "x-dwp-controller-method": "list",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/work-plans/drafts": {
+      "post": {
+        "operationId": "hrisTimeCreateWorkPlanDraft",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "work-regime-owner-controller"
+        ],
+        "x-dwp-controller-method": "createDraft",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/work-plans/{workPlanId}/actions/{action}": {
+      "post": {
+        "operationId": "hrisTimeTransitionWorkPlan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workPlanId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "action",
+            "required": true,
+            "schema": {
+              "enum": [
+                "apply-approval",
+                "publish",
+                "submit-review",
+                "validate"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "work-regime-owner-controller"
+        ],
+        "x-dwp-controller-method": "transition",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/work-plans/{workPlanId}/simulations": {
+      "post": {
+        "operationId": "hrisTimeSimulateWorkPlan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "workPlanId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "work-regime-owner-controller"
+        ],
+        "x-dwp-controller-method": "simulate",
+        "x-dwp-runtime-default": "OFF"
+      }
+    }
+  }
+}

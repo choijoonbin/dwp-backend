@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import runpy
 import unittest
 from pathlib import Path
@@ -446,7 +447,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected"):
             EXPORTER["validate_approval_signature_operations"](unexpected)
 
-    def test_gateway_openapi_projection_consumes_append_only_v31_registry(self) -> None:
+    def test_gateway_openapi_projection_consumes_append_only_v32_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -455,8 +456,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 31)
-        self.assertEqual(registry["version"], 31)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 32)
+        self.assertEqual(registry["version"], 32)
         self.assertEqual(len(dwaion_routes), 160)
         self.assertEqual(
             sum(route["routeKind"] == "ACTION" for route in dwaion_routes), 93
@@ -498,7 +499,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                     ("header", "X-DWP-Expected-Decision-Revision"), parameters
                 )
 
-    def test_gateway_projects_full_agent_contract_and_v31_governance(self) -> None:
+    def test_gateway_projects_full_agent_contract_and_v32_governance(self) -> None:
         registry = json.loads(
             EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"].read_text(encoding="utf-8")
         )
@@ -582,6 +583,239 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                     {"enforcement": "FAIL_CLOSED", "rolloutStates": ["110", "111"]},
                     revision["x-dwp-conditional-required"],
                 )
+
+    def test_wave1_hris_owner_inventory_is_exact_and_default_off_services_are_reviewed(self) -> None:
+        expected = {
+            "auth": {
+                ("get", "/auth/hris/product-access/snapshot", "snapshot"),
+            },
+            "platform": {
+                ("get", "/v1/hris/configuration/projection", "projection"),
+            },
+            "people": {
+                ("get", "/v1/hr/home", "people360"),
+                ("get", "/v1/hr/team", "teamPeople360"),
+                ("get", "/v1/workforce/people", "searchPeople360"),
+                ("get", "/v1/workforce/people/{publicId}", "getPeople360"),
+                ("get", "/v1/hris/performance/cycles", "cycles"),
+                ("post", "/v1/hris/performance/cycles", "create"),
+                ("get", "/v1/hris/performance/cycles/{cycleId}", "cycle"),
+                ("patch", "/v1/hris/performance/cycles/{cycleId}", "update"),
+                ("post", "/v1/hris/performance/cycles/{cycleId}/validate", "validate"),
+                ("post", "/v1/hris/performance/cycles/{cycleId}/population-previews", "preview"),
+                ("post", "/v1/hris/performance/cycles/{cycleId}/publish", "publish"),
+                ("get", "/v1/hris/performance/command-receipts/{receiptId}", "receipt"),
+            },
+            "payroll": {
+                ("get", "/v1/hris/payroll/foundation/configurations", "configurations"),
+                ("post", "/v1/hris/payroll/foundation/configurations", "create"),
+                ("get", "/v1/hris/payroll/foundation/configurations/{configurationId}", "configuration"),
+                ("put", "/v1/hris/payroll/foundation/configurations/{configurationId}", "update"),
+                ("get", "/v1/hris/payroll/foundation/configurations/{configurationId}/versions", "versions"),
+                ("post", "/v1/hris/payroll/foundation/configurations/{configurationId}/simulations", "simulate"),
+                ("post", "/v1/hris/payroll/foundation/configurations/{configurationId}/publish", "publish"),
+                ("post", "/v1/hris/payroll/foundation/configurations/{configurationId}/reversals", "reverse"),
+                ("get", "/v1/hris/payroll/foundation/receipts/{commandId}", "receipt"),
+                ("post", "/v1/hris/payroll/foundation/receipts/{commandId}/reconcile", "reconcile"),
+            },
+            "time": {
+                ("get", "/v1/hris/work-plans", "list"),
+                ("post", "/v1/hris/work-plans/drafts", "createDraft"),
+                ("post", "/v1/hris/work-plans/{workPlanId}/simulations", "simulate"),
+                ("post", "/v1/hris/work-plans/{workPlanId}/actions/{action}", "transition"),
+                ("get", "/v1/hris/work-plan-receipts/{receiptId}", "receipt"),
+            },
+        }
+        overlays = EXPORTER["load_design_time_overlays"]()
+        self.assertEqual(set(overlays), set(expected))
+        actual = {
+            service: {
+                (method, path, operation["x-dwp-controller-method"])
+                for path, path_item in overlay["paths"].items()
+                for method, operation in path_item.items()
+            }
+            for service, overlay in overlays.items()
+        }
+        self.assertEqual(actual, expected)
+
+        services = {service.name: service for service in EXPORTER["SERVICES"]}
+        self.assertEqual(services["time"].port, 8011)
+        self.assertEqual(services["payroll"].port, 8012)
+        self.assertFalse(services["time"].default_live)
+        self.assertFalse(services["payroll"].default_live)
+        for name in {"auth", "platform", "people"}:
+            self.assertTrue(services[name].default_live)
+
+    def test_wave1_hris_overlays_publish_stable_unique_owner_operations(self) -> None:
+        services = {service.name: service for service in EXPORTER["SERVICES"]}
+        overlays = EXPORTER["load_design_time_overlays"]()
+        patch_variants = {
+            ("people", "/v1/hr/home", "get", "people360"),
+            ("people", "/v1/hr/team", "get", "teamPeople360"),
+            ("people", "/v1/workforce/people", "get", "searchPeople360"),
+            ("people", "/v1/workforce/people/{publicId}", "get", "getPeople360"),
+        }
+
+        for name in overlays:
+            document = EXPORTER["load_snapshot"](services[name])
+            EXPORTER["validate_unique_operation_ids"](document, name)
+            for path, path_item in overlays[name]["paths"].items():
+                for method, operation in path_item.items():
+                    if operation["x-dwp-overlay-mode"] == "PATCH":
+                        variants = document["paths"][path][method][
+                            "x-dwp-controller-variants"
+                        ]
+                        self.assertIn(
+                            (
+                                name,
+                                path,
+                                method,
+                                operation["x-dwp-controller-method"],
+                            ),
+                            patch_variants,
+                        )
+                        self.assertIn(
+                            operation["x-dwp-controller-method"],
+                            {variant["controllerMethod"] for variant in variants},
+                        )
+                    else:
+                        published = document["paths"][path][method]
+                        self.assertEqual(
+                            published["operationId"], operation["operationId"]
+                        )
+                        self.assertEqual(
+                            published["x-dwp-controller-method"],
+                            operation["x-dwp-controller-method"],
+                        )
+                        self.assertEqual(published["x-dwp-runtime-default"], "OFF")
+
+        self.assertEqual(len(patch_variants), 4)
+
+    def test_wave1_hris_live_overlay_rejects_controller_method_drift(self) -> None:
+        service = next(
+            service for service in EXPORTER["SERVICES"] if service.name == "payroll"
+        )
+        live = {
+            "openapi": "3.1.0",
+            "info": {"title": "test", "version": "1"},
+            "paths": {
+                "/v1/hris/payroll/foundation/configurations": {
+                    "get": {
+                        "operationId": "renamedWithoutContractReview",
+                        "responses": {"200": {"description": "OK"}},
+                    }
+                }
+            },
+        }
+        with self.assertRaisesRegex(RuntimeError, "controller method drift"):
+            EXPORTER["apply_design_time_overlay"](service, live)
+
+    def test_wave1_hris_reviewed_inventory_matches_controller_annotations(self) -> None:
+        contracts = (
+            (
+                "auth",
+                "dwp-auth-server/src/main/java/com/dwp/services/auth/productaccess/HrisProductAccessController.java",
+                "/auth/hris/product-access",
+                {"snapshot"},
+            ),
+            (
+                "platform",
+                "dwp-platform-server/src/main/java/com/dwp/services/platform/hrisconfiguration/HrisConfigurationProjectionController.java",
+                "/v1/hris/configuration",
+                {"projection"},
+            ),
+            (
+                "people",
+                "dwp-people-server/src/main/java/com/dwp/services/people/hr/HrController.java",
+                "/v1/hr",
+                {"people360", "teamPeople360"},
+            ),
+            (
+                "people",
+                "dwp-people-server/src/main/java/com/dwp/services/people/workforce/WorkforcePeopleController.java",
+                "/v1/workforce/people",
+                {"searchPeople360", "getPeople360"},
+            ),
+            (
+                "people",
+                "dwp-people-server/src/main/java/com/dwp/services/people/hr/performance/PerformanceCycleController.java",
+                "/v1/hris/performance",
+                {"cycles", "cycle", "create", "update", "validate", "preview", "publish", "receipt"},
+            ),
+            (
+                "payroll",
+                "dwp-payroll-server/src/main/java/com/dwp/services/payroll/foundation/PayrollFoundationController.java",
+                "/v1/hris/payroll/foundation",
+                {"configurations", "create", "configuration", "versions", "update", "simulate", "publish", "reverse", "receipt", "reconcile"},
+            ),
+            (
+                "time",
+                "dwp-time-server/src/main/java/com/dwp/services/time/workregime/WorkRegimeOwnerController.java",
+                "/v1/hris",
+                {"list", "createDraft", "simulate", "transition", "receipt"},
+            ),
+        )
+        annotation = re.compile(
+            r"@(Get|Post|Put|Patch|Delete)Mapping(?:\(([^)]*)\))?\s+"
+            r"(?:public\s+)?[\w.<>,? ]+\s+(\w+)\s*\(",
+            re.DOTALL,
+        )
+        overlays = EXPORTER["load_design_time_overlays"]()
+        reviewed = {
+            (service, operation["x-dwp-controller-method"]): (method, path)
+            for service, overlay in overlays.items()
+            for path, path_item in overlay["paths"].items()
+            for method, operation in path_item.items()
+        }
+        verbs = {
+            "Get": "get", "Post": "post", "Put": "put",
+            "Patch": "patch", "Delete": "delete",
+        }
+
+        for service, relative_file, base_path, methods in contracts:
+            source = (ROOT / relative_file).read_text(encoding="utf-8")
+            self.assertRegex(
+                source,
+                rf'@RequestMapping\(\s*"{re.escape(base_path)}"\s*\)',
+            )
+            discovered = {}
+            for verb, arguments, controller_method in annotation.findall(source):
+                path_match = re.search(r'"(/[^"]*)"', arguments or "")
+                child_path = path_match.group(1) if path_match else ""
+                discovered[controller_method] = (verbs[verb], base_path + child_path)
+            self.assertTrue(methods <= set(discovered), relative_file)
+            for controller_method in methods:
+                self.assertEqual(
+                    reviewed[(service, controller_method)],
+                    discovered[controller_method],
+                    f"{relative_file}#{controller_method}",
+                )
+
+    def test_gateway_publishes_every_wave1_hris_design_time_operation(self) -> None:
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+        services = {service.name: service for service in EXPORTER["SERVICES"]}
+        overlays = EXPORTER["load_design_time_overlays"]()
+        for name, overlay in overlays.items():
+            service = services[name]
+            for owner_path, path_item in overlay["paths"].items():
+                public_path = service.public_path(owner_path)
+                self.assertIsNotNone(public_path)
+                for method in path_item:
+                    self.assertIn(
+                        method,
+                        gateway["paths"].get(public_path, {}),
+                        f"{name} {method.upper()} {public_path}",
+                    )
+                    parameters = {
+                        (parameter.get("in"), parameter.get("name"))
+                        for parameter in gateway["paths"][public_path][method].get(
+                            "parameters", []
+                        )
+                        if isinstance(parameter, dict)
+                    }
+                    self.assertIn(("query", "contextScopeKey"), parameters)
 
     def test_v15_governs_and_mirrors_every_apr17_through_24_operation(self) -> None:
         current = json.loads(

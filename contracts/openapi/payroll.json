@@ -1,0 +1,380 @@
+{
+  "info": {
+    "title": "DWP Payroll Service API",
+    "version": "1.0.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/v1/hris/payroll/foundation/configurations": {
+      "get": {
+        "operationId": "hrisPayrollConfigurations",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-controller"
+        ],
+        "x-dwp-controller-method": "configurations",
+        "x-dwp-runtime-default": "OFF"
+      },
+      "post": {
+        "operationId": "hrisPayrollCreateConfiguration",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-controller"
+        ],
+        "x-dwp-controller-method": "create",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/payroll/foundation/configurations/{configurationId}": {
+      "get": {
+        "operationId": "hrisPayrollConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configurationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-controller"
+        ],
+        "x-dwp-controller-method": "configuration",
+        "x-dwp-runtime-default": "OFF"
+      },
+      "put": {
+        "operationId": "hrisPayrollUpdateConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configurationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-controller"
+        ],
+        "x-dwp-controller-method": "update",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/payroll/foundation/configurations/{configurationId}/publish": {
+      "post": {
+        "operationId": "hrisPayrollPublishConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configurationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-controller"
+        ],
+        "x-dwp-controller-method": "publish",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/payroll/foundation/configurations/{configurationId}/reversals": {
+      "post": {
+        "operationId": "hrisPayrollReverseConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configurationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-controller"
+        ],
+        "x-dwp-controller-method": "reverse",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/payroll/foundation/configurations/{configurationId}/simulations": {
+      "post": {
+        "operationId": "hrisPayrollSimulateConfiguration",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configurationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-controller"
+        ],
+        "x-dwp-controller-method": "simulate",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/payroll/foundation/configurations/{configurationId}/versions": {
+      "get": {
+        "operationId": "hrisPayrollConfigurationVersions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configurationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-controller"
+        ],
+        "x-dwp-controller-method": "versions",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/payroll/foundation/receipts/{commandId}": {
+      "get": {
+        "operationId": "hrisPayrollCommandReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "commandId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-controller"
+        ],
+        "x-dwp-controller-method": "receipt",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/payroll/foundation/receipts/{commandId}/reconcile": {
+      "post": {
+        "operationId": "hrisPayrollReconcileCommand",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "commandId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "payroll-foundation-controller"
+        ],
+        "x-dwp-controller-method": "reconcile",
+        "x-dwp-runtime-default": "OFF"
+      }
+    }
+  }
+}
