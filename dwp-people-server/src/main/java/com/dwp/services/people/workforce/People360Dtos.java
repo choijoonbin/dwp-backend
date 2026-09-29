@@ -1,6 +1,7 @@
 package com.dwp.services.people.workforce;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDate;
 import java.util.List;
@@ -35,6 +36,7 @@ public final class People360Dtos {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(name = "People360SnapshotV1")
     public record Snapshot(
             int schemaVersion,
             LocalDate asOf,
@@ -47,6 +49,7 @@ public final class People360Dtos {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(name = "People360PageV1")
     public record Page(
             List<Snapshot> items,
             String nextCursor,
@@ -56,6 +59,7 @@ public final class People360Dtos {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(name = "People360PersonV1")
     public record Person(
             UUID personId,
             String displayName,
@@ -65,6 +69,7 @@ public final class People360Dtos {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(name = "People360EmploymentV1")
     public record Employment(
             String workerNumber,
             String workerType,
@@ -77,6 +82,7 @@ public final class People360Dtos {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(name = "People360PrimaryAssignmentV1")
     public record PrimaryAssignment(
             String assignmentKey,
             String assignmentStatus,
@@ -91,6 +97,7 @@ public final class People360Dtos {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(name = "People360AccessV1")
     public record Access(
             Archetype archetype,
             String scope,
@@ -99,6 +106,7 @@ public final class People360Dtos {
     }
 
     @JsonInclude(JsonInclude.Include.NON_NULL)
+    @Schema(name = "People360FieldDecisionV1")
     public record FieldDecision(
             String field,
             FieldDecisionValue decision) {
