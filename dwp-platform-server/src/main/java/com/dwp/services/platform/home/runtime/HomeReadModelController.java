@@ -144,37 +144,6 @@ public class HomeReadModelController {
         return new ResponseEntity<>(ApiResponse.success(result.model()), headers, HttpStatus.OK);
     }
 
-    /** Direct-call compatibility for pre-Wave 6 tests; HTTP requests must supply trusted headers. */
-    ResponseEntity<ApiResponse<HomeReadModelDtos.HomeReadModel>> read(
-            Long tenantId,
-            Long userId,
-            UUID personPublicId,
-            String permissions,
-            String roles,
-            String groupRefs,
-            String decisionRevision,
-            String revalidateAt,
-            String locale,
-            String ifNoneMatch,
-            String mode,
-            String deviceClass,
-            String timeZone) {
-        if (!properties.enabled() && !properties.shadowEnabled()) {
-            throw new com.dwp.core.exception.BaseException(
-                    com.dwp.core.common.ErrorCode.RESOURCE_NOT_AVAILABLE,
-                    "Home Runtime v2 is disabled for this deployment.");
-        }
-        HomeRuntimeContext context = HomeRuntimeContext.create(
-                tenantId, userId, personPublicId, permissions, roles, groupRefs,
-                decisionRevision, revalidateAt, locale, timeZone);
-        HomeReadModelDtos.ReadResult result = service.read(context, mode, deviceClass);
-        HttpHeaders headers = responseHeaders(result.etag(), result.decision());
-        if (matches(ifNoneMatch, result.etag())) {
-            return new ResponseEntity<>(null, headers, HttpStatus.NOT_MODIFIED);
-        }
-        return new ResponseEntity<>(ApiResponse.success(result.model()), headers, HttpStatus.OK);
-    }
-
     @PostMapping("/widget-actions:execute")
     @Operation(
             operationId = "executeHomeWidgetActionV2",
@@ -245,37 +214,6 @@ public class HomeReadModelController {
         headers.set(HttpHeaders.CACHE_CONTROL, "private, no-store, max-age=0");
         return new ResponseEntity<>(
                 ApiResponse.success(result.receipt()), headers, HttpStatus.ACCEPTED);
-    }
-
-    /** Direct-call compatibility for pre-Wave 6 tests; HTTP requests use the trusted overload. */
-    ResponseEntity<ApiResponse<HomeReadModelDtos.HomeWidgetCommandReceipt>> execute(
-            Long tenantId,
-            Long userId,
-            UUID personPublicId,
-            String permissions,
-            String roles,
-            String groupRefs,
-            String decisionRevision,
-            String revalidateAt,
-            String locale,
-            UUID commandId,
-            String mode,
-            String deviceClass,
-            String timeZone,
-            HomeReadModelDtos.CommandRequest request) {
-        if (!properties.commandsEnabled()) {
-            throw new com.dwp.core.exception.BaseException(
-                    com.dwp.core.common.ErrorCode.RESOURCE_NOT_AVAILABLE,
-                    "Home Runtime commands remain disabled.");
-        }
-        HomeRuntimeContext context = HomeRuntimeContext.create(
-                tenantId, userId, personPublicId, permissions, roles, groupRefs,
-                decisionRevision, revalidateAt, locale, timeZone);
-        HomeReadModelDtos.HomeWidgetCommandReceipt receipt = commands.execute(
-                context, mode, deviceClass, commandId, request);
-        HttpHeaders headers = new HttpHeaders();
-        headers.set(HttpHeaders.CACHE_CONTROL, "private, no-store, max-age=0");
-        return new ResponseEntity<>(ApiResponse.success(receipt), headers, HttpStatus.ACCEPTED);
     }
 
     private HttpHeaders responseHeaders(

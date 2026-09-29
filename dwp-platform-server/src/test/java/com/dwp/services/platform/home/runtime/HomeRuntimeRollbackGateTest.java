@@ -1,12 +1,19 @@
 package com.dwp.services.platform.home.runtime;
 
-import com.dwp.core.exception.BaseException;
+import com.dwp.core.exception.GlobalExceptionHandler;
 import com.dwp.platform.contract.home.HomeWidgetProviderContract;
+import com.dwp.services.platform.audit.PlatformAuditService;
+import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
+import com.dwp.services.platform.home.personalization.HomeCommandReceiptService;
+import com.dwp.services.platform.widgetregistry.WidgetRegistryMutationGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.github.resilience4j.bulkhead.BulkheadRegistry;
 import io.github.resilience4j.circuitbreaker.CircuitBreakerRegistry;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.support.StaticMessageSource;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.http.MediaType;
+import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.web.client.RestClient;
 
 import java.nio.file.Files;
@@ -24,6 +31,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.springframework.test.web.servlet.setup.MockMvcBuilders.standaloneSetup;
 
 class HomeRuntimeRollbackGateTest {
 
@@ -63,37 +75,73 @@ class HomeRuntimeRollbackGateTest {
                 .writeValue(output.toFile(), evidence);
     }
 
-    private void verifyReadKillSwitch() {
+    private void verifyReadKillSwitch() throws Exception {
         HomeReadModelService reads = mock(HomeReadModelService.class);
-        HomeReadModelController controller = new HomeReadModelController(
+        MockMvc mvc = mvc(new HomeReadModelController(
                 reads, mock(HomeWidgetCommandService.class),
-                properties(false, false, false));
+                properties(false, false, false)));
 
-        assertThatThrownBy(() -> controller.read(
-                71L, 82L, null, "APP.WORK:VIEW", "MEMBER", "", "decision-1",
-                future(), "ko-KR", null, "CLASSIC", "DESKTOP_STANDARD", "Asia/Seoul"))
-                .isInstanceOf(BaseException.class);
+        mvc.perform(get("/v2/home")
+                        .queryParam("mode", "CLASSIC")
+                        .queryParam("deviceClass", "DESKTOP_STANDARD")
+                        .queryParam("timeZone", "Asia/Seoul")
+                        .header("X-DWP-Tenant-ID", "71")
+                        .header("X-DWP-User-ID", "82")
+                        .header("X-DWP-Permissions", "APP.WORK:VIEW")
+                        .header("X-DWP-Roles", "MEMBER")
+                        .header("X-DWP-Current-Decision-Revision", "decision-1")
+                        .header("X-DWP-Current-Revalidate-At", future())
+                        .header("X-DWP-Home-Runtime-State", "SHADOW_COMPARE")
+                        .header("X-DWP-Home-Rollout-Ring", "CONTROL")
+                        .header("X-DWP-Home-Rollout-Revision", "rollout-1")
+                        .header("Accept-Language", "ko-KR"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_AVAILABLE"));
         verifyNoInteractions(reads);
     }
 
-    private void verifyCommandKillSwitch() {
-        HomeWidgetCommandService commands = mock(HomeWidgetCommandService.class);
-        HomeReadModelController controller = new HomeReadModelController(
-                mock(HomeReadModelService.class), commands,
-                properties(true, false, false));
+    private void verifyCommandKillSwitch() throws Exception {
+        HomeRuntimeProperties disabled = properties(true, false, false);
+        HomeReadModelService reads = mock(HomeReadModelService.class);
+        HomeWidgetCommandService commands = new HomeWidgetCommandService(
+                List.of(),
+                reads,
+                mock(HomeCommandReceiptService.class),
+                new HomeCanonicalJson(new ObjectMapper().findAndRegisterModules()),
+                mock(ProviderResultValidator.class),
+                disabled,
+                mock(PlatformAuditService.class),
+                mock(WidgetRegistryMutationGuard.class),
+                mock(HomeRuntimeTelemetry.class));
+        MockMvc mvc = mvc(new HomeReadModelController(reads, commands, disabled));
+        HomeReadModelDtos.CommandRequest request = new HomeReadModelDtos.CommandRequest(
+                UUID.randomUUID(), "open-item", "result-1", Map.of());
 
-        assertThatThrownBy(() -> controller.execute(
-                71L, 82L, null, "APP.WORK:VIEW", "MEMBER", "", "decision-1",
-                future(), "ko-KR", UUID.randomUUID(), "CLASSIC", "DESKTOP_STANDARD",
-                "Asia/Seoul", new HomeReadModelDtos.CommandRequest(
-                        UUID.randomUUID(), "open-item", "result-1", Map.of())))
-                .isInstanceOf(BaseException.class);
-        verifyNoInteractions(commands);
+        mvc.perform(post("/v2/home/widget-actions:execute")
+                        .queryParam("mode", "CLASSIC")
+                        .queryParam("deviceClass", "DESKTOP_STANDARD")
+                        .queryParam("timeZone", "Asia/Seoul")
+                        .header("X-DWP-Tenant-ID", "71")
+                        .header("X-DWP-User-ID", "82")
+                        .header("X-DWP-Permissions", "APP.WORK:VIEW")
+                        .header("X-DWP-Roles", "MEMBER")
+                        .header("X-DWP-Current-Decision-Revision", "decision-1")
+                        .header("X-DWP-Current-Revalidate-At", future())
+                        .header("X-DWP-Home-Runtime-State", "SHADOW_COMPARE")
+                        .header("X-DWP-Home-Rollout-Ring", "CONTROL")
+                        .header("X-DWP-Home-Rollout-Revision", "rollout-1")
+                        .header("Accept-Language", "ko-KR")
+                        .header("Idempotency-Key", UUID.randomUUID())
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(new ObjectMapper().writeValueAsBytes(request)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.errorCode").value("RESOURCE_NOT_AVAILABLE"));
+        verifyNoInteractions(reads);
     }
 
     private void verifyProviderKillSwitch() {
         HttpWidgetProviderClient provider = new HttpWidgetProviderClient(
-                "meeting", "http://127.0.0.1:1", "", Duration.ofMillis(50),
+                "meeting", "http://127.0.0.1:1", "", false, Duration.ofMillis(50),
                 RestClient.builder(), CircuitBreakerRegistry.ofDefaults(),
                 BulkheadRegistry.ofDefaults());
 
@@ -137,6 +185,12 @@ class HomeRuntimeRollbackGateTest {
                 enabled, shadowEnabled, commandsEnabled,
                 Duration.ofMillis(900), Duration.ofMillis(400),
                 Duration.ofSeconds(30), Duration.ofMinutes(5), 100, 262_144);
+    }
+
+    private MockMvc mvc(HomeReadModelController controller) {
+        return standaloneSetup(controller)
+                .setControllerAdvice(new GlobalExceptionHandler(new StaticMessageSource()))
+                .build();
     }
 
     private String future() {

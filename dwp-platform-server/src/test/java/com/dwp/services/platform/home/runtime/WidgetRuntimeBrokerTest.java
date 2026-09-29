@@ -220,7 +220,8 @@ class WidgetRuntimeBrokerTest {
 
     private HomeRuntimeProperties properties(long providerTimeoutMillis) {
         return new HomeRuntimeProperties(
-                true, false, Duration.ofMillis(900), Duration.ofMillis(providerTimeoutMillis),
+                true, false, false,
+                Duration.ofMillis(900), Duration.ofMillis(providerTimeoutMillis),
                 Duration.ofSeconds(30), Duration.ofMinutes(5), 100, 262_144);
     }
 

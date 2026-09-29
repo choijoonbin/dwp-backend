@@ -29,7 +29,8 @@ final class TestFixtures {
                 context.tenantId(), context.userId(), context.personPublicId(),
                 context.permissions(), context.roles(), context.groupRefs(),
                 context.authorityDecisionRevision(), authorityRevalidateAt,
-                context.locale(), context.timeZone(), context.fingerprint());
+                context.locale(), context.timeZone(), context.fingerprint(),
+                context.correlationId(), context.traceparent(), context.tracestate());
     }
 
     static WidgetProviderPort.Request request(String definitionKey) {

@@ -132,7 +132,11 @@ class HomeRuntimePreProdSloTest {
         HomeReadModelDtos.HomeReadModel model = new HomeReadModelDtos.HomeReadModel(
                 2, "CLASSIC", null, null, List.of(), List.of(), now,
                 now.plusSeconds(30), false, List.of(), "slo-etag", "SHADOW");
-        when(service.read(any(), eq("CLASSIC"), eq("DESKTOP_STANDARD")))
+        when(service.read(
+                any(),
+                any(HomeRuntimeRolloutDecision.TrustedInput.class),
+                eq("CLASSIC"),
+                eq("DESKTOP_STANDARD")))
                 .thenReturn(new HomeReadModelDtos.ReadResult(model, "\"slo-etag\""));
         MockMvc mvc = standaloneSetup(new HomeReadModelController(
                 service, mock(HomeWidgetCommandService.class), properties())).build();
@@ -150,7 +154,10 @@ class HomeRuntimePreProdSloTest {
                                 .header("X-DWP-Permissions", "APP.WORK:VIEW")
                                 .header("X-DWP-Roles", "MEMBER")
                                 .header("X-DWP-Current-Decision-Revision", "decision-17")
-                                .header("X-DWP-Current-Revalidate-At", revalidateAt))
+                                .header("X-DWP-Current-Revalidate-At", revalidateAt)
+                                .header("X-DWP-Home-Runtime-State", "SHADOW_COMPARE")
+                                .header("X-DWP-Home-Rollout-Ring", "CONTROL")
+                                .header("X-DWP-Home-Rollout-Revision", "rollout-17"))
                         .andReturn().getResponse().getStatus();
                 if (status != 200) failures++;
             } catch (RuntimeException failure) {

@@ -103,7 +103,7 @@ class HomeReadModelControllerTest {
 
     private HomeRuntimeProperties properties() {
         return new HomeRuntimeProperties(
-                false, true, Duration.ofMillis(900), Duration.ofMillis(400),
+                false, true, false, Duration.ofMillis(900), Duration.ofMillis(400),
                 Duration.ofSeconds(30), Duration.ofMinutes(5), 100, 262_144);
     }
 }
