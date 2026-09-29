@@ -19,11 +19,6 @@ public class ActivityEvidenceRepository {
                                    String checkpointStatus, OffsetDateTime verifiedAt) { }
 
     public Optional<AuditObservation> evidence(
-            Long tenant, Long user, Set<String> permissions, UUID id) {
-        return evidence(tenant, user, permissions, id, false);
-    }
-
-    public Optional<AuditObservation> evidence(
             Long tenant, Long user, Set<String> permissions, UUID id, boolean localFixtures) {
         // Re-evaluate source ACL in the same statement that reads the receipt. The legacy
         // source FK proves linkage; only the audit owner's persisted checkpoint reports integrity.
@@ -43,7 +38,8 @@ public class ActivityEvidenceRepository {
                    AND a.occurred_at BETWEEN checkpoint.first_event_at AND checkpoint.last_event_at
                  WHERE
                 """ + ActivityRepository.AUTHORIZED + " AND e.activity_event_id = :id",
-                access(tenant, user, permissions, localFixtures).addValue("id", id),
+                ActivityRepository.accessParameters(tenant, user, permissions, localFixtures)
+                        .addValue("id", id),
                 (rs, n) -> new AuditObservation(rs.getObject("activity_event_id", UUID.class),
                         rs.getObject("audit_record_id", UUID.class), rs.getString("record_hash"),
                         rs.getString("verification_status"), rs.getObject("verified_at", OffsetDateTime.class)))
@@ -99,7 +95,7 @@ public class ActivityEvidenceRepository {
                    AND ((stream.resource_kind = 'MAIL' AND :mailView)
                      OR (stream.resource_kind = 'CALENDAR' AND :calendarView))
                  ORDER BY connector.connector_key, stream.resource_kind
-                """, access(tenant, user, permissions, localFixtures)
+                """, ActivityRepository.accessParameters(tenant, user, permissions, localFixtures)
                         .addValue("mailView", permissions.contains("APP.MAIL:VIEW"))
                         .addValue("calendarView", permissions.contains("APP.CALENDAR:VIEW")),
                 (rs, n) -> new ActivityEvidenceDtos.SourceStatus(
@@ -111,17 +107,4 @@ public class ActivityEvidenceRepository {
                                 ? "LOCAL_FIXTURE" : "PERSONAL_SYNC_LEDGER"));
     }
 
-    public List<ActivityEvidenceDtos.SourceStatus> sources(
-            Long tenant, Long user, Set<String> permissions, OffsetDateTime now) {
-        return sources(tenant, user, permissions, now, false);
-    }
-
-    private MapSqlParameterSource access(
-            Long tenant, Long user, Set<String> permissions, boolean localFixtures) {
-        return new MapSqlParameterSource().addValue("tenant", tenant).addValue("user", user)
-                .addValue("localFixtures", localFixtures)
-                .addValue("workView", permissions.contains("APP.WORK:VIEW"))
-                .addValue("appsView", permissions.contains("APP.APPS:VIEW"))
-                .addValue("permissions", permissions.isEmpty() ? Set.of("__NONE__") : permissions);
-    }
 }

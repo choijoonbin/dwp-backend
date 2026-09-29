@@ -47,7 +47,7 @@ class WorkplaceResourceFavoriteRepository {
                        COALESCE(favorite.version, 0) AS version,
                        favorite.updated_at
                   FROM unnest(?::uuid[]) WITH ORDINALITY requested(resource_id, ordinal)
-             LEFT JOIN wp_resource_favorites favorite
+                LEFT JOIN wp_resource_favorites favorite
                     ON favorite.tenant_id=? AND favorite.user_id=?
                    AND favorite.resource_id=requested.resource_id
                  ORDER BY requested.ordinal

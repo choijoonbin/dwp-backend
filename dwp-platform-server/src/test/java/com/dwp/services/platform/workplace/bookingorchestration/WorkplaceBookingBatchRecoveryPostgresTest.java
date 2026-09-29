@@ -1,7 +1,5 @@
 package com.dwp.services.platform.workplace.bookingorchestration;
 
-import com.dwp.core.common.ErrorCode;
-import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.calendar.RoomService;
 import com.dwp.services.platform.workplace.WorkplaceDtos;
 import com.dwp.services.platform.workplace.WorkplaceOperationsService;
@@ -401,7 +399,7 @@ class WorkplaceBookingBatchRecoveryPostgresTest {
                         expires_at, version)
                     VALUES (?, ?, ?, ?, ?, ?, ?, 'BATCHED', ?, ?, ?, 2)
                     """, hold, tenant, intent, item, resource, ACTOR, ACTOR,
-                    NOW.plusHours(2), NOW.plusHours(3), NOW.plusMinutes(30));
+                    NOW.plusHours(2), NOW.plusHours(3), futureExpiry());
             jdbc.update("""
                     INSERT INTO wp_booking_batch_items (
                         batch_item_id, batch_id, tenant_id, intent_id, intent_item_id, hold_id,
@@ -412,6 +410,10 @@ class WorkplaceBookingBatchRecoveryPostgresTest {
             holdIds.add(hold);
         }
         return new Fixture(tenant, batch, correlation, itemIds, holdIds);
+    }
+
+    private static OffsetDateTime futureExpiry() {
+        return OffsetDateTime.now(Clock.systemUTC()).plusHours(1);
     }
 
     private static void seedSucceeded(Fixture fixture, int index, UUID ownerReference) {

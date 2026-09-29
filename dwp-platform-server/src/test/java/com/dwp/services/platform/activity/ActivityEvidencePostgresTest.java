@@ -65,15 +65,16 @@ class ActivityEvidencePostgresTest {
     @Test
     void nativeEvidenceRechecksTenantViewerPermissionAndCurrentSourceOwnership() {
         var access = Set.of("APP.ACTIVITY:VIEW", "APP.WORK:VIEW");
-        var row = repository.evidence(tenant, 7L, access, event).orElseThrow();
+        var row = repository.evidence(tenant, 7L, access, event, false).orElseThrow();
         assertThat(row.auditId()).isEqualTo(audit);
         assertThat(row.recordHash()).isNull();
         assertThat(row.checkpointStatus()).isNull();
-        assertThat(repository.evidence(tenant + 1, 7L, access, event)).isEmpty();
-        assertThat(repository.evidence(tenant, 8L, access, event)).isEmpty();
-        assertThat(repository.evidence(tenant, 7L, Set.of("APP.ACTIVITY:VIEW"), event)).isEmpty();
+        assertThat(repository.evidence(tenant + 1, 7L, access, event, false)).isEmpty();
+        assertThat(repository.evidence(tenant, 8L, access, event, false)).isEmpty();
+        assertThat(repository.evidence(
+                tenant, 7L, Set.of("APP.ACTIVITY:VIEW"), event, false)).isEmpty();
         jdbc.update("UPDATE wrk_items SET assignee_user_id=8 WHERE work_item_id=?", work);
-        assertThat(repository.evidence(tenant, 7L, access, event)).isEmpty();
+        assertThat(repository.evidence(tenant, 7L, access, event, false)).isEmpty();
     }
 
     @Test
@@ -109,7 +110,7 @@ class ActivityEvidencePostgresTest {
     void nativeReceiptMatchesTheExactCentralAuditTimeNotJustAnUnqualifiedId() {
         var access = Set.of("APP.ACTIVITY:VIEW", "APP.WORK:VIEW");
         centralAudit(audit, UUID.randomUUID(), "dwp-agent-runtime", "AGENT_RUN", "7");
-        assertThat(repository.evidence(tenant, 7L, access, event).orElseThrow().recordHash()).isNull();
+        assertThat(repository.evidence(tenant, 7L, access, event, false).orElseThrow().recordHash()).isNull();
         jdbc.update("""
                 INSERT INTO sys_audit_events(event_id,occurred_at,event_version,tenant_id,category,action,
                   outcome,severity,actor_type,actor_id,source_service,source_module,environment,
@@ -118,7 +119,7 @@ class ActivityEvidencePostgresTest {
                   outcome,'INFO',actor_type,actor_id::text,'dwp-platform-server','test','test',
                   target_type,target_id,? FROM sys_platform_audit_events WHERE tenant_id=? AND audit_event_id=?
                 """, "d".repeat(64), tenant, audit);
-        var receipt = repository.evidence(tenant, 7L, access, event).orElseThrow();
+        var receipt = repository.evidence(tenant, 7L, access, event, false).orElseThrow();
         assertThat(receipt.recordHash()).isEqualTo("d".repeat(64));
         assertThat(receipt.checkpointStatus()).isNull();
     }
@@ -157,22 +158,28 @@ class ActivityEvidencePostgresTest {
                   productivity_subject_id,resource_kind,stream_state,last_attempt_at)
                 VALUES (?,?,?,'MAIL','STALE',CURRENT_TIMESTAMP)
                 """, UUID.randomUUID(), tenant, subject);
-        var rows = repository.sources(tenant, 7L, Set.of("APP.MAIL:VIEW"), OffsetDateTime.now());
+        var rows = repository.sources(
+                tenant, 7L, Set.of("APP.MAIL:VIEW"), OffsetDateTime.now(), false);
         assertThat(rows).hasSize(1);
         assertThat(rows.getFirst().status()).isEqualTo("STALE");
         assertThat(rows.getFirst().lastSuccessAt()).isNull();
-        assertThat(repository.sources(tenant, 8L, Set.of("APP.MAIL:VIEW"), OffsetDateTime.now())).isEmpty();
-        assertThat(repository.sources(tenant, 7L, Set.of("APP.CALENDAR:VIEW"), OffsetDateTime.now())).isEmpty();
-        assertThat(repository.sources(tenant + 1, 7L, Set.of("APP.MAIL:VIEW"), OffsetDateTime.now())).isEmpty();
+        assertThat(repository.sources(
+                tenant, 8L, Set.of("APP.MAIL:VIEW"), OffsetDateTime.now(), false)).isEmpty();
+        assertThat(repository.sources(
+                tenant, 7L, Set.of("APP.CALENDAR:VIEW"), OffsetDateTime.now(), false)).isEmpty();
+        assertThat(repository.sources(
+                tenant + 1, 7L, Set.of("APP.MAIL:VIEW"), OffsetDateTime.now(), false)).isEmpty();
 
         jdbc.update("UPDATE int_productivity_connectors SET policy_state='BLOCKED' WHERE productivity_connector_id=?",
                 connector);
-        assertThat(repository.sources(tenant, 7L, Set.of("APP.MAIL:VIEW"), OffsetDateTime.now()))
+        assertThat(repository.sources(
+                tenant, 7L, Set.of("APP.MAIL:VIEW"), OffsetDateTime.now(), false))
                 .singleElement().extracting(ActivityEvidenceDtos.SourceStatus::status)
                 .isEqualTo("BLOCKED");
         jdbc.update("UPDATE int_productivity_connectors SET policy_state='REVIEW_REQUIRED' WHERE productivity_connector_id=?",
                 connector);
-        assertThat(repository.sources(tenant, 7L, Set.of("APP.MAIL:VIEW"), OffsetDateTime.now()))
+        assertThat(repository.sources(
+                tenant, 7L, Set.of("APP.MAIL:VIEW"), OffsetDateTime.now(), false))
                 .singleElement().extracting(ActivityEvidenceDtos.SourceStatus::status)
                 .isEqualTo("REVIEW_REQUIRED");
     }
@@ -207,7 +214,7 @@ class ActivityEvidencePostgresTest {
         assertThat(jdbc.queryForObject("SELECT count(*) FROM sys_platform_audit_events WHERE tenant_id=? AND correlation_id='activity-local-joonbin'", Integer.class, localTenant)).isEqualTo(3);
         assertThat(jdbc.queryForObject("SELECT lifecycle_state FROM wrk_items WHERE tenant_id=? AND work_key='ACTIVITY-LOCAL-01'", String.class, localTenant)).isEqualTo("WAITING");
         assertThat(repository.sources(localTenant, 900018L,
-                Set.of("APP.MAIL:VIEW", "APP.CALENDAR:VIEW"), OffsetDateTime.now())).isEmpty();
+                Set.of("APP.MAIL:VIEW", "APP.CALENDAR:VIEW"), OffsetDateTime.now(), false)).isEmpty();
         var sources = repository.sources(localTenant, 900018L,
                 Set.of("APP.MAIL:VIEW", "APP.CALENDAR:VIEW"), OffsetDateTime.now(), true);
         assertThat(sources).hasSize(3)
@@ -228,7 +235,7 @@ class ActivityEvidencePostgresTest {
                  ORDER BY activity_event_id LIMIT 1
                 """, UUID.class, localTenant);
         assertThat(repository.evidence(localTenant, 900018L,
-                Set.of("APP.ACTIVITY:VIEW", "APP.WORK:VIEW"), localEvent)).isEmpty();
+                Set.of("APP.ACTIVITY:VIEW", "APP.WORK:VIEW"), localEvent, false)).isEmpty();
         assertThat(repository.evidence(localTenant, 900018L,
                 Set.of("APP.ACTIVITY:VIEW", "APP.WORK:VIEW"), localEvent, true)).isPresent();
         assertThat(jdbc.queryForObject("SELECT count(*) FROM int_productivity_connectors WHERE tenant_id=? AND connector_key LIKE 'activity-local-joonbin-%' AND (credential_reference IS NOT NULL OR client_id IS NOT NULL)", Integer.class, localTenant)).isZero();

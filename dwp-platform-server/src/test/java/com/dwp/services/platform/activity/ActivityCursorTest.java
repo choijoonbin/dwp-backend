@@ -13,7 +13,8 @@ class ActivityCursorTest {
 
     @Test
     void positionPreservesMicrosecondsAndStableSnapshotAndAllowsAStartWatermark() {
-        String scope = cursor.scope(7L, 8L, Set.of("APP.ACTIVITY:VIEW"), "ko", ActivityQuery.defaults());
+        String scope = cursor.scope(
+                7L, 8L, Set.of("APP.ACTIVITY:VIEW"), "ko", ActivityQuery.defaults(), false);
         var start = cursor.decode(null, scope);
         assertThat(cursor.decode(cursor.encode(start, null, null), scope)).isEqualTo(start);
         OffsetDateTime time = OffsetDateTime.parse("2026-01-01T01:02:03.123456Z");
@@ -28,15 +29,15 @@ class ActivityCursorTest {
     void cursorCannotBeReusedAfterTenantUserPermissionOrFilterChanges() {
         var query = ActivityQuery.defaults();
         Set<String> permissions = Set.of("APP.ACTIVITY:VIEW", "APP.WORK:VIEW");
-        String scope = cursor.scope(7L, 8L, permissions, "ko", query);
+        String scope = cursor.scope(7L, 8L, permissions, "ko", query, false);
         String token = cursor.encode(cursor.decode(null, scope), OffsetDateTime.now(), UUID.randomUUID());
         for (String other : new String[] {
-                cursor.scope(9L, 8L, permissions, "ko", query),
-                cursor.scope(7L, 9L, permissions, "ko", query),
-                cursor.scope(7L, 8L, Set.of("APP.ACTIVITY:VIEW"), "ko", query),
-                cursor.scope(7L, 8L, permissions, "en", query),
+                cursor.scope(9L, 8L, permissions, "ko", query, false),
+                cursor.scope(7L, 9L, permissions, "ko", query, false),
+                cursor.scope(7L, 8L, Set.of("APP.ACTIVITY:VIEW"), "ko", query, false),
+                cursor.scope(7L, 8L, permissions, "en", query, false),
                 cursor.scope(7L, 8L, permissions, "ko", new ActivityQuery("AGENT", null, null,
-                        null, null, null, null, null, null, null, 50, false))}) {
+                        null, null, null, null, null, null, null, 50, false), false)}) {
             assertThatThrownBy(() -> cursor.decode(token, other)).isInstanceOf(BaseException.class);
         }
         assertThatThrownBy(() -> cursor.decode("not-a-cursor", scope)).isInstanceOf(BaseException.class);

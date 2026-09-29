@@ -72,7 +72,7 @@ public class ActivityRepository {
     public List<WorkspaceDtos.ActivityEvent> list(
             Long tenant, Long user, Set<String> permissions, boolean korean,
             ActivityQuery query, ActivityCursor.Position position, boolean localFixtures) {
-        MapSqlParameterSource params = access(tenant, user, permissions, localFixtures)
+        MapSqlParameterSource params = accessParameters(tenant, user, permissions, localFixtures)
                 .addValue("snapshot", position.snapshotAt()).addValue("limit", query.limit() + 1);
         StringBuilder sql = new StringBuilder(SELECT_EVENT)
                 .append(AUTHORIZED).append(" AND e.created_at <= :snapshot");
@@ -109,7 +109,7 @@ public class ActivityRepository {
             boolean localFixtures) {
         return jdbc.query(SELECT_EVENT + AUTHORIZED
                         + " AND e.activity_event_id = :id",
-                access(tenant, user, permissions, localFixtures).addValue("id", id),
+                accessParameters(tenant, user, permissions, localFixtures).addValue("id", id),
                 (rs, n) -> event(rs, korean)).stream().findFirst();
     }
 
@@ -123,7 +123,7 @@ public class ActivityRepository {
                        count(*) FILTER (WHERE e.event_state='FAILED') AS failed,
                        count(*) FILTER (WHERE e.event_state='CANCELLED') AS cancelled
                   FROM wrk_activity_execution_current e WHERE
-                """ + AUTHORIZED, access(tenant, user, permissions, false),
+                """ + AUTHORIZED, accessParameters(tenant, user, permissions, false),
                 (rs, n) -> new long[] {rs.getLong(1), rs.getLong(2), rs.getLong(3),
                         rs.getLong(4), rs.getLong(5), rs.getLong(6), rs.getLong(7)});
     }
@@ -133,11 +133,11 @@ public class ActivityRepository {
         return jdbc.query(SELECT_CURRENT_EVENT + AUTHORIZED
                         + " AND e.event_state IN ('NEEDS_INPUT','POLICY_BLOCKED')"
                         + " ORDER BY e.occurred_at DESC,e.activity_event_id DESC LIMIT :limit",
-                access(tenant, user, permissions, false).addValue("limit", limit),
+                accessParameters(tenant, user, permissions, false).addValue("limit", limit),
                 (rs, n) -> event(rs, korean));
     }
 
-    private MapSqlParameterSource access(
+    static MapSqlParameterSource accessParameters(
             Long tenant, Long user, Set<String> permissions, boolean localFixtures) {
         return new MapSqlParameterSource().addValue("tenant", tenant).addValue("user", user)
                 .addValue("localFixtures", localFixtures)

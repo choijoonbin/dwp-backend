@@ -1,7 +1,5 @@
 package com.dwp.services.platform.workplace.workplaceservices;
 
-import org.springframework.stereotype.Component;
-
 import java.math.BigDecimal;
 import java.util.UUID;
 
@@ -51,6 +49,8 @@ public interface WorkplaceServiceLineAdjustmentProvider {
 
     /** Raised only when a provider accepted an operation but its terminal result is unknown. */
     final class OutcomeUncertainException extends RuntimeException {
+        private static final long serialVersionUID = 1L;
+
         private final String providerOperationReference;
 
         public OutcomeUncertainException(
@@ -64,23 +64,4 @@ public interface WorkplaceServiceLineAdjustmentProvider {
         }
     }
 
-    @Component
-    final class UnconfiguredProvider implements WorkplaceServiceLineAdjustmentProvider {
-        @Override
-        public ProviderOutcome cancel(ProviderRequest request) {
-            return unavailable();
-        }
-
-        @Override
-        public ProviderOutcome reconcile(
-                ProviderRequest request, String providerOperationReference) {
-            return unavailable();
-        }
-
-        private static ProviderOutcome unavailable() {
-            return new ProviderOutcome(OutcomeState.NOT_CONFIGURED, null,
-                    BigDecimal.ZERO, null,
-                    "Refund provider is not configured; manual settlement review is required.");
-        }
-    }
 }

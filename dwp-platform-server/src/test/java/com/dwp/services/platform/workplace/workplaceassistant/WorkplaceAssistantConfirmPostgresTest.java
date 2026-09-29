@@ -966,7 +966,8 @@ class WorkplaceAssistantConfirmPostgresTest {
         ProxyFactory factory = new ProxyFactory(target);
         factory.setProxyTargetClass(true);
         factory.addAdvice(new TransactionInterceptor(
-                manager, new AnnotationTransactionAttributeSource()));
+                (org.springframework.transaction.TransactionManager) manager,
+                new AnnotationTransactionAttributeSource()));
         return (T) factory.getProxy(type.getClassLoader());
     }
 

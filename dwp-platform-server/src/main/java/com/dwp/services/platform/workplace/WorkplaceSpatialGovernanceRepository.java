@@ -314,12 +314,6 @@ public class WorkplaceSpatialGovernanceRepository extends WorkplaceSpatialGovern
                 result.getObject("section_id", UUID.class)), tenantId, floorId);
     }
 
-    public boolean sectionBelongsToZone(
-            Long tenantId, UUID floorId, UUID zoneId, UUID sectionId) {
-        Integer count = jdbc.queryForObject(WorkplaceSpatialGovernanceSql01.SECTION_BELONGS_TO_ZONE_SELECT_WP_SECTIONS, Integer.class, tenantId, floorId, zoneId, sectionId);
-        return count != null && count == 1;
-    }
-
     public void insertPlacements(
             Long tenantId, Long actorId, UUID floorId, UUID revisionId,
             List<PlacementDraft> placements) {

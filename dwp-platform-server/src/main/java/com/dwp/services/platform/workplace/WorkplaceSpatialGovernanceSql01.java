@@ -414,11 +414,6 @@ final class WorkplaceSpatialGovernanceSql01 {
          ORDER BY resource_id
         """;
 
-    static final String SECTION_BELONGS_TO_ZONE_SELECT_WP_SECTIONS = """
-        SELECT COUNT(*) FROM wp_sections
-         WHERE tenant_id = ? AND floor_id = ? AND zone_id = ? AND section_id = ?
-        """;
-
     static final String INSERT_PLACEMENTS_INSERT_WP_FLOOR_PLAN_REVISION_PLACEMENTS = """
         INSERT INTO wp_floor_plan_revision_placements (
             placement_id, tenant_id, floor_id, floor_plan_revision_id,

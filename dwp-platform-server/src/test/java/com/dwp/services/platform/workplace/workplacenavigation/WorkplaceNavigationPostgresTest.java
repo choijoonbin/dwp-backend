@@ -581,7 +581,8 @@ class WorkplaceNavigationPostgresTest {
     private static WorkplaceDeviceService transactionalProxy(WorkplaceDeviceService target) {
         ProxyFactory factory = new ProxyFactory(target);
         factory.setProxyTargetClass(true);
-        factory.addAdvice(new TransactionInterceptor(transactionManager,
+        factory.addAdvice(new TransactionInterceptor(
+                (org.springframework.transaction.TransactionManager) transactionManager,
                 new AnnotationTransactionAttributeSource()));
         return (WorkplaceDeviceService) factory.getProxy(
                 WorkplaceDeviceService.class.getClassLoader());

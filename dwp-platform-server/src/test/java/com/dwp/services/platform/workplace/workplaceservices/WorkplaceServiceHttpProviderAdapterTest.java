@@ -157,7 +157,7 @@ class WorkplaceServiceHttpProviderAdapterTest {
                         ,"state":"RESULT_UNKNOWN",
                          "providerOperationReference":"refund-op-71",
                          "refundedAmount":0,"detailCode":"PROVIDER_PENDING"
-                         """), MediaType.APPLICATION_JSON));
+                        """), MediaType.APPLICATION_JSON));
         assertThat(adapter.cancel(request).state()).isEqualTo(OutcomeState.SUCCEEDED);
         assertThat(adapter.lookup(request, "refund-op-71").state())
                 .isEqualTo(OutcomeState.RESULT_UNKNOWN);

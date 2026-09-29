@@ -442,12 +442,6 @@ public class WorkplaceService {
         bookingAccess.requireBook(tenantId, userId, verifiedGroupRefs, booking);
     }
 
-    private WorkplaceBookingRepository.BookingRow requireBookingRow(
-            Long tenantId, Long userId, UUID bookingId, String locale) {
-        return bookings.booking(tenantId, userId, bookingId, korean(locale))
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-    }
-
     private WorkplaceCatalogRepository.FloorRow selectFloor(
             List<WorkplaceCatalogRepository.FloorRow> floors, UUID floorId) {
         if (floorId == null) {
