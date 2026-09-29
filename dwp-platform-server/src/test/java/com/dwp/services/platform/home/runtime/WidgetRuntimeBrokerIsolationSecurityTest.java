@@ -4,6 +4,7 @@ import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
 import com.dwp.services.platform.widgetregistry.WidgetCatalogService;
 import com.dwp.services.platform.widgetregistry.WidgetRegistryDtos;
+import com.dwp.services.platform.widgetregistry.WidgetRegistryMutationGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
@@ -19,6 +20,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class WidgetRuntimeBrokerIsolationSecurityTest {
 
@@ -45,13 +47,14 @@ class WidgetRuntimeBrokerIsolationSecurityTest {
                 List.of(platform, meeting), new RecipientBoundWidgetCache(properties),
                 new ProviderResultValidator(mapper, properties), properties,
                 new HomeRuntimeTelemetry(new SimpleMeterRegistry()),
-                new HomeCanonicalJson(mapper), executor);
+                new HomeCanonicalJson(mapper), executor,
+                mock(WidgetRegistryMutationGuard.class));
 
         List<HomeWidgetProviderContract.WidgetResult> results = broker.read(
                 context,
                 new WidgetRuntimeBroker.Revisions(
                         "CLASSIC", "DESKTOP_STANDARD", "view-1", "catalog-1",
-                        "policy-1", "safety-1"),
+                        "policy-1", "safety-1", "rollout-test-1", "CONTROL"),
                 List.of(platformRequest, meetingRequest));
 
         assertThat(results).hasSize(2);
@@ -82,7 +85,8 @@ class WidgetRuntimeBrokerIsolationSecurityTest {
                 List.of(provider), new RecipientBoundWidgetCache(properties),
                 new ProviderResultValidator(mapper, properties), properties,
                 new HomeRuntimeTelemetry(meters),
-                new HomeCanonicalJson(mapper), executor);
+                new HomeCanonicalJson(mapper), executor,
+                mock(WidgetRegistryMutationGuard.class));
 
         List<HomeWidgetProviderContract.WidgetResult> results = broker.read(
                 context,

@@ -6,6 +6,7 @@ import com.dwp.services.platform.home.HomeExperienceService;
 import com.dwp.services.platform.home.personalization.EffectiveHomeViewQuery;
 import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
 import com.dwp.services.platform.home.preference.HomePreferenceDtos;
+import com.dwp.services.platform.home.preference.HomePreferenceRepository;
 import com.dwp.services.platform.widgetregistry.WidgetCatalogService;
 import com.dwp.services.platform.widgetregistry.WidgetRegistryDtos;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -22,6 +23,7 @@ import java.time.ZoneOffset;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -85,8 +87,25 @@ class HomeReadModelOwnerProviderRoutingTest {
             List<WidgetProviderPort.Request> requests = invocation.getArgument(2);
             return requests.stream().map(this::available).toList();
         });
+        HomeRuntimeRolloutDecisionResolver rolloutDecisions =
+                mock(HomeRuntimeRolloutDecisionResolver.class);
+        when(rolloutDecisions.resolve(any(), any(), any(), any())).thenAnswer(invocation -> {
+            HomeRuntimeContext context = invocation.getArgument(0);
+            HomeRuntimeRolloutDecision.TrustedInput trusted = invocation.getArgument(1);
+            return new HomeRuntimeRolloutDecision(
+                    trusted.state(), "MZ_V1", trusted.ring(), trusted.revision(), false,
+                    definitions.stream()
+                            .map(WidgetCatalogService.RuntimeDefinition::ownerProductKey)
+                            .collect(java.util.stream.Collectors.toUnmodifiableSet()),
+                    definitions.stream()
+                            .map(WidgetCatalogService.RuntimeDefinition::definitionKey)
+                            .collect(java.util.stream.Collectors.toUnmodifiableSet()),
+                    Set.of(), context.authorityRevalidateAt());
+        });
         HomeReadModelService service = new HomeReadModelService(
-                experiences, views, catalog, broker, mapper, new HomeCanonicalJson(mapper));
+                experiences, views, catalog, broker, mapper, new HomeCanonicalJson(mapper),
+                rolloutDecisions, mock(HomeRuntimeTelemetry.class),
+                mock(HomePreferenceRepository.class));
         HomeRuntimeProperties properties = new HomeRuntimeProperties(
                 true, true, false,
                 Duration.ofMillis(900), Duration.ofMillis(400), Duration.ofSeconds(30),

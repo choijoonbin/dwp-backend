@@ -77,31 +77,6 @@ public class HomeReadModelService {
         this.preferences = preferences;
     }
 
-    /** Source-compatible test constructor. Production injection always supplies the resolver. */
-    HomeReadModelService(
-            HomeExperienceService experiences,
-            EffectiveHomeViewQuery views,
-            WidgetCatalogService catalog,
-            WidgetRuntimeBroker broker,
-            ObjectMapper objectMapper,
-            HomeCanonicalJson canonicalJson) {
-        this(experiences, views, catalog, broker, objectMapper, canonicalJson, null, null, null);
-    }
-
-    public HomeReadModelDtos.ReadResult read(
-            HomeRuntimeContext context,
-            String requestedMode,
-            String deviceClass) {
-        return read(
-                context,
-                new HomeRuntimeRolloutDecision.TrustedInput(
-                        HomeRuntimeRolloutDecision.State.SHADOW_COMPARE,
-                        HomeRuntimeRolloutDecision.Ring.CONTROL,
-                        context.authorityDecisionRevision()),
-                requestedMode,
-                deviceClass);
-    }
-
     public HomeReadModelDtos.ReadResult read(
             HomeRuntimeContext context,
             HomeRuntimeRolloutDecision.TrustedInput trustedRollout,
@@ -111,12 +86,10 @@ public class HomeReadModelService {
         try {
             return readResolved(context, trustedRollout, requestedMode, deviceClass, started);
         } catch (RuntimeException failure) {
-            if (telemetry != null) {
-                telemetry.readFailure(
-                        trustedRollout,
-                        requestedMode,
-                        Duration.ofNanos(System.nanoTime() - started));
-            }
+            telemetry.readFailure(
+                    trustedRollout,
+                    requestedMode,
+                    Duration.ofNanos(System.nanoTime() - started));
             throw failure;
         }
     }
@@ -146,7 +119,7 @@ public class HomeReadModelService {
                 context.rolesHeader(),
                 context.groupsHeader(),
                 mode);
-        HomeRuntimeRolloutDecision decision = decision(
+        HomeRuntimeRolloutDecision decision = rolloutDecisions.resolve(
                 context, trustedRollout, mode, runtimeCatalog);
         if (decision.state() == HomeRuntimeRolloutDecision.State.DISABLED) {
             throw new BaseException(
@@ -228,7 +201,7 @@ public class HomeReadModelService {
                 ? null : providerResults.get(badgeInstanceId);
         if (badgeInstanceId != null) {
             badgeProjection = AppDockBadgeProjection.from(badgeResult);
-            if (telemetry != null && badgeResult != null) {
+            if (badgeResult != null) {
                 telemetry.appDock(
                         decision,
                         badgeResult.state(),
@@ -301,12 +274,10 @@ public class HomeReadModelService {
                 changeVersion,
                 decision.registryAuthoritative() ? "AUTHORITATIVE" : "SHADOW");
         context.requireAuthorityCurrent();
-        if (telemetry != null) {
-            telemetry.read(
-                    decision,
-                    partial ? "PARTIAL" : "SUCCESS",
-                    Duration.ofNanos(System.nanoTime() - started));
-        }
+        telemetry.read(
+                decision,
+                partial ? "PARTIAL" : "SUCCESS",
+                Duration.ofNanos(System.nanoTime() - started));
         context.requireAuthorityCurrent();
         return new HomeReadModelDtos.ReadResult(
                 model, "\"" + changeVersion + "\"", decision);
@@ -332,34 +303,10 @@ public class HomeReadModelService {
                 context.rolesHeader(),
                 context.groupsHeader(),
                 mode);
-        HomeRuntimeRolloutDecision decision = decision(
+        HomeRuntimeRolloutDecision decision = rolloutDecisions.resolve(
                 context, trustedRollout, mode, runtimeCatalog);
         context.requireAuthorityCurrent();
         return decision;
-    }
-
-    private HomeRuntimeRolloutDecision decision(
-            HomeRuntimeContext context,
-            HomeRuntimeRolloutDecision.TrustedInput trusted,
-            String mode,
-            WidgetCatalogService.RuntimeCatalog runtimeCatalog) {
-        if (rolloutDecisions != null) {
-            return rolloutDecisions.resolve(context, trusted, mode, runtimeCatalog);
-        }
-        Set<String> providers = runtimeCatalog.definitions().stream()
-                .filter(definition -> definition.effectiveState()
-                        != WidgetRegistryDtos.EffectiveCatalogState.DENY)
-                .map(WidgetCatalogService.RuntimeDefinition::ownerProductKey)
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toUnmodifiableSet());
-        Set<String> definitions = runtimeCatalog.definitions().stream()
-                .filter(definition -> definition.effectiveState()
-                        != WidgetRegistryDtos.EffectiveCatalogState.DENY)
-                .map(WidgetCatalogService.RuntimeDefinition::definitionKey)
-                .collect(Collectors.toUnmodifiableSet());
-        return new HomeRuntimeRolloutDecision(
-                trusted.state(), mode, trusted.ring(), trusted.revision(), false,
-                providers, definitions, Set.of(), context.authorityRevalidateAt());
     }
 
     private String effectiveMode(
@@ -374,7 +321,7 @@ public class HomeReadModelService {
                 : Set.copyOf(experience.compositionPolicy().allowedModes());
         boolean explicit = requested != null && !requested.isBlank();
         String selected = requested;
-        if (!explicit && preferences != null) {
+        if (!explicit) {
             selected = preferences.findByTenantIdAndUserIdAndSurfaceKey(
                             context.tenantId(), context.userId(), "workspace-home")
                     .map(preference -> preference.getCurrentMode())

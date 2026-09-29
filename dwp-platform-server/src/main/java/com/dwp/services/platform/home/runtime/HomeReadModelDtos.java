@@ -36,27 +36,6 @@ public final class HomeReadModelDtos {
             List<String> unavailableSources,
             String changeVersion,
             String registryMode) {
-
-        public HomeReadModel(
-                int schemaVersion,
-                String mode,
-                EffectiveView view,
-                HomeShell shell,
-                List<AppGroup> appDock,
-                List<Widget> widgets,
-                OffsetDateTime generatedAt,
-                OffsetDateTime expiresAt,
-                boolean partial,
-                List<String> unavailableSources,
-                String changeVersion,
-                String registryMode) {
-            this(schemaVersion, mode, view, shell, appDock, widgets,
-                    new RuntimeDecision(
-                            "SHADOW_COMPARE", mode, "CONTROL", "legacy-shadow",
-                            false, false, expiresAt),
-                    generatedAt, expiresAt, partial, unavailableSources, changeVersion,
-                    registryMode);
-        }
     }
 
     /** Bounded browser-visible rollout decision. Internal provider/definition allowlists stay server-side. */
@@ -161,19 +140,6 @@ public final class HomeReadModelDtos {
             HomeReadModel model,
             String etag,
             HomeRuntimeRolloutDecision decision) {
-
-        public ReadResult(HomeReadModel model, String etag) {
-            this(model, etag, new HomeRuntimeRolloutDecision(
-                    HomeRuntimeRolloutDecision.State.valueOf(model.runtime().state()),
-                    model.runtime().homeMode(),
-                    HomeRuntimeRolloutDecision.Ring.valueOf(model.runtime().rolloutRing()),
-                    model.runtime().rolloutRevision(),
-                    model.runtime().registryAuthoritative(),
-                    java.util.Set.of(),
-                    java.util.Set.of(),
-                    java.util.Set.of(),
-                    model.runtime().expiresAt()));
-        }
     }
 
     public record CommandRequest(

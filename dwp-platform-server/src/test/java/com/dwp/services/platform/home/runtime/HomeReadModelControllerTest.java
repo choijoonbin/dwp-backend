@@ -26,10 +26,9 @@ class HomeReadModelControllerTest {
     @Test
     void returnsRecipientBoundEtagAndShadowHeaders() throws Exception {
         HomeReadModelService service = mock(HomeReadModelService.class);
-        HomeReadModelDtos.HomeReadModel model = model();
         when(service.read(any(), any(HomeRuntimeRolloutDecision.TrustedInput.class),
                         eq("CLASSIC"), eq("DESKTOP_STANDARD")))
-                .thenReturn(new HomeReadModelDtos.ReadResult(model, "\"etag-1\""));
+                .thenReturn(readResult());
         MockMvc mvc = standaloneSetup(new HomeReadModelController(
                 service, mock(HomeWidgetCommandService.class), properties())).build();
 
@@ -40,7 +39,7 @@ class HomeReadModelControllerTest {
                 .andExpect(header().string("X-DWP-Home-Runtime-Mode", "SHADOW"))
                 .andExpect(header().string("X-DWP-Home-Runtime-State", "SHADOW_COMPARE"))
                 .andExpect(header().string("X-DWP-Home-Rollout-Ring", "CONTROL"))
-                .andExpect(header().string("X-DWP-Home-Rollout-Revision", "legacy-shadow"))
+                .andExpect(header().string("X-DWP-Home-Rollout-Revision", "rollout-17"))
                 .andExpect(header().string("X-DWP-Home-Commands-Enabled", "false"))
                 .andExpect(header().string("X-DWP-Widget-Registry-Authoritative", "false"))
                 .andExpect(jsonPath("$.data.schemaVersion").value(3));
@@ -61,7 +60,7 @@ class HomeReadModelControllerTest {
         HomeReadModelService service = mock(HomeReadModelService.class);
         when(service.read(any(), any(HomeRuntimeRolloutDecision.TrustedInput.class),
                         eq("CLASSIC"), eq("DESKTOP_STANDARD")))
-                .thenReturn(new HomeReadModelDtos.ReadResult(model(), "\"etag-1\""));
+                .thenReturn(readResult());
         MockMvc mvc = standaloneSetup(new HomeReadModelController(
                 service, mock(HomeWidgetCommandService.class), properties())).build();
 
@@ -94,11 +93,16 @@ class HomeReadModelControllerTest {
                 .header("Accept-Language", "ko-KR");
     }
 
-    private HomeReadModelDtos.HomeReadModel model() {
+    private HomeReadModelDtos.ReadResult readResult() {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        return new HomeReadModelDtos.HomeReadModel(
-                3, "CLASSIC", null, null, List.of(), List.of(), now, now.plusSeconds(30),
+        HomeRuntimeRolloutDecision decision = TestFixtures.shadowDecision(
+                "CLASSIC", "rollout-17", now.plusSeconds(30));
+        HomeReadModelDtos.HomeReadModel model = new HomeReadModelDtos.HomeReadModel(
+                HomeReadModelDtos.SCHEMA_VERSION, "CLASSIC", null, null,
+                List.of(), List.of(), TestFixtures.runtimeDecision(decision),
+                now, now.plusSeconds(30),
                 false, List.of(), "etag-1", "SHADOW");
+        return new HomeReadModelDtos.ReadResult(model, "\"etag-1\"", decision);
     }
 
     private HomeRuntimeProperties properties() {

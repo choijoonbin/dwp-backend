@@ -61,8 +61,7 @@ class HomeRuntimeAuthorizationEtagTest {
                 any(HomeRuntimeRolloutDecision.TrustedInput.class),
                 eq("CLASSIC"),
                 eq("DESKTOP_STANDARD")))
-                .thenReturn(new HomeReadModelDtos.ReadResult(model("etag-authority-8"),
-                        "\"etag-authority-8\""));
+                .thenReturn(readResult("etag-authority-8"));
         MockMvc mvc = standaloneSetup(new HomeReadModelController(
                 service, mock(HomeWidgetCommandService.class), properties())).build();
 
@@ -123,7 +122,9 @@ class HomeRuntimeAuthorizationEtagTest {
         when(experiences.modeEnabled("MZ_V1")).thenReturn(true, false, false);
         HomeReadModelService service = new HomeReadModelService(
                 experiences, null, null, null, new ObjectMapper(),
-                new HomeCanonicalJson(new ObjectMapper()), null, null, preferences);
+                new HomeCanonicalJson(new ObjectMapper()),
+                mock(HomeRuntimeRolloutDecisionResolver.class),
+                mock(HomeRuntimeTelemetry.class), preferences);
         Method method = HomeReadModelService.class.getDeclaredMethod(
                 "effectiveMode", HomeRuntimeContext.class,
                 HomeExperienceDtos.HomeExperienceResponse.class, String.class);
@@ -145,7 +146,9 @@ class HomeRuntimeAuthorizationEtagTest {
     private String changeVersion(HomeRuntimeContext context, String mode) throws Exception {
         ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
         HomeReadModelService service = new HomeReadModelService(
-                null, null, null, null, mapper, new HomeCanonicalJson(mapper));
+                null, null, null, null, mapper, new HomeCanonicalJson(mapper),
+                mock(HomeRuntimeRolloutDecisionResolver.class),
+                mock(HomeRuntimeTelemetry.class), mock(HomePreferenceRepository.class));
         HomeExperienceDtos.HomeExperienceResponse experience = mock(
                 HomeExperienceDtos.HomeExperienceResponse.class);
         when(experience.version()).thenReturn(11L);
@@ -191,11 +194,15 @@ class HomeRuntimeAuthorizationEtagTest {
                 "ko-KR", "Asia/Seoul");
     }
 
-    private HomeReadModelDtos.HomeReadModel model(String version) {
+    private HomeReadModelDtos.ReadResult readResult(String version) {
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
-        return new HomeReadModelDtos.HomeReadModel(
-                2, "CLASSIC", null, null, List.of(), List.of(), now,
+        HomeRuntimeRolloutDecision decision = TestFixtures.shadowDecision(
+                "CLASSIC", "rollout-authority-8", now.plusSeconds(30));
+        HomeReadModelDtos.HomeReadModel model = new HomeReadModelDtos.HomeReadModel(
+                HomeReadModelDtos.SCHEMA_VERSION, "CLASSIC", null, null,
+                List.of(), List.of(), TestFixtures.runtimeDecision(decision), now,
                 now.plusSeconds(30), false, List.of(), version, "SHADOW");
+        return new HomeReadModelDtos.ReadResult(model, "\"" + version + "\"", decision);
     }
 
     private HomeRuntimeProperties properties() {

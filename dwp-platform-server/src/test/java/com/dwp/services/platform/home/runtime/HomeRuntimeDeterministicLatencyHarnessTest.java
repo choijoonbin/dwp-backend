@@ -2,6 +2,7 @@ package com.dwp.services.platform.home.runtime;
 
 import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
+import com.dwp.services.platform.widgetregistry.WidgetRegistryMutationGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -43,9 +44,11 @@ class HomeRuntimeDeterministicLatencyHarnessTest {
                 List.of(provider), new RecipientBoundWidgetCache(properties),
                 new ProviderResultValidator(objectMapper, properties), properties,
                 new HomeRuntimeTelemetry(new SimpleMeterRegistry()),
-                new HomeCanonicalJson(objectMapper), Runnable::run);
+                new HomeCanonicalJson(objectMapper), Runnable::run,
+                mock(WidgetRegistryMutationGuard.class));
         WidgetRuntimeBroker.Revisions revisions = new WidgetRuntimeBroker.Revisions(
-                "CLASSIC", "DESKTOP_STANDARD", "view-1", "catalog-1", "policy-1", "safety-1");
+                "CLASSIC", "DESKTOP_STANDARD", "view-1", "catalog-1", "policy-1", "safety-1",
+                "rollout-latency-1", "CONTROL");
         long[] samples = new long[SAMPLE_COUNT];
         int hardFailures = 0;
         for (int index = 0; index < SAMPLE_COUNT; index++) {
@@ -68,15 +71,19 @@ class HomeRuntimeDeterministicLatencyHarnessTest {
         HomeRuntimeProperties properties = properties(false, true);
         HomeReadModelService service = mock(HomeReadModelService.class);
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        HomeRuntimeRolloutDecision decision = TestFixtures.shadowDecision(
+                "CLASSIC", "rollout-latency-1", now.plusSeconds(30));
         HomeReadModelDtos.HomeReadModel model = new HomeReadModelDtos.HomeReadModel(
-                2, "CLASSIC", null, null, List.of(), List.of(), now, now.plusSeconds(30),
+                HomeReadModelDtos.SCHEMA_VERSION, "CLASSIC", null, null, List.of(), List.of(),
+                TestFixtures.runtimeDecision(decision), now, now.plusSeconds(30),
                 false, List.of(), "change-1", "SHADOW");
         when(service.read(
                 any(),
                 any(HomeRuntimeRolloutDecision.TrustedInput.class),
                 eq("CLASSIC"),
                 eq("DESKTOP_STANDARD")))
-                .thenReturn(new HomeReadModelDtos.ReadResult(model, "\"change-1\""));
+                .thenReturn(new HomeReadModelDtos.ReadResult(
+                        model, "\"change-1\"", decision));
         MockMvc mvc = standaloneSetup(new HomeReadModelController(
                 service, mock(HomeWidgetCommandService.class), properties)).build();
         long[] samples = new long[SAMPLE_COUNT];

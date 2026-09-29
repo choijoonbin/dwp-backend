@@ -161,7 +161,8 @@ class HomeRuntimeRollbackGateTest {
         RecipientBoundWidgetCache.Key key = new RecipientBoundWidgetCache.Key(
                 71L, 82L, "fingerprint", "decision-1", "ko-KR", "Asia/Seoul",
                 "CLASSIC", "DESKTOP_STANDARD", "view-1", "catalog-1", "policy-1",
-                "safety-1", "platform", Set.of("core.work.rollback"), "request-1");
+                "safety-1", "rollout-1", "platform", Set.of("core.work.rollback"),
+                "request-1");
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
         HomeWidgetProviderContract.BatchResponse response =
                 new HomeWidgetProviderContract.BatchResponse(

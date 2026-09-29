@@ -33,12 +33,6 @@ public class PlatformNativeWidgetProvider implements WidgetProviderPort {
         this.ownerReceipts = ownerReceipts;
     }
 
-    PlatformNativeWidgetProvider(
-            HomeOverviewService overviewService,
-            ObjectMapper objectMapper) {
-        this(overviewService, objectMapper, null);
-    }
-
     @Override
     public HomeWidgetProviderContract.CommandResponse executeCommand(
             HomeRuntimeContext context,
@@ -60,12 +54,6 @@ public class PlatformNativeWidgetProvider implements WidgetProviderPort {
                     WidgetProviderException.Kind.MALFORMED,
                     "COMMAND_PARAMETERS_INVALID",
                     "The recommendation command parameters are invalid.");
-        }
-        if (ownerReceipts == null) {
-            throw new WidgetProviderException(
-                    WidgetProviderException.Kind.UNAVAILABLE,
-                    "OWNER_RECEIPT_STORE_UNAVAILABLE",
-                    "The owner idempotency store is unavailable.");
         }
         HomeWidgetProviderContract.CommandResponse response = ownerReceipts.execute(
                 context, contract.contractId(), request, () -> {

@@ -77,7 +77,7 @@ class RecipientBoundWidgetCacheTest {
         return new RecipientBoundWidgetCache.Key(
                 tenant, user, authority, "revision-1", locale, "Asia/Seoul",
                 mode, device, "view-1", "catalog-1", "policy-1", "safety-1",
-                "platform", definitions, "request-1");
+                "rollout-1", "platform", definitions, "request-1");
     }
 
     private HomeRuntimeProperties properties() {

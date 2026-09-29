@@ -74,7 +74,8 @@ class HomeOwnerActionCommandGateTest {
                 List.of(provider), readModels, receipts,
                 new HomeCanonicalJson(objectMapper),
                 new ProviderResultValidator(objectMapper, properties), properties,
-                mock(PlatformAuditService.class), controls);
+                mock(PlatformAuditService.class), controls,
+                mock(HomeRuntimeTelemetry.class));
         HomeReadModelDtos.CommandRequest request = new HomeReadModelDtos.CommandRequest(
                 instanceId, contract.actionId(), "result-1",
                 Map.of("recommendationKey", "work-due-soon"));
@@ -108,7 +109,8 @@ class HomeOwnerActionCommandGateTest {
         HomeWidgetCommandService service = new HomeWidgetCommandService(
                 List.of(), readModels, receipts, new HomeCanonicalJson(objectMapper),
                 new ProviderResultValidator(objectMapper, properties), properties,
-                mock(PlatformAuditService.class), controls);
+                mock(PlatformAuditService.class), controls,
+                mock(HomeRuntimeTelemetry.class));
 
         assertThatThrownBy(() -> service.execute(
                 context, trusted, "CLASSIC", "DESKTOP_STANDARD", commandId,
@@ -169,7 +171,8 @@ class HomeOwnerActionCommandGateTest {
         HomeWidgetCommandService service = new HomeWidgetCommandService(
                 List.of(provider), readModels, receipts, new HomeCanonicalJson(objectMapper),
                 new ProviderResultValidator(objectMapper, properties), properties,
-                mock(PlatformAuditService.class), controls);
+                mock(PlatformAuditService.class), controls,
+                mock(HomeRuntimeTelemetry.class));
         HomeReadModelDtos.CommandRequest request = new HomeReadModelDtos.CommandRequest(
                 instanceId, contract.actionId(), "result-1",
                 Map.of("recommendationKey", "work-due-soon"));
