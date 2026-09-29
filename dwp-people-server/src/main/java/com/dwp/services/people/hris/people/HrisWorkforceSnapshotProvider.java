@@ -41,7 +41,9 @@ final class HrisWorkforceSnapshotProvider implements WorkforceSnapshotProvider {
                 population, "hcm.operations", "TARGET_POPULATION",
                 "TALENT_TARGET_POPULATION");
         long ownerRevision = revision(
-                population.targetPopulationRevision() + ':' + request.asOf());
+                population.targetPopulationRevision() + ':' + request.asOf()
+                        + ':' + request.tenantGrantRevision()
+                        + ':' + request.policyRevision());
         if (request.cursorOwnerRevision() != null
                 && request.cursorOwnerRevision() != ownerRevision) {
             throw new BaseException(
