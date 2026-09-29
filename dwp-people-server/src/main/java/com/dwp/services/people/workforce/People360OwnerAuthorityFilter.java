@@ -79,6 +79,7 @@ public final class People360OwnerAuthorityFilter extends OncePerRequestFilter {
     private final Supplier<HcmPepContext.Evidence> evidenceSupplier;
     private final Clock clock;
 
+    @org.springframework.beans.factory.annotation.Autowired
     public People360OwnerAuthorityFilter(ObjectMapper objectMapper) {
         this(objectMapper, HcmPepContext::current, Clock.systemUTC());
     }
