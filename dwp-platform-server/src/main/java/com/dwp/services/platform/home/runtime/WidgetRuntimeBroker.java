@@ -55,18 +55,6 @@ public class WidgetRuntimeBroker {
         this.controls = controls;
     }
 
-    /** Source-compatible constructor for isolated broker tests. */
-    WidgetRuntimeBroker(
-            List<WidgetProviderPort> providers,
-            RecipientBoundWidgetCache cache,
-            ProviderResultValidator validator,
-            HomeRuntimeProperties properties,
-            HomeRuntimeTelemetry telemetry,
-            HomeCanonicalJson canonicalJson,
-            Executor executor) {
-        this(providers, cache, validator, properties, telemetry, canonicalJson, executor, null);
-    }
-
     public List<HomeWidgetProviderContract.WidgetResult> read(
             HomeRuntimeContext context,
             Revisions revisions,
@@ -341,7 +329,7 @@ public class WidgetRuntimeBroker {
             HomeRuntimeContext context,
             Revisions revisions,
             WidgetProviderPort.Request request) {
-        return controls != null && controls.runtimeDenied(
+        return controls.runtimeDenied(
                 "RUNTIME_RENDER",
                 context.tenantId(),
                 request.definition().ownerProductKey(),
@@ -429,29 +417,6 @@ public class WidgetRuntimeBroker {
             String safetyRevision,
             String rolloutRevision,
             String rolloutRing) {
-
-        public Revisions(
-                String mode,
-                String deviceClass,
-                String viewRevision,
-                String catalogRevision,
-                String policyRevision,
-                String safetyRevision,
-                String rolloutRevision) {
-            this(mode, deviceClass, viewRevision, catalogRevision, policyRevision,
-                    safetyRevision, rolloutRevision, "CONTROL");
-        }
-
-        public Revisions(
-                String mode,
-                String deviceClass,
-                String viewRevision,
-                String catalogRevision,
-                String policyRevision,
-                String safetyRevision) {
-            this(mode, deviceClass, viewRevision, catalogRevision, policyRevision,
-                    safetyRevision, "legacy-shadow", "CONTROL");
-        }
     }
 
     private record ProviderOutcome(

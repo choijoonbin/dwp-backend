@@ -2,6 +2,7 @@ package com.dwp.services.platform.home.runtime;
 
 import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
+import com.dwp.services.platform.widgetregistry.WidgetRegistryMutationGuard;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
@@ -98,10 +99,11 @@ class HomeRuntimePreProdSloTest {
                     List.of(provider), new RecipientBoundWidgetCache(properties),
                     new ProviderResultValidator(mapper, properties), properties,
                     new HomeRuntimeTelemetry(new SimpleMeterRegistry()),
-                    new HomeCanonicalJson(mapper), executor);
+                    new HomeCanonicalJson(mapper), executor,
+                    mock(WidgetRegistryMutationGuard.class));
             WidgetRuntimeBroker.Revisions revisions = new WidgetRuntimeBroker.Revisions(
                     "CLASSIC", "DESKTOP_STANDARD", "view-1", "catalog-1",
-                    "policy-1", "safety-1");
+                    "policy-1", "safety-1", "rollout-slo-1", "CONTROL");
             List<Long> samples = new ArrayList<>(SAMPLES);
             int failures = 0;
             for (int index = 0; index < SAMPLES; index++) {
@@ -129,15 +131,19 @@ class HomeRuntimePreProdSloTest {
     private Measurement measureMockMvc() throws Exception {
         HomeReadModelService service = mock(HomeReadModelService.class);
         OffsetDateTime now = OffsetDateTime.now(ZoneOffset.UTC);
+        HomeRuntimeRolloutDecision decision = TestFixtures.shadowDecision(
+                "CLASSIC", "rollout-slo-1", now.plusSeconds(30));
         HomeReadModelDtos.HomeReadModel model = new HomeReadModelDtos.HomeReadModel(
-                2, "CLASSIC", null, null, List.of(), List.of(), now,
+                HomeReadModelDtos.SCHEMA_VERSION, "CLASSIC", null, null, List.of(), List.of(),
+                TestFixtures.runtimeDecision(decision), now,
                 now.plusSeconds(30), false, List.of(), "slo-etag", "SHADOW");
         when(service.read(
                 any(),
                 any(HomeRuntimeRolloutDecision.TrustedInput.class),
                 eq("CLASSIC"),
                 eq("DESKTOP_STANDARD")))
-                .thenReturn(new HomeReadModelDtos.ReadResult(model, "\"slo-etag\""));
+                .thenReturn(new HomeReadModelDtos.ReadResult(
+                        model, "\"slo-etag\"", decision));
         MockMvc mvc = standaloneSetup(new HomeReadModelController(
                 service, mock(HomeWidgetCommandService.class), properties())).build();
         String revalidateAt = now.plusMinutes(5).toString();

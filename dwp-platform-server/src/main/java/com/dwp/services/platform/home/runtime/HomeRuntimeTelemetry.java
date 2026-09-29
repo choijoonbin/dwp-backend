@@ -85,7 +85,7 @@ public class HomeRuntimeTelemetry {
             Duration duration) {
         String bounded = Set.of(
                 "ACCEPTED", "DENIED", "CONFLICT", "REPLAYED", "UNKNOWN",
-                "CONTROL_BYPASS", "RECEIPT_MISMATCH").contains(outcome)
+                "RECEIPT_MISMATCH").contains(outcome)
                 ? outcome : "UNKNOWN";
         String boundedProvider = metricProvider(provider);
         meters.counter("dwp.home.runtime.command",

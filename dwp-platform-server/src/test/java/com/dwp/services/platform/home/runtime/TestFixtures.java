@@ -7,6 +7,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 final class TestFixtures {
@@ -42,5 +43,33 @@ final class TestFixtures {
                 "INTERNAL", "NONE", 30,
                 WidgetRegistryDtos.EffectiveCatalogState.AVAILABLE, List.of());
         return new WidgetProviderPort.Request(UUID.randomUUID(), definition, Map.of(), 10);
+    }
+
+    static HomeRuntimeRolloutDecision shadowDecision(
+            String mode,
+            String rolloutRevision,
+            OffsetDateTime expiresAt) {
+        return new HomeRuntimeRolloutDecision(
+                HomeRuntimeRolloutDecision.State.SHADOW_COMPARE,
+                mode,
+                HomeRuntimeRolloutDecision.Ring.CONTROL,
+                rolloutRevision,
+                false,
+                Set.of(),
+                Set.of(),
+                Set.of(),
+                expiresAt);
+    }
+
+    static HomeReadModelDtos.RuntimeDecision runtimeDecision(
+            HomeRuntimeRolloutDecision decision) {
+        return new HomeReadModelDtos.RuntimeDecision(
+                decision.state().name(),
+                decision.mode(),
+                decision.ring().name(),
+                decision.revision(),
+                decision.commandsEnabled(),
+                decision.registryAuthoritative(),
+                decision.expiresAt());
     }
 }

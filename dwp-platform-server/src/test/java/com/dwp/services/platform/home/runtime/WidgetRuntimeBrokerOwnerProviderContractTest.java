@@ -4,6 +4,7 @@ import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
 import com.dwp.services.platform.widgetregistry.WidgetCatalogService;
 import com.dwp.services.platform.widgetregistry.WidgetRegistryDtos;
+import com.dwp.services.platform.widgetregistry.WidgetRegistryMutationGuard;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -25,6 +26,7 @@ import java.util.concurrent.Executors;
 import java.util.stream.StreamSupport;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 class WidgetRuntimeBrokerOwnerProviderContractTest {
 
@@ -97,10 +99,11 @@ class WidgetRuntimeBrokerOwnerProviderContractTest {
                     properties,
                     new HomeRuntimeTelemetry(new SimpleMeterRegistry()),
                     new HomeCanonicalJson(mapper),
-                    executor);
+                    executor,
+                    mock(WidgetRegistryMutationGuard.class));
             return broker.read(context, new WidgetRuntimeBroker.Revisions(
                     "CLASSIC", "DESKTOP_STANDARD", "view-1", "catalog-1",
-                    "policy-1", "safety-1"), requests);
+                    "policy-1", "safety-1", "rollout-owner-contract-1", "CONTROL"), requests);
         } finally {
             executor.shutdownNow();
         }

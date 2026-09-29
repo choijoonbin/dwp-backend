@@ -3,6 +3,7 @@ package com.dwp.services.platform.home.runtime;
 import com.dwp.platform.contract.home.HomeWidgetProviderContract;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.dwp.services.platform.home.personalization.HomeCanonicalJson;
+import com.dwp.services.platform.widgetregistry.WidgetRegistryMutationGuard;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -18,6 +19,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
 
 class WidgetRuntimeBrokerTest {
 
@@ -192,7 +194,8 @@ class WidgetRuntimeBrokerTest {
                 List.of(provider), cache,
                 new ProviderResultValidator(objectMapper, properties), properties,
                 new HomeRuntimeTelemetry(new SimpleMeterRegistry()),
-                new HomeCanonicalJson(objectMapper), executor);
+                new HomeCanonicalJson(objectMapper), executor,
+                mock(WidgetRegistryMutationGuard.class));
     }
 
     private HomeWidgetProviderContract.BatchResponse response(
@@ -215,7 +218,8 @@ class WidgetRuntimeBrokerTest {
 
     private WidgetRuntimeBroker.Revisions revisions() {
         return new WidgetRuntimeBroker.Revisions(
-                "CLASSIC", "DESKTOP_STANDARD", "view-1", "catalog-1", "policy-1", "safety-1");
+                "CLASSIC", "DESKTOP_STANDARD", "view-1", "catalog-1", "policy-1", "safety-1",
+                "rollout-test-1", "CONTROL");
     }
 
     private HomeRuntimeProperties properties(long providerTimeoutMillis) {

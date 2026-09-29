@@ -42,7 +42,7 @@ class HomeRuntimeCacheSecurityTest {
         return new RecipientBoundWidgetCache.Key(
                 71L, 82L, fingerprint, revision, "ko-KR", "Asia/Seoul",
                 "CLASSIC", "DESKTOP_STANDARD", "view-1", "catalog-1",
-                "policy-1", "safety-1", "platform",
+                "policy-1", "safety-1", "rollout-1", "platform",
                 Set.of("core.work.focus"), "request-1");
     }
 

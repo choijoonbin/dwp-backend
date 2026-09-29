@@ -81,7 +81,8 @@ class HomeRuntimeRollbackDrillTest {
                 context.tenantId(), context.userId(), context.fingerprint(),
                 context.authorityDecisionRevision(), context.locale(), context.timeZone(),
                 "CLASSIC", "DESKTOP_STANDARD", "view-1", "catalog-1", "policy-1",
-                "safety-1", "platform", Set.of("core.work.focus"), "request-1");
+                "safety-1", "rollout-rollback", "platform", Set.of("core.work.focus"),
+                "request-1");
         HomeWidgetProviderContract.WidgetResult result = new HomeWidgetProviderContract.WidgetResult(
                 TestFixtures.request("core.work.focus").instanceId(), "core.work.focus",
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
