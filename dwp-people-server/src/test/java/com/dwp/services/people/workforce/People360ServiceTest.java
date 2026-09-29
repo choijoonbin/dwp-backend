@@ -270,6 +270,26 @@ class People360ServiceTest {
     }
 
     @Test
+    void operationsRoleLabelWithoutCapabilityEvidenceFailsBeforeOwnerReads() {
+        PeopleRequestContext.set(
+                26L, TENANT_ID, ACTOR_PERSON_ID,
+                Set.of("HR_OPERATOR", "HR_AUDITOR"), Set.of());
+        HcmPopulationScopeService.ResolvedPopulation operations = population(
+                80L, null, true, Set.of(), Set.of("DIRECTORY", "EMPLOYMENT"));
+        when(populationScopes.findOperations("READ")).thenReturn(Optional.of(operations));
+
+        assertThatThrownBy(() -> service.get(PERSON_ID, AS_OF))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
+
+        verify(populationScopes).requireTrustedScope(
+                operations, "hcm.operations", "TARGET_POPULATION",
+                "WORKFORCE_TARGET_POPULATION", "ORG_UNIT/LEGAL_ENTITY");
+        verifyNoInteractions(repository, directory, populations);
+    }
+
+    @Test
     void managerTeamRouteDoesNotFallBackToOperationsForAnOutOfTeamTarget() {
         PeopleRequestContext.set(
                 21L, TENANT_ID, ACTOR_PERSON_ID,
@@ -294,7 +314,7 @@ class People360ServiceTest {
     }
 
     @Test
-    void auditorWithNormalViewPermissionCannotUnmaskIdentifiers() {
+    void roleLabelCannotEscalateNormalViewPermissionToAuditor() {
         PeopleRequestContext.set(
                 14L, TENANT_ID, ACTOR_PERSON_ID,
                 Set.of("HR_AUDITOR"),
@@ -308,10 +328,10 @@ class People360ServiceTest {
 
         People360Dtos.Snapshot result = service.get(PERSON_ID, AS_OF);
 
-        assertThat(result.access().archetype()).isEqualTo(People360Dtos.Archetype.AUDITOR);
-        assertThat(result.employment().workerNumber()).isEqualTo(People360Dtos.MASK_LITERAL);
-        assertThat(result.primaryAssignment().assignmentKey()).isNull();
-        assertThat(result.person().timeZone()).isNull();
+        assertThat(result.access().archetype()).isEqualTo(People360Dtos.Archetype.HR_OPERATOR);
+        assertThat(result.employment().workerNumber()).isEqualTo("SYN-0042");
+        assertThat(result.primaryAssignment().assignmentKey()).isEqualTo("SYN-ASG-0042");
+        assertThat(result.person().timeZone()).isEqualTo("Asia/Seoul");
     }
 
     @Test

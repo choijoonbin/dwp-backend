@@ -1,11 +1,14 @@
 package com.dwp.services.people.workforce;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
 import java.util.Set;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class CompatibilityPeople360ProjectionPolicyProviderTest {
 
@@ -14,7 +17,7 @@ class CompatibilityPeople360ProjectionPolicyProviderTest {
             new CompatibilityPeople360ProjectionPolicyProvider();
 
     @Test
-    void explicitPermissionOrKnownAuditorRoleSelectsTheConservativeProjection() {
+    void onlyExplicitCapabilitiesSelectAnOperationsArchetype() {
         assertThat(provider.operationsArchetype(
                 new People360ProjectionPolicyProvider.Subject(
                         Set.of("HR_OPERATOR"), Set.of("DATA.WORKFORCE:AUDIT"))))
@@ -22,15 +25,21 @@ class CompatibilityPeople360ProjectionPolicyProviderTest {
         assertThat(provider.operationsArchetype(
                 new People360ProjectionPolicyProvider.Subject(
                         Set.of("HR_AUDITOR"), Set.of("DATA.WORKFORCE:VIEW"))))
-                .isEqualTo(People360Dtos.Archetype.AUDITOR);
-        assertThat(provider.operationsArchetype(
-                new People360ProjectionPolicyProvider.Subject(
-                        Set.of("HR_AUDITOR"), Set.of())))
-                .isEqualTo(People360Dtos.Archetype.AUDITOR);
+                .isEqualTo(People360Dtos.Archetype.HR_OPERATOR);
         assertThat(provider.operationsArchetype(
                 new People360ProjectionPolicyProvider.Subject(
                         Set.of("HR_OPERATOR"), Set.of("DATA.WORKFORCE:VIEW"))))
                 .isEqualTo(People360Dtos.Archetype.HR_OPERATOR);
+    }
+
+    @Test
+    void roleLabelsWithoutCapabilityEvidenceFailClosed() {
+        assertThatThrownBy(() -> provider.operationsArchetype(
+                new People360ProjectionPolicyProvider.Subject(
+                        Set.of("AUDITOR", "HR_AUDITOR", "WORKFORCE_AUDITOR"), Set.of())))
+                .isInstanceOfSatisfying(BaseException.class, failure ->
+                        assertThat(failure.getErrorCode())
+                                .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
     }
 
     @Test

@@ -1,10 +1,11 @@
 package com.dwp.services.people.workforce;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import org.springframework.stereotype.Component;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Safe compatibility policy until tenant-authored projection policies are persisted.
@@ -16,16 +17,19 @@ public class CompatibilityPeople360ProjectionPolicyProvider
 
     static final String PROVIDER_REVISION = "people360.compatibility-default.v1";
 
-    private static final Set<String> AUDITOR_ROLES =
-            Set.of("AUDITOR", "HR_AUDITOR", "WORKFORCE_AUDITOR", "COMPLIANCE_AUDITOR");
-
     @Override
     public People360Dtos.Archetype operationsArchetype(Subject subject) {
-        boolean auditor = subject.permissions().contains("DATA.WORKFORCE:AUDIT")
-                || subject.roles().stream().anyMatch(AUDITOR_ROLES::contains);
-        return auditor
-                ? People360Dtos.Archetype.AUDITOR
-                : People360Dtos.Archetype.HR_OPERATOR;
+        if (subject != null
+                && subject.permissions().contains("DATA.WORKFORCE:AUDIT")) {
+            return People360Dtos.Archetype.AUDITOR;
+        }
+        if (subject != null
+                && subject.permissions().contains("DATA.WORKFORCE:VIEW")) {
+            return People360Dtos.Archetype.HR_OPERATOR;
+        }
+        throw new BaseException(
+                ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                "Explicit workforce projection authority is required.");
     }
 
     @Override
