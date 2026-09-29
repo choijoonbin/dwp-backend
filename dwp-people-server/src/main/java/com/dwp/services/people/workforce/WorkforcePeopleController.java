@@ -18,12 +18,16 @@ import java.util.UUID;
 public class WorkforcePeopleController {
 
     private final PeopleDirectoryService service;
+    private final People360Service people360;
 
-    public WorkforcePeopleController(PeopleDirectoryService service) {
+    public WorkforcePeopleController(
+            PeopleDirectoryService service,
+            People360Service people360) {
         this.service = service;
+        this.people360 = people360;
     }
 
-    @GetMapping
+    @GetMapping(params = "!projection")
     public ApiResponse<PeopleDtos.CursorPage<PeopleDtos.PersonSummary>> search(
             @RequestParam(required = false) String query,
             @RequestParam(required = false) String status,
@@ -34,11 +38,30 @@ public class WorkforcePeopleController {
         return ApiResponse.success(service.searchWorkforce(query, status, cursor, size, asOf));
     }
 
-    @GetMapping("/{publicId}")
+    @GetMapping(params = "projection=people360")
+    public ApiResponse<People360Dtos.Page> searchPeople360(
+            @RequestParam(required = false) String query,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "50") int size,
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf) {
+        return ApiResponse.success(people360.search(query, status, cursor, size, asOf));
+    }
+
+    @GetMapping(value = "/{publicId}", params = "!projection")
     public ApiResponse<PeopleDtos.PersonDetail> get(
             @PathVariable UUID publicId,
             @RequestParam(required = false)
             @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf) {
         return ApiResponse.success(service.getWorkforce(publicId, asOf));
+    }
+
+    @GetMapping(value = "/{publicId}", params = "projection=people360")
+    public ApiResponse<People360Dtos.Snapshot> getPeople360(
+            @PathVariable UUID publicId,
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf) {
+        return ApiResponse.success(people360.get(publicId, asOf));
     }
 }

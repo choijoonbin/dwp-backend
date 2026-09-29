@@ -75,20 +75,23 @@ public class HrService {
     }
 
     public HrDtos.HomeOverview home() {
-        Context context = context();
+        Context context = homeContext();
         Long tenantId = context.actor().tenantId();
         long workerId = context.worker().workerId();
-        HomeLoad<HrDtos.TimeCard> time = loadHomeDomain(
+        HomeLoad<HrDtos.TimeCard> time = loadAuthorizedHomeDomain(
+                context.actor(),
                 "TIME", null,
                 () -> repository.currentTimeCard(tenantId, workerId, context.asOf()),
                 card -> card == null
                         ? HrDtos.HomeDataOrigin.NONE
                         : origin(card.dataOrigin()));
-        HomeLoad<List<HrDtos.LeaveBalance>> absence = loadHomeDomain(
+        HomeLoad<List<HrDtos.LeaveBalance>> absence = loadAuthorizedHomeDomain(
+                context.actor(),
                 "ABSENCE", List.of(),
                 () -> repository.leaveBalances(tenantId, workerId, context.asOf()),
                 balances -> origins(balances.stream().map(HrDtos.LeaveBalance::dataOrigin).toList()));
-        HomeLoad<BenefitsHome> benefits = loadHomeDomain(
+        HomeLoad<BenefitsHome> benefits = loadAuthorizedHomeDomain(
+                context.actor(),
                 "BENEFITS", new BenefitsHome(List.of(), 0),
                 () -> new BenefitsHome(
                         repository.enrollmentWindows(tenantId, workerId),
@@ -96,13 +99,15 @@ public class HrService {
                 value -> value.windows().isEmpty() && value.activeCount() == 0
                         ? HrDtos.HomeDataOrigin.NONE
                         : HrDtos.HomeDataOrigin.UNKNOWN);
-        HomeLoad<HrDtos.PayCycle> pay = loadHomeDomain(
+        HomeLoad<HrDtos.PayCycle> pay = loadAuthorizedHomeDomain(
+                context.actor(),
                 "PAY", null,
                 () -> repository.nextPayCycle(tenantId, workerId),
                 cycle -> cycle == null
                         ? HrDtos.HomeDataOrigin.NONE
                         : origin(cycle.dataOrigin()));
-        HomeLoad<TalentHome> talent = loadHomeDomain(
+        HomeLoad<TalentHome> talent = loadAuthorizedHomeDomain(
+                context.actor(),
                 "TALENT", new TalentHome(List.of(), 0, 0),
                 () -> new TalentHome(
                         repository.activeJourneys(tenantId, workerId),
@@ -113,10 +118,15 @@ public class HrService {
                                 && value.requiredLearningCount() == 0
                         ? HrDtos.HomeDataOrigin.NONE
                         : HrDtos.HomeDataOrigin.UNKNOWN);
-        HomeLoad<TeamHome> team = loadHomeDomain(
-                "TEAM", new TeamHome(0, 0),
-                () -> new TeamHome(0, 0),
-                value -> HrDtos.HomeDataOrigin.NONE);
+        // The legacy home aggregate has no authoritative TEAM owner query.
+        // Keep its neutral payload for wire compatibility, but never advertise
+        // synthetic zeroes as a successful empty team/approval queue.
+        HomeLoad<TeamHome> team = new HomeLoad<>(
+                new TeamHome(0, 0),
+                new HrDtos.HomeDomainState(
+                        HrDtos.HomeAvailability.UNAVAILABLE,
+                        HrDtos.HomeDataOrigin.NONE,
+                        "TEAM_OWNER_API_REQUIRED"));
 
         Map<String, HrDtos.HomeDomainState> domainStates = new LinkedHashMap<>();
         domainStates.put("TIME", time.state());
@@ -136,7 +146,8 @@ public class HrService {
         return new HrDtos.HomeOverview(
                 context.asOf(), Instant.now(), context.timeZone(),
                 context.schedule() == null ? null : context.schedule().standardDayMinutes(),
-                employee(context.worker()), time.value(), absence.value(), pay.value(),
+                homeEmployee(context.actor(), context.worker()),
+                time.value(), absence.value(), pay.value(),
                 enrollmentWindows,
                 talent.value().journeys(),
                 benefits.value().activeCount(),
@@ -515,6 +526,9 @@ public class HrService {
             HrDtos.UpdateGoalRequest request,
             String correlationId) {
         Context context = context();
+        if (!"ACTIVE".equals(request.status()) && !"AT_RISK".equals(request.status())) {
+            throw conflict("Goal progress cannot change the goal lifecycle status.");
+        }
         if (!repository.updateGoal(
                 context.actor().tenantId(), context.worker().workerId(), goalId,
                 request, context.actor().userId())) {
@@ -546,8 +560,16 @@ public class HrService {
         populationScopes.requireField(population, "EMPLOYMENT");
     }
 
-    private Context context() {
+    private Context homeContext() {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
+        return context(actor, hasHomeDomainPermission(actor, "TIME"));
+    }
+
+    private Context context() {
+        return context(PeopleRequestContext.require(), true);
+    }
+
+    private Context context(PeopleRequestContext.Actor actor, boolean loadWorkerSchedule) {
         if (actor.personPublicId() == null) {
             throw new BaseException(ErrorCode.FORBIDDEN,
                     "A verified workforce identity is required for HR self-service.");
@@ -561,7 +583,9 @@ public class HrService {
             populationScopes.requireSelfScope();
         }
         LocalDate utcDate = LocalDate.now(ZoneOffset.UTC);
-        HrRepository.WorkerSchedule schedule = loadSchedule(actor, worker, utcDate);
+        HrRepository.WorkerSchedule schedule = loadWorkerSchedule
+                ? loadSchedule(actor, worker, utcDate)
+                : null;
         ZoneId zone = zoneId(schedule == null ? null : schedule.timeZone());
         LocalDate asOf = LocalDate.now(zone);
         if (!asOf.equals(utcDate)) {
@@ -616,6 +640,38 @@ public class HrService {
                     HrDtos.HomeDataOrigin.UNKNOWN,
                     domain + "_QUERY_FAILED"));
         }
+    }
+
+    private <T> HomeLoad<T> loadAuthorizedHomeDomain(
+            PeopleRequestContext.Actor actor,
+            String domain,
+            T fallback,
+            Supplier<T> supplier,
+            Function<T, HrDtos.HomeDataOrigin> originResolver) {
+        if (!hasHomeDomainPermission(actor, domain)) {
+            return new HomeLoad<>(fallback, new HrDtos.HomeDomainState(
+                    HrDtos.HomeAvailability.UNAVAILABLE,
+                    HrDtos.HomeDataOrigin.NONE,
+                    domain + "_ENTITLEMENT_REQUIRED"));
+        }
+        return loadHomeDomain(domain, fallback, supplier, originResolver);
+    }
+
+    private boolean hasHomeDomainPermission(
+            PeopleRequestContext.Actor actor,
+            String domain) {
+        String resource = HrAuthorization.DOMAIN_RESOURCES.get(domain);
+        return resource != null && actor.hasPermission(resource, "VIEW", "MANAGE");
+    }
+
+    private HrDtos.EmployeeContext homeEmployee(
+            PeopleRequestContext.Actor actor,
+            HrRepository.WorkerIdentity worker) {
+        if (actor.hasPermission("DATA.WORKFORCE", "VIEW", "MANAGE")) {
+            return employee(worker);
+        }
+        return new HrDtos.EmployeeContext(
+                worker.personId(), worker.displayName(), null, null, null, 0);
     }
 
     private HrDtos.HomeDataOrigin origins(List<String> values) {

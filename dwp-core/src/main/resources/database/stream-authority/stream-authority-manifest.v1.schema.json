@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dwp:stream-authority-manifest:1.0",
+  "title": "Unwired HRIS Stream Authority Manifest v1",
+  "description": "Documentation schema. StreamAuthorityContract/ExactStreamTopology additionally enforce exact cross-field topology, distinct role/catalog/qualifier identities, sorted arrays, dependencies and byte-canonical externally expected digests. Credentials/endpoints/SQL are never fields.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schemaVersion", "topologyVersion", "controlReference", "enabledCapabilities", "catalogs", "streams", "manifestSha256"],
+  "properties": {
+    "schemaVersion": {"const": "1.0"},
+    "topologyVersion": {"const": "hris-stream-topology-v1"},
+    "controlReference": {"type": "string", "pattern": "^dwp-migration-control-v2:[0-9a-f]{64}$"},
+    "enabledCapabilities": {"type": "array", "uniqueItems": true, "items": {"enum": ["EMPLOYEE_LISTENING", "GOVERNED_AI", "HRIS_CONFIGURATION", "PEOPLE_ANALYTICS"]}},
+    "catalogs": {"type": "array", "minItems": 8, "maxItems": 8, "uniqueItems": true, "items": {"$ref": "#/$defs/catalog"}},
+    "streams": {"type": "array", "minItems": 13, "maxItems": 13, "uniqueItems": true, "items": {"$ref": "#/$defs/stream"}},
+    "manifestSha256": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "identifier": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$"},
+    "qualifier": {"type": "string", "pattern": "^[a-z][a-zA-Z0-9]{0,127}$"},
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "service": {"enum": ["approval", "auth", "notification", "payroll", "people", "platform", "provider", "time"]},
+    "streamKey": {"enum": ["approval-main", "auth-hris-participation-issuer", "auth-main", "notification-main", "payroll-main", "people-main", "people-performance", "platform-hris-configuration", "platform-hris-insights", "platform-hris-protected", "platform-main", "provider-main", "time-main"]},
+    "catalog": {
+      "type": "object", "additionalProperties": false, "required": ["catalogKey", "database"],
+      "properties": {"catalogKey": {"$ref": "#/$defs/service"}, "database": {"$ref": "#/$defs/identifier"}}
+    },
+    "stream": {
+      "type": "object", "additionalProperties": false,
+      "required": ["service", "streamKey", "catalogKey", "enabled", "schemas", "historyTable", "migrationLocations", "migrationPrincipal", "migrationQualifier", "runtimePrincipals"],
+      "properties": {
+        "service": {"$ref": "#/$defs/service"}, "streamKey": {"$ref": "#/$defs/streamKey"},
+        "catalogKey": {"$ref": "#/$defs/service"}, "enabled": {"type": "boolean"},
+        "schemas": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"enum": ["public", "hris_performance", "hris_configuration", "hris_listening_protected", "hris_insights", "hris_participation_issuer"]}},
+        "historyTable": {"enum": ["flyway_schema_history", "flyway_performance_schema_history", "flyway_hris_configuration_history", "flyway_hris_listening_protected_history", "flyway_hris_insights_history", "flyway_hris_participation_issuer_history"]},
+        "migrationLocations": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"enum": ["classpath:db/migration", "classpath:db/performance-migration", "classpath:db/hris-configuration-migration", "classpath:db/hris-listening-protected-migration", "classpath:db/hris-insights-migration", "classpath:db/hris-participation-issuer-migration"]}},
+        "migrationPrincipal": {"$ref": "#/$defs/identifier"}, "migrationQualifier": {"$ref": "#/$defs/qualifier"},
+        "runtimePrincipals": {"type": "array", "minItems": 1, "maxItems": 2, "items": {"$ref": "#/$defs/runtime"}}
+      }
+    },
+    "runtime": {
+      "type": "object", "additionalProperties": false,
+      "required": ["purpose", "principal", "qualifier", "readOnly", "searchPath", "objectGrants"],
+      "properties": {
+        "purpose": {"enum": ["PRIMARY", "PERFORMANCE", "CONFIGURATION", "LISTENING_ADMISSION", "INSIGHTS_QUERY", "INSIGHTS_EXECUTION_WRITE", "PARTICIPATION_ISSUER"]},
+        "principal": {"$ref": "#/$defs/identifier"}, "qualifier": {"$ref": "#/$defs/qualifier"},
+        "readOnly": {"type": "boolean"},
+        "searchPath": {"type": "array", "minItems": 2, "maxItems": 2, "items": {"$ref": "#/$defs/identifier"}},
+        "objectGrants": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/grant"}}
+      },
+      "allOf": [
+        {"if": {"properties": {"purpose": {"const": "INSIGHTS_QUERY"}}}, "then": {"properties": {"readOnly": {"const": true}}}},
+        {"if": {"properties": {"purpose": {"const": "INSIGHTS_EXECUTION_WRITE"}}}, "then": {"properties": {"readOnly": {"const": false}}}}
+      ]
+    },
+    "grant": {
+      "type": "object", "additionalProperties": false,
+      "required": ["objectClass", "schema", "name", "identityArguments", "privileges"],
+      "properties": {
+        "objectClass": {"enum": ["TABLE", "SEQUENCE", "ROUTINE", "TYPE"]},
+        "schema": {"$ref": "#/$defs/identifier"}, "name": {"$ref": "#/$defs/identifier"},
+        "identityArguments": {"type": "string", "maxLength": 2048},
+        "privileges": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["SELECT", "INSERT", "UPDATE", "DELETE", "USAGE", "EXECUTE"]}}
+      },
+      "allOf": [
+        {"if": {"properties": {"objectClass": {"const": "TABLE"}}}, "then": {"properties": {"identityArguments": {"const": ""}, "privileges": {"items": {"enum": ["DELETE", "INSERT", "SELECT", "UPDATE"]}}}}},
+        {"if": {"properties": {"objectClass": {"const": "SEQUENCE"}}}, "then": {"properties": {"identityArguments": {"const": ""}, "privileges": {"items": {"enum": ["SELECT", "USAGE"]}}}}},
+        {"if": {"properties": {"objectClass": {"const": "ROUTINE"}}}, "then": {"properties": {"privileges": {"const": ["EXECUTE"]}}}},
+        {"if": {"properties": {"objectClass": {"const": "TYPE"}}}, "then": {"properties": {"identityArguments": {"const": ""}, "privileges": {"const": ["USAGE"]}}}}
+      ]
+    }
+  }
+}

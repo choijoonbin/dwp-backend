@@ -8,6 +8,7 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -156,7 +157,9 @@ public class PeopleDirectoryRepository {
             String workerStatus,
             LocalDate asOf,
             int limit) {
-        return search(tenantId, afterPersonId, query, workerStatus, asOf, limit, true, Set.of());
+        return search(
+                tenantId, afterPersonId, query, workerStatus, asOf, limit,
+                true, Set.of(), false, false);
     }
 
     public List<DirectoryRow> search(
@@ -168,6 +171,22 @@ public class PeopleDirectoryRepository {
             int limit,
             boolean tenantWide,
             Set<UUID> organizationIds) {
+        return search(
+                tenantId, afterPersonId, query, workerStatus, asOf, limit,
+                tenantWide, organizationIds, false, false);
+    }
+
+    public List<DirectoryRow> search(
+            Long tenantId,
+            long afterPersonId,
+            String query,
+            String workerStatus,
+            LocalDate asOf,
+            int limit,
+            boolean tenantWide,
+            Set<UUID> organizationIds,
+            boolean includeWorkerIdentifiers,
+            boolean includeJobGrade) {
         StringBuilder sql = new StringBuilder(DIRECTORY_SELECT).append("""
              WHERE p.tenant_id = :tenantId
                AND p.person_id > :afterPersonId
@@ -176,20 +195,24 @@ public class PeopleDirectoryRepository {
                 .addValue("afterPersonId", afterPersonId)
                 .addValue("limit", limit);
         if (query != null && !query.isBlank()) {
-            sql.append("""
-               AND (
-                    LOWER(p.display_name) LIKE :query
-                    OR LOWER(COALESCE(contact.display_value, '')) LIKE :query
-                    OR LOWER(COALESCE(w.worker_number, '')) LIKE :query
-                    OR LOWER(COALESCE(a.assignment_key, '')) LIKE :query
-                    OR LOWER(COALESCE(a.business_title, '')) LIKE :query
-                    OR LOWER(COALESCE(org.name, '')) LIKE :query
-                    OR LOWER(COALESCE(job.name, '')) LIKE :query
-                    OR LOWER(COALESCE(grade.name, '')) LIKE :query
-                    OR LOWER(COALESCE(loc.name, '')) LIKE :query
-                    OR LOWER(COALESCE(manager_person.display_name, '')) LIKE :query
-               )
-            """);
+            List<String> predicates = new ArrayList<>(List.of(
+                    "LOWER(p.display_name) LIKE :query",
+                    "LOWER(COALESCE(contact.display_value, '')) LIKE :query",
+                    "LOWER(COALESCE(a.business_title, '')) LIKE :query",
+                    "LOWER(COALESCE(org.name, '')) LIKE :query",
+                    "LOWER(COALESCE(job.name, '')) LIKE :query",
+                    "LOWER(COALESCE(loc.name, '')) LIKE :query",
+                    "LOWER(COALESCE(manager_person.display_name, '')) LIKE :query"));
+            if (includeWorkerIdentifiers) {
+                predicates.add("LOWER(COALESCE(w.worker_number, '')) LIKE :query");
+                predicates.add("LOWER(COALESCE(a.assignment_key, '')) LIKE :query");
+            }
+            if (includeJobGrade) {
+                predicates.add("LOWER(COALESCE(grade.name, '')) LIKE :query");
+            }
+            sql.append(" AND (\n     ")
+                    .append(String.join("\n     OR ", predicates))
+                    .append("\n )\n");
             parameters.addValue("query", "%" + query.trim().toLowerCase(java.util.Locale.ROOT) + "%");
         }
         if (workerStatus != null && !workerStatus.isBlank()) {
@@ -226,7 +249,12 @@ public class PeopleDirectoryRepository {
         return rows.stream().findFirst();
     }
 
-    public List<AssignmentRow> findAssignments(Long tenantId, long personId) {
+    public List<AssignmentRow> findAssignments(
+            Long tenantId,
+            long personId,
+            LocalDate asOf,
+            boolean tenantWide,
+            Set<UUID> organizationIds) {
         String sql = """
                 SELECT a.assignment_key,
                        a.assignment_status,
@@ -257,13 +285,21 @@ public class PeopleDirectoryRepository {
                     ON loc.tenant_id = a.tenant_id AND loc.location_id = a.location_id
                  WHERE a.tenant_id = :tenantId
                    AND worker.person_id = :personId
+                   AND relationship.start_date <= :asOf
+                   AND (relationship.end_date IS NULL OR relationship.end_date >= :asOf)
+                   AND a.effective_start_date <= :asOf
+                   AND (a.effective_end_date IS NULL OR a.effective_end_date >= :asOf)
+                """ + (tenantWide ? "" : " AND org.public_id IN (:organizationIds)\n") + """
                  ORDER BY a.effective_start_date DESC,
                           a.effective_sequence DESC,
                           a.assignment_id DESC
                 """;
+        MapSqlParameterSource parameters = commonParameters(tenantId, asOf)
+                .addValue("personId", personId);
+        if (!tenantWide) parameters.addValue("organizationIds", organizationIds);
         return jdbc.query(
                 sql,
-                new MapSqlParameterSource("tenantId", tenantId).addValue("personId", personId),
+                parameters,
                 (resultSet, rowNumber) -> new AssignmentRow(
                         resultSet.getString("assignment_key"),
                         resultSet.getString("assignment_status"),
@@ -279,7 +315,12 @@ public class PeopleDirectoryRepository {
                         resultSet.getString("change_reason_code")));
     }
 
-    public List<WorkforceEntityRow> findWorkforceEntities(Long tenantId, long personId) {
+    public List<WorkforceEntityRow> findWorkforceEntities(
+            Long tenantId,
+            long personId,
+            LocalDate asOf,
+            boolean tenantWide,
+            Set<UUID> organizationIds) {
         String sql = """
                 SELECT worker.public_id AS worker_public_id,
                        worker.worker_number,
@@ -323,6 +364,9 @@ public class PeopleDirectoryRepository {
                   LEFT JOIN ppl_assignments assignment
                     ON assignment.tenant_id = relationship.tenant_id
                    AND assignment.work_relationship_id = relationship.work_relationship_id
+                   AND assignment.effective_start_date <= :asOf
+                   AND (assignment.effective_end_date IS NULL
+                        OR assignment.effective_end_date >= :asOf)
                   LEFT JOIN ppl_organizations organization
                     ON organization.tenant_id = assignment.tenant_id
                    AND organization.organization_id = assignment.organization_id
@@ -337,6 +381,9 @@ public class PeopleDirectoryRepository {
                    AND location.location_id = assignment.location_id
                  WHERE worker.tenant_id = :tenantId
                    AND worker.person_id = :personId
+                   AND relationship.start_date <= :asOf
+                   AND (relationship.end_date IS NULL OR relationship.end_date >= :asOf)
+                """ + (tenantWide ? "" : " AND organization.public_id IN (:organizationIds)\n") + """
                  ORDER BY worker.worker_id,
                           relationship.primary_relationship DESC,
                           relationship.start_date DESC,
@@ -344,9 +391,12 @@ public class PeopleDirectoryRepository {
                           assignment.effective_sequence DESC NULLS LAST,
                           assignment.assignment_id DESC NULLS LAST
                 """;
+        MapSqlParameterSource parameters = commonParameters(tenantId, asOf)
+                .addValue("personId", personId);
+        if (!tenantWide) parameters.addValue("organizationIds", organizationIds);
         return jdbc.query(
                 sql,
-                new MapSqlParameterSource("tenantId", tenantId).addValue("personId", personId),
+                parameters,
                 (resultSet, rowNumber) -> new WorkforceEntityRow(
                         resultSet.getObject("worker_public_id", UUID.class),
                         resultSet.getString("worker_number"),

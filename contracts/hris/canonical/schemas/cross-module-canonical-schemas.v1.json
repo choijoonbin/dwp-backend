@@ -1,0 +1,526 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dwp:hris:cross-module-canonical-schemas:v1",
+  "title": "DWP HRIS canonical cross-module snapshot and event payload schemas",
+  "$defs": {
+    "Uuid": {"type": "string", "format": "uuid"},
+    "Digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "Date": {"type": "string", "format": "date"},
+    "NullableDate": {"type": ["string", "null"], "format": "date"},
+    "Instant": {"type": "string", "format": "date-time"},
+    "Currency": {"type": "string", "pattern": "^[A-Z]{3}$"},
+    "NullableCurrency": {"type": ["string", "null"], "pattern": "^[A-Z]{3}$"},
+    "Code": {"type": "string", "pattern": "^[A-Z0-9][A-Z0-9._-]{0,79}$"},
+    "PositiveRevision": {"type": "integer", "minimum": 1},
+    "NonNegativeRevision": {"type": "integer", "minimum": 0},
+    "InputAmount": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]{0,12})(?:\\.[0-9]{1,6})?$", "x-valueType": "InputAmount", "x-sqlType": "NUMERIC(19,6)", "x-authoritativePointer": "decimal-value-types.v1.json#/valueTypes/InputAmount", "x-exponentNotation": "FORBIDDEN", "x-negativeZero": "NORMALIZE_TO_ZERO"},
+    "QuantityDecimal": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]{0,12})(?:\\.[0-9]{1,6})?$", "x-valueType": "QuantityDecimal", "x-sqlType": "NUMERIC(19,6)", "x-authoritativePointer": "decimal-value-types.v1.json#/valueTypes/QuantityDecimal", "x-exponentNotation": "FORBIDDEN", "x-negativeZero": "NORMALIZE_TO_ZERO"},
+    "PostedMoneyAmount": {"type": "string", "pattern": "^-?(?:0|[1-9][0-9]{0,14})(?:\\.[0-9]{1,4})?$", "x-valueType": "PostedMoney", "x-sqlType": "NUMERIC(19,4)", "x-authoritativePointer": "decimal-value-types.v1.json#/valueTypes/PostedMoney", "x-exponentNotation": "FORBIDDEN", "x-negativeZero": "NORMALIZE_TO_ZERO"},
+    "Relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "relationshipPublicId": {"$ref": "#/$defs/Uuid"},
+        "relationshipType": {"$ref": "#/$defs/Code"},
+        "status": {"type": "string", "enum": ["PENDING", "ACTIVE", "INACTIVE", "TERMINATED"]},
+        "legalEntityPublicId": {"$ref": "#/$defs/Uuid"},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"}
+      },
+      "required": ["relationshipPublicId", "relationshipType", "status", "legalEntityPublicId", "effectiveFrom", "effectiveTo"]
+    },
+    "Assignment": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "assignmentPublicId": {"$ref": "#/$defs/Uuid"},
+        "status": {"type": "string", "enum": ["PENDING", "ACTIVE", "INACTIVE", "ENDED"]},
+        "legalEntityPublicId": {"$ref": "#/$defs/Uuid"},
+        "organizationPublicId": {"$ref": "#/$defs/Uuid"},
+        "locationPublicId": {"type": ["string", "null"], "format": "uuid"},
+        "timeZone": {"type": "string", "pattern": "^[A-Za-z_]+(?:/[A-Za-z0-9_+.-]+)+$", "maxLength": 80},
+        "employmentTerms": {"type": "string", "enum": ["FULL_TIME", "PART_TIME", "CASUAL", "TEMPORARY", "OTHER"]},
+        "costCenterKey": {"type": ["string", "null"], "minLength": 1, "maxLength": 80},
+        "payGroupPublicId": {"type": ["string", "null"], "format": "uuid"},
+        "compensationBasisPublicId": {"type": ["string", "null"], "format": "uuid"},
+        "managerAssignmentPublicId": {"type": ["string", "null"], "format": "uuid"},
+        "jobProfilePublicId": {"type": ["string", "null"], "format": "uuid"},
+        "gradePublicId": {"type": ["string", "null"], "format": "uuid"}
+      },
+      "required": ["assignmentPublicId", "status", "legalEntityPublicId", "organizationPublicId", "locationPublicId", "timeZone", "employmentTerms", "costCenterKey", "payGroupPublicId", "compensationBasisPublicId", "managerAssignmentPublicId", "jobProfilePublicId", "gradePublicId"]
+    },
+    "ClosedTimeLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "x-unitCurrencyBinding": {
+        "MINUTE": {"valueType": "QuantityDecimal", "currency": "FORBIDDEN_NULL"},
+        "HOUR": {"valueType": "QuantityDecimal", "currency": "FORBIDDEN_NULL"},
+        "DAY": {"valueType": "QuantityDecimal", "currency": "FORBIDDEN_NULL"},
+        "COUNT": {"valueType": "QuantityDecimal", "currency": "FORBIDDEN_NULL"},
+        "AMOUNT": {"valueType": "InputAmount", "currency": "REQUIRED_ISO_4217"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"unit": {"const": "AMOUNT"}}, "required": ["unit"]},
+          "then": {"properties": {"quantity": {"$ref": "#/$defs/InputAmount"}, "currency": {"$ref": "#/$defs/Currency"}}, "required": ["quantity", "currency"]},
+          "else": {"properties": {"quantity": {"$ref": "#/$defs/QuantityDecimal"}, "currency": {"type": "null"}}, "required": ["quantity", "currency"]}
+        }
+      ],
+      "properties": {
+        "workerId": {"$ref": "#/$defs/Uuid"},
+        "assignmentId": {"$ref": "#/$defs/Uuid"},
+        "payCode": {"$ref": "#/$defs/Code"},
+        "quantity": {"$ref": "#/$defs/QuantityDecimal"},
+        "currency": {"$ref": "#/$defs/NullableCurrency"},
+        "sourceEntryCount": {"type": "integer", "minimum": 1, "maximum": 100000},
+        "sourceEntryDigest": {"$ref": "#/$defs/Digest"},
+        "unit": {"type": "string", "enum": ["MINUTE", "HOUR", "DAY", "COUNT", "AMOUNT"]}
+      },
+      "required": ["workerId", "assignmentId", "payCode", "quantity", "currency", "sourceEntryCount", "sourceEntryDigest", "unit"]
+    },
+    "EligibilityFacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "eligibilityType": {"$ref": "#/$defs/Code"},
+        "eligible": {"type": "boolean"},
+        "factRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "jurisdictionCode": {"type": ["string", "null"], "pattern": "^[A-Z0-9-]{2,16}$"}
+      },
+      "required": ["eligibilityType", "eligible", "factRevision", "jurisdictionCode"]
+    },
+    "ApprovedCompensationPlanLine": {
+      "title": "ApprovedCompensationPlanLine.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "lineId": {"$ref": "#/$defs/Uuid"},
+        "lineSequence": {"type": "integer", "minimum": 1, "maximum": 100000},
+        "workerId": {"$ref": "#/$defs/Uuid"},
+        "assignmentId": {"$ref": "#/$defs/Uuid"},
+        "componentCode": {"$ref": "#/$defs/Code"},
+        "currency": {"$ref": "#/$defs/Currency"},
+        "approvedAmount": {"$ref": "#/$defs/PostedMoneyAmount"},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "lineDigest": {"$ref": "#/$defs/Digest"}
+      },
+      "required": ["lineId", "lineSequence", "workerId", "assignmentId", "componentCode", "currency", "approvedAmount", "effectiveFrom", "effectiveTo", "lineDigest"]
+    },
+    "XCON_001": {
+      "title": "WorkerAssignmentSnapshot.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "asOf": {"$ref": "#/$defs/Instant"},
+        "assignments": {"type": "array", "minItems": 1, "maxItems": 1000, "items": {"$ref": "#/$defs/Assignment"}},
+        "personPublicId": {"$ref": "#/$defs/Uuid"},
+        "relationships": {"type": "array", "minItems": 1, "maxItems": 100, "items": {"$ref": "#/$defs/Relationship"}},
+        "snapshotVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "workerPublicId": {"$ref": "#/$defs/Uuid"},
+        "workerStatus": {"type": "string", "enum": ["PENDING", "ACTIVE", "INACTIVE", "TERMINATED"]}
+      },
+      "required": ["asOf", "assignments", "personPublicId", "relationships", "snapshotVersion", "workerPublicId", "workerStatus"]
+    },
+    "XCON_002": {
+      "title": "CompensationBasisSnapshot.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "amount": {"$ref": "#/$defs/InputAmount"},
+        "asOf": {"$ref": "#/$defs/Instant"},
+        "assignmentPublicId": {"$ref": "#/$defs/Uuid"},
+        "basisType": {"type": "string", "enum": ["SALARY", "HOURLY", "DAILY", "PIECE", "OTHER"]},
+        "compensationBasisPublicId": {"$ref": "#/$defs/Uuid"},
+        "currency": {"$ref": "#/$defs/Currency"},
+        "frequency": {"type": "string", "enum": ["HOURLY", "DAILY", "WEEKLY", "BIWEEKLY", "SEMIMONTHLY", "MONTHLY", "ANNUAL"]},
+        "legalEntityPublicId": {"$ref": "#/$defs/Uuid"},
+        "payGroupPublicId": {"$ref": "#/$defs/Uuid"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "snapshotVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "sourceRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "validFrom": {"$ref": "#/$defs/Date"},
+        "validTo": {"$ref": "#/$defs/NullableDate"},
+        "workerPublicId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["amount", "asOf", "assignmentPublicId", "basisType", "compensationBasisPublicId", "currency", "frequency", "legalEntityPublicId", "payGroupPublicId", "payloadDigest", "snapshotVersion", "sourceRevision", "validFrom", "validTo", "workerPublicId"]
+    },
+    "XCON_003": {
+      "title": "WorkerChanged.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "changeType": {"$ref": "#/$defs/Code"},
+        "effectiveDate": {"$ref": "#/$defs/Date"},
+        "newAggregateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "workerPublicId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["changeType", "effectiveDate", "newAggregateVersion", "workerPublicId"]
+    },
+    "XCON_004": {
+      "title": "EmploymentChanged.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "changeType": {"$ref": "#/$defs/Code"},
+        "effectiveDate": {"$ref": "#/$defs/Date"},
+        "newAggregateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "relationshipPublicId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["changeType", "effectiveDate", "newAggregateVersion", "relationshipPublicId"]
+    },
+    "XCON_005": {
+      "title": "AssignmentChanged.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "assignmentPublicId": {"$ref": "#/$defs/Uuid"},
+        "changedReferences": {"type": "array", "minItems": 1, "maxItems": 32, "uniqueItems": true, "items": {"$ref": "#/$defs/Code"}},
+        "effectiveDate": {"$ref": "#/$defs/Date"},
+        "eventPublicId": {"$ref": "#/$defs/Uuid"},
+        "eventType": {"type": "string", "enum": ["HIRE", "REHIRE", "TRANSFER", "PROMOTION", "DEMOTION", "CONCURRENT_ASSIGNMENT", "CHANGE_MANAGER", "CHANGE_LOCATION", "LEAVE", "RETURN", "TERMINATION", "CORRECTION"]},
+        "newAggregateVersion": {"$ref": "#/$defs/PositiveRevision"}
+      },
+      "required": ["assignmentPublicId", "changedReferences", "effectiveDate", "eventPublicId", "eventType", "newAggregateVersion"]
+    },
+    "XCON_006": {
+      "title": "OrganizationChanged.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "changedOrganizationPublicIds": {"type": "array", "minItems": 1, "maxItems": 1000, "uniqueItems": true, "items": {"$ref": "#/$defs/Uuid"}},
+        "effectiveDate": {"$ref": "#/$defs/Date"},
+        "revisionPublicId": {"$ref": "#/$defs/Uuid"},
+        "snapshotDigest": {"$ref": "#/$defs/Digest"}
+      },
+      "required": ["changedOrganizationPublicIds", "effectiveDate", "revisionPublicId", "snapshotDigest"]
+    },
+    "XCON_007": {
+      "title": "CompensationBasisChanged.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "assignmentPublicId": {"$ref": "#/$defs/Uuid"},
+        "basisType": {"type": "string", "enum": ["SALARY", "HOURLY", "DAILY", "PIECE", "OTHER"]},
+        "compensationBasisPublicId": {"$ref": "#/$defs/Uuid"},
+        "newAggregateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "validFrom": {"$ref": "#/$defs/Date"},
+        "validTo": {"$ref": "#/$defs/NullableDate"}
+      },
+      "required": ["assignmentPublicId", "basisType", "compensationBasisPublicId", "newAggregateVersion", "validFrom", "validTo"]
+       },
+    "XCON_008": {
+      "title": "ClosedTimeResult.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-streamingTransport": {
+        "wireVersion": "V1_JSON_ARRAY",
+        "gatewayBuffering": "FORBIDDEN_STREAM_THROUGH",
+        "backpressure": "END_TO_END_REACTIVE_PULL_WITH_BOUNDED_QUEUES",
+        "lineCeiling": 1000000,
+        "maxHeaderBytes": 65536,
+        "maxLineBytes": 4096,
+        "maxPayloadBytes": 5368709120,
+        "maxCompressedPayloadBytes": 1073741824,
+        "maxUncompressedPayloadBytes": 5368709120,
+        "maxCompressionRatio": 100,
+        "byteAccounting": "COUNT_COMPRESSED_AND_STREAMING_DECOMPRESSED_BYTES_BEFORE_ALLOCATION",
+        "sequenceValidation": "ARRAY_INDEX_CONTIGUOUS_FROM_0_AND_COUNT_EQUALS_LINE_COUNT",
+        "digest": "INCREMENTAL_CANONICAL_HEADER_THEN_ORDERED_LINES",
+        "consumerIngest": "STAGED_TEMPORARY_ROWS",
+        "finalize": "ATOMIC_AFTER_COUNT_SEQUENCE_AND_DIGEST_VALIDATION",
+        "failure": "ROLLBACK_STAGED_ROWS_AND_QUARANTINE_RECEIPT"
+      },
+      "properties": {
+        "closePeriodId": {"$ref": "#/$defs/Uuid"},
+        "closeRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "closedTimeResultId": {"$ref": "#/$defs/Uuid"},
+        "ledgerRevisionFrom": {"$ref": "#/$defs/PositiveRevision"},
+        "ledgerRevisionTo": {"$ref": "#/$defs/PositiveRevision"},
+        "lineCount": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "lines": {"type": "array", "minItems": 0, "maxItems": 1000000, "items": {"$ref": "#/$defs/ClosedTimeLine"}},
+        "payPeriodId": {"$ref": "#/$defs/Uuid"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "payrollEntityId": {"$ref": "#/$defs/Uuid"},
+        "ruleDigest": {"$ref": "#/$defs/Digest"},
+        "sourceDigest": {"$ref": "#/$defs/Digest"},
+        "supersedesResultId": {"type": ["string", "null"], "format": "uuid"},
+        "workerCount": {"type": "integer", "minimum": 0, "maximum": 1000000}
+      },
+      "required": ["closePeriodId", "closeRevision", "closedTimeResultId", "ledgerRevisionFrom", "ledgerRevisionTo", "lineCount", "lines", "payPeriodId", "payloadDigest", "payrollEntityId", "ruleDigest", "sourceDigest", "supersedesResultId", "workerCount"]
+    },
+    "XCON_009": {
+      "title": "TimePeriodClosed.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "closePeriodId": {"$ref": "#/$defs/Uuid"},
+        "closeRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "ledgerRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "periodEnd": {"$ref": "#/$defs/Date"},
+        "periodStart": {"$ref": "#/$defs/Date"},
+        "ruleDigest": {"$ref": "#/$defs/Digest"},
+        "scopeId": {"$ref": "#/$defs/Uuid"},
+        "sourceDigest": {"$ref": "#/$defs/Digest"}
+      },
+      "required": ["closePeriodId", "closeRevision", "ledgerRevision", "periodEnd", "periodStart", "ruleDigest", "scopeId", "sourceDigest"]
+    },
+    "XCON_010": {
+      "title": "TimePeriodReopened.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "closePeriodId": {"$ref": "#/$defs/Uuid"},
+        "newRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "priorCloseRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "reasonCode": {"$ref": "#/$defs/Code"}
+      },
+      "required": ["closePeriodId", "newRevision", "priorCloseRevision", "reasonCode"]
+    },
+    "XCON_011": {
+      "title": "PayrollTimeHandoffReady.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "closePeriodId": {"$ref": "#/$defs/Uuid"},
+        "closeRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "closedTimeResultId": {"$ref": "#/$defs/Uuid"},
+        "handoffId": {"$ref": "#/$defs/Uuid"},
+        "lineCount": {"type": "integer", "minimum": 0, "maximum": 1000000},
+        "payPeriodId": {"$ref": "#/$defs/Uuid"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "payrollEntityId": {"$ref": "#/$defs/Uuid"},
+        "ruleDigest": {"$ref": "#/$defs/Digest"},
+        "sourceDigest": {"$ref": "#/$defs/Digest"},
+        "workerCount": {"type": "integer", "minimum": 0, "maximum": 1000000}
+      },
+      "required": ["closePeriodId", "closeRevision", "closedTimeResultId", "handoffId", "lineCount", "payPeriodId", "payloadDigest", "payrollEntityId", "ruleDigest", "sourceDigest", "workerCount"]
+    },
+    "XCON_012": {
+      "title": "HrisHomeContributionChanged.v1",
+      "x-profile": "PerformanceHomeContribution.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ownerPopulationScope": {"type": "string", "enum": ["SELF", "TEAM", "NAMED_POPULATION"]},
+        "freshUntil": {"$ref": "#/$defs/Instant"},
+        "generatedAt": {"$ref": "#/$defs/Instant"},
+        "module": {"type": "string", "const": "PER"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "payloadRef": {"type": "string", "pattern": "^href_[A-Za-z0-9_-]{16,128}$"},
+        "scopeRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "staleAfter": {"$ref": "#/$defs/Instant"},
+        "state": {"type": "string", "enum": ["FRESH", "STALE", "DEGRADED", "UNAVAILABLE"]},
+        "widgetKey": {"type": "string", "pattern": "^performance-[a-z0-9-]{1,28}$"}
+      },
+      "required": ["freshUntil", "generatedAt", "module", "ownerPopulationScope", "payloadDigest", "payloadRef", "scopeRevision", "staleAfter", "state", "widgetKey"]
+    },
+    "XCON_013": {
+      "title": "HrisHomeContributionChanged.v1",
+      "x-profile": "PeopleHomeContribution.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ownerPopulationScope": {"type": "string", "enum": ["SELF", "TEAM", "NAMED_POPULATION"]},
+        "freshUntil": {"$ref": "#/$defs/Instant"},
+        "generatedAt": {"$ref": "#/$defs/Instant"},
+        "module": {"type": "string", "const": "HRM"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "payloadRef": {"type": "string", "pattern": "^href_[A-Za-z0-9_-]{16,128}$"},
+        "scopeRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "staleAfter": {"$ref": "#/$defs/Instant"},
+        "state": {"type": "string", "enum": ["FRESH", "STALE", "DEGRADED", "UNAVAILABLE"]},
+        "widgetKey": {"type": "string", "pattern": "^people-[a-z0-9-]{1,33}$"}
+      },
+      "required": ["freshUntil", "generatedAt", "module", "ownerPopulationScope", "payloadDigest", "payloadRef", "scopeRevision", "staleAfter", "state", "widgetKey"]
+    },
+    "XCON_014": {
+      "title": "HrisHomeContributionChanged.v1",
+      "x-profile": "TimeLeaveHomeContribution.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ownerPopulationScope": {"type": "string", "enum": ["SELF", "TEAM", "TIME_GROUP"]},
+        "freshUntil": {"$ref": "#/$defs/Instant"},
+        "generatedAt": {"$ref": "#/$defs/Instant"},
+        "module": {"type": "string", "const": "TIM"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "payloadRef": {"type": "string", "pattern": "^href_[A-Za-z0-9_-]{16,128}$"},
+        "scopeRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "staleAfter": {"$ref": "#/$defs/Instant"},
+        "state": {"type": "string", "enum": ["FRESH", "STALE", "DEGRADED", "UNAVAILABLE"]},
+        "widgetKey": {"type": "string", "pattern": "^(time|leave)-[a-z0-9-]{1,31}$"}
+      },
+      "required": ["freshUntil", "generatedAt", "module", "ownerPopulationScope", "payloadDigest", "payloadRef", "scopeRevision", "staleAfter", "state", "widgetKey"]
+    },
+    "XCON_015": {
+      "title": "HrisHomeContributionChanged.v1",
+      "x-profile": "PayrollHomeContribution.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "ownerPopulationScope": {"type": "string", "enum": ["SELF", "PAY_GROUP", "LEGAL_ENTITY"]},
+        "freshUntil": {"$ref": "#/$defs/Instant"},
+        "generatedAt": {"$ref": "#/$defs/Instant"},
+        "module": {"type": "string", "const": "PAY"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "payloadRef": {"type": "string", "pattern": "^href_[A-Za-z0-9_-]{16,128}$"},
+        "scopeRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "staleAfter": {"$ref": "#/$defs/Instant"},
+        "state": {"type": "string", "enum": ["FRESH", "STALE", "DEGRADED", "UNAVAILABLE"]},
+        "widgetKey": {"type": "string", "pattern": "^payroll-[a-z0-9-]{1,30}$"}
+      },
+      "required": ["freshUntil", "generatedAt", "module", "ownerPopulationScope", "payloadDigest", "payloadRef", "scopeRevision", "staleAfter", "state", "widgetKey"]
+    },
+    "XCON_016": {
+      "title": "WorkplaceAssignmentSnapshot.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "assignmentId": {"$ref": "#/$defs/Uuid"},
+        "calendarId": {"$ref": "#/$defs/Uuid"},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "snapshotId": {"$ref": "#/$defs/Uuid"},
+        "snapshotRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "sourceVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "timeZone": {"type": "string", "pattern": "^[A-Za-z_]+(?:/[A-Za-z0-9_+.-]+)+$", "maxLength": 80},
+        "workLocationCode": {"type": "string", "minLength": 1, "maxLength": 80},
+        "workerId": {"$ref": "#/$defs/Uuid"},
+        "workplaceId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["assignmentId", "calendarId", "effectiveFrom", "effectiveTo", "payloadDigest", "snapshotId", "snapshotRevision", "sourceVersion", "timeZone", "workLocationCode", "workerId", "workplaceId"]
+    },
+    "XCON_017": {
+      "title": "WorkerDependentEligibilitySnapshot.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dependentPublicId": {"$ref": "#/$defs/Uuid"},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "eligibilityFacts": {"type": "array", "minItems": 1, "maxItems": 64, "items": {"$ref": "#/$defs/EligibilityFacts"}},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "relationshipType": {"type": "string", "enum": ["SPOUSE", "CHILD", "DOMESTIC_PARTNER", "OTHER_DEPENDENT"]},
+        "snapshotId": {"$ref": "#/$defs/Uuid"},
+        "snapshotRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "sourceVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "workerId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["dependentPublicId", "effectiveFrom", "effectiveTo", "eligibilityFacts", "payloadDigest", "relationshipType", "snapshotId", "snapshotRevision", "sourceVersion", "workerId"]
+    },
+    "XCON_018": {
+      "title": "WorkerTaxIdentitySnapshot.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "residencyStatus": {"type": "string", "enum": ["RESIDENT", "NON_RESIDENT", "DUAL_RESIDENT", "UNKNOWN"]},
+        "snapshotId": {"$ref": "#/$defs/Uuid"},
+        "snapshotRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "sourceVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "taxIdentifierToken": {"type": "string", "pattern": "^tok_[A-Za-z0-9_-]{24,160}$"},
+        "taxJurisdictionCode": {"type": "string", "pattern": "^[A-Z]{2}(?:-[A-Z0-9]{1,8})?$"},
+        "workerClassification": {"type": "string", "enum": ["EMPLOYEE", "CONTRACTOR", "DIRECTOR", "OTHER"]},
+        "workerId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["effectiveFrom", "effectiveTo", "payloadDigest", "residencyStatus", "snapshotId", "snapshotRevision", "sourceVersion", "taxIdentifierToken", "taxJurisdictionCode", "workerClassification", "workerId"]
+    },
+    "XCON_019": {
+      "title": "WorkerBankAccountTokenSnapshot.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "bankAccountToken": {"type": "string", "pattern": "^vault_[A-Za-z0-9_-]{24,160}$"},
+        "currency": {"$ref": "#/$defs/Currency"},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "maskedAccountDisplay": {"type": "string", "minLength": 4, "maxLength": 40, "pattern": "^(?=.*[*Xx•]).+$"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "paymentPriority": {"type": "integer", "minimum": 1, "maximum": 99},
+        "snapshotId": {"$ref": "#/$defs/Uuid"},
+        "snapshotRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "sourceVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "workerId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["bankAccountToken", "currency", "effectiveFrom", "effectiveTo", "maskedAccountDisplay", "payloadDigest", "paymentPriority", "snapshotId", "snapshotRevision", "sourceVersion", "workerId"]
+    },
+    "XCON_020": {
+      "title": "ApprovedCompensationPlanSnapshot.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "lineCountEquals": "lines.length",
+        "lineSequence": "UNIQUE_CONTIGUOUS_ASCENDING_FROM_1",
+        "lineId": "UNIQUE_WITHIN_SNAPSHOT",
+        "payMaterialization": "ATOMIC_N_LINES_TO_N_INPUT_ROWS",
+        "payloadDigest": "CANONICAL_HEADER_PLUS_ORDERED_LINES_CANONICAL_DECIMAL_STRINGS"
+      },
+      "x-streamingTransport": {
+        "wireVersion": "V1_JSON_ARRAY",
+        "gatewayBuffering": "FORBIDDEN_STREAM_THROUGH",
+        "backpressure": "END_TO_END_REACTIVE_PULL_WITH_BOUNDED_QUEUES",
+        "lineCeiling": 100000,
+        "maxHeaderBytes": 65536,
+        "maxLineBytes": 4096,
+        "maxPayloadBytes": 536870912,
+        "maxCompressedPayloadBytes": 134217728,
+        "maxUncompressedPayloadBytes": 536870912,
+        "maxCompressionRatio": 100,
+        "byteAccounting": "COUNT_COMPRESSED_AND_STREAMING_DECOMPRESSED_BYTES_BEFORE_ALLOCATION",
+        "sequenceValidation": "LINE_SEQUENCE_EQUALS_ARRAY_INDEX_PLUS_1_CONTIGUOUS_NO_GAP_OR_DUPLICATE",
+        "digest": "INCREMENTAL_CANONICAL_HEADER_THEN_ORDERED_LINES",
+        "consumerIngest": "STAGED_TEMPORARY_ROWS",
+        "finalize": "ATOMIC_AFTER_COUNT_SEQUENCE_AND_DIGEST_VALIDATION",
+        "failure": "ROLLBACK_STAGED_ROWS_AND_QUARANTINE_RECEIPT"
+      },
+      "properties": {
+        "approvalReceiptId": {"$ref": "#/$defs/Uuid"},
+        "cycleId": {"$ref": "#/$defs/Uuid"},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "lineCount": {"type": "integer", "minimum": 1, "maximum": 100000},
+        "lines": {"type": "array", "minItems": 1, "maxItems": 100000, "items": {"$ref": "#/$defs/ApprovedCompensationPlanLine"}},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "planId": {"$ref": "#/$defs/Uuid"},
+        "snapshotId": {"$ref": "#/$defs/Uuid"},
+        "snapshotRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "sourceVersion": {"$ref": "#/$defs/PositiveRevision"}
+      },
+      "required": ["approvalReceiptId", "cycleId", "effectiveFrom", "effectiveTo", "lineCount", "lines", "payloadDigest", "planId", "snapshotId", "snapshotRevision", "sourceVersion"]
+    },
+    "XCON_021": {
+      "title": "ApprovedCompensationPlanSnapshotPublished.v2",
+      "type": "object",
+      "additionalProperties": false,
+      "x-causal-contract": {
+        "emission": "POST_SNAPSHOT_HEADER_AND_ALL_ORDERED_LINES_COMMIT",
+        "runtimeVersion": "V2_ONLY",
+        "dualPublish": "FORBIDDEN",
+        "payTrigger": "THIS_EVENT_ONLY"
+      },
+      "properties": {
+        "aggregateId": {"$ref": "#/$defs/Uuid"},
+        "aggregateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "approvalReceiptId": {"$ref": "#/$defs/Uuid"},
+        "approvalRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "correlationId": {"$ref": "#/$defs/Uuid"},
+        "cycleId": {"$ref": "#/$defs/Uuid"},
+        "effectiveDate": {"$ref": "#/$defs/Date"},
+        "fromState": {"$ref": "#/$defs/Code"},
+        "lineCount": {"type": "integer", "minimum": 1, "maximum": 100000},
+        "occurredAt": {"$ref": "#/$defs/Instant"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "planId": {"$ref": "#/$defs/Uuid"},
+        "snapshotId": {"$ref": "#/$defs/Uuid"},
+        "snapshotRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "sourceVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "toState": {"$ref": "#/$defs/Code"}
+      },
+      "required": ["aggregateId", "aggregateVersion", "approvalReceiptId", "approvalRevision", "correlationId", "cycleId", "effectiveDate", "fromState", "lineCount", "occurredAt", "payloadDigest", "planId", "snapshotId", "snapshotRevision", "sourceVersion", "toState"]
+    }
+  }
+}

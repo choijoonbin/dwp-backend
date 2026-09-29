@@ -1,0 +1,435 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dwp:hris:platform-dependency-canonical-schemas:v1",
+  "title": "DWP HRIS canonical platform dependency schemas",
+  "x-scope": {
+    "g3": "Provider-neutral configuration, automation, connector and approval contracts with synthetic fixtures",
+    "g6": "Tenant values, schedules, endpoints, credentials, named approvers and production activation are deliberately excluded"
+  },
+  "$defs": {
+    "Uuid": {"type": "string", "format": "uuid"},
+    "NullableUuid": {"type": ["string", "null"], "format": "uuid"},
+    "Digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "NullableDigest": {"type": ["string", "null"], "pattern": "^[0-9a-f]{64}$"},
+    "Date": {"type": "string", "format": "date"},
+    "NullableDate": {"type": ["string", "null"], "format": "date"},
+    "Instant": {"type": "string", "format": "date-time"},
+    "NullableInstant": {"type": ["string", "null"], "format": "date-time"},
+    "Code": {"type": "string", "pattern": "^[A-Z][A-Z0-9._-]{0,79}$"},
+    "NullableCode": {"type": ["string", "null"], "pattern": "^[A-Z][A-Z0-9._-]{0,79}$"},
+    "Key": {"type": "string", "pattern": "^[a-z][a-z0-9._-]{2,127}$"},
+    "Reference": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9:/._-]{0,511}$"},
+    "NullableReference": {"type": ["string", "null"], "pattern": "^[A-Za-z0-9][A-Za-z0-9:/._-]{0,511}$"},
+    "SchemaVersion": {"type": "string", "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,127}\\.v[1-9][0-9]*$"},
+    "IdempotencyKey": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{7,127}$"},
+    "PositiveRevision": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+    "PositiveId": {"type": "integer", "minimum": 1, "maximum": 9223372036854775807},
+    "NonNegativeCount": {"type": "integer", "minimum": 0, "maximum": 1000000000},
+    "Locale": {"type": "string", "minLength": 2, "maxLength": 35, "pattern": "^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$"},
+    "ScopeType": {"type": "string", "enum": ["GLOBAL", "TENANT", "LEGAL_ENTITY", "ORGANIZATION", "POPULATION", "SUBJECT"]},
+    "NullableScopeId": {"type": ["string", "null"], "format": "uuid"},
+    "PDX_001": {
+      "title": "HrisConfigurationVersion.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "effectiveRange": "HALF_OPEN_NON_OVERLAPPING_FOR_PUBLISHED_BUSINESS_KEY",
+        "publishedApproval": "PUBLISHED_REQUIRES_APPROVAL_RECEIPT_AND_IMMUTABLE_PAYLOAD_DIGEST",
+        "globalScope": "GLOBAL_REQUIRES_NULL_SCOPE_ID_OTHER_SCOPES_REQUIRE_SCOPE_ID",
+        "resolution": "LATEST_APPROVED_EFFECTIVE_VERSION_OR_FAIL_DISABLED"
+      },
+      "properties": {
+        "configurationId": {"$ref": "#/$defs/Uuid"},
+        "configurationType": {"$ref": "#/$defs/Code"},
+        "scopeType": {"$ref": "#/$defs/ScopeType"},
+        "scopeId": {"$ref": "#/$defs/NullableScopeId"},
+        "version": {"$ref": "#/$defs/PositiveRevision"},
+        "state": {"type": "string", "enum": ["DRAFT", "VALIDATED", "PENDING_APPROVAL", "APPROVED", "PUBLISHED", "SUPERSEDED", "ROLLED_BACK", "RETIRED"]},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "payloadSchemaVersion": {"$ref": "#/$defs/SchemaVersion"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "approvalReceiptId": {"$ref": "#/$defs/NullableUuid"}
+      },
+      "required": ["configurationId", "configurationType", "scopeType", "scopeId", "version", "state", "effectiveFrom", "effectiveTo", "payloadSchemaVersion", "payloadDigest", "approvalReceiptId"]
+    },
+    "PDX_002": {
+      "title": "HrisConfigurationPublished.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "source": "EXACT_IMMUTABLE_PDX_001_PUBLISHED_REVISION",
+        "ordering": "CONFIGURATION_ID_VERSION",
+        "consumer": "DIGEST_AND_EFFECTIVE_RANGE_VALIDATE_BEFORE_ATOMIC_SWAP"
+      },
+      "properties": {
+        "configurationId": {"$ref": "#/$defs/Uuid"},
+        "configurationType": {"$ref": "#/$defs/Code"},
+        "scopeType": {"$ref": "#/$defs/ScopeType"},
+        "scopeId": {"$ref": "#/$defs/NullableScopeId"},
+        "version": {"$ref": "#/$defs/PositiveRevision"},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "payloadSchemaVersion": {"$ref": "#/$defs/SchemaVersion"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "approvalReceiptId": {"$ref": "#/$defs/Uuid"},
+        "publishedAt": {"$ref": "#/$defs/Instant"},
+        "eventSequence": {"$ref": "#/$defs/PositiveRevision"}
+      },
+      "required": ["configurationId", "configurationType", "scopeType", "scopeId", "version", "effectiveFrom", "effectiveTo", "payloadSchemaVersion", "payloadDigest", "approvalReceiptId", "publishedAt", "eventSequence"]
+    },
+    "PDX_003": {
+      "title": "HrisConfigurationInvalidated.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "ordering": "CONFIGURATION_ID_EVENT_SEQUENCE",
+        "consumer": "PURGE_EXACT_VERSION_AND_REFETCH_REPLACEMENT_OR_FAIL_DISABLED"
+      },
+      "properties": {
+        "configurationId": {"$ref": "#/$defs/Uuid"},
+        "configurationType": {"$ref": "#/$defs/Code"},
+        "scopeType": {"$ref": "#/$defs/ScopeType"},
+        "scopeId": {"$ref": "#/$defs/NullableScopeId"},
+        "invalidatedVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "replacementVersion": {"type": ["integer", "null"], "minimum": 1, "maximum": 9223372036854775807},
+        "reasonCode": {"$ref": "#/$defs/Code"},
+        "invalidatedAt": {"$ref": "#/$defs/Instant"},
+        "eventSequence": {"$ref": "#/$defs/PositiveRevision"}
+      },
+      "required": ["configurationId", "configurationType", "scopeType", "scopeId", "invalidatedVersion", "replacementVersion", "reasonCode", "invalidatedAt", "eventSequence"]
+    },
+    "PDX_004": {
+      "title": "AutomationHandlerManifest.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "execution": "ALLOWLISTED_SIGNED_HANDLER_KEY_ONLY_NO_CLASS_METHOD_OR_SQL_NAME",
+        "compatibility": "INPUT_AND_RECEIPT_MAJOR_SCHEMA_VERSIONS_PINNED",
+        "activation": "ACTIVE_REQUIRES_VALID_SIGNATURE_AND_COMPATIBILITY_CHECK"
+      },
+      "properties": {
+        "handlerKey": {"$ref": "#/$defs/Key"},
+        "ownerService": {"$ref": "#/$defs/Key"},
+        "contractVersion": {"$ref": "#/$defs/SchemaVersion"},
+        "inputSchemaRef": {"$ref": "#/$defs/Reference"},
+        "receiptSchemaRef": {"$ref": "#/$defs/Reference"},
+        "signatureDigest": {"$ref": "#/$defs/Digest"},
+        "allowedScopeTypes": {"type": "array", "minItems": 1, "maxItems": 6, "uniqueItems": true, "items": {"$ref": "#/$defs/ScopeType"}},
+        "retryMode": {"type": "string", "enum": ["NONE", "FAILED_ITEMS_ONLY", "WHOLE_INVOCATION"]},
+        "maxAttempts": {"type": "integer", "minimum": 1, "maximum": 20},
+        "state": {"type": "string", "enum": ["DRAFT", "VERIFIED", "ACTIVE", "SUSPENDED", "REVOKED"]}
+      },
+      "required": ["handlerKey", "ownerService", "contractVersion", "inputSchemaRef", "receiptSchemaRef", "signatureDigest", "allowedScopeTypes", "retryMode", "maxAttempts", "state"]
+    },
+    "PDX_005": {
+      "title": "AutomationInvocation.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "idempotency": "TENANT_CALLER_HANDLER_IDEMPOTENCY_KEY_BINDS_INPUT_DIGEST",
+        "dispatch": "HANDLER_MANIFEST_MUST_BE_ACTIVE_AND_EXACT_CONTRACT_VERSION",
+        "retry": "SAME_INVOCATION_ID_AND_IMMUTABLE_INPUT_DIGEST"
+      },
+      "properties": {
+        "invocationId": {"$ref": "#/$defs/Uuid"},
+        "automationId": {"$ref": "#/$defs/Uuid"},
+        "automationVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "handlerKey": {"$ref": "#/$defs/Key"},
+        "handlerContractVersion": {"$ref": "#/$defs/SchemaVersion"},
+        "scopeType": {"$ref": "#/$defs/ScopeType"},
+        "scopeId": {"$ref": "#/$defs/NullableScopeId"},
+        "requestedAt": {"$ref": "#/$defs/Instant"},
+        "requestedByActorRef": {"$ref": "#/$defs/Reference"},
+        "idempotencyKey": {"$ref": "#/$defs/IdempotencyKey"},
+        "inputRef": {"$ref": "#/$defs/Reference"},
+        "inputDigest": {"$ref": "#/$defs/Digest"},
+        "expectedItemCount": {"$ref": "#/$defs/NonNegativeCount"},
+        "correlationId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["invocationId", "automationId", "automationVersion", "handlerKey", "handlerContractVersion", "scopeType", "scopeId", "requestedAt", "requestedByActorRef", "idempotencyKey", "inputRef", "inputDigest", "expectedItemCount", "correlationId"]
+    },
+    "PDX_006": {
+      "title": "AutomationRunItemReceipt.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "identity": "RUN_ID_ITEM_ID_UNIQUE_AND_ITEM_SEQUENCE_CONTIGUOUS_FROM_1",
+        "terminal": "SUCCEEDED_OR_FAILED_TERMINAL_RECEIPT_IS_IMMUTABLE",
+        "retry": "FAILED_ITEMS_ONLY_REUSES_ITEM_ID_AND_INCREMENTS_ATTEMPT",
+        "counts": "RUN_SUMMARY_EQUALS_EXACT_ITEM_RECEIPT_CARDINALITY"
+      },
+      "properties": {
+        "runId": {"$ref": "#/$defs/Uuid"},
+        "runRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "itemId": {"$ref": "#/$defs/Uuid"},
+        "itemSequence": {"$ref": "#/$defs/PositiveRevision"},
+        "subjectRef": {"$ref": "#/$defs/Reference"},
+        "state": {"type": "string", "enum": ["ACCEPTED", "LEASED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELED", "DEAD_LETTERED"]},
+        "attemptNumber": {"type": "integer", "minimum": 1, "maximum": 20},
+        "acceptedAt": {"$ref": "#/$defs/Instant"},
+        "completedAt": {"$ref": "#/$defs/NullableInstant"},
+        "resultRef": {"$ref": "#/$defs/NullableReference"},
+        "resultDigest": {"$ref": "#/$defs/NullableDigest"},
+        "errorCode": {"$ref": "#/$defs/NullableCode"},
+        "retryable": {"type": "boolean"},
+        "nextAttemptAt": {"$ref": "#/$defs/NullableInstant"},
+        "correlationId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["runId", "runRevision", "itemId", "itemSequence", "subjectRef", "state", "attemptNumber", "acceptedAt", "completedAt", "resultRef", "resultDigest", "errorCode", "retryable", "nextAttemptAt", "correlationId"]
+    },
+    "PDX_007": {
+      "title": "ConnectorMappingVersion.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "fourEyes": "APPROVED_BY_ACTOR_MUST_DIFFER_FROM_AUTHORED_BY_ACTOR",
+        "activation": "ACTIVE_REQUIRES_APPROVAL_RECEIPT_AND_DRY_RUN_DIGEST",
+        "effectiveRange": "HALF_OPEN_NON_OVERLAPPING_FOR_CONNECTOR_MAPPING_KEY"
+      },
+      "properties": {
+        "connectorId": {"$ref": "#/$defs/Uuid"},
+        "mappingId": {"$ref": "#/$defs/Uuid"},
+        "version": {"$ref": "#/$defs/PositiveRevision"},
+        "state": {"type": "string", "enum": ["DRAFT", "VALIDATED", "PENDING_APPROVAL", "APPROVED", "ACTIVE", "SUSPENDED", "REVOKED"]},
+        "sourceSchemaVersion": {"$ref": "#/$defs/SchemaVersion"},
+        "targetSchemaVersion": {"$ref": "#/$defs/SchemaVersion"},
+        "mappingDigest": {"$ref": "#/$defs/Digest"},
+        "dryRunDigest": {"$ref": "#/$defs/NullableDigest"},
+        "authoredByActorRef": {"$ref": "#/$defs/Reference"},
+        "approvedByActorRef": {"$ref": "#/$defs/NullableReference"},
+        "approvalReceiptId": {"$ref": "#/$defs/NullableUuid"},
+        "effectiveFrom": {"$ref": "#/$defs/Date"},
+        "effectiveTo": {"$ref": "#/$defs/NullableDate"},
+        "compatibilityMode": {"type": "string", "enum": ["BACKWARD", "FORWARD", "FULL", "EXACT"]}
+      },
+      "required": ["connectorId", "mappingId", "version", "state", "sourceSchemaVersion", "targetSchemaVersion", "mappingDigest", "dryRunDigest", "authoredByActorRef", "approvedByActorRef", "approvalReceiptId", "effectiveFrom", "effectiveTo", "compatibilityMode"]
+    },
+    "PDX_008": {
+      "title": "ConnectorExecutionRequest.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "idempotency": "TENANT_CALLER_CONNECTOR_IDEMPOTENCY_KEY_BINDS_SOURCE_AND_MAPPING_DIGESTS",
+        "execution": "ACTIVE_MAPPING_AND_SECRET_REFERENCE_RESOLVED_SERVER_SIDE",
+        "secrets": "ENDPOINT_CREDENTIAL_AND_RAW_SECRET_FORBIDDEN"
+      },
+      "properties": {
+        "executionId": {"$ref": "#/$defs/Uuid"},
+        "connectorId": {"$ref": "#/$defs/Uuid"},
+        "mappingId": {"$ref": "#/$defs/Uuid"},
+        "mappingVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "mode": {"type": "string", "enum": ["DRY_RUN", "EXECUTE", "RECONCILE"]},
+        "direction": {"type": "string", "enum": ["INBOUND", "OUTBOUND"]},
+        "scopeType": {"$ref": "#/$defs/ScopeType"},
+        "scopeId": {"$ref": "#/$defs/NullableScopeId"},
+        "sourceRef": {"$ref": "#/$defs/Reference"},
+        "sourceDigest": {"$ref": "#/$defs/Digest"},
+        "requestedAt": {"$ref": "#/$defs/Instant"},
+        "requestedByActorRef": {"$ref": "#/$defs/Reference"},
+        "idempotencyKey": {"$ref": "#/$defs/IdempotencyKey"},
+        "correlationId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["executionId", "connectorId", "mappingId", "mappingVersion", "mode", "direction", "scopeType", "scopeId", "sourceRef", "sourceDigest", "requestedAt", "requestedByActorRef", "idempotencyKey", "correlationId"]
+    },
+    "PDX_009": {
+      "title": "ConnectorReconciliationReceipt.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "counts": "SOURCE_COUNT_EQUALS_ACCEPTED_PLUS_REJECTED_PLUS_QUARANTINED",
+        "terminal": "TERMINAL_RECEIPT_IS_IMMUTABLE_AND_REPLAY_RETURNS_SAME_DIGEST",
+        "partial": "PARTIAL_REQUIRES_ERROR_REPORT_REFERENCE",
+        "reconciliation": "SOURCE_AND_RESULT_DIGESTS_BIND_EXACT_MAPPING_VERSION"
+      },
+      "properties": {
+        "executionId": {"$ref": "#/$defs/Uuid"},
+        "receiptId": {"$ref": "#/$defs/Uuid"},
+        "mappingVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "state": {"type": "string", "enum": ["ACCEPTED", "RUNNING", "SUCCEEDED", "PARTIAL", "FAILED", "RESULT_UNKNOWN", "CANCELED"]},
+        "sourceCount": {"$ref": "#/$defs/NonNegativeCount"},
+        "acceptedCount": {"$ref": "#/$defs/NonNegativeCount"},
+        "rejectedCount": {"$ref": "#/$defs/NonNegativeCount"},
+        "quarantinedCount": {"$ref": "#/$defs/NonNegativeCount"},
+        "sourceDigest": {"$ref": "#/$defs/Digest"},
+        "resultDigest": {"$ref": "#/$defs/NullableDigest"},
+        "errorReportRef": {"$ref": "#/$defs/NullableReference"},
+        "reconciliationDigest": {"$ref": "#/$defs/Digest"},
+        "completedAt": {"$ref": "#/$defs/NullableInstant"},
+        "correlationId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["executionId", "receiptId", "mappingVersion", "state", "sourceCount", "acceptedCount", "rejectedCount", "quarantinedCount", "sourceDigest", "resultDigest", "errorReportRef", "reconciliationDigest", "completedAt", "correlationId"]
+    },
+    "PDX_010": {
+      "title": "ApprovalRequest.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "authority": "DOMAIN_OWNER_RETAINS_STATE_AND_APPROVAL_SERVICE_RETURNS_REFERENCE_ONLY",
+        "idempotency": "TENANT_CALLER_WORKFLOW_SUBJECT_IDEMPOTENCY_KEY_BINDS_PAYLOAD_DIGEST",
+        "version": "SUBJECT_REVISION_AND_WORKFLOW_VERSION_IMMUTABLE_FOR_REQUEST"
+      },
+      "properties": {
+        "requestId": {"$ref": "#/$defs/Uuid"},
+        "workflowKey": {"$ref": "#/$defs/Key"},
+        "workflowVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "subjectRef": {"$ref": "#/$defs/Reference"},
+        "subjectRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "requesterRef": {"$ref": "#/$defs/Reference"},
+        "requestedAction": {"$ref": "#/$defs/Code"},
+        "payloadRef": {"$ref": "#/$defs/Reference"},
+        "payloadDigest": {"$ref": "#/$defs/Digest"},
+        "state": {"type": "string", "enum": ["PENDING", "APPROVED", "REJECTED", "CANCELED", "EXPIRED"]},
+        "requestedAt": {"$ref": "#/$defs/Instant"},
+        "correlationId": {"$ref": "#/$defs/Uuid"},
+        "idempotencyKey": {"$ref": "#/$defs/IdempotencyKey"}
+      },
+      "required": ["requestId", "workflowKey", "workflowVersion", "subjectRef", "subjectRevision", "requesterRef", "requestedAction", "payloadRef", "payloadDigest", "state", "requestedAt", "correlationId", "idempotencyKey"]
+    },
+    "PDX_011": {
+      "title": "ApprovalDecisionRecorded.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "ordering": "REQUEST_ID_REQUEST_REVISION",
+        "idempotency": "EVENT_ID_AND_APPROVAL_RECEIPT_ID_DEDUPLICATED",
+        "domainGuard": "CONSUMER_APPLIES_ONLY_IF_SUBJECT_REVISION_AND_PENDING_REQUEST_MATCH",
+        "separation": "DECISION_ACTOR_MUST_NOT_EQUAL_PROHIBITED_REQUESTER_OR_DOMAIN_MAKER",
+        "authority": "EVENT_NEVER_MUTATES_DOMAIN_STATE_WITHOUT_OWNER_COMMAND_GUARD"
+      },
+      "properties": {
+        "eventId": {"$ref": "#/$defs/Uuid"},
+        "requestId": {"$ref": "#/$defs/Uuid"},
+        "workflowVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "subjectRef": {"$ref": "#/$defs/Reference"},
+        "subjectRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "requestRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "decision": {"type": "string", "enum": ["APPROVED", "REJECTED", "CANCELED", "EXPIRED"]},
+        "decisionActorRef": {"$ref": "#/$defs/Reference"},
+        "decisionAt": {"$ref": "#/$defs/Instant"},
+        "approvalReceiptId": {"$ref": "#/$defs/Uuid"},
+        "reasonCode": {"$ref": "#/$defs/NullableCode"},
+        "decisionDigest": {"$ref": "#/$defs/Digest"},
+        "correlationId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["eventId", "requestId", "workflowVersion", "subjectRef", "subjectRevision", "requestRevision", "decision", "decisionActorRef", "decisionAt", "approvalReceiptId", "reasonCode", "decisionDigest", "correlationId"]
+    },
+    "PDX_012": {
+      "title": "HrisNotificationIntent.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "recipients": "RECIPIENTS_MINUS_EXCLUSIONS_MUST_REMAIN_NONEMPTY_AND_BOUNDED",
+        "idempotency": "SOURCE_EVENT_INTENT_AND_IDEMPOTENCY_KEY_BIND_TEMPLATE_MODEL_DIGEST",
+        "policy": "NOTIFICATION_POLICY_SELECTS_CHANNEL_AND_TEMPLATE_WITHOUT_PRODUCER_OVERRIDE",
+        "privacy": "NO_RAW_TEMPLATE_VARIABLE_BODY_CHANNEL_OR_PROVIDER_DATA"
+      },
+      "properties": {
+        "intentId": {"$ref": "#/$defs/Uuid"},
+        "sourceEventId": {"$ref": "#/$defs/Uuid"},
+        "tenantId": {"$ref": "#/$defs/PositiveId"},
+        "producerAppKey": {"$ref": "#/$defs/Key"},
+        "typeKey": {"$ref": "#/$defs/Code"},
+        "purposeCode": {"$ref": "#/$defs/Code"},
+        "recipientUserIds": {"type": "array", "minItems": 1, "maxItems": 100, "uniqueItems": true, "items": {"$ref": "#/$defs/PositiveId"}},
+        "excludedUserIds": {"type": "array", "minItems": 0, "maxItems": 100, "uniqueItems": true, "items": {"$ref": "#/$defs/PositiveId"}},
+        "threadRef": {"$ref": "#/$defs/NullableReference"},
+        "locale": {"$ref": "#/$defs/Locale"},
+        "reasonCode": {"$ref": "#/$defs/Code"},
+        "actorRef": {"$ref": "#/$defs/NullableReference"},
+        "subjectRef": {"$ref": "#/$defs/Reference"},
+        "targetRef": {"$ref": "#/$defs/NullableReference"},
+        "templateKey": {"$ref": "#/$defs/Key"},
+        "templateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "templateModelDigest": {"$ref": "#/$defs/Digest"},
+        "classification": {"type": "string", "enum": ["INTERNAL", "CONFIDENTIAL", "RESTRICTED"]},
+        "actionRequired": {"type": "boolean"},
+        "dueAt": {"$ref": "#/$defs/NullableInstant"},
+        "requestedAt": {"$ref": "#/$defs/Instant"},
+        "idempotencyKey": {"$ref": "#/$defs/IdempotencyKey"},
+        "correlationId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["intentId", "sourceEventId", "tenantId", "producerAppKey", "typeKey", "purposeCode", "recipientUserIds", "excludedUserIds", "threadRef", "locale", "reasonCode", "actorRef", "subjectRef", "targetRef", "templateKey", "templateVersion", "templateModelDigest", "classification", "actionRequired", "dueAt", "requestedAt", "idempotencyKey", "correlationId"]
+    },
+    "PDX_013": {
+      "title": "HrisNotificationReceipt.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "state": "STATE_CHANNEL_NOTIFICATION_PROVIDER_AND_RETRY_FIELDS_FORM_AN_EXACT_VALID_COMBINATION",
+        "ordering": "INTENT_RECIPIENT_RECEIPT_SEQUENCE_IS_MONOTONIC_AND_IDEMPOTENT",
+        "privacy": "NO_PROVIDER_REFERENCE_RAW_CONTENT_OR_TEMPLATE_MODEL_IS_EXPOSED",
+        "retry": "RETRYABLE_STATE_ALONE_MAY_HAVE_NEXT_ATTEMPT_AND_FAILURE_METADATA"
+      },
+      "properties": {
+        "receiptId": {"$ref": "#/$defs/Uuid"},
+        "intentId": {"$ref": "#/$defs/Uuid"},
+        "sourceEventId": {"$ref": "#/$defs/Uuid"},
+        "tenantId": {"$ref": "#/$defs/PositiveId"},
+        "recipientUserId": {"$ref": "#/$defs/PositiveId"},
+        "receiptSequence": {"$ref": "#/$defs/PositiveRevision"},
+        "state": {"type": "string", "enum": ["RECEIVED", "ADMITTED", "SUPPRESSED", "MATERIALIZED", "QUEUED", "DELIVERED", "FAILED", "DEAD_LETTERED", "CANCELED"]},
+        "channel": {"type": "string", "enum": ["NONE", "IN_APP", "EMAIL", "PUSH", "SMS"]},
+        "decisionCode": {"$ref": "#/$defs/Code"},
+        "reasonCode": {"$ref": "#/$defs/NullableCode"},
+        "notificationId": {"$ref": "#/$defs/NullableUuid"},
+        "policyRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "templateVersion": {"$ref": "#/$defs/PositiveRevision"},
+        "materializedDigest": {"$ref": "#/$defs/NullableDigest"},
+        "providerReceiptDigest": {"$ref": "#/$defs/NullableDigest"},
+        "attemptNumber": {"$ref": "#/$defs/NonNegativeCount"},
+        "occurredAt": {"$ref": "#/$defs/Instant"},
+        "errorCode": {"$ref": "#/$defs/NullableCode"},
+        "retryable": {"type": "boolean"},
+        "nextAttemptAt": {"$ref": "#/$defs/NullableInstant"},
+        "correlationId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["receiptId", "intentId", "sourceEventId", "tenantId", "recipientUserId", "receiptSequence", "state", "channel", "decisionCode", "reasonCode", "notificationId", "policyRevision", "templateVersion", "materializedDigest", "providerReceiptDigest", "attemptNumber", "occurredAt", "errorCode", "retryable", "nextAttemptAt", "correlationId"]
+    },
+    "PDX_014": {
+      "title": "HrisAuditOutboxEvent.v1",
+      "type": "object",
+      "additionalProperties": false,
+      "x-invariants": {
+        "policy": "CAPABILITY_PURPOSE_SCOPE_AND_FIELD_POLICY_REVISIONS_BIND_THE_DECISION",
+        "failure": "DENIED_OR_FAILED_OUTCOME_REQUIRES_ERROR_CODE_AND_EVIDENCE_DIGEST",
+        "evidenceOnly": "DELEGATION_SUPPORT_STEP_UP_AND_APPROVAL_REFS_ARE_EVIDENCE_NOT_AUTHORITY",
+        "privacy": "NO_RAW_BEFORE_AFTER_METADATA_DISPLAY_NAME_SESSION_OR_NETWORK_ADDRESS"
+      },
+      "properties": {
+        "eventId": {"$ref": "#/$defs/Uuid"},
+        "tenantId": {"$ref": "#/$defs/PositiveId"},
+        "occurredAt": {"$ref": "#/$defs/Instant"},
+        "sourceService": {"$ref": "#/$defs/Key"},
+        "sourceModule": {"$ref": "#/$defs/Key"},
+        "aggregateType": {"$ref": "#/$defs/Code"},
+        "aggregateRef": {"$ref": "#/$defs/Reference"},
+        "aggregateRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "action": {"$ref": "#/$defs/Code"},
+        "outcome": {"type": "string", "enum": ["SUCCESS", "DENIED", "FAILED"]},
+        "actorType": {"type": "string", "enum": ["USER", "SERVICE", "SYSTEM", "AGENT"]},
+        "actorRef": {"$ref": "#/$defs/Reference"},
+        "effectiveCapability": {"$ref": "#/$defs/Code"},
+        "purposeCode": {"$ref": "#/$defs/Code"},
+        "authorizationDecisionRef": {"$ref": "#/$defs/Reference"},
+        "scopeRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "fieldPolicyRevision": {"$ref": "#/$defs/PositiveRevision"},
+        "delegationRef": {"$ref": "#/$defs/NullableReference"},
+        "supportSessionRef": {"$ref": "#/$defs/NullableReference"},
+        "stepUpReceiptRef": {"$ref": "#/$defs/NullableReference"},
+        "approvalReceiptId": {"$ref": "#/$defs/NullableUuid"},
+        "targetRef": {"$ref": "#/$defs/Reference"},
+        "reasonCode": {"$ref": "#/$defs/NullableCode"},
+        "errorCode": {"$ref": "#/$defs/NullableCode"},
+        "beforeDigest": {"$ref": "#/$defs/NullableDigest"},
+        "afterDigest": {"$ref": "#/$defs/NullableDigest"},
+        "evidenceDigest": {"$ref": "#/$defs/Digest"},
+        "classification": {"type": "string", "enum": ["INTERNAL", "CONFIDENTIAL", "RESTRICTED"]},
+        "retentionClass": {"type": "string", "enum": ["STANDARD", "EXTENDED", "LEGAL_HOLD"]},
+        "causationId": {"$ref": "#/$defs/Uuid"},
+        "correlationId": {"$ref": "#/$defs/Uuid"}
+      },
+      "required": ["eventId", "tenantId", "occurredAt", "sourceService", "sourceModule", "aggregateType", "aggregateRef", "aggregateRevision", "action", "outcome", "actorType", "actorRef", "effectiveCapability", "purposeCode", "authorizationDecisionRef", "scopeRevision", "fieldPolicyRevision", "delegationRef", "supportSessionRef", "stepUpReceiptRef", "approvalReceiptId", "targetRef", "reasonCode", "errorCode", "beforeDigest", "afterDigest", "evidenceDigest", "classification", "retentionClass", "causationId", "correlationId"]
+    }
+  }
+}

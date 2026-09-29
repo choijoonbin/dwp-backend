@@ -86,12 +86,13 @@ final class HrTalentRepository {
             HrDtos.UpdateGoalRequest request, Long actorId) {
         return jdbc.update("""
                 UPDATE tal_goals
-                   SET progress_percent = ?, status = ?, version = version + 1,
+                   SET progress_percent = ?, version = version + 1,
                        updated_at = CURRENT_TIMESTAMP, updated_by = ?
                  WHERE tenant_id = ? AND worker_id = ? AND public_id = ?
-                   AND version = ? AND status NOT IN ('COMPLETED', 'CANCELLED')
-                """, request.progressPercent(), request.status(), actorId,
-                tenantId, workerId, goalId, request.version()) == 1;
+                   AND version = ? AND status = ?
+                   AND status IN ('ACTIVE', 'AT_RISK')
+                """, request.progressPercent(), actorId, tenantId, workerId, goalId,
+                request.version(), request.status()) == 1;
     }
 
     long activeGoals(Long tenantId, long workerId) {

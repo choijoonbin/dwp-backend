@@ -8,7 +8,14 @@ bootJar {
     enabled = false
 }
 
+processResources {
+    from(rootProject.file('contracts/hris/canonical')) {
+        into 'META-INF/dwp/hris/canonical'
+    }
+}
+
 dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
 }

@@ -57,7 +57,7 @@ class PeopleDirectoryServiceTest {
         when(accessPolicyService.require("READ")).thenReturn(decision);
         when(repository.search(
                 eq(TENANT_ID), anyLong(), any(), any(), eq(AS_OF), eq(21),
-                eq(true), eq(Set.of())))
+                eq(true), eq(Set.of()), eq(true), eq(true)))
                 .thenReturn(List.of(directoryRow()));
     }
 
@@ -100,6 +100,24 @@ class PeopleDirectoryServiceTest {
     }
 
     @Test
+    void workforceSearchDoesNotSendMaskedFieldPredicatesToTheRepository() {
+        WorkforceAccessPolicyService.Decision restricted =
+                new WorkforceAccessPolicyService.Decision(
+                        true, Set.of(), Set.of("DIRECTORY", "EMPLOYMENT"), "READ");
+        when(accessPolicyService.require("READ")).thenReturn(restricted);
+        when(repository.search(
+                TENANT_ID, 0L, "SK000042", null, AS_OF, 21,
+                true, Set.of(), false, false))
+                .thenReturn(List.of());
+
+        service.searchWorkforce("SK000042", null, null, 20, AS_OF);
+
+        verify(repository).search(
+                TENANT_ID, 0L, "SK000042", null, AS_OF, 21,
+                true, Set.of(), false, false);
+    }
+
+    @Test
     void workforceDetailSeparatesPersonWorkerRelationshipAndAssignment() {
         UUID personId = UUID.randomUUID();
         UUID workerId = UUID.randomUUID();
@@ -110,13 +128,15 @@ class PeopleDirectoryServiceTest {
                 .thenReturn(Optional.of(person));
         when(repository.findByPublicId(TENANT_ID, personId, AS_OF, true, Set.of()))
                 .thenReturn(Optional.of(person));
-        when(repository.findAssignments(TENANT_ID, person.internalPersonId()))
+        when(repository.findAssignments(
+                TENANT_ID, person.internalPersonId(), AS_OF, true, Set.of()))
                 .thenReturn(List.of(new PeopleDirectoryRepository.AssignmentRow(
                         "ASG-0042", "ACTIVE", true,
                         LocalDate.of(2025, 1, 1), null, "Enterprise Architect",
                         "AI Platform Team", "Enterprise Architect", "Senior", "Seoul",
                         "ASG-0001", "PROMOTION")));
-        when(repository.findWorkforceEntities(TENANT_ID, person.internalPersonId()))
+        when(repository.findWorkforceEntities(
+                TENANT_ID, person.internalPersonId(), AS_OF, true, Set.of()))
                 .thenReturn(List.of(new PeopleDirectoryRepository.WorkforceEntityRow(
                         workerId, "SK000042", "EMPLOYEE", "ACTIVE",
                         LocalDate.of(2020, 2, 3), relationshipId, "REL-0042", "EMPLOYEE",
@@ -140,6 +160,10 @@ class PeopleDirectoryServiceTest {
                         assertThat(assignment.assignmentId()).isEqualTo(assignmentId));
             });
         });
+        verify(repository).findAssignments(
+                TENANT_ID, person.internalPersonId(), AS_OF, true, Set.of());
+        verify(repository).findWorkforceEntities(
+                TENANT_ID, person.internalPersonId(), AS_OF, true, Set.of());
     }
 
     @Test
@@ -187,6 +211,30 @@ class PeopleDirectoryServiceTest {
         verify(repository).findByPublicId(
                 TENANT_ID, requested, AS_OF, false, Set.of(allowedOrganization));
         verify(repository, never()).findByPublicId(TENANT_ID, requested, AS_OF);
+    }
+
+    @Test
+    void workforceDetailPropagatesAsOfAndOrganizationDecisionToEveryChildRead() {
+        UUID requested = UUID.randomUUID();
+        UUID allowedOrganization = UUID.randomUUID();
+        PeopleDirectoryRepository.DirectoryRow person = directoryRow();
+        WorkforceAccessPolicyService.Decision scoped =
+                new WorkforceAccessPolicyService.Decision(
+                        false, Set.of(allowedOrganization),
+                        Set.of("DIRECTORY", "EMPLOYMENT"), "READ");
+        when(accessPolicyService.require("READ")).thenReturn(scoped);
+        when(repository.findByPublicId(
+                TENANT_ID, requested, AS_OF, false, Set.of(allowedOrganization)))
+                .thenReturn(Optional.of(person));
+
+        service.getWorkforce(requested, AS_OF);
+
+        verify(repository).findAssignments(
+                TENANT_ID, person.internalPersonId(), AS_OF,
+                false, Set.of(allowedOrganization));
+        verify(repository).findWorkforceEntities(
+                TENANT_ID, person.internalPersonId(), AS_OF,
+                false, Set.of(allowedOrganization));
     }
 
     private void setPep(String route) {

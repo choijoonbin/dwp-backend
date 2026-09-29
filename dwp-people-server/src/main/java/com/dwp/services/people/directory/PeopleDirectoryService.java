@@ -84,7 +84,8 @@ public class PeopleDirectoryService {
         List<PeopleDirectoryRepository.DirectoryRow> rows = workforceAccess
                 ? repository.search(
                         actor.tenantId(), afterPersonId, query, normalizedStatus, asOf, size + 1,
-                        decision.tenantWide(), decision.organizationIds())
+                        decision.tenantWide(), decision.organizationIds(),
+                        decision.field("WORKER_IDENTIFIERS"), decision.field("JOB_GRADE"))
                 : repository.search(
                         actor.tenantId(), afterPersonId, query, normalizedStatus, asOf, size + 1);
         boolean hasMore = rows.size() > size;
@@ -137,7 +138,9 @@ public class PeopleDirectoryService {
         boolean identifiers = decision != null && decision.field("WORKER_IDENTIFIERS");
         boolean jobGrade = decision != null && decision.field("JOB_GRADE");
         List<PeopleDtos.AssignmentSummary> assignments = employment
-                ? repository.findAssignments(actor.tenantId(), row.internalPersonId())
+                ? repository.findAssignments(
+                        actor.tenantId(), row.internalPersonId(), asOf,
+                        decision.tenantWide(), decision.organizationIds())
                         .stream()
                         .map(assignment -> new PeopleDtos.AssignmentSummary(
                                 identifiers ? assignment.assignmentKey() : null,
@@ -156,7 +159,9 @@ public class PeopleDirectoryService {
                 : List.of();
         List<PeopleDtos.Worker> workers = employment
                 ? workforceEntities(
-                        repository.findWorkforceEntities(actor.tenantId(), row.internalPersonId()),
+                        repository.findWorkforceEntities(
+                                actor.tenantId(), row.internalPersonId(), asOf,
+                                decision.tenantWide(), decision.organizationIds()),
                         identifiers,
                         jobGrade)
                 : List.of();

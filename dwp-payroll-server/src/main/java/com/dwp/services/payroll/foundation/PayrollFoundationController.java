@@ -1,0 +1,159 @@
+package com.dwp.services.payroll.foundation;
+
+import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Parameter;
+import jakarta.validation.Valid;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.ModelAttribute;
+import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
+import java.util.UUID;
+
+import static com.dwp.services.payroll.foundation.PayrollFoundationAccess.Actor;
+import static com.dwp.services.payroll.foundation.PayrollFoundationModels.ConfigurationView;
+import static com.dwp.services.payroll.foundation.PayrollFoundationModels.CreateConfigurationRequest;
+import static com.dwp.services.payroll.foundation.PayrollFoundationModels.MutationResult;
+import static com.dwp.services.payroll.foundation.PayrollFoundationModels.ReversalCommand;
+import static com.dwp.services.payroll.foundation.PayrollFoundationModels.UpdateConfigurationRequest;
+import static com.dwp.services.payroll.foundation.PayrollFoundationModels.VersionCommand;
+import static com.dwp.services.payroll.foundation.PayrollFoundationModels.WorkspaceView;
+
+@RestController
+@RequestMapping("/v1/hris/payroll/foundation")
+@ConditionalOnProperty(
+        name = "dwp.hris.payroll-foundation.wave1.enabled",
+        havingValue = "true",
+        matchIfMissing = false)
+class PayrollFoundationController {
+
+    private final PayrollFoundationService service;
+    private final PayrollFoundationAccessPolicyProvider accessPolicyProvider;
+
+    PayrollFoundationController(
+            PayrollFoundationService service,
+            PayrollFoundationAccessPolicyProvider accessPolicyProvider) {
+        this.service = service;
+        this.accessPolicyProvider = accessPolicyProvider;
+    }
+
+    @ModelAttribute("payrollFoundationActor")
+    Actor actor() {
+        PayrollFoundationRequestContext.VerifiedSubject subject =
+                PayrollFoundationRequestContext.require();
+        return PayrollFoundationAccess.actor(
+                subject.tenantId(),
+                subject.actorId(),
+                String.join(",", subject.roles()),
+                String.join(",", subject.permissions()),
+                subject.purpose(),
+                subject.legalEntityScope(),
+                subject.policyRevision(),
+                subject.authorizationRevision(),
+                accessPolicyProvider.policyFor(subject.tenantId()));
+    }
+
+    @GetMapping("/configurations")
+    ApiResponse<WorkspaceView> configurations(
+            @Parameter(hidden = true)
+            @ModelAttribute(value = "payrollFoundationActor", binding = false) Actor actor) {
+        return ApiResponse.success(service.list(actor));
+    }
+
+    @PostMapping("/configurations")
+    ApiResponse<MutationResult> create(
+            @Parameter(hidden = true)
+            @ModelAttribute(value = "payrollFoundationActor", binding = false) Actor actor,
+            @RequestHeader("Idempotency-Key") UUID commandId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @Valid @RequestBody CreateConfigurationRequest request) {
+        return ApiResponse.success(service.create(actor, commandId, correlationId, request));
+    }
+
+    @GetMapping("/configurations/{configurationId}")
+    ApiResponse<ConfigurationView> configuration(
+            @Parameter(hidden = true)
+            @ModelAttribute(value = "payrollFoundationActor", binding = false) Actor actor,
+            @PathVariable UUID configurationId) {
+        return ApiResponse.success(service.get(actor, configurationId));
+    }
+
+    @GetMapping("/configurations/{configurationId}/versions")
+    ApiResponse<List<ConfigurationView>> versions(
+            @Parameter(hidden = true)
+            @ModelAttribute(value = "payrollFoundationActor", binding = false) Actor actor,
+            @PathVariable UUID configurationId) {
+        return ApiResponse.success(service.versions(actor, configurationId));
+    }
+
+    @PutMapping("/configurations/{configurationId}")
+    ApiResponse<MutationResult> update(
+            @Parameter(hidden = true)
+            @ModelAttribute(value = "payrollFoundationActor", binding = false) Actor actor,
+            @PathVariable UUID configurationId,
+            @RequestHeader("Idempotency-Key") UUID commandId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @Valid @RequestBody UpdateConfigurationRequest request) {
+        return ApiResponse.success(
+                service.update(actor, configurationId, commandId, correlationId, request));
+    }
+
+    @PostMapping("/configurations/{configurationId}/simulations")
+    ApiResponse<MutationResult> simulate(
+            @Parameter(hidden = true)
+            @ModelAttribute(value = "payrollFoundationActor", binding = false) Actor actor,
+            @PathVariable UUID configurationId,
+            @RequestHeader("Idempotency-Key") UUID commandId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @Valid @RequestBody VersionCommand command) {
+        return ApiResponse.success(
+                service.simulate(actor, configurationId, commandId, correlationId, command));
+    }
+
+    @PostMapping("/configurations/{configurationId}/publish")
+    ApiResponse<MutationResult> publish(
+            @Parameter(hidden = true)
+            @ModelAttribute(value = "payrollFoundationActor", binding = false) Actor actor,
+            @PathVariable UUID configurationId,
+            @RequestHeader("Idempotency-Key") UUID commandId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @Valid @RequestBody VersionCommand command) {
+        return ApiResponse.success(
+                service.publish(actor, configurationId, commandId, correlationId, command));
+    }
+
+    @PostMapping("/configurations/{configurationId}/reversals")
+    ApiResponse<MutationResult> reverse(
+            @Parameter(hidden = true)
+            @ModelAttribute(value = "payrollFoundationActor", binding = false) Actor actor,
+            @PathVariable UUID configurationId,
+            @RequestHeader("Idempotency-Key") UUID commandId,
+            @RequestHeader(value = "X-Correlation-ID", required = false) String correlationId,
+            @Valid @RequestBody ReversalCommand command) {
+        return ApiResponse.success(
+                service.reverse(actor, configurationId, commandId, correlationId, command));
+    }
+
+    @GetMapping("/receipts/{commandId}")
+    ApiResponse<MutationResult> receipt(
+            @Parameter(hidden = true)
+            @ModelAttribute(value = "payrollFoundationActor", binding = false) Actor actor,
+            @PathVariable UUID commandId) {
+        return ApiResponse.success(service.receipt(actor, commandId));
+    }
+
+    @PostMapping("/receipts/{commandId}/reconcile")
+    ApiResponse<MutationResult> reconcile(
+            @Parameter(hidden = true)
+            @ModelAttribute(value = "payrollFoundationActor", binding = false) Actor actor,
+            @PathVariable UUID commandId) {
+        return ApiResponse.success(service.reconcile(actor, commandId));
+    }
+}
