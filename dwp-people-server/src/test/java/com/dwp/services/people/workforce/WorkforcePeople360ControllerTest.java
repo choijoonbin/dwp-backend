@@ -116,27 +116,41 @@ class WorkforcePeople360ControllerTest {
     }
 
     @Test
-    void generatedPepPathMatchingDoesNotProveTheMissingProjectionBinding() {
-        // Characterization only: HRM-XCON-W1-001 keeps runtime activation disabled until
-        // the central query and response-projection contract is generated and released.
+    void generatedPepRequiresTheDedicatedPeople360RouteContracts() {
+        // v32 closes the legacy routes with projection=ABSENT and publishes dedicated
+        // People360 route keys for the same paths with the exact query discriminator.
         HcmV3PepRegistry registry = new HcmV3PepRegistry(
                 new ObjectMapper().findAndRegisterModules());
         String query = "projection=people360&asOf=" + AS_OF;
 
-        HcmV3PepRegistry.Decision list = registry.authorize(
+        HcmV3PepRegistry.Decision legacyList = registry.authorize(
                 new HcmV3PepRegistry.RequestEvidence(
                         "GET", "/v1/workforce/people",
                         Set.of("DATA.WORKFORCE:VIEW"), null,
                         "NORMAL", Set.of(), "route.hcm.operations.people.page", query));
-        HcmV3PepRegistry.Decision detail = registry.authorize(
+        HcmV3PepRegistry.Decision legacyDetail = registry.authorize(
                 new HcmV3PepRegistry.RequestEvidence(
                         "GET", "/v1/workforce/people/" + PERSON_ID,
                         Set.of("DATA.WORKFORCE:VIEW"), null,
                         "NORMAL", Set.of(),
                         "route.hcm.operations.person-detail.data", query));
+        HcmV3PepRegistry.Decision people360List = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "GET", "/v1/workforce/people",
+                        Set.of("DATA.WORKFORCE:VIEW"), null,
+                        "NORMAL", Set.of(),
+                        "route.hcm.operations.people360-search.data", query));
+        HcmV3PepRegistry.Decision people360Detail = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "GET", "/v1/workforce/people/" + PERSON_ID,
+                        Set.of("DATA.WORKFORCE:VIEW"), null,
+                        "NORMAL", Set.of(),
+                        "route.hcm.operations.people360-detail.data", query));
 
-        assertThat(list.allowed()).isTrue();
-        assertThat(detail.allowed()).isTrue();
+        assertThat(legacyList.allowed()).isFalse();
+        assertThat(legacyDetail.allowed()).isFalse();
+        assertThat(people360List.allowed()).isTrue();
+        assertThat(people360Detail.allowed()).isTrue();
     }
 
     private People360Dtos.Snapshot snapshot() {

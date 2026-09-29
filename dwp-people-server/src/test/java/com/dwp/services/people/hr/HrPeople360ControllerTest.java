@@ -91,27 +91,34 @@ class HrPeople360ControllerTest {
     }
 
     @Test
-    void selfProjectionRequiresAsOfWhilePepPathMatchingRemainsCharacterizationOnly()
+    void selfProjectionRequiresAsOfAndTheDedicatedPeople360RouteContract()
             throws Exception {
         mvc.perform(get("/v1/hr/home")
                         .queryParam("projection", "people360"))
                 .andExpect(status().isBadRequest());
 
-        // Path matching is not runtime readiness; HRM-XCON-W1-001 tracks the missing
-        // generated query and response-projection binding.
+        // v32 makes the query discriminator authoritative: the legacy home route is
+        // projection-absent and the dedicated People360 route owns this exact query.
         HcmV3PepRegistry registry = new HcmV3PepRegistry(
                 new ObjectMapper().findAndRegisterModules());
-        HcmV3PepRegistry.Decision decision = registry.authorize(
+        String query = "projection=people360&asOf=" + AS_OF;
+        HcmV3PepRegistry.Decision legacy = registry.authorize(
                 new HcmV3PepRegistry.RequestEvidence(
                         "GET", "/v1/hr/home", Set.of("APP.HCM:VIEW"), null,
                         "NORMAL", Set.of(), "route.hcm.personal.home.page",
-                        "projection=people360&asOf=" + AS_OF));
+                        query));
+        HcmV3PepRegistry.Decision people360Decision = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "GET", "/v1/hr/home", Set.of("APP.HCM:VIEW"), null,
+                        "NORMAL", Set.of(), "route.hcm.personal.people360-self.data",
+                        query));
 
-        assertThat(decision.allowed()).isTrue();
+        assertThat(legacy.allowed()).isFalse();
+        assertThat(people360Decision.allowed()).isTrue();
     }
 
     @Test
-    void teamProjectionRequiresTargetAndAsOfWhilePepMatchingRemainsCharacterizationOnly()
+    void teamProjectionRequiresTargetAsOfAndTheDedicatedPeople360RouteContract()
             throws Exception {
         mvc.perform(get("/v1/hr/team")
                         .queryParam("projection", "people360")
@@ -122,16 +129,24 @@ class HrPeople360ControllerTest {
                         .queryParam("asOf", AS_OF.toString()))
                 .andExpect(status().isBadRequest());
 
-        // Path matching is not runtime readiness; the service gate remains default-off.
+        // The legacy team route remains projection-absent; v32 publishes a distinct
+        // People360 route so the trusted route key and query cannot be mixed.
         HcmV3PepRegistry registry = new HcmV3PepRegistry(
                 new ObjectMapper().findAndRegisterModules());
-        HcmV3PepRegistry.Decision decision = registry.authorize(
+        String query = "projection=people360&personId=" + PERSON_ID + "&asOf=" + AS_OF;
+        HcmV3PepRegistry.Decision legacy = registry.authorize(
                 new HcmV3PepRegistry.RequestEvidence(
                         "GET", "/v1/hr/team", Set.of("APP.HCM:VIEW"), null,
                         "NORMAL", Set.of(), "route.hcm.team.home.page",
-                        "projection=people360&personId=" + PERSON_ID + "&asOf=" + AS_OF));
+                        query));
+        HcmV3PepRegistry.Decision people360Decision = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "GET", "/v1/hr/team", Set.of("APP.HCM:VIEW"), null,
+                        "NORMAL", Set.of(), "route.hcm.team.people360-detail.data",
+                        query));
 
-        assertThat(decision.allowed()).isTrue();
+        assertThat(legacy.allowed()).isFalse();
+        assertThat(people360Decision.allowed()).isTrue();
         verify(people360, never()).getTeam(PERSON_ID, null);
     }
 

@@ -58,6 +58,7 @@ class PeopleAuditEvidenceAuthorityPostgresTest {
                 .load()
                 .migrate();
         owner = new JdbcTemplate(ownerDataSource);
+        installIsolatedAppendOnlyCandidate();
         owner.execute("CREATE ROLE " + RUNTIME + " LOGIN PASSWORD '" + RUNTIME_PASSWORD
                 + "' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS");
         owner.execute("REVOKE CREATE, TEMPORARY ON DATABASE " + databaseIdentifier()
@@ -68,6 +69,33 @@ class PeopleAuditEvidenceAuthorityPostgresTest {
                 + RUNTIME);
         runtimeDataSource = dataSource(RUNTIME, RUNTIME_PASSWORD);
         runtime = new JdbcTemplate(runtimeDataSource);
+    }
+
+    /**
+     * Test-only candidate for the separately governed database-hardening change.
+     * V1-V50 do not publish this function or trigger, so this fixture must not be
+     * interpreted as production migration coverage.
+     */
+    private static void installIsolatedAppendOnlyCandidate() {
+        owner.execute("""
+                CREATE OR REPLACE FUNCTION public.sys_reject_people_audit_event_mutation()
+                RETURNS TRIGGER
+                LANGUAGE plpgsql
+                SECURITY DEFINER
+                SET search_path = pg_catalog, public, pg_temp
+                AS $function$
+                BEGIN
+                    RAISE EXCEPTION 'sys_people_audit_events is append-only';
+                END;
+                $function$
+                """);
+        owner.execute("REVOKE ALL ON FUNCTION "
+                + "public.sys_reject_people_audit_event_mutation() FROM PUBLIC");
+        owner.execute("""
+                CREATE TRIGGER trg_sys_people_audit_events_append_only
+                BEFORE UPDATE OR DELETE ON public.sys_people_audit_events
+                FOR EACH ROW EXECUTE FUNCTION public.sys_reject_people_audit_event_mutation()
+                """);
     }
 
     @BeforeEach
