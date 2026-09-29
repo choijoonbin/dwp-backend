@@ -85,7 +85,7 @@ class People360OwnerAuthorityFilterTest {
                 "route.hcm.personal.home.page",
                 null,
                 "predicate.self-person.v1",
-                "SUBJECT",
+                "SELF",
                 "hcm.people360.self-detail.v1",
                 "People360SnapshotV1",
                 NOW.plusSeconds(60)));
@@ -107,7 +107,7 @@ class People360OwnerAuthorityFilterTest {
                 People360OwnerAuthorityFilter.SELF_ROUTE,
                 null,
                 "predicate.self-person.v1",
-                "SUBJECT",
+                "SELF",
                 "hcm.people360.self-detail.v1",
                 "People360SnapshotV1",
                 NOW)), request, mock(FilterChain.class), 503);

@@ -39,7 +39,8 @@ final class ProductAuthorizationReleaseLineage {
             Map.entry(28L, "7e807a353f281a9e0bc6d9d33074c5b1806946d21399bc541682bbf6dcab6f90"),
             Map.entry(29L, "aac6b6dfc94b4f4ea2956862ff1aa73ccd3459b29548fb20b3cbc26ae29cdbd8"),
             Map.entry(30L, "7c437bd768225db7dfe1c2491bcdb6ff256a2376946bab6a4ba4a62a7f31ce80"),
-            Map.entry(31L, "be4e1b6db3d3f0b5100182a3c80066a39c64479f9ba88d908fee661efd3335b8"));
+            Map.entry(31L, "be4e1b6db3d3f0b5100182a3c80066a39c64479f9ba88d908fee661efd3335b8"),
+            Map.entry(32L, "9e4e274bf457d1a5947c8b54e83299d28fb9fe128d9f1100991bc30634b54344"));
     private static final Map<Long, Map<String, Integer>> COUNTS = Map.ofEntries(
             Map.entry(1L, counts(10, 5, 2, 6, 35)),
             Map.entry(2L, counts(34, 6, 3, 13, 76)),
@@ -71,7 +72,8 @@ final class ProductAuthorizationReleaseLineage {
             Map.entry(28L, counts(161, 22, 16, 46, 780)),
             Map.entry(29L, counts(183, 22, 16, 47, 827)),
             Map.entry(30L, counts(205, 22, 16, 47, 888)),
-            Map.entry(31L, counts(205, 22, 16, 47, 911)));
+            Map.entry(31L, counts(205, 22, 16, 47, 911)),
+            Map.entry(32L, counts(219, 23, 17, 53, 943)));
 
     private ProductAuthorizationReleaseLineage() { }
 
@@ -120,9 +122,9 @@ final class ProductAuthorizationReleaseLineage {
         require(index.schemaVersion() == 1, "Unsupported registry seed index schemaVersion.");
         require("product-surfaces".equals(index.bundleKey()), "Unexpected registry seed index bundleKey.");
         require("SHA-256".equals(index.indexChecksumAlgorithm()), "Only SHA-256 index checksums are supported.");
-        require(index.latestVersion() == 31, "Registry latest version must be 31.");
-        require(index.versions() != null && index.versions().size() == 31,
-                "Registry index must contain only versions 1 through 31.");
+        require(index.latestVersion() == 32, "Registry latest version must be 32.");
+        require(index.versions() != null && index.versions().size() == 32,
+                "Registry index must contain only versions 1 through 32.");
         long expectedVersion = 1;
         Set<String> checksums = new HashSet<>();
         for (ProductAuthorizationContractDtos.SeedIndexEntry entry : index.versions()) {

@@ -14,11 +14,11 @@ class HcmV3PepRegistryTest {
             new HcmV3PepRegistry(new ObjectMapper().findAndRegisterModules());
 
     @Test
-    void loadsTheExactV3PeopleClosure() {
-        assertThat(registry.bindingContracts()).hasSize(75);
+    void loadsTheExactV32PeopleClosure() {
+        assertThat(registry.bindingContracts()).hasSize(87);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)
-                .distinct()).hasSize(48);
+                .distinct()).hasSize(60);
         assertThat(registry.bindingContracts())
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.team.home.page")
@@ -32,7 +32,7 @@ class HcmV3PepRegistryTest {
                         && value.servicePath()
                         .equals("/v1/workforce/organization/candidates"));
         assertThat(registry.highRiskBindingContracts())
-                .hasSize(7)
+                .hasSize(8)
                 .extracting(HcmV3PepRegistry.BindingContract::routeContractKey)
                 .containsExactlyInAnyOrder(
                         "route.hcm.management.org-publish.action",
@@ -41,9 +41,10 @@ class HcmV3PepRegistryTest {
                         "route.hcm.management.integration-execute.action",
                         "route.hcm.management.integration-execute.action",
                         "route.hcm.management.integration-execute.action",
-                        "route.hcm.management.integration-execute.action");
+                        "route.hcm.management.integration-execute.action",
+                        "route.hcm.operations.performance-cycle-publish.action");
         assertThat(HcmScopeSelectionValidator.ownerPredicateClosure())
-                .hasSize(11)
+                .hasSize(13)
                 .containsOnlyKeys(
                         "predicate.directory-visible-person.v1",
                         "predicate.hcm-configuration-scope.v1",
@@ -52,6 +53,8 @@ class HcmV3PepRegistryTest {
                         "predicate.hcm-integration-nonsecret-update.v1",
                         "predicate.hcm-org-approval-sod.v1",
                         "predicate.hcm-org-publish-sod.v1",
+                        "predicate.hcm-performance-cycle-object.v1",
+                        "predicate.hcm-performance-cycle-publish-sod.v1",
                         "predicate.hcm-workforce-visible-person.v1",
                         "predicate.people.object-version.v1",
                         "predicate.self-person.v1",

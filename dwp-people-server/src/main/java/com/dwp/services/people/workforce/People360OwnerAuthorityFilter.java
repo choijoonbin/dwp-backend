@@ -62,7 +62,7 @@ public final class People360OwnerAuthorityFilter extends OncePerRequestFilter {
                     "People360SnapshotV1"),
             RouteType.SELF,
             new RouteContract(
-                    SELF_ROUTE, null, SELF_PREDICATE, "SUBJECT",
+                    SELF_ROUTE, null, SELF_PREDICATE, "SELF",
                     "hcm.people360.self-detail.v1", "People360SnapshotV1"),
             RouteType.TEAM,
             new RouteContract(

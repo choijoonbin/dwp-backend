@@ -30,7 +30,8 @@ class HcmWorkspaceOpenApiContractTest {
             Map.entry("/v1/workforce/data-operations/hris/connectors/{connectorId}/configuration-check", "post"),
             Map.entry("/v1/workforce/data-operations/hris/connectors/{connectorId}/executions", "post"),
             Map.entry("/v1/workforce/data-operations/hris/sync-runs/{syncRunId}/retry", "post"),
-            Map.entry("/v1/workforce/data-operations/hris/connectors/{connectorId}/reconciliations", "post"));
+            Map.entry("/v1/workforce/data-operations/hris/connectors/{connectorId}/reconciliations", "post"),
+            Map.entry("/v1/hris/performance/cycles/{cycleId}/publish", "post"));
     private static final Set<String> STEP_UP_HEADERS = Set.of(
             "X-DWP-Step-Up-Challenge", "Idempotency-Key",
             "X-DWP-Expected-Decision-Revision", "X-DWP-Expected-Object-Version");
@@ -44,10 +45,10 @@ class HcmWorkspaceOpenApiContractTest {
         JsonNode gateway = openApi("gateway-public.json");
         HcmV3PepRegistry registry = new HcmV3PepRegistry(
                 new ObjectMapper().findAndRegisterModules());
-        assertThat(registry.bindingContracts()).hasSize(75);
+        assertThat(registry.bindingContracts()).hasSize(87);
         assertThat(registry.bindingContracts().stream()
                 .map(value -> value.method() + " " + value.servicePath())
-                .distinct()).hasSize(67);
+                .distinct()).hasSize(75);
         registry.bindingContracts().forEach(binding -> {
             String method = binding.method().toLowerCase();
             assertThat(service.path("paths").path(binding.servicePath()).has(method))
@@ -87,7 +88,7 @@ class HcmWorkspaceOpenApiContractTest {
     }
 
     @Test
-    void allSevenPeopleOwnedHighRiskBindingsPublishTheCommandProofHeaders() throws Exception {
+    void allEightPeopleOwnedHighRiskBindingsPublishTheCommandProofHeaders() throws Exception {
         JsonNode service = openApi("people.json");
         JsonNode gateway = openApi("gateway-public.json");
         HIGH_RISK_OPERATIONS.forEach((path, method) -> {

@@ -257,13 +257,15 @@ class ProductAuthorizationContractValidatorTest {
                 generatedDocument("product-surfaces-v1.bundle-v30.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionThirtyOne = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v31.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(31);
-        assertThat(index.latestChecksum()).isEqualTo(versionThirtyOne.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionThirtyTwo = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v32.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(32);
+        assertThat(index.latestChecksum()).isEqualTo(versionThirtyTwo.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L,
-                        26L, 27L, 28L, 29L, 30L, 31L);
+                        26L, 27L, 28L, 29L, 30L, 31L, 32L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -508,6 +510,26 @@ class ProductAuthorizationContractValidatorTest {
                         "route.approvals.admin.policy-governance-publish.action",
                         "route.approvals.admin.workflow-studio-retire.action",
                         "route.approvals.work.workflow-template.data");
+        assertThat(versionThirtyTwo.capabilities()).hasSize(219)
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsAll(versionThirtyOne.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList())
+                .contains(
+                        "hcm.operations.talent.approve",
+                        "hcm.operations.payroll-foundation.publish",
+                        "hcm.time.work-regime.publish");
+        assertThat(versionThirtyTwo.routes()).hasSize(943)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionThirtyOne.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.hcm.operations.people360-search.data",
+                        "route.hcm.operations.performance-cycle-publish.action",
+                        "route.hcm.operations.payroll-foundation-publish.action",
+                        "route.hcm.operations.work-plan-publish.action",
+                        "route.hcm.personal.configuration-projection.data");
         assertThat(versionSix.routes()).filteredOn(value -> value.routeContractKey().equals(
                 "route.services.work.request-information-response.action"))
                 .singleElement().satisfies(route -> {
