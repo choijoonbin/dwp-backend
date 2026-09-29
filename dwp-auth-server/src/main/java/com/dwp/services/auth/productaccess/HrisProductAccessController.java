@@ -3,6 +3,7 @@ package com.dwp.services.auth.productaccess;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.services.auth.security.AuthenticatedUserResolver;
 import com.dwp.services.auth.security.TenantContextResolver;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -11,6 +12,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/auth/hris/product-access")
+@ConditionalOnProperty(
+        name = "dwp.hris.system.wave1.enabled",
+        havingValue = "true",
+        matchIfMissing = false)
 public class HrisProductAccessController {
 
     private static final String TENANT_HEADER = "X-Tenant-ID";

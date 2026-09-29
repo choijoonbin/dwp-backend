@@ -1,6 +1,7 @@
 package com.dwp.services.platform.hrisconfiguration;
 
 import com.dwp.core.common.ApiResponse;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -9,6 +10,10 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/v1/hris/configuration")
+@ConditionalOnProperty(
+        name = "dwp.hris.system.wave1.enabled",
+        havingValue = "true",
+        matchIfMissing = false)
 public class HrisConfigurationProjectionController {
 
     private final HrisConfigurationProjectionService service;
