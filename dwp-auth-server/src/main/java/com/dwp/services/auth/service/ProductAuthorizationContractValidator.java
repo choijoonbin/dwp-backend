@@ -38,7 +38,7 @@ public class ProductAuthorizationContractValidator {
     private static final Set<String> ROUTE_KINDS = Set.of("PAGE", "DATA", "ACTION");
     private static final Set<String> SERVICE_KEYS = Set.of(
             "agent", "approval", "auth", "meeting", "messaging",
-            "notification", "people", "platform", "space");
+            "notification", "payroll", "people", "platform", "space", "time");
     private static final Pattern CONTEXT_PATTERN =
             Pattern.compile("^[a-z][a-z0-9-]*(\\.[a-z][a-z0-9-]*)+$");
     private static final Pattern CHECKSUM_PATTERN = Pattern.compile("^[0-9a-f]{64}$");
@@ -415,7 +415,8 @@ public class ProductAuthorizationContractValidator {
                 }
             });
             nullSafeMap(publicBinding.queryParameterConstraints()).forEach((parameter, constraint) -> {
-                require(Set.of("FIXED", "ALLOWLIST", "ABSENT").contains(constraint.kind()),
+                require(Set.of("FIXED", "ALLOWLIST", "REQUIRED", "ABSENT")
+                                .contains(constraint.kind()),
                         bindingKey + ": invalid query constraint kind.");
                 if ("FIXED".equals(constraint.kind())) {
                     require(text(constraint.value()) && nullSafe(constraint.values()).isEmpty(),
@@ -425,6 +426,9 @@ public class ProductAuthorizationContractValidator {
                                     && new HashSet<>(constraint.values()).size()
                                     == constraint.values().size(),
                             bindingKey + ": invalid query allowlist constraint.");
+                } else if ("REQUIRED".equals(constraint.kind())) {
+                    require(constraint.value() == null && nullSafe(constraint.values()).isEmpty(),
+                            bindingKey + ": invalid required query constraint.");
                 } else {
                     require(constraint.value() == null && nullSafe(constraint.values()).isEmpty(),
                             bindingKey + ": invalid absent query constraint.");

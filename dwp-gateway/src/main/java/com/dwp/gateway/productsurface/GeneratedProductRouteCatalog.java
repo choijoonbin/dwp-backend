@@ -336,6 +336,7 @@ public final class GeneratedProductRouteCatalog {
             JsonNode value = entry.getValue();
             QueryConstraint constraint = switch (value.path("kind").asText()) {
                 case "ABSENT" -> new QueryConstraint("ABSENT", Set.of());
+                case "REQUIRED" -> new QueryConstraint("REQUIRED", Set.of());
                 case "FIXED" -> new QueryConstraint(
                         "FIXED", Set.of(value.path("value").asText()));
                 case "ALLOWLIST" -> new QueryConstraint(
@@ -371,6 +372,8 @@ public final class GeneratedProductRouteCatalog {
             QueryConstraint constraint = entry.getValue();
             if ("ABSENT".equals(constraint.kind())) {
                 if (!values.isEmpty()) return false;
+            } else if ("REQUIRED".equals(constraint.kind())) {
+                if (values.size() != 1 || values.getFirst().isBlank()) return false;
             } else if (values.size() != 1 || !constraint.values().contains(values.getFirst())) {
                 return false;
             }

@@ -801,10 +801,12 @@ SERVICE_PATH_PREFIXES = {
     "meeting": ("/v1/",),
     "messaging": ("/v1/",),
     "notification": ("/v1/",),
+    "payroll": ("/v1/",),
     "platform": ("/v1/", "/v2/"),
     "approval": ("/v1/",),
     "people": ("/v1/",),
     "space": ("/v1/",),
+    "time": ("/v1/",),
 }
 
 
@@ -1122,6 +1124,7 @@ def _apply_descriptor_enrichments(
             set(patch) <= {
                 "routeContractKey", "authorizationEquivalenceKey",
                 "queryParameterConstraintsByBinding", "projectionBindings",
+                "versionedQueryParameterConstraints",
                 "stepUpCommandBindings", "requiredAccessByProfile",
                 "introducedInVersion"
             },
@@ -1154,6 +1157,27 @@ def _apply_descriptor_enrichments(
             "queryParameterConstraintsByBinding", {}
         ).items():
             _apply_query_constraints(route, binding_key, constraints)
+        versioned_query_constraints = patch.get(
+            "versionedQueryParameterConstraints", []
+        )
+        require(
+            isinstance(versioned_query_constraints, list)
+            and all(
+                isinstance(value, dict)
+                and set(value) == {"introducedInVersion", "bindingKey", "constraints"}
+                and isinstance(value["introducedInVersion"], int)
+                and 1 <= value["introducedInVersion"] <= BUNDLE_VERSIONS[-1]
+                and isinstance(value["bindingKey"], str)
+                and value["bindingKey"]
+                for value in versioned_query_constraints
+            ),
+            f"{key}: invalid versioned query constraints",
+        )
+        for value in versioned_query_constraints:
+            if version >= value["introducedInVersion"]:
+                _apply_query_constraints(
+                    route, value["bindingKey"], value["constraints"]
+                )
         for projection in patch.get("projectionBindings", []):
             _apply_projection_binding(route, projection)
     return candidate
@@ -2028,6 +2052,9 @@ def _validate_parameter_constraint(constraint: Any, label: str, allow_absent: bo
                 and len(values) == len(set(values))
                 and all(isinstance(value, str) and value for value in values),
                 f"{label}: invalid ALLOWLIST constraint")
+    elif kind == "REQUIRED":
+        require(allow_absent and constraint == {"kind": "REQUIRED"},
+                f"{label}: invalid REQUIRED constraint")
     else:
         require(allow_absent and constraint == {"kind": "ABSENT"},
                 f"{label}: invalid constraint kind")

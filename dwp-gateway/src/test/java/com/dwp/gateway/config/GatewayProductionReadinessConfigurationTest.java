@@ -55,6 +55,20 @@ class GatewayProductionReadinessConfigurationTest {
     }
 
     @Test
+    void rejectsAProductionGatewayWithoutHrisServiceIdentities() {
+        MockEnvironment environment = validProduction()
+                .withProperty("dwp.payroll.service-token", "")
+                .withProperty("dwp.time.service-token", "");
+
+        var runner = new GatewayProductionReadinessConfiguration()
+                .gatewayProductionReadinessGuard(environment);
+
+        assertThatIllegalStateException().isThrownBy(() -> runner.run(null))
+                .withMessageContaining("dwp.payroll.service-token")
+                .withMessageContaining("dwp.time.service-token");
+    }
+
+    @Test
     void rejectsAProductionGatewayWithoutDenialAuditEvidenceSink() {
         MockEnvironment environment = validProduction()
                 .withProperty("dwp.audit.ingest-token", "")
@@ -110,6 +124,8 @@ class GatewayProductionReadinessConfigurationTest {
                 .withProperty("dwp.auth.product-surface-token", secret("product-surface"))
                 .withProperty("dwp.platform.service-token", secret("platform"))
                 .withProperty("dwp.people.service-token", secret("people"))
+                .withProperty("dwp.payroll.service-token", secret("payroll"))
+                .withProperty("dwp.time.service-token", secret("time"))
                 .withProperty("dwp.provider.service-token", secret("provider"))
                 .withProperty("dwp.provider.support-validation-token", secret("support"))
                 .withProperty("dwp.approval.service-token", secret("approval"))

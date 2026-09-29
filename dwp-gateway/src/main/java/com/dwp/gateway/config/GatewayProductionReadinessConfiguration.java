@@ -25,6 +25,8 @@ public class GatewayProductionReadinessConfiguration {
             requireSecret(environment, failures, "dwp.auth.product-surface-token");
             requireSecret(environment, failures, "dwp.platform.service-token");
             requireSecret(environment, failures, "dwp.people.service-token");
+            requireSecret(environment, failures, "dwp.payroll.service-token");
+            requireSecret(environment, failures, "dwp.time.service-token");
             requireSecret(environment, failures, "dwp.provider.service-token");
             requireSecret(environment, failures, "dwp.provider.support-validation-token");
             requireSecret(environment, failures, "dwp.approval.service-token");
