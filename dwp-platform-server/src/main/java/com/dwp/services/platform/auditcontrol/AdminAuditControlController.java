@@ -325,7 +325,7 @@ public class AdminAuditControlController {
     }
 
     @GetMapping("/integrity")
-    public ApiResponse<List<AuditControlDtos.IntegrityCheckpoint>> integrity(
+    public ApiResponse<AuditControlDtos.IntegrityCheckpointPage> integrity(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(PERMISSIONS) String permissions) {
         guard.configure(permissions);
@@ -333,7 +333,7 @@ public class AdminAuditControlController {
     }
 
     @PostMapping("/integrity/checkpoint")
-    public ApiResponse<List<AuditControlDtos.IntegrityCheckpoint>> checkpoint(
+    public ApiResponse<AuditControlDtos.IntegrityCheckpointPage> checkpoint(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) String actorId,
             @RequestHeader(PERMISSIONS) String permissions) {

@@ -9,20 +9,20 @@ import java.util.Set;
 import java.util.UUID;
 
 /** Shared, fail-closed authorization boundary for application governance workflows. */
-final class AppGovernanceAuthorization {
+public final class AppGovernanceAuthorization {
 
-    private static final String CATALOG_ADMIN = "APP_CATALOG_ADMIN";
+    static final String GOVERNANCE_RESOURCE = "ADMIN.APP_GOVERNANCE";
     private static final Set<String> HUB_RESPONSIBILITIES = Set.of(
             "APP_OWNER", "APP_ACCESS_APPROVER",
             "APP_ACCESS_MANAGER", "APP_ACCESS_REVIEWER");
 
     private final JdbcTemplate jdbc;
 
-    AppGovernanceAuthorization(JdbcTemplate jdbc) {
+    public AppGovernanceAuthorization(JdbcTemplate jdbc) {
         this.jdbc = jdbc;
     }
 
-    Visibility requireVisibility(Long tenantId, Long actorId) {
+    public Visibility requireVisibility(Long tenantId, Long actorId) {
         Visibility visibility = visibility(tenantId, actorId);
         if (!visibility.queueReader() && visibility.resourceSetIds().isEmpty()) {
             throw new BaseException(ErrorCode.FORBIDDEN);
@@ -30,8 +30,8 @@ final class AppGovernanceAuthorization {
         return visibility;
     }
 
-    Visibility visibility(Long tenantId, Long actorId) {
-        boolean queueReader = tenantRoles(tenantId, actorId).contains(CATALOG_ADMIN);
+    public Visibility visibility(Long tenantId, Long actorId) {
+        boolean queueReader = canPermission(tenantId, actorId, GOVERNANCE_RESOURCE, "VIEW");
         Set<UUID> resourceSetIds = new LinkedHashSet<>();
         HUB_RESPONSIBILITIES.forEach(responsibility -> resourceSetIds.addAll(
                 responsibilityScopes(tenantId, actorId, responsibility)));
@@ -56,7 +56,7 @@ final class AppGovernanceAuthorization {
 
     void requirePresetRequester(
             Long tenantId, Long actorId, UUID resourceSetId, String correlationId) {
-        if (!tenantRoles(tenantId, actorId).contains(CATALOG_ADMIN)
+        if (!canPermission(tenantId, actorId, GOVERNANCE_RESOURCE, "MANAGE")
                 && !hasResponsibility(
                         tenantId, actorId, "APP_OWNER", resourceSetId)) {
             denied(tenantId, actorId, correlationId, "APP_ADMIN_PRESET_ASSIGNMENT",
@@ -70,7 +70,7 @@ final class AppGovernanceAuthorization {
             String correlationId,
             String entityType,
             String targetId) {
-        if (!tenantRoles(tenantId, actorId).contains(CATALOG_ADMIN)) {
+        if (!canPermission(tenantId, actorId, GOVERNANCE_RESOURCE, "MANAGE")) {
             denied(tenantId, actorId, correlationId, entityType, targetId,
                     "APP_CATALOG_ADMIN_REQUIRED");
         }
@@ -103,7 +103,7 @@ final class AppGovernanceAuthorization {
         }
     }
 
-    boolean hasResponsibility(
+    public boolean hasResponsibility(
             Long tenantId, Long actorId, String responsibilityCode, UUID resourceSetId) {
         return Boolean.TRUE.equals(jdbc.queryForObject("""
                 SELECT EXISTS (
@@ -129,6 +129,118 @@ final class AppGovernanceAuthorization {
                                AND membership.user_id = ?))))
                 """, Boolean.class, tenantId, responsibilityCode, resourceSetId,
                 actorId.toString(), actorId));
+    }
+
+    public boolean hasAppResponsibility(
+            Long tenantId,
+            Long actorId,
+            String responsibilityCode,
+            String appResourceKey) {
+        return appResourceKeys(tenantId, actorId, responsibilityCode).contains(appResourceKey);
+    }
+
+    boolean canPermission(
+            Long tenantId, Long actorId, String resourceKey, String permissionCode) {
+        Boolean allowed = jdbc.queryForObject("""
+                WITH effective_roles AS (
+                    SELECT member.role_id
+                      FROM com_role_members member
+                      JOIN com_roles role
+                        ON role.tenant_id = member.tenant_id
+                       AND role.role_id = member.role_id
+                       AND role.status = 'ACTIVE'
+                     WHERE member.tenant_id = ? AND member.user_id = ?
+                    UNION
+                    SELECT assignment.role_id
+                      FROM com_group_members membership
+                      JOIN com_groups access_group
+                        ON access_group.tenant_id = membership.tenant_id
+                       AND access_group.group_id = membership.group_id
+                       AND access_group.status = 'ACTIVE'
+                      JOIN com_group_role_assignments assignment
+                        ON assignment.tenant_id = membership.tenant_id
+                       AND assignment.group_id = membership.group_id
+                      JOIN com_roles role
+                        ON role.tenant_id = assignment.tenant_id
+                       AND role.role_id = assignment.role_id
+                       AND role.status = 'ACTIVE'
+                     WHERE membership.tenant_id = ? AND membership.user_id = ?
+                       AND assignment.lifecycle_state = 'ACTIVE'
+                       AND assignment.assignment_type = 'ACTIVE'
+                       AND assignment.scope_type = 'TENANT'
+                       AND (assignment.valid_from IS NULL
+                            OR assignment.valid_from <= CURRENT_TIMESTAMP)
+                       AND (assignment.valid_to IS NULL
+                            OR assignment.valid_to > CURRENT_TIMESTAMP)
+                ), matching AS (
+                    SELECT role_permission.effect
+                      FROM effective_roles effective_role
+                      JOIN com_role_permissions role_permission
+                        ON role_permission.tenant_id = ?
+                       AND role_permission.role_id = effective_role.role_id
+                      JOIN com_resources resource
+                        ON resource.tenant_id = role_permission.tenant_id
+                       AND resource.resource_id = role_permission.resource_id
+                       AND resource.enabled = TRUE
+                      JOIN com_permissions permission
+                        ON permission.permission_id = role_permission.permission_id
+                     WHERE resource.key = ? AND permission.code = ?
+                )
+                SELECT EXISTS (SELECT 1 FROM matching WHERE effect = 'ALLOW')
+                   AND NOT EXISTS (SELECT 1 FROM matching WHERE effect = 'DENY')
+                """, Boolean.class,
+                tenantId, actorId, tenantId, actorId, tenantId,
+                resourceKey, permissionCode);
+        return Boolean.TRUE.equals(allowed);
+    }
+
+    public Set<String> appResourceKeys(
+            Long tenantId,
+            Long actorId,
+            String responsibilityCode) {
+        return new LinkedHashSet<>(jdbc.query("""
+                SELECT DISTINCT member.resource_key
+                  FROM com_admin_role_assignments assignment
+                      JOIN com_admin_resource_set_members member
+                        ON member.tenant_id = assignment.tenant_id
+                       AND member.resource_set_id = assignment.resource_set_id
+                 WHERE assignment.tenant_id = ?
+                   AND assignment.responsibility_code = ?
+                   AND assignment.lifecycle_state = 'ACTIVE'
+                   AND (assignment.valid_from IS NULL
+                        OR assignment.valid_from <= CURRENT_TIMESTAMP)
+                   AND (assignment.valid_to IS NULL
+                        OR assignment.valid_to > CURRENT_TIMESTAMP)
+                   AND member.resource_type = 'APP'
+                   AND member.lifecycle_state = 'ACTIVE'
+                   AND ((assignment.principal_type = 'USER'
+                          AND assignment.principal_ref = ?)
+                     OR (assignment.principal_type = 'GROUP' AND EXISTS (
+                         SELECT 1 FROM com_group_members membership
+                          JOIN com_groups access_group
+                            ON access_group.tenant_id = membership.tenant_id
+                           AND access_group.group_id = membership.group_id
+                           AND access_group.status = 'ACTIVE'
+                         WHERE membership.tenant_id = assignment.tenant_id
+                           AND membership.group_id::text = assignment.principal_ref
+                           AND membership.user_id = ?)))
+                 ORDER BY member.resource_key
+                """, (result, ignored) -> result.getString(1), tenantId,
+                responsibilityCode, actorId.toString(), actorId));
+    }
+
+    public void requireAppResponsibility(
+            Long tenantId,
+            Long actorId,
+            String responsibilityCode,
+            String appResourceKey,
+            String correlationId,
+            String entityType,
+            String targetId) {
+        if (!hasAppResponsibility(tenantId, actorId, responsibilityCode, appResourceKey)) {
+            denied(tenantId, actorId, correlationId, entityType, targetId,
+                    responsibilityCode + "_APP_SCOPE_REQUIRED");
+        }
     }
 
     private Set<UUID> responsibilityScopes(
@@ -163,38 +275,6 @@ final class AppGovernanceAuthorization {
                 """, (result, ignored) -> result.getObject(1, UUID.class), arguments));
     }
 
-    private Set<String> tenantRoles(Long tenantId, Long actorId) {
-        return new LinkedHashSet<>(jdbc.query("""
-                SELECT role.code FROM com_roles role
-                  JOIN com_role_members member ON member.tenant_id = role.tenant_id
-                   AND member.role_id = role.role_id
-                 WHERE role.tenant_id = ? AND member.user_id = ?
-                   AND role.status = 'ACTIVE'
-                UNION
-                SELECT role.code FROM com_roles role
-                  JOIN com_group_role_assignments assignment
-                    ON assignment.tenant_id = role.tenant_id
-                   AND assignment.role_id = role.role_id
-                  JOIN com_group_members member
-                    ON member.tenant_id = assignment.tenant_id
-                   AND member.group_id = assignment.group_id
-                  JOIN com_groups access_group
-                    ON access_group.tenant_id = member.tenant_id
-                   AND access_group.group_id = member.group_id
-                   AND access_group.status = 'ACTIVE'
-                 WHERE role.tenant_id = ? AND member.user_id = ?
-                   AND role.status = 'ACTIVE'
-                   AND assignment.lifecycle_state = 'ACTIVE'
-                   AND assignment.assignment_type = 'ACTIVE'
-                   AND assignment.scope_type = 'TENANT'
-                   AND (assignment.valid_from IS NULL
-                        OR assignment.valid_from <= CURRENT_TIMESTAMP)
-                   AND (assignment.valid_to IS NULL
-                        OR assignment.valid_to > CURRENT_TIMESTAMP)
-                """, (result, ignored) -> result.getString(1),
-                tenantId, actorId, tenantId, actorId));
-    }
-
     private void denied(
             Long tenantId,
             Long actorId,
@@ -208,7 +288,7 @@ final class AppGovernanceAuthorization {
         throw new BaseException(ErrorCode.FORBIDDEN, reason);
     }
 
-    record Visibility(
+    public record Visibility(
             boolean queueReader,
             Set<UUID> resourceSetIds,
             Set<UUID> reviewSetIds,

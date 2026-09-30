@@ -15,6 +15,101 @@ class PlatformSecurityFilterTest {
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Test
+    void requiresExactTenantCatalogAndRegistryPermissionsInsteadOfRoleNames() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
+
+        MockHttpServletRequest roleOnly = tenantAdminRequest("GET", "/v1/admin/catalog", null);
+        MockHttpServletResponse roleOnlyResponse = new MockHttpServletResponse();
+        filter.doFilter(roleOnly, roleOnlyResponse, new MockFilterChain());
+        assertThat(roleOnlyResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest catalogReader = tenantAdminRequest(
+                "GET", "/v1/admin/catalog", "ADMIN.PLATFORM_CATALOG:VIEW");
+        MockHttpServletResponse catalogReaderResponse = new MockHttpServletResponse();
+        filter.doFilter(catalogReader, catalogReaderResponse, new MockFilterChain());
+        assertThat(catalogReaderResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest readCannotWrite = tenantAdminRequest(
+                "POST", "/v1/admin/catalog/relations", "ADMIN.PLATFORM_CATALOG:VIEW");
+        MockHttpServletResponse readCannotWriteResponse = new MockHttpServletResponse();
+        filter.doFilter(readCannotWrite, readCannotWriteResponse, new MockFilterChain());
+        assertThat(readCannotWriteResponse.getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest registryManager = tenantAdminRequest(
+                "POST", "/v1/admin/registry-entries", "ADMIN.PLATFORM_REGISTRY:MANAGE");
+        MockHttpServletResponse registryManagerResponse = new MockHttpServletResponse();
+        filter.doFilter(registryManager, registryManagerResponse, new MockFilterChain());
+        assertThat(registryManagerResponse.getStatus()).isEqualTo(200);
+
+        MockHttpServletRequest wrongPlane = tenantAdminRequest(
+                "GET", "/v1/admin/catalog", "ADMIN.PLATFORM_CATALOG:VIEW");
+        wrongPlane.removeHeader("X-DWP-Identity-Plane");
+        wrongPlane.addHeader("X-DWP-Identity-Plane", "PROVIDER");
+        MockHttpServletResponse wrongPlaneResponse = new MockHttpServletResponse();
+        filter.doFilter(wrongPlane, wrongPlaneResponse, new MockFilterChain());
+        assertThat(wrongPlaneResponse.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void requiresExactViewAndManagePermissionsForEverySettingsOwnerPath() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+        String[][] paths = {
+                {"/v1/admin/tenant-branding", "ADMIN.TENANT_BRANDING"},
+                {"/v1/admin/preference-exceptions", "ADMIN.MANAGED_PREFERENCES"},
+                {"/v1/admin/localization", "ADMIN.LOCALIZATION"},
+                {"/v1/admin/catalog", "ADMIN.PLATFORM_CATALOG"},
+                {"/v1/admin/registry-entries", "ADMIN.PLATFORM_REGISTRY"},
+                {"/v1/admin/navigation", "ADMIN.NAVIGATION"},
+                {"/v1/admin/navigation/studio", "ADMIN.NAVIGATION"},
+                {"/v1/admin/reference-sets", "ADMIN.REFERENCE_DATA"}
+        };
+
+        for (String[] entry : paths) {
+            MockHttpServletResponse roleOnlyResponse = apply(
+                    filter, tenantAdminRequest("GET", entry[0], null));
+            assertThat(roleOnlyResponse.getStatus()).as("role-only " + entry[0]).isEqualTo(403);
+
+            MockHttpServletResponse readerResponse = apply(
+                    filter, tenantAdminRequest("GET", entry[0], entry[1] + ":VIEW"));
+            assertThat(readerResponse.getStatus()).as("read " + entry[0]).isEqualTo(200);
+
+            MockHttpServletResponse readCannotWriteResponse = apply(
+                    filter, tenantAdminRequest("POST", entry[0], entry[1] + ":VIEW"));
+            assertThat(readCannotWriteResponse.getStatus())
+                    .as("read cannot write " + entry[0]).isEqualTo(403);
+
+            MockHttpServletResponse managerResponse = apply(
+                    filter, tenantAdminRequest("POST", entry[0], entry[1] + ":MANAGE"));
+            assertThat(managerResponse.getStatus()).as("manage " + entry[0]).isEqualTo(200);
+        }
+    }
+
+    @Test
+    void exactSettingsPermissionCannotCrossIdentityPlanesOrTenantBoundaries() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+
+        MockHttpServletRequest provider = tenantAdminRequest(
+                "GET", "/v1/admin/tenant-branding", "ADMIN.TENANT_BRANDING:VIEW");
+        provider.removeHeader("X-DWP-Identity-Plane");
+        provider.addHeader("X-DWP-Identity-Plane", "PROVIDER");
+        assertThat(apply(filter, provider).getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest crossTenant = tenantAdminRequest(
+                "GET", "/v1/admin/tenant-branding", "ADMIN.TENANT_BRANDING:VIEW");
+        crossTenant.addHeader(PlatformSecurityFilter.ACTOR_TENANT_HEADER, "99");
+        assertThat(apply(filter, crossTenant).getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest support = tenantAdminRequest(
+                "GET", "/v1/admin/tenant-branding", "ADMIN.TENANT_BRANDING:VIEW");
+        support.addHeader(PlatformSecurityFilter.SUPPORT_SESSION_HEADER, "support-1");
+        support.addHeader(PlatformSecurityFilter.SUPPORT_SCOPES_HEADER, "TENANT_CONFIGURATION_READ");
+        support.addHeader(PlatformSecurityFilter.ACTOR_TENANT_HEADER, "99");
+        assertThat(apply(filter, support).getStatus()).isEqualTo(403);
+    }
+
+    @Test
     void separatesDwaionAgentEditingFromPublishing() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
         MockHttpServletRequest deniedPublish = new MockHttpServletRequest(
@@ -84,6 +179,10 @@ class PlatformSecurityFilterTest {
         request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
         request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
         request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "EMPLOYEE,TENANT_ADMIN");
+        request.addHeader("X-DWP-Identity-Plane", "TENANT");
+        request.addHeader(
+                PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "ADMIN.REFERENCE_DATA:VIEW");
         MockHttpServletResponse response = new MockHttpServletResponse();
 
         filter.doFilter(request, response, new MockFilterChain());
@@ -1170,6 +1269,14 @@ class PlatformSecurityFilterTest {
         return new MockHttpServletRequest("GET", path);
     }
 
+    private MockHttpServletResponse apply(
+            PlatformSecurityFilter filter,
+            MockHttpServletRequest request) throws Exception {
+        MockHttpServletResponse response = new MockHttpServletResponse();
+        filter.doFilter(request, response, new MockFilterChain());
+        return response;
+    }
+
     private MockHttpServletRequest mailAdminRequest(
             String method, String path, String permission) {
         MockHttpServletRequest request = new MockHttpServletRequest(method, path);
@@ -1178,6 +1285,20 @@ class PlatformSecurityFilterTest {
         request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
         request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "MAIL_ADMIN");
         request.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, permission);
+        return request;
+    }
+
+    private MockHttpServletRequest tenantAdminRequest(
+            String method, String path, String permission) {
+        MockHttpServletRequest request = new MockHttpServletRequest(method, path);
+        request.addHeader(PlatformSecurityFilter.SERVICE_TOKEN_HEADER, "trusted");
+        request.addHeader(PlatformSecurityFilter.USER_HEADER, "17");
+        request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "3");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "TENANT_ADMIN");
+        request.addHeader("X-DWP-Identity-Plane", "TENANT");
+        if (permission != null) {
+            request.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER, permission);
+        }
         return request;
     }
 

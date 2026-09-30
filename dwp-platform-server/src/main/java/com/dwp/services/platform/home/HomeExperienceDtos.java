@@ -259,6 +259,13 @@ public final class HomeExperienceDtos {
             Long createdBy) {
     }
 
+    @Schema(requiredProperties = {"items", "hasMore", "limit"})
+    public record HomeExperienceRevisionPage(
+            List<HomeExperienceRevisionResponse> items,
+            boolean hasMore,
+            int limit) {
+    }
+
     static Map<String, Object> snapshot(HomeExperience experience) {
         Map<String, Object> value = new LinkedHashMap<>();
         value.put("headline", experience.getHeadline());

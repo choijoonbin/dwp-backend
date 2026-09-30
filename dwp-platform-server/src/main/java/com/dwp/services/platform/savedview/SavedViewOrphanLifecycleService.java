@@ -44,8 +44,11 @@ class SavedViewOrphanLifecycleService {
         this.targetEligibility = targetEligibility;
     }
 
-    List<SavedViewDtos.OrphanLifecycleResult> actions(Long tenantId, int limit) {
-        return history.latest(tenantId, Math.max(1, Math.min(limit, 100)));
+    SavedViewDtos.OrphanLifecyclePage actions(Long tenantId, int requestedLimit) {
+        int limit = Math.max(1, Math.min(requestedLimit, 100));
+        List<SavedViewDtos.OrphanLifecycleResult> items = history.latest(tenantId, limit + 1);
+        return new SavedViewDtos.OrphanLifecyclePage(
+                items.stream().limit(limit).toList(), limit, items.size() > limit);
     }
 
     Optional<SavedViewDtos.OrphanLifecycleResult> resolve(

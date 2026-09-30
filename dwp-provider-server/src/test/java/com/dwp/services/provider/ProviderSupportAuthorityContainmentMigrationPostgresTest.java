@@ -28,7 +28,9 @@ class ProviderSupportAuthorityContainmentMigrationPostgresTest {
     void cleanLatestBuildsTheAuthorityContainmentBoundary() {
         fixture.cleanAndMigrate(null);
 
-        assertThat(latestVersion()).isEqualTo(56);
+        // This test verifies the V56 containment invariant, not that V56 remains the final
+        // migration forever.
+        assertThat(latestVersion()).isGreaterThanOrEqualTo(56);
         assertThat(fixture.jdbc.queryForObject("""
                 SELECT authority_reconciled_at IS NOT NULL
                   FROM prv_support_activation_control
@@ -57,7 +59,7 @@ class ProviderSupportAuthorityContainmentMigrationPostgresTest {
 
         fixture.flyway(null).migrate();
 
-        assertThat(latestVersion()).isEqualTo(56);
+        assertThat(latestVersion()).isGreaterThanOrEqualTo(56);
         assertThat(fixture.jdbc.queryForMap("""
                 SELECT lifecycle_state, cancellation_origin
                   FROM prv_support_access_requests

@@ -345,6 +345,16 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             writeError(response, ErrorCode.FORBIDDEN, "Saved view custody permission is required.");
             return;
         }
+        String tenantAdministrationResource = tenantAdministrationResource(path);
+        boolean tenantAdministrationPath = tenantAdministrationResource != null;
+        boolean delegatedTenantAdministrationAccess = tenantAdministrationPath
+                && hasTenantAdministrationAuthority(
+                request, tenantAdministrationResource, supportAccess);
+        if (tenantAdministrationPath && !delegatedTenantAdministrationAccess) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Exact tenant settings administration permission is required.");
+            return;
+        }
         boolean workspacePath = path.startsWith("/v1/workspace");
         if (workspacePath && isBlank(request.getHeader(PERMISSIONS_HEADER))) {
             writeError(response, ErrorCode.FORBIDDEN, "Workspace permission is required.");
@@ -432,6 +442,7 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                 && !delegatedCalendarAccess && !delegatedRoomsAccess
                 && !delegatedWorkplaceAccess && !delegatedMailAccess
                 && !delegatedDwaionAgentAccess && !delegatedHomeExperienceAccess
+                && !delegatedTenantAdministrationAccess
                 && path.startsWith("/v1/admin/")
                 && !hasRole(request.getHeader(ROLES_HEADER), ADMIN_ROLES)) {
             writeError(response, ErrorCode.FORBIDDEN, "Tenant administrator permission is required.");
@@ -524,6 +535,50 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             String... permissionCodes) {
         return Arrays.stream(permissionCodes)
                 .anyMatch(code -> hasAuthority(permissionsHeader, resourceKey, code));
+    }
+
+    private boolean hasTenantAdministrationAuthority(
+            HttpServletRequest request,
+            String resourceKey,
+            boolean supportAccess) {
+        if (supportAccess
+                || !"TENANT".equals(request.getHeader("X-DWP-Identity-Plane"))
+                || !isBlank(request.getHeader("X-DWP-Provider-Tenant-ID"))
+                || !isBlank(request.getHeader(ACTOR_TENANT_HEADER))) {
+            return false;
+        }
+        String permission = switch (request.getMethod()) {
+            case "GET", "HEAD" -> "VIEW";
+            case "POST", "PUT", "PATCH", "DELETE" -> "MANAGE";
+            default -> null;
+        };
+        return permission != null
+                && hasAuthority(request.getHeader(PERMISSIONS_HEADER), resourceKey, permission);
+    }
+
+    private String tenantAdministrationResource(String path) {
+        if (pathFamily(path, "/v1/admin/tenant-branding")) {
+            return "ADMIN.TENANT_BRANDING";
+        }
+        if (pathFamily(path, "/v1/admin/preference-exceptions")) {
+            return "ADMIN.MANAGED_PREFERENCES";
+        }
+        if (pathFamily(path, "/v1/admin/localization")) {
+            return "ADMIN.LOCALIZATION";
+        }
+        if (pathFamily(path, "/v1/admin/catalog")) {
+            return "ADMIN.PLATFORM_CATALOG";
+        }
+        if (pathFamily(path, "/v1/admin/registry-entries")) {
+            return "ADMIN.PLATFORM_REGISTRY";
+        }
+        if (pathFamily(path, "/v1/admin/navigation")) {
+            return "ADMIN.NAVIGATION";
+        }
+        if (pathFamily(path, "/v1/admin/reference-sets")) {
+            return "ADMIN.REFERENCE_DATA";
+        }
+        return null;
     }
 
     private boolean hasCalendarAuthority(HttpServletRequest request) {

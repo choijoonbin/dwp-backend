@@ -179,10 +179,11 @@ class MailOrganizationMigrationPostgresIntegrationTest {
         MailRuleBackfillRepository.Claim replay = transaction.execute(
                 ignored -> transactions.claim(tenantId, userId, accountId, request));
         assertThat(replay.replayed()).isTrue();
-        assertThat(replay.replay().asReplay()).extracting(
-                MailRuleBackfillDtos.Result::executionId,
-                MailRuleBackfillDtos.Result::replayed)
-                .containsExactly(result.executionId(), true);
+        MailRuleBackfillDtos.Result replayResult = replay.replay();
+        assertThat(replayResult.executionId()).isEqualTo(result.executionId());
+        assertThat(replayResult.requestId()).isEqualTo(result.requestId());
+        assertThat(replayResult.status()).isEqualTo(result.status());
+        assertThat(replayResult.replayed()).isTrue();
         assertThat(jdbc.queryForObject(
                 "SELECT COUNT(*) FROM mail_rule_backfill_applications WHERE execution_id = ?",
                 Integer.class, result.executionId())).isOne();

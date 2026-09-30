@@ -72,12 +72,148 @@ public class TenantSettingsRepository {
         return count != null && count > 0;
     }
 
+    public SsoReceiptWrite recordSsoTestLoginReceipt(
+            Long tenantId,
+            UUID testLoginJobId,
+            String providerKey,
+            Long actorId,
+            UUID idempotencyKey,
+            String justification,
+            String lifecycleState,
+            String internalPrerequisiteState,
+            String externalProbeState,
+            List<String> blockingReasons,
+            String executionBoundary,
+            Instant requestedAt,
+            Instant completedAt,
+            String receiptSha256,
+            String correlationId) {
+        int inserted = jdbc.update("""
+                INSERT INTO com_sso_test_login_receipts (
+                    test_login_job_id, tenant_id, provider_key, requested_by,
+                    idempotency_key, justification, lifecycle_state,
+                    internal_prerequisite_state, external_probe_state,
+                    blocking_reasons, execution_boundary, requested_at,
+                    completed_at, receipt_sha256, correlation_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?)
+                ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
+                """, testLoginJobId, tenantId, providerKey, actorId, idempotencyKey,
+                justification.trim(), lifecycleState, internalPrerequisiteState,
+                externalProbeState, json(blockingReasons), executionBoundary,
+                timestamp(requestedAt), timestamp(completedAt), receiptSha256, correlationId);
+        return new SsoReceiptWrite(
+                requireSsoTestLoginReceiptByIdempotency(tenantId, idempotencyKey),
+                inserted == 1);
+    }
+
+    public Optional<TenantSettingsDtos.SsoTestLoginReceipt> latestSsoTestLoginReceipt(
+            Long tenantId) {
+        return jdbc.query("""
+                SELECT * FROM com_sso_test_login_receipts
+                 WHERE tenant_id = ?
+                 ORDER BY requested_at DESC, test_login_job_id DESC
+                 LIMIT 1
+                """, this::ssoTestLoginReceipt, tenantId).stream().findFirst();
+    }
+
+    public TenantSettingsDtos.SsoTestLoginReceipt requireSsoTestLoginReceipt(
+            Long tenantId, UUID testLoginJobId) {
+        return jdbc.query("""
+                SELECT * FROM com_sso_test_login_receipts
+                 WHERE tenant_id = ? AND test_login_job_id = ?
+                """, this::ssoTestLoginReceipt, tenantId, testLoginJobId).stream().findFirst()
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    public List<TenantSettingsDtos.SsoTestLoginReceipt> ssoTestLoginReceipts(
+            Long tenantId, int fetchSize) {
+        return jdbc.query("""
+                SELECT * FROM com_sso_test_login_receipts
+                 WHERE tenant_id = ?
+                 ORDER BY requested_at DESC, test_login_job_id DESC
+                 LIMIT ?
+                """, this::ssoTestLoginReceipt, tenantId, fetchSize);
+    }
+
+    private TenantSettingsDtos.SsoTestLoginReceipt requireSsoTestLoginReceiptByIdempotency(
+            Long tenantId, UUID idempotencyKey) {
+        return jdbc.query("""
+                SELECT * FROM com_sso_test_login_receipts
+                 WHERE tenant_id = ? AND idempotency_key = ?
+                """, this::ssoTestLoginReceipt, tenantId, idempotencyKey).stream().findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "The SSO test-login receipt was not recorded."));
+    }
+
     public long activeIdentityCount(Long tenantId) {
         Long count = jdbc.queryForObject("""
                 SELECT COUNT(*) FROM com_users
                  WHERE tenant_id = ? AND status = 'ACTIVE'
                 """, Long.class, tenantId);
         return count == null ? 0 : count;
+    }
+
+    public TenantDirectoryRow tenantDirectory(Long tenantId) {
+        return jdbc.query("""
+                SELECT tenant_id, code, name, default_locale, updated_at
+                  FROM com_tenants WHERE tenant_id = ?
+                """, (result, ignored) -> new TenantDirectoryRow(
+                        result.getLong("tenant_id"), result.getString("code"),
+                        result.getString("name"), result.getString("default_locale"),
+                        instant(result, "updated_at")), tenantId).stream().findFirst()
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    public RecoveryCoverageRow recoveryCoverage(Long tenantId, Instant now) {
+        return jdbc.query("""
+                SELECT COUNT(*) FILTER (WHERE lifecycle_state = 'ACTIVE') AS total,
+                       COUNT(*) FILTER (
+                           WHERE lifecycle_state = 'ACTIVE'
+                             AND verification_status = 'VERIFIED'
+                             AND verification_due_at > ?) AS verified,
+                       COUNT(*) FILTER (
+                           WHERE lifecycle_state = 'ACTIVE'
+                             AND verification_status IN ('VERIFIED', 'OVERDUE')
+                             AND verification_due_at <= ?) AS overdue,
+                       COUNT(*) FILTER (
+                           WHERE lifecycle_state = 'ACTIVE'
+                             AND verification_status = 'NOT_VERIFIED') AS not_verified,
+                       MAX(last_verified_at) FILTER (WHERE lifecycle_state = 'ACTIVE')
+                           AS freshest_verification_at
+                  FROM com_emergency_access_principals
+                 WHERE tenant_id = ?
+                """, (result, ignored) -> new RecoveryCoverageRow(
+                        result.getLong("total"), result.getLong("verified"),
+                        result.getLong("overdue"), result.getLong("not_verified"),
+                        instant(result, "freshest_verification_at")),
+                timestamp(now), timestamp(now), tenantId).stream().findFirst()
+                .orElse(new RecoveryCoverageRow(0, 0, 0, 0, null));
+    }
+
+    public UserPreferenceRow userPreference(Long tenantId, Long userId) {
+        return jdbc.query("""
+                SELECT user_record.user_id, user_record.preferred_locale,
+                       tenant.default_locale, user_record.version, user_record.updated_at
+                  FROM com_users user_record
+                  JOIN com_tenants tenant ON tenant.tenant_id = user_record.tenant_id
+                 WHERE user_record.tenant_id = ? AND user_record.user_id = ?
+                """, (result, ignored) -> new UserPreferenceRow(
+                        result.getLong("user_id"), result.getString("preferred_locale"),
+                        result.getString("default_locale"), result.getLong("version"),
+                        instant(result, "updated_at")), tenantId, userId).stream().findFirst()
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+    }
+
+    public UserPreferenceRow restorePreferredLocale(
+            Long tenantId, Long userId, long version, Long actorId, Instant now) {
+        int updated = jdbc.update("""
+                UPDATE com_users
+                   SET preferred_locale = NULL, version = version + 1,
+                       updated_at = ?, updated_by = ?
+                 WHERE tenant_id = ? AND user_id = ? AND version = ?
+                """, timestamp(now), actorId, tenantId, userId, version);
+        requireUpdated(updated);
+        return userPreference(tenantId, userId);
     }
 
     public TenantSettingsDtos.ChangeSet insertChangeSet(
@@ -248,7 +384,11 @@ public class TenantSettingsRepository {
                        direct.role_member_id::text AS source_id, NULL::text AS source_name,
                        'TENANT' AS scope_type, NULL::text AS scope_ref,
                        'ACTIVE' AS lifecycle_state, direct.created_at AS valid_from,
-                       NULL::timestamptz AS valid_to, role.privileged
+                       NULL::timestamptz AS valid_to, role.privileged,
+                       NULL::bigint AS requested_by, NULL::bigint AS approved_by,
+                       NULL::timestamptz AS approved_at,
+                       NULL::bigint AS activated_by, NULL::timestamptz AS activated_at,
+                       'NOT_APPLICABLE'::text AS approval_lineage_state
                   FROM com_role_members direct
                   JOIN com_roles role ON role.tenant_id = direct.tenant_id
                                      AND role.role_id = direct.role_id
@@ -259,7 +399,8 @@ public class TenantSettingsRepository {
                        assignment.group_role_assignment_id::text, group_record.display_name,
                        assignment.scope_type, assignment.scope_ref,
                        assignment.lifecycle_state, assignment.valid_from, assignment.valid_to,
-                       role.privileged
+                       role.privileged, NULL::bigint, NULL::bigint, NULL::timestamptz,
+                       NULL::bigint, NULL::timestamptz, 'NOT_APPLICABLE'::text
                   FROM com_group_members member
                   JOIN com_groups group_record ON group_record.tenant_id = member.tenant_id
                                               AND group_record.group_id = member.group_id
@@ -271,13 +412,16 @@ public class TenantSettingsRepository {
                  WHERE member.tenant_id = :tenantId AND member.user_id IN (:userIds)
                    AND group_record.status = 'ACTIVE' AND role.status = 'ACTIVE'
                    AND assignment.lifecycle_state = 'ACTIVE'
+                   AND assignment.assignment_type = 'ACTIVE'
                    AND (assignment.valid_from IS NULL OR assignment.valid_from <= CURRENT_TIMESTAMP)
                    AND (assignment.valid_to IS NULL OR assignment.valid_to > CURRENT_TIMESTAMP)
                 UNION ALL
                 SELECT grant_record.user_id, 'ROLE', role.code, role.name, 'PRIVILEGED',
                        grant_record.active_privileged_grant_id::text, 'Time-bound activation',
                        grant_record.scope_type, grant_record.scope_ref, 'ACTIVE',
-                       grant_record.activated_at, grant_record.expires_at, TRUE
+                       grant_record.activated_at, grant_record.expires_at, TRUE,
+                       NULL::bigint, NULL::bigint, NULL::timestamptz,
+                       NULL::bigint, grant_record.activated_at, 'ACTIVATED'::text
                   FROM com_active_privileged_grants grant_record
                   JOIN com_roles role ON role.tenant_id = grant_record.tenant_id
                                      AND role.role_id = grant_record.role_id
@@ -292,7 +436,15 @@ public class TenantSettingsRepository {
                        assignment.preset_code, 'RESOURCE_SET',
                        assignment.resource_set_id::text, assignment.lifecycle_state,
                        assignment.valid_from, assignment.valid_to,
-                       preset.risk_tier IN ('HIGH', 'CRITICAL')
+                       preset.risk_tier IN ('HIGH', 'CRITICAL'),
+                       assignment.requested_by, assignment.approved_by, assignment.approved_at,
+                       assignment.activated_by, assignment.activated_at,
+                       CASE assignment.lifecycle_state
+                           WHEN 'PENDING_APPROVAL' THEN 'REVIEW_PENDING'
+                           WHEN 'APPROVED' THEN 'ACTIVATION_PENDING'
+                           WHEN 'ACTIVE' THEN 'COMPLETE'
+                           ELSE 'CLOSED'
+                       END
                   FROM com_admin_app_preset_assignments assignment
                   JOIN sys_admin_app_preset_catalog preset
                     ON preset.preset_code = assignment.preset_code
@@ -310,7 +462,15 @@ public class TenantSettingsRepository {
                        group_record.display_name, 'RESOURCE_SET',
                        assignment.resource_set_id::text, assignment.lifecycle_state,
                        assignment.valid_from, assignment.valid_to,
-                       preset.risk_tier IN ('HIGH', 'CRITICAL')
+                       preset.risk_tier IN ('HIGH', 'CRITICAL'),
+                       assignment.requested_by, assignment.approved_by, assignment.approved_at,
+                       assignment.activated_by, assignment.activated_at,
+                       CASE assignment.lifecycle_state
+                           WHEN 'PENDING_APPROVAL' THEN 'REVIEW_PENDING'
+                           WHEN 'APPROVED' THEN 'ACTIVATION_PENDING'
+                           WHEN 'ACTIVE' THEN 'COMPLETE'
+                           ELSE 'CLOSED'
+                       END
                   FROM com_admin_app_preset_assignments assignment
                   JOIN sys_admin_app_preset_catalog preset
                     ON preset.preset_code = assignment.preset_code
@@ -323,6 +483,35 @@ public class TenantSettingsRepository {
                    AND member.group_id = group_record.group_id
                  WHERE assignment.tenant_id = :tenantId
                    AND member.user_id IN (:userIds)
+                   AND group_record.status = 'ACTIVE'
+                   AND assignment.lifecycle_state IN ('PENDING_APPROVAL', 'APPROVED', 'ACTIVE')
+                UNION ALL
+                SELECT user_record.user_id, 'APP_WORKFORCE', installation.product_key,
+                       installation.product_key, 'TENANT_APP_ASSIGNMENT',
+                       assignment.assignment_id::text, installation.app_resource_key,
+                       'APP' AS scope_type, installation.installation_id::text,
+                       CASE WHEN installation.lifecycle_state = 'ENABLED'
+                            THEN assignment.lifecycle_state
+                            ELSE 'BLOCKED_BY_INSTALLATION_' || installation.lifecycle_state
+                       END, assignment.valid_from, assignment.valid_to,
+                       FALSE, assignment.requested_by, assignment.approved_by,
+                       assignment.approved_at, assignment.activated_by,
+                       assignment.activated_at,
+                       CASE assignment.lifecycle_state
+                           WHEN 'PENDING_APPROVAL' THEN 'REVIEW_PENDING'
+                           WHEN 'APPROVED' THEN 'ACTIVATION_PENDING'
+                           WHEN 'ACTIVE' THEN 'COMPLETE'
+                           ELSE 'CLOSED'
+                       END
+                  FROM com_tenant_app_workforce_assignments assignment
+                  JOIN com_tenant_app_installations installation
+                    ON installation.tenant_id = assignment.tenant_id
+                   AND installation.installation_id = assignment.installation_id
+                  JOIN com_users user_record
+                    ON user_record.tenant_id = assignment.tenant_id
+                   AND user_record.user_id::text = assignment.principal_ref
+                 WHERE assignment.tenant_id = :tenantId
+                   AND user_record.user_id IN (:userIds)
                    AND assignment.lifecycle_state IN ('PENDING_APPROVAL', 'APPROVED', 'ACTIVE')
                  ORDER BY user_id, entitlement_type, entitlement_key, source_type
                 """, params, result -> {
@@ -341,9 +530,11 @@ public class TenantSettingsRepository {
                     UNION ALL SELECT MAX(updated_at) FROM com_group_role_assignments WHERE tenant_id = ?
                     UNION ALL SELECT MAX(updated_at) FROM com_active_privileged_grants WHERE tenant_id = ?
                     UNION ALL SELECT MAX(updated_at) FROM com_admin_app_preset_assignments WHERE tenant_id = ?
+                    UNION ALL SELECT MAX(updated_at) FROM com_tenant_app_workforce_assignments
+                        WHERE tenant_id = ?
                 ) sources
                 """, result -> result.next() ? instant(result, 1) : null,
-                tenantId, tenantId, tenantId, tenantId, tenantId, tenantId);
+                tenantId, tenantId, tenantId, tenantId, tenantId, tenantId, tenantId);
     }
 
     private TenantSettingsDtos.AccessGrant accessGrant(ResultSet result) throws SQLException {
@@ -355,7 +546,13 @@ public class TenantSettingsRepository {
                 result.getString("lifecycle_state"),
                 instant(result, "valid_from"),
                 instant(result, "valid_to"),
-                result.getBoolean("privileged"));
+                result.getBoolean("privileged"),
+                (Long) result.getObject("requested_by"),
+                (Long) result.getObject("approved_by"),
+                instant(result, "approved_at"),
+                (Long) result.getObject("activated_by"),
+                instant(result, "activated_at"),
+                result.getString("approval_lineage_state"));
     }
 
     private TenantSettingsDtos.ChangeSet changeSet(ResultSet result, int ignored)
@@ -382,7 +579,23 @@ public class TenantSettingsRepository {
                 instant(result, "published_at"),
                 result.getObject("publish_receipt_id", UUID.class), result.getLong("version"),
                 instant(result, "created_at"),
-                instant(result, "updated_at"));
+                instant(result, "updated_at"), List.of());
+    }
+
+    private TenantSettingsDtos.SsoTestLoginReceipt ssoTestLoginReceipt(
+            ResultSet result, int ignored) throws SQLException {
+        return new TenantSettingsDtos.SsoTestLoginReceipt(
+                result.getObject("test_login_job_id", UUID.class),
+                result.getString("provider_key"),
+                result.getString("lifecycle_state"),
+                result.getString("internal_prerequisite_state"),
+                result.getString("external_probe_state"),
+                strings(result.getString("blocking_reasons")),
+                result.getString("execution_boundary"),
+                result.getLong("requested_by"),
+                instant(result, "requested_at"),
+                instant(result, "completed_at"),
+                result.getString("receipt_sha256"));
     }
 
     private JsonNode tree(String value) {
@@ -452,5 +665,34 @@ public class TenantSettingsRepository {
             String status,
             boolean mfaEnabled,
             Instant updatedAt) {
+    }
+
+    public record TenantDirectoryRow(
+            Long tenantId,
+            String code,
+            String name,
+            String defaultLocale,
+            Instant updatedAt) {
+    }
+
+    public record RecoveryCoverageRow(
+            long total,
+            long verified,
+            long overdue,
+            long notVerified,
+            Instant freshestVerificationAt) {
+    }
+
+    public record UserPreferenceRow(
+            Long userId,
+            String preferredLocale,
+            String tenantDefaultLocale,
+            long version,
+            Instant updatedAt) {
+    }
+
+    public record SsoReceiptWrite(
+            TenantSettingsDtos.SsoTestLoginReceipt receipt,
+            boolean created) {
     }
 }

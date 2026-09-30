@@ -86,14 +86,14 @@ class HomeViewModeDeviceContractTest {
         when(viewRepository.findByTenantIdAndUserIdAndSurfaceKeyAndModeKeyOrderByUpdatedAtDesc(
                 7L, 11L, "workspace-home", "FLOW_V1")).thenReturn(List.of(view));
         when(revisionRepository
-                .findTop50ByViewIdAndTenantIdAndUserIdAndRestorableTrueOrderByRevisionNumberDesc(
+                .findTop51ByViewIdAndTenantIdAndUserIdAndRestorableTrueOrderByRevisionNumberDesc(
                 viewId, 7L, 11L)).thenReturn(List.of());
         when(deviceLayouts.findByViewIdAndTenantIdAndUserIdOrderByDeviceClass(
                 viewId, 7L, 11L)).thenReturn(List.of());
 
         assertThat(service.get(7L, 11L, viewId).viewId()).isEqualTo(viewId);
         assertThat(service.list(7L, 11L, "workspace-home", "FLOW_V1")).hasSize(1);
-        assertThat(service.revisions(7L, 11L, viewId)).isEmpty();
+        assertThat(service.revisions(7L, 11L, viewId).items()).isEmpty();
         assertThat(service.deviceLayouts(7L, 11L, viewId)).isEmpty();
         assertThatThrownBy(() -> service.update(
                 7L, 11L, viewId, UUID.randomUUID(), "corr",

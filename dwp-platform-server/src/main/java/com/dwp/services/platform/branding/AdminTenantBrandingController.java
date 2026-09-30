@@ -2,6 +2,7 @@ package com.dwp.services.platform.branding;
 
 import com.dwp.core.common.ApiResponse;
 import jakarta.validation.Valid;
+import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.http.CacheControl;
@@ -20,7 +21,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.concurrent.TimeUnit;
-import java.util.List;
 
 @Validated
 @RestController
@@ -88,9 +88,9 @@ public class AdminTenantBrandingController {
     }
 
     @GetMapping("/revisions")
-    public ApiResponse<List<TenantBrandingDtos.BrandingRevisionResponse>> history(
+    public ApiResponse<TenantBrandingDtos.BrandingRevisionPage> history(
             @RequestHeader(TENANT_HEADER) Long tenantId,
-            @RequestParam(defaultValue = "20") @Min(1) int limit) {
+            @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit) {
         return ApiResponse.success(service.history(tenantId, limit));
     }
 

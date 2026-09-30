@@ -4,8 +4,10 @@ import com.dwp.services.auth.dto.AppGovernanceDtos;
 import com.dwp.services.auth.dto.ProductAuthorizationContractDtos;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
 import com.dwp.services.auth.repository.ProductAuthorizationContractRepository;
+import com.dwp.services.auth.tenantcapabilityoverride.TenantCapabilityOverrideReader;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,27 +31,51 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
 
     private final ProductAuthorizationContractRepository repository;
     private final ProductAuthorizationIdentityEvidenceService evidenceService;
-    private final Clock clock;
+    private final ProductAuthorizationDecisionSupport decisionSupport;
     private final String requiredAcr;
-
     @Autowired
     public ProductAuthorizationAuthorityAdapter(
             ProductAuthorizationContractRepository repository,
             ProductAuthorizationIdentityEvidenceService evidenceService,
+            ObjectProvider<TenantCapabilityOverrideReader> tenantCapabilityOverrides,
             @Value("${dwp.auth.step-up.required-acr:}") String requiredAcr) {
-        this(repository, evidenceService, Clock.systemUTC(), requiredAcr);
+        this(repository, evidenceService,
+                ProductAuthorizationDecisionSupport.from(tenantCapabilityOverrides), requiredAcr);
     }
-
+    public ProductAuthorizationAuthorityAdapter(
+            ProductAuthorizationContractRepository repository,
+            ProductAuthorizationIdentityEvidenceService evidenceService,
+            String requiredAcr) {
+        this(repository, evidenceService,
+                ProductAuthorizationDecisionSupport.withoutOverrides(Clock.systemUTC()),
+                requiredAcr);
+    }
     ProductAuthorizationAuthorityAdapter(
             ProductAuthorizationContractRepository repository,
             ProductAuthorizationIdentityEvidenceService evidenceService,
             Clock clock, String requiredAcr) {
+        this(repository, evidenceService,
+                ProductAuthorizationDecisionSupport.withoutOverrides(clock), requiredAcr);
+    }
+    ProductAuthorizationAuthorityAdapter(
+            ProductAuthorizationContractRepository repository,
+            ProductAuthorizationIdentityEvidenceService evidenceService,
+            TenantCapabilityOverrideReader tenantCapabilityOverrides,
+            Clock clock, String requiredAcr) {
+        this(repository, evidenceService,
+                new ProductAuthorizationDecisionSupport(tenantCapabilityOverrides, clock),
+                requiredAcr);
+    }
+    private ProductAuthorizationAuthorityAdapter(
+            ProductAuthorizationContractRepository repository,
+            ProductAuthorizationIdentityEvidenceService evidenceService,
+            ProductAuthorizationDecisionSupport decisionSupport,
+            String requiredAcr) {
         this.repository = repository;
         this.evidenceService = evidenceService;
-        this.clock = clock;
+        this.decisionSupport = decisionSupport;
         this.requiredAcr = requiredAcr;
     }
-
     @Override
     @Transactional(readOnly = true)
     public ProductSurfaceAuthorityDtos.AuthorityResult evaluate(
@@ -73,9 +99,11 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 : evaluateEntry(request, registry, identity);
         String policyRevision = "policy-" + stored.version() + '-' + pointerRevision + '-'
                 + stored.checksum();
-        OffsetDateTime now = OffsetDateTime.now(clock);
+        String authorityContextRevision = decisionSupport.contextRevision(
+                request.tenantId(), policyRevision);
+        OffsetDateTime now = decisionSupport.now();
         OffsetDateTime revalidateAt = earliest(evaluation.validUntil(), now.plusSeconds(60));
-        String contextKey = contextKey(request, identity.revision(), policyRevision,
+        String contextKey = contextKey(request, identity.revision(), authorityContextRevision,
                 evaluation.scopes());
 
         boolean materialized = evaluation.allowed()
@@ -95,7 +123,7 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                     ProductSurfaceAuthorityDtos.Decision.SCOPE_INVALID,
                     "SCOPE_CONTEXT_EXPIRED");
         }
-        return result(request, identity.revision(), policyRevision, contextKey,
+        return decisionSupport.result(request, identity.revision(), policyRevision, contextKey,
                 revalidateAt, evaluation);
     }
 
@@ -573,6 +601,12 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                     ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED,
                     "CAPABILITY_NOT_REGISTERED");
         }
+        if (decisionSupport.capabilityDisabled(
+                request.tenantId(), capability.contractKey())) {
+            return Evaluation.denied(
+                    ProductSurfaceAuthorityDtos.Decision.SURFACE_DENIED,
+                    "TENANT_CAPABILITY_DISABLED");
+        }
         if (capability.requiresProductEntitlement()
                 && !hasProductEntitlement(request, registry, identity)) {
             return Evaluation.denied(
@@ -658,41 +692,6 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 ProductSurfaceAuthorityDtos.AccessSource.MANAGEMENT,
                 grants, scopes, readOnly, validUntil, false,
                 capability.resourceKey());
-    }
-
-    private ProductSurfaceAuthorityDtos.AuthorityResult result(
-            ProductSurfaceAuthorityDtos.EvaluateRequest request,
-            String authRevision,
-            String policyRevision,
-            String contextKey,
-            OffsetDateTime revalidateAt,
-            Evaluation evaluation) {
-        boolean materialized = evaluation.allowed()
-                || evaluation.decision()
-                == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED;
-        return new ProductSurfaceAuthorityDtos.AuthorityResult(
-                evaluation.decision(),
-                evaluation.reasonCode(),
-                authRevision,
-                policyRevision,
-                materialized ? contextKey : null,
-                request.productKey(),
-                request.surfaceKey(),
-                materialized ? plane(request.surfaceKey()) : null,
-                request.activeAccessMode(),
-                evaluation.accessSource(),
-                evaluation.appResourceKey(),
-                evaluation.grants(),
-                evaluation.scopes(),
-                evaluation.routeGrantRef(),
-                evaluation.effectiveReadOnly(),
-                evaluation.requiresProductEligibility(),
-                evaluation.validUntil(),
-                null,
-                evaluation.requiredAssurance(),
-                evaluation.requestPolicyRef(),
-                materialized ? revalidateAt : null,
-                "evidence-" + digest(authRevision + policyRevision).substring(0, 24));
     }
 
     private record EntryPolicyEvaluation(List<Evaluation> allowed, Evaluation typedDeny) {}

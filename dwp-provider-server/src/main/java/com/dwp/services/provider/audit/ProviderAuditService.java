@@ -165,6 +165,8 @@ public class ProviderAuditService {
         if (action.startsWith("provider.tenant")) return "TENANT_LIFECYCLE";
         if (action.startsWith("provider.data-governance.")) return "DATA_GOVERNANCE";
         if (action.startsWith("provider.feature-")) return "FEATURE_ROLLOUT";
+        if (action.startsWith("provider.artifact-governance.")) return "CHANGE_MANAGEMENT";
+        if (action.startsWith("provider.resource-governance.")) return "COMMERCIAL_GOVERNANCE";
         if (action.startsWith("provider.subscription-renewal.")) return "COMMERCIAL_GOVERNANCE";
         return "ADMINISTRATION";
     }

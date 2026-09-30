@@ -3,6 +3,7 @@ package com.dwp.services.auth.controller;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.services.auth.dto.IdentityAdminDtos;
 import com.dwp.services.auth.security.AuthenticatedUserResolver;
+import com.dwp.services.auth.security.TenantPermissionAuthorization;
 import com.dwp.services.auth.security.TenantContextResolver;
 import com.dwp.services.auth.service.IdentityAdminService;
 import com.dwp.services.auth.service.IdentityAuditService;
@@ -28,12 +29,15 @@ public class IdentityAdminController {
 
     private final IdentityAdminService identityAdminService;
     private final IdentityAuditService identityAuditService;
+    private final TenantPermissionAuthorization authorization;
 
     public IdentityAdminController(
             IdentityAdminService identityAdminService,
-            IdentityAuditService identityAuditService) {
+            IdentityAuditService identityAuditService,
+            TenantPermissionAuthorization authorization) {
         this.identityAdminService = identityAdminService;
         this.identityAuditService = identityAuditService;
+        this.authorization = authorization;
     }
 
     @GetMapping("/users")
@@ -43,9 +47,10 @@ public class IdentityAdminController {
             @RequestParam(required = false) String query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
+        authorization.require(
+                tenantId, actorId, TenantPermissionAuthorization.IDENTITY_DIRECTORY, "VIEW");
         return ApiResponse.success(identityAdminService.listUsers(
                 tenantId, actorId, query, page, size));
     }
@@ -54,9 +59,10 @@ public class IdentityAdminController {
     public ApiResponse<List<IdentityAdminDtos.RoleSummary>> roles(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
-        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
+        authorization.require(
+                tenantId, actorId, TenantPermissionAuthorization.IDENTITY_DIRECTORY, "VIEW");
         return ApiResponse.success(identityAdminService.listRoles(tenantId, actorId));
     }
 
@@ -67,9 +73,10 @@ public class IdentityAdminController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable Long userId,
             @Valid @RequestBody IdentityAdminDtos.ReplaceUserRolesRequest request) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
+        authorization.require(
+                tenantId, actorId, TenantPermissionAuthorization.IDENTITY_DIRECTORY, "MANAGE");
         return ApiResponse.success(identityAdminService.replaceRoles(
                 tenantId, actorId, correlationId, userId, request));
     }
@@ -80,8 +87,10 @@ public class IdentityAdminController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+        Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
+        authorization.require(
+                tenantId, actorId, TenantPermissionAuthorization.IDENTITY_DIRECTORY, "VIEW");
         return ApiResponse.success(identityAuditService.list(tenantId, page, size));
     }
 }

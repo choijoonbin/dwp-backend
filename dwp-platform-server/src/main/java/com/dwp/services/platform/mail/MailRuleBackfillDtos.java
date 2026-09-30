@@ -20,12 +20,7 @@ public final class MailRuleBackfillDtos {
             String previewFingerprint,
             @Size(max = 512)
             @Pattern(regexp = "^[A-Za-z0-9_-]+$")
-            String continuationToken) {
-
-        public Request(UUID requestId, String previewFingerprint) {
-            this(requestId, previewFingerprint, null);
-        }
-    }
+            String continuationToken) { }
 
     public record Preview(
             UUID accountId,
@@ -37,21 +32,7 @@ public final class MailRuleBackfillDtos {
             int matchedThreadCount,
             int plannedApplicationCount,
             boolean truncated,
-            OffsetDateTime generatedAt) {
-
-        public Preview(
-                UUID accountId,
-                String previewFingerprint,
-                int enabledRuleCount,
-                int scannedCount,
-                int matchedThreadCount,
-                int plannedApplicationCount,
-                boolean truncated,
-                OffsetDateTime generatedAt) {
-            this(accountId, null, null, previewFingerprint, enabledRuleCount, scannedCount,
-                    matchedThreadCount, plannedApplicationCount, truncated, generatedAt);
-        }
-    }
+            OffsetDateTime generatedAt) { }
 
     public record Result(
             UUID executionId,
@@ -64,21 +45,5 @@ public final class MailRuleBackfillDtos {
             int applicationCount,
             int changedCount,
             OffsetDateTime startedAt,
-            OffsetDateTime completedAt) {
-
-        Result asReplay() {
-            return new Result(
-                    executionId,
-                    requestId,
-                    accountId,
-                    status,
-                    true,
-                    scannedCount,
-                    matchedThreadCount,
-                    applicationCount,
-                    changedCount,
-                    startedAt,
-                    completedAt);
-        }
-    }
+            OffsetDateTime completedAt) { }
 }

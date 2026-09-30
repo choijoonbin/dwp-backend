@@ -83,6 +83,11 @@ record Evaluation(
                 || decision == ProductSurfaceAuthorityDtos.Decision.SUPPORT_SCOPE_DENIED) {
             return this;
         }
+        if ("TENANT_CAPABILITY_DISABLED".equals(reasonCode)) {
+            return denied(
+                    ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED,
+                    "TENANT_CAPABILITY_DISABLED");
+        }
         return denied(ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED,
                 "ROUTE_CAPABILITY_REQUIRED");
     }

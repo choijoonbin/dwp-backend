@@ -30,7 +30,6 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class ProductAuthorizationAuthorityAdapterTest {
-
     private static final Clock CLOCK = Clock.fixed(
             Instant.parse("2026-08-21T09:00:00Z"), ZoneOffset.UTC);
 
@@ -72,7 +71,8 @@ class ProductAuthorizationAuthorityAdapterTest {
         when(repository.findActivePointer("product-surfaces")).thenReturn(Optional.of(
                 new ProductAuthorizationContractRepository.ActivePointer(
                         "product-surfaces", bundleId, contract.version(), "release", now)));
-        adapter = new ProductAuthorizationAuthorityAdapter(repository, evidenceService, CLOCK, "urn:dwp:acr:mfa");
+        adapter = new ProductAuthorizationAuthorityAdapter(
+                repository, evidenceService, CLOCK, "urn:dwp:acr:mfa");
     }
 
     @Test

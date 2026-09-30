@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public interface HomeViewRevisionRepository extends JpaRepository<HomeViewRevision, UUID> {
     List<HomeViewRevision>
-    findTop50ByViewIdAndTenantIdAndUserIdAndRestorableTrueOrderByRevisionNumberDesc(
+    findTop51ByViewIdAndTenantIdAndUserIdAndRestorableTrueOrderByRevisionNumberDesc(
             UUID viewId, Long tenantId, Long userId);
     Optional<HomeViewRevision> findByRevisionIdAndViewIdAndTenantIdAndUserId(
             UUID revisionId, UUID viewId, Long tenantId, Long userId);

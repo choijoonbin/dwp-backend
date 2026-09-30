@@ -43,4 +43,18 @@ class AuthPolicyServiceTest {
         assertThat(response.getAllowedLoginTypes()).containsExactly("SSO");
         assertThat(response.getDefaultLoginType()).isEqualTo("SSO");
     }
+
+    @Test
+    void exposesTheCurrentTokenLifetimeForGovernedPolicyDrafts() {
+        AuthPolicyRepository repository = mock(AuthPolicyRepository.class);
+        when(repository.findByTenantId(7L)).thenReturn(Optional.of(AuthPolicy.builder()
+                .tenantId(7L)
+                .tokenTtlSec(3600)
+                .build()));
+        when(repository.findAllowedLoginTypes(7L)).thenReturn(List.of("LOCAL"));
+
+        AuthPolicyResponse response = new AuthPolicyService(repository).getPolicy(7L);
+
+        assertThat(response.getTokenTtlSec()).isEqualTo(3600);
+    }
 }

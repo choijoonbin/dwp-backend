@@ -15,7 +15,6 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -35,7 +34,7 @@ public class HomeTemplateController {
     }
 
     @GetMapping
-    public ApiResponse<List<HomeTemplateDtos.HomeTemplateResponse>> list(
+    public ApiResponse<HomeTemplateDtos.HomeTemplatePage> list(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(value = PERMISSIONS, required = false) String permissions,
             @RequestHeader(value = ROLES, required = false) String roles) {
@@ -53,7 +52,7 @@ public class HomeTemplateController {
     }
 
     @GetMapping("/{templateId}/revisions")
-    public ApiResponse<List<HomeTemplateDtos.HomeTemplateRevisionResponse>> revisions(
+    public ApiResponse<HomeTemplateDtos.HomeTemplateRevisionPage> revisions(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(PERMISSIONS) String permissions,
             @PathVariable UUID templateId) {

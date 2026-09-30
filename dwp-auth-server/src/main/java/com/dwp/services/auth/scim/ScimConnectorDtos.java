@@ -71,6 +71,17 @@ public final class ScimConnectorDtos {
             Instant occurredAt) {
     }
 
+    public record ProvisioningEventPage(
+            List<ProvisioningEvent> items,
+            int limit,
+            boolean hasMore,
+            String coverageState) {
+
+        public ProvisioningEventPage {
+            items = List.copyOf(items);
+        }
+    }
+
     public record CredentialIssued(ConnectorSummary connector, String bearerToken) {
     }
 }

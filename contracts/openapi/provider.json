@@ -128,6 +128,19 @@
         ],
         "type": "object"
       },
+      "ActiveOverride": {
+        "properties": {
+          "changeRequestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "AdministratorInvitationConflictError": {
         "additionalProperties": false,
         "properties": {
@@ -188,6 +201,87 @@
           },
           "data": {
             "$ref": "#/components/schemas/AccessRequestLedgerItem"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseArtifactManifest": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ArtifactManifest"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseArtifactRolloutEvidence": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ArtifactRolloutEvidence"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseArtifactRolloutPlan": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ArtifactRolloutPlan"
           },
           "errorCode": {
             "type": "string"
@@ -316,6 +410,33 @@
         },
         "type": "object"
       },
+      "ApiResponseDataGovernanceProjection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DataGovernanceProjection"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseDomainChallenge": {
         "properties": {
           "correlationId": {
@@ -323,6 +444,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/DomainChallenge"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseDomainProjection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/DomainProjection"
           },
           "errorCode": {
             "type": "string"
@@ -532,6 +680,60 @@
         },
         "type": "object"
       },
+      "ApiResponseLedgerEntry": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LedgerEntry"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseLedgerPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/LedgerPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListAccessRequestLedgerItem": {
         "properties": {
           "correlationId": {
@@ -562,6 +764,66 @@
         },
         "type": "object"
       },
+      "ApiResponseListArtifactManifest": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactManifest"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListArtifactRolloutPlan": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRolloutPlan"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListAuditEventSummary": {
         "properties": {
           "correlationId": {
@@ -570,6 +832,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/AuditEventSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListCommitment": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/Commitment"
             },
             "type": "array"
           },
@@ -772,6 +1064,36 @@
         },
         "type": "object"
       },
+      "ApiResponseListResourceCommitmentChange": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/ResourceCommitmentChange"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseListRollout": {
         "properties": {
           "correlationId": {
@@ -870,6 +1192,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/SupportScopeSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListTenantLifecycleRequest": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/TenantLifecycleRequest"
             },
             "type": "array"
           },
@@ -1054,6 +1406,33 @@
         },
         "type": "object"
       },
+      "ApiResponsePlanEligibilityProjection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PlanEligibilityProjection"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponsePolicy": {
         "properties": {
           "correlationId": {
@@ -1115,6 +1494,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/Resolution"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseResourceCommitmentChange": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ResourceCommitmentChange"
           },
           "errorCode": {
             "type": "string"
@@ -1378,6 +1784,33 @@
         },
         "type": "object"
       },
+      "ApiResponseTenantLifecycleRequest": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TenantLifecycleRequest"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseTenantSummary": {
         "properties": {
           "correlationId": {
@@ -1455,6 +1888,79 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "AppendArtifactEvidenceRequest": {
+        "properties": {
+          "evidence": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "evidenceState": {
+            "minLength": 1,
+            "pattern": "PASSED|FAILED|INCONCLUSIVE|NOT_DISPATCHED",
+            "type": "string"
+          },
+          "evidenceType": {
+            "minLength": 1,
+            "pattern": "COMPATIBILITY|PRE_FLIGHT|OBSERVATION|ROLLBACK_FEASIBILITY|MANUAL_RECEIPT",
+            "type": "string"
+          }
+        },
+        "required": [
+          "evidence",
+          "evidenceState",
+          "evidenceType"
+        ],
+        "type": "object"
+      },
+      "AppendLedgerEntryRequest": {
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "currencyCode": {
+            "pattern": "^[A-Z]{3}$",
+            "type": "string"
+          },
+          "entryType": {
+            "minLength": 1,
+            "pattern": "ALLOCATE|RELEASE|METER|ADJUST|BUDGET_RESERVE|BUDGET_RELEASE|BUDGET_SPEND",
+            "type": "string"
+          },
+          "evidenceRef": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "unit": {
+            "minLength": 1,
+            "pattern": "SEAT|GIB|REQUEST|CURRENCY_MINOR|COUNT",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount",
+          "entryType",
+          "evidenceRef",
+          "idempotencyKey",
+          "occurredAt",
+          "reason",
+          "unit"
+        ],
         "type": "object"
       },
       "ApplicationStatus": {
@@ -1583,6 +2089,404 @@
         },
         "required": [
           "decision",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ArtifactCapabilityDelta": {
+        "properties": {
+          "added": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "increased": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "removed": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "ArtifactClientCompatibility": {
+        "properties": {
+          "clientType": {
+            "type": "string"
+          },
+          "minimumVersion": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ArtifactCompatibilitySummary": {
+        "properties": {
+          "capabilities": {
+            "$ref": "#/components/schemas/ArtifactCapabilityDelta"
+          },
+          "clients": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactClientCompatibility"
+            },
+            "type": "array"
+          },
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactDependencyCompatibility"
+            },
+            "type": "array"
+          },
+          "rollbackReadiness": {
+            "$ref": "#/components/schemas/RollbackReadiness"
+          },
+          "schema": {
+            "$ref": "#/components/schemas/ArtifactSchemaCompatibility"
+          }
+        },
+        "type": "object"
+      },
+      "ArtifactDependencyCompatibility": {
+        "properties": {
+          "dependencyKey": {
+            "type": "string"
+          },
+          "observedVersion": {
+            "type": "string"
+          },
+          "requiredVersion": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ArtifactManifest": {
+        "properties": {
+          "artifactId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "artifactType": {
+            "type": "string"
+          },
+          "artifactVersion": {
+            "type": "string"
+          },
+          "compatibility": {
+            "$ref": "#/components/schemas/ArtifactCompatibilitySummary"
+          },
+          "compatibilityEvidence": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "compatibilityPolicy": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "compatibilityState": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "declaredDigest": {
+            "type": "string"
+          },
+          "distributionState": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "manifestSchemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "productKey": {
+            "type": "string"
+          },
+          "reviews": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactReview"
+            },
+            "type": "array"
+          },
+          "signatureState": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ArtifactReview": {
+        "properties": {
+          "artifactId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "decision": {
+            "type": "string"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "reviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "reviewedBy": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ArtifactReviewDecisionRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVED|RETURNED",
+            "type": "string"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "evidence",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ArtifactRolloutDecisionRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVED|REJECTED",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "ArtifactRolloutEvidence": {
+        "properties": {
+          "evidence": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "evidenceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "evidenceState": {
+            "type": "string"
+          },
+          "evidenceType": {
+            "type": "string"
+          },
+          "recordedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recordedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rolloutPlanId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ArtifactRolloutPlan": {
+        "properties": {
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "artifactId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "artifactVersion": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "evidence": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRolloutEvidence"
+            },
+            "type": "array"
+          },
+          "executorState": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "productKey": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "rollbackFeasibility": {
+            "type": "string"
+          },
+          "rollbackPlan": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "rollbackReadiness": {
+            "$ref": "#/components/schemas/RollbackReadiness"
+          },
+          "rolloutPlanId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stages": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "targetScope": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ArtifactSchemaCompatibility": {
+        "properties": {
+          "currentVersion": {
+            "type": "string"
+          },
+          "migrationState": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          },
+          "targetVersion": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AssessArtifactCompatibilityRequest": {
+        "properties": {
+          "compatibilityState": {
+            "minLength": 1,
+            "pattern": "COMPATIBLE|REVIEW_REQUIRED|BLOCKED",
+            "type": "string"
+          },
+          "evidence": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "compatibilityState",
+          "evidence",
           "reason"
         ],
         "type": "object"
@@ -1840,6 +2744,9 @@
             },
             "type": "array"
           },
+          "actionQueueHasMore": {
+            "type": "boolean"
+          },
           "activeIncidents": {
             "format": "int64",
             "type": "integer"
@@ -1920,6 +2827,200 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "Commitment": {
+        "properties": {
+          "activeOverride": {
+            "$ref": "#/components/schemas/ActiveOverride"
+          },
+          "budgetLimit": {
+            "type": "number"
+          },
+          "controlMode": {
+            "type": "string"
+          },
+          "controlPeriod": {
+            "$ref": "#/components/schemas/ControlPeriod"
+          },
+          "controlScope": {
+            "type": "string"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "externalFeedState": {
+            "type": "string"
+          },
+          "internalEvidenceFreshness": {
+            "$ref": "#/components/schemas/InternalEvidenceFreshness"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "providerTenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "quotaLimit": {
+            "type": "number"
+          },
+          "resourceKey": {
+            "type": "string"
+          },
+          "sourceSystem": {
+            "type": "string"
+          },
+          "tenantDisplayName": {
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          },
+          "totals": {
+            "$ref": "#/components/schemas/LedgerTotals"
+          },
+          "unit": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CommitmentDefinition": {
+        "properties": {
+          "budgetLimit": {
+            "type": "number"
+          },
+          "controlMode": {
+            "type": "string"
+          },
+          "controlPeriodEndsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "controlPeriodStartsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "quotaLimit": {
+            "type": "number"
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ControlPeriod": {
+        "properties": {
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateArtifactManifestRequest": {
+        "properties": {
+          "artifactType": {
+            "minLength": 1,
+            "pattern": "WEB_APP|SERVICE|WORKER|SCHEMA|CONFIG_BUNDLE",
+            "type": "string"
+          },
+          "artifactVersion": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "compatibilityPolicy": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "declaredDigest": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "manifest": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "manifestSchemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "productKey": {
+            "minLength": 1,
+            "pattern": "^[a-z][a-z0-9._-]{2,119}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "artifactType",
+          "artifactVersion",
+          "compatibilityPolicy",
+          "manifest",
+          "productKey"
+        ],
+        "type": "object"
+      },
+      "CreateArtifactRolloutPlanRequest": {
+        "properties": {
+          "artifactId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "rollbackFeasibility": {
+            "minLength": 1,
+            "pattern": "DECLARED|NOT_DECLARED|UNAVAILABLE",
+            "type": "string"
+          },
+          "rollbackPlan": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "stages": {
+            "$ref": "#/components/schemas/JsonNode"
+          },
+          "targetScope": {
+            "$ref": "#/components/schemas/JsonNode"
+          }
+        },
+        "required": [
+          "artifactId",
+          "name",
+          "reason",
+          "rollbackFeasibility",
+          "stages",
+          "targetScope"
+        ],
         "type": "object"
       },
       "CreateDomainRequest": {
@@ -2207,6 +3308,48 @@
         ],
         "type": "object"
       },
+      "CreateResourceCommitmentChangeRequest": {
+        "properties": {
+          "baselineCommitmentVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "changeKind": {
+            "minLength": 1,
+            "pattern": "CONTRACT_CHANGE|TEMPORARY_OVERRIDE",
+            "type": "string"
+          },
+          "commercialRenewalRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "overrideExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/UpsertCommitmentRequest"
+          },
+          "requestKey": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "changeKind",
+          "justification",
+          "proposed",
+          "requestKey"
+        ],
+        "type": "object"
+      },
       "CreateRevisionRequest": {
         "properties": {
           "effectiveFrom": {
@@ -2417,6 +3560,25 @@
         ],
         "type": "object"
       },
+      "CreateTenantLifecycleRequest": {
+        "properties": {
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "requestedAction": {
+            "minLength": 1,
+            "pattern": "RETIRE|PURGE",
+            "type": "string"
+          }
+        },
+        "required": [
+          "justification",
+          "requestedAction"
+        ],
+        "type": "object"
+      },
       "DataAsset": {
         "properties": {
           "assetKey": {
@@ -2502,6 +3664,46 @@
           "totalBytes": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DataGovernanceProjection": {
+        "properties": {
+          "coverageState": {
+            "type": "string"
+          },
+          "exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "observationState": {
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ownerService": {
+            "type": "string"
+          },
+          "policies": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyObservation"
+            },
+            "type": "array"
+          },
+          "sourceLastChangedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "tenantLifecycleHoldObservations": {
+            "items": {
+              "$ref": "#/components/schemas/TenantLifecycleHoldObservation"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -2724,6 +3926,83 @@
             "type": "string"
           },
           "recordValue": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "DomainObservation": {
+        "properties": {
+          "domainId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "domainName": {
+            "type": "string"
+          },
+          "domainType": {
+            "type": "string"
+          },
+          "evidenceFreshnessState": {
+            "type": "string"
+          },
+          "lastCheckedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "primaryDomain": {
+            "type": "boolean"
+          },
+          "sourceChangedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "verificationMethod": {
+            "type": "string"
+          },
+          "verificationState": {
+            "type": "string"
+          },
+          "verifiedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "DomainProjection": {
+        "properties": {
+          "coverageState": {
+            "type": "string"
+          },
+          "domains": {
+            "items": {
+              "$ref": "#/components/schemas/DomainObservation"
+            },
+            "type": "array"
+          },
+          "exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "observationState": {
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ownerService": {
+            "type": "string"
+          },
+          "sourceLastChangedAt": {
+            "format": "date-time",
             "type": "string"
           }
         },
@@ -3317,6 +4596,26 @@
         },
         "type": "object"
       },
+      "InternalEvidenceFreshness": {
+        "properties": {
+          "entryCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "latestOccurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "latestRecordedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "IssueAdministratorInvitationRequest": {
         "properties": {
           "expiresInMinutes": {
@@ -3338,6 +4637,125 @@
         "type": "object"
       },
       "JsonNode": {},
+      "LedgerEntry": {
+        "properties": {
+          "amount": {
+            "type": "number"
+          },
+          "controlPeriodEndsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "controlPeriodStartsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currencyCode": {
+            "type": "string"
+          },
+          "entryType": {
+            "type": "string"
+          },
+          "evidenceRef": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "ledgerEntryId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "providerTenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "recordedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "recordedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "resourceKey": {
+            "type": "string"
+          },
+          "unit": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LedgerPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/LedgerEntry"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "LedgerTotals": {
+        "properties": {
+          "adjusted": {
+            "type": "number"
+          },
+          "allocated": {
+            "type": "number"
+          },
+          "allocationBalance": {
+            "type": "number"
+          },
+          "budgetControlState": {
+            "type": "string"
+          },
+          "budgetReleased": {
+            "type": "number"
+          },
+          "budgetReservationBalance": {
+            "type": "number"
+          },
+          "budgetReserved": {
+            "type": "number"
+          },
+          "budgetSpentInternalEvidence": {
+            "type": "number"
+          },
+          "meteredInternalEvidence": {
+            "type": "number"
+          },
+          "quotaControlState": {
+            "type": "string"
+          },
+          "released": {
+            "type": "number"
+          },
+          "remainingBudget": {
+            "type": "number"
+          },
+          "remainingQuota": {
+            "type": "number"
+          }
+        },
+        "type": "object"
+      },
       "LifecycleRequest": {
         "properties": {
           "justification": {
@@ -3908,6 +5326,73 @@
         },
         "type": "object"
       },
+      "PlanEligibilityProjection": {
+        "properties": {
+          "coverageState": {
+            "type": "string"
+          },
+          "exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "observationState": {
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "ownerService": {
+            "type": "string"
+          },
+          "plan": {
+            "$ref": "#/components/schemas/PlanObservation"
+          },
+          "products": {
+            "items": {
+              "$ref": "#/components/schemas/ProductEligibilityObservation"
+            },
+            "type": "array"
+          },
+          "sourceLastChangedAt": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PlanObservation": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "endsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "planKey": {
+            "type": "string"
+          },
+          "planVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sourceVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "startsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "subscriptionState": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Policy": {
         "properties": {
           "description": {
@@ -3947,6 +5432,87 @@
           "version": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyObservation": {
+        "properties": {
+          "coverage": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveState": {
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "evidenceState": {
+            "type": "string"
+          },
+          "freshnessState": {
+            "type": "string"
+          },
+          "impactFingerprint": {
+            "type": "string"
+          },
+          "legalHoldActive": {
+            "type": "boolean"
+          },
+          "ownerService": {
+            "type": "string"
+          },
+          "policyType": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "retentionDays": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "revisionNumber": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sourceChangedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sourceVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ProductEligibilityObservation": {
+        "properties": {
+          "appResourceKey": {
+            "type": "string"
+          },
+          "eligibilityState": {
+            "type": "string"
+          },
+          "entitlementKey": {
+            "type": "string"
+          },
+          "entitlementType": {
+            "type": "string"
+          },
+          "productKey": {
+            "type": "string"
+          },
+          "sourceChangedAt": {
+            "format": "date-time",
+            "type": "string"
           }
         },
         "type": "object"
@@ -4110,6 +5676,9 @@
             },
             "type": "array"
           },
+          "driftFindingsHasMore": {
+            "type": "boolean"
+          },
           "exhaustedObjectives": {
             "format": "int64",
             "type": "integer"
@@ -4127,6 +5696,9 @@
               "$ref": "#/components/schemas/MaintenanceWindowSummary"
             },
             "type": "array"
+          },
+          "maintenanceWindowsHasMore": {
+            "type": "boolean"
           },
           "objectives": {
             "items": {
@@ -4218,6 +5790,121 @@
             "$ref": "#/components/schemas/ScopeTarget"
           }
         },
+        "type": "object"
+      },
+      "ResourceCommitmentChange": {
+        "properties": {
+          "baseline": {
+            "$ref": "#/components/schemas/CommitmentDefinition"
+          },
+          "baselineCommitmentVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "changeKind": {
+            "type": "string"
+          },
+          "changeRequestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "commercialRenewalRevisionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "decidedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decidedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "decisionDueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "justification": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "overrideExpiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "proposed": {
+            "$ref": "#/components/schemas/CommitmentDefinition"
+          },
+          "providerTenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reservationState": {
+            "type": "string"
+          },
+          "resourceKey": {
+            "type": "string"
+          },
+          "tenantDisplayName": {
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ResourceCommitmentChangeDecisionRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVED|REJECTED",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "reason"
+        ],
         "type": "object"
       },
       "RetryOperationRequest": {
@@ -4345,6 +6032,23 @@
         ],
         "type": "object"
       },
+      "RollbackReadiness": {
+        "properties": {
+          "executionBoundary": {
+            "type": "string"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Rollout": {
         "properties": {
           "activatedAt": {
@@ -4461,6 +6165,10 @@
       },
       "ServiceHealthOverview": {
         "properties": {
+          "activeIncidentCount": {
+            "format": "int64",
+            "type": "integer"
+          },
           "cells": {
             "items": {
               "$ref": "#/components/schemas/CellPosture"
@@ -4492,6 +6200,9 @@
               "$ref": "#/components/schemas/ServiceIncidentSummary"
             },
             "type": "array"
+          },
+          "incidentsHasMore": {
+            "type": "boolean"
           },
           "operatingState": {
             "type": "string"
@@ -5476,6 +7187,144 @@
         },
         "type": "object"
       },
+      "TenantLifecycleDecisionRequest": {
+        "properties": {
+          "decision": {
+            "minLength": 1,
+            "pattern": "APPROVED|REJECTED",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "decision",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "TenantLifecycleHoldObservation": {
+        "properties": {
+          "evidenceReferenceCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "evidenceState": {
+            "type": "string"
+          },
+          "executionState": {
+            "type": "string"
+          },
+          "freshnessState": {
+            "type": "string"
+          },
+          "holdEvaluationState": {
+            "type": "string"
+          },
+          "lifecycleRequestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "requestedAction": {
+            "type": "string"
+          },
+          "sourceChangedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sourceVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "TenantLifecycleRequest": {
+        "properties": {
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "executionState": {
+            "type": "string"
+          },
+          "holdEvaluationState": {
+            "type": "string"
+          },
+          "holdEvidenceRefs": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "justification": {
+            "type": "string"
+          },
+          "lifecycleRequestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "providerTenantId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestedAction": {
+            "type": "string"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "submittedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tenantDisplayName": {
+            "type": "string"
+          },
+          "tenantKey": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "TenantSummary": {
         "properties": {
           "administratorPosture": {
@@ -5603,6 +7452,58 @@
         ],
         "type": "object"
       },
+      "UpsertCommitmentRequest": {
+        "properties": {
+          "budgetLimit": {
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "controlMode": {
+            "minLength": 1,
+            "pattern": "SOFT_ALERT|HARD_BLOCK",
+            "type": "string"
+          },
+          "controlPeriodEndsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "controlPeriodStartsAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "currencyCode": {
+            "pattern": "^[A-Z]{3}$",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "minLength": 1,
+            "pattern": "ACTIVE|SUSPENDED|RETIRED",
+            "type": "string"
+          },
+          "quotaLimit": {
+            "minimum": 0.0,
+            "type": "number"
+          },
+          "unit": {
+            "minLength": 1,
+            "pattern": "SEAT|GIB|REQUEST|CURRENCY_MINOR|COUNT",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "controlMode",
+          "controlPeriodEndsAt",
+          "controlPeriodStartsAt",
+          "lifecycleState",
+          "unit"
+        ],
+        "type": "object"
+      },
       "ValidationContract": {
         "properties": {
           "ownerRevalidatesOnWrite": {
@@ -5690,7 +7591,7 @@
       "VersionedReasonRequest": {
         "properties": {
           "reason": {
-            "maxLength": 1200,
+            "maxLength": 1000,
             "minLength": 0,
             "type": "string"
           },
@@ -5832,6 +7733,465 @@
         },
         "tags": [
           "provider-support-access-controller"
+        ]
+      }
+    },
+    "/v1/admin/artifact-governance/manifests": {
+      "get": {
+        "operationId": "artifacts",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListArtifactManifest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createArtifact",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateArtifactManifestRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseArtifactManifest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/artifact-governance/manifests/{artifactId}/compatibility": {
+      "post": {
+        "operationId": "assessArtifactCompatibility",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "artifactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssessArtifactCompatibilityRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseArtifactManifest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/artifact-governance/manifests/{artifactId}/review": {
+      "post": {
+        "operationId": "decideArtifact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "artifactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactReviewDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseArtifactManifest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/artifact-governance/manifests/{artifactId}/submit": {
+      "post": {
+        "operationId": "submitArtifact",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "artifactId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseArtifactManifest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/artifact-governance/rollout-plans": {
+      "get": {
+        "operationId": "plans",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListArtifactRolloutPlan"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createPlan",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateArtifactRolloutPlanRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseArtifactRolloutPlan"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/artifact-governance/rollout-plans/{planId}/approval": {
+      "post": {
+        "operationId": "decidePlan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "planId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArtifactRolloutDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseArtifactRolloutPlan"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/artifact-governance/rollout-plans/{planId}/evidence": {
+      "post": {
+        "operationId": "appendPlanEvidence",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "planId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendArtifactEvidenceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseArtifactRolloutEvidence"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/artifact-governance/rollout-plans/{planId}/ready": {
+      "post": {
+        "operationId": "markPlanReady",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "planId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseArtifactRolloutPlan"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/artifact-governance/rollout-plans/{planId}/submit": {
+      "post": {
+        "operationId": "submitPlan",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "planId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseArtifactRolloutPlan"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
         ]
       }
     },
@@ -7442,6 +9802,559 @@
         ]
       }
     },
+    "/v1/admin/resource-governance/commitment-changes": {
+      "get": {
+        "operationId": "resourceChanges",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenantId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListResourceCommitmentChange"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/resource-governance/commitment-changes/{changeRequestId}/decision": {
+      "post": {
+        "operationId": "decideResourceChange",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "changeRequestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResourceCommitmentChangeDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseResourceCommitmentChange"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/resource-governance/commitment-changes/{changeRequestId}/publish": {
+      "post": {
+        "operationId": "publishResourceChange",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "changeRequestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseResourceCommitmentChange"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/resource-governance/commitments": {
+      "get": {
+        "operationId": "commitments",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenantId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListCommitment"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/resource-governance/lifecycle-requests": {
+      "get": {
+        "operationId": "lifecycleRequests",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "tenantId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListTenantLifecycleRequest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/resource-governance/lifecycle-requests/{requestId}/decision": {
+      "post": {
+        "operationId": "decideLifecycleRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TenantLifecycleDecisionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantLifecycleRequest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/resource-governance/lifecycle-requests/{requestId}/refresh-hold": {
+      "post": {
+        "operationId": "refreshLifecycleHold",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantLifecycleRequest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/resource-governance/lifecycle-requests/{requestId}/submit": {
+      "post": {
+        "operationId": "submitLifecycleRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantLifecycleRequest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/resource-governance/tenants/{tenantId}/commitments/{resourceKey}/changes": {
+      "post": {
+        "operationId": "createResourceChange",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resourceKey",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9._-]{2,119}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateResourceCommitmentChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseResourceCommitmentChange"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/resource-governance/tenants/{tenantId}/commitments/{resourceKey}/ledger": {
+      "get": {
+        "operationId": "ledger",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resourceKey",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9._-]{2,119}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "maximum": 250,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLedgerPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      },
+      "post": {
+        "operationId": "appendLedger",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "resourceKey",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z][a-z0-9._-]{2,119}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AppendLedgerEntryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseLedgerEntry"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/resource-governance/tenants/{tenantId}/lifecycle-requests": {
+      "post": {
+        "operationId": "createLifecycleRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "tenantId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTenantLifecycleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantLifecycleRequest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
     "/v1/admin/service-health": {
       "get": {
         "operationId": "serviceHealth",
@@ -8655,6 +11568,66 @@
         },
         "tags": [
           "provider-control-plane-controller"
+        ]
+      }
+    },
+    "/v1/tenant/settings/data-governance-observation": {
+      "get": {
+        "operationId": "dataGovernance",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDataGovernanceProjection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "tenant-owner-projection-controller"
+        ]
+      }
+    },
+    "/v1/tenant/settings/plan-eligibility": {
+      "get": {
+        "operationId": "planEligibility",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePlanEligibilityProjection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "tenant-owner-projection-controller"
+        ]
+      }
+    },
+    "/v1/tenant/settings/provider-domains": {
+      "get": {
+        "operationId": "domains",
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseDomainProjection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "tenant-owner-projection-controller"
         ]
       }
     }

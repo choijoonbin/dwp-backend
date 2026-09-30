@@ -1819,26 +1819,6 @@ class AdminMailCompletionRepository {
             String payloadSha256,
             int itemCount,
             boolean truncated,
-            OffsetDateTime snapshotCutoff) {
-        return insertExport(
-                exportId, tenantId, actorId, filters, purpose, watermark, key,
-                expiresAt, snapshotPayload, payloadSha256, itemCount, truncated,
-                snapshotCutoff, "DELIVERY_AUDIT", Map.of(), null, null);
-    }
-
-    Optional<UUID> insertExport(
-            UUID exportId,
-            long tenantId,
-            long actorId,
-            Map<String, Object> filters,
-            String purpose,
-            String watermark,
-            UUID key,
-            OffsetDateTime expiresAt,
-            String snapshotPayload,
-            String payloadSha256,
-            int itemCount,
-            boolean truncated,
             OffsetDateTime snapshotCutoff,
             String exportKind,
             Map<String, Object> exportScope,
@@ -2353,20 +2333,7 @@ class AdminMailCompletionRepository {
                      String payloadSha256, Integer itemCount, Boolean truncated,
                      OffsetDateTime snapshotCutoff, String exportKind,
                      Map<String, Object> exportScope, Long policyVersion,
-                     int requiredApprovals, String requestFingerprint) {
-        ExportRow(
-                UUID id, long actorId, Map<String, Object> filters, String purpose,
-                String state, String storageReference, String watermark,
-                UUID idempotencyKey, OffsetDateTime createdAt,
-                OffsetDateTime expiresAt, String snapshotPayload,
-                String payloadSha256, Integer itemCount, Boolean truncated,
-                OffsetDateTime snapshotCutoff) {
-            this(id, actorId, filters, purpose, state, storageReference, watermark,
-                    idempotencyKey, createdAt, expiresAt, snapshotPayload,
-                    payloadSha256, itemCount, truncated, snapshotCutoff,
-                    "DELIVERY_AUDIT", Map.of(), null, 1, null);
-        }
-    }
+                     int requiredApprovals, String requestFingerprint) { }
     record ExportApprovalRow(UUID id, UUID exportId, long approverUserId,
                              String decision, String requestFingerprint,
                              OffsetDateTime decidedAt) { }

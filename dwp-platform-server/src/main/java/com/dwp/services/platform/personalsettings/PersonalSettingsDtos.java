@@ -42,7 +42,19 @@ public final class PersonalSettingsDtos {
 
     public record Workspace(
             List<Favorite> favorites,
-            List<Activity> recentActivity) {
+            List<Activity> recentActivity,
+            WorkspaceObservation observation) {
+    }
+
+    public record WorkspaceObservation(
+            String sourceState,
+            String freshnessState,
+            LocalDateTime observedAt,
+            LocalDateTime lastChangeAt,
+            LocalDateTime lastConfirmedAt,
+            LocalDateTime reviewDueAt,
+            long version,
+            String offlineBehavior) {
     }
 
     public record Consent(
@@ -56,7 +68,12 @@ public final class PersonalSettingsDtos {
 
     public record ConsentLedger(
             Consent currentProductAnalytics,
-            List<Consent> history) {
+            List<Consent> history,
+            boolean historyHasMore,
+            int historyLimit,
+            List<String> coveredPurposes,
+            String coverageState,
+            String coverageBoundary) {
     }
 
     public record UpdateConsentRequest(
@@ -78,6 +95,16 @@ public final class PersonalSettingsDtos {
         }
     }
 
+    public record PrivacyRequestPage(
+            List<PrivacyRequest> items,
+            boolean hasMore,
+            int limit) {
+
+        public PrivacyRequestPage {
+            items = List.copyOf(items);
+        }
+    }
+
     public record PrivacyRequest(
             UUID requestId,
             String requestType,
@@ -88,7 +115,32 @@ public final class PersonalSettingsDtos {
             String fulfillmentBoundary,
             long version,
             LocalDateTime createdAt,
-            LocalDateTime updatedAt) {
+            LocalDateTime updatedAt,
+            PrivacyRequestReceipt receipt,
+            List<PrivacyRequestEvent> lifecycle,
+            boolean lifecycleHasMore,
+            int lifecycleLimit) {
+
+        public PrivacyRequest {
+            lifecycle = List.copyOf(lifecycle);
+        }
+    }
+
+    public record PrivacyRequestReceipt(
+            UUID receiptId,
+            String receiptType,
+            String evidenceState,
+            String fulfillmentBoundary,
+            String requestFingerprint,
+            LocalDateTime issuedAt) {
+    }
+
+    public record PrivacyRequestEvent(
+            UUID eventId,
+            String eventType,
+            String requestState,
+            String detailKey,
+            LocalDateTime occurredAt) {
     }
 
     public record VersionRequest(@NotNull @Min(0) Long version) {

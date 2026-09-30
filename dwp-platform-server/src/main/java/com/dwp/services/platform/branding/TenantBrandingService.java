@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.experience.ExperienceRevisionStore;
 import com.dwp.services.platform.media.TenantMediaStorage;
+import com.dwp.services.platform.support.CappedList;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -161,13 +162,17 @@ public class TenantBrandingService {
     }
 
     @Transactional(readOnly = true)
-    public List<TenantBrandingDtos.BrandingRevisionResponse> history(Long tenantId, int limit) {
+    public TenantBrandingDtos.BrandingRevisionPage history(Long tenantId, int limit) {
         long currentVersion = repository.findById(tenantId)
                 .map(value -> value.getVersion() == null ? 0L : value.getVersion())
                 .orElse(0L);
-        return revisionStore.list(tenantId, BRANDING, limit).stream()
+        CappedList<ExperienceRevisionStore.ExperienceRevision> page =
+                revisionStore.list(tenantId, BRANDING, limit);
+        List<TenantBrandingDtos.BrandingRevisionResponse> items = page.items().stream()
                 .map(revision -> revisionResponse(revision, currentVersion))
                 .toList();
+        return new TenantBrandingDtos.BrandingRevisionPage(
+                items, page.hasMore(), page.limit());
     }
 
     @Transactional

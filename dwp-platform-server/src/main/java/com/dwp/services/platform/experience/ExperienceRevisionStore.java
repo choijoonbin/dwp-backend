@@ -2,6 +2,7 @@ package com.dwp.services.platform.experience;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.services.platform.support.CappedList;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -19,6 +20,7 @@ public class ExperienceRevisionStore {
 
     public static final String BRANDING = "BRANDING";
     public static final String HOME = "HOME";
+    private static final int MAX_HISTORY_LIMIT = 50;
 
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
@@ -75,9 +77,10 @@ public class ExperienceRevisionStore {
                 actorId);
     }
 
-    public List<ExperienceRevision> list(Long tenantId, String experienceType, int requestedLimit) {
-        int limit = Math.max(1, Math.min(requestedLimit, 50));
-        return jdbc.query(
+    public CappedList<ExperienceRevision> list(
+            Long tenantId, String experienceType, int requestedLimit) {
+        int limit = Math.max(1, Math.min(requestedLimit, MAX_HISTORY_LIMIT));
+        List<ExperienceRevision> rows = jdbc.query(
                 """
                 SELECT revision_id, tenant_id, experience_type, source_version, change_type,
                        snapshot_payload, correlation_id, created_at, created_by
@@ -90,7 +93,8 @@ public class ExperienceRevisionStore {
                 this::map,
                 tenantId,
                 experienceType,
-                limit);
+                limit + 1);
+        return CappedList.from(rows, limit);
     }
 
     public ExperienceRevision require(Long tenantId, String experienceType, Long revisionId) {

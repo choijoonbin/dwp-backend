@@ -23,7 +23,6 @@ import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.util.concurrent.TimeUnit;
-import java.util.List;
 
 @Validated
 @RestController
@@ -137,9 +136,9 @@ public class AdminHomeExperienceController {
     }
 
     @GetMapping("/revisions")
-    public ApiResponse<List<HomeExperienceDtos.HomeExperienceRevisionResponse>> history(
+    public ApiResponse<HomeExperienceDtos.HomeExperienceRevisionPage> history(
             @RequestHeader(TENANT_HEADER) Long tenantId,
-            @RequestParam(defaultValue = "20") @Min(1) int limit) {
+            @RequestParam(defaultValue = "20") @Min(1) @Max(50) int limit) {
         return ApiResponse.success(service.history(tenantId, limit));
     }
 

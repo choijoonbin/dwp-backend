@@ -9,6 +9,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
@@ -39,19 +40,25 @@ class SavedViewOrphanLifecycleServiceTest {
 
     @Test
     void capsLifecycleHistoryAtOneHundredRows() {
-        when(history.latest(3L, 100)).thenReturn(List.of());
+        when(history.latest(3L, 101)).thenReturn(Collections.nCopies(101, null));
 
-        assertThat(service.actions(3L, 500)).isEmpty();
+        SavedViewDtos.OrphanLifecyclePage result = service.actions(3L, 500);
 
-        verify(history).latest(3L, 100);
+        assertThat(result.items()).hasSize(100);
+        assertThat(result.limit()).isEqualTo(100);
+        assertThat(result.hasMore()).isTrue();
+        verify(history).latest(3L, 101);
     }
 
     @Test
     void keepsLifecycleHistoryLimitPositive() {
-        when(history.latest(3L, 1)).thenReturn(List.of());
+        when(history.latest(3L, 2)).thenReturn(List.of());
 
-        assertThat(service.actions(3L, 0)).isEmpty();
+        SavedViewDtos.OrphanLifecyclePage result = service.actions(3L, 0);
 
-        verify(history).latest(3L, 1);
+        assertThat(result.items()).isEmpty();
+        assertThat(result.limit()).isEqualTo(1);
+        assertThat(result.hasMore()).isFalse();
+        verify(history).latest(3L, 2);
     }
 }

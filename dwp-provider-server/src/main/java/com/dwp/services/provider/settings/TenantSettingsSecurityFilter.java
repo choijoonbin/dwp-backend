@@ -20,8 +20,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Component
@@ -33,8 +35,20 @@ public class TenantSettingsSecurityFilter extends OncePerRequestFilter {
     private static final String USER_HEADER = "X-DWP-User-ID";
     private static final String TENANT_HEADER = "X-DWP-Tenant-ID";
     private static final String ROLES_HEADER = "X-DWP-Roles";
+    private static final String PERMISSIONS_HEADER = "X-DWP-Permissions";
     private static final String AUTH_SESSION_ID_HEADER = "X-DWP-Auth-Session-ID";
     private static final String IDENTITY_PLANE_HEADER = "X-DWP-Identity-Plane";
+    private static final List<String> SUPPORT_CONTEXT_HEADERS = List.of(
+            "X-DWP-Support-Session-ID",
+            "X-DWP-Support-Scopes",
+            "X-DWP-Support-Revision",
+            "X-DWP-Provider-Tenant-ID",
+            "X-DWP-Actor-Tenant-ID");
+    private static final Pattern PERMISSION = Pattern.compile(
+            "[A-Z][A-Z0-9_.-]{1,79}:[A-Z][A-Z0-9_.-]{1,49}");
+    static final String DOMAIN_READ_PERMISSION = "ADMIN.IDENTITY_PROVISIONING:VIEW";
+    static final String GOVERNANCE_READ_PERMISSION = "ADMIN.AUDIT_VIEW:VIEW";
+    static final String PLAN_READ_PERMISSION = "ADMIN.APP_GOVERNANCE:VIEW";
 
     private final String serviceToken;
     private final JdbcTemplate jdbc;
@@ -71,11 +85,18 @@ public class TenantSettingsSecurityFilter extends OncePerRequestFilter {
                 .map(String::trim)
                 .filter(role -> !role.isBlank())
                 .collect(Collectors.toUnmodifiableSet());
+        Set<String> permissions = values(request.getHeader(PERMISSIONS_HEADER));
         boolean tenantPlane = "TENANT".equalsIgnoreCase(request.getHeader(IDENTITY_PLANE_HEADER));
         if (userId == null || authTenantId == null || sessionId == null || roles.isEmpty()
                 || !tenantPlane || RolePlaneBoundary.isProviderIdentity(roles)
-                || RolePlaneBoundary.hasConflict(roles)) {
+                || RolePlaneBoundary.hasConflict(roles) || hasSupportContext(request)) {
             error(response, ErrorCode.FORBIDDEN, "An active tenant identity is required.");
+            return;
+        }
+        String requiredPermission = requiredPermission(request);
+        if (requiredPermission != null && !permissions.contains(requiredPermission)) {
+            error(response, ErrorCode.FORBIDDEN,
+                    "The tenant resource permission required for this projection is missing.");
             return;
         }
         UUID providerTenantId = jdbc.query("""
@@ -89,7 +110,7 @@ public class TenantSettingsSecurityFilter extends OncePerRequestFilter {
             return;
         }
         TenantSettingsRequestContext.set(new TenantSettingsRequestContext.Actor(
-                authTenantId, userId, sessionId, providerTenantId, roles));
+                authTenantId, userId, sessionId, providerTenantId, roles, permissions));
         try {
             chain.doFilter(request, response);
         } finally {
@@ -122,6 +143,30 @@ public class TenantSettingsSecurityFilter extends OncePerRequestFilter {
 
     private String value(String value) {
         return value == null ? "" : value;
+    }
+
+    private Set<String> values(String header) {
+        if (header == null || header.isBlank()) return Set.of();
+        return Arrays.stream(header.split(","))
+                .map(String::trim)
+                .filter(PERMISSION.asMatchPredicate())
+                .collect(Collectors.toUnmodifiableSet());
+    }
+
+    private boolean hasSupportContext(HttpServletRequest request) {
+        return SUPPORT_CONTEXT_HEADERS.stream()
+                .map(request::getHeader)
+                .anyMatch(header -> header != null && !header.isBlank());
+    }
+
+    private String requiredPermission(HttpServletRequest request) {
+        if (!Set.of("GET", "HEAD", "OPTIONS").contains(request.getMethod())) return null;
+        return switch (request.getRequestURI()) {
+            case PATH + "/provider-domains" -> DOMAIN_READ_PERMISSION;
+            case PATH + "/data-governance-observation" -> GOVERNANCE_READ_PERMISSION;
+            case PATH + "/plan-eligibility" -> PLAN_READ_PERMISSION;
+            default -> null;
+        };
     }
 
     private void error(HttpServletResponse response, ErrorCode code, String message)

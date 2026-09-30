@@ -122,6 +122,37 @@ class ProductivityServiceTest {
                 eq("correlation-1"), anyMap(), anyMap());
     }
 
+    @Test
+    void subjectsAndRunsExposeBoundedCoverageInsteadOfClaimingCompleteArrays() {
+        UUID connectorId = UUID.randomUUID();
+        List<ProductivityRepository.SubjectRecord> subjects = java.util.stream.IntStream
+                .range(0, 201)
+                .mapToObj(index -> new ProductivityRepository.SubjectRecord(
+                        UUID.randomUUID(), 1L, connectorId, (long) index,
+                        "subject-" + index, "token", List.of("User.Read"),
+                        ConsentState.CONNECTED, null, null, null, 0))
+                .toList();
+        List<ProductivityRepository.RunRecord> runs = java.util.stream.IntStream
+                .range(0, 201)
+                .mapToObj(index -> new ProductivityRepository.RunRecord(
+                        UUID.randomUUID(), connectorId, index, ResourceKind.MAIL,
+                        SyncMode.DELTA, SyncRunState.SUCCEEDED, Instant.now(), Instant.now(),
+                        1, 0, 0, 0, false, null, null, "corr-" + index))
+                .toList();
+        when(repository.subjects(1L, 201)).thenReturn(subjects);
+        when(repository.runs(1L, 201)).thenReturn(runs);
+
+        ProductivityDtos.SubjectPage subjectPage = service.subjects(1L, 200);
+        ProductivityDtos.SyncRunPage runPage = service.runs(1L, 200);
+
+        assertThat(subjectPage.items()).hasSize(200);
+        assertThat(subjectPage.hasMore()).isTrue();
+        assertThat(subjectPage.limit()).isEqualTo(200);
+        assertThat(runPage.items()).hasSize(200);
+        assertThat(runPage.hasMore()).isTrue();
+        assertThat(runPage.limit()).isEqualTo(200);
+    }
+
     private ProductivityRepository.ConnectorRecord connector(
             UUID connectorId,
             PolicyState policyState,

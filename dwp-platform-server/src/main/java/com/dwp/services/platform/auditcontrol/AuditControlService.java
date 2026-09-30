@@ -632,12 +632,12 @@ public class AuditControlService {
         return new ExportArtifact(job.format(), content);
     }
 
-    public List<AuditControlDtos.IntegrityCheckpoint> integrity(Long tenantId) {
+    public AuditControlDtos.IntegrityCheckpointPage integrity(Long tenantId) {
         return integrityService.list(tenantId);
     }
 
     @Transactional
-    public List<AuditControlDtos.IntegrityCheckpoint> checkpoint(Long tenantId, String actorId) {
+    public AuditControlDtos.IntegrityCheckpointPage checkpoint(Long tenantId, String actorId) {
         integrityService.checkpoint(tenantId, LocalDate.now(ZoneOffset.UTC).minusDays(1));
         recordControl(tenantId, actorId, "audit.integrity.verified", "AUDIT_INTEGRITY", tenantId.toString(), Map.of());
         return integrityService.list(tenantId);

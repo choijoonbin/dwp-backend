@@ -4,6 +4,7 @@ import com.dwp.core.common.ApiResponse;
 import com.dwp.services.auth.scim.ScimConnectorDtos;
 import com.dwp.services.auth.scim.ScimCredentialService;
 import com.dwp.services.auth.security.AuthenticatedUserResolver;
+import com.dwp.services.auth.security.TenantPermissionAuthorization;
 import com.dwp.services.auth.security.TenantContextResolver;
 import jakarta.validation.Valid;
 import jakarta.servlet.http.HttpServletResponse;
@@ -29,29 +30,31 @@ public class ScimConnectorAdminController {
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
 
     private final ScimCredentialService service;
+    private final TenantPermissionAuthorization authorization;
 
-    public ScimConnectorAdminController(ScimCredentialService service) {
+    public ScimConnectorAdminController(
+            ScimCredentialService service,
+            TenantPermissionAuthorization authorization) {
         this.service = service;
+        this.authorization = authorization;
     }
 
     @GetMapping
     public ApiResponse<List<ScimConnectorDtos.ConnectorSummary>> list(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
-        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
-        Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
-        return ApiResponse.success(service.list(tenantId));
+        AuthorizedTenant context = authorize(authentication, tenantHeader, "VIEW");
+        return ApiResponse.success(service.list(context.tenantId()));
     }
 
     @GetMapping("/events")
-    public ApiResponse<List<ScimConnectorDtos.ProvisioningEvent>> events(
+    public ApiResponse<ScimConnectorDtos.ProvisioningEventPage> events(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestParam(required = false) UUID connectorId,
             @RequestParam(defaultValue = "100") int limit) {
-        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
-        Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
-        return ApiResponse.success(service.events(tenantId, connectorId, limit));
+        AuthorizedTenant context = authorize(authentication, tenantHeader, "VIEW");
+        return ApiResponse.success(service.events(context.tenantId(), connectorId, limit));
     }
 
     @PostMapping
@@ -61,11 +64,10 @@ public class ScimConnectorAdminController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             HttpServletResponse response,
             @Valid @RequestBody ScimConnectorDtos.CreateRequest request) {
-        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
-        Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
-        Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
+        AuthorizedTenant context = authorize(authentication, tenantHeader, "MANAGE");
         preventCredentialCaching(response);
-        return ApiResponse.success(service.create(tenantId, actorId, correlationId, request));
+        return ApiResponse.success(service.create(
+                context.tenantId(), context.actorId(), correlationId, request));
     }
 
     @PostMapping("/{connectorId}/rotate-secret")
@@ -76,12 +78,10 @@ public class ScimConnectorAdminController {
             @PathVariable UUID connectorId,
             HttpServletResponse response,
             @Valid @RequestBody ScimConnectorDtos.RotateRequest request) {
-        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
-        Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
-        Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
+        AuthorizedTenant context = authorize(authentication, tenantHeader, "MANAGE");
         preventCredentialCaching(response);
         return ApiResponse.success(service.rotate(
-                tenantId, actorId, correlationId, connectorId, request));
+                context.tenantId(), context.actorId(), correlationId, connectorId, request));
     }
 
     @PatchMapping("/{connectorId}/lifecycle")
@@ -91,16 +91,31 @@ public class ScimConnectorAdminController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable UUID connectorId,
             @Valid @RequestBody ScimConnectorDtos.LifecycleRequest request) {
-        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
-        Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
-        Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
+        AuthorizedTenant context = authorize(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(service.lifecycle(
-                tenantId, actorId, correlationId, connectorId, request.state()));
+                context.tenantId(), context.actorId(), correlationId, connectorId, request.state()));
+    }
+
+    private AuthorizedTenant authorize(
+            Authentication authentication,
+            String tenantHeader,
+            String permissionCode) {
+        Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
+        Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
+        authorization.require(
+                tenantId,
+                actorId,
+                TenantPermissionAuthorization.IDENTITY_PROVISIONING,
+                permissionCode);
+        return new AuthorizedTenant(tenantId, actorId);
     }
 
     private void preventCredentialCaching(HttpServletResponse response) {
         response.setHeader("Cache-Control", "no-store, no-cache, max-age=0");
         response.setHeader("Pragma", "no-cache");
         response.setDateHeader("Expires", 0);
+    }
+
+    private record AuthorizedTenant(Long tenantId, Long actorId) {
     }
 }

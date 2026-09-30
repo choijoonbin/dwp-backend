@@ -63,14 +63,14 @@ class AuditControlExportIntegrityRepository extends AuditControlPolicyRepository
         return rows.stream().findFirst();
     }
 
-    public List<AuditControlDtos.IntegrityCheckpoint> integrity(Long tenantId) {
+    public List<AuditControlDtos.IntegrityCheckpoint> integrity(Long tenantId, int limit) {
         return jdbc.query("""
                 SELECT checkpoint_id, checkpoint_date, record_count, first_event_at, last_event_at,
                        root_hash, checkpoint_hash, signature_algorithm, verification_status,
                        created_at, verified_at
                   FROM sys_audit_integrity_checkpoints
-                 WHERE tenant_id = :tenantId ORDER BY checkpoint_date DESC LIMIT 90
-                """, new MapSqlParameterSource("tenantId", tenantId), (rs, row) ->
+                 WHERE tenant_id = :tenantId ORDER BY checkpoint_date DESC LIMIT :limit
+                """, new MapSqlParameterSource("tenantId", tenantId).addValue("limit", limit), (rs, row) ->
                 new AuditControlDtos.IntegrityCheckpoint(
                         rs.getObject("checkpoint_id", UUID.class), rs.getObject("checkpoint_date", LocalDate.class),
                         rs.getLong("record_count"), instant(rs, "first_event_at"), instant(rs, "last_event_at"),

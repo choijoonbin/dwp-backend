@@ -13,10 +13,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
-import java.time.ZoneId;
-import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -39,6 +35,7 @@ public class CalendarService {
     private final CalendarRepository repository;
     private final CalendarOccurrenceProjector occurrenceProjector;
     private final CalendarEventValidation eventValidation;
+    private final CalendarHomeQuery homeQuery;
     private final CalendarRoomAccessGuard roomAccessGuard;
     private final CalendarSchedulingEvaluator schedulingEvaluator;
     private final RoomBookingPolicyService roomBookingPolicy;
@@ -85,6 +82,8 @@ public class CalendarService {
         this.eventValidation = new CalendarEventValidation(
                 repository, occurrenceProjector, schedulingHorizon);
         this.roomAccessGuard = new CalendarRoomAccessGuard(roomAccess);
+        this.homeQuery = new CalendarHomeQuery(
+                repository, occurrenceProjector, eventValidation, roomAccessGuard);
         this.schedulingEvaluator = new CalendarSchedulingEvaluator(repository, roomAccessGuard);
         this.roomBookingPolicy = roomBookingPolicy;
         this.mailProposals = new CalendarMailProposalBridge(mailProposalOutcomes);
@@ -164,70 +163,8 @@ public class CalendarService {
             String timeZone,
             String locale,
             String verifiedGroupRefs) {
-        ZoneId zone = eventValidation.zone(timeZone);
-        repository.linkIdentity(tenantId, userId, personPublicId);
-        CalendarRepository.PolicyRow policy = repository.policy(tenantId);
-        ZonedDateTime now = ZonedDateTime.now(zone);
-        LocalDate today = now.toLocalDate();
-        LocalDate weekStartDate = startOfWeek(today, policy.weekStart());
-        OffsetDateTime weekStart = weekStartDate.atStartOfDay(zone).toOffsetDateTime();
-        OffsetDateTime weekEnd = weekStartDate.plusDays(7).atStartOfDay(zone).toOffsetDateTime();
-        OffsetDateTime horizonEnd = now.plusDays(30).toOffsetDateTime();
-        if (horizonEnd.isBefore(weekEnd)) horizonEnd = weekEnd;
-        List<CalendarDtos.EventSummary> horizonEvents = roomAccessGuard.filterViewableEvents(
-                tenantId, userId, verifiedGroupRefs,
-                occurrenceProjector.summaries(
-                        tenantId, userId, personPublicId, verifiedGroupRefs,
-                        weekStart, horizonEnd, locale));
-        List<CalendarDtos.EventSummary> weekEvents = horizonEvents.stream()
-                .filter(event -> event.startsAt().isBefore(weekEnd)
-                        && event.endsAt().isAfter(weekStart))
-                .toList();
-        OffsetDateTime dayStart = today.atStartOfDay(zone).toOffsetDateTime();
-        OffsetDateTime dayEnd = today.plusDays(1).atStartOfDay(zone).toOffsetDateTime();
-        List<CalendarDtos.EventSummary> todayEvents = weekEvents.stream()
-                .filter(event -> event.startsAt().isBefore(dayEnd) && event.endsAt().isAfter(dayStart))
-                .sorted(Comparator.comparing(CalendarDtos.EventSummary::startsAt))
-                .toList();
-        CalendarDtos.EventSummary next = horizonEvents.stream()
-                .filter(event -> event.endsAt().isAfter(now.toOffsetDateTime()))
-                .min(Comparator.comparing(CalendarDtos.EventSummary::startsAt))
-                .orElse(null);
-        int meetingMinutes = minutes(weekEvents, EventType.MEETING, weekStart, weekEnd);
-        int focusMinutes = minutes(weekEvents, EventType.FOCUS, weekStart, weekEnd);
-        int conflicts = (int) weekEvents.stream().filter(CalendarDtos.EventSummary::conflict).count();
-        int responses = (int) weekEvents.stream()
-                .filter(event -> event.myResponse() == ResponseStatus.NEEDS_ACTION)
-                .count();
-        int availableRooms = (int) roomAccessGuard.filterViewableResources(
-                tenantId, userId, verifiedGroupRefs, repository.resources(
-                        tenantId, now.toOffsetDateTime(), now.plusHours(1).toOffsetDateTime(),
-                        korean(locale), false)).stream()
-                .filter(resource -> resource.type() == ResourceType.ROOM && resource.available())
-                .count();
-        CalendarDtos.HomeMetrics metrics = new CalendarDtos.HomeMetrics(
-                weekEvents.size(), meetingMinutes, focusMinutes,
-                policy.weeklyFocusTargetMinutes(), conflicts, responses, availableRooms);
-        List<CalendarDtos.DayLoad> load = new ArrayList<>();
-        for (int day = 0; day < 7; day++) {
-            LocalDate date = weekStartDate.plusDays(day);
-            OffsetDateTime start = date.atStartOfDay(zone).toOffsetDateTime();
-            OffsetDateTime end = date.plusDays(1).atStartOfDay(zone).toOffsetDateTime();
-            List<CalendarDtos.EventSummary> values = weekEvents.stream()
-                    .filter(event -> event.startsAt().isBefore(end) && event.endsAt().isAfter(start))
-                    .toList();
-            int dailyMeetings = minutes(values, EventType.MEETING, start, end);
-            int dailyFocus = minutes(values, EventType.FOCUS, start, end);
-            int dailyConflicts = (int) values.stream()
-                    .filter(CalendarDtos.EventSummary::conflict).count();
-            int loadPercent = Math.round(
-                    dailyMeetings * 100f / Math.max(1, policy.dailyMeetingLimitMinutes()));
-            load.add(new CalendarDtos.DayLoad(
-                    date, dailyMeetings, dailyFocus, values.size(), dailyConflicts, loadPercent));
-        }
-        return new CalendarDtos.HomeResponse(
-                today, zone.getId(), next, todayEvents, metrics, List.copyOf(load),
-                occurrenceProjector.attention(weekEvents, policy, locale, focusMinutes), OffsetDateTime.now());
+        return homeQuery.home(
+                tenantId, userId, personPublicId, timeZone, locale, verifiedGroupRefs);
     }
 
     @Transactional
@@ -691,17 +628,6 @@ public class CalendarService {
         return eventValidation.validateEvent(
                 tenantId, startsAt, endsAt, timeZone, type, description,
                 recurrence, recurrenceUntil, attendees);
-    }
-
-    /** Sum event minutes only inside the requested reporting interval. */
-    private int minutes(
-            List<CalendarDtos.EventSummary> events, EventType type, OffsetDateTime from, OffsetDateTime to) {
-        return CalendarHomeTimeAccounting.minutes(events, type, from, to);
-    }
-
-    private LocalDate startOfWeek(LocalDate date, int weekStart) {
-        int delta = Math.floorMod(date.getDayOfWeek().getValue() - weekStart, 7);
-        return date.minusDays(delta);
     }
 
     private CalendarDtos.ResourceSummary resource(CalendarRepository.ResourceRow value) {

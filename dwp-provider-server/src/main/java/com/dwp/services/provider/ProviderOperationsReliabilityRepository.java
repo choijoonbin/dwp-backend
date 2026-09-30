@@ -8,7 +8,6 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
-import java.util.Set;
 import java.util.UUID;
 
 final class ProviderOperationsReliabilityRepository {
@@ -21,17 +20,18 @@ final class ProviderOperationsReliabilityRepository {
 
     ProviderDtos.ReliabilityControlOverview reliabilityControl() {
         List<ProviderDtos.ServiceLevelObjectiveSummary> objectives = serviceLevelObjectives();
-        List<ProviderDtos.GovernanceDriftSummary> drift = governanceDrift();
-        List<ProviderDtos.MaintenanceWindowSummary> maintenance = maintenanceWindows();
+        ProviderBoundedProjection<ProviderDtos.GovernanceDriftSummary> drift =
+                ProviderBoundedProjection.from(governanceDrift(), 200);
+        ProviderBoundedProjection<ProviderDtos.MaintenanceWindowSummary> maintenance =
+                ProviderBoundedProjection.from(maintenanceWindows(), 200);
         return new ProviderDtos.ReliabilityControlOverview(
                 Instant.now(),
                 objectives.stream().filter(item -> "HEALTHY".equals(item.complianceState())).count(),
                 objectives.stream().filter(item -> "AT_RISK".equals(item.complianceState())).count(),
                 objectives.stream().filter(item -> "EXHAUSTED".equals(item.complianceState())).count(),
-                drift.size(),
-                maintenance.stream().filter(item ->
-                        Set.of("DRAFT", "SCHEDULED", "IN_PROGRESS").contains(item.lifecycleState())).count(),
-                objectives, drift, maintenance);
+                openDriftCount(), upcomingMaintenanceCount(),
+                drift.hasMore(), maintenance.hasMore(),
+                objectives, drift.items(), maintenance.items());
     }
 
     List<ProviderDtos.ServiceLevelObjectiveSummary> serviceLevelObjectives() {
@@ -112,7 +112,7 @@ final class ProviderOperationsReliabilityRepository {
                    AND control.lifecycle_state = 'ACTIVE'
                  ORDER BY CASE control.risk_tier WHEN 'L3' THEN 1 WHEN 'L2' THEN 2 ELSE 3 END,
                           latest.evaluated_at DESC
-                 LIMIT 200
+                 LIMIT 201
                 """, this::governanceDrift);
     }
 
@@ -154,8 +154,40 @@ final class ProviderOperationsReliabilityRepository {
                               WHEN 'IN_PROGRESS' THEN 1 WHEN 'SCHEDULED' THEN 2
                               WHEN 'DRAFT' THEN 3 ELSE 4 END,
                           maintenance.starts_at
-                 LIMIT 200
+                 LIMIT 201
                 """, this::maintenanceWindow);
+    }
+
+    private long openDriftCount() {
+        return count("""
+                WITH latest AS (
+                    SELECT DISTINCT ON (evaluation.control_key, evaluation.target_type, evaluation.target_id)
+                           evaluation.*
+                      FROM prv_governance_evaluations evaluation
+                     ORDER BY evaluation.control_key, evaluation.target_type,
+                              evaluation.target_id, evaluation.evaluated_at DESC,
+                              evaluation.governance_evaluation_id DESC
+                )
+                SELECT COUNT(*)
+                  FROM latest
+                  JOIN prv_governance_controls control ON control.control_key = latest.control_key
+                 WHERE latest.evaluation_result IN ('NON_COMPLIANT', 'ERROR')
+                   AND control.lifecycle_state = 'ACTIVE'
+                """);
+    }
+
+    private long upcomingMaintenanceCount() {
+        return count("""
+                SELECT COUNT(*)
+                  FROM prv_maintenance_windows maintenance
+                 WHERE maintenance.ends_at >= CURRENT_TIMESTAMP - INTERVAL '90 days'
+                   AND maintenance.lifecycle_state IN ('DRAFT', 'SCHEDULED', 'IN_PROGRESS')
+                """);
+    }
+
+    private long count(String sql) {
+        Long value = jdbc.queryForObject(sql, Long.class);
+        return value == null ? 0L : value;
     }
 
     UUID createMaintenanceWindow(

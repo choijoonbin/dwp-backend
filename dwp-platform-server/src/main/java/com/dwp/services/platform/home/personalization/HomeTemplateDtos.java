@@ -67,6 +67,13 @@ public final class HomeTemplateDtos {
             OffsetDateTime updatedAt) {
     }
 
+    @Schema(requiredProperties = {"items", "hasMore", "limit"})
+    public record HomeTemplatePage(
+            List<HomeTemplateResponse> items,
+            boolean hasMore,
+            int limit) {
+    }
+
     @Schema(requiredProperties = {
             "templateRevisionId", "templateId", "revisionNumber",
             "source", "snapshot", "createdAt", "createdBy"
@@ -80,6 +87,13 @@ public final class HomeTemplateDtos {
             HomeTemplateSnapshot snapshot,
             OffsetDateTime createdAt,
             Long createdBy) {
+    }
+
+    @Schema(requiredProperties = {"items", "hasMore", "limit"})
+    public record HomeTemplateRevisionPage(
+            List<HomeTemplateRevisionResponse> items,
+            boolean hasMore,
+            int limit) {
     }
 
     @Schema(requiredProperties = {

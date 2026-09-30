@@ -3,6 +3,7 @@ package com.dwp.services.auth.controller;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.services.auth.dto.AccessGovernanceDtos;
 import com.dwp.services.auth.security.AuthenticatedUserResolver;
+import com.dwp.services.auth.security.TenantPermissionAuthorization;
 import com.dwp.services.auth.security.TenantContextResolver;
 import com.dwp.services.auth.service.AccessGovernanceService;
 import jakarta.validation.Valid;
@@ -28,16 +29,20 @@ public class AccessGovernanceController {
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
 
     private final AccessGovernanceService service;
+    private final TenantPermissionAuthorization authorization;
 
-    public AccessGovernanceController(AccessGovernanceService service) {
+    public AccessGovernanceController(
+            AccessGovernanceService service,
+            TenantPermissionAuthorization authorization) {
         this.service = service;
+        this.authorization = authorization;
     }
 
     @GetMapping("/roles")
     public ApiResponse<List<AccessGovernanceDtos.RoleSummary>> roles(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "VIEW");
         return ApiResponse.success(service.roles(tenantId));
     }
 
@@ -47,7 +52,7 @@ public class AccessGovernanceController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody AccessGovernanceDtos.CreateRoleRequest request) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(service.createRole(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, request));
@@ -60,7 +65,7 @@ public class AccessGovernanceController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable Long roleId,
             @Valid @RequestBody AccessGovernanceDtos.UpdateRoleRequest request) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(service.updateRole(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, roleId, request));
@@ -73,7 +78,7 @@ public class AccessGovernanceController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable Long roleId,
             @Valid @RequestBody AccessGovernanceDtos.ReplacePermissionsRequest request) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(service.replacePermissions(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, roleId, request));
@@ -83,7 +88,7 @@ public class AccessGovernanceController {
     public ApiResponse<List<AccessGovernanceDtos.ResourceSummary>> resources(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "VIEW");
         return ApiResponse.success(service.resources(tenantId));
     }
 
@@ -93,7 +98,7 @@ public class AccessGovernanceController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody AccessGovernanceDtos.CreateResourceRequest request) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(service.createResource(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, request));
@@ -103,7 +108,7 @@ public class AccessGovernanceController {
     public ApiResponse<List<AccessGovernanceDtos.GroupRoleAssignmentSummary>> groupAssignments(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "VIEW");
         return ApiResponse.success(service.groupAssignments(tenantId));
     }
 
@@ -113,7 +118,7 @@ public class AccessGovernanceController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody AccessGovernanceDtos.CreateGroupRoleAssignmentRequest request) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(service.createGroupAssignment(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, request));
@@ -126,7 +131,7 @@ public class AccessGovernanceController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable Long assignmentId,
             @RequestParam Long version) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(service.revokeGroupAssignment(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, assignmentId, version));
@@ -137,12 +142,21 @@ public class AccessGovernanceController {
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @PathVariable Long userId) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "VIEW");
         return ApiResponse.success(service.effectiveAccess(tenantId, userId));
     }
 
-    private Long tenantAdmin(Authentication authentication, String tenantHeader) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
-        return TenantContextResolver.requireTenantId(tenantHeader, authentication);
+    private Long authorizedTenant(
+            Authentication authentication,
+            String tenantHeader,
+            String permissionCode) {
+        Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
+        Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
+        authorization.require(
+                tenantId,
+                actorId,
+                TenantPermissionAuthorization.ACCESS_GOVERNANCE,
+                permissionCode);
+        return tenantId;
     }
 }

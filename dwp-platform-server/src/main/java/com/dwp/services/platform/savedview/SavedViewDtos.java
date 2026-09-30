@@ -144,6 +144,11 @@ public final class SavedViewDtos {
             OffsetDateTime createdAt,
             Long createdBy) { }
 
+    public record OwnershipTransferPage(
+            List<OwnershipTransferSummary> items,
+            int limit,
+            boolean hasMore) { }
+
     public record OrphanedView(
             UUID savedViewId,
             String surfaceKey,
@@ -200,4 +205,9 @@ public final class SavedViewDtos {
             long resultingVersion,
             OffsetDateTime createdAt,
             Long createdBy) { }
+
+    public record OrphanLifecyclePage(
+            List<OrphanLifecycleResult> items,
+            int limit,
+            boolean hasMore) { }
 }

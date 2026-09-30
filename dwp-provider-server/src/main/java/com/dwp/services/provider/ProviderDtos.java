@@ -93,9 +93,8 @@ public final class ProviderDtos {
             Instant generatedAt,
             String operatingState,
             EstateOverview estate,
-            long activeIncidents,
-            long expiringSubscriptions,
-            List<ActionItem> actionQueue,
+            long activeIncidents, long expiringSubscriptions,
+            List<ActionItem> actionQueue, boolean actionQueueHasMore,
             List<ServicePosture> services,
             List<CellPosture> cells,
             List<RecentActivity> recentActivity) {
@@ -323,6 +322,7 @@ public final class ProviderDtos {
             long degradedInstances,
             long failedInstances,
             long impactedTenants,
+            long activeIncidentCount, boolean incidentsHasMore,
             List<ServicePosture> services,
             List<CellPosture> cells,
             List<ServiceIncidentSummary> incidents) {
@@ -391,8 +391,8 @@ public final class ProviderDtos {
             long healthyObjectives,
             long atRiskObjectives,
             long exhaustedObjectives,
-            long openDriftFindings,
-            long upcomingMaintenance,
+            long openDriftFindings, long upcomingMaintenance,
+            boolean driftFindingsHasMore, boolean maintenanceWindowsHasMore,
             List<ServiceLevelObjectiveSummary> objectives,
             List<GovernanceDriftSummary> driftFindings,
             List<MaintenanceWindowSummary> maintenanceWindows) {

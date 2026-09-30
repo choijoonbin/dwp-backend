@@ -35,37 +35,46 @@ final class ProviderOperationsHealthRepository {
                  WHERE lifecycle_state IN ('TRIAL', 'ACTIVE')
                    AND ends_at BETWEEN CURRENT_TIMESTAMP AND CURRENT_TIMESTAMP + INTERVAL '90 days'
                 """);
-        List<ProviderDtos.ActionItem> actions = actionItems();
+        ProviderBoundedProjection<ProviderDtos.ActionItem> actions = actionItems();
         boolean critical = services.stream().anyMatch(item -> item.failedInstances() > 0)
                 || count("""
                         SELECT COUNT(*) FROM prv_service_incidents
                          WHERE severity = 'SEV1' AND lifecycle_state NOT IN ('RESOLVED', 'CLOSED')
                         """) > 0;
-        boolean attention = !actions.isEmpty()
+        boolean attention = !actions.items().isEmpty()
                 || services.stream().anyMatch(item ->
                         item.pendingInstances() > 0 || item.degradedInstances() > 0);
         String state = critical ? "CRITICAL" : attention ? "ATTENTION" : "HEALTHY";
         return new ProviderDtos.CommandCenter(
-                Instant.now(), state, estate, incidents, expiring, actions, services, cells, recentActivity());
+                latestServiceObservation(services), state, estate, incidents, expiring,
+                actions.items(), actions.hasMore(), services, cells, recentActivity());
     }
 
     ProviderDtos.ServiceHealthOverview serviceHealth() {
         List<ProviderDtos.ServicePosture> services = servicePostures();
         List<ProviderDtos.CellPosture> cells = cellPostures();
-        List<ProviderDtos.ServiceIncidentSummary> incidents = incidentRepository.incidents(100);
+        ProviderBoundedProjection<ProviderDtos.ServiceIncidentSummary> incidents =
+                ProviderBoundedProjection.from(incidentRepository.incidents(101), 100);
+        long activeIncidents = count("""
+                SELECT COUNT(*) FROM prv_service_incidents
+                 WHERE lifecycle_state NOT IN ('RESOLVED', 'CLOSED')
+                """);
         long total = services.stream().mapToLong(ProviderDtos.ServicePosture::totalInstances).sum();
         long healthy = services.stream().mapToLong(ProviderDtos.ServicePosture::healthyInstances).sum();
         long pending = services.stream().mapToLong(ProviderDtos.ServicePosture::pendingInstances).sum();
         long degraded = services.stream().mapToLong(ProviderDtos.ServicePosture::degradedInstances).sum();
         long failed = services.stream().mapToLong(ProviderDtos.ServicePosture::failedInstances).sum();
         long impacted = services.stream().mapToLong(ProviderDtos.ServicePosture::impactedTenants).sum();
-        boolean critical = failed > 0 || incidents.stream().anyMatch(item ->
-                "SEV1".equals(item.severity()) && !isResolved(item.lifecycleState()));
-        boolean attention = degraded > 0 || pending > 0 || incidents.stream().anyMatch(item ->
-                !isResolved(item.lifecycleState()));
+        boolean critical = failed > 0 || count("""
+                SELECT COUNT(*) FROM prv_service_incidents
+                 WHERE severity = 'SEV1' AND lifecycle_state NOT IN ('RESOLVED', 'CLOSED')
+                """) > 0;
+        boolean attention = degraded > 0 || pending > 0 || activeIncidents > 0;
         return new ProviderDtos.ServiceHealthOverview(
-                Instant.now(), critical ? "CRITICAL" : attention ? "ATTENTION" : "HEALTHY",
-                total, healthy, pending, degraded, failed, impacted, services, cells, incidents);
+                latestServiceObservation(services),
+                critical ? "CRITICAL" : attention ? "ATTENTION" : "HEALTHY",
+                total, healthy, pending, degraded, failed, impacted,
+                activeIncidents, incidents.hasMore(), services, cells, incidents.items());
     }
 
     List<ProviderDtos.ServicePosture> servicePostures() {
@@ -80,7 +89,13 @@ final class ProviderOperationsHealthRepository {
                        COUNT(*) FILTER (WHERE instance.lifecycle_state = 'FAILED') AS failed_instances,
                        COUNT(DISTINCT instance.provider_tenant_id) FILTER (
                            WHERE instance.lifecycle_state IN ('DEGRADED', 'FAILED')) AS impacted_tenants,
-                       MAX(instance.last_reconciled_at) AS last_reconciled_at
+                       CASE
+                           WHEN COUNT(instance.tenant_service_instance_id) = 0
+                                OR COUNT(instance.last_reconciled_at)
+                                   < COUNT(instance.tenant_service_instance_id)
+                               THEN NULL
+                           ELSE MIN(instance.last_reconciled_at)
+                       END AS last_reconciled_at
                   FROM prv_service_catalog service
                   LEFT JOIN prv_tenant_service_instances instance
                     ON instance.service_key = service.service_key
@@ -123,7 +138,7 @@ final class ProviderOperationsHealthRepository {
                 """, this::cellPosture);
     }
 
-    private List<ProviderDtos.ActionItem> actionItems() {
+    private ProviderBoundedProjection<ProviderDtos.ActionItem> actionItems() {
         List<ProviderDtos.ActionItem> items = new ArrayList<>();
         items.addAll(jdbc.query("""
                 SELECT 'operation:' || operation.operation_id AS item_id,
@@ -138,7 +153,7 @@ final class ProviderOperationsHealthRepository {
                   FROM prv_operations operation
                  WHERE operation.lifecycle_state IN ('PREVIEWED', 'PARTIAL', 'FAILED')
                  ORDER BY operation.created_at DESC
-                 LIMIT 12
+                 LIMIT 13
                 """, this::actionItem));
         items.addAll(jdbc.query("""
                 SELECT 'service:' || instance.tenant_service_instance_id AS item_id,
@@ -155,7 +170,7 @@ final class ProviderOperationsHealthRepository {
                   JOIN prv_tenants tenant ON tenant.provider_tenant_id = instance.provider_tenant_id
                  WHERE instance.lifecycle_state IN ('DEGRADED', 'FAILED')
                  ORDER BY instance.updated_at DESC
-                 LIMIT 12
+                 LIMIT 13
                 """, this::actionItem));
         items.addAll(jdbc.query("""
                 SELECT 'domain:' || domain.tenant_domain_id AS item_id,
@@ -173,7 +188,7 @@ final class ProviderOperationsHealthRepository {
                     OR (domain.verification_state = 'PENDING'
                         AND domain.created_at < CURRENT_TIMESTAMP - INTERVAL '24 hours')
                  ORDER BY domain.created_at
-                 LIMIT 12
+                 LIMIT 13
                 """, this::actionItem));
         items.addAll(jdbc.query("""
                 SELECT 'subscription:' || subscription.organization_subscription_id AS item_id,
@@ -192,7 +207,7 @@ final class ProviderOperationsHealthRepository {
                  WHERE subscription.lifecycle_state IN ('TRIAL', 'ACTIVE')
                    AND subscription.ends_at BETWEEN CURRENT_TIMESTAMP AND CURRENT_TIMESTAMP + INTERVAL '90 days'
                  ORDER BY subscription.ends_at
-                 LIMIT 12
+                 LIMIT 13
                 """, this::actionItem));
         items.addAll(jdbc.query("""
                 SELECT 'slo:' || objective.service_level_objective_id AS item_id,
@@ -217,7 +232,7 @@ final class ProviderOperationsHealthRepository {
                  WHERE objective.lifecycle_state = 'ACTIVE'
                    AND snapshot.compliance_state IN ('AT_RISK', 'EXHAUSTED')
                  ORDER BY snapshot.observed_at DESC
-                 LIMIT 12
+                 LIMIT 13
                 """, this::actionItem));
         items.addAll(jdbc.query("""
                 WITH latest AS (
@@ -244,7 +259,7 @@ final class ProviderOperationsHealthRepository {
                  WHERE latest.evaluation_result IN ('NON_COMPLIANT', 'ERROR')
                    AND control.lifecycle_state = 'ACTIVE'
                  ORDER BY latest.evaluated_at DESC
-                 LIMIT 12
+                 LIMIT 13
                 """, this::actionItem));
         items.addAll(jdbc.query("""
                 SELECT 'maintenance:' || maintenance.maintenance_window_id AS item_id,
@@ -265,14 +280,13 @@ final class ProviderOperationsHealthRepository {
                  WHERE maintenance.lifecycle_state IN ('DRAFT', 'SCHEDULED', 'IN_PROGRESS')
                    AND maintenance.starts_at <= CURRENT_TIMESTAMP + INTERVAL '14 days'
                  ORDER BY maintenance.starts_at
-                 LIMIT 12
+                 LIMIT 13
                 """, this::actionItem));
-        return items.stream()
+        return ProviderBoundedProjection.from(items.stream()
                 .sorted(Comparator
                         .comparingInt((ProviderDtos.ActionItem item) -> severityOrder(item.severity()))
                         .thenComparing(ProviderDtos.ActionItem::createdAt, Comparator.nullsLast(Comparator.reverseOrder())))
-                .limit(12)
-                .toList();
+                .toList(), 12);
     }
 
     private List<ProviderDtos.RecentActivity> recentActivity() {
@@ -333,6 +347,14 @@ final class ProviderOperationsHealthRepository {
     private long count(String sql, Object... arguments) {
         Long value = jdbc.queryForObject(sql, Long.class, arguments);
         return value == null ? 0 : value;
+    }
+
+    static Instant latestServiceObservation(List<ProviderDtos.ServicePosture> services) {
+        return services.stream()
+                .map(ProviderDtos.ServicePosture::lastReconciledAt)
+                .filter(java.util.Objects::nonNull)
+                .max(Instant::compareTo)
+                .orElse(null);
     }
 
     private Instant instant(ResultSet result, String column) throws SQLException {

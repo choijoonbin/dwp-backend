@@ -4,6 +4,7 @@ import com.dwp.core.event.DomainEventContractRegistry;
 import com.dwp.core.event.DomainEventOutboxRepository;
 import com.dwp.core.event.DomainEventRecorder;
 import com.dwp.services.platform.mail.MailTypes.ProposalDecision;
+import com.dwp.services.platform.mail.MailTypes.ProposalType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
@@ -203,9 +204,10 @@ class MailFollowUpDueNotificationPostgresTest {
         assertThat(accepted.commandId()).isNotNull();
         assertThat(accepted.ownerState()).isEqualTo("ACCEPTED");
 
-        assertThat(commands.updateProposalOutcome(
+        assertThat(commands.updateProposalOutcomeFromOwner(
                 owner.tenantId(), owner.userId(), proposalId, accepted.commandId(),
-                "EXECUTED", "mail:draft:result", accepted.version())).isOne();
+                ProposalType.DRAFT_REPLY, "EXECUTED", "mail:draft:result",
+                accepted.version())).isOne();
         var executed = queries.proposalHandoff(
                 owner.tenantId(), owner.userId(), proposalId).orElseThrow();
         assertThat(executed.commandId()).isEqualTo(accepted.commandId());

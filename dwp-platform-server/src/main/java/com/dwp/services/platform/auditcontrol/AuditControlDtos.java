@@ -128,6 +128,8 @@ public final class AuditControlDtos {
             Instant firstEventAt, Instant lastEventAt, String rootHash,
             String checkpointHash, String signatureAlgorithm, String verificationStatus,
             Instant createdAt, Instant verifiedAt) { }
+    public record IntegrityCheckpointPage(
+            List<IntegrityCheckpoint> items, int limit, boolean hasMore, String coverageState) { }
     public record ExportRequest(
             AuditWindow window, String category, String severity, String outcome,
             String sourceService, String actor, String query, String format, String reason) { }

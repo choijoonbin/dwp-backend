@@ -197,7 +197,7 @@ class AdminMailDurabilityPostgresTest {
                         Map.of(), "Immutable incident evidence", idempotencyKey);
 
         MailWorkspaceDtos.DeliveryExport created = service.createDeliveryExport(
-                fixture.tenantId(), actorId, request);
+                fixture.tenantId(), actorId, request, true);
         assertThat(created.state()).isEqualTo("PENDING_APPROVAL");
         MailWorkspaceDtos.DeliveryExport approved = service.approveDeliveryExport(
                 fixture.tenantId(), actorId + 1, created.exportId(),
@@ -216,7 +216,7 @@ class AdminMailDurabilityPostgresTest {
                 """, fixture.tenantId(), fixture.deliveryId());
 
         MailWorkspaceDtos.DeliveryExport replay = service.createDeliveryExport(
-                fixture.tenantId(), actorId, request);
+                fixture.tenantId(), actorId, request, true);
         String secondDownload = service.deliveryExportJson(
                 fixture.tenantId(), actorId, created.exportId());
         Map<String, Object> stored = jdbc.queryForMap("""

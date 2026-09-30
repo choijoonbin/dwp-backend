@@ -10,10 +10,12 @@ import com.dwp.services.auth.entity.Tenant;
 import com.dwp.services.auth.entity.User;
 import com.dwp.services.auth.entity.UserAccount;
 import com.dwp.services.auth.entity.Permission;
+import com.dwp.services.auth.entity.OrganizationUnit;
 import com.dwp.services.auth.entity.Resource;
 import com.dwp.services.auth.entity.RolePermission;
 import com.dwp.services.auth.entity.Role;
 import com.dwp.services.auth.repository.PermissionRepository;
+import com.dwp.services.auth.repository.OrganizationUnitRepository;
 import com.dwp.services.auth.repository.PrincipalResourceGrantRepository;
 import com.dwp.services.auth.repository.DirectoryGroupMemberRepository;
 import com.dwp.services.auth.repository.DirectoryGroupRepository;
@@ -59,6 +61,8 @@ class AuthServiceTest {
     private final PermissionRepository permissions = mock(PermissionRepository.class);
     private final PrincipalResourceGrantRepository principalGrants =
             mock(PrincipalResourceGrantRepository.class);
+    private final OrganizationUnitRepository organizationUnits =
+            mock(OrganizationUnitRepository.class);
     private final AuthSessionService sessions = mock(AuthSessionService.class);
     private final AuthPolicyService policies = mock(AuthPolicyService.class);
     private final IdentityAccountService identityAccounts = mock(IdentityAccountService.class);
@@ -75,7 +79,7 @@ class AuthServiceTest {
     void setUp() {
         service = new AuthService(
                 users, accounts, tenants, roles, roleMembers, groups, groupMembers, rolePermissions,
-                resources, permissions, principalGrants, sessions, policies, identityAccounts, attempts,
+                resources, permissions, principalGrants, organizationUnits, sessions, policies, identityAccounts, attempts,
                 appGovernance, scopedDuties, encoder);
         when(tenants.findById(1L)).thenReturn(Optional.of(Tenant.builder()
                 .tenantId(1L).code("default").name("Default").status("ACTIVE").build()));
@@ -163,14 +167,40 @@ class AuthServiceTest {
                 .tenantId(1L)
                 .personPublicId(personPublicId)
                 .displayName("Employee")
+                .workerNumber("WK-1042")
+                .primaryOrgUnitId(41L)
+                .sourceType("HRIS")
+                .mfaEnabled(true)
                 .status("ACTIVE")
                 .build();
         when(users.findByUserIdAndTenantId(10L, 1L)).thenReturn(Optional.of(user));
+        when(organizationUnits.findByOrgUnitIdAndTenantId(41L, 1L)).thenReturn(Optional.of(
+                OrganizationUnit.builder()
+                        .orgUnitId(41L)
+                        .tenantId(1L)
+                        .orgKey("DIGITAL_PLATFORM")
+                        .name("Digital Platform")
+                        .status("ACTIVE")
+                        .build()));
 
         var response = service.getMe(10L, 1L);
 
         assertThat(response.getPersonPublicId()).isEqualTo(personPublicId);
+        assertThat(response.getWorkerNumber()).isEqualTo("WK-1042");
+        assertThat(response.getDepartment()).isEqualTo("Digital Platform");
+        assertThat(response.getIdentitySourceType()).isEqualTo("HRIS");
+        assertThat(response.isMfaEnabled()).isTrue();
         assertThat(response.isLegacyRoleFallbackAllowed()).isTrue();
+
+        when(organizationUnits.findByOrgUnitIdAndTenantId(41L, 1L)).thenReturn(Optional.of(
+                OrganizationUnit.builder()
+                        .orgUnitId(41L)
+                        .tenantId(1L)
+                        .orgKey("DIGITAL_PLATFORM")
+                        .name("Inactive organization")
+                        .status("INACTIVE")
+                        .build()));
+        assertThat(service.getMe(10L, 1L).getDepartment()).isNull();
     }
 
     @Test
@@ -246,6 +276,9 @@ class AuthServiceTest {
         assertThat(response.getPermissions()).isEmpty();
         assertThat(response.getGroups()).isEmpty();
         assertThat(response.getResourceRoles()).isEmpty();
+        assertThat(response.getWorkerNumber()).isNull();
+        assertThat(response.getDepartment()).isNull();
+        assertThat(response.getIdentitySourceType()).isNull();
         assertThat(response.isLegacyRoleFallbackAllowed()).isFalse();
         assertThat(service.getPermissions(10L, 1L)).isEmpty();
     }

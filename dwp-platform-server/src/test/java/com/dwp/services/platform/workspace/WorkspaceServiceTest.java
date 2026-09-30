@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -121,6 +122,21 @@ class WorkspaceServiceTest {
                 org.mockito.ArgumentMatchers.eq("corr-request"),
                 org.mockito.ArgumentMatchers.isNull(),
                 any());
+    }
+
+    @Test
+    void marksTheAdminAccessQueuePartialAtTheFiveHundredItemBoundary() {
+        List<AppAccessRequestRepository.RequestRecord> records = IntStream.range(0, 501)
+                .mapToObj(index -> request("PENDING", index))
+                .toList();
+        when(appAccessRequests.list(1L, "ALL", true, Set.of(), 501)).thenReturn(records);
+
+        WorkspaceDtos.AppAccessRequestPage result = service.appAccessRequests(
+                1L, "en", "ALL", true, Set.of());
+
+        assertThat(result.items()).hasSize(500);
+        assertThat(result.hasMore()).isTrue();
+        assertThat(result.coverageState()).isEqualTo("TRUNCATED_AT_LIMIT");
     }
 
     @Test

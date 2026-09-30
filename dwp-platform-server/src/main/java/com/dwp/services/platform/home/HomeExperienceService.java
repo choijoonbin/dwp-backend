@@ -4,8 +4,9 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.experience.ExperienceRevisionStore;
-import com.dwp.services.platform.media.TenantMediaStorage;
 import com.dwp.services.platform.home.personalization.HomeViewCompatibilityBridge;
+import com.dwp.services.platform.media.TenantMediaStorage;
+import com.dwp.services.platform.support.CappedList;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.slf4j.Logger;
@@ -437,13 +438,17 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
     }
 
     @Transactional(readOnly = true)
-    public List<HomeExperienceDtos.HomeExperienceRevisionResponse> history(Long tenantId, int limit) {
+    public HomeExperienceDtos.HomeExperienceRevisionPage history(Long tenantId, int limit) {
         long currentVersion = repository.findById(tenantId)
                 .map(this::versionOf)
                 .orElse(0L);
-        return revisionStore.list(tenantId, HOME, limit).stream()
+        CappedList<ExperienceRevisionStore.ExperienceRevision> page =
+                revisionStore.list(tenantId, HOME, limit);
+        List<HomeExperienceDtos.HomeExperienceRevisionResponse> items = page.items().stream()
                 .map(revision -> revisionResponse(revision, currentVersion))
                 .toList();
+        return new HomeExperienceDtos.HomeExperienceRevisionPage(
+                items, page.hasMore(), page.limit());
     }
 
     @Transactional

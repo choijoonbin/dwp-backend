@@ -64,6 +64,24 @@ class PlatformOpenApiSnapshotExportTest {
                 assertThat(response.statusCode()).isEqualTo(200);
                 JsonNode document = new ObjectMapper().readTree(response.body());
                 JsonNode paths = document.path("paths");
+                java.util.List.of(
+                        "/v1/personal-settings/workspace",
+                        "/v1/personal-settings/workspace/reconfirm",
+                        "/v1/personal-settings/favorites/{settingKey}",
+                        "/v1/personal-settings/activity/view",
+                        "/v1/personal-settings/privacy/consents",
+                        "/v1/personal-settings/privacy/consents/product-analytics",
+                        "/v1/personal-settings/privacy/requests",
+                        "/v1/personal-settings/privacy/requests/{requestId}/cancel")
+                        .forEach(path -> assertThat(paths.has(path)).as(path).isTrue());
+                String personalSettingsSchemas = document.path("components").path("schemas").toString();
+                assertThat(personalSettingsSchemas)
+                        .contains("freshnessState")
+                        .contains("offlineBehavior")
+                        .contains("coveredPurposes")
+                        .contains("coverageBoundary")
+                        .contains("requestFingerprint")
+                        .contains("fulfillmentBoundary");
                 assertThat(paths.has("/v1/workspace/activity/events/{id}")).isTrue();
                 assertThat(paths.has("/v1/workspace/activity/executions/summary")).isTrue();
                 assertThat(paths.has("/v1/workspace/activity/events/{id}/evidence")).isTrue();

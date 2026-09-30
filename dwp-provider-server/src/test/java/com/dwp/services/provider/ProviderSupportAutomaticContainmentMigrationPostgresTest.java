@@ -167,7 +167,9 @@ class ProviderSupportAutomaticContainmentMigrationPostgresTest {
 
         flyway(null).migrate();
 
-        assertThat(latestSuccessfulVersion()).isEqualTo(56);
+        // Later migrations may extend the Provider schema; this scenario asserts that the
+        // V51/V56 containment evidence survives the complete upgrade.
+        assertThat(latestSuccessfulVersion()).isGreaterThanOrEqualTo(56);
         assertThat(systemAdminAssignmentCount()).isZero();
         assertThat(jdbc.queryForMap("""
                 SELECT redacted_snapshot ->> 'affectedSystemEventCount' AS affected,
@@ -251,7 +253,7 @@ class ProviderSupportAutomaticContainmentMigrationPostgresTest {
                    AND outbox.event_id = ?
                 """, originalAuditEventId);
         flyway(null).migrate();
-        assertThat(latestSuccessfulVersion()).isEqualTo(56);
+        assertThat(latestSuccessfulVersion()).isGreaterThanOrEqualTo(56);
         assertThat(systemAdminAssignmentCount()).isZero();
         flyway(null).validate();
     }
@@ -357,7 +359,7 @@ class ProviderSupportAutomaticContainmentMigrationPostgresTest {
         jdbc.execute("DROP FUNCTION prv_test_fail_containment_retirement_audit()");
 
         flyway(null).migrate();
-        assertThat(latestSuccessfulVersion()).isEqualTo(56);
+        assertThat(latestSuccessfulVersion()).isGreaterThanOrEqualTo(56);
         assertThat(systemAdminAssignmentCount()).isZero();
         flyway(null).validate();
     }

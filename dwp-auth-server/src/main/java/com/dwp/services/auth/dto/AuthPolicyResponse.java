@@ -16,4 +16,6 @@ public class AuthPolicyResponse {
     private Boolean ssoLoginEnabled;
     private String ssoProviderKey;
     private Boolean requireMfa;
+
+    private Integer tokenTtlSec;
 }

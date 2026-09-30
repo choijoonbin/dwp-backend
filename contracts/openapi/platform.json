@@ -1121,6 +1121,31 @@
         },
         "type": "object"
       },
+      "Activity": {
+        "properties": {
+          "activityId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "activityType": {
+            "type": "string"
+          },
+          "changedFields": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "settingKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ActivityCoverage": {
         "properties": {
           "excludedProvenance": {
@@ -2760,6 +2785,33 @@
         },
         "type": "object"
       },
+      "ApiResponseActivity": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Activity"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseActivityEvent": {
         "properties": {
           "correlationId": {
@@ -3118,6 +3170,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/AppAccessRequest"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseAppAccessRequestPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AppAccessRequestPage"
           },
           "errorCode": {
             "type": "string"
@@ -3631,6 +3710,33 @@
           },
           "data": {
             "type": "boolean"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseBrandingRevisionPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/BrandingRevisionPage"
           },
           "errorCode": {
             "type": "string"
@@ -4603,6 +4709,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/ConnectorStatus"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseConsent": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Consent"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseConsentLedger": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ConsentLedger"
           },
           "errorCode": {
             "type": "string"
@@ -5757,6 +5917,33 @@
         },
         "type": "object"
       },
+      "ApiResponseFavorite": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Favorite"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseFavoriteReceipt": {
         "properties": {
           "correlationId": {
@@ -6243,6 +6430,33 @@
         },
         "type": "object"
       },
+      "ApiResponseHomeExperienceRevisionPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HomeExperienceRevisionPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseHomeOverviewResponse": {
         "properties": {
           "correlationId": {
@@ -6351,6 +6565,33 @@
         },
         "type": "object"
       },
+      "ApiResponseHomeTemplatePage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HomeTemplatePage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseHomeTemplateResponse": {
         "properties": {
           "correlationId": {
@@ -6378,6 +6619,33 @@
         },
         "type": "object"
       },
+      "ApiResponseHomeTemplateRevisionPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HomeTemplateRevisionPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseHomeViewResponse": {
         "properties": {
           "correlationId": {
@@ -6385,6 +6653,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/HomeViewResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseHomeViewRevisionPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/HomeViewRevisionPage"
           },
           "errorCode": {
             "type": "string"
@@ -6628,6 +6923,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/InspectionStatus"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseIntegrityCheckpointPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/IntegrityCheckpointPage"
           },
           "errorCode": {
             "type": "string"
@@ -7095,36 +7417,6 @@
         },
         "type": "object"
       },
-      "ApiResponseListAppAccessRequest": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/AppAccessRequest"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseListAssignedResource": {
         "properties": {
           "correlationId": {
@@ -7193,36 +7485,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/BookingSummary"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListBrandingRevisionResponse": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/BrandingRevisionResponse"
             },
             "type": "array"
           },
@@ -7875,96 +8137,6 @@
         },
         "type": "object"
       },
-      "ApiResponseListHomeExperienceRevisionResponse": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/HomeExperienceRevisionResponse"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListHomeTemplateResponse": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/HomeTemplateResponse"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListHomeTemplateRevisionResponse": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/HomeTemplateRevisionResponse"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseListHomeViewResponse": {
         "properties": {
           "correlationId": {
@@ -7973,36 +8145,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/HomeViewResponse"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListHomeViewRevisionResponse": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/HomeViewRevisionResponse"
             },
             "type": "array"
           },
@@ -8085,36 +8227,6 @@
         },
         "type": "object"
       },
-      "ApiResponseListIntegrityCheckpoint": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/IntegrityCheckpoint"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseListKioskDevice": {
         "properties": {
           "correlationId": {
@@ -8175,36 +8287,6 @@
         },
         "type": "object"
       },
-      "ApiResponseListOrphanLifecycleResult": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/OrphanLifecycleResult"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseListOrphanedView": {
         "properties": {
           "correlationId": {
@@ -8213,36 +8295,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/OrphanedView"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListOwnershipTransferSummary": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/OwnershipTransferSummary"
             },
             "type": "array"
           },
@@ -8363,6 +8415,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/PreferenceExceptionRequest"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListPrivacyRequest": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/PrivacyRequest"
             },
             "type": "array"
           },
@@ -8783,66 +8865,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/SharedInboxMemberCandidate"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListSubject": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/Subject"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListSyncRun": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/SyncRun"
             },
             "type": "array"
           },
@@ -9558,6 +9580,33 @@
         },
         "type": "object"
       },
+      "ApiResponseOrphanLifecyclePage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/OrphanLifecyclePage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseOrphanLifecycleResult": {
         "properties": {
           "correlationId": {
@@ -9646,6 +9695,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/OwnershipTransfer"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseOwnershipTransferPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/OwnershipTransferPage"
           },
           "errorCode": {
             "type": "string"
@@ -10159,6 +10235,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/Preview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePrivacyRequest": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PrivacyRequest"
           },
           "errorCode": {
             "type": "string"
@@ -12150,6 +12253,33 @@
         },
         "type": "object"
       },
+      "ApiResponseSubjectPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SubjectPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseSyncRun": {
         "properties": {
           "correlationId": {
@@ -12157,6 +12287,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/SyncRun"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSyncRunPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SyncRunPage"
           },
           "errorCode": {
             "type": "string"
@@ -14284,6 +14441,27 @@
         },
         "type": "object"
       },
+      "AppAccessRequestPage": {
+        "properties": {
+          "coverageState": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AppAccessRequest"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "AppEntry": {
         "properties": {
           "appKey": {
@@ -16032,6 +16210,29 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "BrandingRevisionPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/BrandingRevisionResponse"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hasMore",
+          "items",
+          "limit"
+        ],
         "type": "object"
       },
       "BrandingRevisionResponse": {
@@ -19622,6 +19823,64 @@
         },
         "type": "object"
       },
+      "Consent": {
+        "properties": {
+          "consentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "consentState": {
+            "type": "string"
+          },
+          "noticeVersion": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "purposeKey": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ConsentLedger": {
+        "properties": {
+          "coverageBoundary": {
+            "type": "string"
+          },
+          "coverageState": {
+            "type": "string"
+          },
+          "coveredPurposes": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "currentProductAnalytics": {
+            "$ref": "#/components/schemas/Consent"
+          },
+          "history": {
+            "items": {
+              "$ref": "#/components/schemas/Consent"
+            },
+            "type": "array"
+          },
+          "historyHasMore": {
+            "type": "boolean"
+          },
+          "historyLimit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "ConsentSnapshot": {
         "properties": {
           "feedbackUseConsent": {
@@ -20643,6 +20902,36 @@
           "code",
           "labels",
           "sortOrder"
+        ],
+        "type": "object"
+      },
+      "CreatePrivacyRequest": {
+        "properties": {
+          "accountDeletionAcknowledged": {
+            "type": "boolean"
+          },
+          "acknowledgementValid": {
+            "type": "boolean"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          },
+          "requestType": {
+            "minLength": 1,
+            "pattern": "DATA_EXPORT|ACCOUNT_DELETION",
+            "type": "string"
+          },
+          "requestedScope": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "requestType",
+          "requestedScope"
         ],
         "type": "object"
       },
@@ -24635,6 +24924,25 @@
         },
         "type": "object"
       },
+      "Favorite": {
+        "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "settingKey": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "FavoriteReceipt": {
         "properties": {
           "auditEventId": {
@@ -26601,6 +26909,29 @@
         ],
         "type": "object"
       },
+      "HomeExperienceRevisionPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HomeExperienceRevisionResponse"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hasMore",
+          "items",
+          "limit"
+        ],
+        "type": "object"
+      },
       "HomeExperienceRevisionResponse": {
         "properties": {
           "affectedScopes": {
@@ -27007,6 +27338,29 @@
         },
         "type": "object"
       },
+      "HomeTemplatePage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HomeTemplateResponse"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hasMore",
+          "items",
+          "limit"
+        ],
+        "type": "object"
+      },
       "HomeTemplateResponse": {
         "properties": {
           "audience": {
@@ -27063,6 +27417,29 @@
           "templateId",
           "templateKey",
           "version"
+        ],
+        "type": "object"
+      },
+      "HomeTemplateRevisionPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HomeTemplateRevisionResponse"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hasMore",
+          "items",
+          "limit"
         ],
         "type": "object"
       },
@@ -27305,6 +27682,29 @@
           "viewId",
           "viewKey",
           "widgetConfigurations"
+        ],
+        "type": "object"
+      },
+      "HomeViewRevisionPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/HomeViewRevisionResponse"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "hasMore",
+          "items",
+          "limit"
         ],
         "type": "object"
       },
@@ -28098,6 +28498,27 @@
           "verifiedAt": {
             "format": "date-time",
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "IntegrityCheckpointPage": {
+        "properties": {
+          "coverageState": {
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/IntegrityCheckpoint"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -29667,6 +30088,24 @@
         ],
         "type": "object"
       },
+      "OrphanLifecyclePage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OrphanLifecycleResult"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "OrphanLifecycleResult": {
         "properties": {
           "action": {
@@ -30179,6 +30618,24 @@
             "type": "string"
           },
           "transferredCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "OwnershipTransferPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/OwnershipTransferSummary"
+            },
+            "type": "array"
+          },
+          "limit": {
             "format": "int32",
             "type": "integer"
           }
@@ -32427,6 +32884,101 @@
         ],
         "type": "object"
       },
+      "PrivacyRequest": {
+        "properties": {
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fulfillmentAvailable": {
+            "type": "boolean"
+          },
+          "fulfillmentBoundary": {
+            "type": "string"
+          },
+          "lifecycle": {
+            "items": {
+              "$ref": "#/components/schemas/PrivacyRequestEvent"
+            },
+            "type": "array"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/PrivacyRequestReceipt"
+          },
+          "requestId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestState": {
+            "type": "string"
+          },
+          "requestType": {
+            "type": "string"
+          },
+          "requestedScope": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PrivacyRequestEvent": {
+        "properties": {
+          "detailKey": {
+            "type": "string"
+          },
+          "eventId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "eventType": {
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requestState": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PrivacyRequestReceipt": {
+        "properties": {
+          "evidenceState": {
+            "type": "string"
+          },
+          "fulfillmentBoundary": {
+            "type": "string"
+          },
+          "issuedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "receiptType": {
+            "type": "string"
+          },
+          "requestFingerprint": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "PrivacySummary": {
         "properties": {
           "anonymizedBookingCount": {
@@ -33881,6 +34433,19 @@
         "required": [
           "expectedCommandVersion",
           "reason"
+        ],
+        "type": "object"
+      },
+      "RecordViewRequest": {
+        "properties": {
+          "settingKey": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "settingKey"
         ],
         "type": "object"
       },
@@ -40070,6 +40635,24 @@
         },
         "type": "object"
       },
+      "SubjectPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Subject"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "Summary": {
         "properties": {
           "bookedMinutes": {
@@ -40207,6 +40790,24 @@
           },
           "userId": {
             "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "SyncRunPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/SyncRun"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
             "type": "integer"
           }
         },
@@ -41225,6 +41826,23 @@
         ],
         "type": "object"
       },
+      "UpdateConsentRequest": {
+        "properties": {
+          "granted": {
+            "type": "boolean"
+          },
+          "noticeVersion": {
+            "maxLength": 64,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "granted",
+          "noticeVersion"
+        ],
+        "type": "object"
+      },
       "UpdateDeviceLayoutRequest": {
         "properties": {
           "overlay": {
@@ -41404,6 +42022,23 @@
           "type",
           "version",
           "visibility"
+        ],
+        "type": "object"
+      },
+      "UpdateFavoriteRequest": {
+        "properties": {
+          "favorite": {
+            "type": "boolean"
+          },
+          "version": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "favorite",
+          "version"
         ],
         "type": "object"
       },
@@ -49191,26 +49826,20 @@
       },
       "Workspace": {
         "properties": {
-          "currentTree": {
+          "favorites": {
             "items": {
-              "$ref": "#/components/schemas/AdminNode"
+              "$ref": "#/components/schemas/Favorite"
             },
             "type": "array"
           },
-          "currentValidation": {
-            "$ref": "#/components/schemas/ValidationReport"
+          "observation": {
+            "$ref": "#/components/schemas/WorkspaceObservation"
           },
-          "draft": {
-            "$ref": "#/components/schemas/Revision"
-          },
-          "history": {
+          "recentActivity": {
             "items": {
-              "$ref": "#/components/schemas/Revision"
+              "$ref": "#/components/schemas/Activity"
             },
             "type": "array"
-          },
-          "published": {
-            "$ref": "#/components/schemas/Revision"
           }
         },
         "type": "object"
@@ -49280,6 +49909,40 @@
             "type": "string"
           },
           "resourceKey": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WorkspaceObservation": {
+        "properties": {
+          "freshnessState": {
+            "type": "string"
+          },
+          "lastChangeAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lastConfirmedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "offlineBehavior": {
+            "type": "string"
+          },
+          "reviewDueAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sourceState": {
             "type": "string"
           },
           "version": {
@@ -50277,7 +50940,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListAppAccessRequest"
+                  "$ref": "#/components/schemas/ApiResponseAppAccessRequestPage"
                 }
               }
             },
@@ -51242,7 +51905,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListIntegrityCheckpoint"
+                  "$ref": "#/components/schemas/ApiResponseIntegrityCheckpointPage"
                 }
               }
             },
@@ -51263,7 +51926,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListIntegrityCheckpoint"
+                  "$ref": "#/components/schemas/ApiResponseIntegrityCheckpointPage"
                 }
               }
             },
@@ -53456,6 +54119,7 @@
             "schema": {
               "default": 20,
               "format": "int32",
+              "maximum": 50,
               "minimum": 1,
               "type": "integer"
             }
@@ -53466,7 +54130,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListHomeExperienceRevisionResponse"
+                  "$ref": "#/components/schemas/ApiResponseHomeExperienceRevisionPage"
                 }
               }
             },
@@ -53806,7 +54470,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListSyncRun"
+                  "$ref": "#/components/schemas/ApiResponseSyncRunPage"
                 }
               }
             },
@@ -53838,7 +54502,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListSubject"
+                  "$ref": "#/components/schemas/ApiResponseSubjectPage"
                 }
               }
             },
@@ -53852,7 +54516,7 @@
     },
     "/v1/admin/localization": {
       "get": {
-        "operationId": "workspace_1",
+        "operationId": "workspace_2",
         "parameters": [],
         "responses": {
           "200": {
@@ -56554,7 +57218,7 @@
     },
     "/v1/admin/navigation/studio": {
       "get": {
-        "operationId": "workspace",
+        "operationId": "workspace_1",
         "parameters": [],
         "responses": {
           "200": {
@@ -58349,7 +59013,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListOrphanLifecycleResult"
+                  "$ref": "#/components/schemas/ApiResponseOrphanLifecyclePage"
                 }
               }
             },
@@ -58559,7 +59223,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListOwnershipTransferSummary"
+                  "$ref": "#/components/schemas/ApiResponseOwnershipTransferPage"
                 }
               }
             },
@@ -59092,6 +59756,7 @@
             "schema": {
               "default": 20,
               "format": "int32",
+              "maximum": 50,
               "minimum": 1,
               "type": "integer"
             }
@@ -59102,7 +59767,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListBrandingRevisionResponse"
+                  "$ref": "#/components/schemas/ApiResponseBrandingRevisionPage"
                 }
               }
             },
@@ -72085,7 +72750,7 @@
     },
     "/v1/announcements/{announcementId}/engagements/view": {
       "post": {
-        "operationId": "recordView",
+        "operationId": "recordView_1",
         "parameters": [
           {
             "in": "path",
@@ -74688,7 +75353,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListHomeTemplateResponse"
+                  "$ref": "#/components/schemas/ApiResponseHomeTemplatePage"
                 }
               }
             },
@@ -75249,7 +75914,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListHomeTemplateRevisionResponse"
+                  "$ref": "#/components/schemas/ApiResponseHomeTemplateRevisionPage"
                 }
               }
             },
@@ -76408,7 +77073,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListHomeViewRevisionResponse"
+                  "$ref": "#/components/schemas/ApiResponseHomeViewRevisionPage"
                 }
               }
             },
@@ -80088,6 +80753,315 @@
         },
         "tags": [
           "personal-preference-controller"
+        ]
+      }
+    },
+    "/v1/personal-settings/activity/view": {
+      "post": {
+        "operationId": "recordView",
+        "parameters": [],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordViewRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseActivity"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "personal-settings-owner-controller"
+        ]
+      }
+    },
+    "/v1/personal-settings/favorites/{settingKey}": {
+      "put": {
+        "operationId": "updateFavorite",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "settingKey",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateFavoriteRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFavorite"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "personal-settings-owner-controller"
+        ]
+      }
+    },
+    "/v1/personal-settings/privacy/consents": {
+      "get": {
+        "operationId": "consentLedger",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConsentLedger"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "personal-settings-owner-controller"
+        ]
+      }
+    },
+    "/v1/personal-settings/privacy/consents/product-analytics": {
+      "put": {
+        "operationId": "updateProductAnalyticsConsent",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateConsentRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseConsent"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "personal-settings-owner-controller"
+        ]
+      }
+    },
+    "/v1/personal-settings/privacy/requests": {
+      "get": {
+        "operationId": "privacyRequests",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListPrivacyRequest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "personal-settings-owner-controller"
+        ]
+      },
+      "post": {
+        "operationId": "createPrivacyRequest",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreatePrivacyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePrivacyRequest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "personal-settings-owner-controller"
+        ]
+      }
+    },
+    "/v1/personal-settings/privacy/requests/{requestId}/cancel": {
+      "patch": {
+        "operationId": "cancelPrivacyRequest",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePrivacyRequest"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "personal-settings-owner-controller"
+        ]
+      }
+    },
+    "/v1/personal-settings/workspace": {
+      "get": {
+        "operationId": "workspace",
+        "parameters": [],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "personal-settings-owner-controller"
+        ]
+      }
+    },
+    "/v1/personal-settings/workspace/reconfirm": {
+      "post": {
+        "operationId": "reconfirmWorkspace",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseWorkspace"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "personal-settings-owner-controller"
         ]
       }
     },

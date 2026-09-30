@@ -10,9 +10,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -34,6 +34,16 @@ public class PersonalSettingsOwnerController {
             @RequestHeader(TENANT_HEADER) Long tenantId,
             @RequestHeader(USER_HEADER) Long userId) {
         return ApiResponse.success(service.workspace(tenantId, userId));
+    }
+
+    @PostMapping("/workspace/reconfirm")
+    public ApiResponse<PersonalSettingsDtos.Workspace> reconfirmWorkspace(
+            @RequestHeader(TENANT_HEADER) Long tenantId,
+            @RequestHeader(USER_HEADER) Long userId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody PersonalSettingsDtos.VersionRequest request) {
+        return ApiResponse.success(service.reconfirmWorkspace(
+                tenantId, userId, correlationId, request.version()));
     }
 
     @PutMapping("/favorites/{settingKey}")
@@ -73,10 +83,11 @@ public class PersonalSettingsOwnerController {
     }
 
     @GetMapping("/privacy/requests")
-    public ApiResponse<List<PersonalSettingsDtos.PrivacyRequest>> privacyRequests(
+    public ApiResponse<PersonalSettingsDtos.PrivacyRequestPage> privacyRequests(
             @RequestHeader(TENANT_HEADER) Long tenantId,
-            @RequestHeader(USER_HEADER) Long userId) {
-        return ApiResponse.success(service.privacyRequests(tenantId, userId));
+            @RequestHeader(USER_HEADER) Long userId,
+            @RequestParam(defaultValue = "50") int limit) {
+        return ApiResponse.success(service.privacyRequests(tenantId, userId, limit));
     }
 
     @PostMapping("/privacy/requests")

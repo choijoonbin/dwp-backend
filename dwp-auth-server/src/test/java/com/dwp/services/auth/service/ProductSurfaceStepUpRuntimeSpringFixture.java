@@ -52,7 +52,8 @@ class ProductSurfaceStepUpRuntimeSpringFixture {
                 repositories.getRepository(RoleMemberRepository.class), mock(DirectoryGroupRepository.class),
                 mock(DirectoryGroupMemberRepository.class), repositories.getRepository(RolePermissionRepository.class),
                 repositories.getRepository(ResourceRepository.class), repositories.getRepository(PermissionRepository.class),
-                new PrincipalResourceGrantRepository(jdbc), sessions, mock(AuthPolicyService.class),
+                new PrincipalResourceGrantRepository(jdbc), repositories.getRepository(OrganizationUnitRepository.class),
+                sessions, mock(AuthPolicyService.class),
                 mock(IdentityAccountService.class), mock(LoginAttemptService.class), governance, duties, mock(PasswordEncoder.class));
     }
     @Bean ProductAuthorizationIdentityEvidenceService identity(AuthService auth, AppGovernanceService governance,

@@ -23,7 +23,9 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.inOrder;
@@ -818,7 +820,8 @@ class AdminMailCompletionServiceTest {
                 new AtomicReference<>();
         when(repository.insertExport(
                 any(), eq(7L), eq(91L), eq(Map.of()), eq("Incident evidence"),
-                any(), eq(key), any(), any(), any(), eq(1), eq(false), any()))
+                any(), eq(key), any(), any(), any(), eq(1), eq(false), any(),
+                eq("DELIVERY_AUDIT"), eq(Map.of()), isNull(), anyString()))
                 .thenAnswer(invocation -> {
                     UUID exportId = invocation.getArgument(0);
                     String watermark = invocation.getArgument(5);
@@ -826,16 +829,18 @@ class AdminMailCompletionServiceTest {
                     String payload = invocation.getArgument(8);
                     String hash = invocation.getArgument(9);
                     OffsetDateTime cutoff = invocation.getArgument(12);
+                    String requestFingerprint = invocation.getArgument(16);
                     persisted.set(new AdminMailCompletionRepository.ExportRow(
                             exportId, 91, Map.of(), "Incident evidence", "READY",
                             "DATABASE_SNAPSHOT:" + hash, watermark, key, cutoff,
-                            expiresAt, payload, hash, 1, false, cutoff));
+                            expiresAt, payload, hash, 1, false, cutoff,
+                            "DELIVERY_AUDIT", Map.of(), null, 1, requestFingerprint));
                     return Optional.of(exportId);
                 });
         when(repository.export(eq(7L), eq(91L), any()))
                 .thenAnswer(invocation -> Optional.ofNullable(persisted.get()));
 
-        DeliveryExport export = service.createDeliveryExport(7, 91, request);
+        DeliveryExport export = service.createDeliveryExport(7, 91, request, true);
         String first = service.deliveryExportJson(7, 91, export.exportId());
         String second = service.deliveryExportJson(7, 91, export.exportId());
 

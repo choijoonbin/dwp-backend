@@ -115,7 +115,7 @@ public class ScimCredentialService {
     }
 
     @Transactional(readOnly = true)
-    public List<ScimConnectorDtos.ProvisioningEvent> events(
+    public ScimConnectorDtos.ProvisioningEventPage events(
             Long tenantId,
             UUID connectorId,
             int requestedLimit) {
@@ -124,8 +124,8 @@ public class ScimCredentialService {
         List<Object> arguments = new java.util.ArrayList<>();
         arguments.add(tenantId);
         if (connectorId != null) arguments.add(connectorId);
-        arguments.add(limit);
-        return jdbc.query("""
+        arguments.add(limit + 1);
+        List<ScimConnectorDtos.ProvisioningEvent> events = jdbc.query("""
                 SELECT event.scim_event_id, event.scim_connector_id,
                        connector.display_name AS connector_name,
                        event.operation, event.resource_type, event.resource_id,
@@ -154,6 +154,18 @@ public class ScimCredentialService {
                         resultSet.getString("event_summary"),
                         resultSet.getTimestamp("occurred_at").toInstant()),
                 arguments.toArray());
+        return eventPage(events, limit);
+    }
+
+    static ScimConnectorDtos.ProvisioningEventPage eventPage(
+            List<ScimConnectorDtos.ProvisioningEvent> observed,
+            int limit) {
+        boolean hasMore = observed.size() > limit;
+        List<ScimConnectorDtos.ProvisioningEvent> items = hasMore
+                ? observed.subList(0, limit) : observed;
+        return new ScimConnectorDtos.ProvisioningEventPage(
+                items, limit, hasMore,
+                hasMore ? "TRUNCATED_AT_LIMIT" : "COMPLETE_WITHIN_FILTER");
     }
 
     @Transactional

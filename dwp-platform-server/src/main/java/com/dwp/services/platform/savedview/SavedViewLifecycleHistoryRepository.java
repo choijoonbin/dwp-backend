@@ -17,7 +17,7 @@ class SavedViewLifecycleHistoryRepository {
     }
 
     List<SavedViewDtos.OrphanLifecycleResult> latest(Long tenantId, int limit) {
-        int boundedLimit = Math.max(1, Math.min(limit, 100));
+        int boundedLimit = Math.max(1, Math.min(limit, 101));
         return jdbc.query("""
                 SELECT command_id, idempotency_key, saved_view_id,
                        saved_view_name, surface_key, scope, action,
