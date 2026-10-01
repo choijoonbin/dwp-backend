@@ -4054,6 +4054,33 @@
         },
         "type": "object"
       },
+      "ApiResponseCatalogOverview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CatalogOverview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseCatalogResponse": {
         "properties": {
           "correlationId": {
@@ -8377,36 +8404,6 @@
         },
         "type": "object"
       },
-      "ApiResponseListPolicyRevision": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/PolicyRevision"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseListPreferenceExceptionRequest": {
         "properties": {
           "correlationId": {
@@ -8415,36 +8412,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/PreferenceExceptionRequest"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListPrivacyRequest": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/PrivacyRequest"
             },
             "type": "array"
           },
@@ -10147,6 +10114,33 @@
         },
         "type": "object"
       },
+      "ApiResponsePolicyRevisionPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PolicyRevisionPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponsePostIncidentReport": {
         "properties": {
           "correlationId": {
@@ -10262,6 +10256,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/PrivacyRequest"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePrivacyRequestPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PrivacyRequestPage"
           },
           "errorCode": {
             "type": "string"
@@ -15042,6 +15063,13 @@
             },
             "type": "array"
           },
+          "findingsHasMore": {
+            "type": "boolean"
+          },
+          "findingsLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
           "generatedAt": {
             "format": "date-time",
             "type": "string"
@@ -17453,6 +17481,62 @@
             "type": "array"
           },
           "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CatalogOverview": {
+        "properties": {
+          "criticalRelationCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "declaredRelationCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/Entity"
+            },
+            "type": "array"
+          },
+          "entitiesByKind": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "entitiesByLifecycle": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "entitiesHasMore": {
+            "type": "boolean"
+          },
+          "entitiesLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "entityCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "orphanCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "relationCount": {
             "format": "int64",
             "type": "integer"
           }
@@ -32150,6 +32234,86 @@
         },
         "type": "object"
       },
+      "PolicyImpactSnapshot": {
+        "properties": {
+          "affectedActorCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "affectedAuditEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "affectedTargetCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "auditEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "coverageState": {
+            "type": "string"
+          },
+          "exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "exportableEventCountAfter": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "exportableEventCountBefore": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "extendedRetentionAffectedEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "extendedRetentionEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "highRiskClassificationAffectedEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "includedOwners": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "integrityProtectedEventCountAfter": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "integrityProtectedEventCountBefore": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "legalHoldEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "standardRetentionAffectedEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "standardRetentionEventCount": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "PolicyOverrideChangeRequest": {
         "properties": {
           "confirmed": {
@@ -32354,6 +32518,12 @@
             "format": "int32",
             "type": "integer"
           },
+          "impactSha256": {
+            "type": "string"
+          },
+          "impactSnapshot": {
+            "$ref": "#/components/schemas/PolicyImpactSnapshot"
+          },
           "incidentCaseId": {
             "format": "uuid",
             "type": "string"
@@ -32448,6 +32618,24 @@
           },
           "version": {
             "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyRevisionPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyRevision"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
             "type": "integer"
           }
         },
@@ -32902,6 +33090,13 @@
             },
             "type": "array"
           },
+          "lifecycleHasMore": {
+            "type": "boolean"
+          },
+          "lifecycleLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
           "reason": {
             "type": "string"
           },
@@ -32950,6 +33145,24 @@
           },
           "requestState": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PrivacyRequestPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/PrivacyRequest"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -52028,13 +52241,24 @@
     "/v1/admin/audit-control/policy/revisions": {
       "get": {
         "operationId": "policyRevisions",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListPolicyRevision"
+                  "$ref": "#/components/schemas/ApiResponsePolicyRevisionPage"
                 }
               }
             },
@@ -53089,7 +53313,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseOverview"
+                  "$ref": "#/components/schemas/ApiResponseCatalogOverview"
                 }
               }
             },
@@ -80899,13 +81123,24 @@
     "/v1/personal-settings/privacy/requests": {
       "get": {
         "operationId": "privacyRequests",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListPrivacyRequest"
+                  "$ref": "#/components/schemas/ApiResponsePrivacyRequestPage"
                 }
               }
             },

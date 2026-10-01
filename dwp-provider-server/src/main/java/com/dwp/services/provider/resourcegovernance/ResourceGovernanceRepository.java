@@ -41,8 +41,8 @@ public class ResourceGovernanceRepository {
         return resources.tenantExists(tenantId);
     }
 
-    public List<CommitmentRow> commitments(UUID tenantId) {
-        return resources.commitments(tenantId);
+    public List<CommitmentRow> commitments(UUID tenantId, int fetchLimit) {
+        return resources.commitments(tenantId, fetchLimit);
     }
 
     public Optional<CommitmentRow> commitment(UUID tenantId, String resourceKey) {
@@ -78,8 +78,8 @@ public class ResourceGovernanceRepository {
         return resources.hasActiveTemporaryOverride(tenantId, resourceKey);
     }
 
-    public List<ResourceCommitmentChangeRow> resourceChanges(UUID tenantId) {
-        return resources.resourceChanges(tenantId);
+    public List<ResourceCommitmentChangeRow> resourceChanges(UUID tenantId, int fetchLimit) {
+        return resources.resourceChanges(tenantId, fetchLimit);
     }
 
     public Optional<ResourceCommitmentChangeRow> resourceChange(UUID changeRequestId) {
@@ -164,8 +164,8 @@ public class ResourceGovernanceRepository {
         return resources.appendLedger(entryId, tenantId, resourceKey, commitment, request, actorId);
     }
 
-    public List<ArtifactRow> artifacts() {
-        return artifacts.artifacts();
+    public List<ArtifactRow> artifacts(int fetchLimit) {
+        return artifacts.artifacts(fetchLimit);
     }
 
     public Optional<ArtifactRow> artifact(UUID artifactId) {
@@ -201,12 +201,12 @@ public class ResourceGovernanceRepository {
         return artifacts.decideArtifact(artifactId, request, actorId);
     }
 
-    public List<ArtifactReviewRow> reviews(UUID artifactId) {
-        return artifacts.reviews(artifactId);
+    public List<ArtifactReviewRow> reviews(UUID artifactId, int fetchLimit) {
+        return artifacts.reviews(artifactId, fetchLimit);
     }
 
-    public List<PlanRow> plans() {
-        return artifacts.plans();
+    public List<PlanRow> plans(int fetchLimit) {
+        return artifacts.plans(fetchLimit);
     }
 
     public Optional<PlanRow> plan(UUID planId) {
@@ -249,12 +249,16 @@ public class ResourceGovernanceRepository {
         return artifacts.appendEvidence(evidenceId, planId, request, actorId);
     }
 
-    public List<ArtifactEvidenceRow> evidence(UUID planId) {
-        return artifacts.evidence(planId);
+    public List<ArtifactEvidenceRow> evidence(UUID planId, int fetchLimit) {
+        return artifacts.evidence(planId, fetchLimit);
     }
 
-    public List<TenantLifecycleRequestRow> lifecycleRequests(UUID tenantId) {
-        return lifecycle.lifecycleRequests(tenantId);
+    public List<ArtifactEvidenceRow> readinessEvidence(UUID planId) {
+        return artifacts.readinessEvidence(planId);
+    }
+
+    public List<TenantLifecycleRequestRow> lifecycleRequests(UUID tenantId, int fetchLimit) {
+        return lifecycle.lifecycleRequests(tenantId, fetchLimit);
     }
 
     public Optional<TenantLifecycleRequestRow> lifecycleRequest(UUID requestId) {
@@ -290,6 +294,14 @@ public class ResourceGovernanceRepository {
 
     public boolean submitLifecycleRequest(UUID requestId, long version, Long actorId) {
         return lifecycle.submitLifecycleRequest(requestId, version, actorId);
+    }
+
+    public boolean cancelLifecycleRequest(
+            UUID requestId,
+            long version,
+            Long actorId,
+            String reason) {
+        return lifecycle.cancelLifecycleRequest(requestId, version, actorId, reason);
     }
 
     public boolean decideLifecycleRequest(

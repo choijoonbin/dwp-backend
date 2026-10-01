@@ -1,6 +1,7 @@
 package com.dwp.services.platform.catalog;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -45,6 +46,7 @@ public final class CatalogDtos {
             long version) {
     }
 
+    @Schema(name = "CatalogOverview")
     public record Overview(
             long entityCount,
             long relationCount,
@@ -54,6 +56,8 @@ public final class CatalogDtos {
             Map<String, Long> entitiesByKind,
             Map<String, Long> entitiesByLifecycle,
             List<Entity> entities,
+            int entitiesLimit,
+            boolean entitiesHasMore,
             OffsetDateTime generatedAt) {
     }
 
@@ -127,6 +131,8 @@ public final class CatalogDtos {
             long deprecationImpactCount,
             CompatibilityRule activeRule,
             List<AssuranceFinding> findings,
+            int findingsLimit,
+            boolean findingsHasMore,
             OffsetDateTime generatedAt) {
     }
 

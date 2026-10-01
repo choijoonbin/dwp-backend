@@ -58,7 +58,8 @@ public final class PolicyImpactSourceAttestationVerifier {
         var authority = claims.get("authority"); keys(authority, AUTHORITY);
         String authRevision = text(authority, "ownerAuthRevision", 200), policyRevision = text(authority, "ownerPolicyRevision", 200);
         String vector = hash(authority, "sourceVectorSha256");
-        if (!authRevision.matches("auth-[a-f0-9]{64}") || !policyRevision.matches("policy-9-[1-9][0-9]*-[a-f0-9]{64}")
+        if (!authRevision.matches("auth-[a-f0-9]{64}")
+                || !policyRevision.matches("policy-(?:9|32)-[1-9][0-9]*-[a-f0-9]{64}")
                 || !("apia-" + vector).equals(text(authority, "sourceRevision", 69))
                 || instant(authority, "evaluatedAt").isBefore(Instant.ofEpochSecond(issued))
                 || instant(authority, "evaluatedAt").isAfter(clock.instant())

@@ -21,6 +21,9 @@ import java.util.UUID;
 /** Owns artifact-manifest lifecycle orchestration while the facade retains transaction boundaries. */
 final class ArtifactManifestGovernance {
 
+    private static final int LIST_LIMIT = 100;
+    private static final int REVIEW_LIMIT = 50;
+
     private final ResourceGovernanceRepository repository;
     private final ProviderAuditService audit;
     private final ArtifactGovernanceRules rules;
@@ -34,9 +37,13 @@ final class ArtifactManifestGovernance {
         this.rules = rules;
     }
 
-    public List<ArtifactManifest> artifacts() {
+    public ResourceGovernanceDtos.ArtifactManifestPage artifacts() {
         ProviderRequestContext.requirePermission(ResourceGovernanceService.ARTIFACT_READ);
-        return repository.artifacts().stream().map(this::artifact).toList();
+        List<ArtifactRow> rows = repository.artifacts(LIST_LIMIT + 1);
+        return new ResourceGovernanceDtos.ArtifactManifestPage(
+                rows.stream().limit(LIST_LIMIT).map(this::artifact).toList(),
+                LIST_LIMIT,
+                rows.size() > LIST_LIMIT);
     }
 
     public ArtifactManifest createArtifact(
@@ -148,14 +155,17 @@ final class ArtifactManifestGovernance {
     }
 
     private ArtifactManifest artifact(ArtifactRow row) {
-        List<ArtifactReview> reviews = repository.reviews(row.artifactId()).stream()
-                .map(this::review).toList();
+        List<ArtifactReviewRow> reviewRows = repository.reviews(
+                row.artifactId(), REVIEW_LIMIT + 1);
+        List<ArtifactReview> reviews = reviewRows.stream()
+                .limit(REVIEW_LIMIT).map(this::review).toList();
         return new ArtifactManifest(
                 row.artifactId(), row.productKey(), row.artifactVersion(), row.artifactType(),
                 row.manifestSchemaVersion(), row.manifest(), row.compatibilityPolicy(),
                 rules.compatibility(row), row.declaredDigest(), row.lifecycleState(), row.compatibilityState(),
                 row.compatibilityEvidence(), row.signatureState(), row.distributionState(),
-                row.createdBy(), row.updatedBy(), row.createdAt(), row.updatedAt(), row.version(), reviews);
+                row.createdBy(), row.updatedBy(), row.createdAt(), row.updatedAt(), row.version(),
+                reviews, REVIEW_LIMIT, reviewRows.size() > REVIEW_LIMIT);
     }
 
     private ArtifactReview review(ArtifactReviewRow row) {

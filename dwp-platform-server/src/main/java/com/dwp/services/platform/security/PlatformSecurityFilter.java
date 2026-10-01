@@ -58,6 +58,28 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
     static final String WIDGET_OWNER_SCOPE_HEADER =
             "X-DWP-Widget-Owner-Product-Keys";
     private static final Set<String> ADMIN_ROLES = Set.of("ADMIN", "TENANT_ADMIN", "PLATFORM_ADMIN");
+    private static final Set<String> PERSONAL_PREFERENCE_CODE_SET_PATHS = Set.of(
+            "/v1/catalog/code-sets/PLATFORM.PREFERENCE.COLOR_MODE",
+            "/v1/catalog/code-sets/PLATFORM.PREFERENCE.DENSITY",
+            "/v1/catalog/code-sets/PLATFORM.PREFERENCE.TIME_ZONE",
+            "/v1/catalog/code-sets/PLATFORM.PREFERENCE.DATE_FORMAT",
+            "/v1/catalog/code-sets/PLATFORM.PREFERENCE.TIME_FORMAT",
+            "/v1/catalog/code-sets/PLATFORM.PREFERENCE.FIRST_DAY_OF_WEEK",
+            "/v1/catalog/code-sets/PLATFORM.PREFERENCE.NUMBER_FORMAT");
+    private static final Set<String> AUDIT_VIEW_CODE_SET_PATHS = Set.of(
+            "/v1/catalog/code-sets/PLATFORM.AUDIT.WINDOW",
+            "/v1/catalog/code-sets/PLATFORM.AUDIT.CATEGORY_FILTER",
+            "/v1/catalog/code-sets/PLATFORM.AUDIT.SEVERITY_FILTER",
+            "/v1/catalog/code-sets/PLATFORM.AUDIT.OUTCOME_FILTER",
+            "/v1/catalog/code-sets/PLATFORM.EVENT_ENVELOPE.DOMAIN",
+            "/v1/catalog/code-sets/PLATFORM.EVENT_ENVELOPE.CLASSIFICATION",
+            "/v1/catalog/code-sets/PLATFORM.SYS_AUDIT_EXPORT_JOBS.FORMAT");
+    private static final Set<String> API_MONITORING_CODE_SET_PATHS = Set.of(
+            "/v1/catalog/code-sets/PLATFORM.API_HISTORY.WINDOW",
+            "/v1/catalog/code-sets/PLATFORM.API_HISTORY.OBSERVATION_POINT_FILTER",
+            "/v1/catalog/code-sets/PLATFORM.API_HISTORY.HTTP_METHOD_FILTER",
+            "/v1/catalog/code-sets/PLATFORM.API_HISTORY.OUTCOME_FILTER");
+    private static final String RUNTIME_CODE_SET_PATH_PREFIX = "/v1/catalog/code-sets/";
     private static final String SUPPORT_EXPERIENCE_PREVIEW_PATH =
             "/v1/admin/tenant-experience-preview";
 
@@ -234,6 +256,30 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
                     "The support session does not permit this platform resource.");
             return;
         }
+        if (path.startsWith(RUNTIME_CODE_SET_PATH_PREFIX)
+                && !canonicalRuntimeCodeSetPath(path)) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "A canonical runtime code-set path is required.");
+            return;
+        }
+        if (PERSONAL_PREFERENCE_CODE_SET_PATHS.contains(path)
+                && !hasPersonalRuntimeCodeSetAccess(request, supportAccess)) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Personal preference code sets require a tenant data-plane identity.");
+            return;
+        }
+        if (AUDIT_VIEW_CODE_SET_PATHS.contains(path)
+                && !hasAuditRuntimeCodeSetAccess(request, supportAccess)) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Exact audit view permission is required for this code set.");
+            return;
+        }
+        if (API_MONITORING_CODE_SET_PATHS.contains(path)
+                && !hasApiMonitoringRuntimeCodeSetAccess(request, supportAccess)) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Exact API monitoring permission is required for this code set.");
+            return;
+        }
         boolean personalHomePath = pathFamily(path, "/v1/home-views") || pathFamily(path, "/v1/home-experience")
                 || pathFamily(path, "/v1/home-templates")
                 || pathFamily(path, "/v1/home-composer/proposals")
@@ -335,6 +381,14 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             return;
         }
         boolean auditAdminPath = path.startsWith("/v1/admin/audit-control");
+        boolean apiHistoryAdminPath = pathFamily(path, "/v1/admin/api-history");
+        boolean delegatedApiHistoryAccess = apiHistoryAdminPath
+                && hasApiHistoryAuthority(request, supportAccess);
+        if (apiHistoryAdminPath && !delegatedApiHistoryAccess) {
+            writeError(response, ErrorCode.FORBIDDEN,
+                    "Exact API monitoring permission is required.");
+            return;
+        }
         boolean savedViewCustodyPath = path.startsWith("/v1/admin/saved-view-ownership");
         if (auditAdminPath && isBlank(request.getHeader(PERMISSIONS_HEADER))) {
             writeError(response, ErrorCode.FORBIDDEN, "Audit permission is required.");
@@ -437,7 +491,7 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
             return;
         }
         if (!supportAccess && !providerWidgetRegistryAccess
-                && !auditAdminPath && !savedViewCustodyPath
+                && !auditAdminPath && !delegatedApiHistoryAccess && !savedViewCustodyPath
                 && !scopedAppAccess && !delegatedCommunicationsAccess && !delegatedServicesAccess
                 && !delegatedCalendarAccess && !delegatedRoomsAccess
                 && !delegatedWorkplaceAccess && !delegatedMailAccess
@@ -554,6 +608,67 @@ public class PlatformSecurityFilter extends OncePerRequestFilter {
         };
         return permission != null
                 && hasAuthority(request.getHeader(PERMISSIONS_HEADER), resourceKey, permission);
+    }
+
+    private boolean hasApiHistoryAuthority(
+            HttpServletRequest request,
+            boolean supportAccess) {
+        if (supportAccess
+                || !"TENANT".equals(request.getHeader("X-DWP-Identity-Plane"))
+                || !isBlank(request.getHeader("X-DWP-Provider-Tenant-ID"))
+                || !isBlank(request.getHeader(ACTOR_TENANT_HEADER))) {
+            return false;
+        }
+        String permission = switch (request.getMethod()) {
+            case "GET", "HEAD" -> "VIEW";
+            case "POST", "PUT", "PATCH", "DELETE" -> "MANAGE";
+            default -> null;
+        };
+        return permission != null && hasAuthority(
+                request.getHeader(PERMISSIONS_HEADER),
+                "ADMIN.API_MONITORING",
+                permission);
+    }
+
+    private boolean hasPersonalRuntimeCodeSetAccess(
+            HttpServletRequest request,
+            boolean supportAccess) {
+        return tenantRuntimeRead(request, supportAccess);
+    }
+
+    private boolean hasAuditRuntimeCodeSetAccess(
+            HttpServletRequest request,
+            boolean supportAccess) {
+        return tenantRuntimeRead(request, supportAccess)
+                && hasAuthority(
+                request.getHeader(PERMISSIONS_HEADER),
+                "ADMIN.AUDIT_VIEW",
+                "VIEW");
+    }
+
+    private boolean hasApiMonitoringRuntimeCodeSetAccess(
+            HttpServletRequest request,
+            boolean supportAccess) {
+        return tenantRuntimeRead(request, supportAccess)
+                && hasAuthority(
+                request.getHeader(PERMISSIONS_HEADER),
+                "ADMIN.API_MONITORING",
+                "VIEW");
+    }
+
+    private boolean tenantRuntimeRead(
+            HttpServletRequest request,
+            boolean supportAccess) {
+        return !supportAccess
+                && ("GET".equals(request.getMethod()) || "HEAD".equals(request.getMethod()))
+                && "TENANT".equals(request.getHeader("X-DWP-Identity-Plane"))
+                && isBlank(request.getHeader("X-DWP-Provider-Tenant-ID"))
+                && isBlank(request.getHeader(ACTOR_TENANT_HEADER));
+    }
+
+    private boolean canonicalRuntimeCodeSetPath(String path) {
+        String codeSetKey = path.substring(RUNTIME_CODE_SET_PATH_PREFIX.length());
+        return codeSetKey.matches("[A-Z][A-Z0-9_.]{2,99}");
     }
 
     private String tenantAdministrationResource(String path) {

@@ -15,7 +15,10 @@ import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.Asses
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.UpsertCommitmentRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.VersionedReasonRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceRepository.ArtifactRow;
+import com.dwp.services.provider.resourcegovernance.ResourceGovernanceRepository.ArtifactEvidenceRow;
+import com.dwp.services.provider.resourcegovernance.ResourceGovernanceRepository.ArtifactReviewRow;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceRepository.CommitmentRow;
+import com.dwp.services.provider.resourcegovernance.ResourceGovernanceRepository.InternalEvidenceFreshnessRow;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceRepository.LedgerRow;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceRepository.LedgerTotalsRow;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceRepository.PlanRow;
@@ -120,6 +123,69 @@ class ResourceGovernanceServiceTest {
         assertThat(result.limit()).isEqualTo(250);
         assertThat(result.hasMore()).isTrue();
         verify(repository).ledger(tenantId, resourceKey, 251);
+    }
+
+    @Test
+    void everyProviderGovernanceCollectionReportsItsBoundedCoverage() {
+        UUID tenantId = UUID.randomUUID();
+        CommitmentRow commitment = commitment(
+                tenantId, "workspace.seats", "ACTIVE", BigDecimal.TEN, null, null);
+        ResourceCommitmentChangeRow change = resourceChange(
+                UUID.randomUUID(), 17L);
+        TenantLifecycleRequestRow lifecycle = lifecycleRequest(
+                UUID.randomUUID(), 18L, null);
+        ArtifactRow artifact = typedArtifact(
+                UUID.randomUUID(), "APPROVED", "COMPATIBLE");
+        PlanRow plan = plan(UUID.randomUUID(), "APPROVED", 19L);
+        ArtifactReviewRow review = new ArtifactReviewRow(
+                UUID.randomUUID(), artifact.artifactId(), "APPROVED", "Reviewed",
+                objectMapper.createObjectNode(), 20L, Instant.now());
+        ArtifactEvidenceRow evidence = new ArtifactEvidenceRow(
+                UUID.randomUUID(), plan.planId(), "PRE_FLIGHT", "PASSED",
+                objectMapper.createObjectNode(), "INTERNAL", 21L, Instant.now());
+
+        when(repository.commitments(tenantId, 101))
+                .thenReturn(Collections.nCopies(101, commitment));
+        when(repository.ledgerTotals(
+                tenantId, commitment.resourceKey(), PERIOD_START, PERIOD_END))
+                .thenReturn(new LedgerTotalsRow(
+                        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO,
+                        BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO));
+        when(repository.internalEvidenceFreshness(
+                tenantId, commitment.resourceKey(), PERIOD_START, PERIOD_END))
+                .thenReturn(new InternalEvidenceFreshnessRow(0, null, null));
+        when(repository.resourceChanges(tenantId, 101))
+                .thenReturn(Collections.nCopies(101, change));
+        when(repository.lifecycleRequests(tenantId, 101))
+                .thenReturn(Collections.nCopies(101, lifecycle));
+        when(repository.artifacts(101)).thenReturn(Collections.nCopies(101, artifact));
+        when(repository.reviews(artifact.artifactId(), 51))
+                .thenReturn(Collections.nCopies(51, review));
+        when(repository.plans(101)).thenReturn(Collections.nCopies(101, plan));
+        when(repository.evidence(plan.planId(), 51))
+                .thenReturn(Collections.nCopies(51, evidence));
+        when(repository.readinessEvidence(plan.planId())).thenReturn(List.of(evidence));
+
+        var commitments = service.commitments(tenantId);
+        var changes = service.resourceChanges(tenantId);
+        var lifecycles = service.lifecycleRequests(tenantId);
+        var artifacts = service.artifacts();
+        var plans = service.plans();
+
+        assertThat(commitments.items()).hasSize(100);
+        assertThat(commitments.hasMore()).isTrue();
+        assertThat(changes.items()).hasSize(100);
+        assertThat(changes.hasMore()).isTrue();
+        assertThat(lifecycles.items()).hasSize(100);
+        assertThat(lifecycles.hasMore()).isTrue();
+        assertThat(artifacts.items()).hasSize(100);
+        assertThat(artifacts.hasMore()).isTrue();
+        assertThat(artifacts.items().getFirst().reviews()).hasSize(50);
+        assertThat(artifacts.items().getFirst().reviewsHasMore()).isTrue();
+        assertThat(plans.items()).hasSize(100);
+        assertThat(plans.hasMore()).isTrue();
+        assertThat(plans.items().getFirst().evidence()).hasSize(50);
+        assertThat(plans.items().getFirst().evidenceHasMore()).isTrue();
     }
 
     @Test
@@ -427,7 +493,7 @@ class ResourceGovernanceServiceTest {
         when(dataPolicyRepository.activePolicies("LEGAL_HOLD")).thenReturn(List.of(
                 new DataPolicyRepository.ScopedActivePolicy(
                         UUID.randomUUID(), "LEGAL_HOLD", "GLOBAL", null, UUID.randomUUID(),
-                        objectMapper.createObjectNode().put("active", true))));
+                        objectMapper.createObjectNode().put("active", true), null, null)));
         when(repository.refreshLifecycleHold(
                 any(), anyLong(), any(), any(), any())).thenReturn(true);
 
@@ -447,7 +513,7 @@ class ResourceGovernanceServiceTest {
         ArtifactRow artifact = typedArtifact(plan.artifactId(), "APPROVED", "COMPATIBLE");
         when(repository.lockPlan(planId)).thenReturn(Optional.of(plan));
         when(repository.lockArtifact(plan.artifactId())).thenReturn(Optional.of(artifact));
-        when(repository.evidence(planId)).thenReturn(List.of());
+        when(repository.readinessEvidence(planId)).thenReturn(List.of());
 
         assertThatThrownBy(() -> service.markPlanReady(
                 planId, new VersionedReasonRequest(0L, "Ready"), "missing-preflight"))

@@ -91,6 +91,9 @@ class AuthOpenApiSnapshotExportTest {
                         "/auth/admin/tenant-settings/auth-policy/changes/{changeSetId}/publish",
                         "/auth/admin/tenant-settings/access-projection",
                         "/auth/admin/tenant-settings/governance-snapshot",
+                        "/auth/admin/tenant-settings/sso-test-login-jobs",
+                        "/auth/admin/tenant-settings/sso-test-login-jobs/{jobId}",
+                        "/auth/admin/tenant-setting-registry/changes",
                         "/auth/tenant-settings/effective-settings/me",
                         "/auth/tenant-settings/effective-settings/me/preferred-locale",
                         "/auth/tenant-settings/effective-settings/me/preferred-locale/restore",
@@ -103,9 +106,30 @@ class AuthOpenApiSnapshotExportTest {
                         "/auth/admin/tenant-app-adoption/capability-overrides/{changeId}/activate",
                         "/auth/admin/tenant-app-adoption/capability-overrides/{changeId}/revoke")
                         .forEach(path -> assertThat(paths.has(path)).as(path).isTrue());
-                assertThat(document.path("components").path("schemas")
+                assertThat(paths.path("/auth/admin/tenant-settings/sso-test-login-jobs")
+                        .has("post")).isTrue();
+                assertThat(paths.path("/auth/admin/tenant-settings/sso-test-login-jobs")
+                        .has("get")).isTrue();
+                assertThat(paths.path("/auth/admin/tenant-settings/sso-test-login-jobs/{jobId}")
+                        .has("get")).isTrue();
+                JsonNode schemas = document.path("components").path("schemas");
+                assertThat(schemas
                         .path("AuthPolicyResponse").path("properties")
                         .has("tokenTtlSec")).isTrue();
+                assertThat(schemas.has("SsoTestLoginCommand")).isTrue();
+                assertThat(schemas.has("SsoTestLoginReceipt")).isTrue();
+                JsonNode ssoReceipt = schemas.path("SsoTestLoginReceipt").path("properties");
+                assertThat(ssoReceipt.has("tenantId")).isTrue();
+                assertThat(ssoReceipt.has("idempotencyKey")).isTrue();
+                assertThat(ssoReceipt.has("receiptPayloadCanonical")).isTrue();
+                assertPage(schemas, "SsoTestLoginReceiptPage");
+                assertPage(schemas, "AuthPolicyChangePage");
+                assertPage(schemas, "ChangePage");
+                assertPage(schemas, "AssignmentPage");
+                assertThat(schemas.path("AdoptionProjection").path("properties").has(
+                        "installationsLimit")).isTrue();
+                assertThat(schemas.path("AdoptionProjection").path("properties").has(
+                        "installationsHasMore")).isTrue();
 
                 for (String mode : List.of("--write", "--check")) {
                     ProcessBuilder export = new ProcessBuilder(
@@ -123,6 +147,13 @@ class AuthOpenApiSnapshotExportTest {
             assertThat(Files.readAllBytes(snapshot.getKey()))
                     .as(snapshot.getKey().toString()).isEqualTo(snapshot.getValue());
         }
+    }
+
+    private void assertPage(JsonNode schemas, String name) {
+        JsonNode properties = schemas.path(name).path("properties");
+        assertThat(properties.has("items")).as(name + " items").isTrue();
+        assertThat(properties.has("limit")).as(name + " limit").isTrue();
+        assertThat(properties.has("hasMore")).as(name + " hasMore").isTrue();
     }
 
     @SpringBootConfiguration(proxyBeanMethods = false)

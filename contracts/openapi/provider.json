@@ -248,6 +248,33 @@
         },
         "type": "object"
       },
+      "ApiResponseArtifactManifestPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ArtifactManifestPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseArtifactRolloutEvidence": {
         "properties": {
           "correlationId": {
@@ -282,6 +309,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/ArtifactRolloutPlan"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseArtifactRolloutPlanPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ArtifactRolloutPlanPage"
           },
           "errorCode": {
             "type": "string"
@@ -390,6 +444,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/CommercialOverview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCommitmentPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CommitmentPage"
           },
           "errorCode": {
             "type": "string"
@@ -764,66 +845,6 @@
         },
         "type": "object"
       },
-      "ApiResponseListArtifactManifest": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/ArtifactManifest"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListArtifactRolloutPlan": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/ArtifactRolloutPlan"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseListAuditEventSummary": {
         "properties": {
           "correlationId": {
@@ -832,36 +853,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/AuditEventSummary"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListCommitment": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/Commitment"
             },
             "type": "array"
           },
@@ -1004,36 +995,6 @@
         },
         "type": "object"
       },
-      "ApiResponseListPolicy": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/Policy"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "ApiResponseListRegionSummary": {
         "properties": {
           "correlationId": {
@@ -1042,36 +1003,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/RegionSummary"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListResourceCommitmentChange": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/ResourceCommitmentChange"
             },
             "type": "array"
           },
@@ -1192,36 +1123,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/SupportScopeSummary"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "ApiResponseListTenantLifecycleRequest": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/TenantLifecycleRequest"
             },
             "type": "array"
           },
@@ -1460,6 +1361,33 @@
         },
         "type": "object"
       },
+      "ApiResponsePolicyPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PolicyPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseReliabilityControlOverview": {
         "properties": {
           "correlationId": {
@@ -1521,6 +1449,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/ResourceCommitmentChange"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseResourceCommitmentChangePage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ResourceCommitmentChangePage"
           },
           "errorCode": {
             "type": "string"
@@ -1791,6 +1746,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/TenantLifecycleRequest"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseTenantLifecycleRequestPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/TenantLifecycleRequestPage"
           },
           "errorCode": {
             "type": "string"
@@ -2230,6 +2212,13 @@
             },
             "type": "array"
           },
+          "reviewsHasMore": {
+            "type": "boolean"
+          },
+          "reviewsLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
           "signatureState": {
             "type": "string"
           },
@@ -2243,6 +2232,24 @@
           },
           "version": {
             "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ArtifactManifestPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactManifest"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
             "type": "integer"
           }
         },
@@ -2393,6 +2400,13 @@
             },
             "type": "array"
           },
+          "evidenceHasMore": {
+            "type": "boolean"
+          },
+          "evidenceLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
           "executorState": {
             "type": "string"
           },
@@ -2441,6 +2455,24 @@
           },
           "version": {
             "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ArtifactRolloutPlanPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ArtifactRolloutPlan"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
             "type": "integer"
           }
         },
@@ -2921,6 +2953,24 @@
           },
           "unit": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CommitmentPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Commitment"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -5423,6 +5473,13 @@
             },
             "type": "array"
           },
+          "revisionsHasMore": {
+            "type": "boolean"
+          },
+          "revisionsLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
           "scopeRef": {
             "type": "string"
           },
@@ -5488,6 +5545,24 @@
           },
           "sourceVersion": {
             "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Policy"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
             "type": "integer"
           }
         },
@@ -5905,6 +5980,24 @@
           "decision",
           "reason"
         ],
+        "type": "object"
+      },
+      "ResourceCommitmentChangePage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ResourceCommitmentChange"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "RetryOperationRequest": {
@@ -7325,6 +7418,24 @@
         },
         "type": "object"
       },
+      "TenantLifecycleRequestPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TenantLifecycleRequest"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "TenantSummary": {
         "properties": {
           "administratorPosture": {
@@ -7744,7 +7855,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListArtifactManifest"
+                  "$ref": "#/components/schemas/ApiResponseArtifactManifestPage"
                 }
               }
             },
@@ -7949,7 +8060,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListArtifactRolloutPlan"
+                  "$ref": "#/components/schemas/ApiResponseArtifactRolloutPlanPage"
                 }
               }
             },
@@ -8383,7 +8494,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListPolicy"
+                  "$ref": "#/components/schemas/ApiResponsePolicyPage"
                 }
               }
             },
@@ -9821,7 +9932,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListResourceCommitmentChange"
+                  "$ref": "#/components/schemas/ApiResponseResourceCommitmentChangePage"
                 }
               }
             },
@@ -9950,7 +10061,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListCommitment"
+                  "$ref": "#/components/schemas/ApiResponseCommitmentPage"
                 }
               }
             },
@@ -9981,7 +10092,56 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseListTenantLifecycleRequest"
+                  "$ref": "#/components/schemas/ApiResponseTenantLifecycleRequestPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "resource-governance-controller"
+        ]
+      }
+    },
+    "/v1/admin/resource-governance/lifecycle-requests/{requestId}/cancel": {
+      "post": {
+        "operationId": "cancelLifecycleRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseTenantLifecycleRequest"
                 }
               }
             },

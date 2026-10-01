@@ -20,6 +20,9 @@ import java.util.UUID;
 /** Owns rollout-plan lifecycle orchestration while the facade retains transaction boundaries. */
 final class ArtifactRolloutGovernance {
 
+    private static final int LIST_LIMIT = 100;
+    private static final int EVIDENCE_LIMIT = 50;
+
     private final ResourceGovernanceRepository repository;
     private final ProviderAuditService audit;
     private final ArtifactGovernanceRules rules;
@@ -33,9 +36,13 @@ final class ArtifactRolloutGovernance {
         this.rules = rules;
     }
 
-    public List<ArtifactRolloutPlan> plans() {
+    public ResourceGovernanceDtos.ArtifactRolloutPlanPage plans() {
         ProviderRequestContext.requirePermission(ResourceGovernanceService.ARTIFACT_READ);
-        return repository.plans().stream().map(this::plan).toList();
+        List<PlanRow> rows = repository.plans(LIST_LIMIT + 1);
+        return new ResourceGovernanceDtos.ArtifactRolloutPlanPage(
+                rows.stream().limit(LIST_LIMIT).map(this::plan).toList(),
+                LIST_LIMIT,
+                rows.size() > LIST_LIMIT);
     }
 
     public ArtifactRolloutPlan createPlan(
@@ -121,7 +128,7 @@ final class ArtifactRolloutGovernance {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         rules.requireApprovedCompatibleArtifact(repository.lockArtifact(before.artifactId())
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND)));
-        rules.requireInternalRolloutReadiness(before, repository.evidence(planId));
+        rules.requireInternalRolloutReadiness(before, repository.readinessEvidence(planId));
         if (!repository.markPlanReady(planId, request.version())) {
             throw conflict("Only a current, independently approved rollout plan can be marked ready.");
         }
@@ -172,16 +179,19 @@ final class ArtifactRolloutGovernance {
     }
 
     private ArtifactRolloutPlan plan(PlanRow row) {
-        List<ArtifactEvidenceRow> evidenceRows = repository.evidence(row.planId());
+        List<ArtifactEvidenceRow> evidenceRows = repository.evidence(
+                row.planId(), EVIDENCE_LIMIT + 1);
+        List<ArtifactEvidenceRow> readinessEvidence = repository.readinessEvidence(row.planId());
         List<ArtifactRolloutEvidence> evidence = evidenceRows.stream()
-                .map(this::evidence).toList();
+                .limit(EVIDENCE_LIMIT).map(this::evidence).toList();
         return new ArtifactRolloutPlan(
                 row.planId(), row.artifactId(), row.productKey(), row.artifactVersion(), row.name(),
                 row.targetScope(), row.stages(), row.rollbackPlan(), row.rollbackFeasibility(),
                 row.lifecycleState(), row.executorState(), row.reason(), row.requestedBy(),
                 row.approvedBy(), row.submittedAt(), row.approvedAt(), row.decisionReason(),
                 row.version(), row.createdAt(), row.updatedAt(),
-                rules.planRollbackReadiness(row, evidenceRows), evidence);
+                rules.planRollbackReadiness(row, readinessEvidence), evidence,
+                EVIDENCE_LIMIT, evidenceRows.size() > EVIDENCE_LIMIT);
     }
 
     private ArtifactRolloutEvidence evidence(ArtifactEvidenceRow row) {

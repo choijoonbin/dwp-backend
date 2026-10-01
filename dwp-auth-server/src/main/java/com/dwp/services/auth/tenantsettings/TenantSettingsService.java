@@ -3,6 +3,7 @@ package com.dwp.services.auth.tenantsettings;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.auth.service.IdentityAuditService;
+import com.dwp.services.auth.service.OidcProviderConfigurationInspector;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -27,6 +28,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.TreeMap;
 import java.util.UUID;
+import java.util.function.BiFunction;
 
 @Service
 public class TenantSettingsService {
@@ -35,6 +37,7 @@ public class TenantSettingsService {
     private static final String OWNER_REF = "tenant-authentication";
     private static final String SSO_TEST_EXECUTION_BOUNDARY =
             "UNCONNECTED_EXTERNAL_IDP_EXECUTOR";
+    private static final int MAX_AUTH_POLICY_CHANGE_HISTORY_LIMIT = 100;
     private static final int MAX_SSO_TEST_HISTORY_LIMIT = 100;
     private static final List<String> PROJECTION_EXCLUSIONS = List.of(
             "EXTERNAL_IDP_GROUPS_NOT_SYNCHRONIZED_TO_AUTH",
@@ -45,6 +48,8 @@ public class TenantSettingsService {
     private final ObjectMapper objectMapper;
     private final TenantSettingsAuthorization authorization;
     private final InternalEntitlementAdapterRegistry entitlementAdapters;
+    private final BiFunction<Long, String, OidcProviderConfigurationInspector.Assessment>
+            providerReadiness;
     private final Clock clock;
 
     @Autowired
@@ -53,9 +58,10 @@ public class TenantSettingsService {
             IdentityAuditService audit,
             ObjectMapper objectMapper,
             JdbcTemplate jdbc,
-            InternalEntitlementAdapterRegistry entitlementAdapters) {
+            InternalEntitlementAdapterRegistry entitlementAdapters,
+            OidcProviderConfigurationInspector providerConfiguration) {
         this(repository, audit, objectMapper, new TenantSettingsAuthorization(jdbc),
-                entitlementAdapters, Clock.systemUTC());
+                entitlementAdapters, providerConfiguration::assess, Clock.systemUTC());
     }
 
     TenantSettingsService(
@@ -65,7 +71,8 @@ public class TenantSettingsService {
             Clock clock) {
         this(repository, audit, objectMapper, TenantSettingsAuthorization.testAllowAll(),
                 new InternalEntitlementAdapterRegistry(List.of(
-                        new CoreIdentityEntitlementAdapter(repository))), clock);
+                        new CoreIdentityEntitlementAdapter(repository))),
+                legacyProviderReadiness(repository), clock);
     }
 
     TenantSettingsService(
@@ -75,21 +82,51 @@ public class TenantSettingsService {
             TenantSettingsAuthorization authorization,
             InternalEntitlementAdapterRegistry entitlementAdapters,
             Clock clock) {
+        this(repository, audit, objectMapper, authorization, entitlementAdapters,
+                legacyProviderReadiness(repository), clock);
+    }
+
+    TenantSettingsService(
+            TenantSettingsRepository repository,
+            IdentityAuditService audit,
+            ObjectMapper objectMapper,
+            TenantSettingsAuthorization authorization,
+            InternalEntitlementAdapterRegistry entitlementAdapters,
+            BiFunction<Long, String, OidcProviderConfigurationInspector.Assessment>
+                    providerReadiness,
+            Clock clock) {
         this.repository = repository;
         this.audit = audit;
         this.objectMapper = objectMapper;
         this.authorization = authorization;
         this.entitlementAdapters = entitlementAdapters;
+        this.providerReadiness = providerReadiness;
         this.clock = clock;
     }
 
+    private static BiFunction<Long, String, OidcProviderConfigurationInspector.Assessment>
+            legacyProviderReadiness(TenantSettingsRepository repository) {
+        return (tenantId, providerKey) -> repository.enabledIdentityProviderExists(
+                tenantId, providerKey)
+                ? OidcProviderConfigurationInspector.Assessment.readyConfiguration()
+                : OidcProviderConfigurationInspector.Assessment.blocked(
+                        OidcProviderConfigurationInspector.PROVIDER_NOT_OBSERVED);
+    }
+
     @Transactional(readOnly = true)
-    public List<TenantSettingsDtos.ChangeSet> authPolicyChanges(Long tenantId, Long actorId) {
+    public TenantSettingsDtos.AuthPolicyChangePage authPolicyChanges(
+            Long tenantId, Long actorId, int requestedLimit) {
         authorization.require(
                 tenantId, actorId, TenantSettingsAuthorization.POLICY_RESOURCE, "VIEW");
-        return repository.listChangeSets(tenantId).stream()
+        int limit = Math.min(MAX_AUTH_POLICY_CHANGE_HISTORY_LIMIT, Math.max(1, requestedLimit));
+        List<TenantSettingsDtos.ChangeSet> fetched = repository.listChangeSets(
+                tenantId, limit + 1);
+        List<TenantSettingsDtos.ChangeSet> items = fetched.stream()
+                .limit(limit)
                 .map(change -> withActions(tenantId, actorId, change))
                 .toList();
+        return new TenantSettingsDtos.AuthPolicyChangePage(
+                items, limit, fetched.size() > limit);
     }
 
     @Transactional
@@ -318,23 +355,18 @@ public class TenantSettingsService {
         if (!policy.ssoLoginEnabled()) {
             prerequisiteState = "NOT_REQUIRED";
             externalProbeState = "NOT_REQUIRED";
-        } else if (policy.ssoProviderKey() == null
-                || !repository.enabledIdentityProviderExists(tenantId, policy.ssoProviderKey())) {
-            prerequisiteState = "BLOCKED";
-            externalProbeState = "UNAVAILABLE";
-            loginBlocks.add("ENABLED_IDENTITY_PROVIDER_NOT_OBSERVED");
         } else {
-            prerequisiteState = "READY_FOR_EXTERNAL_PROBE";
             externalProbeState = "UNAVAILABLE";
-            loginBlocks.add("EXTERNAL_IDP_LOGIN_EXECUTOR_NOT_CONNECTED");
+            OidcProviderConfigurationInspector.Assessment readiness =
+                    providerReadiness.apply(tenantId, policy.ssoProviderKey());
+            if (readiness.ready()) {
+                prerequisiteState = "READY_FOR_EXTERNAL_PROBE";
+                loginBlocks.add("EXTERNAL_IDP_LOGIN_EXECUTOR_NOT_CONNECTED");
+            } else {
+                prerequisiteState = "BLOCKED";
+                loginBlocks.addAll(readiness.blockingReasons());
+            }
         }
-        if (policy.ssoLoginEnabled()
-                && latestReceipt != null
-                && Objects.equals(policy.ssoProviderKey(), latestReceipt.providerKey())) {
-            externalProbeState = latestReceipt.externalProbeState();
-            loginBlocks = new ArrayList<>(latestReceipt.blockingReasons());
-        }
-
         String recoveryState = recovery.verified() > 0
                 ? recovery.overdue() > 0 || recovery.notVerified() > 0
                         ? "ATTENTION_REQUIRED" : "READY"
@@ -351,7 +383,7 @@ public class TenantSettingsService {
                                 "DOMAIN_DNS_VERIFICATION_NOT_OWNED_BY_AUTH")),
                 new TenantSettingsDtos.LoginVerification(
                         prerequisiteState, policy.ssoProviderKey(), externalProbeState,
-                        latestReceipt == null ? null : latestReceipt.completedAt(),
+                        null,
                         latestReceipt, loginBlocks),
                 new TenantSettingsDtos.RecoveryCoverage(
                         recoveryState, recovery.total(), recovery.verified(), recovery.overdue(),
@@ -392,39 +424,30 @@ public class TenantSettingsService {
             internalPrerequisiteState = "NOT_REQUIRED";
             externalProbeState = "NOT_REQUIRED";
             blockingReasons.add("SSO_LOGIN_NOT_ENABLED");
-        } else if (policy.ssoProviderKey() == null
-                || !repository.enabledIdentityProviderExists(tenantId, policy.ssoProviderKey())) {
-            lifecycleState = "BLOCKED";
-            internalPrerequisiteState = "BLOCKED";
-            externalProbeState = "UNAVAILABLE";
-            blockingReasons.add("ENABLED_IDENTITY_PROVIDER_NOT_OBSERVED");
         } else {
-            lifecycleState = "UNAVAILABLE";
-            internalPrerequisiteState = "READY_FOR_EXTERNAL_PROBE";
             externalProbeState = "UNAVAILABLE";
-            blockingReasons.add("EXTERNAL_IDP_LOGIN_EXECUTOR_NOT_CONNECTED");
+            OidcProviderConfigurationInspector.Assessment readiness =
+                    providerReadiness.apply(tenantId, policy.ssoProviderKey());
+            if (readiness.ready()) {
+                lifecycleState = "UNAVAILABLE";
+                internalPrerequisiteState = "READY_FOR_EXTERNAL_PROBE";
+                blockingReasons.add("EXTERNAL_IDP_LOGIN_EXECUTOR_NOT_CONNECTED");
+            } else {
+                lifecycleState = "BLOCKED";
+                internalPrerequisiteState = "BLOCKED";
+                blockingReasons.addAll(readiness.blockingReasons());
+            }
         }
         Instant completedAt = clock.instant();
-        Map<String, Object> receiptContent = new TreeMap<>();
-        receiptContent.put("testLoginJobId", jobId.toString());
-        receiptContent.put("tenantId", tenantId);
-        receiptContent.put("providerKey", Objects.toString(policy.ssoProviderKey(), ""));
-        receiptContent.put("requestedBy", actorId);
-        receiptContent.put("idempotencyKey", command.idempotencyKey().toString());
-        receiptContent.put("lifecycleState", lifecycleState);
-        receiptContent.put("internalPrerequisiteState", internalPrerequisiteState);
-        receiptContent.put("externalProbeState", externalProbeState);
-        receiptContent.put("blockingReasons", List.copyOf(blockingReasons));
-        receiptContent.put("executionBoundary", SSO_TEST_EXECUTION_BOUNDARY);
-        receiptContent.put("requestedAt", requestedAt.toString());
-        receiptContent.put("completedAt", completedAt.toString());
-        String receiptSha256 = digest(objectMapper.valueToTree(receiptContent));
         TenantSettingsRepository.SsoReceiptWrite write = repository.recordSsoTestLoginReceipt(
                 tenantId, jobId, policy.ssoProviderKey(), actorId, command.idempotencyKey(),
                 command.justification(), lifecycleState, internalPrerequisiteState,
                 externalProbeState, blockingReasons, SSO_TEST_EXECUTION_BOUNDARY,
-                requestedAt, completedAt, receiptSha256, correlationId);
+                requestedAt, completedAt, correlationId);
         TenantSettingsDtos.SsoTestLoginReceipt receipt = write.receipt();
+        if (!write.created()) {
+            requireMatchingSsoReplay(receipt, actorId, command.justification());
+        }
         if (write.created()) {
             audit.success(
                     tenantId, actorId, "tenant-settings.sso-test-login.completed",
@@ -436,6 +459,21 @@ public class TenantSettingsService {
                             "receiptSha256", receipt.receiptSha256()));
         }
         return receipt;
+    }
+
+    private void requireMatchingSsoReplay(
+            TenantSettingsDtos.SsoTestLoginReceipt receipt, Long actorId, String justification) {
+        try {
+            String original = objectMapper.readTree(receipt.receiptPayloadCanonical())
+                    .path("justification").asText();
+            if (!Objects.equals(receipt.requestedBy(), actorId)
+                    || !Objects.equals(original, justification.trim())) {
+                throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
+                        "The idempotency key belongs to a different SSO test-login command.");
+            }
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Invalid canonical SSO receipt evidence.", exception);
+        }
     }
 
     @Transactional(readOnly = true)
@@ -629,8 +667,8 @@ public class TenantSettingsService {
             if (policy.ssoProviderKey() == null) {
                 invalid("An enabled SSO policy requires an identity provider key.");
             }
-            if (!repository.enabledIdentityProviderExists(tenantId, policy.ssoProviderKey())) {
-                invalid("The selected identity provider is not enabled for this tenant.");
+            if (!providerReadiness.apply(tenantId, policy.ssoProviderKey()).ready()) {
+                invalid("The selected identity provider is not locally ready for this tenant.");
             }
         } else if (policy.ssoProviderKey() != null) {
             invalid("A disabled SSO policy cannot retain an active provider key.");

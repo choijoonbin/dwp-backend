@@ -59,13 +59,25 @@ public final class TenantAppAdoptionDtos {
             List<String> includedOwners,
             List<String> exclusions,
             List<String> requestableAppResourceKeys,
-            List<Installation> installations) {
+            List<Installation> installations,
+            int installationsLimit,
+            boolean installationsHasMore) {
 
         public AdoptionProjection {
             includedOwners = List.copyOf(includedOwners);
             exclusions = List.copyOf(exclusions);
             requestableAppResourceKeys = List.copyOf(requestableAppResourceKeys);
             installations = List.copyOf(installations);
+        }
+    }
+
+    public record AssignmentPage(
+            List<Assignment> items,
+            int limit,
+            boolean hasMore) {
+
+        public AssignmentPage {
+            items = List.copyOf(items);
         }
     }
 

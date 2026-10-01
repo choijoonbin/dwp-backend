@@ -7,6 +7,7 @@ import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.Creat
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.CommitmentDefinition;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.LedgerTotals;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.ResourceCommitmentChange;
+import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.ResourceCommitmentChangePage;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.ResourceCommitmentChangeDecisionRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.UpsertCommitmentRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceRepository.CommitmentRow;
@@ -29,6 +30,8 @@ import java.util.UUID;
 
 final class ResourceCommitmentChangeGovernance {
 
+    private static final int LIST_LIMIT = 100;
+
     private final ResourceGovernanceRepository repository;
     private final ProviderAuditService audit;
 
@@ -39,10 +42,15 @@ final class ResourceCommitmentChangeGovernance {
         this.audit = audit;
     }
 
-    public List<ResourceCommitmentChange> resourceChanges(UUID tenantId) {
+    public ResourceCommitmentChangePage resourceChanges(UUID tenantId) {
         ProviderRequestContext.requirePermission(ResourceGovernanceService.RESOURCE_READ);
         ProviderRequestContext.requirePermission("ESTATE_READ");
-        return repository.resourceChanges(tenantId).stream().map(this::resourceChange).toList();
+        List<ResourceCommitmentChangeRow> rows = repository.resourceChanges(
+                tenantId, LIST_LIMIT + 1);
+        return new ResourceCommitmentChangePage(
+                rows.stream().limit(LIST_LIMIT).map(this::resourceChange).toList(),
+                LIST_LIMIT,
+                rows.size() > LIST_LIMIT);
     }
 
     public ResourceCommitmentChange createResourceChange(

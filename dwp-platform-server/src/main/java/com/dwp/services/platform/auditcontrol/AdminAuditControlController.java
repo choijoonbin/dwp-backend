@@ -259,11 +259,12 @@ public class AdminAuditControlController {
     }
 
     @GetMapping("/policy/revisions")
-    public ApiResponse<List<AuditControlDtos.PolicyRevision>> policyRevisions(
+    public ApiResponse<AuditControlDtos.PolicyRevisionPage> policyRevisions(
             @RequestHeader(TENANT) Long tenantId,
-            @RequestHeader(PERMISSIONS) String permissions) {
+            @RequestHeader(PERMISSIONS) String permissions,
+            @RequestParam(defaultValue = "100") int limit) {
         guard.configure(permissions);
-        return ApiResponse.success(service.policyRevisions(tenantId));
+        return ApiResponse.success(service.policyRevisions(tenantId, limit));
     }
 
     @PostMapping("/policy/revisions")

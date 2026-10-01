@@ -41,7 +41,6 @@ import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -56,33 +55,27 @@ public class OidcService {
     private final IdentityProviderRepository identityProviderRepository;
     private final OidcStateStore stateStore;
     private final ObjectMapper objectMapper;
-    private final Set<String> allowedHosts;
-    private final Set<String> allowedCallbackHosts;
-    private final boolean allowUnlistedHosts;
+    private final OidcProviderConfigurationInspector providerConfiguration;
     private final String callbackUrl;
     private final long assuranceClockSkewSeconds;
     private final Clock clock;
     private final HttpClient httpClient;
-    private final Function<String, String> environmentReader;
 
     @Autowired
     public OidcService(
             IdentityProviderRepository identityProviderRepository,
             OidcStateStore stateStore,
             ObjectMapper objectMapper,
-            @Value("${dwp.auth.oidc.allowed-hosts:}") String allowedHosts,
-            @Value("${dwp.auth.oidc.allowed-callback-hosts:}") String allowedCallbackHosts,
-            @Value("${dwp.auth.oidc.allow-unlisted-hosts:false}") boolean allowUnlistedHosts,
+            OidcProviderConfigurationInspector providerConfiguration,
             @Value("${sso.callback-url:http://localhost:4200/auth/oidc/callback}")
             String callbackUrl,
             @Value("${dwp.auth.step-up.assurance-clock-skew-seconds:30}")
             long assuranceClockSkewSeconds) {
-        this(identityProviderRepository, stateStore, objectMapper, allowedHosts,
-                allowedCallbackHosts, allowUnlistedHosts, callbackUrl,
+        this(identityProviderRepository, stateStore, objectMapper, providerConfiguration, callbackUrl,
                 assuranceClockSkewSeconds, Clock.systemUTC(), HttpClient.newBuilder()
                         .connectTimeout(Duration.ofSeconds(10))
                         .followRedirects(HttpClient.Redirect.NEVER)
-                        .build(), System::getenv);
+                        .build());
     }
 
     OidcService(
@@ -97,17 +90,30 @@ public class OidcService {
             Clock clock,
             HttpClient httpClient,
             Function<String, String> environmentReader) {
+        this(identityProviderRepository, stateStore, objectMapper,
+                new OidcProviderConfigurationInspector(
+                        identityProviderRepository, allowedHosts, allowedCallbackHosts,
+                        allowUnlistedHosts, callbackUrl, environmentReader),
+                callbackUrl, assuranceClockSkewSeconds, clock, httpClient);
+    }
+
+    private OidcService(
+            IdentityProviderRepository identityProviderRepository,
+            OidcStateStore stateStore,
+            ObjectMapper objectMapper,
+            OidcProviderConfigurationInspector providerConfiguration,
+            String callbackUrl,
+            long assuranceClockSkewSeconds,
+            Clock clock,
+            HttpClient httpClient) {
         this.identityProviderRepository = identityProviderRepository;
         this.stateStore = stateStore;
         this.objectMapper = objectMapper;
-        this.allowedHosts = parseHosts(allowedHosts);
-        this.allowedCallbackHosts = parseHosts(allowedCallbackHosts);
-        this.allowUnlistedHosts = allowUnlistedHosts;
+        this.providerConfiguration = providerConfiguration;
         this.callbackUrl = callbackUrl == null ? "" : callbackUrl.trim();
         this.assuranceClockSkewSeconds = assuranceClockSkewSeconds;
         this.clock = clock;
         this.httpClient = httpClient;
-        this.environmentReader = environmentReader;
     }
 
     @Bulkhead(name = "oidcProvider", type = Bulkhead.Type.SEMAPHORE)
@@ -198,7 +204,7 @@ public class OidcService {
                 throw new BaseException(ErrorCode.STEP_UP_REQUIRED);
             }
         }
-        String clientSecret = resolveClientSecret(provider);
+        String clientSecret = providerConfiguration.requireClientSecret(provider);
         Map<String, String> form = new LinkedHashMap<>();
         form.put("grant_type", "authorization_code");
         form.put("code", code);
@@ -244,7 +250,7 @@ public class OidcService {
                         requiredText(metadata, "userinfo_endpoint"), provider.getUserInfoUrl());
             }
             String jwkSetUri = requiredText(metadata, "jwks_uri");
-            requireAllowed(jwkSetUri);
+            providerConfiguration.requireAllowedEndpoint(jwkSetUri);
             NimbusJwtDecoder decoder = NimbusJwtDecoder.withJwkSetUri(jwkSetUri)
                     .restOperations(nonRedirectingJwkClient())
                     .build();
@@ -273,23 +279,7 @@ public class OidcService {
     }
 
     private void requireProviderConfiguration(IdentityProvider provider) {
-        if (!Boolean.TRUE.equals(provider.getEnabled())
-                || !"OIDC".equals(provider.getProviderType())) {
-            throw new BaseException(ErrorCode.INVALID_STATE, "The OIDC provider is not enabled.");
-        }
-        if (isBlank(provider.getProviderKey()) || isBlank(provider.getAuthUrl())
-                || isBlank(provider.getTokenUrl()) || isBlank(provider.getIssuerUri())
-                || isBlank(provider.getMetadataUrl()) || isBlank(provider.getClientId())
-                || isBlank(provider.getClientSecretEnv())
-                || isBlank(environmentReader.apply(provider.getClientSecretEnv()))) {
-            throw new BaseException(ErrorCode.INVALID_STATE, "The OIDC provider is incomplete.");
-        }
-        requireAllowed(provider.getIssuerUri());
-        requireAllowed(provider.getMetadataUrl());
-        requireAllowed(provider.getAuthUrl());
-        requireAllowed(provider.getTokenUrl());
-        if (!isBlank(provider.getUserInfoUrl())) requireAllowed(provider.getUserInfoUrl());
-        requireCallbackAllowed(callbackUrl);
+        providerConfiguration.requireOperational(provider);
     }
 
     private StepUpProviderConfiguration stepUpProvider(
@@ -363,50 +353,8 @@ public class OidcService {
                 || !isBlank(provider.getStepUpAcceptedAmrValues());
     }
 
-    private void requireAllowed(String value) {
-        URI uri = requireHttpsUri(value, "OIDC endpoint");
-        String host = uri.getHost().toLowerCase(Locale.ROOT);
-        if (!allowUnlistedHosts && !allowedHosts.contains(host)) {
-            throw new BaseException(ErrorCode.INVALID_STATE, "OIDC endpoint host is not allowed.");
-        }
-    }
-
-    private void requireCallbackAllowed(String value) {
-        URI uri = requireHttpsUri(value, "OIDC callback");
-        String host = uri.getHost().toLowerCase(Locale.ROOT);
-        if (!allowedCallbackHosts.contains(host)
-                || (uri.getPort() != -1 && uri.getPort() != 443)
-                || uri.getRawQuery() != null || uri.getRawFragment() != null
-                || !"/auth/oidc/callback".equals(uri.getPath())) {
-            throw new BaseException(ErrorCode.INVALID_STATE, "OIDC callback is not allowed.");
-        }
-    }
-
-    private URI requireHttpsUri(String value, String label) {
-        try {
-            URI uri = URI.create(value);
-            if (!"https".equalsIgnoreCase(uri.getScheme()) || uri.getHost() == null
-                    || uri.getUserInfo() != null || uri.getRawFragment() != null) {
-                throw new BaseException(ErrorCode.INVALID_STATE, label + " is invalid.");
-            }
-            return uri;
-        } catch (IllegalArgumentException exception) {
-            throw new BaseException(ErrorCode.INVALID_STATE, label + " is invalid.");
-        }
-    }
-
     static Set<String> parseHosts(String value) {
-        if (value == null || value.isBlank()) return Set.of();
-        String[] raw = value.split(",", -1);
-        Set<String> result = new LinkedHashSet<>();
-        for (String item : raw) {
-            String host = item.trim().toLowerCase(Locale.ROOT);
-            if (!host.matches("[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?")
-                    || host.contains("..") || !result.add(host)) {
-                throw new IllegalArgumentException("OIDC host allowlist is invalid.");
-            }
-        }
-        return Set.copyOf(result);
+        return OidcProviderConfigurationInspector.parseHosts(value);
     }
 
     private static List<String> closedValues(String value) {
@@ -430,14 +378,6 @@ public class OidcService {
             result.add(text);
         }
         return List.copyOf(result);
-    }
-
-    private String resolveClientSecret(IdentityProvider provider) {
-        String secret = environmentReader.apply(provider.getClientSecretEnv());
-        if (isBlank(secret)) {
-            throw new BaseException(ErrorCode.INVALID_STATE, "OIDC client secret is unavailable.");
-        }
-        return secret;
     }
 
     private JsonNode postForm(String url, Map<String, String> values) {

@@ -24,7 +24,6 @@ import java.util.UUID;
 
 @Repository
 public class TenantSettingsRepository {
-
     private final JdbcTemplate jdbc;
     private final NamedParameterJdbcTemplate namedJdbc;
     private final ObjectMapper objectMapper;
@@ -86,7 +85,6 @@ public class TenantSettingsRepository {
             String executionBoundary,
             Instant requestedAt,
             Instant completedAt,
-            String receiptSha256,
             String correlationId) {
         int inserted = jdbc.update("""
                 INSERT INTO com_sso_test_login_receipts (
@@ -94,20 +92,19 @@ public class TenantSettingsRepository {
                     idempotency_key, justification, lifecycle_state,
                     internal_prerequisite_state, external_probe_state,
                     blocking_reasons, execution_boundary, requested_at,
-                    completed_at, receipt_sha256, correlation_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?)
+                    completed_at, correlation_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?)
                 ON CONFLICT (tenant_id, idempotency_key) DO NOTHING
                 """, testLoginJobId, tenantId, providerKey, actorId, idempotencyKey,
                 justification.trim(), lifecycleState, internalPrerequisiteState,
                 externalProbeState, json(blockingReasons), executionBoundary,
-                timestamp(requestedAt), timestamp(completedAt), receiptSha256, correlationId);
+                timestamp(requestedAt), timestamp(completedAt), correlationId);
         return new SsoReceiptWrite(
                 requireSsoTestLoginReceiptByIdempotency(tenantId, idempotencyKey),
                 inserted == 1);
     }
 
-    public Optional<TenantSettingsDtos.SsoTestLoginReceipt> latestSsoTestLoginReceipt(
-            Long tenantId) {
+    public Optional<TenantSettingsDtos.SsoTestLoginReceipt> latestSsoTestLoginReceipt(Long tenantId) {
         return jdbc.query("""
                 SELECT * FROM com_sso_test_login_receipts
                  WHERE tenant_id = ?
@@ -125,8 +122,7 @@ public class TenantSettingsRepository {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
     }
 
-    public List<TenantSettingsDtos.SsoTestLoginReceipt> ssoTestLoginReceipts(
-            Long tenantId, int fetchSize) {
+    public List<TenantSettingsDtos.SsoTestLoginReceipt> ssoTestLoginReceipts(Long tenantId, int fetchSize) {
         return jdbc.query("""
                 SELECT * FROM com_sso_test_login_receipts
                  WHERE tenant_id = ?
@@ -242,12 +238,15 @@ public class TenantSettingsRepository {
         return requireChangeSet(tenantId, id);
     }
 
-    public List<TenantSettingsDtos.ChangeSet> listChangeSets(Long tenantId) {
+    public List<TenantSettingsDtos.ChangeSet> listChangeSets(Long tenantId, int fetchLimit) {
         return jdbc.query("""
                 SELECT * FROM com_tenant_setting_change_sets
                  WHERE tenant_id = ?
-                 ORDER BY updated_at DESC, created_at DESC
-                """, this::changeSet, tenantId);
+                 ORDER BY CASE WHEN lifecycle_state IN ('DRAFT', 'IN_REVIEW', 'APPROVED')
+                               THEN 0 ELSE 1 END,
+                          updated_at DESC, created_at DESC, change_set_id DESC
+                 LIMIT ?
+                """, this::changeSet, tenantId, fetchLimit);
     }
 
     public TenantSettingsDtos.ChangeSet requireChangeSet(Long tenantId, UUID changeSetId) {
@@ -370,8 +369,7 @@ public class TenantSettingsRepository {
         return count == null ? 0 : count;
     }
 
-    public Map<Long, List<TenantSettingsDtos.AccessGrant>> grants(
-            Long tenantId, List<Long> userIds) {
+    public Map<Long, List<TenantSettingsDtos.AccessGrant>> grants(Long tenantId, List<Long> userIds) {
         Map<Long, List<TenantSettingsDtos.AccessGrant>> grants = new LinkedHashMap<>();
         userIds.forEach(id -> grants.put(id, new ArrayList<>()));
         if (userIds.isEmpty()) return grants;
@@ -455,6 +453,7 @@ public class TenantSettingsRepository {
                  WHERE assignment.tenant_id = :tenantId
                    AND user_record.user_id IN (:userIds)
                    AND assignment.lifecycle_state IN ('PENDING_APPROVAL', 'APPROVED', 'ACTIVE')
+                   AND (assignment.valid_to IS NULL OR assignment.valid_to > CURRENT_TIMESTAMP)
                 UNION ALL
                 SELECT member.user_id, 'APP_PRESET', preset.product_key,
                        preset.display_name, 'APP_PRESET_GROUP',
@@ -485,6 +484,7 @@ public class TenantSettingsRepository {
                    AND member.user_id IN (:userIds)
                    AND group_record.status = 'ACTIVE'
                    AND assignment.lifecycle_state IN ('PENDING_APPROVAL', 'APPROVED', 'ACTIVE')
+                   AND (assignment.valid_to IS NULL OR assignment.valid_to > CURRENT_TIMESTAMP)
                 UNION ALL
                 SELECT user_record.user_id, 'APP_WORKFORCE', installation.product_key,
                        installation.product_key, 'TENANT_APP_ASSIGNMENT',
@@ -513,6 +513,7 @@ public class TenantSettingsRepository {
                  WHERE assignment.tenant_id = :tenantId
                    AND user_record.user_id IN (:userIds)
                    AND assignment.lifecycle_state IN ('PENDING_APPROVAL', 'APPROVED', 'ACTIVE')
+                   AND (assignment.valid_to IS NULL OR assignment.valid_to > CURRENT_TIMESTAMP)
                  ORDER BY user_id, entitlement_type, entitlement_key, source_type
                 """, params, result -> {
             long userId = result.getLong("user_id");
@@ -586,6 +587,7 @@ public class TenantSettingsRepository {
             ResultSet result, int ignored) throws SQLException {
         return new TenantSettingsDtos.SsoTestLoginReceipt(
                 result.getObject("test_login_job_id", UUID.class),
+                result.getLong("tenant_id"),
                 result.getString("provider_key"),
                 result.getString("lifecycle_state"),
                 result.getString("internal_prerequisite_state"),
@@ -593,8 +595,10 @@ public class TenantSettingsRepository {
                 strings(result.getString("blocking_reasons")),
                 result.getString("execution_boundary"),
                 result.getLong("requested_by"),
+                result.getObject("idempotency_key", UUID.class),
                 instant(result, "requested_at"),
                 instant(result, "completed_at"),
+                result.getString("receipt_payload_canonical"),
                 result.getString("receipt_sha256"));
     }
 
@@ -692,7 +696,5 @@ public class TenantSettingsRepository {
     }
 
     public record SsoReceiptWrite(
-            TenantSettingsDtos.SsoTestLoginReceipt receipt,
-            boolean created) {
-    }
+            TenantSettingsDtos.SsoTestLoginReceipt receipt, boolean created) { }
 }

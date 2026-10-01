@@ -1997,6 +1997,7 @@
       "responsibilityRequirement": "REQUIRED",
       "riskTier": "LOW",
       "routeContractKeys": [
+        "route.communications.management.code-sets.data",
         "route.communications.management.content.page"
       ],
       "scopeResolver": "APP_RESOURCE_SET:RS_COMMUNICATIONS",
@@ -6356,7 +6357,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "be4e1b6db3d3f0b5100182a3c80066a39c64479f9ba88d908fee661efd3335b8",
+  "checksum": "b620ea86a8310cf23796e3e380b74c39764bdca28f41033496d21887a89da9cc",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -7167,6 +7168,37 @@
       "targetBindingKinds": [
         "SELF",
         "OBJECT"
+      ]
+    },
+    {
+      "inputEvidenceSchemaKey": "CommunicationsCodeSetEvidenceV1",
+      "lifecycleState": "ACTIVE",
+      "owner": "Platform + Communications + Security",
+      "ownerServiceKey": "platform",
+      "parameterSchema": {
+        "additionalProperties": false,
+        "properties": {
+          "codeSetKey": {
+            "enum": [
+              "PLATFORM.COMMUNICATION.CATEGORY",
+              "PLATFORM.COMMUNICATION.CONTENT_TYPE"
+            ],
+            "type": "string"
+          }
+        },
+        "required": [
+          "codeSetKey"
+        ],
+        "type": "object"
+      },
+      "parameterSchemaKey": "predicate.communications-code-set.v1.parameters.v1",
+      "policyVersion": 1,
+      "predicatePolicyKey": "predicate.communications-code-set.v1",
+      "routeContractKeys": [
+        "route.communications.management.code-sets.data"
+      ],
+      "targetBindingKinds": [
+        "CONFIG_SCOPE"
       ]
     },
     {
@@ -25427,6 +25459,83 @@
       "subject": {
         "productKey": "calendar",
         "surfaceKey": "calendar.work",
+        "type": "PRODUCT"
+      },
+      "uiRouteId": null,
+      "uiRoutePattern": null
+    },
+    {
+      "accessProfiles": [
+        {
+          "activeAccessModes": [
+            "NORMAL",
+            "ELEVATED"
+          ],
+          "precedence": 300,
+          "predicatePolicyKeys": [
+            "predicate.communications-code-set.v1"
+          ],
+          "profileKey": "full-management",
+          "readOnly": true,
+          "requiredAccess": {
+            "capabilityContractKey": "communications.content.read",
+            "type": "CAPABILITY"
+          },
+          "responseProjectionBindings": [
+            {
+              "apiBindingKey": "route.communications.management.code-sets.data.binding.01",
+              "projectionPolicyKey": "route.communications.management.code-sets.data.full-management.projection.v1",
+              "responseSchemaKey": "route.communications.management.code-sets.data.response.v1"
+            }
+          ],
+          "targetBindingKinds": [
+            "CONFIG_SCOPE"
+          ]
+        }
+      ],
+      "gatewayApiBindings": [
+        {
+          "bindingKey": "route.communications.management.code-sets.data.binding.01",
+          "method": "GET",
+          "path": "/api/platform/v1/catalog/code-sets/{codeSetKey}",
+          "pathParameterConstraints": {
+            "codeSetKey": {
+              "kind": "ALLOWLIST",
+              "values": [
+                "PLATFORM.COMMUNICATION.CATEGORY",
+                "PLATFORM.COMMUNICATION.CONTENT_TYPE"
+              ]
+            }
+          }
+        }
+      ],
+      "lifecycleState": "ACTIVE",
+      "navigationContextId": "communications.management",
+      "owner": "Platform + Communications + Security",
+      "policyVersion": 1,
+      "routeContractKey": "route.communications.management.code-sets.data",
+      "routeKind": "DATA",
+      "servicePepBindings": [
+        {
+          "bindingKey": "route.communications.management.code-sets.data.binding.01",
+          "method": "GET",
+          "path": "/v1/catalog/code-sets/{codeSetKey}",
+          "pathParameterConstraints": {
+            "codeSetKey": {
+              "kind": "ALLOWLIST",
+              "values": [
+                "PLATFORM.COMMUNICATION.CATEGORY",
+                "PLATFORM.COMMUNICATION.CONTENT_TYPE"
+              ]
+            }
+          },
+          "serviceKey": "platform"
+        }
+      ],
+      "sideEffectFree": true,
+      "subject": {
+        "productKey": "communications",
+        "surfaceKey": "communications.management",
         "type": "PRODUCT"
       },
       "uiRouteId": null,
@@ -63165,5 +63274,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 31
+  "version": 32
 }

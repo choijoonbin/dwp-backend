@@ -25,7 +25,8 @@ public final class PolicyImpactAuthorityIssuer {
         if (!authority.expiresAt().isAfter(now) || authority.expiresAt().isAfter(proof.expiresAt())
                 || authority.expiresAt().isAfter(now.plusSeconds(30)) || !authority.sourceVectorSha256().matches("[a-f0-9]{64}")
                 || !("apia-" + authority.sourceVectorSha256()).equals(authority.sourceRevision())
-                || !authority.ownerAuthRevision().matches("auth-[a-f0-9]{64}") || !authority.ownerPolicyRevision().matches("policy-9-[1-9][0-9]*-[a-f0-9]{64}")
+                || !authority.ownerAuthRevision().matches("auth-[a-f0-9]{64}")
+                || !authority.ownerPolicyRevision().matches("policy-(?:9|32)-[1-9][0-9]*-[a-f0-9]{64}")
                 || authority.evaluatedAt().isAfter(now) || authority.evaluatedAt().isBefore(now.minusSeconds(30))
                 || !authority.expiresAt().equals(Instant.ofEpochSecond(authority.expiresAt().getEpochSecond()))
                 || authority.grants().size() != 3) throw PolicyImpactJson.unavailable();

@@ -35,7 +35,7 @@ public final class ApprovalSignatureCurrentAuthorityBridge implements SignatureC
         try {
             var bundle = contracts.findActive("product-surfaces").orElseThrow(SignatureAuthorityJson::unavailable);
             var pointer = contracts.findActivePointer("product-surfaces").orElseThrow(SignatureAuthorityJson::unavailable);
-            if (!Set.of(10L, 11L, 12L, 13L, 14L, 15L, 16L).contains(bundle.version()) || !"ACTIVE".equals(bundle.bundleStatus()) || !pointer.bundleId().equals(bundle.bundleId())
+            if (!Set.of(10L, 11L, 12L, 13L, 14L, 15L, 16L, 32L).contains(bundle.version()) || !"ACTIVE".equals(bundle.bundleStatus()) || !pointer.bundleId().equals(bundle.bundleId())
                     || !b.registrySha256().equals(bundle.checksum())) throw unavailable();
             var registry = new Registry(seals.loadActive(bundle, pointer));
             var route = registry.routesByKey().get(b.operation().route());
@@ -47,7 +47,8 @@ public final class ApprovalSignatureCurrentAuthorityBridge implements SignatureC
                     || !"PRODUCT".equals(route.subject().type()) || !"approvals".equals(route.subject().productKey())
                     || !"approvals.work".equals(route.subject().surfaceKey()) || route.uiRouteId() != null || route.uiRoutePattern() != null
                     || !(b.operation().mutation() ? "ACTION" : "DATA").equals(route.routeKind())
-                    || !Boolean.valueOf(!b.operation().mutation()).equals(route.sideEffectFree()) || route.accessProfiles().size() != 1
+                    || (b.operation().mutation() ? route.sideEffectFree() != null : !Boolean.TRUE.equals(route.sideEffectFree()))
+                    || route.accessProfiles().size() != 1
                     || !"ACTIVE".equals(capability.lifecycleState()) || !"approvals.work".equals(capability.surfaceKey())
                     || !"PERMISSION".equals(capability.authorityMode()) || !b.operation().permission().equals(capability.resolvedCapabilityCode())
                     || !"NOT_REQUIRED".equals(capability.responsibilityRequirement()) || !capability.requiresProductEntitlement()

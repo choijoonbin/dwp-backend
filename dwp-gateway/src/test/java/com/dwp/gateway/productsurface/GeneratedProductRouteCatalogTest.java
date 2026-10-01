@@ -15,6 +15,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -232,6 +233,108 @@ class GeneratedProductRouteCatalogTest {
         assertThat(hcm.uniqueRoute().productKey()).isEqualTo("hcm");
         assertThat(spoofed.status()).isEqualTo(
                 GeneratedProductRouteCatalog.MatchStatus.INVALID);
+    }
+
+    @Test
+    void keepsExactSharedRuntimeCodeSetsOutsideTheHcmProductBoundary() {
+        GeneratedProductRouteCatalog latest = catalog(32);
+
+        for (String codeSet : List.of(
+                "PLATFORM.API_HISTORY.WINDOW",
+                "PLATFORM.API_HISTORY.OBSERVATION_POINT_FILTER",
+                "PLATFORM.API_HISTORY.HTTP_METHOD_FILTER",
+                "PLATFORM.API_HISTORY.OUTCOME_FILTER",
+                "PLATFORM.PREFERENCE.COLOR_MODE",
+                "PLATFORM.PREFERENCE.DENSITY",
+                "PLATFORM.PREFERENCE.TIME_ZONE",
+                "PLATFORM.PREFERENCE.DATE_FORMAT",
+                "PLATFORM.PREFERENCE.TIME_FORMAT",
+                "PLATFORM.PREFERENCE.FIRST_DAY_OF_WEEK",
+                "PLATFORM.PREFERENCE.NUMBER_FORMAT",
+                "PLATFORM.AUDIT.WINDOW",
+                "PLATFORM.AUDIT.CATEGORY_FILTER",
+                "PLATFORM.AUDIT.SEVERITY_FILTER",
+                "PLATFORM.AUDIT.OUTCOME_FILTER",
+                "PLATFORM.EVENT_ENVELOPE.DOMAIN",
+                "PLATFORM.EVENT_ENVELOPE.CLASSIFICATION",
+                "PLATFORM.SYS_AUDIT_EXPORT_JOBS.FORMAT")) {
+            assertThat(latest.match(
+                            "GET", "/api/platform/v1/catalog/code-sets/" + codeSet, "locale=ko")
+                    .status())
+                    .as(codeSet)
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.UNGOVERNED);
+            assertThat(latest.match(
+                            "POST", "/api/platform/v1/catalog/code-sets/" + codeSet, "locale=ko")
+                    .status())
+                    .as(codeSet + " write")
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        }
+
+        assertThat(latest.match(
+                        "GET",
+                        "/api/platform/v1/catalog/code-sets/PEOPLE.HRIS_SOURCE_TYPE",
+                        "locale=ko&contextScopeKey=scope%3Ahcm%2Fdefault")
+                .status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(latest.match(
+                        "GET",
+                        "/api/platform/v1/catalog/code-sets/PLATFORM.API_HISTORY.UNKNOWN",
+                        "locale=ko")
+                .status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(latest.match(
+                        "GET",
+                        "/api/platform/v1/catalog/code-sets/PLATFORM.PREFERENCE.UNKNOWN",
+                        "locale=ko")
+                .status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(latest.match(
+                        "GET",
+                        "/api/platform/v1/catalog/code-sets/PLATFORM.AUDIT.UNKNOWN",
+                        "locale=ko")
+                .status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(latest.match(
+                        "GET",
+                        "/api/platform/v1/catalog/code-sets/PLATFORM.EVENT_ENVELOPE.UNKNOWN",
+                        "locale=ko")
+                .status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(latest.match(
+                        "GET",
+                        "/api/platform/v1/catalog/code-sets/PLATFORM.SYS_AUDIT_EXPORT_JOBS.UNKNOWN",
+                        "locale=ko")
+                .status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+    }
+
+    @Test
+    void v32GovernsOnlyTheExactCommunicationsManagementCodeSets() {
+        GeneratedProductRouteCatalog latest = catalog(32);
+
+        for (String codeSet : List.of(
+                "PLATFORM.COMMUNICATION.CATEGORY",
+                "PLATFORM.COMMUNICATION.CONTENT_TYPE")) {
+            var match = latest.match(
+                    "GET", "/api/platform/v1/catalog/code-sets/" + codeSet, "locale=ko");
+            assertThat(match.status()).as(codeSet)
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(match.uniqueRoute().routeContractKey()).as(codeSet)
+                    .isEqualTo("route.communications.management.code-sets.data");
+            assertThat(match.uniqueRoute().productKey()).as(codeSet)
+                    .isEqualTo("communications");
+        }
+
+        assertThat(latest.match(
+                        "GET",
+                        "/api/platform/v1/catalog/code-sets/PLATFORM.COMMUNICATION.UNKNOWN",
+                        "locale=ko")
+                .status()).isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(latest.match(
+                        "POST",
+                        "/api/platform/v1/catalog/code-sets/PLATFORM.COMMUNICATION.CATEGORY",
+                        null)
+                .status()).isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
     }
 
     @Test
@@ -610,9 +713,9 @@ class GeneratedProductRouteCatalogTest {
     }
 
     @Test
-    void v21ClosesTheCurrentHumanAndExactRoomInventoryAndPublishesEveryPage()
+    void latestClosesTheCurrentHumanAndExactRoomInventoryAndPublishesEveryPage()
             throws IOException {
-        GeneratedProductRouteCatalog latest = catalog(21);
+        GeneratedProductRouteCatalog latest = catalog(31);
         Set<String> generated = latest.routesForTesting().stream()
                 .filter(route -> "workplace".equals(route.productKey()))
                 .filter(route -> route.publicPath().startsWith("/api/platform/"))
@@ -630,16 +733,16 @@ class GeneratedProductRouteCatalogTest {
                 "POST /api/platform/v1/workplace/kiosk/visits/{visitId}:arrive",
                 "POST /api/platform/v1/workplace/kiosk/visits/{visitId}:checkout");
         Set<String> openApi = platformOpenApiWorkplaceBindings();
-        assertThat(openApi).hasSize(299).containsAll(device);
+        assertThat(openApi).hasSize(321).containsAll(device);
         Set<String> human = new HashSet<>(openApi);
         human.removeAll(device);
-        assertThat(human).hasSize(289);
+        assertThat(human).hasSize(311);
         assertThat(generated.stream()
                 .filter(binding -> binding.contains(" /api/platform/v1/workplace/")
                         || binding.contains(" /api/platform/v1/admin/workplace/"))
                 .collect(java.util.stream.Collectors.toSet()))
                 .isEqualTo(human);
-        assertThat(generated).hasSize(303).doesNotContainAnyElementsOf(device);
+        assertThat(generated).hasSize(328).doesNotContainAnyElementsOf(device);
         assertThat(generated.stream()
                 .filter(binding -> binding.contains(" /api/platform/v1/rooms/")
                         || binding.contains(" /api/platform/v1/admin/rooms/"))
@@ -649,6 +752,13 @@ class GeneratedProductRouteCatalogTest {
                         "GET /api/platform/v1/admin/rooms/policy",
                         "GET /api/platform/v1/rooms/bookings",
                         "PUT /api/platform/v1/admin/rooms/resources/{resourceId}");
+        assertThat(generated.stream()
+                .filter(binding -> binding.contains(" /api/platform/v2/home"))
+                .collect(java.util.stream.Collectors.toSet()))
+                .containsExactlyInAnyOrder(
+                        "GET /api/platform/v2/home",
+                        "POST /api/platform/v2/home/shadow-receipts",
+                        "POST /api/platform/v2/home/widget-actions:execute");
 
         assertThat(latest.routesForTesting().stream()
                 .filter(route -> "workplace".equals(route.productKey()))
@@ -698,6 +808,31 @@ class GeneratedProductRouteCatalogTest {
                 "route.workplace.management.visit-providers.page", false);
         assertRoute(latest, "GET", "/api/platform/v1/admin/workplace/kiosk-devices",
                 "route.workplace.management.kiosk-devices.page", false);
+    }
+
+    @Test
+    void providerLifecycleCancellationIsPresentInThePublishedContract() throws IOException {
+        Path path = Path.of("contracts/openapi/provider.json");
+        if (!Files.exists(path)) path = Path.of("../contracts/openapi/provider.json");
+        JsonNode document = objectMapper.readTree(Files.readAllBytes(path));
+        JsonNode operation = document.path("paths")
+                .path("/v1/admin/resource-governance/lifecycle-requests/{requestId}/cancel")
+                .path("post");
+
+        assertThat(operation.isMissingNode()).isFalse();
+        assertThat(operation.path("operationId").asText()).isEqualTo("cancelLifecycleRequest");
+    }
+
+    @Test
+    void keepsProviderLifecycleCancellationOutsideTheProductBoundary() {
+        assertThat(catalog(31)
+                        .match(
+                                "POST",
+                                "/api/provider/v1/admin/resource-governance/lifecycle-requests/"
+                                        + UUID.randomUUID()
+                                        + "/cancel")
+                        .status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.UNGOVERNED);
     }
 
     private GeneratedProductRouteCatalog catalog(int version) {

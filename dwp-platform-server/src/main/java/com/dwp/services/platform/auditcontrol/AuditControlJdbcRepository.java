@@ -198,7 +198,11 @@ abstract class AuditControlJdbcRepository {
                     rs.getObject("rollback_of_revision_id", UUID.class),
                     rs.getObject("incident_case_id", UUID.class),
                     rs.getString("change_reason"), jsonMap(rs.getString("diff_data")),
-                    rs.getString("content_sha256"), rs.getString("created_by"),
+                    rs.getString("content_sha256"),
+                    jsonValue(
+                            rs.getString("impact_snapshot"),
+                            AuditControlDtos.PolicyImpactSnapshot.class),
+                    rs.getString("impact_sha256"), rs.getString("created_by"),
                     instant(rs, "created_at"), rs.getString("submitted_by"),
                     instant(rs, "submitted_at"), rs.getString("published_by"),
                     instant(rs, "published_at"), rs.getLong("version"), approval);
@@ -214,6 +218,14 @@ abstract class AuditControlJdbcRepository {
     protected Map<String, Object> jsonMap(String value) {
         try {
             return value == null ? Map.of() : objectMapper.readValue(value, MAP);
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException("Stored audit JSON is invalid", exception);
+        }
+    }
+
+    protected <T> T jsonValue(String value, Class<T> type) {
+        try {
+            return objectMapper.readValue(value, type);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Stored audit JSON is invalid", exception);
         }

@@ -9,6 +9,7 @@ import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.Artif
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.ArtifactRolloutPlan;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.AssessArtifactCompatibilityRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.Commitment;
+import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.CommitmentPage;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.CreateArtifactManifestRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.CreateArtifactRolloutPlanRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.CreateTenantLifecycleRequest;
@@ -16,9 +17,11 @@ import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.Creat
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.LedgerEntry;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.LedgerPage;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.ResourceCommitmentChange;
+import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.ResourceCommitmentChangePage;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.ResourceCommitmentChangeDecisionRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.TenantLifecycleDecisionRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.TenantLifecycleRequest;
+import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.TenantLifecycleRequestPage;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.VersionedReasonRequest;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Max;
@@ -50,7 +53,7 @@ public class ResourceGovernanceController {
     }
 
     @GetMapping("/v1/admin/resource-governance/commitments")
-    public ApiResponse<List<Commitment>> commitments(
+    public ApiResponse<CommitmentPage> commitments(
             @RequestParam(required = false) UUID tenantId) {
         return ApiResponse.success(service.commitments(tenantId));
     }
@@ -73,7 +76,7 @@ public class ResourceGovernanceController {
     }
 
     @GetMapping("/v1/admin/resource-governance/commitment-changes")
-    public ApiResponse<List<ResourceCommitmentChange>> resourceChanges(
+    public ApiResponse<ResourceCommitmentChangePage> resourceChanges(
             @RequestParam(required = false) UUID tenantId) {
         return ApiResponse.success(service.resourceChanges(tenantId));
     }
@@ -107,7 +110,7 @@ public class ResourceGovernanceController {
     }
 
     @GetMapping("/v1/admin/resource-governance/lifecycle-requests")
-    public ApiResponse<List<TenantLifecycleRequest>> lifecycleRequests(
+    public ApiResponse<TenantLifecycleRequestPage> lifecycleRequests(
             @RequestParam(required = false) UUID tenantId) {
         return ApiResponse.success(service.lifecycleRequests(tenantId));
     }
@@ -136,6 +139,14 @@ public class ResourceGovernanceController {
         return ApiResponse.success(service.submitLifecycleRequest(requestId, request, correlationId));
     }
 
+    @PostMapping("/v1/admin/resource-governance/lifecycle-requests/{requestId}/cancel")
+    public ApiResponse<TenantLifecycleRequest> cancelLifecycleRequest(
+            @PathVariable UUID requestId,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody VersionedReasonRequest request) {
+        return ApiResponse.success(service.cancelLifecycleRequest(requestId, request, correlationId));
+    }
+
     @PostMapping("/v1/admin/resource-governance/lifecycle-requests/{requestId}/decision")
     public ApiResponse<TenantLifecycleRequest> decideLifecycleRequest(
             @PathVariable UUID requestId,
@@ -145,7 +156,7 @@ public class ResourceGovernanceController {
     }
 
     @GetMapping("/v1/admin/artifact-governance/manifests")
-    public ApiResponse<List<ArtifactManifest>> artifacts() {
+    public ApiResponse<ResourceGovernanceDtos.ArtifactManifestPage> artifacts() {
         return ApiResponse.success(service.artifacts());
     }
 
@@ -181,7 +192,7 @@ public class ResourceGovernanceController {
     }
 
     @GetMapping("/v1/admin/artifact-governance/rollout-plans")
-    public ApiResponse<List<ArtifactRolloutPlan>> plans() {
+    public ApiResponse<ResourceGovernanceDtos.ArtifactRolloutPlanPage> plans() {
         return ApiResponse.success(service.plans());
     }
 

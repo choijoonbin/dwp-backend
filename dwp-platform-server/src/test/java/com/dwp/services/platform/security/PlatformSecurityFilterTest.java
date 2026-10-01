@@ -15,6 +15,174 @@ class PlatformSecurityFilterTest {
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Test
+    void protectsEveryExactAuditRuntimeCodeSetWithAuditView() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+        for (String codeSet : List.of(
+                "PLATFORM.AUDIT.WINDOW",
+                "PLATFORM.AUDIT.CATEGORY_FILTER",
+                "PLATFORM.AUDIT.SEVERITY_FILTER",
+                "PLATFORM.AUDIT.OUTCOME_FILTER",
+                "PLATFORM.EVENT_ENVELOPE.DOMAIN",
+                "PLATFORM.EVENT_ENVELOPE.CLASSIFICATION",
+                "PLATFORM.SYS_AUDIT_EXPORT_JOBS.FORMAT")) {
+            String path = "/v1/catalog/code-sets/" + codeSet;
+            assertThat(apply(filter, tenantAdminRequest("GET", path, null)).getStatus())
+                    .as("missing permission " + codeSet)
+                    .isEqualTo(403);
+            assertThat(apply(filter, tenantAdminRequest(
+                    "GET", path, "ADMIN.AUDIT_VIEW:VIEW")).getStatus())
+                    .as("view " + codeSet)
+                    .isEqualTo(200);
+            assertThat(apply(filter, tenantAdminRequest(
+                    "GET", path, "ADMIN.AUDIT_VIEW:MANAGE")).getStatus())
+                    .as("wrong permission " + codeSet)
+                    .isEqualTo(403);
+        }
+    }
+
+    @Test
+    void protectsEveryExactApiMonitoringRuntimeCodeSetWithApiMonitoringView()
+            throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+        for (String codeSet : List.of(
+                "PLATFORM.API_HISTORY.WINDOW",
+                "PLATFORM.API_HISTORY.OBSERVATION_POINT_FILTER",
+                "PLATFORM.API_HISTORY.HTTP_METHOD_FILTER",
+                "PLATFORM.API_HISTORY.OUTCOME_FILTER")) {
+            String path = "/v1/catalog/code-sets/" + codeSet;
+            assertThat(apply(filter, tenantAdminRequest("GET", path, null)).getStatus())
+                    .as("missing permission " + codeSet)
+                    .isEqualTo(403);
+            assertThat(apply(filter, tenantAdminRequest(
+                    "GET", path, "ADMIN.API_MONITORING:VIEW")).getStatus())
+                    .as("view " + codeSet)
+                    .isEqualTo(200);
+            assertThat(apply(filter, tenantAdminRequest(
+                    "GET", path, "ADMIN.API_MONITORING:MANAGE")).getStatus())
+                    .as("wrong permission " + codeSet)
+                    .isEqualTo(403);
+        }
+    }
+
+    @Test
+    void rejectsEncodedAndNonCanonicalRuntimeCodeSetPathsBeforeExactAuthorization()
+            throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+
+        assertThat(apply(filter, tenantAdminRequest(
+                "GET",
+                "/v1/catalog/code-sets/PLATFORM%2EAPI_HISTORY%2EWINDOW",
+                null)).getStatus()).isEqualTo(403);
+        assertThat(apply(filter, tenantAdminRequest(
+                "GET",
+                "/v1/catalog/code-sets/PLATFORM.API_HISTORY.WINDOW;ignored=true",
+                null)).getStatus()).isEqualTo(403);
+        assertThat(apply(filter, tenantAdminRequest(
+                "GET",
+                "/v1/catalog/code-sets/platform.api_history.window",
+                null)).getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void confinesSharedSettingsRuntimeCodeSetsToTheirExactTenantBoundaries() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+        for (String codeSet : List.of(
+                "PLATFORM.PREFERENCE.COLOR_MODE",
+                "PLATFORM.PREFERENCE.DENSITY",
+                "PLATFORM.PREFERENCE.TIME_ZONE",
+                "PLATFORM.PREFERENCE.DATE_FORMAT",
+                "PLATFORM.PREFERENCE.TIME_FORMAT",
+                "PLATFORM.PREFERENCE.FIRST_DAY_OF_WEEK",
+                "PLATFORM.PREFERENCE.NUMBER_FORMAT")) {
+            String path = "/v1/catalog/code-sets/" + codeSet;
+            assertThat(apply(filter, tenantAdminRequest("GET", path, null)).getStatus())
+                    .as(codeSet)
+                    .isEqualTo(200);
+
+            MockHttpServletRequest provider = tenantAdminRequest("GET", path, null);
+            provider.removeHeader("X-DWP-Identity-Plane");
+            provider.addHeader("X-DWP-Identity-Plane", "PROVIDER");
+            assertThat(apply(filter, provider).getStatus()).as(codeSet).isEqualTo(403);
+        }
+
+        MockHttpServletRequest auditProvider = tenantAdminRequest(
+                "GET",
+                "/v1/catalog/code-sets/PLATFORM.AUDIT.WINDOW",
+                "ADMIN.AUDIT_VIEW:VIEW");
+        auditProvider.removeHeader("X-DWP-Identity-Plane");
+        auditProvider.addHeader("X-DWP-Identity-Plane", "PROVIDER");
+        assertThat(apply(filter, auditProvider).getStatus()).isEqualTo(403);
+
+        assertThat(apply(filter, tenantAdminRequest(
+                "GET",
+                "/v1/catalog/code-sets/PLATFORM.AUDIT.UNKNOWN",
+                null)).getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void requiresExactApiMonitoringViewAndManageAuthorities() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+
+        assertThat(apply(filter, tenantAdminRequest(
+                "GET", "/v1/admin/api-history/overview", null)).getStatus()).isEqualTo(403);
+        assertThat(apply(filter, tenantAdminRequest(
+                "GET", "/v1/admin/api-history/overview",
+                "ADMIN.API_MONITORING:VIEW")).getStatus()).isEqualTo(200);
+        MockHttpServletRequest delegatedReader = tenantAdminRequest(
+                "GET", "/v1/admin/api-history/events", "ADMIN.API_MONITORING:VIEW");
+        delegatedReader.removeHeader(PlatformSecurityFilter.ROLES_HEADER);
+        delegatedReader.addHeader(PlatformSecurityFilter.ROLES_HEADER, "CUSTOM_API_OBSERVER");
+        assertThat(apply(filter, delegatedReader).getStatus()).isEqualTo(200);
+        assertThat(apply(filter, tenantAdminRequest(
+                "HEAD", "/v1/admin/api-history/events",
+                "ADMIN.API_MONITORING:VIEW")).getStatus()).isEqualTo(200);
+        assertThat(apply(filter, tenantAdminRequest(
+                "GET", "/v1/admin/api-history/events",
+                "ADMIN.API_MONITORING:MANAGE")).getStatus()).isEqualTo(403);
+        assertThat(apply(filter, tenantAdminRequest(
+                "POST", "/v1/admin/api-history/retention",
+                "ADMIN.API_MONITORING:VIEW")).getStatus()).isEqualTo(403);
+        assertThat(apply(filter, tenantAdminRequest(
+                "POST", "/v1/admin/api-history/retention",
+                "ADMIN.API_MONITORING:MANAGE")).getStatus()).isEqualTo(200);
+    }
+
+    @Test
+    void rejectsApiMonitoringAuthorityFromProviderSupportAndAdjacentPaths() throws Exception {
+        PlatformSecurityFilter filter = new PlatformSecurityFilter(
+                "trusted", "runtime", objectMapper);
+
+        MockHttpServletRequest provider = tenantAdminRequest(
+                "GET", "/v1/admin/api-history/overview",
+                "ADMIN.API_MONITORING:VIEW");
+        provider.removeHeader("X-DWP-Identity-Plane");
+        provider.addHeader("X-DWP-Identity-Plane", "PROVIDER");
+        assertThat(apply(filter, provider).getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest support = tenantAdminRequest(
+                "GET", "/v1/admin/api-history/overview",
+                "ADMIN.API_MONITORING:VIEW");
+        support.addHeader(PlatformSecurityFilter.SUPPORT_SESSION_HEADER, "support-1");
+        support.addHeader(
+                PlatformSecurityFilter.SUPPORT_SCOPES_HEADER,
+                "TENANT_CONFIGURATION_READ");
+        support.addHeader(PlatformSecurityFilter.ACTOR_TENANT_HEADER, "99");
+        assertThat(apply(filter, support).getStatus()).isEqualTo(403);
+
+        MockHttpServletRequest adjacent = tenantAdminRequest(
+                "GET", "/v1/admin/api-history-archive",
+                "ADMIN.API_MONITORING:VIEW");
+        adjacent.removeHeader(PlatformSecurityFilter.ROLES_HEADER);
+        adjacent.addHeader(PlatformSecurityFilter.ROLES_HEADER, "CUSTOM_API_OBSERVER");
+        assertThat(apply(filter, adjacent).getStatus()).isEqualTo(403);
+    }
+
+    @Test
     void requiresExactTenantCatalogAndRegistryPermissionsInsteadOfRoleNames() throws Exception {
         PlatformSecurityFilter filter = new PlatformSecurityFilter("trusted", "runtime", objectMapper);
 

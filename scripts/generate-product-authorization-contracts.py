@@ -37,10 +37,13 @@ GATEWAY_ROLLOUT_INVENTORY_OUTPUT = (
     / "dwp-gateway/src/main/resources/product-authorization/"
     / "product-surface-rollout-inventory.v1.generated.json"
 )
-PLATFORM_CANARY_PEP_OUTPUT = (
+PLATFORM_CANARY_PEP_V1_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-canary-pep-v1.generated.json"
+)
+PLATFORM_CANARY_PEP_OUTPUT = PLATFORM_CANARY_PEP_V1_OUTPUT.with_name(
+    "platform-canary-pep-v2.generated.json"
 )
 APPROVAL_PILOT_PEP_OUTPUT = (
     ROOT
@@ -79,6 +82,9 @@ APPROVAL_RELEASE19_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
 )
 APPROVAL_RELEASE31_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
     "approval-pilot-pep-v31.generated.json"
+)
+APPROVAL_RELEASE32_PEP_OUTPUT = APPROVAL_PILOT_PEP_OUTPUT.with_name(
+    "approval-pilot-pep-v32.generated.json"
 )
 PLATFORM_APPROVALS_PEP_OUTPUT = (
     ROOT
@@ -124,7 +130,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 32))
+BUNDLE_VERSIONS = tuple(range(1, 33))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -220,6 +226,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 47, "routes": 888, "PAGE": 118, "DATA": 263, "ACTION": 507},
     31: {"capabilities": 205, "accessPolicies": 22, "entitlementExpressions": 16,
          "predicatePolicies": 47, "routes": 911, "PAGE": 118, "DATA": 274, "ACTION": 519},
+    32: {"capabilities": 205, "accessPolicies": 22, "entitlementExpressions": 16,
+         "predicatePolicies": 48, "routes": 912, "PAGE": 118, "DATA": 275, "ACTION": 519},
 }
 
 V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES = frozenset({
@@ -271,6 +279,7 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     29: "aac6b6dfc94b4f4ea2956862ff1aa73ccd3459b29548fb20b3cbc26ae29cdbd8",
     30: "7c437bd768225db7dfe1c2491bcdb6ff256a2376946bab6a4ba4a62a7f31ce80",
     31: "be4e1b6db3d3f0b5100182a3c80066a39c64479f9ba88d908fee661efd3335b8",
+    32: "b620ea86a8310cf23796e3e380b74c39764bdca28f41033496d21887a89da9cc",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -398,6 +407,10 @@ APPROVAL_EXTENSION_V9_PROJECTIONS = {
     }
 }
 PLATFORM_CANARY_PRODUCTS = {"communications", "services"}
+PLATFORM_EXACT_CATALOG_ROUTE_KEYS = {
+    "route.hcm.management.integration-code-sets.data",
+    "route.hcm.management.org-code-sets.data",
+}
 APPROVAL_RELEASE10_PROJECTIONS = {'route.approvals.admin.retention-claim.data': {'additionalProperties': False,
                                                 'apiBindingKey': 'route.approvals.admin.retention-claim.data.binding.01',
                                                 'openApiSchemaSha256': '5c106536ba24f7054be87e382798275cafc1e81e6e9637549097d1316fb05719',
@@ -2187,15 +2200,52 @@ def index_checksum(index: dict[str, Any]) -> str:
     return hashlib.sha256(stable_json(payload).encode("utf-8")).hexdigest()
 
 
-def build_platform_canary_pep(snapshot: dict[str, Any]) -> dict[str, Any]:
-    """Project the immutable v1 Platform Canary PEP from the registry graph."""
-    require(snapshot["version"] == 1, "Platform Canary PEP must project immutable v1")
+def build_platform_canary_pep(
+    snapshot: dict[str, Any], projection_version: int
+) -> dict[str, Any]:
+    """Project one immutable Platform Canary PEP from the registry graph."""
+    expected = {
+        1: {
+            "registryVersion": 1,
+            "routes": 33,
+            "bindings": 36,
+            "routeKinds": {"ACTION": 15, "DATA": 0, "PAGE": 18},
+            "capabilities": 10,
+            "accessPolicies": 3,
+            "entitlementExpressions": 2,
+            "predicatePolicies": 5,
+            "ownedPathRoots": 4,
+            "ownedExactPaths": 0,
+        },
+        2: {
+            "registryVersion": 32,
+            "routes": 39,
+            "bindings": 42,
+            "routeKinds": {"ACTION": 16, "DATA": 5, "PAGE": 18},
+            "capabilities": 13,
+            "accessPolicies": 3,
+            "entitlementExpressions": 2,
+            "predicatePolicies": 7,
+            "ownedPathRoots": 4,
+            "ownedExactPaths": 7,
+        },
+    }.get(projection_version)
+    require(expected is not None, "Unsupported Platform Canary PEP projection version")
+    require(
+        snapshot["version"] == expected["registryVersion"],
+        f"Platform Canary PEP v{projection_version} must project registry "
+        f"v{expected['registryVersion']}",
+    )
     routes = [
         copy.deepcopy(route)
         for route in snapshot["routes"]
         if route["subject"].get("productKey") in PLATFORM_CANARY_PRODUCTS
+        or route["routeContractKey"] in PLATFORM_EXACT_CATALOG_ROUTE_KEYS
     ]
-    require(len(routes) == 33, "Platform Canary PEP must contain exactly 33 product routes")
+    require(
+        len(routes) == expected["routes"],
+        f"Platform Canary PEP v{projection_version} route count drift",
+    )
     require(
         all(
             binding.get("serviceKey") == "platform"
@@ -2238,16 +2288,60 @@ def build_platform_canary_pep(snapshot: dict[str, Any]) -> dict[str, Any]:
         require(len(segments) >= width, "incomplete Platform Canary path")
         return "/" + "/".join(segments[:width])
 
-    owned_path_roots = sorted({
-        owned_path_root(binding["path"])
-        for route in routes
-        for binding in route["servicePepBindings"]
-    })
-    require(len(owned_path_roots) == 4, "Platform Canary owned path root count drift")
+    def finite_binding_paths(binding: dict[str, Any]) -> list[str]:
+        path = binding["path"]
+        parameters = re.findall(r"\{([A-Za-z][A-Za-z0-9]*)}", path)
+        if not parameters:
+            return []
+        constraints = binding.get("pathParameterConstraints") or {}
+        if any(parameter not in constraints for parameter in parameters):
+            return []
+        paths = [path]
+        for parameter in parameters:
+            constraint = constraints[parameter]
+            kind = constraint.get("kind")
+            if kind == "FIXED":
+                values = [constraint.get("value")]
+            elif kind == "ALLOWLIST":
+                values = constraint.get("values") or []
+            else:
+                return []
+            require(
+                values and all(isinstance(value, str) and value for value in values),
+                "Platform Canary exact path constraint is invalid",
+            )
+            paths = [
+                candidate.replace("{" + parameter + "}", value)
+                for candidate in paths
+                for value in values
+            ]
+        return paths
+
+    owned_path_roots: set[str] = set()
+    owned_exact_paths: set[str] = set()
+    for route in routes:
+        for binding in route["servicePepBindings"]:
+            exact_paths = (
+                finite_binding_paths(binding) if projection_version >= 2 else []
+            )
+            if exact_paths:
+                owned_exact_paths.update(exact_paths)
+            else:
+                owned_path_roots.add(owned_path_root(binding["path"]))
+    owned_path_roots = sorted(owned_path_roots)
+    owned_exact_paths = sorted(owned_exact_paths)
+    require(
+        len(owned_path_roots) == expected["ownedPathRoots"],
+        "Platform Canary owned path root count drift",
+    )
+    require(
+        len(owned_exact_paths) == expected["ownedExactPaths"],
+        "Platform Canary exact owned path count drift",
+    )
 
     projection = {
         "schemaVersion": 1,
-        "projectionKey": "platform-canary-pep-v1",
+        "projectionKey": f"platform-canary-pep-v{projection_version}",
         "ownerServiceKey": "platform",
         "ownedPathRoots": owned_path_roots,
         "registryRef": {
@@ -2285,23 +2379,49 @@ def build_platform_canary_pep(snapshot: dict[str, Any]) -> dict[str, Any]:
         "routes": routes,
         "projectionChecksumAlgorithm": "SHA-256",
     }
-    require(projection["bindingPairCount"] == 36, "Platform Canary PEP binding count drift")
+    if projection_version >= 2:
+        route_keys = {route["routeContractKey"] for route in routes}
+        for section in ("capabilities", "accessPolicies", "predicatePolicies"):
+            for descriptor in projection[section]:
+                descriptor["routeContractKeys"] = sorted(
+                    set(descriptor["routeContractKeys"]) & route_keys
+                )
+        projection["ownedExactPaths"] = owned_exact_paths
     require(
-        projection["routeKindCounts"] == {"ACTION": 15, "DATA": 0, "PAGE": 18},
+        projection["bindingPairCount"] == expected["bindings"],
+        "Platform Canary PEP binding count drift",
+    )
+    require(
+        projection["routeKindCounts"] == expected["routeKinds"],
         "Platform Canary PEP route kind count drift",
     )
-    require(len(projection["capabilities"]) == 10, "Platform Canary capability closure drift")
-    require(len(projection["accessPolicies"]) == 3, "Platform Canary policy closure drift")
-    require(len(projection["entitlementExpressions"]) == 2, "Platform Canary expression closure drift")
-    require(len(projection["predicatePolicies"]) == 5, "Platform Canary predicate closure drift")
+    require(
+        len(projection["capabilities"]) == expected["capabilities"],
+        "Platform Canary capability closure drift",
+    )
+    require(
+        len(projection["accessPolicies"]) == expected["accessPolicies"],
+        "Platform Canary policy closure drift",
+    )
+    require(
+        len(projection["entitlementExpressions"])
+        == expected["entitlementExpressions"],
+        "Platform Canary expression closure drift",
+    )
+    require(
+        len(projection["predicatePolicies"]) == expected["predicatePolicies"],
+        "Platform Canary predicate closure drift",
+    )
     projection["projectionChecksum"] = hashlib.sha256(
         stable_json(projection).encode("utf-8")
     ).hexdigest()
     return projection
 
 
-def verify_platform_canary_pep(projection: dict[str, Any]) -> None:
-    document = json.loads(PLATFORM_CANARY_PEP_OUTPUT.read_text(encoding="utf-8"))
+def verify_platform_canary_pep(
+    output: pathlib.Path, projection: dict[str, Any]
+) -> None:
+    document = json.loads(output.read_text(encoding="utf-8"))
     require(document == projection, "Platform Canary PEP generated artifact drift")
     payload = copy.deepcopy(document)
     actual_checksum = payload.pop("projectionChecksum", None)
@@ -2640,6 +2760,8 @@ def verify_no_out_of_lineage_artifacts() -> None:
     allowed = {
         *VERSIONED_CONTRACT_OUTPUTS.values(),
         *VERSIONED_AUTH_SEED_OUTPUTS.values(),
+        PLATFORM_CANARY_PEP_V1_OUTPUT,
+        PLATFORM_CANARY_PEP_OUTPUT,
         APPROVAL_PILOT_PEP_OUTPUT,
         APPROVAL_WORK_PEP_OUTPUT,
         APPROVAL_DOCUMENT_PEP_OUTPUT,
@@ -2652,6 +2774,7 @@ def verify_no_out_of_lineage_artifacts() -> None:
         APPROVAL_RELEASE15_PEP_OUTPUT,
         APPROVAL_RELEASE19_PEP_OUTPUT,
         APPROVAL_RELEASE31_PEP_OUTPUT,
+        APPROVAL_RELEASE32_PEP_OUTPUT,
         PLATFORM_APPROVALS_PEP_OUTPUT,
         LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT,
         LEGACY_PLATFORM_WORKPLACE_PEP_V16_OUTPUT,
@@ -2668,6 +2791,9 @@ def verify_no_out_of_lineage_artifacts() -> None:
     candidates = {
         *CONTRACT_DIRECTORY.glob("product-surfaces-v1.bundle-v*.json"),
         *AUTH_SEED_DIRECTORY.glob("product-surfaces-v1.bundle-v*.generated.json"),
+        *PLATFORM_CANARY_PEP_OUTPUT.parent.glob(
+            "platform-canary-pep-v*.generated.json"
+        ),
         *APPROVAL_PILOT_PEP_OUTPUT.parent.glob("approval-pilot-pep-v*.generated.json"),
         *PLATFORM_APPROVALS_PEP_OUTPUT.parent.glob(
             "platform-approvals-pep-v*.generated.json"
@@ -2693,7 +2819,8 @@ def main() -> int:
         snapshots = build_snapshots(source)
         rollout_inventory = build_rollout_inventory(source)
         index = build_index(snapshots)
-        platform_canary_pep = build_platform_canary_pep(snapshots[0])
+        platform_canary_pep_v1 = build_platform_canary_pep(snapshots[0], 1)
+        platform_canary_pep = build_platform_canary_pep(snapshots[-1], 2)
         approval_pilot_pep = build_approvals_pep(
             snapshots[1],
             "approval",
@@ -2808,6 +2935,15 @@ def main() -> int:
                 "capabilities": 39, "accessPolicies": 1,
                 "entitlementExpressions": 1, "predicatePolicies": 18,
             }, version=31,
+        )
+        approval_release32_pep = build_approvals_pep(
+            snapshots[31], "approval", "approval-pilot-pep-v32",
+            {
+                "routes": 216, "bindings": 285,
+                "routeKinds": {"ACTION": 112, "DATA": 84, "PAGE": 20},
+                "capabilities": 39, "accessPolicies": 1,
+                "entitlementExpressions": 1, "predicatePolicies": 18,
+            }, version=32,
         )
         platform_approvals_pep = build_approvals_pep(
             snapshots[1],
@@ -2938,6 +3074,11 @@ def main() -> int:
             write_or_check(CONTRACT_INDEX_OUTPUT, index_content, args.check),
             write_or_check(AUTH_SEED_INDEX_OUTPUT, index_content, args.check),
             write_or_check(
+                PLATFORM_CANARY_PEP_V1_OUTPUT,
+                render(platform_canary_pep_v1),
+                args.check,
+            ),
+            write_or_check(
                 PLATFORM_CANARY_PEP_OUTPUT,
                 render(platform_canary_pep),
                 args.check,
@@ -2966,6 +3107,7 @@ def main() -> int:
             write_or_check(APPROVAL_RELEASE15_PEP_OUTPUT, render(approval_release15_pep), args.check),
             write_or_check(APPROVAL_RELEASE19_PEP_OUTPUT, render(approval_release19_pep), args.check),
             write_or_check(APPROVAL_RELEASE31_PEP_OUTPUT, render(approval_release31_pep), args.check),
+            write_or_check(APPROVAL_RELEASE32_PEP_OUTPUT, render(approval_release32_pep), args.check),
             write_or_check(
                 PLATFORM_APPROVALS_PEP_OUTPUT,
                 render(platform_approvals_pep),
@@ -3017,7 +3159,10 @@ def main() -> int:
             "rollout inventory checksum mismatch",
         )
         verify_no_out_of_lineage_artifacts()
-        verify_platform_canary_pep(platform_canary_pep)
+        verify_platform_canary_pep(
+            PLATFORM_CANARY_PEP_V1_OUTPUT, platform_canary_pep_v1
+        )
+        verify_platform_canary_pep(PLATFORM_CANARY_PEP_OUTPUT, platform_canary_pep)
         verify_approvals_pep(APPROVAL_PILOT_PEP_OUTPUT, approval_pilot_pep)
         verify_approvals_pep(APPROVAL_WORK_PEP_OUTPUT, approval_work_pep)
         verify_approvals_pep(APPROVAL_DOCUMENT_PEP_OUTPUT, approval_document_pep)
@@ -3030,6 +3175,7 @@ def main() -> int:
         verify_approvals_pep(APPROVAL_RELEASE15_PEP_OUTPUT, approval_release15_pep)
         verify_approvals_pep(APPROVAL_RELEASE19_PEP_OUTPUT, approval_release19_pep)
         verify_approvals_pep(APPROVAL_RELEASE31_PEP_OUTPUT, approval_release31_pep)
+        verify_approvals_pep(APPROVAL_RELEASE32_PEP_OUTPUT, approval_release32_pep)
         verify_approvals_pep(PLATFORM_APPROVALS_PEP_OUTPUT, platform_approvals_pep)
         verify_approvals_pep(
             LEGACY_PLATFORM_WORKPLACE_PEP_V21_OUTPUT,

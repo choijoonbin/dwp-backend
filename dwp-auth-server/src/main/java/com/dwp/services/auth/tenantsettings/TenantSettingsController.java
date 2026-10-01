@@ -14,7 +14,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -31,11 +30,12 @@ public class TenantSettingsController {
     }
 
     @GetMapping("/auth-policy/changes")
-    public ApiResponse<List<TenantSettingsDtos.ChangeSet>> authPolicyChanges(
+    public ApiResponse<TenantSettingsDtos.AuthPolicyChangePage> authPolicyChanges(
             Authentication authentication,
-            @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
+            @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
+            @RequestParam(defaultValue = "100") int limit) {
         return ApiResponse.success(service.authPolicyChanges(
-                tenant(authentication, tenantHeader), actor(authentication)));
+                tenant(authentication, tenantHeader), actor(authentication), limit));
     }
 
     @PostMapping("/auth-policy/changes")

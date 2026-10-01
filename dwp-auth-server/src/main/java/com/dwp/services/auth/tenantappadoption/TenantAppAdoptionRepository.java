@@ -14,6 +14,7 @@ import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -73,14 +74,28 @@ public class TenantAppAdoptionRepository {
         return requireInstallation(tenantId, id);
     }
 
-    public List<TenantAppAdoptionDtos.Installation> installations(Long tenantId) {
+    public List<TenantAppAdoptionDtos.Installation> installations(
+            Long tenantId, Set<String> visibleAppResourceKeys, int fetchLimit) {
+        if (visibleAppResourceKeys != null && visibleAppResourceKeys.isEmpty()) return List.of();
+        String visibilityFilter = visibleAppResourceKeys == null ? "" :
+                " AND installation.app_resource_key IN ("
+                        + String.join(",", java.util.Collections.nCopies(
+                                visibleAppResourceKeys.size(), "?")) + ")";
+        List<Object> parameters = new java.util.ArrayList<>();
+        parameters.add(tenantId);
+        if (visibleAppResourceKeys != null) parameters.addAll(visibleAppResourceKeys);
+        parameters.add(fetchLimit);
         return jdbc.query("""
                 SELECT installation.*,
                        COUNT(assignment.assignment_id) FILTER (
-                           WHERE assignment.lifecycle_state IN ('APPROVED', 'ACTIVE'))
+                           WHERE assignment.lifecycle_state IN ('APPROVED', 'ACTIVE')
+                             AND (assignment.valid_to IS NULL
+                                  OR assignment.valid_to > CURRENT_TIMESTAMP))
                            AS reserved_seats,
                        COUNT(assignment.assignment_id) FILTER (
                            WHERE assignment.lifecycle_state = 'ACTIVE'
+                             AND (assignment.valid_from IS NULL
+                                  OR assignment.valid_from <= CURRENT_TIMESTAMP)
                              AND (assignment.valid_to IS NULL
                                   OR assignment.valid_to > CURRENT_TIMESTAMP))
                            AS active_seats
@@ -89,9 +104,14 @@ public class TenantAppAdoptionRepository {
                     ON assignment.tenant_id = installation.tenant_id
                    AND assignment.installation_id = installation.installation_id
                  WHERE installation.tenant_id = ?
+                """ + visibilityFilter + """
                  GROUP BY installation.installation_id
-                 ORDER BY installation.updated_at DESC, installation.product_key
-                """, this::installation, tenantId);
+                 ORDER BY CASE WHEN installation.lifecycle_state IN (
+                                      'DRAFT', 'IN_REVIEW', 'APPROVED', 'ENABLED')
+                                    THEN 0 ELSE 1 END,
+                          installation.updated_at DESC, installation.product_key
+                 LIMIT ?
+                """, this::installation, parameters.toArray());
     }
 
     public TenantAppAdoptionDtos.Installation requireInstallation(
@@ -99,10 +119,14 @@ public class TenantAppAdoptionRepository {
         return jdbc.query("""
                 SELECT installation.*,
                        COUNT(assignment.assignment_id) FILTER (
-                           WHERE assignment.lifecycle_state IN ('APPROVED', 'ACTIVE'))
+                           WHERE assignment.lifecycle_state IN ('APPROVED', 'ACTIVE')
+                             AND (assignment.valid_to IS NULL
+                                  OR assignment.valid_to > CURRENT_TIMESTAMP))
                            AS reserved_seats,
                        COUNT(assignment.assignment_id) FILTER (
                            WHERE assignment.lifecycle_state = 'ACTIVE'
+                             AND (assignment.valid_from IS NULL
+                                  OR assignment.valid_from <= CURRENT_TIMESTAMP)
                              AND (assignment.valid_to IS NULL
                                   OR assignment.valid_to > CURRENT_TIMESTAMP))
                            AS active_seats
@@ -179,24 +203,83 @@ public class TenantAppAdoptionRepository {
             Long tenantId,
             Long actorId,
             TenantAppAdoptionDtos.CreateAssignmentRequest request,
-            String settlementState) {
+            String settlementState,
+            Instant now) {
         UUID id = UUID.randomUUID();
-        jdbc.update("""
+        int inserted = jdbc.update("""
                 INSERT INTO com_tenant_app_workforce_assignments (
                     assignment_id, tenant_id, installation_id, principal_type,
                     principal_ref, external_settlement_state, valid_to,
                     justification, requested_by, created_by, updated_by)
-                VALUES (?, ?, ?, 'USER', ?, ?, ?, ?, ?, ?, ?)
+                SELECT ?, ?, ?, 'USER', ?, ?, ?, ?, ?, ?, ?
+                 WHERE ?::timestamptz IS NULL OR ? > ?
                 """, id, tenantId, request.installationId(), String.valueOf(request.userId()),
                 settlementState, timestamp(request.validTo()), request.justification().trim(),
-                actorId, actorId, actorId);
+                actorId, actorId, actorId, timestamp(request.validTo()),
+                timestamp(request.validTo()), timestamp(now));
+        if (inserted != 1) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "An expired workforce assignment request cannot be created.");
+        }
         return requireAssignment(tenantId, id);
     }
 
-    public List<TenantAppAdoptionDtos.Assignment> assignments(
-            Long tenantId, UUID installationId) {
+    public List<ExpiredAssignment> expireAssignmentsForReplacement(
+            Long tenantId,
+            UUID installationId,
+            Long userId,
+            Long actorId,
+            Instant now) {
         return jdbc.query("""
-                SELECT assignment.*, installation.product_key, user_record.display_name
+                WITH expired AS (
+                    SELECT assignment_id, lifecycle_state
+                      FROM com_tenant_app_workforce_assignments
+                     WHERE tenant_id = ? AND installation_id = ?
+                       AND principal_type = 'USER' AND principal_ref = ?
+                       AND lifecycle_state IN ('PENDING_APPROVAL', 'APPROVED', 'ACTIVE')
+                       AND valid_to IS NOT NULL AND valid_to <= ?
+                     FOR UPDATE
+                )
+                UPDATE com_tenant_app_workforce_assignments assignment
+                   SET lifecycle_state = 'EXPIRED', revoked_by = ?, revoked_at = ?,
+                       revocation_reason = 'Validity window elapsed before replacement',
+                       version = assignment.version + 1, updated_at = ?, updated_by = ?
+                  FROM expired
+                 WHERE assignment.assignment_id = expired.assignment_id
+                RETURNING assignment.assignment_id, assignment.version,
+                          expired.lifecycle_state AS previous_state
+                """, (result, ignored) -> new ExpiredAssignment(
+                result.getObject("assignment_id", UUID.class),
+                result.getLong("version"), result.getString("previous_state")),
+                tenantId, installationId, String.valueOf(userId), timestamp(now),
+                actorId, timestamp(now), timestamp(now), actorId);
+    }
+
+    public List<TenantAppAdoptionDtos.Assignment> assignments(
+            Long tenantId,
+            UUID installationId,
+            Set<String> visibleAppResourceKeys,
+            int fetchLimit) {
+        if (visibleAppResourceKeys != null && visibleAppResourceKeys.isEmpty()) return List.of();
+        String visibilityFilter = visibleAppResourceKeys == null ? "" :
+                " AND installation.app_resource_key IN ("
+                        + String.join(",", java.util.Collections.nCopies(
+                                visibleAppResourceKeys.size(), "?")) + ")";
+        List<Object> parameters = new java.util.ArrayList<>();
+        parameters.add(tenantId);
+        parameters.add(installationId);
+        parameters.add(installationId);
+        if (visibleAppResourceKeys != null) parameters.addAll(visibleAppResourceKeys);
+        parameters.add(fetchLimit);
+        return jdbc.query("""
+                SELECT assignment.*, installation.product_key, user_record.display_name,
+                       CASE WHEN assignment.lifecycle_state IN (
+                                      'PENDING_APPROVAL', 'APPROVED', 'ACTIVE')
+                                      AND assignment.valid_to IS NOT NULL
+                                      AND assignment.valid_to <= CURRENT_TIMESTAMP
+                            THEN 'EXPIRED' ELSE assignment.lifecycle_state
+                       END AS projected_lifecycle_state
                   FROM com_tenant_app_workforce_assignments assignment
                   JOIN com_tenant_app_installations installation
                     ON installation.tenant_id = assignment.tenant_id
@@ -206,13 +289,28 @@ public class TenantAppAdoptionRepository {
                    AND user_record.user_id::text = assignment.principal_ref
                  WHERE assignment.tenant_id = ?
                    AND (?::uuid IS NULL OR assignment.installation_id = ?::uuid)
-                 ORDER BY assignment.updated_at DESC, assignment.assignment_id
-                """, this::assignment, tenantId, installationId, installationId);
+                """ + visibilityFilter + """
+                 ORDER BY CASE
+                              WHEN assignment.lifecycle_state IN (
+                                       'PENDING_APPROVAL', 'APPROVED', 'ACTIVE')
+                               AND (assignment.valid_to IS NULL
+                                    OR assignment.valid_to > CURRENT_TIMESTAMP)
+                              THEN 0 ELSE 1
+                          END,
+                          assignment.updated_at DESC, assignment.assignment_id
+                 LIMIT ?
+                """, this::assignment, parameters.toArray());
     }
 
     public TenantAppAdoptionDtos.Assignment requireAssignment(Long tenantId, UUID assignmentId) {
         return jdbc.query("""
-                SELECT assignment.*, installation.product_key, user_record.display_name
+                SELECT assignment.*, installation.product_key, user_record.display_name,
+                       CASE WHEN assignment.lifecycle_state IN (
+                                      'PENDING_APPROVAL', 'APPROVED', 'ACTIVE')
+                                      AND assignment.valid_to IS NOT NULL
+                                      AND assignment.valid_to <= CURRENT_TIMESTAMP
+                            THEN 'EXPIRED' ELSE assignment.lifecycle_state
+                       END AS projected_lifecycle_state
                   FROM com_tenant_app_workforce_assignments assignment
                   JOIN com_tenant_app_installations installation
                     ON installation.tenant_id = assignment.tenant_id
@@ -245,9 +343,11 @@ public class TenantAppAdoptionRepository {
                      WHERE tenant_id = ? AND assignment_id = ?
                        AND lifecycle_state = ? AND version = ?
                        AND requested_by <> ? AND principal_ref <> ?
+                       AND (? <> 'APPROVED' OR valid_to IS NULL OR valid_to > ?)
                     """, nextState, actorId, timestamp(now), reason,
                     timestamp(now), actorId, tenantId, assignmentId,
-                    requiredState, version, actorId, String.valueOf(actorId));
+                    requiredState, version, actorId, String.valueOf(actorId),
+                    nextState, timestamp(now));
         } else if ("ACTIVE".equals(nextState)) {
             updated = jdbc.update("""
                     UPDATE com_tenant_app_workforce_assignments
@@ -256,10 +356,13 @@ public class TenantAppAdoptionRepository {
                            version = version + 1, updated_at = ?, updated_by = ?
                      WHERE tenant_id = ? AND assignment_id = ?
                        AND lifecycle_state = ? AND version = ?
+                       AND (valid_from IS NULL OR valid_from <= ?)
+                       AND (valid_to IS NULL OR valid_to > ?)
                        AND requested_by <> ? AND approved_by <> ? AND principal_ref <> ?
                     """, timestamp(now), actorId, timestamp(now), receiptId,
                     timestamp(now), actorId, tenantId, assignmentId,
-                    requiredState, version, actorId, actorId, String.valueOf(actorId));
+                    requiredState, version, timestamp(now), timestamp(now), actorId, actorId,
+                    String.valueOf(actorId));
         } else if ("REVOKED".equals(nextState)) {
             updated = jdbc.update("""
                     UPDATE com_tenant_app_workforce_assignments
@@ -267,9 +370,9 @@ public class TenantAppAdoptionRepository {
                            revocation_reason = ?, version = version + 1,
                            updated_at = ?, updated_by = ?
                      WHERE tenant_id = ? AND assignment_id = ?
-                       AND lifecycle_state IN ('APPROVED', 'ACTIVE') AND version = ?
+                       AND lifecycle_state = ? AND version = ?
                     """, actorId, timestamp(now), reason, timestamp(now), actorId,
-                    tenantId, assignmentId, version);
+                    tenantId, assignmentId, requiredState, version);
         } else {
             throw new IllegalArgumentException("Unsupported assignment transition.");
         }
@@ -318,7 +421,7 @@ public class TenantAppAdoptionRepository {
                 result.getObject("assignment_id", UUID.class),
                 result.getObject("installation_id", UUID.class), result.getString("product_key"),
                 Long.valueOf(result.getString("principal_ref")), result.getString("display_name"),
-                result.getString("lifecycle_state"), result.getInt("seat_quantity"),
+                result.getString("projected_lifecycle_state"), result.getInt("seat_quantity"),
                 result.getString("source_type"), result.getString("external_settlement_state"),
                 instant(result, "valid_from"), instant(result, "valid_to"),
                 result.getString("justification"), result.getLong("requested_by"),
@@ -338,6 +441,9 @@ public class TenantAppAdoptionRepository {
                     "The tenant app adoption record changed state or version. Refresh and retry.");
         }
     }
+
+    public record ExpiredAssignment(
+            UUID assignmentId, long resultingVersion, String previousState) { }
 
     private OffsetDateTime timestamp(Instant value) {
         return value == null ? null : value.atOffset(ZoneOffset.UTC);

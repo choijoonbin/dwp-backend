@@ -46,7 +46,7 @@ public final class ApprovalPolicyImpactIdentityAuthorityBridge implements Policy
         var bundle = contracts.findActive("product-surfaces").orElseThrow(PolicyImpactJson::unavailable);
         var pointer = contracts.findActivePointer("product-surfaces").orElseThrow(PolicyImpactJson::unavailable);
         var registry = new Registry(seals.loadActive(bundle, pointer));
-        if (bundle.version() != 9 || !"ACTIVE".equals(bundle.bundleStatus()) || !pointer.bundleId().equals(bundle.bundleId()))
+        if (!Set.of(9L, 32L).contains(bundle.version()) || !"ACTIVE".equals(bundle.bundleStatus()) || !pointer.bundleId().equals(bundle.bundleId()))
             throw PolicyImpactJson.unavailable();
         var route = registry.routesByKey().get(PolicyImpactProtocol.ROUTE);
         if (route == null || !"ACTIVE".equals(route.lifecycleState()) || !"DATA".equals(route.routeKind())

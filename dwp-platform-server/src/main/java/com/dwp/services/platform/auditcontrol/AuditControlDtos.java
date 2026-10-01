@@ -107,15 +107,47 @@ public final class AuditControlDtos {
             UUID approvalId, String lifecycleState, String requestedBy,
             Instant requestedAt, Instant expiresAt, String decidedBy,
             Instant decidedAt, String decisionReason, long version) { }
+    public record PolicyImpactSnapshot(
+            Instant observedAt,
+            String coverageState,
+            List<String> includedOwners,
+            List<String> exclusions,
+            long auditEventCount,
+            long affectedAuditEventCount,
+            long affectedActorCount,
+            long affectedTargetCount,
+            long standardRetentionEventCount,
+            long extendedRetentionEventCount,
+            long legalHoldEventCount,
+            long standardRetentionAffectedEventCount,
+            long extendedRetentionAffectedEventCount,
+            long highRiskClassificationAffectedEventCount,
+            long exportableEventCountBefore,
+            long exportableEventCountAfter,
+            long integrityProtectedEventCountBefore,
+            long integrityProtectedEventCountAfter) {
+
+        public PolicyImpactSnapshot {
+            includedOwners = List.copyOf(includedOwners);
+            exclusions = List.copyOf(exclusions);
+        }
+    }
     public record PolicyRevision(
             UUID revisionId, long revisionNumber, String lifecycleState,
             int standardRetentionDays, int extendedRetentionDays, int exportLimitRows,
             boolean requireExportReason, boolean integrityEnabled, int highRiskThreshold,
             UUID baselineRevisionId, UUID rollbackOfRevisionId, UUID incidentCaseId,
             String changeReason, Map<String, Object> diff, String contentSha256,
+            PolicyImpactSnapshot impactSnapshot, String impactSha256,
             String createdBy, Instant createdAt, String submittedBy, Instant submittedAt,
             String publishedBy, Instant publishedAt, long version,
             PolicyApproval approval) { }
+    public record PolicyRevisionPage(
+            List<PolicyRevision> items, int limit, boolean hasMore) {
+        public PolicyRevisionPage {
+            items = List.copyOf(items);
+        }
+    }
     public record PolicyRevisionCreate(
             int standardRetentionDays, int extendedRetentionDays, int exportLimitRows,
             boolean requireExportReason, boolean integrityEnabled, int highRiskThreshold,

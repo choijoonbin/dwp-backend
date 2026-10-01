@@ -16,6 +16,16 @@ public final class DataPolicyDtos {
     private DataPolicyDtos() {
     }
 
+    public record PolicyPage(
+            List<Policy> items,
+            int limit,
+            boolean hasMore) {
+
+        public PolicyPage {
+            items = List.copyOf(items);
+        }
+    }
+
     public record Policy(
             UUID policyId,
             String policyKey,
@@ -27,7 +37,13 @@ public final class DataPolicyDtos {
             String ownerService,
             String lifecycleState,
             long version,
+            int revisionsLimit,
+            boolean revisionsHasMore,
             List<Revision> revisions) {
+
+        public Policy {
+            revisions = List.copyOf(revisions);
+        }
     }
 
     public record Revision(

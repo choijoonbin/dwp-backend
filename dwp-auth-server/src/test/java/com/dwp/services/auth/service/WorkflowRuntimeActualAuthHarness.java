@@ -1,6 +1,8 @@
 package com.dwp.services.auth.service;
 
 import com.dwp.services.auth.config.ProductAuthorizationSeedLoader;
+import com.dwp.services.auth.approvalsignatures.SignatureAuthorityBindings;
+import com.dwp.services.auth.approvalsignatures.SignatureAuthorityJson;
 import com.dwp.services.auth.dto.ProductSurfaceAuthorityDtos;
 import com.dwp.services.auth.repository.*;
 import com.dwp.services.auth.workflowruntime.*;
@@ -11,6 +13,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.UUID;
@@ -69,6 +72,26 @@ public final class WorkflowRuntimeActualAuthHarness implements AutoCloseable {
         } catch (Exception exception) { close(); throw exception; }
     }
     public long tenantId() { return tenant; }
+    AnnotationConfigApplicationContext context() { return context; }
+    public void activateProductAuthorization(long version) {
+        var contracts = context.getBean(ProductAuthorizationContractService.class);
+        contracts.approve("product-surfaces", version, "cross-service-interop-checker");
+        var repository = context.getBean(ProductAuthorizationContractRepository.class);
+        long revision = repository.findActivePointer("product-surfaces")
+                .map(ProductAuthorizationContractRepository.ActivePointer::revision).orElse(0L);
+        contracts.activate("product-surfaces", version, "cross-service-interop-release", revision);
+    }
+    public void requireApprovalSignatureRegistry(SignatureAuthorityBindings binding) {
+        var repository = context.getBean(ProductAuthorizationContractRepository.class);
+        var mapper = context.getBean(ObjectMapper.class);
+        new ApprovalSignatureCurrentAuthorityBridge(
+                context.getBean(ProductAuthorizationIdentityEvidenceService.class),
+                context.getBean(ProductSurfaceAuthorityService.class), repository, jdbc,
+                context.getBean(ProductAuthorizationContractValidator.class), mapper,
+                new SignatureAuthorityJson(mapper),
+                () -> { throw new AssertionError("Registry validation must not resolve a step-up proof verifier."); },
+                Clock.systemUTC()).requireRegistered(binding);
+    }
     public JdbcTemplate jdbc() { return jdbc; }
     public StringRedisTemplate redis() { return redis; }
     public java.net.URI endpoint() { return http.endpoint(); }

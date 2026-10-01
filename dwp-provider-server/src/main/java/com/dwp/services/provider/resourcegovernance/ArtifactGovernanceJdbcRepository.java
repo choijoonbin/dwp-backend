@@ -57,10 +57,12 @@ public class ArtifactGovernanceJdbcRepository {
         this.objectMapper = objectMapper;
     }
 
-    public List<ArtifactRow> artifacts() {
+    public List<ArtifactRow> artifacts(int fetchLimit) {
         return jdbc.query(ARTIFACT_SELECT
-                + " ORDER BY artifact.created_at DESC, artifact.product_key, artifact.artifact_version",
-                new MapSqlParameterSource(), this::artifactRow);
+                + " ORDER BY artifact.created_at DESC, artifact.product_key,"
+                + " artifact.artifact_version, artifact.artifact_id DESC"
+                + " LIMIT :fetchLimit",
+                new MapSqlParameterSource("fetchLimit", fetchLimit), this::artifactRow);
     }
 
     public Optional<ArtifactRow> artifact(UUID artifactId) {
@@ -168,18 +170,22 @@ public class ArtifactGovernanceJdbcRepository {
         return true;
     }
 
-    public List<ArtifactReviewRow> reviews(UUID artifactId) {
+    public List<ArtifactReviewRow> reviews(UUID artifactId, int fetchLimit) {
         return jdbc.query("""
                 SELECT review_id, artifact_id, decision, reason, evidence, reviewed_by, reviewed_at
                   FROM prv_product_artifact_reviews
                  WHERE artifact_id = :artifactId
                  ORDER BY reviewed_at DESC, review_id DESC
-                """, new MapSqlParameterSource("artifactId", artifactId), this::reviewRow);
+                 LIMIT :fetchLimit
+                """, new MapSqlParameterSource("artifactId", artifactId)
+                .addValue("fetchLimit", fetchLimit), this::reviewRow);
     }
 
-    public List<PlanRow> plans() {
+    public List<PlanRow> plans(int fetchLimit) {
         return jdbc.query(PLAN_SELECT
-                + " ORDER BY plan.updated_at DESC, plan.created_at DESC", new MapSqlParameterSource(),
+                + " ORDER BY plan.updated_at DESC, plan.created_at DESC,"
+                + " plan.rollout_plan_id DESC LIMIT :fetchLimit",
+                new MapSqlParameterSource("fetchLimit", fetchLimit),
                 this::planRow);
     }
 
@@ -285,13 +291,29 @@ public class ArtifactGovernanceJdbcRepository {
         return evidenceById(evidenceId).orElseThrow();
     }
 
-    public List<ArtifactEvidenceRow> evidence(UUID planId) {
+    public List<ArtifactEvidenceRow> evidence(UUID planId, int fetchLimit) {
         return jdbc.query("""
                 SELECT evidence_id, rollout_plan_id, evidence_type, evidence_state, evidence,
                        source, recorded_by, recorded_at
                   FROM prv_artifact_rollout_evidence
                  WHERE rollout_plan_id = :planId
                  ORDER BY recorded_at DESC, evidence_id DESC
+                 LIMIT :fetchLimit
+                """, new MapSqlParameterSource("planId", planId)
+                .addValue("fetchLimit", fetchLimit), this::evidenceRow);
+    }
+
+    public List<ArtifactEvidenceRow> readinessEvidence(UUID planId) {
+        return jdbc.query("""
+                SELECT DISTINCT ON (evidence_type, evidence_state)
+                       evidence_id, rollout_plan_id, evidence_type, evidence_state, evidence,
+                       source, recorded_by, recorded_at
+                  FROM prv_artifact_rollout_evidence
+                 WHERE rollout_plan_id = :planId
+                   AND (evidence_state = 'FAILED'
+                        OR (evidence_type IN ('PRE_FLIGHT', 'ROLLBACK_FEASIBILITY')
+                            AND evidence_state = 'PASSED'))
+                 ORDER BY evidence_type, evidence_state, recorded_at DESC, evidence_id DESC
                 """, new MapSqlParameterSource("planId", planId), this::evidenceRow);
     }
 

@@ -29,7 +29,9 @@ class ResourceGovernanceOpenApiContractTest {
             new Operation("post", "/v1/admin/resource-governance/tenants/{tenantId}/lifecycle-requests"),
             new Operation("post", "/v1/admin/resource-governance/lifecycle-requests/{requestId}/refresh-hold"),
             new Operation("post", "/v1/admin/resource-governance/lifecycle-requests/{requestId}/submit"),
+            new Operation("post", "/v1/admin/resource-governance/lifecycle-requests/{requestId}/cancel"),
             new Operation("post", "/v1/admin/resource-governance/lifecycle-requests/{requestId}/decision"),
+            new Operation("get", "/v1/admin/data-governance/policies"),
             new Operation("get", "/v1/admin/artifact-governance/manifests"),
             new Operation("post", "/v1/admin/artifact-governance/manifests"),
             new Operation("post", "/v1/admin/artifact-governance/manifests/{artifactId}/compatibility"),
@@ -118,17 +120,49 @@ class ResourceGovernanceOpenApiContractTest {
                 "requestedAction", "lifecycleState", "holdEvaluationState", "holdEvidenceRefs",
                 "executionState", "justification", "requestedBy", "submittedBy", "approvedBy",
                 "submittedAt", "approvedAt", "decisionReason", "version", "createdAt", "updatedAt"));
+        assertProperties(provider, "Policy", Set.of(
+                "policyId", "policyKey", "displayName", "description", "policyType",
+                "scopeType", "scopeRef", "ownerService", "lifecycleState", "version",
+                "revisionsLimit", "revisionsHasMore", "revisions"));
+        assertProperties(gateway, "provider_Policy", Set.of(
+                "policyId", "policyKey", "displayName", "description", "policyType",
+                "scopeType", "scopeRef", "ownerService", "lifecycleState", "version",
+                "revisionsLimit", "revisionsHasMore", "revisions"));
         assertProperties(provider, "ArtifactManifest", Set.of(
                 "artifactId", "productKey", "artifactVersion", "artifactType",
                 "manifestSchemaVersion", "manifest", "compatibilityPolicy", "compatibility", "declaredDigest",
                 "lifecycleState", "compatibilityState", "compatibilityEvidence", "signatureState",
                 "distributionState", "createdBy", "updatedBy", "createdAt", "updatedAt", "version",
-                "reviews"));
+                "reviews", "reviewsLimit", "reviewsHasMore"));
         assertProperties(gateway, "provider_ArtifactRolloutPlan", Set.of(
                 "rolloutPlanId", "artifactId", "productKey", "artifactVersion", "name", "targetScope",
                 "stages", "rollbackPlan", "rollbackFeasibility", "lifecycleState", "executorState",
                 "reason", "requestedBy", "approvedBy", "submittedAt", "approvedAt", "decisionReason",
-                "version", "createdAt", "updatedAt", "rollbackReadiness", "evidence"));
+                "version", "createdAt", "updatedAt", "rollbackReadiness", "evidence",
+                "evidenceLimit", "evidenceHasMore"));
+        assertPage(provider, "CommitmentPage", "Commitment");
+        assertPage(provider, "ResourceCommitmentChangePage", "ResourceCommitmentChange");
+        assertPage(provider, "TenantLifecycleRequestPage", "TenantLifecycleRequest");
+        assertPage(provider, "PolicyPage", "Policy");
+        assertPage(provider, "ArtifactManifestPage", "ArtifactManifest");
+        assertPage(provider, "ArtifactRolloutPlanPage", "ArtifactRolloutPlan");
+        assertPage(gateway, "provider_CommitmentPage", "provider_Commitment");
+        assertPage(gateway, "provider_ResourceCommitmentChangePage",
+                "provider_ResourceCommitmentChange");
+        assertPage(gateway, "provider_TenantLifecycleRequestPage",
+                "provider_TenantLifecycleRequest");
+        assertPage(gateway, "provider_PolicyPage", "provider_Policy");
+        assertPage(gateway, "provider_ArtifactManifestPage", "provider_ArtifactManifest");
+        assertPage(gateway, "provider_ArtifactRolloutPlanPage", "provider_ArtifactRolloutPlan");
+    }
+
+    private void assertPage(JsonNode contract, String schema, String itemSchema) {
+        JsonNode value = contract.path("components").path("schemas").path(schema);
+        assertThat(value.path("properties").path("items").path("items").path("$ref").asText())
+                .isEqualTo("#/components/schemas/" + itemSchema);
+        List<String> fields = new ArrayList<>();
+        value.path("properties").fieldNames().forEachRemaining(fields::add);
+        assertThat(fields).containsExactlyInAnyOrder("items", "limit", "hasMore");
     }
 
     private void assertProperties(JsonNode contract, String schema, Set<String> expected) {

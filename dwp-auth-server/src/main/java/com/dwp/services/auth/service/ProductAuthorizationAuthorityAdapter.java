@@ -372,7 +372,7 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             ProductAuthorizationContractDtos.GovernedRoute route,
             ProductAuthorizationContractDtos.AccessProfile profile,
             Evaluation result) {
-        boolean peopleEligibility = requiresPeopleEligibility(request, registry, route, profile);
+        boolean peopleEligibility = requiresPeopleEligibility(request, registry, route);
         if (!result.allowed()) {
             Evaluation denial = result.forRoute();
             return denial.decision() == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED
@@ -398,15 +398,19 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
     private boolean requiresPeopleEligibility(
             ProductSurfaceAuthorityDtos.EvaluateRequest request,
             Registry registry,
-            ProductAuthorizationContractDtos.GovernedRoute route,
-            ProductAuthorizationContractDtos.AccessProfile profile) {
+            ProductAuthorizationContractDtos.GovernedRoute route) {
         if (request.activeAccessMode()
                 == ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT) {
             return false;
         }
-        return route.servicePepBindings() != null
-                && route.servicePepBindings().stream()
-                        .anyMatch(value -> "people".equals(value.serviceKey()));
+        return hasPeopleOwnerBinding(route)
+                || registry.routesByKey().values().stream()
+                        .filter(candidate -> "PRODUCT".equals(candidate.subject().type()))
+                        .filter(candidate -> request.productKey().equals(
+                                candidate.subject().productKey()))
+                        .filter(candidate -> request.surfaceKey().equals(
+                                candidate.subject().surfaceKey()))
+                        .anyMatch(this::hasPeopleOwnerBinding);
     }
 
     private boolean surfaceRequiresPeopleEligibility(
@@ -423,8 +427,14 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 .anyMatch(route -> route.accessProfiles().stream()
                         .filter(profile -> profile.activeAccessModes().contains(
                                 request.activeAccessMode().name()))
-                        .anyMatch(profile -> requiresPeopleEligibility(
-                                request, registry, route, profile)));
+                        .anyMatch(profile -> hasPeopleOwnerBinding(route)));
+    }
+
+    private boolean hasPeopleOwnerBinding(
+            ProductAuthorizationContractDtos.GovernedRoute route) {
+        return route.servicePepBindings() != null
+                && route.servicePepBindings().stream()
+                        .anyMatch(value -> "people".equals(value.serviceKey()));
     }
 
     private Evaluation evaluatePolicy(

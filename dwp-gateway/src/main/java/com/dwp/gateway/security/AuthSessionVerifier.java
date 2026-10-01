@@ -18,6 +18,7 @@ import java.time.Duration;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 
 @Component
 public class AuthSessionVerifier implements SessionVerifier {
@@ -26,6 +27,24 @@ public class AuthSessionVerifier implements SessionVerifier {
     private static final String CORRELATION_HEADER = "X-Correlation-ID";
     private static final String TRACE_PARENT_HEADER = "traceparent";
     private static final String TRACE_STATE_HEADER = "tracestate";
+    private static final Set<String> AUDIT_VIEW_CODE_SETS = Set.of(
+            "/api/platform/v1/catalog/code-sets/PLATFORM.AUDIT.WINDOW",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.AUDIT.CATEGORY_FILTER",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.AUDIT.SEVERITY_FILTER",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.AUDIT.OUTCOME_FILTER",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.EVENT_ENVELOPE.DOMAIN",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.EVENT_ENVELOPE.CLASSIFICATION",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.SYS_AUDIT_EXPORT_JOBS.FORMAT");
+    private static final Set<String> COMMUNICATIONS_CODE_SETS = Set.of(
+            "/api/platform/v1/catalog/code-sets/PLATFORM.COMMUNICATION.CATEGORY",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.COMMUNICATION.CONTENT_TYPE");
+    private static final Set<String> HCM_INTEGRATION_CODE_SETS = Set.of(
+            "/api/platform/v1/catalog/code-sets/PEOPLE.HRIS_SOURCE_TYPE",
+            "/api/platform/v1/catalog/code-sets/PEOPLE.HRIS_CONNECTOR_TYPE",
+            "/api/platform/v1/catalog/code-sets/PEOPLE.HRIS_AUTH_MODE");
+    private static final Set<String> HCM_ORG_CODE_SETS = Set.of(
+            "/api/platform/v1/catalog/code-sets/PEOPLE.POSITION_TYPE",
+            "/api/platform/v1/catalog/code-sets/PEOPLE.POSITION_CRITICALITY");
 
     private final WebClient authClient;
     private final Duration timeout;
@@ -163,15 +182,42 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/platform/v1/admin/audit-control")) {
             return "ADMIN.AUDIT_";
         }
+        if (pathFamily(path, "/api/platform/v1/admin/api-history")) {
+            return "ADMIN.API_MONITORING";
+        }
+        if (apiMonitoringCodeSet(path)) {
+            return "ADMIN.API_MONITORING";
+        }
+        if (COMMUNICATIONS_CODE_SETS.contains(path)) {
+            return "ADMIN.COMMUNICATIONS";
+        }
+        if (HCM_INTEGRATION_CODE_SETS.contains(path)) {
+            return "ACTION.WORKFORCE_DATA_OPERATIONS";
+        }
+        if (HCM_ORG_CODE_SETS.contains(path)) {
+            return "ACTION.WORKFORCE_ORG_DESIGN";
+        }
+        if (AUDIT_VIEW_CODE_SETS.contains(path)) {
+            return "ADMIN.AUDIT_VIEW";
+        }
+        String settingsOwnerPermission = platformSettingsOwnerPermission(path);
+        if (settingsOwnerPermission != null) {
+            return settingsOwnerPermission;
+        }
+        if (path.equals("/api/provider/v1/tenant/settings/provider-domains")) {
+            return "ADMIN.IDENTITY_PROVISIONING";
+        }
+        if (path.equals("/api/provider/v1/tenant/settings/data-governance-observation")) {
+            return "ADMIN.AUDIT_VIEW";
+        }
+        if (path.equals("/api/provider/v1/tenant/settings/plan-eligibility")) {
+            return "ADMIN.APP_GOVERNANCE";
+        }
         if (path.startsWith("/api/platform/v1/admin/integrations/productivity")) {
             return "ADMIN.PRODUCTIVITY_CONNECTOR";
         }
         if (path.startsWith("/api/platform/v1/admin/saved-view-ownership")) {
             return "ADMIN.SAVED_VIEW_CUSTODY";
-        }
-        if (path.equals("/api/platform/v1/admin/navigation")
-                || path.startsWith("/api/platform/v1/admin/navigation/")) {
-            return "ADMIN.NAVIGATION";
         }
         if (path.startsWith("/api/people/v1/admin/workforce")) {
             return "ADMIN.WORKFORCE_ACCESS";
@@ -329,6 +375,46 @@ public class AuthSessionVerifier implements SessionVerifier {
             return "APP.,ACTION.";
         }
         return null;
+    }
+
+    private String platformSettingsOwnerPermission(String path) {
+        if (pathFamily(path, "/api/platform/v1/admin/tenant-branding")) {
+            return "ADMIN.TENANT_BRANDING";
+        }
+        if (pathFamily(path, "/api/platform/v1/admin/preference-exceptions")) {
+            return "ADMIN.MANAGED_PREFERENCES";
+        }
+        if (pathFamily(path, "/api/platform/v1/admin/localization")) {
+            return "ADMIN.LOCALIZATION";
+        }
+        if (pathFamily(path, "/api/platform/v1/admin/catalog")) {
+            return "ADMIN.PLATFORM_CATALOG";
+        }
+        if (pathFamily(path, "/api/platform/v1/admin/registry-entries")) {
+            return "ADMIN.PLATFORM_REGISTRY";
+        }
+        if (pathFamily(path, "/api/platform/v1/admin/navigation")) {
+            return "ADMIN.NAVIGATION";
+        }
+        if (pathFamily(path, "/api/platform/v1/admin/reference-sets")) {
+            return "ADMIN.REFERENCE_DATA";
+        }
+        return null;
+    }
+
+    private boolean pathFamily(String path, String root) {
+        return path.equals(root) || path.startsWith(root + "/");
+    }
+
+    private boolean apiMonitoringCodeSet(String path) {
+        return path.equals(
+                        "/api/platform/v1/catalog/code-sets/PLATFORM.API_HISTORY.WINDOW")
+                || path.equals(
+                        "/api/platform/v1/catalog/code-sets/PLATFORM.API_HISTORY.OBSERVATION_POINT_FILTER")
+                || path.equals(
+                        "/api/platform/v1/catalog/code-sets/PLATFORM.API_HISTORY.HTTP_METHOD_FILTER")
+                || path.equals(
+                        "/api/platform/v1/catalog/code-sets/PLATFORM.API_HISTORY.OUTCOME_FILTER");
     }
 
     private boolean hasSingleQueryValue(

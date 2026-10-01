@@ -38,7 +38,7 @@ public class TenantSettingRegistryAdminController {
     }
 
     @GetMapping("/changes")
-    public ApiResponse<List<TenantSettingRegistryDtos.Change>> changes(
+    public ApiResponse<TenantSettingRegistryDtos.ChangePage> changes(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
         return ApiResponse.success(service.changes(tenant(authentication, tenantHeader),

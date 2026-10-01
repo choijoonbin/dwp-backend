@@ -112,15 +112,16 @@ public class ResourceCommitmentJdbcRepository {
         return Boolean.TRUE.equals(exists);
     }
 
-    public List<CommitmentRow> commitments(UUID tenantId) {
-        MapSqlParameterSource parameters = new MapSqlParameterSource();
+    public List<CommitmentRow> commitments(UUID tenantId, int fetchLimit) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource("fetchLimit", fetchLimit);
         String where = "";
         if (tenantId != null) {
             where = " WHERE commitment.provider_tenant_id = :tenantId";
             parameters.addValue("tenantId", tenantId);
         }
         return jdbc.query(COMMITMENT_SELECT + where
-                + " ORDER BY tenant.tenant_key, commitment.resource_key", parameters, this::commitmentRow);
+                + " ORDER BY tenant.tenant_key, commitment.resource_key LIMIT :fetchLimit",
+                parameters, this::commitmentRow);
     }
 
     public Optional<CommitmentRow> commitment(UUID tenantId, String resourceKey) {
@@ -231,15 +232,17 @@ public class ResourceCommitmentJdbcRepository {
         return Boolean.TRUE.equals(exists);
     }
 
-    public List<ResourceCommitmentChangeRow> resourceChanges(UUID tenantId) {
-        MapSqlParameterSource parameters = new MapSqlParameterSource();
+    public List<ResourceCommitmentChangeRow> resourceChanges(UUID tenantId, int fetchLimit) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource("fetchLimit", fetchLimit);
         String where = "";
         if (tenantId != null) {
             where = " WHERE change.provider_tenant_id = :tenantId";
             parameters.addValue("tenantId", tenantId);
         }
         return jdbc.query(RESOURCE_CHANGE_SELECT + where
-                + " ORDER BY change.updated_at DESC, change.created_at DESC",
+                + " ORDER BY change.updated_at DESC, change.created_at DESC,"
+                + " change.change_request_id DESC"
+                + " LIMIT :fetchLimit",
                 parameters, this::resourceCommitmentChangeRow);
     }
 

@@ -24,7 +24,7 @@ class PlatformCanaryOpenApiBindingContractTest {
                 root.resolve("contracts/openapi/platform.json").toFile());
         PlatformCanaryPepRegistry registry = new PlatformCanaryPepRegistry(objectMapper);
 
-        assertThat(registry.bindingContracts()).hasSize(36).allSatisfy(binding -> {
+        assertThat(registry.bindingContracts()).hasSize(42).allSatisfy(binding -> {
             String method = binding.method().toLowerCase(Locale.ROOT);
             assertThat(publicApi.path("paths").path(binding.publicPath()).has(method))
                     .as("public %s %s", binding.method(), binding.publicPath())

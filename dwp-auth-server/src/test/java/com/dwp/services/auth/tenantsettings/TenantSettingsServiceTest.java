@@ -3,6 +3,7 @@ package com.dwp.services.auth.tenantsettings;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.auth.service.IdentityAuditService;
+import com.dwp.services.auth.service.OidcProviderConfigurationInspector;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,7 @@ import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -70,6 +72,24 @@ class TenantSettingsServiceTest {
     }
 
     @Test
+    void boundsAuthPolicyChangeHistoryWithAnExplicitPartialMarker() {
+        TenantSettingsDtos.ChangeSet terminal = change(
+                mapper.valueToTree(localPolicy()), mapper.valueToTree(localPolicy()),
+                "a".repeat(64), "b".repeat(64), impact(), 101L, "PUBLISHED", 1L);
+        List<TenantSettingsDtos.ChangeSet> fetched = IntStream.range(0, 101)
+                .mapToObj(ignored -> terminal)
+                .toList();
+        when(repository.listChangeSets(7L, 101)).thenReturn(fetched);
+
+        TenantSettingsDtos.AuthPolicyChangePage result =
+                service.authPolicyChanges(7L, 101L, 100);
+
+        assertThat(result.items()).hasSize(100);
+        assertThat(result.limit()).isEqualTo(100);
+        assertThat(result.hasMore()).isTrue();
+    }
+
+    @Test
     void rejectsSsoDraftWhenTheConfiguredProviderIsNotEnabled() {
         when(repository.currentPolicy(7L)).thenReturn(localPolicy());
         when(repository.enabledIdentityProviderExists(7L, "missing")).thenReturn(false);
@@ -80,6 +100,26 @@ class TenantSettingsServiceTest {
                         new TenantSettingsDtos.AuthPolicyDraft(
                                 "SSO", List.of("SSO"), false, true,
                                 "missing", true, 3600),
+                        "Move the tenant to the configured identity provider.")))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE));
+        verify(repository, never()).insertChangeSet(
+                anyLong(), any(), any(), any(), any(), any(), any(), anyLong());
+    }
+
+    @Test
+    void rejectsSsoDraftWhenAnEnabledProviderIsLocallyIncomplete() {
+        service = serviceWithReadiness(OidcProviderConfigurationInspector.Assessment.blocked(
+                OidcProviderConfigurationInspector.CONFIGURATION_INCOMPLETE));
+        when(repository.currentPolicy(7L)).thenReturn(localPolicy());
+
+        assertThatThrownBy(() -> service.createAuthPolicyChange(
+                7L, 101L, null,
+                new TenantSettingsDtos.CreateAuthPolicyChangeRequest(
+                        new TenantSettingsDtos.AuthPolicyDraft(
+                                "SSO", List.of("SSO"), false, true,
+                                "entra", true, 3600),
                         "Move the tenant to the configured identity provider.")))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode())
@@ -229,6 +269,7 @@ class TenantSettingsServiceTest {
         assertThat(result.loginVerification().internalPrerequisiteState())
                 .isEqualTo("READY_FOR_EXTERNAL_PROBE");
         assertThat(result.loginVerification().externalProbeState()).isEqualTo("UNAVAILABLE");
+        assertThat(result.loginVerification().lastExternalProbeAt()).isNull();
         assertThat(result.recoveryVerification().state()).isEqualTo("READY");
         assertThat(result.effectiveSettings())
                 .filteredOn(setting -> setting.settingKey().equals("identity.preferredLocale"))
@@ -240,6 +281,59 @@ class TenantSettingsServiceTest {
     }
 
     @Test
+    void reportsIncompleteLocalOidcConfigurationAsBlockedWhileKeepingExternalProbeUnavailable() {
+        service = serviceWithReadiness(OidcProviderConfigurationInspector.Assessment.blocked(
+                OidcProviderConfigurationInspector.CONFIGURATION_INCOMPLETE));
+        when(repository.tenantDirectory(7L)).thenReturn(
+                new TenantSettingsRepository.TenantDirectoryRow(
+                        7L, "tenant-seven", "Tenant Seven", "ko-KR", NOW.minusSeconds(90)));
+        when(repository.currentPolicy(7L)).thenReturn(new TenantSettingsRepository.PolicyState(
+                "SSO", List.of("LOCAL", "SSO"), true, true, "entra", true, 3600));
+        when(repository.recoveryCoverage(7L, NOW)).thenReturn(
+                new TenantSettingsRepository.RecoveryCoverageRow(1, 1, 0, 0, NOW));
+        when(repository.userPreference(7L, 21L)).thenReturn(
+                new TenantSettingsRepository.UserPreferenceRow(21L, null, "ko-KR", 1L, NOW));
+
+        TenantSettingsDtos.LoginVerification result = service.governanceSnapshot(
+                7L, 101L, 21L).loginVerification();
+
+        assertThat(result.internalPrerequisiteState()).isEqualTo("BLOCKED");
+        assertThat(result.externalProbeState()).isEqualTo("UNAVAILABLE");
+        assertThat(result.lastExternalProbeAt()).isNull();
+        assertThat(result.blockingReasons())
+                .containsExactly(OidcProviderConfigurationInspector.CONFIGURATION_INCOMPLETE);
+    }
+
+    @Test
+    void staleReceiptRemainsEvidenceWithoutOverridingCurrentProviderPrerequisites() {
+        TenantSettingsDtos.SsoTestLoginReceipt staleReceipt =
+                ssoReceipt(UUID.randomUUID(), NOW.minusSeconds(3_600));
+        when(repository.tenantDirectory(7L)).thenReturn(
+                new TenantSettingsRepository.TenantDirectoryRow(
+                        7L, "tenant-seven", "Tenant Seven", "ko-KR", NOW.minusSeconds(90)));
+        when(repository.currentPolicy(7L)).thenReturn(new TenantSettingsRepository.PolicyState(
+                "SSO", List.of("LOCAL", "SSO"), true, true, "entra", true, 3600));
+        when(repository.enabledIdentityProviderExists(7L, "entra")).thenReturn(false);
+        when(repository.latestSsoTestLoginReceipt(7L)).thenReturn(
+                java.util.Optional.of(staleReceipt));
+        when(repository.recoveryCoverage(7L, NOW)).thenReturn(
+                new TenantSettingsRepository.RecoveryCoverageRow(1, 1, 0, 0, NOW));
+        when(repository.userPreference(7L, 21L)).thenReturn(
+                new TenantSettingsRepository.UserPreferenceRow(21L, null, "ko-KR", 1L, NOW));
+
+        TenantSettingsDtos.LoginVerification result = service.governanceSnapshot(
+                7L, 101L, 21L).loginVerification();
+
+        assertThat(result.internalPrerequisiteState()).isEqualTo("BLOCKED");
+        assertThat(result.externalProbeState()).isEqualTo("UNAVAILABLE");
+        assertThat(result.blockingReasons())
+                .containsExactly("ENABLED_IDENTITY_PROVIDER_NOT_OBSERVED");
+        assertThat(result.lastExternalProbeAt()).isNull();
+        assertThat(result.latestReceipt()).isEqualTo(staleReceipt);
+        assertThat(result.latestReceipt().completedAt()).isEqualTo(NOW.minusSeconds(3_600));
+    }
+
+    @Test
     void recordsAnImmutableUnavailableReceiptWithoutInventingExternalSsoSuccess() {
         UUID idempotencyKey = UUID.randomUUID();
         when(repository.currentPolicy(7L)).thenReturn(new TenantSettingsRepository.PolicyState(
@@ -247,15 +341,16 @@ class TenantSettingsServiceTest {
         when(repository.enabledIdentityProviderExists(7L, "entra")).thenReturn(true);
         when(repository.recordSsoTestLoginReceipt(
                 anyLong(), any(), any(), anyLong(), any(), any(), any(), any(), any(),
-                any(), any(), any(), any(), any(), any()))
+                any(), any(), any(), any(), any()))
                 .thenAnswer(invocation -> new TenantSettingsRepository.SsoReceiptWrite(
                         new TenantSettingsDtos.SsoTestLoginReceipt(
-                                invocation.getArgument(1), invocation.getArgument(2),
+                                invocation.getArgument(1), invocation.getArgument(0),
+                                invocation.getArgument(2),
                                 invocation.getArgument(6), invocation.getArgument(7),
                                 invocation.getArgument(8), invocation.getArgument(9),
                                 invocation.getArgument(10), invocation.getArgument(3),
-                                invocation.getArgument(11), invocation.getArgument(12),
-                                invocation.getArgument(13)),
+                                invocation.getArgument(4), invocation.getArgument(11),
+                                invocation.getArgument(12), "{}", "a".repeat(64)),
                         true));
 
         TenantSettingsDtos.SsoTestLoginReceipt result = service.requestSsoTestLogin(
@@ -271,6 +366,42 @@ class TenantSettingsServiceTest {
         assertThat(result.blockingReasons())
                 .containsExactly("EXTERNAL_IDP_LOGIN_EXECUTOR_NOT_CONNECTED");
         assertThat(result.receiptSha256()).matches("[0-9a-f]{64}");
+    }
+
+    @Test
+    void rejectsAnSsoIdempotencyReplayWithDifferentActorOrJustification() {
+        UUID idempotencyKey = UUID.randomUUID();
+        String original = "Verify the configured tenant sign-in provider before cutover.";
+        when(repository.currentPolicy(7L)).thenReturn(new TenantSettingsRepository.PolicyState(
+                "SSO", List.of("LOCAL", "SSO"), true, true, "entra", true, 3600));
+        when(repository.enabledIdentityProviderExists(7L, "entra")).thenReturn(true);
+        TenantSettingsDtos.SsoTestLoginReceipt prior = new TenantSettingsDtos.SsoTestLoginReceipt(
+                UUID.randomUUID(), 7L, "entra", "UNAVAILABLE",
+                "READY_FOR_EXTERNAL_PROBE", "UNAVAILABLE",
+                List.of("EXTERNAL_IDP_LOGIN_EXECUTOR_NOT_CONNECTED"),
+                "UNCONNECTED_EXTERNAL_IDP_EXECUTOR", 101L, idempotencyKey,
+                NOW, NOW, mapper.createObjectNode().put("justification", original).toString(),
+                "a".repeat(64));
+        when(repository.recordSsoTestLoginReceipt(
+                anyLong(), any(), any(), anyLong(), any(), any(), any(), any(), any(),
+                any(), any(), any(), any(), any()))
+                .thenReturn(new TenantSettingsRepository.SsoReceiptWrite(prior, false));
+
+        assertThatThrownBy(() -> service.requestSsoTestLogin(
+                7L, 102L, null,
+                new TenantSettingsDtos.SsoTestLoginCommand(idempotencyKey, original)))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(
+                                ErrorCode.RESOURCE_CONFLICT));
+        assertThatThrownBy(() -> service.requestSsoTestLogin(
+                7L, 101L, null,
+                new TenantSettingsDtos.SsoTestLoginCommand(
+                        idempotencyKey,
+                        "Verify a different authentication intent before cutover.")))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(
+                                ErrorCode.RESOURCE_CONFLICT));
+        verify(audit, never()).success(anyLong(), anyLong(), any(), any(), any(), any(), any(), any());
     }
 
     @Test
@@ -328,10 +459,21 @@ class TenantSettingsServiceTest {
 
     private TenantSettingsDtos.SsoTestLoginReceipt ssoReceipt(UUID id, Instant completedAt) {
         return new TenantSettingsDtos.SsoTestLoginReceipt(
-                id, "entra", "UNAVAILABLE", "READY_FOR_EXTERNAL_PROBE", "UNAVAILABLE",
+                id, 7L, "entra", "UNAVAILABLE", "READY_FOR_EXTERNAL_PROBE", "UNAVAILABLE",
                 List.of("EXTERNAL_IDP_LOGIN_EXECUTOR_NOT_CONNECTED"),
-                "UNCONNECTED_EXTERNAL_IDP_EXECUTOR", 101L, completedAt, completedAt,
+                "UNCONNECTED_EXTERNAL_IDP_EXECUTOR", 101L, UUID.randomUUID(),
+                completedAt, completedAt, "{}",
                 "a".repeat(64));
+    }
+
+    private TenantSettingsService serviceWithReadiness(
+            OidcProviderConfigurationInspector.Assessment readiness) {
+        return new TenantSettingsService(
+                repository, audit, mapper, TenantSettingsAuthorization.testAllowAll(),
+                new InternalEntitlementAdapterRegistry(List.of(
+                        new CoreIdentityEntitlementAdapter(repository))),
+                (tenantId, providerKey) -> readiness,
+                Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     private TenantSettingsDtos.Impact impact() {

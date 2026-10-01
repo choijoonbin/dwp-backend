@@ -56,6 +56,32 @@ public final class GeneratedProductRouteCatalog {
             LegacyExemptBinding.singleSegment(
                     "PATCH", "/api/people/v1/admin/workforce/access-policies/", "/revoke"));
 
+    /**
+     * Shared runtime catalog reads that are consumed outside a PRODUCT surface. The HCM product
+     * intentionally owns only its allowlisted values on the same parameterized endpoint. Keep
+     * these exact so a new code set cannot silently bypass generated product-route governance.
+     */
+    private static final Set<String> NON_PRODUCT_SHARED_RUNTIME_GETS = Set.of(
+            "/api/platform/v1/catalog/code-sets/PLATFORM.API_HISTORY.WINDOW",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.API_HISTORY.OBSERVATION_POINT_FILTER",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.API_HISTORY.HTTP_METHOD_FILTER",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.API_HISTORY.OUTCOME_FILTER",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.PREFERENCE.COLOR_MODE",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.PREFERENCE.DENSITY",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.PREFERENCE.TIME_ZONE",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.PREFERENCE.DATE_FORMAT",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.PREFERENCE.TIME_FORMAT",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.PREFERENCE.FIRST_DAY_OF_WEEK",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.PREFERENCE.NUMBER_FORMAT",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.HOME_WIDGET",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.AUDIT.WINDOW",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.AUDIT.CATEGORY_FILTER",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.AUDIT.SEVERITY_FILTER",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.AUDIT.OUTCOME_FILTER",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.EVENT_ENVELOPE.DOMAIN",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.EVENT_ENVELOPE.CLASSIFICATION",
+            "/api/platform/v1/catalog/code-sets/PLATFORM.SYS_AUDIT_EXPORT_JOBS.FORMAT");
+
     private final List<Route> routes;
     private final Map<String, Set<String>> ownedNamespaces;
     private final List<AuthorityEndpoint> authorityEndpoints;
@@ -87,6 +113,10 @@ public final class GeneratedProductRouteCatalog {
             query = parseQuery(rawQuery);
         } catch (IllegalArgumentException exception) {
             return new Match(MatchStatus.INVALID, List.of());
+        }
+        if ("GET".equals(normalizedMethod)
+                && NON_PRODUCT_SHARED_RUNTIME_GETS.contains(normalizedPath)) {
+            return new Match(MatchStatus.UNGOVERNED, List.of());
         }
         List<Route> structural = routes.stream()
                 .filter(route -> route.structuralPattern().matcher(normalizedPath).matches())

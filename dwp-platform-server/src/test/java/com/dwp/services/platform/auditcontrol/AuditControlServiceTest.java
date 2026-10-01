@@ -241,13 +241,17 @@ class AuditControlServiceTest {
         AuditControlDtos.PolicyRevisionCreate request = new AuditControlDtos.PolicyRevisionCreate(
                 730, 2_555, 25_000, true, true, 80,
                 "Increase regulated evidence retention.", null);
+        AuditControlDtos.PolicyImpactSnapshot impact = policyImpactSnapshot();
         AuditControlDtos.PolicyRevision created = policyRevision(
                 revisionId, 2L, "DRAFT", actorId, null);
 
-        when(repository.policy(tenantId)).thenReturn(active);
+        when(repository.lockPolicyForRevisionDraft(tenantId)).thenReturn(active);
+        when(repository.policyImpactSnapshot(
+                eq(tenantId), eq(active), eq(request), any(Instant.class)))
+                .thenReturn(impact);
         when(repository.createPolicyRevision(
                 eq(tenantId), eq(actorId), eq(request), eq(activeRevisionId), eq(null),
-                anyMap(), anyString())).thenReturn(revisionId);
+                anyMap(), anyString(), eq(impact))).thenReturn(revisionId);
         when(repository.policyRevision(tenantId, revisionId)).thenReturn(Optional.of(created));
 
         AuditControlDtos.PolicyRevision result = service.createPolicyRevision(
@@ -258,7 +262,22 @@ class AuditControlServiceTest {
                 eq(tenantId), eq(actorId), eq(request), eq(activeRevisionId), eq(null),
                 argThat(diff -> diff.keySet().containsAll(Set.of(
                         "standardRetentionDays", "exportLimitRows", "highRiskThreshold"))),
-                argThat(hash -> hash.matches("[0-9a-f]{64}")));
+                argThat(hash -> hash.matches("[0-9a-f]{64}")), eq(impact));
+        assertThat(result.impactSnapshot()).isEqualTo(impact);
+    }
+
+    @Test
+    void boundsPolicyRevisionHistoryWithAnExplicitPartialMarker() {
+        AuditControlDtos.PolicyRevision revision = policyRevision(
+                UUID.randomUUID(), 101L, "SUPERSEDED", "policy-author", null);
+        when(repository.policyRevisions(1L, 101)).thenReturn(
+                java.util.Collections.nCopies(101, revision));
+
+        AuditControlDtos.PolicyRevisionPage result = service.policyRevisions(1L, 100);
+
+        assertThat(result.items()).hasSize(100);
+        assertThat(result.limit()).isEqualTo(100);
+        assertThat(result.hasMore()).isTrue();
     }
 
     @Test
@@ -304,6 +323,17 @@ class AuditControlServiceTest {
                 revisionId, revisionNumber, state, 730, 2_555, 25_000,
                 true, true, 80, UUID.randomUUID(), null, null,
                 "Increase regulated evidence retention.", Map.of(), "a".repeat(64),
+                policyImpactSnapshot(), "b".repeat(64),
                 actorId, Instant.now(), null, null, null, null, 0L, approval);
+    }
+
+    private AuditControlDtos.PolicyImpactSnapshot policyImpactSnapshot() {
+        return new AuditControlDtos.PolicyImpactSnapshot(
+                Instant.parse("2026-09-29T05:00:00Z"),
+                "COMPLETE_INTERNAL_AUDIT_EVENT_OWNER",
+                List.of("PLATFORM_SYS_AUDIT_EVENTS"),
+                List.of("EXTERNAL_PRODUCT_DATA_RETENTION"),
+                12L, 4L, 2L, 3L, 7L, 3L, 2L,
+                2L, 1L, 1L, 12L, 12L, 12L, 12L);
     }
 }

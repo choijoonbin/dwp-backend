@@ -86,6 +86,16 @@ public final class TenantSettingsDtos {
         }
     }
 
+    public record AuthPolicyChangePage(
+            List<ChangeSet> items,
+            int limit,
+            boolean hasMore) {
+
+        public AuthPolicyChangePage {
+            items = List.copyOf(items);
+        }
+    }
+
     public record AccessProjection(
             String snapshotId,
             Instant observedAt,
@@ -221,6 +231,7 @@ public final class TenantSettingsDtos {
 
     public record SsoTestLoginReceipt(
             UUID testLoginJobId,
+            Long tenantId,
             String providerKey,
             String lifecycleState,
             String internalPrerequisiteState,
@@ -228,8 +239,10 @@ public final class TenantSettingsDtos {
             List<String> blockingReasons,
             String executionBoundary,
             Long requestedBy,
+            UUID idempotencyKey,
             Instant requestedAt,
             Instant completedAt,
+            String receiptPayloadCanonical,
             String receiptSha256) {
 
         public SsoTestLoginReceipt {

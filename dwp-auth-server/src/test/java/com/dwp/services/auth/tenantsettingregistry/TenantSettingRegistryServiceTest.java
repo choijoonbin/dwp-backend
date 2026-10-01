@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -72,6 +73,22 @@ class TenantSettingRegistryServiceTest {
         assertThat(result.allowedActions()).containsExactly("SUBMIT");
         verify(repository).event(anyLong(), any(), any(), anyLong(), any(),
                 anyLong(), any(), any(), any());
+    }
+
+    @Test
+    void changeHistoryReportsWhenRowsExistBeyondTheBoundedResponse() {
+        TenantSettingRegistryDtos.Change change = change(
+                "PUBLISHED", "VALUE", BooleanNode.FALSE, BooleanNode.TRUE,
+                3L, 101L, 102L);
+        when(repository.changes(7L, 101)).thenReturn(Collections.nCopies(101, change));
+        when(repository.requireOwner(change.settingKey())).thenReturn(owner());
+
+        TenantSettingRegistryDtos.ChangePage result = service.changes(7L, 101L);
+
+        assertThat(result.items()).hasSize(100);
+        assertThat(result.limit()).isEqualTo(100);
+        assertThat(result.hasMore()).isTrue();
+        verify(repository).changes(7L, 101);
     }
 
     @Test

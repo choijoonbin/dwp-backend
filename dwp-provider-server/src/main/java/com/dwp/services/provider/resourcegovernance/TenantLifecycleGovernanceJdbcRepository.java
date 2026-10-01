@@ -12,6 +12,7 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -44,15 +45,17 @@ public class TenantLifecycleGovernanceJdbcRepository {
         this.objectMapper = objectMapper;
     }
 
-    public List<TenantLifecycleRequestRow> lifecycleRequests(UUID tenantId) {
-        MapSqlParameterSource parameters = new MapSqlParameterSource();
+    public List<TenantLifecycleRequestRow> lifecycleRequests(UUID tenantId, int fetchLimit) {
+        MapSqlParameterSource parameters = new MapSqlParameterSource("fetchLimit", fetchLimit);
         String where = "";
         if (tenantId != null) {
             where = " WHERE request.provider_tenant_id = :tenantId";
             parameters.addValue("tenantId", tenantId);
         }
         return jdbc.query(LIFECYCLE_REQUEST_SELECT + where
-                + " ORDER BY request.updated_at DESC, request.created_at DESC",
+                + " ORDER BY request.updated_at DESC, request.created_at DESC,"
+                + " request.lifecycle_request_id DESC"
+                + " LIMIT :fetchLimit",
                 parameters, this::tenantLifecycleRequestRow);
     }
 
@@ -135,6 +138,26 @@ public class TenantLifecycleGovernanceJdbcRepository {
                 .addValue("actorId", actorId)) == 1;
     }
 
+    public boolean cancelLifecycleRequest(
+            UUID requestId,
+            long version,
+            Long actorId,
+            String reason) {
+        return jdbc.update("""
+                UPDATE prv_tenant_lifecycle_requests
+                   SET lifecycle_state = 'CANCELLED', execution_state = 'NOT_REQUIRED',
+                       decision_reason = :reason,
+                       version = version + 1, updated_at = CURRENT_TIMESTAMP
+                 WHERE lifecycle_request_id = :requestId
+                   AND requested_by = :actorId
+                   AND lifecycle_state IN ('DRAFT', 'BLOCKED_BY_HOLD', 'PENDING_APPROVAL')
+                   AND version = :version
+                """, new MapSqlParameterSource("requestId", requestId)
+                .addValue("version", version)
+                .addValue("actorId", actorId)
+                .addValue("reason", reason)) == 1;
+    }
+
     public boolean decideLifecycleRequest(
             UUID requestId,
             TenantLifecycleDecisionRequest request,
@@ -177,12 +200,17 @@ public class TenantLifecycleGovernanceJdbcRepository {
                 result.getLong("requested_by"),
                 result.getObject("submitted_by", Long.class),
                 result.getObject("approved_by", Long.class),
-                result.getObject("submitted_at", Instant.class),
-                result.getObject("approved_at", Instant.class),
+                instant(result, "submitted_at"),
+                instant(result, "approved_at"),
                 result.getString("decision_reason"),
                 result.getLong("version"),
-                result.getObject("created_at", Instant.class),
-                result.getObject("updated_at", Instant.class));
+                instant(result, "created_at"),
+                instant(result, "updated_at"));
+    }
+
+    private Instant instant(ResultSet result, String column) throws SQLException {
+        Timestamp value = result.getTimestamp(column);
+        return value == null ? null : value.toInstant();
     }
 
     private JsonNode node(String value) {

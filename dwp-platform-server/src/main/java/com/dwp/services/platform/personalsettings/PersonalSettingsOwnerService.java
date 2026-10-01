@@ -32,6 +32,8 @@ public class PersonalSettingsOwnerService {
 
     private static final int CONSENT_HISTORY_LIMIT = 50;
     private static final int PRIVACY_REQUEST_DEFAULT_LIMIT = 50;
+    // At most one open request can exist for each of the two supported request types.
+    private static final int PRIVACY_REQUEST_MIN_LIMIT = 2;
     private static final int PRIVACY_REQUEST_MAX_LIMIT = 100;
     private static final int PRIVACY_REQUEST_EVENT_LIMIT = 50;
 
@@ -301,9 +303,11 @@ public class PersonalSettingsOwnerService {
     @Transactional(readOnly = true)
     public PersonalSettingsDtos.PrivacyRequestPage privacyRequests(
             Long tenantId, Long userId, int requestedLimit) {
-        int limit = Math.max(1, Math.min(PRIVACY_REQUEST_MAX_LIMIT, requestedLimit));
+        int limit = Math.max(
+                PRIVACY_REQUEST_MIN_LIMIT,
+                Math.min(PRIVACY_REQUEST_MAX_LIMIT, requestedLimit));
         CappedList<PersonalPrivacyRequest> page = CappedList.from(
-                privacyRequestRepository.findByTenantIdAndUserIdOrderByCreatedAtDescIdDesc(
+                privacyRequestRepository.findOwnerPageWithOpenRequestsFirst(
                         tenantId, userId, PageRequest.of(0, limit + 1)),
                 limit);
         Map<UUID, PersonalPrivacyRequestReceipt> receipts = new HashMap<>();

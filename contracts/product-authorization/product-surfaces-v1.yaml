@@ -57873,6 +57873,114 @@
           "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 32,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [
+        {
+          "predicatePolicyKey": "predicate.communications-code-set.v1",
+          "ownerServiceKey": "platform",
+          "targetBindingKinds": [
+            "CONFIG_SCOPE"
+          ],
+          "inputEvidenceSchemaKey": "CommunicationsCodeSetEvidenceV1",
+          "parameterSchemaKey": "predicate.communications-code-set.v1.parameters.v1",
+          "parameterSchema": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "codeSetKey": {
+                "type": "string",
+                "enum": [
+                  "PLATFORM.COMMUNICATION.CATEGORY",
+                  "PLATFORM.COMMUNICATION.CONTENT_TYPE"
+                ]
+              }
+            },
+            "required": [
+              "codeSetKey"
+            ]
+          },
+          "owner": "Platform + Communications + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ],
+      "routes": [
+        {
+          "routeContractKey": "route.communications.management.code-sets.data",
+          "navigationContextId": "communications.management",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "communications",
+            "surfaceKey": "communications.management"
+          },
+          "routeKind": "DATA",
+          "sideEffectFree": true,
+          "uiRouteId": null,
+          "uiRoutePattern": null,
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "CAPABILITY",
+                "capabilityContractKey": "communications.content.read"
+              },
+              "targetBindingKinds": [
+                "CONFIG_SCOPE"
+              ],
+              "predicatePolicyKeys": [
+                "predicate.communications-code-set.v1"
+              ],
+              "readOnly": true
+            }
+          ],
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.communications.management.code-sets.data.binding.01",
+              "method": "GET",
+              "path": "/api/platform/v1/catalog/code-sets/{codeSetKey}",
+              "pathParameterConstraints": {
+                "codeSetKey": {
+                  "kind": "ALLOWLIST",
+                  "values": [
+                    "PLATFORM.COMMUNICATION.CATEGORY",
+                    "PLATFORM.COMMUNICATION.CONTENT_TYPE"
+                  ]
+                }
+              }
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.communications.management.code-sets.data.binding.01",
+              "serviceKey": "platform",
+              "method": "GET",
+              "path": "/v1/catalog/code-sets/{codeSetKey}",
+              "pathParameterConstraints": {
+                "codeSetKey": {
+                  "kind": "ALLOWLIST",
+                  "values": [
+                    "PLATFORM.COMMUNICATION.CATEGORY",
+                    "PLATFORM.COMMUNICATION.CONTENT_TYPE"
+                  ]
+                }
+              }
+            }
+          ],
+          "owner": "Platform + Communications + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {

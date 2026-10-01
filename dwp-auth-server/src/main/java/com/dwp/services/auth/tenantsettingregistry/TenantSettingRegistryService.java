@@ -27,6 +27,8 @@ import java.util.UUID;
 @Service
 public class TenantSettingRegistryService {
 
+    private static final int CHANGE_LIST_LIMIT = 100;
+
     private final TenantSettingRegistryRepository repository;
     private final TenantSettingOwnerAdapterRegistry adapters;
     private final TenantSettingRegistryAuthorization authorization;
@@ -92,10 +94,15 @@ public class TenantSettingRegistryService {
     }
 
     @Transactional(readOnly = true)
-    public List<TenantSettingRegistryDtos.Change> changes(Long tenantId, Long actorId) {
+    public TenantSettingRegistryDtos.ChangePage changes(Long tenantId, Long actorId) {
         authorization.require(tenantId, actorId, "VIEW");
-        return repository.changes(tenantId).stream()
-                .map(change -> decorate(tenantId, actorId, change)).toList();
+        List<TenantSettingRegistryDtos.Change> fetched = repository.changes(
+                tenantId, CHANGE_LIST_LIMIT + 1);
+        return new TenantSettingRegistryDtos.ChangePage(
+                fetched.stream().limit(CHANGE_LIST_LIMIT)
+                        .map(change -> decorate(tenantId, actorId, change)).toList(),
+                CHANGE_LIST_LIMIT,
+                fetched.size() > CHANGE_LIST_LIMIT);
     }
 
     @Transactional(isolation = Isolation.SERIALIZABLE)

@@ -236,7 +236,7 @@ class PersonalSettingsOwnerServiceTest {
                         .detailKey("PRIVACY_REQUEST_INTAKE_RECORDED")
                         .occurredAt(now.minusSeconds(index)).build())
                 .toList();
-        when(requestRepository.findByTenantIdAndUserIdOrderByCreatedAtDescIdDesc(
+        when(requestRepository.findOwnerPageWithOpenRequestsFirst(
                 7L, 11L, PageRequest.of(0, 51))).thenReturn(requests);
         when(requestReceiptRepository
                 .findByTenantIdAndUserIdAndRequestIdInOrderByIssuedAtDescReceiptIdDesc(
@@ -271,7 +271,7 @@ class PersonalSettingsOwnerServiceTest {
                     return request;
                 })
                 .toList();
-        when(requestRepository.findByTenantIdAndUserIdOrderByCreatedAtDescIdDesc(
+        when(requestRepository.findOwnerPageWithOpenRequestsFirst(
                 7L, 11L, PageRequest.of(0, 51))).thenReturn(requests);
         when(requestReceiptRepository
                 .findByTenantIdAndUserIdAndRequestIdInOrderByIssuedAtDescReceiptIdDesc(
@@ -283,6 +283,45 @@ class PersonalSettingsOwnerServiceTest {
         assertThat(result.items()).hasSize(50);
         assertThat(result.hasMore()).isFalse();
         assertThat(result.limit()).isEqualTo(50);
+    }
+
+    @Test
+    void privacyRequestPageKeepsBothOpenRequestTypesVisibleAtTheEffectiveMinimum() {
+        LocalDateTime now = LocalDateTime.now();
+        PersonalPrivacyRequest export = PersonalPrivacyRequest.builder()
+                .id(new UUID(3L, 1L)).tenantId(7L).userId(11L)
+                .requestType("DATA_EXPORT").requestState("RECEIVED")
+                .requestedScope("ALL_PERSONAL_DATA").version(0L).build();
+        export.setCreatedAt(now.minusDays(30));
+        export.setUpdatedAt(now.minusDays(30));
+        PersonalPrivacyRequest deletion = PersonalPrivacyRequest.builder()
+                .id(new UUID(3L, 2L)).tenantId(7L).userId(11L)
+                .requestType("ACCOUNT_DELETION").requestState("RECEIVED")
+                .requestedScope("ACCOUNT_AND_PERSONAL_DATA").version(0L).build();
+        deletion.setCreatedAt(now.minusDays(31));
+        deletion.setUpdatedAt(now.minusDays(31));
+        PersonalPrivacyRequest recentCancelled = PersonalPrivacyRequest.builder()
+                .id(new UUID(3L, 3L)).tenantId(7L).userId(11L)
+                .requestType("DATA_EXPORT").requestState("CANCELLED")
+                .requestedScope("ALL_PERSONAL_DATA").version(1L).build();
+        recentCancelled.setCreatedAt(now);
+        recentCancelled.setUpdatedAt(now);
+        when(requestRepository.findOwnerPageWithOpenRequestsFirst(
+                7L, 11L, PageRequest.of(0, 3)))
+                .thenReturn(List.of(export, deletion, recentCancelled));
+        when(requestReceiptRepository
+                .findByTenantIdAndUserIdAndRequestIdInOrderByIssuedAtDescReceiptIdDesc(
+                        7L, 11L, List.of(export.getId(), deletion.getId())))
+                .thenReturn(List.of());
+
+        PersonalSettingsDtos.PrivacyRequestPage result = service.privacyRequests(7L, 11L, 1);
+
+        assertThat(result.limit()).isEqualTo(2);
+        assertThat(result.hasMore()).isTrue();
+        assertThat(result.items()).extracting(PersonalSettingsDtos.PrivacyRequest::requestType)
+                .containsExactly("DATA_EXPORT", "ACCOUNT_DELETION");
+        assertThat(result.items()).extracting(PersonalSettingsDtos.PrivacyRequest::requestState)
+                .containsOnly("RECEIVED");
     }
 
     @Test

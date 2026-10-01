@@ -28,6 +28,7 @@ import java.util.stream.Collectors;
 @Service
 public class CatalogService {
 
+    private static final int LIST_LIMIT = 100;
     private static final int DEFAULT_GRAPH_NODE_LIMIT = 8;
     private static final int DEFAULT_GRAPH_ANCHOR_LIMIT = 4;
     private static final int FOCUSED_GRAPH_NODE_LIMIT = 160;
@@ -45,42 +46,19 @@ public class CatalogService {
     @Transactional(readOnly = true)
     public CatalogDtos.Overview overview(
             Long tenantId, String query, String kind, String lifecycle) {
-        Snapshot snapshot = snapshot(tenantId);
         String normalizedQuery = lower(query);
         String normalizedKind = upper(kind);
         String normalizedLifecycle = upper(lifecycle);
-        List<CatalogDtos.Entity> visible = snapshot.entities().stream()
-                .filter(entity -> normalizedQuery == null
-                        || lower(entity.ref()).contains(normalizedQuery)
-                        || lower(entity.name()).contains(normalizedQuery)
-                        || lower(entity.ownerRef()).contains(normalizedQuery))
-                .filter(entity -> normalizedKind == null || "ALL".equals(normalizedKind)
-                        || normalizedKind.equals(entity.kind()))
-                .filter(entity -> normalizedLifecycle == null || "ALL".equals(normalizedLifecycle)
-                        || normalizedLifecycle.equals(entity.lifecycleState()))
-                .sorted(entityComparator())
-                .toList();
-
-        Map<String, Long> byKind = snapshot.entities().stream().collect(Collectors.groupingBy(
-                CatalogDtos.Entity::kind, java.util.TreeMap::new, Collectors.counting()));
-        Map<String, Long> byLifecycle = snapshot.entities().stream().collect(Collectors.groupingBy(
-                CatalogDtos.Entity::lifecycleState, java.util.TreeMap::new, Collectors.counting()));
-        Set<String> connected = new HashSet<>();
-        snapshot.relations().forEach(relation -> {
-            connected.add(relation.sourceRef());
-            connected.add(relation.targetRef());
-        });
-        long orphanCount = snapshot.entities().stream()
-                .filter(this::isGovernedAsset)
-                .filter(entity -> !connected.contains(entity.ref()))
-                .count();
+        if ("ALL".equals(normalizedKind)) normalizedKind = null;
+        if ("ALL".equals(normalizedLifecycle)) normalizedLifecycle = null;
+        CatalogRepository.OverviewMetrics metrics = repository.overviewMetrics(tenantId);
+        List<CatalogDtos.Entity> fetched = repository.overviewEntities(
+                tenantId, normalizedQuery, normalizedKind, normalizedLifecycle, LIST_LIMIT + 1);
         return new CatalogDtos.Overview(
-                snapshot.entities().size(), snapshot.relations().size(),
-                snapshot.relations().stream().filter(relation -> relation.relationId() != null).count(),
-                orphanCount,
-                snapshot.relations().stream()
-                        .filter(relation -> "CRITICAL".equals(relation.criticality())).count(),
-                Map.copyOf(byKind), Map.copyOf(byLifecycle), visible, OffsetDateTime.now());
+                metrics.entityCount(), metrics.relationCount(), metrics.declaredRelationCount(),
+                metrics.orphanCount(), metrics.criticalRelationCount(), metrics.entitiesByKind(),
+                metrics.entitiesByLifecycle(), fetched.stream().limit(LIST_LIMIT).toList(),
+                LIST_LIMIT, fetched.size() > LIST_LIMIT, OffsetDateTime.now());
     }
 
     @Transactional(readOnly = true)
@@ -253,7 +231,9 @@ public class CatalogService {
 
     @Transactional(readOnly = true)
     public CatalogDtos.AssuranceSummary assurance(Long tenantId) {
-        return assuranceSummary(repository.activeCompatibilityRule(), repository.findings(tenantId));
+        return assuranceSummary(
+                repository.activeCompatibilityRule(), repository.assuranceMetrics(tenantId),
+                repository.findings(tenantId, LIST_LIMIT + 1));
     }
 
     @Transactional
@@ -298,10 +278,7 @@ public class CatalogService {
             String correlationId,
             UUID findingId,
             CatalogDtos.DispositionFindingRequest request) {
-        CatalogDtos.AssuranceFinding before = repository.findings(tenantId).stream()
-                .filter(finding -> finding.findingId().equals(findingId))
-                .findFirst()
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        CatalogDtos.AssuranceFinding before = repository.finding(tenantId, findingId);
         CatalogDtos.AssuranceFinding after = repository.dispositionFinding(
                 tenantId, actorId, findingId, request);
         auditService.success(
@@ -516,25 +493,15 @@ public class CatalogService {
 
     private CatalogDtos.AssuranceSummary assuranceSummary(
             CatalogDtos.CompatibilityRule rule,
+            CatalogRepository.AssuranceMetrics metrics,
             List<CatalogDtos.AssuranceFinding> findings) {
-        long open = findings.stream()
-                .filter(finding -> Set.of("OPEN", "ACKNOWLEDGED").contains(finding.lifecycleState()))
-                .count();
-        long critical = findings.stream()
-                .filter(finding -> Set.of("OPEN", "ACKNOWLEDGED").contains(finding.lifecycleState()))
-                .filter(finding -> "CRITICAL".equals(finding.severity()))
-                .count();
         return new CatalogDtos.AssuranceSummary(
-                open,
-                critical,
-                findings.stream().filter(finding -> "OWNER_MISSING".equals(finding.findingCode()))
-                        .filter(finding -> Set.of("OPEN", "ACKNOWLEDGED").contains(finding.lifecycleState()))
-                        .count(),
-                findings.stream().filter(finding -> "DEPRECATION_IMPACT".equals(finding.findingCode()))
-                        .filter(finding -> Set.of("OPEN", "ACKNOWLEDGED").contains(finding.lifecycleState()))
-                        .count(),
+                metrics.openCount(), metrics.criticalCount(), metrics.ownerMissingCount(),
+                metrics.deprecationImpactCount(),
                 rule,
-                findings,
+                findings.stream().limit(LIST_LIMIT).toList(),
+                LIST_LIMIT,
+                metrics.totalCount() > LIST_LIMIT,
                 OffsetDateTime.now());
     }
 
@@ -543,8 +510,10 @@ public class CatalogService {
         CatalogDtos.CompatibilityRule rule = repository.activeCompatibilityRule();
         List<CatalogRepository.FindingCandidate> candidates = findingCandidates(snapshot, rule);
         List<CatalogDtos.AssuranceFinding> findings = repository.synchronizeFindings(
-                tenantId, rule, candidates);
-        return new Evaluation(rule, candidates.size(), assuranceSummary(rule, findings));
+                tenantId, rule, candidates, LIST_LIMIT + 1);
+        return new Evaluation(
+                rule, candidates.size(),
+                assuranceSummary(rule, repository.assuranceMetrics(tenantId), findings));
     }
 
     private Map<String, Object> findingSnapshot(CatalogDtos.AssuranceFinding finding) {

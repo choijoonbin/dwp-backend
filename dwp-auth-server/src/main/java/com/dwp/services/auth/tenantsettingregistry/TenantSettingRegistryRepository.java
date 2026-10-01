@@ -88,11 +88,15 @@ public class TenantSettingRegistryRepository {
         return requireChange(tenantId, id);
     }
 
-    public List<TenantSettingRegistryDtos.Change> changes(Long tenantId) {
+    public List<TenantSettingRegistryDtos.Change> changes(Long tenantId, int fetchLimit) {
         return jdbc.query("""
                 SELECT * FROM com_tenant_setting_override_changes
-                 WHERE tenant_id = ? ORDER BY updated_at DESC, created_at DESC
-                """, this::change, tenantId);
+                 WHERE tenant_id = ?
+                 ORDER BY CASE WHEN lifecycle_state IN ('DRAFT', 'IN_REVIEW', 'APPROVED')
+                                    THEN 0 ELSE 1 END,
+                          updated_at DESC, created_at DESC, change_id DESC
+                 LIMIT ?
+                """, this::change, tenantId, fetchLimit);
     }
 
     public TenantSettingRegistryDtos.Change requireChange(Long tenantId, UUID id) {

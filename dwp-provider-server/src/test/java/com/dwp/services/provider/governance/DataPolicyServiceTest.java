@@ -8,14 +8,19 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -23,12 +28,16 @@ import static org.mockito.Mockito.when;
 
 class DataPolicyServiceTest {
 
+    private static final Instant NOW = Instant.parse("2026-10-01T00:00:00Z");
+
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
     private final DataPolicyRepository repository = mock(DataPolicyRepository.class);
     private final DataGovernanceService governance = mock(DataGovernanceService.class);
     private final ProviderAuditService audit = mock(ProviderAuditService.class);
     private final DataPolicyService service =
-            new DataPolicyService(repository, governance, audit, objectMapper);
+            new DataPolicyService(
+                    repository, governance, audit, objectMapper,
+                    Clock.fixed(NOW, ZoneOffset.UTC));
 
     @BeforeEach
     void setContext() {
@@ -59,7 +68,7 @@ class DataPolicyServiceTest {
     }
 
     @Test
-    void deletionPreviewStopsWhenActiveLegalHoldOverlaps() {
+    void deletionPreviewStopsWhenLegalHoldStartsAtEvaluationBoundary() {
         var rule = objectMapper.createObjectNode();
         rule.put("deletionSlaDays", 30);
         rule.put("mode", "ANONYMIZE");
@@ -71,7 +80,7 @@ class DataPolicyServiceTest {
         when(repository.activePolicies("LEGAL_HOLD")).thenReturn(List.of(
                 new DataPolicyRepository.ScopedActivePolicy(
                         UUID.randomUUID(), "LEGAL_HOLD", "DATABASE", "people",
-                        UUID.randomUUID(), holdRule)));
+                        UUID.randomUUID(), holdRule, NOW, NOW.plusSeconds(60))));
         when(governance.snapshot()).thenReturn(snapshot(List.of(asset(
                 "people.public.ppl_workers", "people", true,
                 List.of(column("tenant_id"))))));
@@ -83,6 +92,73 @@ class DataPolicyServiceTest {
                 .asString().startsWith("ACTIVE_LEGAL_HOLD:");
         assertThat(impact.warnings()).contains(
                 "DELETION_WORKER_REQUIRES_APPROVED_INFRASTRUCTURE");
+    }
+
+    @Test
+    void deletionPreviewIgnoresFutureLegalHold() {
+        DataPolicyDtos.ImpactPreview impact = deletionImpactWithHold(
+                NOW.plusSeconds(1), null);
+
+        assertThat(impact.publishable()).isTrue();
+        assertThat(impact.blockers()).isEmpty();
+    }
+
+    @Test
+    void deletionPreviewIgnoresLegalHoldAtExpirationBoundary() {
+        DataPolicyDtos.ImpactPreview impact = deletionImpactWithHold(
+                NOW.minusSeconds(60), NOW);
+
+        assertThat(impact.publishable()).isTrue();
+        assertThat(impact.blockers()).isEmpty();
+    }
+
+    @Test
+    void policyReadIsBoundedAndLoadsVisibleRevisionApprovalsInOneBatch() {
+        List<DataPolicyRepository.PolicyRow> fetchedPolicies = IntStream.rangeClosed(
+                        1, DataPolicyService.POLICY_LIMIT + 1)
+                .mapToObj(index -> new DataPolicyRepository.PolicyRow(
+                        UUID.randomUUID(), "governance.policy-" + index,
+                        "Policy " + index, "Test policy", "RETENTION", "GLOBAL", null,
+                        "dwp-provider-server", "ACTIVE", 0L))
+                .toList();
+        UUID firstPolicyId = fetchedPolicies.getFirst().policyId();
+        List<DataPolicyRepository.RevisionRow> fetchedRevisions = IntStream.rangeClosed(
+                        1, DataPolicyService.REVISION_LIMIT + 1)
+                .mapToObj(index -> new DataPolicyRepository.RevisionRow(
+                        UUID.randomUUID(), firstPolicyId, index, "DRAFT",
+                        objectMapper.createObjectNode().put("retentionDays", index),
+                        null, null, "Revision " + index, null, null,
+                        null, null, null, 7L, null, null, null, null, 0L))
+                .toList();
+        DataPolicyRepository.RevisionRow approved = fetchedRevisions.getFirst();
+        DataPolicyRepository.ApprovalRow approval = new DataPolicyRepository.ApprovalRow(
+                UUID.randomUUID(), "PENDING", 7L, NOW, null, null, null);
+        when(repository.policies(DataPolicyService.POLICY_LIMIT + 1))
+                .thenReturn(fetchedPolicies);
+        when(repository.revisions(any(), eq(DataPolicyService.REVISION_LIMIT + 1)))
+                .thenReturn(fetchedRevisions);
+        when(repository.approvals(any())).thenReturn(List.of(
+                new DataPolicyRepository.RevisionApprovalRow(
+                        approved.revisionId(), approval)));
+
+        DataPolicyDtos.PolicyPage page = service.policies();
+
+        assertThat(page.limit()).isEqualTo(DataPolicyService.POLICY_LIMIT);
+        assertThat(page.hasMore()).isTrue();
+        assertThat(page.items()).hasSize(DataPolicyService.POLICY_LIMIT);
+        assertThat(page.items().getFirst().revisionsLimit())
+                .isEqualTo(DataPolicyService.REVISION_LIMIT);
+        assertThat(page.items().getFirst().revisionsHasMore()).isTrue();
+        assertThat(page.items().getFirst().revisions())
+                .hasSize(DataPolicyService.REVISION_LIMIT);
+        assertThat(page.items().getFirst().revisions().getFirst().approval())
+                .extracting(DataPolicyDtos.Approval::approvalId)
+                .isEqualTo(approval.approvalId());
+        verify(repository).revisions(
+                argThat(ids -> ids.size() == DataPolicyService.POLICY_LIMIT),
+                eq(DataPolicyService.REVISION_LIMIT + 1));
+        verify(repository).approvals(
+                argThat(ids -> ids.size() == DataPolicyService.REVISION_LIMIT));
     }
 
     @Test
@@ -129,6 +205,27 @@ class DataPolicyServiceTest {
                 .isInstanceOf(BaseException.class);
 
         verify(repository, never()).lockPolicy(any());
+    }
+
+    private DataPolicyDtos.ImpactPreview deletionImpactWithHold(
+            Instant effectiveFrom,
+            Instant effectiveTo) {
+        var rule = objectMapper.createObjectNode();
+        rule.put("deletionSlaDays", 30);
+        rule.put("mode", "ANONYMIZE");
+        DataPolicyRepository.PolicyRow policy = policy(
+                "DELETION", "ASSET", "people.public.ppl_workers");
+        DataPolicyRepository.RevisionRow revision = revision(policy.policyId(), rule, 19L);
+        var holdRule = objectMapper.createObjectNode().put("active", true);
+        when(repository.activePolicies("LEGAL_HOLD")).thenReturn(List.of(
+                new DataPolicyRepository.ScopedActivePolicy(
+                        UUID.randomUUID(), "LEGAL_HOLD", "DATABASE", "people",
+                        UUID.randomUUID(), holdRule, effectiveFrom, effectiveTo)));
+        when(governance.snapshot()).thenReturn(snapshot(List.of(asset(
+                "people.public.ppl_workers", "people", true,
+                List.of(column("tenant_id"))))));
+
+        return service.computeImpact(policy, revision);
     }
 
     private DataPolicyRepository.PolicyRow policy(

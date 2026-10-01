@@ -9,7 +9,9 @@ import org.springframework.stereotype.Repository;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.sql.Timestamp;
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -18,9 +20,11 @@ import java.util.UUID;
 public class DataPolicyRepository {
 
     private static final String POLICY_SELECT = """
-            SELECT data_policy_id, policy_key, display_name, description, policy_type,
-                   scope_type, scope_ref, owner_service, lifecycle_state, version
-              FROM prv_data_policies
+            SELECT policy.data_policy_id, policy.policy_key, policy.display_name,
+                   policy.description, policy.policy_type, policy.scope_type,
+                   policy.scope_ref, policy.owner_service, policy.lifecycle_state,
+                   policy.version
+              FROM prv_data_policies policy
             """;
     private static final String REVISION_SELECT = """
             SELECT data_policy_revision_id, data_policy_id, revision_number,
@@ -41,10 +45,20 @@ public class DataPolicyRepository {
         this.objectMapper = objectMapper;
     }
 
-    public List<PolicyRow> policies() {
+    public List<PolicyRow> policies(int fetchLimit) {
         return jdbc.query(
-                POLICY_SELECT + " ORDER BY lifecycle_state, policy_type, policy_key",
-                new MapSqlParameterSource(),
+                POLICY_SELECT + """
+                        ORDER BY CASE WHEN EXISTS (
+                                     SELECT 1
+                                       FROM prv_data_policy_revisions revision
+                                      WHERE revision.data_policy_id = policy.data_policy_id
+                                        AND revision.lifecycle_state IN (
+                                            'DRAFT', 'PENDING_APPROVAL', 'APPROVED', 'ACTIVE'))
+                                      THEN 0 ELSE 1 END,
+                                 policy.lifecycle_state, policy.policy_type, policy.policy_key
+                        LIMIT :fetchLimit
+                        """,
+                new MapSqlParameterSource("fetchLimit", fetchLimit),
                 this::policyRow);
     }
 
@@ -85,12 +99,34 @@ public class DataPolicyRepository {
         return policy(policyId).orElseThrow();
     }
 
-    public List<RevisionRow> revisions(UUID policyId) {
-        return jdbc.query(
-                REVISION_SELECT + " WHERE data_policy_id = :policyId"
-                        + " ORDER BY revision_number DESC",
-                new MapSqlParameterSource("policyId", policyId),
-                this::revisionRow);
+    public List<RevisionRow> revisions(Collection<UUID> policyIds, int fetchLimitPerPolicy) {
+        if (policyIds.isEmpty()) return List.of();
+        return jdbc.query("""
+                SELECT data_policy_revision_id, data_policy_id, revision_number,
+                       lifecycle_state, policy_rule, effective_from, effective_to,
+                       justification, previous_revision_id, rollback_of_revision_id,
+                       impact_snapshot, impact_hash, impact_previewed_at, requested_by,
+                       approved_by, submitted_at, approved_at, published_at, version
+                  FROM (
+                        SELECT revision.*,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY revision.data_policy_id
+                                   ORDER BY CASE revision.lifecycle_state
+                                       WHEN 'PENDING_APPROVAL' THEN 0
+                                       WHEN 'APPROVED' THEN 1
+                                       WHEN 'DRAFT' THEN 2
+                                       WHEN 'ACTIVE' THEN 3
+                                       ELSE 4
+                                   END,
+                                   revision.revision_number DESC
+                               ) AS policy_rank
+                          FROM prv_data_policy_revisions revision
+                         WHERE revision.data_policy_id IN (:policyIds)
+                       ) ranked_revision
+                 WHERE policy_rank <= :fetchLimitPerPolicy
+                 ORDER BY data_policy_id, policy_rank
+                """, new MapSqlParameterSource("policyIds", policyIds)
+                .addValue("fetchLimitPerPolicy", fetchLimitPerPolicy), this::revisionRow);
     }
 
     public Optional<RevisionRow> revision(UUID revisionId) {
@@ -104,7 +140,7 @@ public class DataPolicyRepository {
         return jdbc.query("""
                 SELECT policy.data_policy_id, policy.policy_type, policy.scope_type,
                        policy.scope_ref, revision.data_policy_revision_id,
-                       revision.policy_rule
+                       revision.policy_rule, revision.effective_from, revision.effective_to
                   FROM prv_data_policies policy
                   JOIN prv_data_policy_revisions revision
                     ON revision.data_policy_id = policy.data_policy_id
@@ -118,7 +154,9 @@ public class DataPolicyRepository {
                         result.getString("scope_type"),
                         result.getString("scope_ref"),
                         result.getObject("data_policy_revision_id", UUID.class),
-                        node(result.getString("policy_rule"))));
+                        node(result.getString("policy_rule")),
+                        instant(result, "effective_from"),
+                        instant(result, "effective_to")));
     }
 
     public RevisionRow createRevision(
@@ -279,24 +317,33 @@ public class DataPolicyRepository {
         return changed == 1;
     }
 
-    public Optional<ApprovalRow> approval(UUID revisionId) {
+    public List<RevisionApprovalRow> approvals(Collection<UUID> revisionIds) {
+        if (revisionIds.isEmpty()) return List.of();
         return jdbc.query("""
-                SELECT data_policy_approval_id, lifecycle_state, requested_by,
-                       requested_at, decided_by, decided_at, decision_reason
-                  FROM prv_data_policy_approvals
-                 WHERE data_policy_revision_id = :revisionId
-                 ORDER BY requested_at DESC
-                 LIMIT 1
-                """, new MapSqlParameterSource("revisionId", revisionId),
-                (result, ignored) -> new ApprovalRow(
-                        result.getObject("data_policy_approval_id", UUID.class),
-                        result.getString("lifecycle_state"),
-                        result.getLong("requested_by"),
-                        result.getObject("requested_at", Instant.class),
-                        result.getObject("decided_by", Long.class),
-                        result.getObject("decided_at", Instant.class),
-                        result.getString("decision_reason")))
-                .stream().findFirst();
+                SELECT data_policy_revision_id, data_policy_approval_id, lifecycle_state,
+                       requested_by, requested_at, decided_by, decided_at, decision_reason
+                  FROM (
+                        SELECT approval.*,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY approval.data_policy_revision_id
+                                   ORDER BY approval.requested_at DESC,
+                                            approval.data_policy_approval_id DESC
+                               ) AS approval_rank
+                          FROM prv_data_policy_approvals approval
+                         WHERE approval.data_policy_revision_id IN (:revisionIds)
+                       ) ranked_approval
+                 WHERE approval_rank = 1
+                """, new MapSqlParameterSource("revisionIds", revisionIds),
+                (result, ignored) -> new RevisionApprovalRow(
+                        result.getObject("data_policy_revision_id", UUID.class),
+                        new ApprovalRow(
+                                result.getObject("data_policy_approval_id", UUID.class),
+                                result.getString("lifecycle_state"),
+                                result.getLong("requested_by"),
+                                instant(result, "requested_at"),
+                                result.getObject("decided_by", Long.class),
+                                instant(result, "decided_at"),
+                                result.getString("decision_reason"))));
     }
 
     private PolicyRow policyRow(ResultSet result, int ignored) throws SQLException {
@@ -320,20 +367,25 @@ public class DataPolicyRepository {
                 result.getInt("revision_number"),
                 result.getString("lifecycle_state"),
                 node(result.getString("policy_rule")),
-                result.getObject("effective_from", Instant.class),
-                result.getObject("effective_to", Instant.class),
+                instant(result, "effective_from"),
+                instant(result, "effective_to"),
                 result.getString("justification"),
                 result.getObject("previous_revision_id", UUID.class),
                 result.getObject("rollback_of_revision_id", UUID.class),
                 nullableNode(result.getString("impact_snapshot")),
                 result.getString("impact_hash"),
-                result.getObject("impact_previewed_at", Instant.class),
+                instant(result, "impact_previewed_at"),
                 result.getLong("requested_by"),
                 result.getObject("approved_by", Long.class),
-                result.getObject("submitted_at", Instant.class),
-                result.getObject("approved_at", Instant.class),
-                result.getObject("published_at", Instant.class),
+                instant(result, "submitted_at"),
+                instant(result, "approved_at"),
+                instant(result, "published_at"),
                 result.getLong("version"));
+    }
+
+    private Instant instant(ResultSet result, String column) throws SQLException {
+        Timestamp value = result.getTimestamp(column);
+        return value == null ? null : value.toInstant();
     }
 
     private String json(JsonNode value) {
@@ -405,12 +457,24 @@ public class DataPolicyRepository {
             String reason) {
     }
 
+    public record RevisionApprovalRow(
+            UUID revisionId,
+            ApprovalRow approval) {
+    }
+
     public record ScopedActivePolicy(
             UUID policyId,
             String policyType,
             String scopeType,
             String scopeRef,
             UUID revisionId,
-            JsonNode rule) {
+            JsonNode rule,
+            Instant effectiveFrom,
+            Instant effectiveTo) {
+
+        public boolean isEffectiveAt(Instant evaluatedAt) {
+            return (effectiveFrom == null || !effectiveFrom.isAfter(evaluatedAt))
+                    && (effectiveTo == null || effectiveTo.isAfter(evaluatedAt));
+        }
     }
 }

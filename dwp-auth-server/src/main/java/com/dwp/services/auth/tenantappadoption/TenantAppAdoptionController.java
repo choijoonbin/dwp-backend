@@ -91,7 +91,7 @@ public class TenantAppAdoptionController {
     }
 
     @GetMapping("/assignments")
-    public ApiResponse<List<TenantAppAdoptionDtos.Assignment>> assignments(
+    public ApiResponse<TenantAppAdoptionDtos.AssignmentPage> assignments(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestParam(required = false) UUID installationId) {

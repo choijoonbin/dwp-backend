@@ -11,6 +11,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
@@ -39,9 +40,11 @@ class CatalogServiceTest {
         CatalogDtos.Entity app = entity("REGISTRY:APP:WORK", "APP", "Work");
         CatalogDtos.Entity code = entity("CODE_SET:PLATFORM.MODE", "CODE_SET", "Mode");
         CatalogDtos.Entity runtimeService = entity("SERVICE:DWP-PLATFORM-SERVER", "SERVICE", "Platform");
-        when(repository.inventory(1L)).thenReturn(List.of(app, code, runtimeService));
-        when(repository.relations(1L)).thenReturn(List.of(relation(
-                runtimeService.ref(), code.ref(), "GOVERNS", "OPERATIONAL")));
+        when(repository.overviewMetrics(1L)).thenReturn(new CatalogRepository.OverviewMetrics(
+                3, 1, 0, 1, 0, Map.of("APP", 1L, "CODE_SET", 1L, "SERVICE", 1L),
+                Map.of("ACTIVE", 3L)));
+        when(repository.overviewEntities(1L, null, null, null, 101))
+                .thenReturn(List.of(app, code, runtimeService));
 
         CatalogDtos.Overview result = service.overview(1L, null, null, null);
 
@@ -49,6 +52,26 @@ class CatalogServiceTest {
         assertThat(result.relationCount()).isEqualTo(1);
         assertThat(result.orphanCount()).isEqualTo(1);
         assertThat(result.entitiesByKind()).containsEntry("APP", 1L).containsEntry("CODE_SET", 1L);
+        assertThat(result.entitiesLimit()).isEqualTo(100);
+        assertThat(result.entitiesHasMore()).isFalse();
+    }
+
+    @Test
+    void overviewCapsInventoryWithExplicitCoverageWithoutChangingTotals() {
+        List<CatalogDtos.Entity> entities = IntStream.range(0, 101)
+                .mapToObj(index -> entity(
+                        "SERVICE:SERVICE-" + index, "SERVICE", "Service " + index))
+                .toList();
+        when(repository.overviewMetrics(1L)).thenReturn(new CatalogRepository.OverviewMetrics(
+                101, 0, 0, 0, 0, Map.of("SERVICE", 101L), Map.of("ACTIVE", 101L)));
+        when(repository.overviewEntities(1L, null, null, null, 101)).thenReturn(entities);
+
+        CatalogDtos.Overview result = service.overview(1L, null, null, null);
+
+        assertThat(result.entityCount()).isEqualTo(101);
+        assertThat(result.entities()).hasSize(100);
+        assertThat(result.entitiesLimit()).isEqualTo(100);
+        assertThat(result.entitiesHasMore()).isTrue();
     }
 
     @Test
@@ -180,8 +203,11 @@ class CatalogServiceTest {
         when(repository.synchronizeFindings(
                 org.mockito.ArgumentMatchers.eq(1L),
                 org.mockito.ArgumentMatchers.eq(rule()),
-                org.mockito.ArgumentMatchers.anyList()))
+                org.mockito.ArgumentMatchers.anyList(),
+                org.mockito.ArgumentMatchers.eq(101)))
                 .thenReturn(List.of());
+        when(repository.assuranceMetrics(1L)).thenReturn(
+                new CatalogRepository.AssuranceMetrics(0, 0, 0, 0, 0));
 
         CatalogDtos.AssuranceSummary result = service.evaluateAssurance(1L, 7L, "corr");
 
@@ -192,7 +218,8 @@ class CatalogServiceTest {
                 org.mockito.ArgumentMatchers.argThat(candidates ->
                         candidates.stream().map(CatalogRepository.FindingCandidate::findingCode)
                                 .collect(java.util.stream.Collectors.toSet())
-                                .equals(java.util.Set.of("OWNER_MISSING", "ORPHAN_ASSET"))));
+                                .equals(java.util.Set.of("OWNER_MISSING", "ORPHAN_ASSET"))),
+                org.mockito.ArgumentMatchers.eq(101));
         verify(auditService).success(
                 org.mockito.ArgumentMatchers.eq(1L),
                 org.mockito.ArgumentMatchers.eq(7L),
@@ -205,11 +232,31 @@ class CatalogServiceTest {
     }
 
     @Test
+    void assuranceCapsFindingDetailsWhileKeepingCompleteCounts() {
+        List<CatalogDtos.AssuranceFinding> findings = IntStream.range(0, 101)
+                .mapToObj(index -> finding(new UUID(0L, index + 1L), "OPEN", 0L))
+                .toList();
+        when(repository.activeCompatibilityRule()).thenReturn(rule());
+        when(repository.assuranceMetrics(1L)).thenReturn(
+                new CatalogRepository.AssuranceMetrics(101, 101, 0, 101, 0));
+        when(repository.findings(1L, 101)).thenReturn(findings);
+
+        CatalogDtos.AssuranceSummary result = service.assurance(1L);
+
+        assertThat(result.openCount()).isEqualTo(101);
+        assertThat(result.findings()).hasSize(100);
+        assertThat(result.findingsLimit()).isEqualTo(100);
+        assertThat(result.findingsHasMore()).isTrue();
+    }
+
+    @Test
     void scheduledAssuranceEvaluationUsesServiceAuditIdentity() {
         when(repository.inventory(1L)).thenReturn(List.of());
         when(repository.relations(1L)).thenReturn(List.of());
         when(repository.activeCompatibilityRule()).thenReturn(rule());
-        when(repository.synchronizeFindings(1L, rule(), List.of())).thenReturn(List.of());
+        when(repository.synchronizeFindings(1L, rule(), List.of(), 101)).thenReturn(List.of());
+        when(repository.assuranceMetrics(1L)).thenReturn(
+                new CatalogRepository.AssuranceMetrics(0, 0, 0, 0, 0));
 
         service.evaluateAssuranceSystem(1L);
 
@@ -231,7 +278,7 @@ class CatalogServiceTest {
         CatalogDtos.DispositionFindingRequest request = new CatalogDtos.DispositionFindingRequest(
                 "FALSE_POSITIVE", "Validated against the authoritative contract source.",
                 "CASE-203", 2L);
-        when(repository.findings(1L)).thenReturn(List.of(before));
+        when(repository.finding(1L, findingId)).thenReturn(before);
         when(repository.dispositionFinding(1L, 7L, findingId, request)).thenReturn(after);
 
         CatalogDtos.AssuranceFinding result = service.dispositionFinding(

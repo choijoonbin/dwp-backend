@@ -7,6 +7,7 @@ import com.dwp.services.provider.security.ProviderRequestContext;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -14,10 +15,12 @@ import org.springframework.transaction.annotation.Transactional;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -30,6 +33,8 @@ public class DataPolicyService {
     private static final String READ = "DATA_GOVERNANCE_READ";
     private static final String WRITE = "DATA_GOVERNANCE_WRITE";
     private static final String APPROVE = "DATA_GOVERNANCE_APPROVE";
+    static final int POLICY_LIMIT = 100;
+    static final int REVISION_LIMIT = 50;
     private static final Set<String> CLASSIFICATIONS =
             Set.of("PUBLIC", "INTERNAL", "CONFIDENTIAL", "RESTRICTED");
     private static final Set<String> DELETION_MODES =
@@ -41,22 +46,40 @@ public class DataPolicyService {
     private final DataGovernanceService governanceService;
     private final ProviderAuditService audit;
     private final ObjectMapper objectMapper;
+    private final Clock clock;
 
+    @Autowired
     public DataPolicyService(
             DataPolicyRepository repository,
             DataGovernanceService governanceService,
             ProviderAuditService audit,
             ObjectMapper objectMapper) {
+        this(repository, governanceService, audit, objectMapper, Clock.systemUTC());
+    }
+
+    DataPolicyService(
+            DataPolicyRepository repository,
+            DataGovernanceService governanceService,
+            ProviderAuditService audit,
+            ObjectMapper objectMapper,
+            Clock clock) {
         this.repository = repository;
         this.governanceService = governanceService;
         this.audit = audit;
         this.objectMapper = objectMapper;
+        this.clock = clock;
     }
 
     @Transactional(readOnly = true)
-    public List<DataPolicyDtos.Policy> policies() {
+    public DataPolicyDtos.PolicyPage policies() {
         ProviderRequestContext.requirePermission(READ);
-        return repository.policies().stream().map(this::policy).toList();
+        List<DataPolicyRepository.PolicyRow> fetched = repository.policies(POLICY_LIMIT + 1);
+        boolean hasMore = fetched.size() > POLICY_LIMIT;
+        List<DataPolicyRepository.PolicyRow> visible = fetched.stream()
+                .limit(POLICY_LIMIT)
+                .toList();
+        return new DataPolicyDtos.PolicyPage(
+                policies(visible), POLICY_LIMIT, hasMore);
     }
 
     @Transactional
@@ -264,7 +287,7 @@ public class DataPolicyService {
                 UUID.randomUUID(),
                 previous.rule(),
                 request.reason(),
-                Instant.now(),
+                clock.instant(),
                 previous.effectiveTo(),
                 active.revisionId(),
                 ProviderRequestContext.require().operatorId());
@@ -284,6 +307,7 @@ public class DataPolicyService {
     DataPolicyDtos.ImpactPreview computeImpact(
             DataPolicyRepository.PolicyRow policy,
             DataPolicyRepository.RevisionRow revision) {
+        Instant evaluatedAt = clock.instant();
         DataGovernanceDtos.Snapshot snapshot = governanceService.snapshot();
         List<DataGovernanceDtos.DataAsset> scoped = snapshot.assets().stream()
                 .filter(asset -> !"PARTITION".equals(asset.objectType()))
@@ -316,11 +340,11 @@ public class DataPolicyService {
             }
             case "RETENTION" -> {
                 controls.add("RETENTION_SCHEDULE");
-                legalHoldConflicts(policy, blockers);
+                legalHoldConflicts(policy, blockers, evaluatedAt);
             }
             case "DELETION" -> {
                 controls.add("DELETION_WORKFLOW");
-                legalHoldConflicts(policy, blockers);
+                legalHoldConflicts(policy, blockers, evaluatedAt);
                 warnings.add("DELETION_WORKER_REQUIRES_APPROVED_INFRASTRUCTURE");
             }
             case "LEGAL_HOLD" -> controls.add("LEGAL_HOLD_PRECEDENCE");
@@ -345,7 +369,6 @@ public class DataPolicyService {
                 + "|" + blockers.stream().sorted().toList()
                 + "|" + warnings.stream().sorted().toList()
                 + "|" + controls.stream().sorted().toList();
-        Instant now = Instant.now();
         return new DataPolicyDtos.ImpactPreview(
                 snapshot.generatedAt(),
                 affected.size(),
@@ -354,7 +377,7 @@ public class DataPolicyService {
                 warnings.stream().distinct().sorted().toList(),
                 controls.stream().distinct().sorted().toList(),
                 hash(fingerprint),
-                now,
+                evaluatedAt,
                 blockers.isEmpty());
     }
 
@@ -392,9 +415,11 @@ public class DataPolicyService {
 
     private void legalHoldConflicts(
             DataPolicyRepository.PolicyRow policy,
-            List<String> blockers) {
+            List<String> blockers,
+            Instant evaluatedAt) {
         repository.activePolicies("LEGAL_HOLD").stream()
                 .filter(hold -> hold.rule().path("active").asBoolean(false))
+                .filter(hold -> hold.isEffectiveAt(evaluatedAt))
                 .filter(hold -> scopesOverlap(
                         policy.scopeType(), policy.scopeRef(), hold.scopeType(), hold.scopeRef()))
                 .forEach(hold -> blockers.add("ACTIVE_LEGAL_HOLD:" + hold.revisionId()));
@@ -517,22 +542,76 @@ public class DataPolicyService {
     }
 
     private DataPolicyDtos.Policy policy(DataPolicyRepository.PolicyRow row) {
-        return new DataPolicyDtos.Policy(
-                row.policyId(), row.policyKey(), row.displayName(), row.description(),
-                row.policyType(), row.scopeType(), row.scopeRef(), row.ownerService(),
-                row.lifecycleState(), row.version(),
-                repository.revisions(row.policyId()).stream().map(this::revision).toList());
+        return policies(List.of(row)).getFirst();
+    }
+
+    private List<DataPolicyDtos.Policy> policies(
+            List<DataPolicyRepository.PolicyRow> policyRows) {
+        if (policyRows.isEmpty()) return List.of();
+        List<UUID> policyIds = policyRows.stream()
+                .map(DataPolicyRepository.PolicyRow::policyId)
+                .toList();
+        Map<UUID, List<DataPolicyRepository.RevisionRow>> revisionsByPolicy =
+                new LinkedHashMap<>();
+        for (DataPolicyRepository.RevisionRow revision
+                : repository.revisions(policyIds, REVISION_LIMIT + 1)) {
+            revisionsByPolicy.computeIfAbsent(revision.policyId(), ignored -> new ArrayList<>())
+                    .add(revision);
+        }
+
+        List<DataPolicyRepository.RevisionRow> visibleRevisions = new ArrayList<>();
+        for (DataPolicyRepository.PolicyRow policy : policyRows) {
+            List<DataPolicyRepository.RevisionRow> fetched =
+                    revisionsByPolicy.getOrDefault(policy.policyId(), List.of());
+            visibleRevisions.addAll(fetched.stream().limit(REVISION_LIMIT).toList());
+        }
+        Map<UUID, DataPolicyRepository.ApprovalRow> approvalsByRevision = new LinkedHashMap<>();
+        List<UUID> visibleRevisionIds = visibleRevisions.stream()
+                .map(DataPolicyRepository.RevisionRow::revisionId)
+                .toList();
+        for (DataPolicyRepository.RevisionApprovalRow row
+                : repository.approvals(visibleRevisionIds)) {
+            approvalsByRevision.put(row.revisionId(), row.approval());
+        }
+
+        return policyRows.stream().map(row -> {
+            List<DataPolicyRepository.RevisionRow> fetched =
+                    revisionsByPolicy.getOrDefault(row.policyId(), List.of());
+            boolean revisionsHasMore = fetched.size() > REVISION_LIMIT;
+            List<DataPolicyDtos.Revision> revisions = fetched.stream()
+                    .limit(REVISION_LIMIT)
+                    .map(revision -> revision(
+                            revision, approvalsByRevision.get(revision.revisionId())))
+                    .toList();
+            return new DataPolicyDtos.Policy(
+                    row.policyId(), row.policyKey(), row.displayName(), row.description(),
+                    row.policyType(), row.scopeType(), row.scopeRef(), row.ownerService(),
+                    row.lifecycleState(), row.version(), REVISION_LIMIT,
+                    revisionsHasMore, revisions);
+        }).toList();
     }
 
     private DataPolicyDtos.Revision revision(DataPolicyRepository.RevisionRow row) {
+        DataPolicyRepository.ApprovalRow approval = repository.approvals(
+                        List.of(row.revisionId())).stream()
+                .findFirst()
+                .map(DataPolicyRepository.RevisionApprovalRow::approval)
+                .orElse(null);
+        return revision(row, approval);
+    }
+
+    private DataPolicyDtos.Revision revision(
+            DataPolicyRepository.RevisionRow row,
+            DataPolicyRepository.ApprovalRow approvalRow) {
         DataPolicyDtos.ImpactPreview impact = row.impact() == null
                 ? null
                 : convert(row.impact(), DataPolicyDtos.ImpactPreview.class);
-        DataPolicyDtos.Approval approval = repository.approval(row.revisionId())
-                .map(item -> new DataPolicyDtos.Approval(
-                        item.approvalId(), item.lifecycleState(), item.requestedBy(),
-                        item.requestedAt(), item.decidedBy(), item.decidedAt(), item.reason()))
-                .orElse(null);
+        DataPolicyDtos.Approval approval = approvalRow == null
+                ? null
+                : new DataPolicyDtos.Approval(
+                        approvalRow.approvalId(), approvalRow.lifecycleState(),
+                        approvalRow.requestedBy(), approvalRow.requestedAt(),
+                        approvalRow.decidedBy(), approvalRow.decidedAt(), approvalRow.reason());
         return new DataPolicyDtos.Revision(
                 row.revisionId(), row.revisionNumber(), row.lifecycleState(), row.rule(),
                 row.effectiveFrom(), row.effectiveTo(), row.justification(),

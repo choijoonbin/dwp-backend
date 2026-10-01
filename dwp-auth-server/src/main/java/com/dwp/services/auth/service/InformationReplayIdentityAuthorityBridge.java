@@ -48,7 +48,7 @@ public final class InformationReplayIdentityAuthorityBridge implements Informati
             var bundle = contracts.findActive("product-surfaces").orElseThrow(InformationReplayJson::unavailable);
             var pointer = contracts.findActivePointer("product-surfaces").orElseThrow(InformationReplayJson::unavailable);
             var sealed = seals.loadActive(bundle, pointer);
-            if (bundle.version() != 9) throw unavailable();
+            if (!Set.of(9L, 32L).contains(bundle.version())) throw unavailable();
             var registry = new Registry(sealed);
             var route = registry.routesByKey().get(ROUTE);
             if (route == null || !"ACTIVE".equals(route.lifecycleState()) || !"DATA".equals(route.routeKind())
@@ -95,7 +95,8 @@ public final class InformationReplayIdentityAuthorityBridge implements Informati
                 || result.accessSource() == ProductSurfaceAuthorityDtos.AccessSource.SUPPORT || !result.effectiveReadOnly()
                 || !caller.contextKey().equals(result.contextKey()) || scopes.size() != 1 || !scopes.getFirst().readOnly()
                 || !identity.revision().equals(result.authRevision()) || result.policyRevision() == null || result.revalidateAt() == null) throw denied();
-        String policy = "policy-9-" + beforeRegistry.pointer().revision() + '-' + beforeRegistry.bundle().checksum();
+        String policy = "policy-" + beforeRegistry.bundle().version() + '-' + beforeRegistry.pointer().revision()
+                + '-' + beforeRegistry.bundle().checksum();
         if (!policy.equals(result.policyRevision())) throw changed();
         var role = sources.currentRole(caller.tenantId(), roleCode);
         var users = new java.util.TreeSet<>(List.of(caller.actorId(), caller.requesterId(), caller.originalActorId(), caller.principalId()));

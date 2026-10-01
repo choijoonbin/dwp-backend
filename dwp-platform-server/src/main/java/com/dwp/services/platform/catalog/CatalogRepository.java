@@ -28,6 +28,142 @@ import java.util.UUID;
 @Repository
 public class CatalogRepository {
 
+    private static final String INVENTORY_PROJECTION = """
+            WITH registry_ranked AS (
+                SELECT entry.*,
+                       ROW_NUMBER() OVER (
+                           PARTITION BY registry_type, entry_key
+                           ORDER BY CASE lifecycle_state
+                               WHEN 'ACTIVE' THEN 0 WHEN 'DRAFT' THEN 1 ELSE 2 END,
+                               revision DESC) AS rank
+                  FROM adm_registry_entries entry
+                 WHERE tenant_id = ?
+            ),
+            inventory AS (
+                SELECT UPPER(BTRIM('REFERENCE_SET:' || reference_set.set_key)) AS ref,
+                       'REFERENCE_SET'::text AS kind,
+                       reference_set.set_key::text AS entity_key,
+                       reference_set.name::text AS name,
+                       reference_set.description::text AS description,
+                       'tenant-reference-owner'::text AS owner_ref,
+                       reference_set.lifecycle_state::text AS lifecycle_state,
+                       'MEDIUM'::text AS risk_tier,
+                       'TENANT'::text AS scope,
+                       reference_set.content_revision::bigint AS revision,
+                       jsonb_build_object(
+                           'itemCount', COUNT(reference_item.reference_item_id),
+                           'activeItemCount', COUNT(reference_item.reference_item_id)
+                               FILTER (WHERE reference_item.lifecycle_state = 'ACTIVE')) AS metadata
+                  FROM adm_reference_sets reference_set
+                  LEFT JOIN adm_reference_items reference_item
+                    ON reference_item.tenant_id = reference_set.tenant_id
+                   AND reference_item.reference_set_id = reference_set.reference_set_id
+                 WHERE reference_set.tenant_id = ?
+                 GROUP BY reference_set.reference_set_id
+                UNION ALL
+                SELECT UPPER(BTRIM('REGISTRY:' || registry_type || ':' || entry_key)),
+                       registry_type::text, entry_key::text, name::text,
+                       description::text, owner_ref::text, lifecycle_state::text,
+                       risk_tier::text, 'TENANT'::text, revision::bigint,
+                       jsonb_build_object(
+                           'artifactVersion', artifact_version,
+                           'registryType', registry_type)
+                  FROM registry_ranked
+                 WHERE rank = 1
+                UNION ALL
+                SELECT UPPER(BTRIM('CODE_SET:' || code_set.code_set_key)),
+                       'CODE_SET'::text, code_set.code_set_key::text,
+                       code_set.display_name::text, code_set.description::text,
+                       code_set.owner_service::text, code_set.lifecycle_state::text,
+                       'MEDIUM'::text, 'GLOBAL_PRODUCT'::text,
+                       code_set.schema_version::bigint,
+                       jsonb_build_object(
+                           'configurationLevel', code_set.configuration_level,
+                           'validationSource', code_set.validation_source,
+                           'runtimeVisibility', code_set.runtime_visibility,
+                           'valueCount', COUNT(DISTINCT code_value.code),
+                           'bindingCount', COUNT(DISTINCT code_binding.code_binding_id))
+                  FROM sys_code_sets code_set
+                  LEFT JOIN sys_code_values code_value
+                    ON code_value.code_set_key = code_set.code_set_key
+                   AND code_value.lifecycle_state = 'ACTIVE'
+                  LEFT JOIN sys_code_bindings code_binding
+                    ON code_binding.code_set_key = code_set.code_set_key
+                   AND code_binding.lifecycle_state = 'ACTIVE'
+                 GROUP BY code_set.code_set_key
+                UNION ALL
+                SELECT UPPER(BTRIM('SERVICE:' || service_name)),
+                       'SERVICE'::text, service_name::text, service_name::text,
+                       'DWP runtime service'::text, service_name::text,
+                       'ACTIVE'::text, 'MEDIUM'::text, 'GLOBAL_PRODUCT'::text, 1::bigint,
+                       jsonb_build_object(
+                           'ownedCodeSets', COUNT(DISTINCT owned_code_set),
+                           'consumedCodeSets', COUNT(DISTINCT consumed_code_set))
+                  FROM (
+                    SELECT owner_service AS service_name, code_set_key AS owned_code_set,
+                           NULL::varchar AS consumed_code_set
+                      FROM sys_code_sets
+                    UNION ALL
+                    SELECT consumer_service, NULL::varchar, code_set_key
+                      FROM sys_code_bindings
+                     WHERE lifecycle_state = 'ACTIVE'
+                  ) service_catalog
+                 GROUP BY service_name
+                UNION ALL
+                SELECT UPPER(BTRIM('NAVIGATION:' || item.navigation_key)),
+                       'NAVIGATION'::text, item.navigation_key::text,
+                       COALESCE(
+                           MAX(label.label) FILTER (WHERE LOWER(label.locale) = 'ko'),
+                           MAX(label.label) FILTER (WHERE LOWER(label.locale) = 'en'),
+                           item.navigation_key)::text,
+                       item.route::text, 'tenant-experience-owner'::text,
+                       item.lifecycle_state::text, 'LOW'::text, 'TENANT'::text,
+                       item.version::bigint,
+                       jsonb_build_object(
+                           'itemType', item.item_type,
+                           'route', item.route,
+                           'iconKey', item.icon_key,
+                           'resourceKey', item.required_resource_key,
+                           'permissionCode', item.required_permission_code)
+                  FROM adm_navigation_items item
+                  LEFT JOIN adm_navigation_labels label
+                    ON label.tenant_id = item.tenant_id
+                   AND label.navigation_item_id = item.navigation_item_id
+                 WHERE item.tenant_id = ?
+                 GROUP BY item.navigation_item_id
+                UNION ALL
+                SELECT UPPER(BTRIM('CONNECTOR_INSTANCE:' || connector_key)),
+                       'CONNECTOR_INSTANCE'::text, connector_key::text,
+                       display_name::text, provider_type::text,
+                       'tenant-integration-owner'::text, lifecycle_state::text,
+                       'HIGH'::text, 'TENANT'::text, version::bigint,
+                       jsonb_build_object(
+                           'providerType', provider_type,
+                           'authMode', auth_mode,
+                           'healthState', health_state,
+                           'policyState', policy_state,
+                           'scopeCount', jsonb_array_length(requested_scopes),
+                           'capabilityCount', jsonb_array_length(capabilities))
+                  FROM int_productivity_connectors
+                 WHERE tenant_id = ?
+                UNION ALL
+                SELECT DISTINCT
+                       UPPER(BTRIM('PERMISSION:' || required_resource_key || '/'
+                           || required_permission_code)),
+                       'PERMISSION'::text,
+                       (required_resource_key || '/' || required_permission_code)::text,
+                       required_permission_code::text,
+                       'Permission required by tenant navigation'::text,
+                       'identity-and-access'::text, 'ACTIVE'::text, 'HIGH'::text,
+                       'TENANT'::text, 1::bigint,
+                       jsonb_build_object(
+                           'resourceKey', required_resource_key,
+                           'permissionCode', required_permission_code)
+                  FROM adm_navigation_items
+                 WHERE tenant_id = ? AND required_resource_key IS NOT NULL
+            )
+            """;
+
     private final JdbcTemplate jdbc;
     private final ObjectMapper objectMapper;
 
@@ -46,6 +182,160 @@ public class CatalogRepository {
         connectorInstances(tenantId).forEach(entity -> inventory.put(entity.ref(), entity));
         permissions(tenantId).forEach(entity -> inventory.put(entity.ref(), entity));
         return List.copyOf(inventory.values());
+    }
+
+    public List<CatalogDtos.Entity> overviewEntities(
+            Long tenantId,
+            String normalizedQuery,
+            String normalizedKind,
+            String normalizedLifecycle,
+            int fetchLimit) {
+        return jdbc.query(INVENTORY_PROJECTION + """
+                SELECT inventory.ref, inventory.kind, inventory.entity_key,
+                       inventory.name, inventory.description, inventory.owner_ref,
+                       inventory.lifecycle_state, inventory.risk_tier, inventory.scope,
+                       inventory.revision, inventory.metadata::text
+                  FROM inventory
+                  CROSS JOIN (SELECT ?::text AS query, ?::text AS kind,
+                                     ?::text AS lifecycle) criteria
+                 WHERE (criteria.query IS NULL
+                        OR POSITION(criteria.query IN LOWER(BTRIM(ref))) > 0
+                        OR POSITION(criteria.query IN LOWER(BTRIM(name))) > 0
+                        OR POSITION(criteria.query IN LOWER(BTRIM(COALESCE(owner_ref, '')))) > 0)
+                   AND (criteria.kind IS NULL OR inventory.kind = criteria.kind)
+                   AND (criteria.lifecycle IS NULL
+                        OR inventory.lifecycle_state = criteria.lifecycle)
+                 ORDER BY inventory.kind, LOWER(inventory.name), inventory.ref
+                 LIMIT ?
+                """, this::mapEntity, tenantId, tenantId, tenantId, tenantId, tenantId,
+                normalizedQuery, normalizedKind, normalizedLifecycle, fetchLimit);
+    }
+
+    public OverviewMetrics overviewMetrics(Long tenantId) {
+        return jdbc.queryForObject(INVENTORY_PROJECTION + """
+                , navigation_relation_sources AS (
+                    SELECT item.navigation_item_id, item.navigation_key,
+                           item.registry_entry_key, item.required_resource_key,
+                           item.required_permission_code,
+                           parent.navigation_key AS parent_key
+                      FROM adm_navigation_items item
+                      LEFT JOIN adm_navigation_items parent
+                        ON parent.tenant_id = item.tenant_id
+                       AND parent.navigation_item_id = item.parent_navigation_item_id
+                     WHERE item.tenant_id = ?
+                ),
+                relation_candidates AS (
+                    SELECT 0 AS source_rank, 0::bigint AS stable_order,
+                           catalog_relation_id, source_ref, target_ref,
+                           relation_type, criticality
+                      FROM adm_catalog_relations
+                     WHERE tenant_id = ? AND lifecycle_state = 'ACTIVE'
+                    UNION ALL
+                    SELECT 1, 0, NULL::uuid,
+                           UPPER(BTRIM('SERVICE:' || owner_service)),
+                           UPPER(BTRIM('CODE_SET:' || code_set_key)),
+                           'GOVERNS', 'OPERATIONAL'
+                      FROM sys_code_sets
+                     WHERE lifecycle_state = 'ACTIVE'
+                    UNION ALL
+                    SELECT 2, code_binding_id, NULL::uuid,
+                           UPPER(BTRIM('SERVICE:' || consumer_service)),
+                           UPPER(BTRIM('CODE_SET:' || code_set_key)),
+                           'CONSUMES',
+                           CASE WHEN enforcement_type = 'CHECK'
+                                THEN 'CRITICAL' ELSE 'OPERATIONAL' END
+                      FROM sys_code_bindings
+                     WHERE lifecycle_state = 'ACTIVE'
+                    UNION ALL
+                    SELECT 3, navigation_item_id, NULL::uuid,
+                           UPPER(BTRIM('REGISTRY:APP:' || registry_entry_key)),
+                           UPPER(BTRIM('NAVIGATION:' || navigation_key)),
+                           'NAVIGATES_TO', 'OPERATIONAL'
+                      FROM navigation_relation_sources
+                     WHERE registry_entry_key IS NOT NULL
+                    UNION ALL
+                    SELECT 3, navigation_item_id, NULL::uuid,
+                           UPPER(BTRIM('NAVIGATION:' || navigation_key)),
+                           UPPER(BTRIM('PERMISSION:' || required_resource_key || '/'
+                               || required_permission_code)),
+                           'REQUIRES_PERMISSION', 'CRITICAL'
+                      FROM navigation_relation_sources
+                     WHERE required_resource_key IS NOT NULL
+                    UNION ALL
+                    SELECT 3, navigation_item_id, NULL::uuid,
+                           UPPER(BTRIM('NAVIGATION:' || parent_key)),
+                           UPPER(BTRIM('NAVIGATION:' || navigation_key)),
+                           'EXPOSES', 'INFORMATIONAL'
+                      FROM navigation_relation_sources
+                     WHERE parent_key IS NOT NULL
+                    UNION ALL
+                    SELECT 4, 0, NULL::uuid,
+                           UPPER(BTRIM('REGISTRY:CONNECTOR:' || registry.entry_key)),
+                           UPPER(BTRIM('CONNECTOR_INSTANCE:' || connector.connector_key)),
+                           'SYNCHRONIZES', 'CRITICAL'
+                      FROM int_productivity_connectors connector
+                      JOIN LATERAL (
+                        SELECT entry_key
+                          FROM adm_registry_entries entry
+                         WHERE entry.tenant_id = connector.tenant_id
+                           AND entry.registry_type = 'CONNECTOR'
+                           AND entry.lifecycle_state <> 'RETIRED'
+                           AND (entry.entry_key = connector.connector_key
+                                OR UPPER(entry.name) = UPPER(connector.display_name))
+                         ORDER BY entry.revision DESC
+                         LIMIT 1
+                      ) registry ON TRUE
+                     WHERE connector.tenant_id = ?
+                ),
+                ranked_relations AS (
+                    SELECT candidate.*,
+                           ROW_NUMBER() OVER (
+                               PARTITION BY source_ref, target_ref, relation_type
+                               ORDER BY source_rank, stable_order) AS relation_rank
+                      FROM relation_candidates candidate
+                ),
+                live_relations AS (
+                    SELECT relation.catalog_relation_id, relation.source_ref,
+                           relation.target_ref, relation.criticality
+                      FROM ranked_relations relation
+                     WHERE relation.relation_rank = 1
+                       AND EXISTS (SELECT 1 FROM inventory source
+                                    WHERE source.ref = relation.source_ref)
+                       AND EXISTS (SELECT 1 FROM inventory target
+                                    WHERE target.ref = relation.target_ref)
+                )
+                SELECT (SELECT COUNT(*) FROM inventory) AS entity_count,
+                       (SELECT COUNT(*) FROM live_relations) AS relation_count,
+                       (SELECT COUNT(*) FROM live_relations
+                         WHERE catalog_relation_id IS NOT NULL) AS declared_relation_count,
+                       (SELECT COUNT(*) FROM inventory entity
+                         WHERE entity.kind NOT IN ('SERVICE', 'PERMISSION', 'NAVIGATION')
+                           AND NOT EXISTS (
+                               SELECT 1 FROM live_relations relation
+                                WHERE relation.source_ref = entity.ref
+                                   OR relation.target_ref = entity.ref)) AS orphan_count,
+                       (SELECT COUNT(*) FROM live_relations
+                         WHERE criticality = 'CRITICAL') AS critical_relation_count,
+                       COALESCE((
+                           SELECT jsonb_object_agg(counts.kind, counts.total ORDER BY counts.kind)
+                             FROM (SELECT kind, COUNT(*) AS total
+                                     FROM inventory GROUP BY kind) counts
+                       ), '{}'::jsonb)::text AS entities_by_kind,
+                       COALESCE((
+                           SELECT jsonb_object_agg(
+                                      counts.lifecycle_state, counts.total
+                                      ORDER BY counts.lifecycle_state)
+                             FROM (SELECT lifecycle_state, COUNT(*) AS total
+                                     FROM inventory GROUP BY lifecycle_state) counts
+                       ), '{}'::jsonb)::text AS entities_by_lifecycle
+                """, (result, ignored) -> new OverviewMetrics(
+                result.getLong("entity_count"), result.getLong("relation_count"),
+                result.getLong("declared_relation_count"), result.getLong("orphan_count"),
+                result.getLong("critical_relation_count"),
+                longMap(result.getString("entities_by_kind")),
+                longMap(result.getString("entities_by_lifecycle"))),
+                tenantId, tenantId, tenantId, tenantId, tenantId,
+                tenantId, tenantId, tenantId);
     }
 
     public List<CatalogDtos.Relation> relations(Long tenantId) {
@@ -146,7 +436,8 @@ public class CatalogRepository {
     public List<CatalogDtos.AssuranceFinding> synchronizeFindings(
             Long tenantId,
             CatalogDtos.CompatibilityRule rule,
-            List<FindingCandidate> candidates) {
+            List<FindingCandidate> candidates,
+            int fetchLimit) {
         Set<String> detected = new HashSet<>();
         Map<String, CatalogDtos.AssuranceFinding> existingByIdentity = jdbc.query("""
                 SELECT catalog_finding_id, tenant_id, entity_ref, finding_code, severity,
@@ -256,10 +547,32 @@ public class CatalogRepository {
                         tenantId, finding.findingId(), finding.version());
             }
         }
-        return findings(tenantId);
+        return findings(tenantId, fetchLimit);
     }
 
-    public List<CatalogDtos.AssuranceFinding> findings(Long tenantId) {
+    public AssuranceMetrics assuranceMetrics(Long tenantId) {
+        return jdbc.queryForObject("""
+                SELECT COUNT(*) AS total_count,
+                       COUNT(*) FILTER (
+                           WHERE lifecycle_state IN ('OPEN', 'ACKNOWLEDGED')) AS open_count,
+                       COUNT(*) FILTER (
+                           WHERE lifecycle_state IN ('OPEN', 'ACKNOWLEDGED')
+                             AND severity = 'CRITICAL') AS critical_count,
+                       COUNT(*) FILTER (
+                           WHERE lifecycle_state IN ('OPEN', 'ACKNOWLEDGED')
+                             AND finding_code = 'OWNER_MISSING') AS owner_missing_count,
+                       COUNT(*) FILTER (
+                           WHERE lifecycle_state IN ('OPEN', 'ACKNOWLEDGED')
+                             AND finding_code = 'DEPRECATION_IMPACT') AS deprecation_impact_count
+                  FROM adm_catalog_assurance_findings
+                 WHERE tenant_id = ?
+                """, (result, ignored) -> new AssuranceMetrics(
+                result.getLong("total_count"), result.getLong("open_count"),
+                result.getLong("critical_count"), result.getLong("owner_missing_count"),
+                result.getLong("deprecation_impact_count")), tenantId);
+    }
+
+    public List<CatalogDtos.AssuranceFinding> findings(Long tenantId, int fetchLimit) {
         return jdbc.query("""
                 SELECT catalog_finding_id, tenant_id, entity_ref, finding_code, severity,
                        lifecycle_state, rule_key, rule_version, evidence::text,
@@ -271,8 +584,13 @@ public class CatalogRepository {
                  ORDER BY CASE lifecycle_state WHEN 'OPEN' THEN 0 WHEN 'ACKNOWLEDGED' THEN 1 ELSE 2 END,
                           CASE severity WHEN 'CRITICAL' THEN 0 WHEN 'HIGH' THEN 1
                                WHEN 'MEDIUM' THEN 2 ELSE 3 END,
-                          last_detected_at DESC, entity_ref
-                """, this::mapFinding, tenantId);
+                          last_detected_at DESC, entity_ref, finding_code, catalog_finding_id
+                 LIMIT ?
+                """, this::mapFinding, tenantId, fetchLimit);
+    }
+
+    public CatalogDtos.AssuranceFinding finding(Long tenantId, UUID findingId) {
+        return requireFinding(tenantId, findingId);
     }
 
     public CatalogDtos.AssuranceFinding dispositionFinding(
@@ -352,6 +670,15 @@ public class CatalogRepository {
                 row.getString("disposition_reason"), row.getString("disposition_evidence_ref"),
                 row.getObject("disposed_by", Long.class),
                 row.getObject("disposed_at", OffsetDateTime.class), row.getLong("version"));
+    }
+
+    private CatalogDtos.Entity mapEntity(ResultSet row, int ignored) throws SQLException {
+        return new CatalogDtos.Entity(
+                row.getString("ref"), row.getString("kind"), row.getString("entity_key"),
+                row.getString("name"), row.getString("description"),
+                row.getString("owner_ref"), row.getString("lifecycle_state"),
+                row.getString("risk_tier"), row.getString("scope"), row.getLong("revision"),
+                json(row.getString("metadata")));
     }
 
     private List<CatalogDtos.Entity> referenceSets(Long tenantId) {
@@ -556,6 +883,7 @@ public class CatalogRepository {
                        enforcement_type
                   FROM sys_code_bindings
                  WHERE lifecycle_state = 'ACTIVE'
+                 ORDER BY code_binding_id
                 """, (row, ignored) -> inferred(
                 ref("SERVICE", row.getString("consumer_service")),
                 ref("CODE_SET", row.getString("code_set_key")),
@@ -704,6 +1032,14 @@ public class CatalogRepository {
         }
     }
 
+    private Map<String, Long> longMap(String value) {
+        JsonNode source = json(value);
+        Map<String, Long> result = new LinkedHashMap<>();
+        source.properties().forEach(entry ->
+                result.put(entry.getKey(), entry.getValue().asLong()));
+        return Map.copyOf(result);
+    }
+
     private String jsonText(JsonNode value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -751,5 +1087,23 @@ public class CatalogRepository {
             String findingCode,
             String severity,
             JsonNode evidence) {
+    }
+
+    public record OverviewMetrics(
+            long entityCount,
+            long relationCount,
+            long declaredRelationCount,
+            long orphanCount,
+            long criticalRelationCount,
+            Map<String, Long> entitiesByKind,
+            Map<String, Long> entitiesByLifecycle) {
+    }
+
+    public record AssuranceMetrics(
+            long totalCount,
+            long openCount,
+            long criticalCount,
+            long ownerMissingCount,
+            long deprecationImpactCount) {
     }
 }

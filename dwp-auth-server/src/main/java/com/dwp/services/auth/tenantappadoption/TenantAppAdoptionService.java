@@ -21,6 +21,8 @@ import java.util.UUID;
 @Service
 public class TenantAppAdoptionService {
 
+    private static final int LIST_LIMIT = 100;
+
     private static final List<String> INCLUDED_OWNERS = List.of(
             "AUTH_PRODUCT_AUTHORIZATION_CATALOG",
             "AUTH_TENANT_APP_INSTALLATION",
@@ -59,39 +61,52 @@ public class TenantAppAdoptionService {
         AppGovernanceAuthorization.Visibility visibility =
                 authorization.requireVisibility(tenantId, actorId);
         ActionAuthority authority = actionAuthority(tenantId, actorId);
-        List<TenantAppAdoptionDtos.Installation> installations = repository
-                .installations(tenantId).stream()
-                .filter(installation -> visibility.queueReader()
-                        || visibility.appResourceKeys().contains(installation.appResourceKey()))
+        List<TenantAppAdoptionDtos.Installation> fetched = repository
+                .installations(
+                        tenantId,
+                        visibility.queueReader() ? null : visibility.appResourceKeys(),
+                        LIST_LIMIT + 1);
+        List<TenantAppAdoptionDtos.Installation> installations = fetched.stream()
+                .limit(LIST_LIMIT)
                 .map(installation -> withActions(installation, actorId, authority))
                 .toList();
         return new TenantAppAdoptionDtos.AdoptionProjection(
                 clock.instant(), "COMPLETE_INTERNAL_OWNERS", INCLUDED_OWNERS, EXCLUSIONS,
-                List.copyOf(authority.owners()), installations);
+                List.copyOf(authority.owners()), installations,
+                LIST_LIMIT, fetched.size() > LIST_LIMIT);
     }
 
     @Transactional(readOnly = true)
-    public List<TenantAppAdoptionDtos.Assignment> assignments(
+    public TenantAppAdoptionDtos.AssignmentPage assignments(
             Long tenantId, Long actorId, UUID installationId) {
         AppGovernanceAuthorization.Visibility visibility =
                 authorization.requireVisibility(tenantId, actorId);
         ActionAuthority authority = actionAuthority(tenantId, actorId);
-        Map<UUID, TenantAppAdoptionDtos.Installation> installations = repository
-                .installations(tenantId).stream()
-                .filter(installation -> visibility.queueReader()
-                        || visibility.appResourceKeys().contains(installation.appResourceKey()))
-                .collect(java.util.stream.Collectors.toMap(
-                        TenantAppAdoptionDtos.Installation::installationId,
-                        installation -> installation));
-        if (installationId != null && !installations.containsKey(installationId)) {
-            throw new BaseException(ErrorCode.FORBIDDEN);
+        Set<String> visibleKeys = visibility.queueReader() ? null : visibility.appResourceKeys();
+        if (installationId != null) {
+            TenantAppAdoptionDtos.Installation selected = repository.requireInstallation(
+                    tenantId, installationId);
+            if (visibleKeys != null && !visibleKeys.contains(selected.appResourceKey())) {
+                throw new BaseException(ErrorCode.FORBIDDEN);
+            }
         }
-        return repository.assignments(tenantId, installationId).stream()
-                .filter(assignment -> installations.containsKey(assignment.installationId()))
+        List<TenantAppAdoptionDtos.Assignment> fetched = repository.assignments(
+                tenantId, installationId, visibleKeys, LIST_LIMIT + 1);
+        Map<UUID, TenantAppAdoptionDtos.Installation> installations = fetched.stream()
+                .limit(LIST_LIMIT)
+                .map(TenantAppAdoptionDtos.Assignment::installationId)
+                .distinct()
+                .collect(java.util.stream.Collectors.toMap(
+                        id -> id,
+                        id -> repository.requireInstallation(tenantId, id)));
+        List<TenantAppAdoptionDtos.Assignment> items = fetched.stream()
+                .limit(LIST_LIMIT)
                 .map(assignment -> withActions(
                         assignment, installations.get(assignment.installationId()),
                         actorId, authority))
                 .toList();
+        return new TenantAppAdoptionDtos.AssignmentPage(
+                items, LIST_LIMIT, fetched.size() > LIST_LIMIT);
     }
 
     @Transactional
@@ -223,7 +238,7 @@ public class TenantAppAdoptionService {
             Long actorId,
             String correlationId,
             TenantAppAdoptionDtos.CreateAssignmentRequest request) {
-        TenantAppAdoptionDtos.Installation installation = repository.requireInstallation(
+        TenantAppAdoptionDtos.Installation installation = repository.lockInstallation(
                 tenantId, request.installationId());
         authorization.requireAppResponsibility(
                 tenantId, actorId, "APP_ACCESS_MANAGER", installation.appResourceKey(),
@@ -237,12 +252,34 @@ public class TenantAppAdoptionService {
         if (!repository.activeUserExists(tenantId, request.userId())) {
             throw new BaseException(ErrorCode.NOT_FOUND, "The tenant user was not found.");
         }
+        Instant now = clock.instant();
+        if (request.validTo() != null && !request.validTo().isAfter(now)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "An expired workforce assignment request cannot be created.");
+        }
+        List<TenantAppAdoptionRepository.ExpiredAssignment> expired =
+                repository.expireAssignmentsForReplacement(
+                        tenantId, installation.installationId(), request.userId(), actorId, now);
+        expired.forEach(value -> {
+            event(tenantId, "WORKFORCE_ASSIGNMENT", value.assignmentId(),
+                    "ASSIGNMENT_EXPIRED", actorId, correlationId, value.resultingVersion(), Map.of(
+                            "previousState", value.previousState(),
+                            "expiredAt", now.toString(),
+                            "replacementRequested", true));
+            audit.success(
+                    tenantId, actorId, "tenant-app.assignment.expired",
+                    "TENANT_APP_WORKFORCE_ASSIGNMENT", value.assignmentId().toString(),
+                    correlationId, Map.of("lifecycleState", value.previousState()),
+                    Map.of("lifecycleState", "EXPIRED", "expiredAt", now.toString()));
+        });
         TenantAppAdoptionDtos.Assignment assignment;
         try {
             assignment = repository.insertAssignment(
                     tenantId, actorId, request,
                     "EXTERNAL_SERVICE".equals(installation.installationKind())
-                            ? "UNAVAILABLE" : "NOT_REQUIRED");
+                            ? "UNAVAILABLE" : "NOT_REQUIRED",
+                    now);
         } catch (DataIntegrityViolationException exception) {
             throw new BaseException(
                     ErrorCode.RESOURCE_CONFLICT,
@@ -276,6 +313,14 @@ public class TenantAppAdoptionService {
             throw new BaseException(ErrorCode.INVALID_STATE, "The installation is not enabled.");
         }
         String next = "APPROVE".equals(command.decision()) ? "APPROVED" : "DENIED";
+        Instant now = clock.instant();
+        if ("APPROVED".equals(next)
+                && current.validTo() != null
+                && !current.validTo().isAfter(now)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "An expired workforce assignment request cannot be approved.");
+        }
         if ("APPROVED".equals(next)
                 && installation.seatCapacity() != null
                 && installation.reservedSeats() >= installation.seatCapacity()) {
@@ -285,7 +330,7 @@ public class TenantAppAdoptionService {
         }
         TenantAppAdoptionDtos.Assignment changed = repository.transitionAssignment(
                 tenantId, assignmentId, command.version(), "PENDING_APPROVAL", next,
-                actorId, command.reason().trim(), null, clock.instant());
+                actorId, command.reason().trim(), null, now);
         event(tenantId, "WORKFORCE_ASSIGNMENT", assignmentId, "ASSIGNMENT_" + next,
                 actorId, correlationId, changed.version(), Map.of("reason", command.reason().trim()));
         return changed;
@@ -311,10 +356,16 @@ public class TenantAppAdoptionService {
         if (!"ENABLED".equals(installation.lifecycleState())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "The installation is not enabled.");
         }
+        Instant now = clock.instant();
+        if (!isEffectiveAt(current, now)) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "A workforce assignment outside its validity window cannot be activated.");
+        }
         UUID receiptId = UUID.randomUUID();
         TenantAppAdoptionDtos.Assignment changed = repository.transitionAssignment(
                 tenantId, assignmentId, command.version(), "APPROVED", "ACTIVE",
-                actorId, command.reason().trim(), receiptId, clock.instant());
+                actorId, command.reason().trim(), receiptId, now);
         event(tenantId, "WORKFORCE_ASSIGNMENT", assignmentId, "ASSIGNMENT_ACTIVATED",
                 actorId, correlationId, changed.version(), Map.of(
                         "activationReceiptId", receiptId.toString(),
@@ -339,13 +390,18 @@ public class TenantAppAdoptionService {
             TenantAppAdoptionDtos.RevokeCommand command) {
         TenantAppAdoptionDtos.Assignment current = repository.requireAssignment(
                 tenantId, assignmentId);
+        if (!Set.of("APPROVED", "ACTIVE").contains(current.lifecycleState())) {
+            throw new BaseException(
+                    ErrorCode.INVALID_STATE,
+                    "Only an approved or active workforce assignment can be revoked.");
+        }
         TenantAppAdoptionDtos.Installation installation = repository.requireInstallation(
                 tenantId, current.installationId());
         authorization.requireAppResponsibility(
                 tenantId, actorId, "APP_ACCESS_MANAGER", installation.appResourceKey(),
                 correlationId, "TENANT_APP_WORKFORCE_ASSIGNMENT", assignmentId.toString());
         TenantAppAdoptionDtos.Assignment changed = repository.transitionAssignment(
-                tenantId, assignmentId, command.version(), "ACTIVE", "REVOKED",
+                tenantId, assignmentId, command.version(), current.lifecycleState(), "REVOKED",
                 actorId, command.reason().trim(), null, clock.instant());
         event(tenantId, "WORKFORCE_ASSIGNMENT", assignmentId, "ASSIGNMENT_REVOKED",
                 actorId, correlationId, changed.version(), Map.of("reason", command.reason().trim()));
@@ -407,12 +463,16 @@ public class TenantAppAdoptionService {
                 && authority.approvers().contains(installation.appResourceKey())
                 && !Objects.equals(assignment.requestedBy(), actorId)
                 && !Objects.equals(assignment.userId(), actorId)) {
-            actions.add("APPROVE");
+            if (assignment.validTo() == null
+                    || assignment.validTo().isAfter(clock.instant())) {
+                actions.add("APPROVE");
+            }
             actions.add("REJECT");
         }
         if ("APPROVED".equals(assignment.lifecycleState())
                 && authority.managers().contains(installation.appResourceKey())) {
-            if (!Objects.equals(assignment.requestedBy(), actorId)
+            if (isEffectiveAt(assignment, clock.instant())
+                    && !Objects.equals(assignment.requestedBy(), actorId)
                     && !Objects.equals(assignment.approvedBy(), actorId)
                     && !Objects.equals(assignment.userId(), actorId)) {
                 actions.add("ACTIVATE");
@@ -439,6 +499,12 @@ public class TenantAppAdoptionService {
             Set<String> owners,
             Set<String> approvers,
             Set<String> managers) {
+    }
+
+    private boolean isEffectiveAt(
+            TenantAppAdoptionDtos.Assignment assignment, Instant instant) {
+        return (assignment.validFrom() == null || !assignment.validFrom().isAfter(instant))
+                && (assignment.validTo() == null || assignment.validTo().isAfter(instant));
     }
 
     private void event(

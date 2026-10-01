@@ -8,6 +8,7 @@ import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
 import org.postgresql.ds.PGSimpleDataSource;
+import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
@@ -93,6 +94,34 @@ class TenantSettingRegistryPostgresTest {
     }
 
     @Test
+    void retiresHistoricalMfaOwnerV1AndPublishesLockedV4() {
+        var active = repository.requireOwner("authentication.requireMfa");
+
+        assertThat(active.ownerKey()).isEqualTo("AUTH_POLICY");
+        assertThat(active.ownerVersion()).isEqualTo(4L);
+        assertThat(active.overridePolicy()).isEqualTo("OWNER_LOCKED");
+        assertThat(active.defaultValue()).isEqualTo(BooleanNode.FALSE);
+        assertThat(active.lifecycleState()).isEqualTo("ACTIVE");
+        assertThat(jdbc.queryForObject("""
+                SELECT override_policy = 'OWNER_LOCKED'
+                       AND default_value = 'false'::jsonb
+                       AND lifecycle_state = 'RETIRED'
+                  FROM sys_tenant_setting_owner_registry
+                WHERE owner_key = 'AUTH_POLICY'
+                   AND owner_version = 1
+                   AND setting_key = 'authentication.requireMfa'
+                """, Boolean.class)).isTrue();
+        assertThatThrownBy(() -> jdbc.update("""
+                UPDATE sys_tenant_setting_owner_registry
+                   SET lifecycle_state = 'ACTIVE'
+                WHERE owner_key = 'AUTH_POLICY'
+                   AND owner_version = 1
+                """))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("tenant setting owner descriptors are immutable");
+    }
+
+    @Test
     void doesNotReuseAnActorsPermissionAcrossTenantBoundary() {
         long otherTenantId = jdbc.queryForObject("""
                 INSERT INTO com_tenants (code, name, status)
@@ -133,5 +162,53 @@ class TenantSettingRegistryPostgresTest {
         assertThat(publication.proposedState().get("requireMfa").booleanValue()).isFalse();
         assertThat(publication.receiptId()).isEqualTo(receiptId);
         assertThat(publication.publishedAt()).isNotNull();
+    }
+
+    @Test
+    void prioritizesAnActionableChangeBeforeTheBoundedTerminalHistory() {
+        long tenantId = jdbc.queryForObject("""
+                INSERT INTO com_tenants (code, name, status)
+                VALUES (?, 'S11 bounded history', 'ACTIVE')
+                RETURNING tenant_id
+                """, Long.class, "s11-bounded-" + UUID.randomUUID());
+        jdbc.update("""
+                INSERT INTO com_tenant_setting_override_changes (
+                    change_id, tenant_id, setting_key, owner_key, owner_version,
+                    desired_state, before_value, proposed_value, before_hash, proposed_hash,
+                    lifecycle_state, impact_count, impact_coverage, impact_observed_at,
+                    justification, requested_by, created_at, updated_at)
+                SELECT gen_random_uuid(), ?, 'identity.defaultLocale',
+                       'AUTH_TENANT_DIRECTORY', 1, 'VALUE', '"en"'::jsonb, '"ko"'::jsonb,
+                       repeat('a', 64), repeat('b', 64), 'REJECTED', 0,
+                       'INTERNAL_AUTH_ACTIVE_IDENTITIES', CURRENT_TIMESTAMP,
+                       'Bounded history query fixture.', 1,
+                       CURRENT_TIMESTAMP - INTERVAL '1 hour'
+                           + make_interval(secs => fixture),
+                       CURRENT_TIMESTAMP - INTERVAL '1 hour'
+                           + make_interval(secs => fixture)
+                  FROM generate_series(1, 101) fixture
+                """, tenantId);
+        UUID actionableId = UUID.randomUUID();
+        jdbc.update("""
+                INSERT INTO com_tenant_setting_override_changes (
+                    change_id, tenant_id, setting_key, owner_key, owner_version,
+                    desired_state, before_value, proposed_value, before_hash, proposed_hash,
+                    lifecycle_state, impact_count, impact_coverage, impact_observed_at,
+                    justification, requested_by, created_at, updated_at)
+                VALUES (?, ?, 'identity.defaultLocale', 'AUTH_TENANT_DIRECTORY', 1,
+                        'VALUE', '"en"'::jsonb, '"ko"'::jsonb,
+                        repeat('c', 64), repeat('d', 64), 'DRAFT', 0,
+                        'INTERNAL_AUTH_ACTIVE_IDENTITIES',
+                        CURRENT_TIMESTAMP - INTERVAL '2 days',
+                        'Older actionable change must remain visible.', 1,
+                        CURRENT_TIMESTAMP - INTERVAL '2 days',
+                        CURRENT_TIMESTAMP - INTERVAL '2 days')
+                """, actionableId, tenantId);
+
+        var changes = repository.changes(tenantId, 101);
+
+        assertThat(changes).hasSize(101);
+        assertThat(changes.get(0).changeId()).isEqualTo(actionableId);
+        assertThat(changes.get(0).lifecycleState()).isEqualTo("DRAFT");
     }
 }

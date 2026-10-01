@@ -30,8 +30,7 @@ import java.util.stream.Collectors;
 
 @Service
 public class AuditControlService {
-
-    private static final int MAX_BATCH_SIZE = 200;
+    private static final int MAX_BATCH_SIZE = 200, MAX_POLICY_REVISION_HISTORY_LIMIT = 100;
     private static final Set<String> FINDING_STATES = Set.of(
             "OPEN", "ACKNOWLEDGED", "INVESTIGATING", "RESOLVED", "DISMISSED");
     private static final Set<String> CASE_STATES = Set.of(
@@ -444,13 +443,14 @@ public class AuditControlService {
     @Transactional
     public AuditControlDtos.RetentionPolicy updatePolicy(
             Long tenantId, String actorId, AuditControlDtos.RetentionPolicyUpdate request) {
-        throw invalid(
-                "Direct audit policy updates are disabled. Create and approve a policy revision.");
+        throw invalid("Direct audit policy updates are disabled. Create and approve a policy revision.");
     }
-
     @Transactional
-    public List<AuditControlDtos.PolicyRevision> policyRevisions(Long tenantId) {
-        return repository.policyRevisions(tenantId);
+    public AuditControlDtos.PolicyRevisionPage policyRevisions(Long tenantId, int requestedLimit) {
+        int limit = Math.min(MAX_POLICY_REVISION_HISTORY_LIMIT, Math.max(1, requestedLimit));
+        List<AuditControlDtos.PolicyRevision> fetched = repository.policyRevisions(tenantId, limit + 1);
+        return new AuditControlDtos.PolicyRevisionPage(fetched.stream().limit(limit).toList(),
+                limit, fetched.size() > limit);
     }
 
     @Transactional
@@ -461,21 +461,20 @@ public class AuditControlService {
         requireReason(request.reason());
         validatePolicy(policyUpdate(request));
         validateIncidentCase(tenantId, request.incidentCaseId());
-        AuditControlDtos.RetentionPolicy active = repository.policy(tenantId);
+        AuditControlDtos.RetentionPolicy active = repository.lockPolicyForRevisionDraft(tenantId);
         Map<String, Object> diff = policyDiff(active, request);
-        if (diff.isEmpty()) {
-            throw invalid("The policy revision must change at least one active control.");
-        }
-        UUID revisionId = repository.createPolicyRevision(
-                tenantId, actorId, request, active.activeRevisionId(), null,
-                diff, policyContentHash(request));
-        recordControl(
-                tenantId, actorId, "audit.policy-revision.created", "AUDIT_POLICY_REVISION",
-                revisionId.toString(), Map.of(
-                        "baselineRevisionId", active.activeRevisionId().toString(),
-                        "changedControls", diff.keySet(),
-                        "incidentCaseId", optionalId(request.incidentCaseId())));
-        return requirePolicyRevision(tenantId, revisionId);
+        if (diff.isEmpty()) throw invalid("The policy revision must change at least one active control.");
+        AuditControlDtos.PolicyImpactSnapshot impact = repository.policyImpactSnapshot(tenantId, active, request, Instant.now());
+        UUID revisionId = repository.createPolicyRevision(tenantId, actorId, request,
+                active.activeRevisionId(), null, diff, policyContentHash(request), impact);
+        AuditControlDtos.PolicyRevision created = requirePolicyRevision(tenantId, revisionId);
+        recordControl(tenantId, actorId, "audit.policy-revision.created",
+                "AUDIT_POLICY_REVISION", revisionId.toString(), Map.of(
+                        "baselineRevisionId", active.activeRevisionId().toString(), "changedControls", diff.keySet(),
+                        "incidentCaseId", optionalId(request.incidentCaseId()),
+                        "impactSha256", created.impactSha256(),
+                        "affectedAuditEventCount", impact.affectedAuditEventCount(), "impactCoverageState", impact.coverageState()));
+        return created;
     }
 
     @Transactional
@@ -568,11 +567,11 @@ public class AuditControlService {
             AuditControlDtos.PolicyRollbackRequest request) {
         requireReason(request.reason());
         validateIncidentCase(tenantId, request.incidentCaseId());
+        AuditControlDtos.RetentionPolicy active = repository.lockPolicyForRevisionDraft(tenantId);
         AuditControlDtos.PolicyRevision target = requirePolicyRevision(tenantId, revisionId);
         if (!Set.of("PUBLISHED", "SUPERSEDED").contains(target.lifecycleState())) {
             throw invalid("Only a previously published audit policy can be restored.");
         }
-        AuditControlDtos.RetentionPolicy active = repository.policy(tenantId);
         if (revisionId.equals(active.activeRevisionId())) {
             throw invalid("The selected audit policy revision is already active.");
         }
@@ -582,16 +581,17 @@ public class AuditControlService {
                 target.integrityEnabled(), target.highRiskThreshold(),
                 request.reason(), request.incidentCaseId());
         Map<String, Object> diff = policyDiff(active, rollback);
-        UUID rollbackId = repository.createPolicyRevision(
-                tenantId, actorId, rollback, active.activeRevisionId(), revisionId,
-                diff, policyContentHash(rollback));
-        recordControl(
-                tenantId, actorId, "audit.policy-revision.rollback-created",
-                "AUDIT_POLICY_REVISION", rollbackId.toString(), Map.of(
-                        "rollbackOfRevisionId", revisionId.toString(),
+        AuditControlDtos.PolicyImpactSnapshot impact = repository.policyImpactSnapshot(tenantId, active, rollback, Instant.now());
+        UUID rollbackId = repository.createPolicyRevision(tenantId, actorId, rollback,
+                active.activeRevisionId(), revisionId, diff, policyContentHash(rollback), impact);
+        AuditControlDtos.PolicyRevision created = requirePolicyRevision(tenantId, rollbackId);
+        recordControl(tenantId, actorId, "audit.policy-revision.rollback-created",
+                "AUDIT_POLICY_REVISION", rollbackId.toString(), Map.of("rollbackOfRevisionId", revisionId.toString(),
                         "baselineRevisionId", active.activeRevisionId().toString(),
-                        "incidentCaseId", optionalId(request.incidentCaseId())));
-        return requirePolicyRevision(tenantId, rollbackId);
+                        "incidentCaseId", optionalId(request.incidentCaseId()),
+                        "impactSha256", created.impactSha256(),
+                        "affectedAuditEventCount", impact.affectedAuditEventCount(), "impactCoverageState", impact.coverageState()));
+        return created;
     }
 
     @Transactional

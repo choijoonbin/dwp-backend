@@ -1,5 +1,6 @@
 package com.dwp.services.approval.signatures;
 
+import com.dwp.services.approval.security.ApprovalPilotPepRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.JWSAlgorithm;
 import com.nimbusds.jose.jwk.*;
@@ -18,18 +19,20 @@ public class ApprovalSignatureCommandReceiptConfiguration {
         var json=new ApprovalSignatureCanonical(mapper);return new ApprovalSignatureCommandReceiptRepository(jdbc,json,new ApprovalSignatureReceiptCurrentRepository(jdbc,json,()->keySha(env)));
     }
     @Bean ApprovalSignatureCommandReceiptAuthority.Source approvalSignatureCommandReceiptSource(Environment env,ObjectProvider<HttpServletRequest> requests,
-            ObjectProvider<ApprovalSignatureSourceKeys> keys,ObjectProvider<ApprovalSignatureAuthorityClient> client,ApprovalSignatureCommandReceiptRepository repository,ObjectMapper mapper){
+            ObjectProvider<ApprovalSignatureSourceKeys> keys,ObjectProvider<ApprovalSignatureAuthorityClient> client,ApprovalSignatureCommandReceiptRepository repository,
+            ObjectMapper mapper,ApprovalPilotPepRegistry registry){
         var json=new ApprovalSignatureCanonical(mapper);Clock clock=Clock.systemUTC();return new ApprovalSignatureCommandReceiptSource(env.getProperty("dwp.approval.internal-signatures.source.enabled",Boolean.class,false),
-                requests::getObject,new ApprovalSignatureReceiptInstalledSource(json,clock),keys::getObject,client::getObject,repository,json,clock);
+                requests::getObject,new ApprovalSignatureReceiptInstalledSource(json,clock,registry),keys::getObject,client::getObject,repository,json,clock);
     }
     @Bean @Lazy ApprovalSignatureCommandReceiptAuthority approvalSignatureCommandReceiptAuthority(ApprovalSignatureCommandReceiptAuthority.Source source,Environment env,ObjectMapper mapper){
         try{return new ApprovalSignatureCommandReceiptAuthority(source,JWKSet.parse(env.getRequiredProperty("dwp.approval.internal-signatures.authority-public-jwks")),Clock.systemUTC(),new ApprovalSignatureCanonical(mapper));}
         catch(Exception missing){throw ApprovalSignatureCanonical.unavailable();}
     }
     @Bean ApprovalSignatureCommandReceiptService approvalSignatureCommandReceiptService(Environment env,ObjectProvider<ApprovalSignatureCommandReceiptAuthority> authority,
-            ObjectProvider<HttpServletRequest> requests,ApprovalSignatureCommandReceiptRepository repository,ObjectMapper mapper,PlatformTransactionManager tx){
+            ObjectProvider<HttpServletRequest> requests,ApprovalSignatureCommandReceiptRepository repository,ObjectMapper mapper,PlatformTransactionManager tx,
+            ApprovalPilotPepRegistry registry){
         var json=new ApprovalSignatureCanonical(mapper);var reads=new TransactionTemplate(tx);reads.setReadOnly(true);return new ApprovalSignatureCommandReceiptService(
-                env.getProperty("dwp.approval.internal-signatures.source.enabled",Boolean.class,false),authority::getObject,new ApprovalSignatureReceiptInstalledSource(json,Clock.systemUTC()),requests::getObject,repository,json,reads);
+                env.getProperty("dwp.approval.internal-signatures.source.enabled",Boolean.class,false),authority::getObject,new ApprovalSignatureReceiptInstalledSource(json,Clock.systemUTC(),registry),requests::getObject,repository,json,reads);
     }
     private static String keySha(Environment env){
         try{var key=RSAKey.parse(env.getRequiredProperty("dwp.approval.internal-signatures.signing-private-jwk"));

@@ -108,6 +108,16 @@ public final class TenantSettingRegistryDtos {
         }
     }
 
+    public record ChangePage(
+            List<Change> items,
+            int limit,
+            boolean hasMore) {
+
+        public ChangePage {
+            items = List.copyOf(items);
+        }
+    }
+
     public record Provenance(
             String level,
             String localizedOwnerLabelKey,

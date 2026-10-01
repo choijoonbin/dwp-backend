@@ -22,7 +22,7 @@ import java.util.stream.Collectors;
 
 import static com.dwp.services.approval.security.ApprovalPepProjectionJson.*;
 
-/** Exact release31 PEP, with every prior Approval projection validated at startup. */
+/** Exact release32 PEP, with every prior Approval projection validated at startup. */
 @Component
 public final class ApprovalPilotPepRegistry {
 
@@ -56,9 +56,12 @@ public final class ApprovalPilotPepRegistry {
             "product-authorization/approval-pilot-pep-v19.generated.json";
     static final String V31_RESOURCE =
             "product-authorization/approval-pilot-pep-v31.generated.json";
+    static final String V32_RESOURCE =
+            "product-authorization/approval-pilot-pep-v32.generated.json";
 
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final RegistryRef registryRef;
     private final Map<String, JsonNode> capabilities;
     private final Map<String, JsonNode> policies;
     private final Map<String, JsonNode> expressions;
@@ -71,7 +74,7 @@ public final class ApprovalPilotPepRegistry {
     }
 
     ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock) {
-        this(objectMapper, clock, 31);
+        this(objectMapper, clock, 32);
     }
 
     ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock, boolean baselineOnly) {
@@ -81,7 +84,7 @@ public final class ApprovalPilotPepRegistry {
     ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock, int version) {
         this.objectMapper = objectMapper;
         this.clock = clock;
-        require(Set.of(2L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 19L, 31L)
+        require(Set.of(2L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 19L, 31L, 32L)
                         .contains((long) version),
                 "Unsupported Approval PEP version");
         if (version != 2) {
@@ -100,9 +103,14 @@ public final class ApprovalPilotPepRegistry {
             case 15 -> V15_RESOURCE;
             case 19 -> V19_RESOURCE;
             case 31 -> V31_RESOURCE;
+            case 32 -> V32_RESOURCE;
             default -> throw new IllegalStateException("Unsupported Approval PEP version");
         });
         ApprovalPepProjectionLineage.validateEnvelope(objectMapper, projection, version);
+        JsonNode ref = projection.path("registryRef");
+        registryRef = new RegistryRef(
+                ref.path("bundleKey").asText(), ref.path("version").asInt(),
+                ref.path("sha256").asText());
         if (version != 2) ApprovalPepProjectionLineage.validateSuperset(readProjection(RESOURCE), projection);
         if (version == 8) {
             new ApprovalPilotPepRegistry(objectMapper, clock, 7);
@@ -161,6 +169,12 @@ public final class ApprovalPilotPepRegistry {
             ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
             ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
         }
+        if (version == 32) {
+            new ApprovalPilotPepRegistry(objectMapper, clock, 31);
+            ApprovalPepProjectionLineage.validateSuperset(readProjection(V31_RESOURCE), projection);
+            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
+            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
+        }
         if (version != 2) ApprovalWorkProjectionSchemaContract.validateResource(objectMapper);
         capabilities = index(projection, "capabilities", "contractKey");
         policies = index(projection, "accessPolicies", "accessPolicyKey");
@@ -168,6 +182,11 @@ public final class ApprovalPilotPepRegistry {
         predicates = index(projection, "predicatePolicies", "predicatePolicyKey");
         bindings = compile(projection);
         validateClosure(projection);
+    }
+
+    /** Immutable registry identity already validated with the active PEP projection. */
+    public RegistryRef registryRef() {
+        return registryRef;
     }
 
     public Decision authorize(RequestEvidence evidence) {
@@ -460,7 +479,7 @@ public final class ApprovalPilotPepRegistry {
             case 8 -> 28;
             case 9 -> 32;
             case 10, 11 -> 37;
-            case 12, 13, 14, 15, 19, 31 -> 39;
+            case 12, 13, 14, 15, 19, 31, 32 -> 39;
             default -> throw new IllegalStateException("Unsupported Approval PEP version");
         };
         int expectedPredicates = switch (version) {
@@ -469,7 +488,7 @@ public final class ApprovalPilotPepRegistry {
             case 8 -> 10;
             case 9 -> 13;
             case 10 -> 16;
-            case 11, 12, 13, 14, 15, 19, 31 -> 18;
+            case 11, 12, 13, 14, 15, 19, 31, 32 -> 18;
             default -> throw new IllegalStateException("Unsupported Approval PEP version");
         };
         require(capabilities.size() == expectedCapabilities && policies.size() == 1
@@ -688,6 +707,8 @@ public final class ApprovalPilotPepRegistry {
             String routeContractKey, String routeKind, String method,
             String publicPath, String servicePath) {
     }
+
+    public record RegistryRef(String bundleKey, int version, String sha256) { }
 
     private record Profile(
             String profileKey, int precedence, boolean readOnly,

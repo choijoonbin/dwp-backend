@@ -4,30 +4,21 @@ import static com.dwp.services.approval.signatures.ApprovalSignatureCanonical.*;
 import com.dwp.services.approval.security.*;
 import com.dwp.services.approval.signatures.ApprovalSignatureAuthority.Binding;
 import com.dwp.services.approval.signatures.ApprovalSignatureAuthority.Operation;
-import com.fasterxml.jackson.databind.JsonNode;
 import jakarta.servlet.http.HttpServletRequest;
 import java.time.Clock;
-import java.time.Instant;
-import java.util.List;
 import java.util.Set;
 
 /** Installed PEP evidence is an owner-source prerequisite, never a fresh Auth capability. */
 final class ApprovalSignatureInstalledSource {
     private final ApprovalSignatureCanonical canonical;
     private final Clock clock;
-    ApprovalSignatureInstalledSource(ApprovalSignatureCanonical canonical, Clock clock) { this.canonical = canonical; this.clock = clock; }
+    private final ApprovalPilotPepRegistry registry;
+    ApprovalSignatureInstalledSource(ApprovalSignatureCanonical canonical, Clock clock, ApprovalPilotPepRegistry registry) {
+        this.canonical = canonical; this.clock = clock; this.registry = registry;
+    }
     record Seal(ApprovalRequestContext.Actor actor, ApprovalDecisionRevisionContext.Evidence evidence, String mode, String registrySha256) { }
     Seal capture(HttpServletRequest request, Binding binding) {
-        String registry;
-        try (var stream = new org.springframework.core.io.ClassPathResource("product-authorization/approval-pilot-pep-v12.generated.json").getInputStream()) {
-            byte[] bytes = stream.readNBytes(1048577); if (bytes.length > 1048576) throw unavailable();
-            JsonNode projection = canonical.read(new String(bytes, java.nio.charset.StandardCharsets.UTF_8), JsonNode.class);
-            var ref = projection.path("registryRef");
-            if (!ref.path("version").isIntegralNumber() || ref.path("version").intValue() != 12
-                    || !"product-surfaces".equals(ref.path("bundleKey").asText()) || !ref.path("sha256").isTextual()
-                    || !ref.path("sha256").textValue().matches("[a-f0-9]{64}")) throw unavailable();
-            registry = ref.path("sha256").textValue();
-        } catch (Exception missing) { throw unavailable(); }
+        String registrySha256 = registry.registryRef().sha256();
         if (request == null || binding.commandBody() == null || !binding.bodySha256().equals(canonical.digest(binding.commandBody()))
                 || !binding.operation().method().equals(request.getMethod()) || !binding.operation().path(binding.objectId()).equals(request.getRequestURI())) throw denied();
         var evidence = ApprovalDecisionRevisionContext.current().orElseThrow(ApprovalSignatureCanonical::unavailable);
@@ -61,7 +52,7 @@ final class ApprovalSignatureInstalledSource {
         }
         if ("POST".equals(binding.operation().method()) && (!binding.idempotencyKey().equals(single(request, "Idempotency-Key"))
                 || !binding.idempotencyKey().equals(binding.commandBody().path("idempotencyKey").asText()))) throw denied();
-        return new Seal(actor, evidence, mode, registry);
+        return new Seal(actor, evidence, mode, registrySha256);
     }
     void unchanged(Seal original, HttpServletRequest request, Binding binding) { if (!original.equals(capture(request, binding))) throw conflict(); }
     static String single(HttpServletRequest request, String name) {

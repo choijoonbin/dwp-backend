@@ -7,35 +7,58 @@ import com.dwp.services.provider.governance.DataPolicyRepository;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.CreateTenantLifecycleRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.TenantLifecycleDecisionRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.TenantLifecycleRequest;
+import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.TenantLifecycleRequestPage;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceRepository.TenantLifecycleRequestRow;
 import com.dwp.services.provider.security.ProviderRequestContext;
 import org.springframework.dao.DataIntegrityViolationException;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
 
 final class TenantLifecycleGovernance {
 
+    private static final int LIST_LIMIT = 100;
+    private static final Set<String> CANCELLABLE_STATES =
+            Set.of("DRAFT", "BLOCKED_BY_HOLD", "PENDING_APPROVAL");
+
     private final ResourceGovernanceRepository repository;
     private final DataPolicyRepository dataPolicyRepository;
     private final ProviderAuditService audit;
+    private final Clock clock;
 
     TenantLifecycleGovernance(
             ResourceGovernanceRepository repository,
             DataPolicyRepository dataPolicyRepository,
             ProviderAuditService audit) {
+        this(repository, dataPolicyRepository, audit, Clock.systemUTC());
+    }
+
+    TenantLifecycleGovernance(
+            ResourceGovernanceRepository repository,
+            DataPolicyRepository dataPolicyRepository,
+            ProviderAuditService audit,
+            Clock clock) {
         this.repository = repository;
         this.dataPolicyRepository = dataPolicyRepository;
         this.audit = audit;
+        this.clock = clock;
     }
 
-    public List<TenantLifecycleRequest> lifecycleRequests(UUID tenantId) {
+    public TenantLifecycleRequestPage lifecycleRequests(UUID tenantId) {
         ProviderRequestContext.requirePermission(ResourceGovernanceService.RESOURCE_READ);
         ProviderRequestContext.requirePermission("ESTATE_READ");
-        return repository.lifecycleRequests(tenantId).stream().map(this::lifecycleRequest).toList();
+        List<TenantLifecycleRequestRow> rows = repository.lifecycleRequests(
+                tenantId, LIST_LIMIT + 1);
+        return new TenantLifecycleRequestPage(
+                rows.stream().limit(LIST_LIMIT).map(this::lifecycleRequest).toList(),
+                LIST_LIMIT,
+                rows.size() > LIST_LIMIT);
     }
 
     public TenantLifecycleRequest createLifecycleRequest(
@@ -126,6 +149,43 @@ final class TenantLifecycleGovernance {
         return lifecycleRequest(saved);
     }
 
+    public TenantLifecycleRequest cancelLifecycleRequest(
+            UUID requestId,
+            ResourceGovernanceDtos.VersionedReasonRequest request,
+            String correlationId) {
+        requireTenantSelectionWrite();
+        TenantLifecycleRequestRow before = repository.lockLifecycleRequest(requestId)
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        Long actorId = ProviderRequestContext.require().operatorId();
+        if (!Objects.equals(actorId, before.requestedBy())) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "Only the lifecycle request owner can cancel this request.");
+        }
+        if (!CANCELLABLE_STATES.contains(before.lifecycleState())) {
+            throw conflict("Only a current pre-decision lifecycle request can be cancelled.");
+        }
+        String reason = request.reason().trim();
+        if (!repository.cancelLifecycleRequest(
+                requestId, request.version(), actorId, reason)) {
+            throw conflict("The lifecycle request changed or can no longer be cancelled.");
+        }
+        TenantLifecycleRequestRow saved = requireLifecycleRequest(requestId);
+        audit.success(
+                "provider.tenant-lifecycle.request-cancelled",
+                "TENANT_LIFECYCLE_REQUEST",
+                requestId.toString(),
+                saved.tenantId(),
+                null,
+                correlationId,
+                Map.of(
+                        "beforeState", before.lifecycleState(),
+                        "afterState", saved.lifecycleState(),
+                        "reason", reason,
+                        "executionState", saved.executionState()));
+        return lifecycleRequest(saved);
+    }
+
     public TenantLifecycleRequest decideLifecycleRequest(
             UUID requestId,
             TenantLifecycleDecisionRequest request,
@@ -176,9 +236,11 @@ final class TenantLifecycleGovernance {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
     }
     private HoldEvaluation evaluateGlobalLegalHold() {
+        Instant evaluatedAt = clock.instant();
         List<String> evidence = dataPolicyRepository.activePolicies("LEGAL_HOLD").stream()
                 .filter(policy -> "GLOBAL".equals(policy.scopeType()))
                 .filter(policy -> policy.rule().path("active").asBoolean(false))
+                .filter(policy -> policy.isEffectiveAt(evaluatedAt))
                 .map(policy -> "data-policy://" + policy.policyId() + "/revisions/" + policy.revisionId())
                 .sorted()
                 .toList();

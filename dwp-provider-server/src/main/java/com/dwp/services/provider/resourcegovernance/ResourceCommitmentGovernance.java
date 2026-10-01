@@ -6,6 +6,7 @@ import com.dwp.services.provider.audit.ProviderAuditService;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.ActiveOverride;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.AppendLedgerEntryRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.Commitment;
+import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.CommitmentPage;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.ControlPeriod;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.InternalEvidenceFreshness;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.LedgerEntry;
@@ -28,6 +29,7 @@ import java.util.UUID;
 final class ResourceCommitmentGovernance {
 
     private static final int MAX_LEDGER_ENTRIES = 250;
+    private static final int LIST_LIMIT = 100;
     private final ResourceGovernanceRepository repository;
     private final ProviderAuditService audit;
 
@@ -38,9 +40,13 @@ final class ResourceCommitmentGovernance {
         this.audit = audit;
     }
 
-    public List<Commitment> commitments(UUID tenantId) {
+    public CommitmentPage commitments(UUID tenantId) {
         ProviderRequestContext.requirePermission(ResourceGovernanceService.RESOURCE_READ);
-        return repository.commitments(tenantId).stream().map(this::commitment).toList();
+        List<CommitmentRow> rows = repository.commitments(tenantId, LIST_LIMIT + 1);
+        return new CommitmentPage(
+                rows.stream().limit(LIST_LIMIT).map(this::commitment).toList(),
+                LIST_LIMIT,
+                rows.size() > LIST_LIMIT);
     }
 
     public LedgerPage ledger(UUID tenantId, String resourceKey, int requestedLimit) {

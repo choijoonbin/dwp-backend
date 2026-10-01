@@ -74,7 +74,8 @@ class PlatformOpenApiSnapshotExportTest {
                         "/v1/personal-settings/privacy/requests",
                         "/v1/personal-settings/privacy/requests/{requestId}/cancel")
                         .forEach(path -> assertThat(paths.has(path)).as(path).isTrue());
-                String personalSettingsSchemas = document.path("components").path("schemas").toString();
+                JsonNode schemas = document.path("components").path("schemas");
+                String personalSettingsSchemas = schemas.toString();
                 assertThat(personalSettingsSchemas)
                         .contains("freshnessState")
                         .contains("offlineBehavior")
@@ -82,6 +83,23 @@ class PlatformOpenApiSnapshotExportTest {
                         .contains("coverageBoundary")
                         .contains("requestFingerprint")
                         .contains("fulfillmentBoundary");
+                JsonNode privacyPage = schemas.path("PrivacyRequestPage").path("properties");
+                assertThat(privacyPage.has("items")).isTrue();
+                assertThat(privacyPage.has("limit")).isTrue();
+                assertThat(privacyPage.has("hasMore")).isTrue();
+                JsonNode catalogOverview = schemas.path("CatalogOverview").path("properties");
+                assertThat(catalogOverview.has("entitiesLimit")).isTrue();
+                assertThat(catalogOverview.has("entitiesHasMore")).isTrue();
+                JsonNode assuranceSummary = schemas.path("AssuranceSummary").path("properties");
+                assertThat(assuranceSummary.has("findingsLimit")).isTrue();
+                assertThat(assuranceSummary.has("findingsHasMore")).isTrue();
+                JsonNode policyRevision = schemas.path("PolicyRevision").path("properties");
+                assertThat(policyRevision.has("impactSnapshot")).isTrue();
+                assertThat(policyRevision.has("impactSha256")).isTrue();
+                JsonNode policyRevisionPage = schemas.path("PolicyRevisionPage").path("properties");
+                assertThat(policyRevisionPage.has("items")).isTrue();
+                assertThat(policyRevisionPage.has("limit")).isTrue();
+                assertThat(policyRevisionPage.has("hasMore")).isTrue();
                 assertThat(paths.has("/v1/workspace/activity/events/{id}")).isTrue();
                 assertThat(paths.has("/v1/workspace/activity/executions/summary")).isTrue();
                 assertThat(paths.has("/v1/workspace/activity/events/{id}/evidence")).isTrue();

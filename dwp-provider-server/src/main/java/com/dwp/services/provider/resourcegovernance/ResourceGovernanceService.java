@@ -10,6 +10,7 @@ import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.Artif
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.ArtifactRolloutPlan;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.AssessArtifactCompatibilityRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.Commitment;
+import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.CommitmentPage;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.CreateArtifactManifestRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.CreateArtifactRolloutPlanRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.CreateResourceCommitmentChangeRequest;
@@ -17,9 +18,11 @@ import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.Creat
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.LedgerEntry;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.LedgerPage;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.ResourceCommitmentChange;
+import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.ResourceCommitmentChangePage;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.ResourceCommitmentChangeDecisionRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.TenantLifecycleDecisionRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.TenantLifecycleRequest;
+import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.TenantLifecycleRequestPage;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.UpsertCommitmentRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -61,7 +64,7 @@ public class ResourceGovernanceService {
     }
 
     @Transactional(readOnly = true)
-    public List<Commitment> commitments(UUID tenantId) {
+    public CommitmentPage commitments(UUID tenantId) {
         return commitments.commitments(tenantId);
     }
 
@@ -89,7 +92,7 @@ public class ResourceGovernanceService {
     }
 
     @Transactional(readOnly = true)
-    public List<ResourceCommitmentChange> resourceChanges(UUID tenantId) {
+    public ResourceCommitmentChangePage resourceChanges(UUID tenantId) {
         return commitmentChanges.resourceChanges(tenantId);
     }
 
@@ -119,7 +122,7 @@ public class ResourceGovernanceService {
     }
 
     @Transactional(readOnly = true)
-    public List<TenantLifecycleRequest> lifecycleRequests(UUID tenantId) {
+    public TenantLifecycleRequestPage lifecycleRequests(UUID tenantId) {
         return tenantLifecycle.lifecycleRequests(tenantId);
     }
 
@@ -148,6 +151,14 @@ public class ResourceGovernanceService {
     }
 
     @Transactional
+    public TenantLifecycleRequest cancelLifecycleRequest(
+            UUID requestId,
+            ResourceGovernanceDtos.VersionedReasonRequest request,
+            String correlationId) {
+        return tenantLifecycle.cancelLifecycleRequest(requestId, request, correlationId);
+    }
+
+    @Transactional
     public TenantLifecycleRequest decideLifecycleRequest(
             UUID requestId,
             TenantLifecycleDecisionRequest request,
@@ -156,7 +167,7 @@ public class ResourceGovernanceService {
     }
 
     @Transactional(readOnly = true)
-    public List<ArtifactManifest> artifacts() {
+    public ResourceGovernanceDtos.ArtifactManifestPage artifacts() {
         return artifactManifests.artifacts();
     }
 
@@ -192,7 +203,7 @@ public class ResourceGovernanceService {
     }
 
     @Transactional(readOnly = true)
-    public List<ArtifactRolloutPlan> plans() {
+    public ResourceGovernanceDtos.ArtifactRolloutPlanPage plans() {
         return artifactRollouts.plans();
     }
 

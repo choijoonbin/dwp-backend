@@ -4,6 +4,7 @@ import com.dwp.services.approval.document.ApprovalDocumentCanonical;
 import com.dwp.services.approval.document.ApprovalDocumentRenderer;
 import com.dwp.services.approval.security.ApprovalStepUpVerifier;
 import com.dwp.services.approval.security.ApprovalStepUpReplayRepository;
+import com.dwp.services.approval.security.ApprovalPilotPepRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.JWKSet;
 import jakarta.servlet.http.HttpServletRequest;
@@ -19,9 +20,9 @@ import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 @Configuration(proxyBeanMethods = false)
 public class ApprovalSignatureVerifiedSourceConfiguration {
     @Bean ApprovalSignatureHighRiskGuard approvalSignatureHighRiskGuard(ObjectProvider<HttpServletRequest> requests, ObjectMapper mapper,
-            ApprovalStepUpVerifier verifier, ApprovalStepUpReplayRepository replay) {
+            ApprovalStepUpVerifier verifier, ApprovalStepUpReplayRepository replay, ApprovalPilotPepRegistry registry) {
         Clock clock=Clock.systemUTC();
-        return new ApprovalSignatureHighRiskGuard(new ApprovalSignatureInstalledSource(new ApprovalSignatureCanonical(mapper),clock),
+        return new ApprovalSignatureHighRiskGuard(new ApprovalSignatureInstalledSource(new ApprovalSignatureCanonical(mapper),clock,registry),
                 requests::getObject,verifier,replay,clock);
     }
     @Bean @Lazy ApprovalSignatureSourceKeys approvalSignatureSourceKeys(Environment env) { return new ApprovalSignatureSourceKeys(env); }
@@ -43,10 +44,11 @@ public class ApprovalSignatureVerifiedSourceConfiguration {
     }
     @Bean ApprovalSignatureAuthority.Source approvalSignatureVerifiedSource(Environment env, ObjectProvider<HttpServletRequest> requests,
             ObjectProvider<ApprovalSignatureSourceKeys> keys, ObjectProvider<ApprovalSignatureAuthorityClient> transport,
-            ObjectProvider<ApprovalSignatureSourceRepository> sources, NamedParameterJdbcTemplate jdbc, ObjectMapper mapper, ApprovalStepUpVerifier highRisk) {
+            ObjectProvider<ApprovalSignatureSourceRepository> sources, NamedParameterJdbcTemplate jdbc, ObjectMapper mapper,
+            ApprovalStepUpVerifier highRisk, ApprovalPilotPepRegistry registry) {
         var canonical = new ApprovalSignatureCanonical(mapper); Clock clock = Clock.systemUTC();
         return new ApprovalSignatureVerifiedSourceSupplier(env.getProperty("dwp.approval.internal-signatures.source.enabled", Boolean.class, false),
-                requests::getObject, new ApprovalSignatureInstalledSource(canonical, clock), keys::getObject, transport::getObject,
+                requests::getObject, new ApprovalSignatureInstalledSource(canonical, clock, registry), keys::getObject, transport::getObject,
                 sources::getObject, jdbc, canonical, highRisk, clock);
     }
 }

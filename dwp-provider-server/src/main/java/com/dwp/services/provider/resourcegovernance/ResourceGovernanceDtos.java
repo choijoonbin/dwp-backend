@@ -48,6 +48,16 @@ public final class ResourceGovernanceDtos {
             LedgerTotals totals) {
     }
 
+    public record CommitmentPage(
+            List<Commitment> items,
+            int limit,
+            boolean hasMore) {
+
+        public CommitmentPage {
+            items = List.copyOf(items);
+        }
+    }
+
     /** An approved temporary overlay; it expires automatically at read/enforcement time. */
     public record ActiveOverride(
             UUID changeRequestId,
@@ -155,6 +165,16 @@ public final class ResourceGovernanceDtos {
             Instant updatedAt) {
     }
 
+    public record ResourceCommitmentChangePage(
+            List<ResourceCommitmentChange> items,
+            int limit,
+            boolean hasMore) {
+
+        public ResourceCommitmentChangePage {
+            items = List.copyOf(items);
+        }
+    }
+
     public record ArtifactManifest(
             UUID artifactId,
             String productKey,
@@ -175,7 +195,23 @@ public final class ResourceGovernanceDtos {
             Instant createdAt,
             Instant updatedAt,
             long version,
-            List<ArtifactReview> reviews) {
+            List<ArtifactReview> reviews,
+            int reviewsLimit,
+            boolean reviewsHasMore) {
+
+        public ArtifactManifest {
+            reviews = List.copyOf(reviews);
+        }
+    }
+
+    public record ArtifactManifestPage(
+            List<ArtifactManifest> items,
+            int limit,
+            boolean hasMore) {
+
+        public ArtifactManifestPage {
+            items = List.copyOf(items);
+        }
     }
 
     /** Typed, declared compatibility facts; unavailable or absent declarations remain explicit. */
@@ -252,7 +288,23 @@ public final class ResourceGovernanceDtos {
             Instant createdAt,
             Instant updatedAt,
             RollbackReadiness rollbackReadiness,
-            List<ArtifactRolloutEvidence> evidence) {
+            List<ArtifactRolloutEvidence> evidence,
+            int evidenceLimit,
+            boolean evidenceHasMore) {
+
+        public ArtifactRolloutPlan {
+            evidence = List.copyOf(evidence);
+        }
+    }
+
+    public record ArtifactRolloutPlanPage(
+            List<ArtifactRolloutPlan> items,
+            int limit,
+            boolean hasMore) {
+
+        public ArtifactRolloutPlanPage {
+            items = List.copyOf(items);
+        }
     }
 
     public record ArtifactRolloutEvidence(
@@ -337,6 +389,16 @@ public final class ResourceGovernanceDtos {
             long version,
             Instant createdAt,
             Instant updatedAt) {
+    }
+
+    public record TenantLifecycleRequestPage(
+            List<TenantLifecycleRequest> items,
+            int limit,
+            boolean hasMore) {
+
+        public TenantLifecycleRequestPage {
+            items = List.copyOf(items);
+        }
     }
 
     public record CreateTenantLifecycleRequest(

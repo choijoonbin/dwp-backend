@@ -26,16 +26,41 @@ class PolicyImpactWireInteropTest {
         return constructor.newInstance(fixtureExchange.body(), fixtureExchange.token(), fixtureExchange.sourceJti(), fixtureExchange.transportJti(),
                 fixture.json.digest(fixture.binding()), fixture.json.tree(fixture.binding()), PolicyImpactProtocolFixture.NOW.plusSeconds(30));
     }
-    PolicyImpactAuthorityPort.Current current() {
+    PolicyImpactAuthorityPort.Current current() { return current(9); }
+    PolicyImpactAuthorityPort.Current current(long version) {
         var expiry = PolicyImpactProtocolFixture.NOW.plusSeconds(7);
         var grants = PolicyImpactProtocol.REQUIRED.entrySet().stream().sorted(Map.Entry.comparingByKey())
                 .map(entry -> new PolicyImpactAuthorityPort.Grant(entry.getKey(), entry.getValue(), "RS_APPROVALS", "opaque-original", expiry)).toList();
-        return new PolicyImpactAuthorityPort.Current("auth-" + "c".repeat(64), "policy-9-1-" + "d".repeat(64),
+        return new PolicyImpactAuthorityPort.Current("auth-" + "c".repeat(64), "policy-" + version + "-1-" + "d".repeat(64),
                 "apia-" + "e".repeat(64), "e".repeat(64), PolicyImpactProtocolFixture.NOW, expiry, grants);
     }
     String token(PolicyImpactProtocolFixture.Exchange exchange) {
+        return token(exchange, current());
+    }
+    String token(PolicyImpactProtocolFixture.Exchange exchange, PolicyImpactAuthorityPort.Current current) {
         var proof = fixture.verifier().verify(exchange.body(), exchange.token());
-        return new PolicyImpactAuthorityIssuer(fixture.json, fixture::keys, fixture.clock).issue(proof, current());
+        return new PolicyImpactAuthorityIssuer(fixture.json, fixture::keys, fixture.clock).issue(proof, current);
+    }
+    @Test void issuerAndApprovalConsumerAcceptOnlyTheAuditedPolicyImpactReleaseVersions() throws Exception {
+        var exchange = fixture.exchange(fixture.binding());
+        var proof = fixture.verifier().verify(exchange.body(), exchange.token());
+        var issuer = new PolicyImpactAuthorityIssuer(fixture.json, fixture::keys, fixture.clock);
+        String v32 = issuer.issue(proof, current(32));
+        var consumer = new PolicyImpactSourceAttestationVerifier(ownerKeys(), ownerJson, fixture.clock);
+        assertThatCode(() -> consumer.verify(ownerJson.bytes(Map.of("sourceAttestation", v32)), wireExchange(exchange)))
+                .doesNotThrowAnyException();
+        for (long version : List.of(8L, 10L, 31L, 33L))
+            assertThatThrownBy(() -> issuer.issue(proof, current(version))).isInstanceOf(BaseException.class);
+
+        JsonNode claims = fixture.json.parse(com.nimbusds.jwt.SignedJWT.parse(v32).getPayload().toBytes());
+        for (long version : List.of(8L, 10L, 17L, 31L, 33L)) {
+            var unsupported = (com.fasterxml.jackson.databind.node.ObjectNode) claims.deepCopy();
+            ((com.fasterxml.jackson.databind.node.ObjectNode) unsupported.get("authority"))
+                    .put("ownerPolicyRevision", "policy-" + version + "-1-" + "d".repeat(64));
+            String independentlySigned = fixture.token(fixture.attestation, unsupported);
+            assertThatThrownBy(() -> consumer.verify(ownerJson.bytes(Map.of("sourceAttestation", independentlySigned)),
+                    wireExchange(exchange))).isInstanceOf(BaseException.class);
+        }
     }
     @Test void actualAuthIssuerAndIndependentApprovalVerifierAgreeOnAllCardinalitiesAndInstantStrings() throws Exception {
         var fixtureExchange = fixture.exchange(fixture.binding()); String token = token(fixtureExchange);

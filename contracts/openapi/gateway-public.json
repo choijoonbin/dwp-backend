@@ -39930,6 +39930,13 @@
             },
             "type": "array"
           },
+          "installationsHasMore": {
+            "type": "boolean"
+          },
+          "installationsLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
           "observedAt": {
             "format": "date-time",
             "type": "string"
@@ -40132,6 +40139,60 @@
         },
         "type": "object"
       },
+      "auth_ApiResponseAssignmentPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/auth_AssignmentPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_ApiResponseAuthPolicyChangePage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/auth_AuthPolicyChangePage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "auth_ApiResponseAuthPolicyResponse": {
         "properties": {
           "correlationId": {
@@ -40220,6 +40281,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/auth_Change"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_ApiResponseChangePage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/auth_ChangePage"
           },
           "errorCode": {
             "type": "string"
@@ -40708,36 +40796,6 @@
         },
         "type": "object"
       },
-      "auth_ApiResponseListAssignment": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/auth_Assignment"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "auth_ApiResponseListAuthSessionResponse": {
         "properties": {
           "correlationId": {
@@ -40776,66 +40834,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/auth_CampaignSummary"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "auth_ApiResponseListChange": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/auth_Change"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "auth_ApiResponseListChangeSet": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/auth_ChangeSet"
             },
             "type": "array"
           },
@@ -41714,6 +41712,60 @@
           },
           "data": {
             "$ref": "#/components/schemas/auth_SessionRotationResponse"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_ApiResponseSsoTestLoginReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/auth_SsoTestLoginReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_ApiResponseSsoTestLoginReceiptPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/auth_SsoTestLoginReceiptPage"
           },
           "errorCode": {
             "type": "string"
@@ -42751,6 +42803,42 @@
         ],
         "type": "object"
       },
+      "auth_AssignmentPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/auth_Assignment"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "auth_AuthPolicyChangePage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/auth_ChangeSet"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "auth_AuthPolicyDraft": {
         "properties": {
           "allowedLoginTypes": {
@@ -43041,6 +43129,24 @@
           },
           "version": {
             "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "auth_ChangePage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/auth_Change"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
             "type": "integer"
           }
         },
@@ -45107,6 +45213,9 @@
           "lastExternalProbeAt": {
             "format": "date-time",
             "type": "string"
+          },
+          "latestReceipt": {
+            "$ref": "#/components/schemas/auth_SsoTestLoginReceipt"
           }
         },
         "type": "object"
@@ -47246,6 +47355,98 @@
           },
           "rotated": {
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "auth_SsoTestLoginCommand": {
+        "properties": {
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          }
+        },
+        "required": [
+          "idempotencyKey",
+          "justification"
+        ],
+        "type": "object"
+      },
+      "auth_SsoTestLoginReceipt": {
+        "properties": {
+          "blockingReasons": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "executionBoundary": {
+            "type": "string"
+          },
+          "externalProbeState": {
+            "type": "string"
+          },
+          "idempotencyKey": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "internalPrerequisiteState": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "providerKey": {
+            "type": "string"
+          },
+          "receiptPayloadCanonical": {
+            "type": "string"
+          },
+          "receiptSha256": {
+            "type": "string"
+          },
+          "requestedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "tenantId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "testLoginJobId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_SsoTestLoginReceiptPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/auth_SsoTestLoginReceipt"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -70007,6 +70208,33 @@
         },
         "type": "object"
       },
+      "platform_ApiResponseCatalogOverview": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_CatalogOverview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponseCatalogResponse": {
         "properties": {
           "correlationId": {
@@ -74249,36 +74477,6 @@
         },
         "type": "object"
       },
-      "platform_ApiResponseListPolicyRevision": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/platform_PolicyRevision"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "platform_ApiResponseListPreferenceExceptionRequest": {
         "properties": {
           "correlationId": {
@@ -74287,36 +74485,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/platform_PreferenceExceptionRequest"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "platform_ApiResponseListPrivacyRequest": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/platform_PrivacyRequest"
             },
             "type": "array"
           },
@@ -76019,6 +76187,33 @@
         },
         "type": "object"
       },
+      "platform_ApiResponsePolicyRevisionPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_PolicyRevisionPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "platform_ApiResponsePostIncidentReport": {
         "properties": {
           "correlationId": {
@@ -76134,6 +76329,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/platform_PrivacyRequest"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_ApiResponsePrivacyRequestPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/platform_PrivacyRequestPage"
           },
           "errorCode": {
             "type": "string"
@@ -80914,6 +81136,13 @@
             },
             "type": "array"
           },
+          "findingsHasMore": {
+            "type": "boolean"
+          },
+          "findingsLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
           "generatedAt": {
             "format": "date-time",
             "type": "string"
@@ -83325,6 +83554,62 @@
             "type": "array"
           },
           "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_CatalogOverview": {
+        "properties": {
+          "criticalRelationCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "declaredRelationCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "entities": {
+            "items": {
+              "$ref": "#/components/schemas/platform_Entity"
+            },
+            "type": "array"
+          },
+          "entitiesByKind": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "entitiesByLifecycle": {
+            "additionalProperties": {
+              "format": "int64",
+              "type": "integer"
+            },
+            "type": "object"
+          },
+          "entitiesHasMore": {
+            "type": "boolean"
+          },
+          "entitiesLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "entityCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "orphanCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "relationCount": {
             "format": "int64",
             "type": "integer"
           }
@@ -97775,6 +98060,86 @@
         },
         "type": "object"
       },
+      "platform_PolicyImpactSnapshot": {
+        "properties": {
+          "affectedActorCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "affectedAuditEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "affectedTargetCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "auditEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "coverageState": {
+            "type": "string"
+          },
+          "exclusions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "exportableEventCountAfter": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "exportableEventCountBefore": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "extendedRetentionAffectedEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "extendedRetentionEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "highRiskClassificationAffectedEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "includedOwners": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "integrityProtectedEventCountAfter": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "integrityProtectedEventCountBefore": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "legalHoldEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "observedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "standardRetentionAffectedEventCount": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "standardRetentionEventCount": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "platform_PolicyOverrideChangeRequest": {
         "properties": {
           "confirmed": {
@@ -97979,6 +98344,12 @@
             "format": "int32",
             "type": "integer"
           },
+          "impactSha256": {
+            "type": "string"
+          },
+          "impactSnapshot": {
+            "$ref": "#/components/schemas/platform_PolicyImpactSnapshot"
+          },
           "incidentCaseId": {
             "format": "uuid",
             "type": "string"
@@ -98073,6 +98444,24 @@
           },
           "version": {
             "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "platform_PolicyRevisionPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/platform_PolicyRevision"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
             "type": "integer"
           }
         },
@@ -98527,6 +98916,13 @@
             },
             "type": "array"
           },
+          "lifecycleHasMore": {
+            "type": "boolean"
+          },
+          "lifecycleLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
           "reason": {
             "type": "string"
           },
@@ -98575,6 +98971,24 @@
           },
           "requestState": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "platform_PrivacyRequestPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/platform_PrivacyRequest"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -115749,6 +116163,33 @@
         },
         "type": "object"
       },
+      "provider_ApiResponseArtifactManifestPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/provider_ArtifactManifestPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "provider_ApiResponseArtifactRolloutEvidence": {
         "properties": {
           "correlationId": {
@@ -115783,6 +116224,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/provider_ArtifactRolloutPlan"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "provider_ApiResponseArtifactRolloutPlanPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/provider_ArtifactRolloutPlanPage"
           },
           "errorCode": {
             "type": "string"
@@ -115891,6 +116359,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/provider_CommercialOverview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "provider_ApiResponseCommitmentPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/provider_CommitmentPage"
           },
           "errorCode": {
             "type": "string"
@@ -116211,66 +116706,6 @@
         },
         "type": "object"
       },
-      "provider_ApiResponseListArtifactManifest": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/provider_ArtifactManifest"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "provider_ApiResponseListArtifactRolloutPlan": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/provider_ArtifactRolloutPlan"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "provider_ApiResponseListAuditEventSummary": {
         "properties": {
           "correlationId": {
@@ -116279,36 +116714,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/provider_AuditEventSummary"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "provider_ApiResponseListCommitment": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/provider_Commitment"
             },
             "type": "array"
           },
@@ -116451,36 +116856,6 @@
         },
         "type": "object"
       },
-      "provider_ApiResponseListPolicy": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/provider_Policy"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
       "provider_ApiResponseListRegionSummary": {
         "properties": {
           "correlationId": {
@@ -116489,36 +116864,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/provider_RegionSummary"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "provider_ApiResponseListResourceCommitmentChange": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/provider_ResourceCommitmentChange"
             },
             "type": "array"
           },
@@ -116639,36 +116984,6 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/provider_SupportScopeSummary"
-            },
-            "type": "array"
-          },
-          "errorCode": {
-            "type": "string"
-          },
-          "message": {
-            "type": "string"
-          },
-          "status": {
-            "type": "string"
-          },
-          "success": {
-            "type": "boolean"
-          },
-          "timestamp": {
-            "format": "date-time",
-            "type": "string"
-          }
-        },
-        "type": "object"
-      },
-      "provider_ApiResponseListTenantLifecycleRequest": {
-        "properties": {
-          "correlationId": {
-            "type": "string"
-          },
-          "data": {
-            "items": {
-              "$ref": "#/components/schemas/provider_TenantLifecycleRequest"
             },
             "type": "array"
           },
@@ -116907,6 +117222,33 @@
         },
         "type": "object"
       },
+      "provider_ApiResponsePolicyPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/provider_PolicyPage"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "provider_ApiResponseReliabilityControlOverview": {
         "properties": {
           "correlationId": {
@@ -116968,6 +117310,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/provider_ResourceCommitmentChange"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "provider_ApiResponseResourceCommitmentChangePage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/provider_ResourceCommitmentChangePage"
           },
           "errorCode": {
             "type": "string"
@@ -117238,6 +117607,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/provider_TenantLifecycleRequest"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "provider_ApiResponseTenantLifecycleRequestPage": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/provider_TenantLifecycleRequestPage"
           },
           "errorCode": {
             "type": "string"
@@ -117650,6 +118046,13 @@
             },
             "type": "array"
           },
+          "reviewsHasMore": {
+            "type": "boolean"
+          },
+          "reviewsLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
           "signatureState": {
             "type": "string"
           },
@@ -117663,6 +118066,24 @@
           },
           "version": {
             "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "provider_ArtifactManifestPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/provider_ArtifactManifest"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
             "type": "integer"
           }
         },
@@ -117813,6 +118234,13 @@
             },
             "type": "array"
           },
+          "evidenceHasMore": {
+            "type": "boolean"
+          },
+          "evidenceLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
           "executorState": {
             "type": "string"
           },
@@ -117861,6 +118289,24 @@
           },
           "version": {
             "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "provider_ArtifactRolloutPlanPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/provider_ArtifactRolloutPlan"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
             "type": "integer"
           }
         },
@@ -118341,6 +118787,24 @@
           },
           "unit": {
             "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "provider_CommitmentPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/provider_Commitment"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -120730,6 +121194,13 @@
             },
             "type": "array"
           },
+          "revisionsHasMore": {
+            "type": "boolean"
+          },
+          "revisionsLimit": {
+            "format": "int32",
+            "type": "integer"
+          },
           "scopeRef": {
             "type": "string"
           },
@@ -120795,6 +121266,24 @@
           },
           "sourceVersion": {
             "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "provider_PolicyPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/provider_Policy"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
             "type": "integer"
           }
         },
@@ -121212,6 +121701,24 @@
           "decision",
           "reason"
         ],
+        "type": "object"
+      },
+      "provider_ResourceCommitmentChangePage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/provider_ResourceCommitmentChange"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
         "type": "object"
       },
       "provider_RetryOperationRequest": {
@@ -122627,6 +123134,24 @@
           },
           "version": {
             "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "provider_TenantLifecycleRequestPage": {
+        "properties": {
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/provider_TenantLifecycleRequest"
+            },
+            "type": "array"
+          },
+          "limit": {
+            "format": "int32",
             "type": "integer"
           }
         },
@@ -163123,7 +163648,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseListAssignment"
+                  "$ref": "#/components/schemas/auth_ApiResponseAssignmentPage"
                 }
               }
             },
@@ -163893,7 +164418,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseListChange"
+                  "$ref": "#/components/schemas/auth_ApiResponseChangePage"
                 }
               }
             },
@@ -164221,6 +164746,16 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "type": "integer"
+            }
           }
         ],
         "responses": {
@@ -164228,7 +164763,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseListChangeSet"
+                  "$ref": "#/components/schemas/auth_ApiResponseAuthPolicyChangePage"
                 }
               }
             },
@@ -164485,6 +165020,131 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/auth_ApiResponseTenantGovernanceSnapshot"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/admin/tenant-settings/sso-test-login-jobs": {
+      "get": {
+        "operationId": "auth_ssoTestLoginReceipts",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 20,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth_ApiResponseSsoTestLoginReceiptPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "operationId": "auth_requestSsoTestLogin",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/auth_SsoTestLoginCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth_ApiResponseSsoTestLoginReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/api/auth/admin/tenant-settings/sso-test-login-jobs/{jobId}": {
+      "get": {
+        "operationId": "auth_ssoTestLoginReceipt",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "X-Tenant-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "jobId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/auth_ApiResponseSsoTestLoginReceipt"
                 }
               }
             },
@@ -181972,13 +182632,24 @@
     "/api/platform/v1/admin/audit-control/policy/revisions": {
       "get": {
         "operationId": "platform_policyRevisions",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/platform_ApiResponseListPolicyRevision"
+                  "$ref": "#/components/schemas/platform_ApiResponsePolicyRevisionPage"
                 }
               }
             },
@@ -183033,7 +183704,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/platform_ApiResponseOverview"
+                  "$ref": "#/components/schemas/platform_ApiResponseCatalogOverview"
                 }
               }
             },
@@ -217401,13 +218072,24 @@
     "/api/platform/v1/personal-settings/privacy/requests": {
       "get": {
         "operationId": "platform_privacyRequests",
-        "parameters": [],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "format": "int32",
+              "type": "integer"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/platform_ApiResponseListPrivacyRequest"
+                  "$ref": "#/components/schemas/platform_ApiResponsePrivacyRequestPage"
                 }
               }
             },
@@ -228926,7 +229608,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/provider_ApiResponseListArtifactManifest"
+                  "$ref": "#/components/schemas/provider_ApiResponseArtifactManifestPage"
                 }
               }
             },
@@ -229131,7 +229813,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/provider_ApiResponseListArtifactRolloutPlan"
+                  "$ref": "#/components/schemas/provider_ApiResponseArtifactRolloutPlanPage"
                 }
               }
             },
@@ -229565,7 +230247,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/provider_ApiResponseListPolicy"
+                  "$ref": "#/components/schemas/provider_ApiResponsePolicyPage"
                 }
               }
             },
@@ -231003,7 +231685,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/provider_ApiResponseListResourceCommitmentChange"
+                  "$ref": "#/components/schemas/provider_ApiResponseResourceCommitmentChangePage"
                 }
               }
             },
@@ -231132,7 +231814,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/provider_ApiResponseListCommitment"
+                  "$ref": "#/components/schemas/provider_ApiResponseCommitmentPage"
                 }
               }
             },
@@ -231163,7 +231845,56 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/provider_ApiResponseListTenantLifecycleRequest"
+                  "$ref": "#/components/schemas/provider_ApiResponseTenantLifecycleRequestPage"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "provider"
+        ]
+      }
+    },
+    "/api/provider/v1/admin/resource-governance/lifecycle-requests/{requestId}/cancel": {
+      "post": {
+        "operationId": "provider_cancelLifecycleRequest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "requestId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/provider_VersionedReasonRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/provider_ApiResponseTenantLifecycleRequest"
                 }
               }
             },

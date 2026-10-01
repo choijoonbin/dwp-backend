@@ -143,13 +143,104 @@ class PlatformCanarySecurityContractTest {
     }
 
     @Test
+    void communicationsCodeSetsRequireTheExactReadCapabilityAndResponsibility()
+            throws Exception {
+        FixtureEvidence allowed = FixtureEvidence.from("PS-C002", fixtureAdapter, registry);
+        String path = "/v1/catalog/code-sets/PLATFORM.COMMUNICATION.CONTENT_TYPE";
+
+        assertThat(invoke(allowed, "GET", path, null).getStatus()).isEqualTo(200);
+        assertThat(invoke(
+                allowed.withPermissions(Set.of()), "GET", path, null).getStatus())
+                .isEqualTo(403);
+        assertThat(invoke(
+                allowed.withResourceRoles(""), "GET", path, null).getStatus())
+                .isEqualTo(403);
+    }
+
+    @Test
+    void hcmCodeSetsRequireTheirExactCapabilityAndHcmConfigResponsibility()
+            throws Exception {
+        FixtureEvidence integration = new FixtureEvidence(
+                Set.of(registry.capabilityCode("hcm.integration.read")),
+                "APP_CONFIG_ADMIN@RS_HCM_CONFIG", null, Set.of(), false);
+        FixtureEvidence organization = new FixtureEvidence(
+                Set.of(registry.capabilityCode("hcm.org-design.read")),
+                "APP_CONFIG_ADMIN@RS_HCM_CONFIG", null, Set.of(), false);
+        String integrationPath = "/v1/catalog/code-sets/PEOPLE.HRIS_SOURCE_TYPE";
+        String organizationPath = "/v1/catalog/code-sets/PEOPLE.POSITION_TYPE";
+
+        String integrationRoute = "route.hcm.management.integration-code-sets.data";
+
+        assertThat(invoke(integration, "GET", integrationPath, integrationRoute).getStatus())
+                .isEqualTo(200);
+        assertThat(invoke(
+                organization,
+                "GET",
+                organizationPath,
+                "route.hcm.management.org-code-sets.data").getStatus())
+                .isEqualTo(200);
+        assertThat(invoke(
+                integration.withPermissions(Set.of()),
+                "GET",
+                integrationPath,
+                integrationRoute).getStatus())
+                .isEqualTo(403);
+        assertThat(invoke(
+                integration.withResourceRoles(""),
+                "GET",
+                integrationPath,
+                integrationRoute).getStatus())
+                .isEqualTo(403);
+        assertThat(invoke(
+                integration,
+                "GET",
+                organizationPath,
+                "route.hcm.management.org-code-sets.data").getStatus())
+                .isEqualTo(403);
+    }
+
+    @Test
+    void productCodeSetOwnershipDoesNotExpandToTheSharedCatalogNamespace() {
+        assertThat(registry.ownsPath(
+                "/v1/catalog/code-sets/PLATFORM.COMMUNICATION.CONTENT_TYPE"))
+                .isTrue();
+        assertThat(registry.ownsPath(
+                "/v1/catalog/code-sets/PLATFORM.COMMUNICATION.CATEGORY"))
+                .isTrue();
+        assertThat(registry.ownsPath(
+                "/v1/catalog/code-sets/PLATFORM.COMMUNICATION.UNKNOWN"))
+                .isFalse();
+        for (String key : Set.of(
+                "PEOPLE.HRIS_SOURCE_TYPE",
+                "PEOPLE.HRIS_CONNECTOR_TYPE",
+                "PEOPLE.HRIS_AUTH_MODE",
+                "PEOPLE.POSITION_TYPE",
+                "PEOPLE.POSITION_CRITICALITY")) {
+            assertThat(registry.ownsPath("/v1/catalog/code-sets/" + key))
+                    .as(key)
+                    .isTrue();
+        }
+        assertThat(registry.ownsPath(
+                "/v1/catalog/code-sets/PEOPLE.HRIS_UNKNOWN"))
+                .isFalse();
+        assertThat(registry.ownsPath(
+                "/v1/catalog/code-sets/PLATFORM.PREFERENCE.COLOR_MODE"))
+                .isFalse();
+        assertThat(registry.ownsPath("/v1/catalog/code-sets"))
+                .isFalse();
+    }
+
+    @Test
     void generatedProjectionBindsEveryPlatformOwnedCanaryRouteToBothOpenApiHops() {
-        assertThat(registry.bindingContracts()).hasSize(36);
+        assertThat(registry.bindingContracts()).hasSize(42);
         assertThat(registry.bindingContracts().stream()
                 .map(PlatformCanaryPepRegistry.BindingContract::routeContractKey)
                 .distinct())
-                .hasSize(33)
+                .hasSize(39)
                 .contains("route.communications.work.event.action",
+                        "route.communications.management.code-sets.data",
+                        "route.hcm.management.integration-code-sets.data",
+                        "route.hcm.management.org-code-sets.data",
                         "route.services.management.request-transition.action");
         assertThat(registry.bindingContracts())
                 .allSatisfy(binding -> {

@@ -261,6 +261,38 @@ class ProductAuthorizationAuthorityAdapterTest {
     }
 
     @Test
+    void platformOwnedHcmCatalogRouteKeepsTheSurfacePeopleEligibilityBoundary()
+            throws IOException {
+        useContract("product-surfaces-v1.bundle-v32.generated.json");
+        evidence(Set.of("ACTION.WORKFORCE_DATA_OPERATIONS:VIEW"), List.of(role(
+                "APP_CONFIG_ADMIN", "APP.HCM", "RS_HCM_CONFIG")));
+
+        ProductSurfaceAuthorityDtos.AuthorityResult entry = evaluate(
+                "hcm", "hcm.management", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                null, null, null, null, null, List.of());
+        ProductSurfaceAuthorityDtos.AuthorityResult route = evaluate(
+                "hcm", "hcm.management", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.management.integration-code-sets.data",
+                entry.contextKey(), "people-owned-scope", null, null, List.of());
+
+        assertThat(entry.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(route.decision()).isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(route.contextKey()).isEqualTo(entry.contextKey());
+        assertThat(route.requiresProductEligibility()).isTrue();
+
+        evidence(Set.of("ADMIN.COMMUNICATIONS:VIEW"), List.of(role(
+                "APP_CONFIG_ADMIN", "APP.COMMUNICATIONS", "RS_COMMUNICATIONS")));
+        ProductSurfaceAuthorityDtos.AuthorityResult communications = evaluate(
+                "communications", "communications.management",
+                ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.communications.management.code-sets.data",
+                null, null, null, null, List.of());
+        assertThat(communications.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(communications.requiresProductEligibility()).isFalse();
+    }
+
+    @Test
     void requiresStepUpForActivationPolicyAndAllowsVerifiedElevatedPermission() {
         evidence(Set.of("ACTION.WORKFORCE_CONTROLLED_EXPORT:EXPORT"), List.of());
         ProductSurfaceAuthorityDtos.AuthorityResult challenged = evaluate(

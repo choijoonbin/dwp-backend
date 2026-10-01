@@ -24,7 +24,8 @@ import java.util.regex.Pattern;
 import java.util.stream.StreamSupport;
 
 /**
- * Runtime view of the generated Communications and Services Platform PEP projection.
+ * Runtime view of the generated Communications, Services, and exact HCM catalog
+ * Platform PEP projection.
  *
  * <p>The class intentionally has no handwritten capability, policy, predicate, or route table.
  * Every decision input is resolved from the canonical registry projection.</p>
@@ -33,11 +34,12 @@ import java.util.stream.StreamSupport;
 public final class PlatformCanaryPepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/platform-canary-pep-v1.generated.json";
-    static final String IMMUTABLE_V1_CHECKSUM =
-            "bc34f47b0ad783d27aa7979f25f75e2fdf29506a12a23c0088f94837abad0b67";
+            "product-authorization/platform-canary-pep-v2.generated.json";
+    static final String RELEASE_V2_REGISTRY_CHECKSUM =
+            "b620ea86a8310cf23796e3e380b74c39764bdca28f41033496d21887a89da9cc";
     private final ObjectMapper objectMapper;
     private final Set<String> ownedPathRoots;
+    private final Set<String> ownedExactPaths;
     private final Map<String, JsonNode> capabilities;
     private final Map<String, JsonNode> policies;
     private final Map<String, JsonNode> expressions;
@@ -51,6 +53,7 @@ public final class PlatformCanaryPepRegistry {
         ObjectNode projection = readProjection();
         validateEnvelope(projection);
         this.ownedPathRoots = textValues(projection.path("ownedPathRoots"));
+        this.ownedExactPaths = textValues(projection.path("ownedExactPaths"));
         this.capabilities = index(projection, "capabilities", "contractKey");
         this.policies = index(projection, "accessPolicies", "accessPolicyKey");
         this.expressions = index(projection, "entitlementExpressions", "expressionKey");
@@ -64,7 +67,7 @@ public final class PlatformCanaryPepRegistry {
 
     public boolean ownsPath(String path) {
         if (path == null) return false;
-        return ownedPathRoots.stream()
+        return ownedExactPaths.contains(path) || ownedPathRoots.stream()
                 .anyMatch(root -> path.equals(root) || path.startsWith(root + "/"));
     }
 
@@ -294,22 +297,30 @@ public final class PlatformCanaryPepRegistry {
     private void validateEnvelope(ObjectNode projection) {
         require(projection.path("schemaVersion").asInt() == 1,
                 "Unsupported Platform Canary PEP schema");
-        require("platform-canary-pep-v1".equals(projection.path("projectionKey").asText()),
+        require("platform-canary-pep-v2".equals(projection.path("projectionKey").asText()),
                 "Unexpected Platform Canary PEP key");
         require("platform".equals(projection.path("ownerServiceKey").asText()),
                 "Unexpected Platform Canary PEP owner");
         JsonNode registry = projection.path("registryRef");
         require("product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 1
-                        && IMMUTABLE_V1_CHECKSUM.equals(registry.path("sha256").asText()),
+                        && registry.path("version").asInt() == 32
+                        && RELEASE_V2_REGISTRY_CHECKSUM.equals(
+                                registry.path("sha256").asText()),
                 "Platform Canary PEP registry reference mismatch");
-        require(projection.path("sourceRegistryRouteCount").asInt() == 35
-                        && projection.path("projectedRouteContractCount").asInt() == 33
-                        && projection.path("bindingPairCount").asInt() == 36,
+        require(projection.path("sourceRegistryRouteCount").asInt() == 912
+                        && projection.path("projectedRouteContractCount").asInt() == 39
+                        && projection.path("bindingPairCount").asInt() == 42,
                 "Platform Canary PEP release counts changed");
         Set<String> roots = textValues(projection.path("ownedPathRoots"));
         require(roots.size() == 4 && roots.stream().allMatch(root -> root.startsWith("/v1/")),
                 "Platform Canary PEP owned path roots changed");
+        Set<String> exactPaths = textValues(projection.path("ownedExactPaths"));
+        require(exactPaths.size() == 7
+                        && exactPaths.stream().allMatch(path -> path.startsWith(
+                                "/v1/catalog/code-sets/"))
+                        && exactPaths.stream().noneMatch(path -> roots.stream().anyMatch(
+                                root -> path.equals(root) || path.startsWith(root + "/"))),
+                "Platform Canary PEP exact owned paths changed");
         require("SHA-256".equals(projection.path("projectionChecksumAlgorithm").asText()),
                 "Unsupported Platform Canary PEP checksum");
         ObjectNode payload = projection.deepCopy();
@@ -318,8 +329,8 @@ public final class PlatformCanaryPepRegistry {
     }
 
     private void validateClosure(ObjectNode projection) {
-        require(capabilities.size() == 10 && policies.size() == 3
-                        && expressions.size() == 2 && predicates.size() == 5,
+        require(capabilities.size() == 13 && policies.size() == 3
+                        && expressions.size() == 2 && predicates.size() == 7,
                 "Platform Canary PEP descriptor closure count changed");
         Set<String> routeKeys = new LinkedHashSet<>();
         for (JsonNode route : projection.path("routes")) {
@@ -344,7 +355,10 @@ public final class PlatformCanaryPepRegistry {
                 }
             }
         }
-        require(routeKeys.size() == 33, "Platform Canary route closure changed");
+        require(routeKeys.size() == 39, "Platform Canary route closure changed");
+        require(ownedExactPaths.stream().allMatch(path -> bindings.stream()
+                        .anyMatch(binding -> binding.matches(path))),
+                "Platform Canary exact owned path escaped the generated route bindings");
     }
 
     private ObjectNode readProjection() {
