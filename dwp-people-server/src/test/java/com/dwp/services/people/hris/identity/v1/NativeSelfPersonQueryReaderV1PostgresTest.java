@@ -42,8 +42,8 @@ class NativeSelfPersonQueryReaderV1PostgresTest {
         var flyway=Flyway.configure().dataSource(ownerSource).locations("filesystem:src/main/resources/db/migration")
                 .validateOnMigrate(true).outOfOrder(false).load();
         flyway.migrate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("50");
-        assertThat(flyway.info().applied()).hasSize(50);
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("51");
+        assertThat(flyway.info().applied()).hasSize(51);
         try(Connection connection=ownerSource.getConnection()) {
             try(var value=connection.prepareStatement("SELECT set_config('dwp.test_password', ?, false)")) {
                 value.setString(1,PASSWORD); value.execute();

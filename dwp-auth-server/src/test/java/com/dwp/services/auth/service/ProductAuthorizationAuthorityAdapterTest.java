@@ -178,6 +178,36 @@ class ProductAuthorizationAuthorityAdapterTest {
     }
 
     @Test
+    void resolvesTheV33HcmSystemPageToAnExplicitTenantScope() throws IOException {
+        useContract("product-surfaces-v1.bundle-v33.generated.json");
+        evidence(Set.of("APP.HCM:VIEW"), List.of());
+
+        ProductSurfaceAuthorityDtos.AuthorityResult allowed = evaluate(
+                "hcm", "hcm.management", ProductSurfaceAuthorityDtos.AccessMode.NORMAL,
+                "route.hcm.management.system.page",
+                null, null, null, null, List.of());
+
+        assertThat(allowed.decision())
+                .isEqualTo(ProductSurfaceAuthorityDtos.Decision.ALLOWED);
+        assertThat(allowed.plane()).isEqualTo("management");
+        assertThat(allowed.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.kind()).isEqualTo("TENANT");
+            assertThat(scope.isDefault()).isTrue();
+            assertThat(scope.readOnly()).isTrue();
+        });
+        assertThat(allowed.effectiveGrants())
+                .filteredOn(ProductSurfaceAuthorityDtos.PolicyGrant.class::isInstance)
+                .map(ProductSurfaceAuthorityDtos.PolicyGrant.class::cast)
+                .singleElement()
+                .satisfies(grant -> {
+                    assertThat(grant.accessPolicyKey())
+                            .isEqualTo("hcm.management-system-access.v1");
+                    assertThat(grant.scopeKeys())
+                            .containsExactly(allowed.scopes().getFirst().key());
+                });
+    }
+
+    @Test
     void keepsSupportModeExclusiveAndReadOnly() {
         evidence(Set.of(), List.of());
         ProductSurfaceAuthorityDtos.AuthorityResult allowed = evaluate(

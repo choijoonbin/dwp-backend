@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -47,18 +48,48 @@ class PeopleAuditEvidenceAuthorityPostgresTest {
     private static DataSource runtimeDataSource;
     private static JdbcTemplate owner;
     private static JdbcTemplate runtime;
+    private static UUID preExistingEventId;
+    private static int preExistingEvidenceCountAfterHardening;
+    private static int preExistingOutboxCountAfterHardening;
 
     @BeforeAll
     static void migrateAndCreateRuntime() {
         ownerDataSource = dataSource(POSTGRES.getUsername(), POSTGRES.getPassword());
-        new JdbcTemplate(ownerDataSource).execute("CREATE EXTENSION pgcrypto SCHEMA public");
-        Flyway.configure()
+        owner = new JdbcTemplate(ownerDataSource);
+        owner.execute("CREATE EXTENSION pgcrypto SCHEMA public");
+        Flyway beforeHardening = Flyway.configure()
                 .dataSource(ownerDataSource)
                 .locations("filesystem:src/main/resources/db/migration")
-                .load()
-                .migrate();
-        owner = new JdbcTemplate(ownerDataSource);
-        installIsolatedAppendOnlyCandidate();
+                .target("50")
+                .load();
+        beforeHardening.migrate();
+        assertThat(beforeHardening.info().current().getVersion().getVersion()).isEqualTo("50");
+        preExistingEventId = owner.queryForObject("""
+                INSERT INTO public.sys_people_audit_events (
+                    tenant_id, actor_type, actor_id, action,
+                    target_type, target_id, outcome)
+                VALUES (76, 'SERVICE', 'pre-v51', 'people.pre-v51',
+                        'WORKER', 'worker-76', 'SUCCESS')
+                RETURNING audit_event_id
+                """, UUID.class);
+
+        Flyway afterHardening = Flyway.configure()
+                .dataSource(ownerDataSource)
+                .locations("filesystem:src/main/resources/db/migration")
+                .load();
+        afterHardening.migrate();
+        assertThat(afterHardening.info().current().getVersion().getVersion()).isEqualTo("51");
+        preExistingEvidenceCountAfterHardening = owner.queryForObject("""
+                SELECT COUNT(*)
+                  FROM public.sys_people_audit_events
+                 WHERE audit_event_id=?
+                """, Integer.class, preExistingEventId);
+        preExistingOutboxCountAfterHardening = owner.queryForObject("""
+                SELECT COUNT(*)
+                  FROM public.sys_audit_outbox
+                 WHERE event_id=?
+                """, Integer.class, preExistingEventId);
+
         owner.execute("CREATE ROLE " + RUNTIME + " LOGIN PASSWORD '" + RUNTIME_PASSWORD
                 + "' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS");
         owner.execute("REVOKE CREATE, TEMPORARY ON DATABASE " + databaseIdentifier()
@@ -71,45 +102,68 @@ class PeopleAuditEvidenceAuthorityPostgresTest {
         runtime = new JdbcTemplate(runtimeDataSource);
     }
 
-    /**
-     * Test-only candidate for the separately governed database-hardening change.
-     * V1-V50 do not publish this function or trigger, so this fixture must not be
-     * interpreted as production migration coverage.
-     */
-    private static void installIsolatedAppendOnlyCandidate() {
-        owner.execute("""
-                CREATE OR REPLACE FUNCTION public.sys_reject_people_audit_event_mutation()
-                RETURNS TRIGGER
-                LANGUAGE plpgsql
-                SECURITY DEFINER
-                SET search_path = pg_catalog, public, pg_temp
-                AS $function$
-                BEGIN
-                    RAISE EXCEPTION 'sys_people_audit_events is append-only';
-                END;
-                $function$
-                """);
-        owner.execute("REVOKE ALL ON FUNCTION "
-                + "public.sys_reject_people_audit_event_mutation() FROM PUBLIC");
-        owner.execute("""
-                CREATE TRIGGER trg_sys_people_audit_events_append_only
-                BEFORE UPDATE OR DELETE ON public.sys_people_audit_events
-                FOR EACH ROW EXECUTE FUNCTION public.sys_reject_people_audit_event_mutation()
-                """);
-    }
-
     @BeforeEach
     void restoreCanonicalBoundary() {
         owner.execute("TRUNCATE public.sys_audit_outbox, public.sys_people_audit_events");
-        for (String function : TRIGGER_FUNCTIONS) {
-            owner.execute("ALTER FUNCTION public." + function + "() SECURITY DEFINER");
-            owner.execute("ALTER FUNCTION public." + function
-                    + "() SET search_path = pg_catalog, public, pg_temp");
-            owner.execute("REVOKE ALL ON FUNCTION public." + function
-                    + "() FROM PUBLIC, " + RUNTIME);
-        }
         owner.execute("GRANT SELECT, INSERT ON public.sys_people_audit_events TO " + RUNTIME);
         owner.execute("REVOKE UPDATE, DELETE ON public.sys_people_audit_events FROM " + RUNTIME);
+    }
+
+    @Test
+    void v51HardensAnExistingV50DatabaseWithoutRewritingEvidence() {
+        assertThat(preExistingEventId).isNotNull();
+        assertThat(preExistingEvidenceCountAfterHardening).isEqualTo(1);
+        assertThat(preExistingOutboxCountAfterHardening).isEqualTo(1);
+        assertThat(owner.queryForObject("""
+                SELECT COUNT(*)
+                  FROM flyway_schema_history
+                 WHERE version='51'
+                   AND success
+                """, Integer.class)).isEqualTo(1);
+
+        assertThat(owner.queryForObject("""
+                SELECT COUNT(*)
+                  FROM pg_catalog.pg_trigger trigger_object
+                  JOIN pg_catalog.pg_class target
+                    ON target.oid=trigger_object.tgrelid
+                 WHERE target.relname='sys_people_audit_events'
+                   AND trigger_object.tgname='trg_sys_people_audit_events_append_only'
+                   AND NOT trigger_object.tgisinternal
+                """, Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void productionMigrationOwnsTheExactTriggerSecurityContract() {
+        List<Map<String, Object>> boundaries = owner.queryForList("""
+                SELECT routine.proname AS name,
+                       routine.prosecdef AS security_definer,
+                       routine.proconfig[1] AS configuration,
+                       pg_catalog.has_function_privilege(
+                           ?, routine.oid, 'EXECUTE') AS runtime_executable,
+                       EXISTS (
+                           SELECT 1
+                             FROM pg_catalog.aclexplode(COALESCE(
+                                 routine.proacl,
+                                 pg_catalog.acldefault('f', routine.proowner))) acl
+                            WHERE acl.grantee=0
+                              AND acl.privilege_type='EXECUTE'
+                       ) AS public_executable
+                  FROM pg_catalog.pg_proc routine
+                  JOIN pg_catalog.pg_namespace namespace
+                    ON namespace.oid=routine.pronamespace
+                 WHERE namespace.nspname='public'
+                   AND routine.proname = ANY (?::text[])
+                 ORDER BY routine.proname
+                """, RUNTIME, TRIGGER_FUNCTIONS.toArray(String[]::new));
+
+        assertThat(boundaries).hasSize(TRIGGER_FUNCTIONS.size());
+        assertThat(boundaries).allSatisfy(boundary -> {
+            assertThat(boundary.get("security_definer")).isEqualTo(true);
+            assertThat(boundary.get("configuration"))
+                    .isEqualTo("search_path=pg_catalog, public, pg_temp");
+            assertThat(boundary.get("runtime_executable")).isEqualTo(false);
+            assertThat(boundary.get("public_executable")).isEqualTo(false);
+        });
     }
 
     @Test
@@ -169,18 +223,25 @@ class PeopleAuditEvidenceAuthorityPostgresTest {
                 "People", runtimeDataSource, List.of("public"), POSTGRES.getUsername()))
                 .doesNotThrowAnyException();
 
-        owner.execute("GRANT UPDATE ON public.sys_people_audit_events TO " + RUNTIME);
-        assertThatThrownBy(() -> RuntimeTablePrivilegeGuard.verifyDenied(
-                "People", runtimeDataSource, DENIED))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("UPDATE");
-        owner.execute("REVOKE UPDATE ON public.sys_people_audit_events FROM " + RUNTIME);
+        try {
+            owner.execute("GRANT UPDATE ON public.sys_people_audit_events TO " + RUNTIME);
+            assertThatThrownBy(() -> RuntimeTablePrivilegeGuard.verifyDenied(
+                    "People", runtimeDataSource, DENIED))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("UPDATE");
+        } finally {
+            owner.execute("REVOKE UPDATE ON public.sys_people_audit_events FROM " + RUNTIME);
+        }
 
-        owner.execute("ALTER FUNCTION public.sys_people_audit_to_outbox() SECURITY INVOKER");
-        assertThatThrownBy(() -> OwnerTriggerExecutionBoundaryGuard.verify(
-                "People", runtimeDataSource, List.of("public"), POSTGRES.getUsername()))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("sys_people_audit_to_outbox");
+        try {
+            owner.execute("ALTER FUNCTION public.sys_people_audit_to_outbox() SECURITY INVOKER");
+            assertThatThrownBy(() -> OwnerTriggerExecutionBoundaryGuard.verify(
+                    "People", runtimeDataSource, List.of("public"), POSTGRES.getUsername()))
+                    .isInstanceOf(IllegalStateException.class)
+                    .hasMessageContaining("sys_people_audit_to_outbox");
+        } finally {
+            owner.execute("ALTER FUNCTION public.sys_people_audit_to_outbox() SECURITY DEFINER");
+        }
     }
 
     @Test

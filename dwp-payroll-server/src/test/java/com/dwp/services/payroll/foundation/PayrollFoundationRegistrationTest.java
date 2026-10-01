@@ -13,11 +13,16 @@ class PayrollFoundationRegistrationTest {
     private final ApplicationContextRunner contextRunner = new ApplicationContextRunner()
             .withUserConfiguration(
                     PayrollFoundationController.class,
-                    PayrollFoundationSecurityFilter.class)
+                    PayrollFoundationSecurityFilter.class,
+                    GatewayVerifiedPayrollFoundationAccessPolicyProvider.class,
+                    UnavailablePayrollFoundationAccessPolicyProvider.class)
             .withBean(PayrollFoundationService.class,
                     () -> mock(PayrollFoundationService.class))
-            .withBean(PayrollFoundationAccessPolicyProvider.class,
-                    () -> tenantId -> PayrollFoundationAccess.compatibilityPolicy())
+            .withBean(PayrollLegalEntityScopeResolver.class,
+                    () -> subject -> new PayrollLegalEntityScopeResolver.Resolution(
+                            "registration-test-r1",
+                            java.util.Set.of(java.util.UUID.fromString(
+                                    "10000000-0000-0000-0000-000000000001"))))
             .withBean(ObjectMapper.class,
                     () -> JsonMapper.builder().findAndAddModules().build())
             .withPropertyValues("dwp.payroll.service-token=verified-test-token");
@@ -39,6 +44,11 @@ class PayrollFoundationRegistrationTest {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(PayrollFoundationController.class);
                     assertThat(context).hasSingleBean(PayrollFoundationSecurityFilter.class);
+                    assertThat(context).hasSingleBean(
+                            PayrollFoundationAccessPolicyProvider.class);
+                    assertThat(context.getBean(PayrollFoundationAccessPolicyProvider.class))
+                            .isInstanceOf(
+                                    GatewayVerifiedPayrollFoundationAccessPolicyProvider.class);
                 });
     }
 }

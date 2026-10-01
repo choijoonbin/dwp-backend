@@ -610,7 +610,8 @@ class TimeG3SliceContractTest {
             ScheduleTemplate draft,
             EffectivePeriod period) {
         return new AssignmentPlan(
-                TENANT, assignmentId, workerId, 1L, period, zoneId, current, draft);
+                TENANT, assignmentId, workerId, assignmentId,
+                1L, period, zoneId, current, draft);
     }
 
     private static WorkRegimeRevision revision(

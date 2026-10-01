@@ -11,8 +11,9 @@ import com.dwp.services.time.workregime.WorkRegimeModels.Authority;
 /**
  * Integration seam for gateway-verified TIM owner authority.
  *
- * <p>No permissive implementation is supplied by this slice. Enabling the owner API without the
- * centrally governed route/PEP adapter therefore fails application wiring closed.</p>
+ * <p>The production implementation accepts only the centrally governed Gateway route/PEP
+ * evidence. Alternate implementations are test seams and must preserve this fail-closed
+ * contract.</p>
  */
 public interface WorkRegimeOwnerAuthoritySource {
 

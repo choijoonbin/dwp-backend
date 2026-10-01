@@ -26,7 +26,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-/** Owner HTTP adapter. Production reachability remains blocked by TIM-XCON-W1-001. */
+/** Owner HTTP adapter protected by the Gateway-verified TIM authority source. */
 @RestController
 @RequestMapping("/v1/hris")
 @ConditionalOnProperty(name = "dwp.time.work-regime-api.enabled", havingValue = "true")

@@ -6,7 +6,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
-/** Production remains unavailable until the tenant/effective-dated PEP adapter is integrated. */
+/** Fail-closed sentinel used only if the Gateway-verified production provider is absent. */
 @Component
 @ConditionalOnMissingBean(PayrollFoundationAccessPolicyProvider.class)
 @ConditionalOnProperty(

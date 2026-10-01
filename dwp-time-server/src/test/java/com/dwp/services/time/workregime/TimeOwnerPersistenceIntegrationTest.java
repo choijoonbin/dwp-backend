@@ -43,6 +43,8 @@ import com.dwp.services.time.workregime.WorkRegimeRepository.DraftWrite;
 import com.dwp.services.time.workregime.WorkRegimeRepository.PolicyTermWrite;
 import com.dwp.services.time.workregime.WorkRegimeRepository.TransitionWrite;
 import com.dwp.services.time.workregime.WorkRegimeRepository.WorkPlanRecord;
+import com.dwp.services.time.workregime.WorkRegimeRepository.TargetBindingEvidence;
+import com.dwp.services.time.workregime.WorkRegimeRepository.TargetAuthorizationGuard;
 import com.dwp.services.time.workregime.WorkRegimeOwnerAuthoritySource.VerifiedRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.flywaydb.core.Flyway;
@@ -64,11 +66,19 @@ class TimeOwnerPersistenceIntegrationTest {
 
     private static final long TENANT = 71L;
     private static final long AUTHOR = 7_101L;
+    private static final long APPROVER = AUTHOR + 1;
+    private static final long PUBLISHER = AUTHOR + 2;
     private static final String RUNTIME_ROLE = "tim_owner_it_runtime";
     private static final String RUNTIME_PASSWORD = "tim-owner-it-runtime-password";
     private static final String PURPOSE = "TIME_CONFIGURATION";
     private static final String DECISION = "psr-" + "7".repeat(64);
-    private static final String SCOPE = "tenant:71";
+    private static final UUID POPULATION_ID =
+            UUID.fromString("71000000-0000-0000-0000-000000000071");
+    private static final String SCOPE =
+            WorkRegimeTargetPopulationResolver.stableScopeRef(POPULATION_ID);
+    private static final String GATEWAY_SCOPE = "scope-" + "7".repeat(32);
+    private static final String APPROVER_GATEWAY_SCOPE = "scope-" + "8".repeat(32);
+    private static final String PUBLISHER_GATEWAY_SCOPE = "scope-" + "9".repeat(32);
     private static final String DIGEST_A = "a".repeat(64);
     private static final String DIGEST_B = "b".repeat(64);
     private static final String DIGEST_C = "c".repeat(64);
@@ -97,9 +107,16 @@ class TimeOwnerPersistenceIntegrationTest {
             UUID.fromString("71000000-0000-4000-8000-000000000010");
     private static final UUID REPLAY_IDEMPOTENCY_KEY =
             UUID.fromString("71000000-0000-4000-8000-000000000012");
+    private static final UUID SUBMIT_IDEMPOTENCY_KEY =
+            UUID.fromString("71000000-0000-4000-8000-000000000013");
+    private static final UUID APPROVE_IDEMPOTENCY_KEY =
+            UUID.fromString("71000000-0000-4000-8000-000000000014");
+    private static final UUID PUBLISH_IDEMPOTENCY_KEY =
+            UUID.fromString("71000000-0000-4000-8000-000000000015");
     private static final EffectivePeriod PERIOD = new EffectivePeriod(
             LocalDate.of(2026, 1, 1), LocalDate.of(2027, 1, 1));
     private static final Instant NOW = Instant.parse("2026-09-17T08:00:00Z");
+    private static final Instant GRANT_VALID_TO = Instant.parse("2027-01-01T00:00:00Z");
 
     private PostgreSQLContainer<?> postgres;
     private JdbcTemplate admin;
@@ -111,7 +128,7 @@ class TimeOwnerPersistenceIntegrationTest {
     private WorkRegimeCommandCoordinator commands;
 
     @BeforeAll
-    void migrateOnlyTheLeasedV1AndCreateAdapters() {
+    void migrateLeasedOwnerFoundationAndTargetProjection() {
         assertThat(DockerClientFactory.instance().isDockerAvailable())
                 .as("Docker is required for the owner persistence integration test")
                 .isTrue();
@@ -132,15 +149,15 @@ class TimeOwnerPersistenceIntegrationTest {
                 .schemas("public")
                 .defaultSchema("public")
                 .table("flyway_schema_history")
-                .target(MigrationVersion.fromVersion("1"))
+                .target(MigrationVersion.fromVersion("4"))
                 .repeatableSqlMigrationPrefix("DO_NOT_RUN_REPEATABLE_")
                 .placeholderReplacement(true)
                 .placeholders(Map.of("timeRuntimeRole", RUNTIME_ROLE))
                 .load();
-        assertThat(flyway.migrate().migrationsExecuted).isOne();
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(4);
         assertThat(admin.queryForObject(
                 "SELECT count(*) FROM flyway_schema_history WHERE success",
-                Integer.class)).isOne();
+                Integer.class)).isEqualTo(4);
         assertThat(admin.queryForObject(
                 "SELECT script FROM flyway_schema_history WHERE success AND version = '1'",
                 String.class)).isEqualTo("V1__tim_create_work_regime_foundation.sql");
@@ -155,6 +172,7 @@ class TimeOwnerPersistenceIntegrationTest {
         commands = new WorkRegimeCommandCoordinator(
                 receipts, Clock.fixed(NOW, ZoneOffset.UTC));
         seedPublishedRulePack();
+        seedTargetPopulationProjection();
     }
 
     @AfterAll
@@ -174,7 +192,10 @@ class TimeOwnerPersistenceIntegrationTest {
         CommandReceipt created = commands.executeWithReceipt(create, (ignored, running) -> {
             assertThat(running.state()).isEqualTo(ReceiptState.RUNNING);
             WorkPlanRecord stored = repository.createDraft(draft(
-                    evidence(running.receiptId(), CREATE_CORRELATION_ID)));
+                    evidence(
+                            running.receiptId(), CREATE_CORRELATION_ID,
+                            CREATE_IDEMPOTENCY_KEY, LifecycleAction.CREATE_DRAFT,
+                            null, DIGEST_A)));
             assertThat(stored.revision().state()).isEqualTo(PolicyState.DRAFT);
             return TerminalOutcome.succeeded("DRAFT_CREATED", DIGEST_F);
         });
@@ -192,6 +213,9 @@ class TimeOwnerPersistenceIntegrationTest {
         assertThat(readBack.rulePackPublicId()).isEqualTo(RULE_PACK_ID);
         assertThat(readBack.policyRevision()).isOne();
         assertThat(readBack.assignmentPublicId()).isEqualTo(ASSIGNMENT_ID);
+        assertThat(readBack.peopleAssignmentPublicId()).isEqualTo(PEOPLE_ASSIGNMENT_ID);
+        assertThat(readBack.targetBindingEvidence().populationPublicId())
+                .isEqualTo(POPULATION_ID);
         assertThat(tenantValue(() -> runtime.queryForObject("""
                 SELECT rule_pack_public_id
                   FROM tim_work_plan_assignments
@@ -200,6 +224,14 @@ class TimeOwnerPersistenceIntegrationTest {
         assertThat(readBack.segments())
                 .extracting(LocalSegment::key)
                 .containsExactly("MONDAY_CORE");
+        assertThat(tenantValue(() -> runtime.queryForObject("""
+                SELECT count(*)
+                  FROM tim_work_plan_target_evidence
+                 WHERE tenant_id = ?
+                   AND population_public_id = ?
+                   AND author_gateway_scope_key = ?
+                   AND people_assignment_revision = 12
+                """, Long.class, TENANT, POPULATION_ID, GATEWAY_SCOPE))).isOne();
 
         assertEvidence(
                 created.receiptId(), "WORK_REGIME_DRAFT_CREATED", PolicyState.DRAFT.name());
@@ -213,7 +245,10 @@ class TimeOwnerPersistenceIntegrationTest {
             var revision = repository.transition(new TransitionWrite(
                     TENANT, WORK_PLAN_ID, 1L, PolicyState.VALIDATED,
                     null, null, null, null, AUTHOR,
-                    evidence(running.receiptId(), VALIDATE_CORRELATION_ID)));
+                    evidence(
+                            running.receiptId(), VALIDATE_CORRELATION_ID,
+                            VALIDATE_IDEMPOTENCY_KEY, LifecycleAction.VALIDATE,
+                            1L, DIGEST_B)));
             return TerminalOutcome.succeeded("VALIDATED", revision.artifactDigest());
         });
 
@@ -236,9 +271,11 @@ class TimeOwnerPersistenceIntegrationTest {
                 repository,
                 new JdbcWorkRegimeReceiptStore(runtime, runtimeTransactionManager),
                 new ObjectMapper().findAndRegisterModules(),
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                new JdbcWorkRegimeTargetPopulationResolver(
+                        runtime, runtimeTransactionManager));
         VerifiedRequest verified = new VerifiedRequest(
-                authority, SCOPE, DECISION, NOW.plusSeconds(300),
+                authority, GATEWAY_SCOPE, DECISION, NOW.plusSeconds(300),
                 UUID.fromString("71000000-0000-4000-8000-000000000011"));
         var simulation = service.simulate(
                 verified,
@@ -282,6 +319,214 @@ class TimeOwnerPersistenceIntegrationTest {
         assertThat(tenantValue(() -> runtime.queryForObject(
                 "SELECT count(*) FROM tim_work_regime_outbox_events WHERE tenant_id = ?",
                 Long.class, TENANT))).isEqualTo(4L);
+
+        var submitted = service.transition(
+                verified,
+                WORK_PLAN_ID,
+                SUBMIT_IDEMPOTENCY_KEY,
+                LifecycleAction.SUBMIT_REVIEW,
+                3L);
+        assertThat(submitted.status()).isEqualTo(ReceiptState.SUCCEEDED.name());
+
+        Authority approverAuthority = new Authority(
+                TENANT, APPROVER, Set.of(Duty.TIME_CONFIG_APPROVER), Set.of(SCOPE),
+                PURPOSE, DECISION, true, false);
+        VerifiedRequest approver = new VerifiedRequest(
+                approverAuthority, APPROVER_GATEWAY_SCOPE, DECISION,
+                NOW.plusSeconds(300),
+                UUID.fromString("71000000-0000-4000-8000-000000000016"));
+        var approved = service.transition(
+                approver,
+                WORK_PLAN_ID,
+                APPROVE_IDEMPOTENCY_KEY,
+                LifecycleAction.APPLY_APPROVAL,
+                4L);
+        assertThat(approved.status()).isEqualTo(ReceiptState.SUCCEEDED.name());
+
+        Authority publisherAuthority = new Authority(
+                TENANT, PUBLISHER, Set.of(Duty.TIME_CONFIG_APPROVER), Set.of(SCOPE),
+                PURPOSE, DECISION, true, false);
+        VerifiedRequest publisher = new VerifiedRequest(
+                publisherAuthority, PUBLISHER_GATEWAY_SCOPE, DECISION,
+                NOW.plusSeconds(300),
+                UUID.fromString("71000000-0000-4000-8000-000000000017"));
+        var published = service.transition(
+                publisher,
+                WORK_PLAN_ID,
+                PUBLISH_IDEMPOTENCY_KEY,
+                LifecycleAction.PUBLISH,
+                5L);
+        assertThat(published.status()).isEqualTo(ReceiptState.SUCCEEDED.name());
+
+        assertThat(tenantValue(() -> runtime.queryForMap("""
+                SELECT lifecycle_state, author_actor_id, approval_actor_id,
+                       published_by_actor_id
+                  FROM tim_work_regime_versions
+                 WHERE tenant_id = ? AND public_id = ?
+                """, TENANT, WORK_PLAN_ID)))
+                .containsEntry("lifecycle_state", "PUBLISHED")
+                .containsEntry("author_actor_id", AUTHOR)
+                .containsEntry("approval_actor_id", APPROVER)
+                .containsEntry("published_by_actor_id", PUBLISHER);
+        assertThat(tenantValue(() -> runtime.queryForObject("""
+                SELECT count(*)
+                  FROM tim_work_regime_command_authority_evidence
+                 WHERE tenant_id = ? AND work_regime_public_id = ?
+                   AND population_public_id = ?
+                """, Long.class, TENANT, WORK_PLAN_ID, POPULATION_ID))).isEqualTo(6L);
+        assertThat(tenantValue(() -> runtime.queryForObject("""
+                SELECT count(DISTINCT actor_id)
+                  FROM tim_work_regime_command_authority_evidence
+                 WHERE tenant_id = ? AND work_regime_public_id = ?
+                """, Long.class, TENANT, WORK_PLAN_ID))).isEqualTo(3L);
+        assertThat(tenantValue(() -> runtime.queryForObject("""
+                SELECT count(DISTINCT gateway_scope_key)
+                  FROM tim_work_regime_command_authority_evidence
+                 WHERE tenant_id = ? AND work_regime_public_id = ?
+                """, Long.class, TENANT, WORK_PLAN_ID))).isEqualTo(3L);
+
+        assertThatThrownBy(() -> tenantValue(() -> runtime.update("""
+                UPDATE tim_work_regime_versions
+                   SET author_actor_id = ?, version = version + 1
+                 WHERE tenant_id = ? AND public_id = ?
+                """, AUTHOR + 99, TENANT, WORK_PLAN_ID)))
+                .isInstanceOf(DataAccessException.class)
+                .hasStackTraceContaining("validated work-regime content is immutable");
+        assertThatThrownBy(() -> tenantValue(() -> runtime.update("""
+                UPDATE tim_work_regime_versions
+                   SET approval_actor_id = ?, version = version + 1
+                 WHERE tenant_id = ? AND public_id = ?
+                """, APPROVER + 99, TENANT, WORK_PLAN_ID)))
+                .isInstanceOf(DataAccessException.class)
+                .hasStackTraceContaining(
+                        "work-regime SoD evidence may change only in its governed transition");
+        assertThatThrownBy(() -> tenantValue(() -> runtime.update("""
+                UPDATE tim_work_regime_versions
+                   SET published_by_actor_id = ?, version = version + 1
+                 WHERE tenant_id = ? AND public_id = ?
+                """, PUBLISHER + 99, TENANT, WORK_PLAN_ID)))
+                .isInstanceOf(DataAccessException.class)
+                .hasStackTraceContaining(
+                        "work-regime SoD evidence may change only in its governed transition");
+        assertThatThrownBy(() -> tenantValue(() -> runtime.update("""
+                UPDATE tim_target_population_actor_grants
+                   SET updated_at = CURRENT_TIMESTAMP
+                 WHERE tenant_id = ? AND actor_id = ? AND gateway_scope_key = ?
+                """, TENANT, AUTHOR, GATEWAY_SCOPE)))
+                .isInstanceOf(DataAccessException.class)
+                .hasStackTraceContaining(
+                        "TIM runtime cannot mutate target-population authority projections");
+        assertThatThrownBy(() -> tenantValue(() -> runtime.update("""
+                UPDATE tim_work_regime_command_authority_evidence
+                   SET membership_revision = membership_revision + 1
+                 WHERE tenant_id = ? AND work_regime_public_id = ?
+                """, TENANT, WORK_PLAN_ID)))
+                .isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> tenantValue(() -> runtime.update("""
+                DELETE FROM tim_work_regime_command_authority_evidence
+                 WHERE tenant_id = ? AND work_regime_public_id = ?
+                """, TENANT, WORK_PLAN_ID)))
+                .isInstanceOf(DataAccessException.class);
+
+        TargetAuthorizationGuard authorGuard = new TargetAuthorizationGuard(
+                TENANT, AUTHOR, GATEWAY_SCOPE, POPULATION_ID,
+                1L, 1L, DIGEST_A, DIGEST_C, NOW);
+        assertThat(repository.findPolicyCandidates(authorGuard, "KR", 1L))
+                .extracting(candidate -> candidate.publicId())
+                .containsExactly(WORK_PLAN_ID);
+        adminTenantRun(() -> assertThat(admin.update("""
+                UPDATE tim_target_population_members
+                   SET lifecycle_state = 'REVOKED', updated_by = ?
+                 WHERE tenant_id = ?
+                   AND population_public_id = ?
+                   AND worker_public_id = ?
+                   AND people_assignment_public_id = ?
+                """, AUTHOR, TENANT, POPULATION_ID, WORKER_ID, PEOPLE_ASSIGNMENT_ID)).isOne());
+        try {
+            assertThat(repository.findPolicyCandidates(authorGuard, "KR", 1L)).isEmpty();
+        } finally {
+            adminTenantRun(() -> assertThat(admin.update("""
+                    UPDATE tim_target_population_members
+                       SET lifecycle_state = 'ACTIVE', updated_by = ?
+                     WHERE tenant_id = ?
+                       AND population_public_id = ?
+                       AND worker_public_id = ?
+                       AND people_assignment_public_id = ?
+                    """, AUTHOR, TENANT, POPULATION_ID, WORKER_ID,
+                    PEOPLE_ASSIGNMENT_ID)).isOne());
+        }
+    }
+
+    @Test
+    void projectionResolvesIndependentActorsAndRejectsStaleVictimAndTenantCrossing() {
+        long approver = APPROVER;
+        long publisher = PUBLISHER;
+        long revokedActor = AUTHOR + 3;
+        String revokedGatewayScope = "scope-" + "d".repeat(32);
+        UUID revokedWorker = UUID.fromString("71900000-0000-0000-0000-000000000014");
+        UUID revokedAssignment = UUID.fromString("71900000-0000-0000-0000-000000000015");
+        adminTenantRun(() -> {
+            assertThat(admin.update("""
+                    INSERT INTO tim_target_population_actor_grants (
+                        tenant_id, actor_id, gateway_scope_key, population_public_id,
+                        population_revision, grant_revision, lifecycle_state,
+                        valid_from, valid_to, source_digest, updated_by
+                    ) VALUES (?, ?, ?, ?, 1, 1, 'REVOKED', ?, ?, ?, ?)
+                    """,
+                    TENANT, revokedActor, revokedGatewayScope, POPULATION_ID,
+                    java.sql.Timestamp.from(NOW.minusSeconds(300)),
+                    java.sql.Timestamp.from(GRANT_VALID_TO), DIGEST_C, AUTHOR)).isOne();
+            assertThat(admin.update("""
+                    INSERT INTO tim_target_population_members (
+                        tenant_id, population_public_id, population_revision,
+                        worker_public_id, people_assignment_public_id,
+                        people_assignment_revision, membership_revision,
+                        lifecycle_state, effective_from, effective_to,
+                        source_digest, updated_by
+                    ) VALUES (?, ?, 1, ?, ?, 4, 1, 'REVOKED', ?, ?, ?, ?)
+                    """, TENANT, POPULATION_ID, revokedWorker, revokedAssignment,
+                    PERIOD.from(), PERIOD.to(), DIGEST_B, AUTHOR)).isOne();
+        });
+        JdbcWorkRegimeTargetPopulationResolver resolver =
+                new JdbcWorkRegimeTargetPopulationResolver(
+                        runtime, runtimeTransactionManager);
+
+        var authorAccess = resolver.resolveActorAccess(
+                TENANT, AUTHOR, GATEWAY_SCOPE, NOW).orElseThrow();
+        var approverAccess = resolver.resolveActorAccess(
+                TENANT, approver, APPROVER_GATEWAY_SCOPE, NOW).orElseThrow();
+        var publisherAccess = resolver.resolveActorAccess(
+                TENANT, publisher, PUBLISHER_GATEWAY_SCOPE, NOW).orElseThrow();
+
+        assertThat(List.of(
+                authorAccess.scopePublicRef(),
+                approverAccess.scopePublicRef(),
+                publisherAccess.scopePublicRef())).containsOnly(SCOPE);
+        assertThat(resolver.resolveTargetMembership(
+                TENANT, POPULATION_ID, WORKER_ID, PEOPLE_ASSIGNMENT_ID,
+                12L, PERIOD, NOW)).isPresent();
+        assertThat(resolver.resolveTargetMembership(
+                TENANT, POPULATION_ID, WORKER_ID, PEOPLE_ASSIGNMENT_ID,
+                13L, PERIOD, NOW)).isEmpty();
+        assertThat(resolver.resolveTargetMembership(
+                TENANT,
+                POPULATION_ID,
+                UUID.fromString("71900000-0000-0000-0000-000000000004"),
+                PEOPLE_ASSIGNMENT_ID,
+                12L,
+                PERIOD,
+                NOW)).isEmpty();
+        assertThat(resolver.resolveActorAccess(
+                TENANT + 1, AUTHOR, GATEWAY_SCOPE, NOW)).isEmpty();
+        assertThat(resolver.resolveActorAccess(
+                TENANT, AUTHOR, "scope-" + "0".repeat(32), NOW)).isEmpty();
+        assertThat(resolver.resolveActorAccess(
+                TENANT, AUTHOR, GATEWAY_SCOPE, GRANT_VALID_TO.plusSeconds(1))).isEmpty();
+        assertThat(resolver.resolveActorAccess(
+                TENANT, revokedActor, revokedGatewayScope, NOW)).isEmpty();
+        assertThat(resolver.resolveTargetMembership(
+                TENANT, POPULATION_ID, revokedWorker, revokedAssignment,
+                4L, PERIOD, NOW)).isEmpty();
     }
 
     @Test
@@ -380,7 +625,7 @@ class TimeOwnerPersistenceIntegrationTest {
         return new DraftWrite(
                 TENANT, WORK_PLAN_ID, ASSIGNMENT_ID, WORKER_ID, PEOPLE_ASSIGNMENT_ID,
                 12L, "KR-OWNER-WAVE1", 1L, "Seoul standard work plan",
-                ArrangementKind.FIXED, null, ScopeType.TENANT, SCOPE, 100, PERIOD,
+                ArrangementKind.FIXED, null, ScopeType.POPULATION, SCOPE, 100, PERIOD,
                 "Asia/Seoul", RULE_PACK_ID, "KR", "", 1L, DIGEST_C, 1,
                 DIGEST_D, DIGEST_E, AUTHOR, CREATE_CORRELATION_ID,
                 List.of(new PolicyTermWrite(
@@ -392,11 +637,25 @@ class TimeOwnerPersistenceIntegrationTest {
                         null,
                         null,
                         null)),
-                List.of(segment), evidence);
+                List.of(segment), new TargetBindingEvidence(
+                        POPULATION_ID, 1L, WORKER_ID, PEOPLE_ASSIGNMENT_ID, 12L, 1L,
+                        AUTHOR, GATEWAY_SCOPE, 1L,
+                        DIGEST_A, DIGEST_B, DIGEST_C, NOW), evidence);
     }
 
-    private static CommandEvidence evidence(UUID receiptId, UUID correlationId) {
-        return new CommandEvidence(receiptId, correlationId, AUTHOR, PURPOSE, DECISION);
+    private static CommandEvidence evidence(
+            UUID receiptId,
+            UUID correlationId,
+            UUID idempotencyKey,
+            LifecycleAction operation,
+            Long expectedVersion,
+            String requestDigest) {
+        return new CommandEvidence(
+                receiptId, correlationId, AUTHOR, PURPOSE, DECISION,
+                idempotencyKey, operation, WORK_PLAN_ID, expectedVersion, requestDigest,
+                new TargetAuthorizationGuard(
+                        TENANT, AUTHOR, GATEWAY_SCOPE, POPULATION_ID,
+                        1L, 1L, DIGEST_A, DIGEST_C, NOW));
     }
 
     private void assertEvidence(UUID receiptId, String eventType, String state) {
@@ -486,6 +745,47 @@ class TimeOwnerPersistenceIntegrationTest {
                    AND effective_to = ?
                 """, Long.class,
                 TENANT, RULE_PACK_ID, PERIOD.from(), PERIOD.to()))).isOne();
+    }
+
+    private void seedTargetPopulationProjection() {
+        adminTenantRun(() -> {
+            assertThat(admin.update("""
+                    INSERT INTO tim_target_population_projections (
+                        tenant_id, population_public_id, scope_public_ref,
+                        projection_revision, lifecycle_state, effective_from,
+                        effective_to, source_digest, updated_by
+                    ) VALUES (?, ?, ?, 1, 'ACTIVE', ?, ?, ?, ?)
+                    """, TENANT, POPULATION_ID, SCOPE, PERIOD.from(), PERIOD.to(),
+                    DIGEST_A, AUTHOR)).isOne();
+            assertThat(admin.update("""
+                    INSERT INTO tim_target_population_actor_grants (
+                        tenant_id, actor_id, gateway_scope_key, population_public_id,
+                        population_revision, grant_revision, lifecycle_state,
+                        valid_from, valid_to, source_digest, updated_by
+                    ) VALUES (?, ?, ?, ?, 1, 1, 'ACTIVE', ?, ?, ?, ?),
+                             (?, ?, ?, ?, 1, 1, 'ACTIVE', ?, ?, ?, ?),
+                             (?, ?, ?, ?, 1, 1, 'ACTIVE', ?, ?, ?, ?)
+                    """, TENANT, AUTHOR, GATEWAY_SCOPE, POPULATION_ID,
+                    java.sql.Timestamp.from(NOW.minusSeconds(300)),
+                    java.sql.Timestamp.from(GRANT_VALID_TO), DIGEST_C, AUTHOR,
+                    TENANT, APPROVER, APPROVER_GATEWAY_SCOPE, POPULATION_ID,
+                    java.sql.Timestamp.from(NOW.minusSeconds(300)),
+                    java.sql.Timestamp.from(GRANT_VALID_TO), DIGEST_C, AUTHOR,
+                    TENANT, PUBLISHER, PUBLISHER_GATEWAY_SCOPE, POPULATION_ID,
+                    java.sql.Timestamp.from(NOW.minusSeconds(300)),
+                    java.sql.Timestamp.from(GRANT_VALID_TO), DIGEST_C, AUTHOR))
+                    .isEqualTo(3);
+            assertThat(admin.update("""
+                    INSERT INTO tim_target_population_members (
+                        tenant_id, population_public_id, population_revision,
+                        worker_public_id, people_assignment_public_id,
+                        people_assignment_revision, membership_revision,
+                        lifecycle_state, effective_from, effective_to,
+                        source_digest, updated_by
+                    ) VALUES (?, ?, 1, ?, ?, 12, 1, 'ACTIVE', ?, ?, ?, ?)
+                    """, TENANT, POPULATION_ID, WORKER_ID, PEOPLE_ASSIGNMENT_ID,
+                    PERIOD.from(), PERIOD.to(), DIGEST_B, AUTHOR)).isOne();
+        });
     }
 
     private <T> T tenantValue(Supplier<T> work) {

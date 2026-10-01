@@ -339,6 +339,7 @@ final class ProductAuthorizationAuthoritySupport {
             boolean readOnly) {
         String kind = switch (Objects.toString(resolver, "SELF")) {
             case "SELF" -> "SELF";
+            case "TENANT" -> "TENANT";
             case "SUPPORT_SESSION" -> "SUPPORT_SESSION";
             default -> resolver != null && resolver.startsWith("APP_RESOURCE_SET:")
                     ? "RESOURCE_SET" : "TARGET_POPULATION";

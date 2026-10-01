@@ -14,8 +14,11 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.time.workregime.WorkRegimeModels.Authority;
 import com.dwp.services.time.workregime.WorkRegimeModels.Duty;
 import com.dwp.services.time.workregime.WorkRegimeOwnerAuthoritySource.VerifiedRequest;
@@ -126,6 +129,23 @@ class WorkRegimeOwnerAccessFilterTest {
     }
 
     @Test
+    void commandDecisionConflictIsPreservedAndCallsNoOwnerController() throws Exception {
+        when(authoritySource.verify(
+                any(HttpServletRequest.class), eq(WorkRegimeOwnerRoute.CREATE_DRAFT)))
+                .thenThrow(new BaseException(
+                        ErrorCode.DECISION_REVISION_CONFLICT,
+                        "authority changed"));
+
+        mockMvc.perform(post("/v1/hris/work-plans/drafts"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("DECISION_REVISION_CONFLICT"));
+
+        assertThat(controller.ownerCalls()).isZero();
+        verifyNoInteractions(service);
+    }
+
+    @Test
     void expiredAuthorityCallsNoOwnerController() throws Exception {
         stub(WorkRegimeOwnerRoute.LIST, verified(
                 Set.of(TIME_AUDITOR), WorkRegimeLifecycleGuard.REQUIRED_PURPOSE,
@@ -186,7 +206,8 @@ class WorkRegimeOwnerAccessFilterTest {
                 false, Instant.now().plusSeconds(60)));
 
         mockMvc.perform(post("/v1/hris/work-plans/{id}/actions/publish", PLAN_ID))
-                .andExpect(status().isForbidden());
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("STEP_UP_REQUIRED"));
 
         assertThat(controller.ownerCalls()).isZero();
         verifyNoInteractions(service);
@@ -316,6 +337,28 @@ class WorkRegimeOwnerAccessFilterTest {
                         assertThat(context).hasFailed();
                         assertThat(context.getStartupFailure())
                                 .hasStackTraceContaining("WorkRegimeOwnerAuthoritySource");
+                    });
+        }
+
+        @Test
+        void productionGatewayAuthoritySourceClosesEnabledApplicationWiring() {
+            new ApplicationContextRunner()
+                    .withBean(ObjectMapper.class,
+                            () -> new ObjectMapper().findAndRegisterModules())
+                    .withBean(
+                            WorkRegimeTargetPopulationResolver.class,
+                            () -> mock(WorkRegimeTargetPopulationResolver.class))
+                    .withUserConfiguration(
+                            WorkRegimeOwnerAccessFilter.class,
+                            GatewayVerifiedWorkRegimeOwnerAuthoritySource.class)
+                    .withPropertyValues(
+                            "dwp.time.work-regime-api.enabled=true",
+                            "dwp.time.service-token=verified-time-token",
+                            "dwp.time.product-authorization-enabled=true")
+                    .run(context -> {
+                        assertThat(context).hasNotFailed();
+                        assertThat(context).hasSingleBean(WorkRegimeOwnerAuthoritySource.class);
+                        assertThat(context).hasSingleBean(WorkRegimeOwnerAccessFilter.class);
                     });
         }
     }

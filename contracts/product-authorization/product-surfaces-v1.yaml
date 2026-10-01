@@ -60273,6 +60273,125 @@
           "lifecycleState": "ACTIVE"
         }
       ]
+    },
+    {
+      "version": 33,
+      "capabilities": [],
+      "accessPolicies": [
+        {
+          "accessPolicyKey": "hcm.management-system-access.v1",
+          "navigationContextId": "hcm.management",
+          "productKey": "hcm",
+          "surfaceKey": "hcm.management",
+          "surfaceEntryKeys": [
+            "hcm.management"
+          ],
+          "evaluationType": "SINGLE",
+          "authorityMode": "ENTITLEMENT",
+          "entitlementExpressionKey": "HCM_MANAGEMENT_PRODUCT_ACCESS_V1",
+          "requiresProductEntitlement": false,
+          "relationshipResolver": null,
+          "scopeResolver": "TENANT",
+          "supportScopes": null,
+          "modeBranches": null,
+          "owner": "HRIS + Platform + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": [
+        {
+          "routeContractKey": "route.hcm.management.system.page",
+          "navigationContextId": "hcm.management",
+          "subject": {
+            "type": "PRODUCT",
+            "productKey": "hcm",
+            "surfaceKey": "hcm.management"
+          },
+          "routeKind": "PAGE",
+          "sideEffectFree": null,
+          "uiRouteId": "hcm.management.system",
+          "uiRoutePattern": "/hr/manage/system",
+          "accessProfiles": [
+            {
+              "profileKey": "full-management",
+              "precedence": 300,
+              "activeAccessModes": [
+                "NORMAL",
+                "ELEVATED"
+              ],
+              "requiredAccess": {
+                "type": "POLICY",
+                "accessPolicyKey": "hcm.management-system-access.v1"
+              },
+              "targetBindingKinds": [
+                "CONFIG_SCOPE"
+              ],
+              "predicatePolicyKeys": [],
+              "readOnly": true
+            }
+          ],
+          "gatewayApiBindings": [
+            {
+              "bindingKey": "route.hcm.management.system.page.binding.01",
+              "method": "GET",
+              "path": "/api/auth/hris/product-access/snapshot",
+              "pathParameterConstraints": {},
+              "queryParameterConstraints": {
+                "view": {
+                  "kind": "FIXED",
+                  "value": "system"
+                }
+              }
+            },
+            {
+              "bindingKey": "route.hcm.management.system.page.binding.02",
+              "method": "GET",
+              "path": "/api/platform/v1/hris/configuration/projection",
+              "pathParameterConstraints": {},
+              "queryParameterConstraints": {
+                "view": {
+                  "kind": "FIXED",
+                  "value": "system"
+                }
+              }
+            }
+          ],
+          "servicePepBindings": [
+            {
+              "bindingKey": "route.hcm.management.system.page.binding.01",
+              "method": "GET",
+              "path": "/auth/hris/product-access/snapshot",
+              "pathParameterConstraints": {},
+              "queryParameterConstraints": {
+                "view": {
+                  "kind": "FIXED",
+                  "value": "system"
+                }
+              },
+              "serviceKey": "auth"
+            },
+            {
+              "bindingKey": "route.hcm.management.system.page.binding.02",
+              "method": "GET",
+              "path": "/v1/hris/configuration/projection",
+              "pathParameterConstraints": {},
+              "queryParameterConstraints": {
+                "view": {
+                  "kind": "FIXED",
+                  "value": "system"
+                }
+              },
+              "serviceKey": "platform"
+            }
+          ],
+          "owner": "Auth + Platform + HRIS + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ]
     }
   ],
   "descriptorEnrichments": {
@@ -61621,6 +61740,36 @@
             "bindingKey": "route.hcm.operations.person-detail.data.binding.01",
             "constraints": {
               "projection": {
+                "kind": "ABSENT"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.hcm.personal.product-access-snapshot.data",
+        "introducedInVersion": 33,
+        "versionedQueryParameterConstraints": [
+          {
+            "introducedInVersion": 33,
+            "bindingKey": "route.hcm.personal.product-access-snapshot.data.binding.01",
+            "constraints": {
+              "view": {
+                "kind": "ABSENT"
+              }
+            }
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.hcm.personal.configuration-projection.data",
+        "introducedInVersion": 33,
+        "versionedQueryParameterConstraints": [
+          {
+            "introducedInVersion": 33,
+            "bindingKey": "route.hcm.personal.configuration-projection.data.binding.01",
+            "constraints": {
+              "view": {
                 "kind": "ABSENT"
               }
             }

@@ -9,6 +9,9 @@ import com.dwp.services.time.workregime.WorkRegimeModels.PolicyCandidate;
 import com.dwp.services.time.workregime.WorkRegimeModels.PolicyState;
 import com.dwp.services.time.workregime.WorkRegimeModels.RulePack;
 import com.dwp.services.time.workregime.WorkRegimeModels.WorkRegimeRevision;
+import com.dwp.services.time.workregime.WorkRegimeRepository.TargetBindingEvidence;
+import com.dwp.services.time.workregime.WorkRegimeRepository.TargetAuthorizationGuard;
+import com.dwp.services.time.workregime.JdbcWorkRegimeTargetAuthorizationSupport.LockedTarget;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.DayOfWeek;
@@ -50,6 +53,7 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
     private final JdbcWorkRegimeSimulationPersistence simulations;
     private final JdbcWorkRegimeEvidencePersistence evidence;
     private final JdbcWorkRegimeRecoverySupport recovery;
+    private final JdbcWorkRegimeTargetAuthorizationSupport targetAuthorization;
 
     public JdbcWorkRegimeRepository(
             JdbcTemplate jdbc, PlatformTransactionManager transactionManager) {
@@ -63,6 +67,7 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
         this.simulations = new JdbcWorkRegimeSimulationPersistence(jdbc);
         this.evidence = new JdbcWorkRegimeEvidencePersistence(jdbc);
         this.recovery = new JdbcWorkRegimeRecoverySupport(jdbc);
+        this.targetAuthorization = new JdbcWorkRegimeTargetAuthorizationSupport(jdbc);
     }
 
     @Override
@@ -73,10 +78,36 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
     }
 
     @Override
+    public List<WorkPlanRecord> findEffective(
+            TargetAuthorizationGuard guard, LocalDate effectiveOn) {
+        Objects.requireNonNull(guard, "guard must not be null");
+        Objects.requireNonNull(effectiveOn, "effectiveOn must not be null");
+        return inTenantTransaction(guard.tenantId(), () -> {
+            targetAuthorization.lockActor(guard);
+            return reads.findEffective(
+                    guard.tenantId(), guard.populationPublicId(), effectiveOn);
+        });
+    }
+
+    @Override
     public Optional<WorkPlanRecord> findByPublicId(long tenantId, UUID publicId) {
         requireTenant(tenantId);
         Objects.requireNonNull(publicId, "publicId must not be null");
         return inTenantTransaction(tenantId, () -> reads.findByPublicId(tenantId, publicId));
+    }
+
+    @Override
+    public Optional<WorkPlanRecord> findByPublicId(
+            TargetAuthorizationGuard guard, UUID publicId) {
+        Objects.requireNonNull(guard, "guard must not be null");
+        Objects.requireNonNull(publicId, "publicId must not be null");
+        return inTenantTransaction(guard.tenantId(), () -> {
+            if (targetAuthorization.tryLockPlanAccess(guard, publicId).isEmpty()) {
+                return Optional.empty();
+            }
+            return reads.findByPublicId(
+                    guard.tenantId(), publicId, guard.populationPublicId());
+        });
     }
 
     @Override
@@ -97,6 +128,19 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
     }
 
     @Override
+    public List<PolicyCandidate> findPolicyCandidates(
+            TargetAuthorizationGuard guard, String jurisdiction, long policyRevision) {
+        Objects.requireNonNull(guard, "guard must not be null");
+        requireResolutionKey(guard.tenantId(), jurisdiction, policyRevision);
+        return inTenantTransaction(guard.tenantId(), () -> {
+            targetAuthorization.lockActor(guard);
+            return reads.findPolicyCandidates(
+                    guard.tenantId(), guard.populationPublicId(), guard.populationRevision(),
+                    guard.populationDigest(), jurisdiction, policyRevision);
+        });
+    }
+
+    @Override
     public List<AssignmentPlan> findSimulationAssignments(
             long tenantId, UUID workRegimePublicId, EffectivePeriod requestedPeriod) {
         requireTenant(tenantId);
@@ -109,9 +153,28 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
     }
 
     @Override
+    public List<AssignmentPlan> findSimulationAssignments(
+            TargetAuthorizationGuard guard,
+            UUID workRegimePublicId,
+            EffectivePeriod requestedPeriod) {
+        Objects.requireNonNull(guard, "guard must not be null");
+        Objects.requireNonNull(workRegimePublicId, "workRegimePublicId must not be null");
+        requireClosedPeriod(requestedPeriod);
+        return inTenantTransaction(guard.tenantId(), () -> {
+            targetAuthorization.tryLockPlanAccess(guard, workRegimePublicId)
+                    .orElseThrow(() -> new IllegalStateException(
+                            "Authorized work plan is unavailable"));
+            return reads.findSimulationAssignments(
+                    guard.tenantId(), workRegimePublicId,
+                    guard.populationPublicId(), requestedPeriod);
+        });
+    }
+
+    @Override
     public WorkPlanRecord createDraft(DraftWrite draft) {
         validateDraft(draft);
         return inTenantTransaction(draft.tenantId(), () -> {
+            LockedTarget lockedTarget = targetAuthorization.authorizeCreate(draft);
             TenantExtensionWrite extension = draft.tenantExtension();
             Long regimeId = jdbc.queryForObject("""
                     INSERT INTO tim_work_regime_versions (
@@ -159,7 +222,7 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
 
             insertTerms(draft, workRegimeVersionId);
             insertSegments(draft, workRegimeVersionId);
-            jdbc.update("""
+            Long assignmentInternalId = jdbc.queryForObject("""
                     INSERT INTO tim_work_plan_assignments (
                         public_id, tenant_id, worker_public_id,
                         people_assignment_public_id, people_assignment_revision,
@@ -168,7 +231,9 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
                         jurisdiction_country, jurisdiction_subdivision, policy_revision,
                         lifecycle_state, source_context_digest, created_by, updated_by
                     ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?, ?)
+                    RETURNING work_plan_assignment_id
                     """,
+                    Long.class,
                     draft.assignmentPublicId(),
                     draft.tenantId(),
                     draft.workerPublicId(),
@@ -185,10 +250,41 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
                     draft.sourceContextDigest(),
                     draft.authorActorId(),
                     draft.authorActorId());
+            long workPlanAssignmentId = requireInternalId(
+                    assignmentInternalId, "work plan assignment");
+            TargetBindingEvidence target = lockedTarget.binding();
+            jdbc.update("""
+                    INSERT INTO tim_work_plan_target_evidence (
+                        tenant_id, work_plan_assignment_id,
+                        population_public_id, population_revision,
+                        membership_revision, people_assignment_revision,
+                        author_actor_id, author_gateway_scope_key,
+                        author_grant_revision, population_digest,
+                        membership_digest, grant_digest, verified_at, created_by
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    draft.tenantId(),
+                    workPlanAssignmentId,
+                    target.populationPublicId(),
+                    target.populationRevision(),
+                    target.membershipRevision(),
+                    target.peopleAssignmentRevision(),
+                    target.authorActorId(),
+                    target.authorGatewayScopeKey(),
+                    target.authorGrantRevision(),
+                    target.populationDigest(),
+                    target.membershipDigest(),
+                    target.grantDigest(),
+                    java.sql.Timestamp.from(target.verifiedAt()),
+                    target.authorActorId());
 
+            targetAuthorization.appendCommandEvidence(
+                    draft.commandEvidence(), draft.publicId(), lockedTarget);
             evidence.created(draft);
 
-            return reads.findByPublicId(draft.tenantId(), draft.publicId())
+            return reads.findByPublicId(
+                            draft.tenantId(), draft.publicId(),
+                            lockedTarget.binding().populationPublicId())
                     .orElseThrow(() -> new IllegalStateException(
                             "Created work regime could not be read back"));
         });
@@ -229,6 +325,21 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
     }
 
     @Override
+    public Optional<StoredSimulation> findSimulationByReceipt(
+            TargetAuthorizationGuard guard, UUID receiptId, UUID aggregateId) {
+        Objects.requireNonNull(guard, "guard must not be null");
+        Objects.requireNonNull(receiptId, "receiptId must not be null");
+        Objects.requireNonNull(aggregateId, "aggregateId must not be null");
+        return inTenantTransaction(guard.tenantId(), () -> {
+            if (targetAuthorization.tryLockPlanAccess(guard, aggregateId).isEmpty()) {
+                return Optional.empty();
+            }
+            return simulations.findByReceipt(guard.tenantId(), receiptId).filter(
+                    stored -> stored.workRegimePublicId().equals(aggregateId));
+        });
+    }
+
+    @Override
     public Optional<CommandOutcomeEvidence> findCommandOutcome(
             long tenantId,
             UUID receiptId,
@@ -241,6 +352,25 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
         return inTenantTransaction(
                 tenantId,
                 () -> recovery.findOutcome(tenantId, receiptId, aggregateId, operation));
+    }
+
+    @Override
+    public Optional<CommandOutcomeEvidence> findCommandOutcome(
+            TargetAuthorizationGuard guard,
+            UUID receiptId,
+            UUID aggregateId,
+            LifecycleAction operation) {
+        Objects.requireNonNull(guard, "guard must not be null");
+        Objects.requireNonNull(receiptId, "receiptId must not be null");
+        Objects.requireNonNull(aggregateId, "aggregateId must not be null");
+        Objects.requireNonNull(operation, "operation must not be null");
+        return inTenantTransaction(guard.tenantId(), () -> {
+            if (targetAuthorization.tryLockPlanAccess(guard, aggregateId).isEmpty()) {
+                return Optional.empty();
+            }
+            return recovery.findOutcome(
+                    guard.tenantId(), receiptId, aggregateId, operation);
+        });
     }
 
     private void insertTerms(DraftWrite draft, long regimeId) {
@@ -294,6 +424,10 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
     }
 
     private WorkRegimeRevision transitionInTenantTransaction(TransitionWrite transition) {
+        PolicyState expectedState = expectedStateBefore(transition.nextState());
+        LockedTarget lockedTarget = targetAuthorization.authorizeExisting(
+                transition.commandEvidence(), transition.publicId(),
+                transition.expectedVersion(), expectedState);
         TransitionRow stored = exactlyOne(jdbc.query("""
                 SELECT work_regime_version_id,
                        lifecycle_state,
@@ -346,6 +480,8 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
         transitionAssignmentLifecycle(transition, stored.internalId());
         WorkRegimeRevision changedRevision = reads.loadRevision(
                 transition.tenantId(), transition.publicId());
+        targetAuthorization.appendCommandEvidence(
+                transition.commandEvidence(), transition.publicId(), lockedTarget);
         evidence.transitioned(
                 transition, changedRevision.revision(), stored.state(), stored.version(),
                 changedRevision.version());
@@ -353,7 +489,18 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
     }
 
     private void saveSimulationInTenantTransaction(SimulationWrite simulation) {
+        long expectedVersion = Objects.requireNonNull(
+                simulation.commandEvidence().expectedVersion(),
+                "simulation expectedVersion must not be null");
+        LockedTarget lockedTarget = targetAuthorization.authorizeExisting(
+                simulation.commandEvidence(), simulation.workRegimePublicId(),
+                expectedVersion, PolicyState.VALIDATED);
+        targetAuthorization.authorizeSimulationResultAssignments(
+                simulation.commandEvidence().targetAuthorization(), lockedTarget,
+                simulation.period(), simulation.result());
         simulations.save(simulation);
+        targetAuthorization.appendCommandEvidence(
+                simulation.commandEvidence(), simulation.workRegimePublicId(), lockedTarget);
         evidence.simulated(simulation);
     }
 
@@ -461,12 +608,20 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
         Objects.requireNonNull(draft.rulePackPublicId(), "rulePackPublicId must not be null");
         Objects.requireNonNull(draft.arrangementKind(), "arrangementKind must not be null");
         Objects.requireNonNull(draft.scopeType(), "scopeType must not be null");
+        Objects.requireNonNull(
+                draft.targetBindingEvidence(), "targetBindingEvidence must not be null");
         Objects.requireNonNull(draft.correlationId(), "correlationId must not be null");
         Objects.requireNonNull(draft.period(), "period must not be null");
         if (draft.revision() < 1 || draft.policyRevision() < 1
                 || draft.templateSchemaVersion() < 1 || draft.authorActorId() <= 0
                 || draft.peopleAssignmentRevision() < 0) {
             throw new IllegalArgumentException("draft revisions and actor evidence are invalid");
+        }
+        if (draft.scopeType() != WorkRegimeModels.ScopeType.POPULATION
+                || !draft.scopeRef().equals(WorkRegimeTargetPopulationResolver.stableScopeRef(
+                        draft.targetBindingEvidence().populationPublicId()))) {
+            throw new IllegalArgumentException(
+                    "draft scope must be the resolved stable target population");
         }
         requireCountry(draft.jurisdiction());
         if (draft.jurisdictionSubdivision() == null
@@ -493,6 +648,11 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
                 transition.commandEvidence(), "commandEvidence must not be null");
         if (transition.expectedVersion() < 1 || transition.updatedBy() <= 0) {
             throw new IllegalArgumentException("transition version and actor must be positive");
+        }
+        if (transition.commandEvidence().operation()
+                != operationFor(transition.nextState())) {
+            throw new IllegalArgumentException(
+                    "transition state does not match its command operation");
         }
     }
 
@@ -538,6 +698,30 @@ public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
 
     private static void requireTenant(long tenantId) {
         if (tenantId <= 0) throw new IllegalArgumentException("tenantId must be positive");
+    }
+
+    private static LifecycleAction operationFor(PolicyState state) {
+        return switch (state) {
+            case VALIDATED -> LifecycleAction.VALIDATE;
+            case SIMULATED -> LifecycleAction.SIMULATE;
+            case IN_REVIEW -> LifecycleAction.SUBMIT_REVIEW;
+            case APPROVED -> LifecycleAction.APPLY_APPROVAL;
+            case PUBLISHED -> LifecycleAction.PUBLISH;
+            default -> throw new IllegalArgumentException(
+                    "No command operation exists for transition to " + state);
+        };
+    }
+
+    private static PolicyState expectedStateBefore(PolicyState state) {
+        return switch (state) {
+            case VALIDATED -> PolicyState.DRAFT;
+            case SIMULATED -> PolicyState.VALIDATED;
+            case IN_REVIEW -> PolicyState.SIMULATED;
+            case APPROVED -> PolicyState.IN_REVIEW;
+            case PUBLISHED -> PolicyState.APPROVED;
+            default -> throw new IllegalArgumentException(
+                    "No governed predecessor exists for transition to " + state);
+        };
     }
 
     private static long requireInternalId(Long id, String label) {

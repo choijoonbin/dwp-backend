@@ -132,7 +132,20 @@ class PayrollFoundationAccessPolicyTest {
     }
 
     @Test
-    void runtimeProviderFailsClosedWithoutCanonicalPepEvidence() {
+    void gatewayVerifiedRuntimeProviderHasNoRoleNameGrantMapping() {
+        PayrollFoundationAccessPolicyProvider provider =
+                new GatewayVerifiedPayrollFoundationAccessPolicyProvider();
+
+        PayrollFoundationAccess.AccessPolicy policy = provider.policyFor(42);
+
+        assertThat(policy.policyId()).isEqualTo("PAYROLL-GATEWAY-OWNER-V1");
+        assertThat(policy.roleActions()).isEmpty();
+        assertThat(policy.roleDenials()).isEmpty();
+        assertThat(policy.acceptedEntitlements()).containsExactly("APP.HCM:VIEW");
+    }
+
+    @Test
+    void fallbackProviderFailsClosedIfProductionProviderIsMissing() {
         PayrollFoundationAccessPolicyProvider provider =
                 new UnavailablePayrollFoundationAccessPolicyProvider();
 

@@ -447,7 +447,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected"):
             EXPORTER["validate_approval_signature_operations"](unexpected)
 
-    def test_gateway_openapi_projection_consumes_append_only_v32_registry(self) -> None:
+    def test_gateway_openapi_projection_consumes_append_only_v33_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -456,8 +456,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 32)
-        self.assertEqual(registry["version"], 32)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 33)
+        self.assertEqual(registry["version"], 33)
         self.assertEqual(len(dwaion_routes), 160)
         self.assertEqual(
             sum(route["routeKind"] == "ACTION" for route in dwaion_routes), 93
@@ -499,7 +499,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                     ("header", "X-DWP-Expected-Decision-Revision"), parameters
                 )
 
-    def test_gateway_projects_full_agent_contract_and_v32_governance(self) -> None:
+    def test_gateway_projects_full_agent_contract_and_v33_governance(self) -> None:
         registry = json.loads(
             EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"].read_text(encoding="utf-8")
         )
@@ -690,6 +690,69 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                         self.assertEqual(published["x-dwp-runtime-default"], "OFF")
 
         self.assertEqual(len(patch_variants), 4)
+
+    def test_system_view_parameter_is_published_by_owners_and_gateway(self) -> None:
+        expected = {
+            "auth": (
+                "/auth/hris/product-access/snapshot",
+                "/api/auth/hris/product-access/snapshot",
+            ),
+            "platform": (
+                "/v1/hris/configuration/projection",
+                "/api/platform/v1/hris/configuration/projection",
+            ),
+        }
+        services = {service.name: service for service in EXPORTER["SERVICES"]}
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+
+        def assert_system_view(operation: dict) -> None:
+            parameters = {
+                (parameter.get("in"), parameter.get("name")): parameter
+                for parameter in operation.get("parameters", [])
+                if isinstance(parameter, dict)
+            }
+            view = parameters[("query", "view")]
+            self.assertFalse(view["required"])
+            self.assertEqual(view["schema"], {"enum": ["system"], "type": "string"})
+
+        for service_name, (owner_path, gateway_path) in expected.items():
+            overlaid = EXPORTER["load_snapshot"](services[service_name])
+            assert_system_view(overlaid["paths"][owner_path]["get"])
+
+            checked_in = json.loads(
+                (ROOT / "contracts" / "openapi" / f"{service_name}.json")
+                .read_text(encoding="utf-8")
+            )
+            assert_system_view(checked_in["paths"][owner_path]["get"])
+            assert_system_view(gateway["paths"][gateway_path]["get"])
+
+    def test_payroll_high_risk_operations_publish_step_up_proof_header(self) -> None:
+        owner = json.loads(
+            (ROOT / "contracts/openapi/payroll.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+        suffixes = (
+            "/v1/hris/payroll/foundation/configurations/{configurationId}/publish",
+            "/v1/hris/payroll/foundation/configurations/{configurationId}/reversals",
+        )
+
+        for owner_path in suffixes:
+            gateway_path = "/api/payroll" + owner_path
+            for document, path in ((owner, owner_path), (gateway, gateway_path)):
+                parameters = {
+                    (parameter.get("in"), parameter.get("name")): parameter
+                    for parameter in document["paths"][path]["post"].get(
+                        "parameters", []
+                    )
+                    if isinstance(parameter, dict)
+                }
+                challenge = parameters[("header", "X-DWP-Step-Up-Challenge")]
+                self.assertTrue(challenge["required"])
+                self.assertEqual(challenge["schema"]["type"], "string")
 
     def test_wave1_hris_live_overlay_rejects_controller_method_drift(self) -> None:
         service = next(

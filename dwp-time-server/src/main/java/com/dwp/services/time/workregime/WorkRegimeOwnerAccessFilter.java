@@ -2,6 +2,7 @@ package com.dwp.services.time.workregime;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
 import com.dwp.services.time.workregime.WorkRegimeOwnerAuthoritySource.VerifiedRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
@@ -63,18 +64,33 @@ public final class WorkRegimeOwnerAccessFilter extends OncePerRequestFilter {
         VerifiedRequest verified;
         try {
             verified = authoritySource.verify(request, route).orElse(null);
+        } catch (BaseException denied) {
+            ErrorCode code = denied.getErrorCode() == ErrorCode.DECISION_REVISION_CONFLICT
+                    ? ErrorCode.DECISION_REVISION_CONFLICT
+                    : ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE;
+            deny(response, code, code == ErrorCode.DECISION_REVISION_CONFLICT
+                    ? "TIM authority changed after the client decision."
+                    : "Trusted TIM owner authority is unavailable.");
+            return;
         } catch (RuntimeException unavailable) {
             deny(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
                     "Trusted TIM owner authority is unavailable.");
             return;
         }
         if (!valid(verified, route)) {
+            if (verified != null && route.requiresElevatedAccess()
+                    && !verified.authority().stepUpSatisfied()) {
+                deny(response, ErrorCode.STEP_UP_REQUIRED,
+                        "Fresh elevated authority is required for this TIM command.");
+                return;
+            }
             deny(response, ErrorCode.FORBIDDEN,
                     "The selected TIM owner scope is not authorized.");
             return;
         }
 
         request.setAttribute(VERIFIED_REQUEST_ATTRIBUTE, verified);
+        response.setHeader("X-DWP-Decision-Revision", verified.decisionRevision());
         filterChain.doFilter(request, response);
     }
 

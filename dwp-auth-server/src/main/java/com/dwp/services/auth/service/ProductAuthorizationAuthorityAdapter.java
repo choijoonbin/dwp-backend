@@ -480,7 +480,7 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                             : "SURFACE_CAPABILITY_REQUIRED");
         }
         List<ProductSurfaceAuthorityDtos.EffectiveScope> scopes =
-                policyScopes(request, policy.scopeResolver(), null, false);
+                policyScopes(request, policy.scopeResolver(), null, routeReadOnly);
         ProductSurfaceAuthorityDtos.PolicyGrant grant =
                 new ProductSurfaceAuthorityDtos.PolicyGrant(
                         policy.accessPolicyKey(),

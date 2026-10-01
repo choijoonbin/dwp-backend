@@ -67,7 +67,7 @@ class TimeMigrationCleanUpgradeTest {
                 .placeholders(Map.of("timeRuntimeRole", RUNTIME_ROLE))
                 .load();
         assertThat(flyway.migrate().migrationsExecuted)
-                .as("TIM V1 plus the shared repeatable event-ledger migration")
+                .as("TIM owner foundation, target projection, and shared event ledger")
                 .isGreaterThanOrEqualTo(1);
     }
 
@@ -77,8 +77,11 @@ class TimeMigrationCleanUpgradeTest {
     }
 
     @Test
-    void migrationSourceIsSingleVersionClosedAndServerOwned() throws IOException {
+    void migrationSourcesAreClosedAndServerOwned() throws IOException {
         String sql = migrationSql();
+        String targetSql = targetPopulationMigrationSql();
+        String commandAuthoritySql = commandAuthorityMigrationSql();
+        String sodHardeningSql = sodHardeningMigrationSql();
         assertThat(sql)
                 .contains("BASE-TFR-TIM-016 / MIGLEASE-HRIS-W1-TIM-001")
                 .contains("'SELECTIVE'", "'SPLIT_SHIFT'", "'TENANT_EXTENSION'")
@@ -95,6 +98,30 @@ class TimeMigrationCleanUpgradeTest {
                 .doesNotContain("gen_random_uuid()")
                 .doesNotContain("REVOKE EXECUTE ON ALL FUNCTIONS IN SCHEMA")
                 .doesNotContain("GRANT ALL");
+        assertThat(targetSql)
+                .contains("tim_target_population_projections")
+                .contains("tim_target_population_actor_grants")
+                .contains("tim_target_population_members")
+                .contains("tim_work_plan_target_evidence")
+                .contains("FORCE ROW LEVEL SECURITY")
+                .contains("GRANT SELECT ON TABLE")
+                .contains("GRANT SELECT, INSERT ON TABLE tim_work_plan_target_evidence")
+                .doesNotContain("GRANT ALL")
+                .doesNotContain("TO \"${timeRuntimeRole}\";\n\nGRANT SELECT, INSERT, UPDATE");
+        assertThat(commandAuthoritySql)
+                .contains("tim_work_regime_command_authority_evidence")
+                .contains("FORCE ROW LEVEL SECURITY")
+                .contains("GRANT SELECT, INSERT ON TABLE")
+                .contains("command target authority evidence is immutable")
+                .doesNotContain("GRANT ALL")
+                .doesNotContain("GRANT SELECT, INSERT, UPDATE");
+        assertThat(sodHardeningSql)
+                .contains("tim_guard_work_regime_sod_evidence")
+                .contains("work-regime author and creation evidence are immutable")
+                .contains("approval evidence is immutable")
+                .contains("GRANT UPDATE (updated_at)")
+                .contains("TIM runtime cannot mutate target-population authority projections")
+                .doesNotContain("GRANT ALL");
     }
 
     @Test
@@ -106,9 +133,23 @@ class TimeMigrationCleanUpgradeTest {
                         + "AND script = 'V1__tim_create_work_regime_foundation.sql'",
                 Integer.class)).isOne();
         assertThat(admin.queryForObject(
+                "SELECT count(*) FROM flyway_schema_history WHERE success AND version = '2' "
+                        + "AND script = "
+                        + "'V2__tim_create_target_population_authority_projection.sql'",
+                Integer.class)).isOne();
+        assertThat(admin.queryForObject(
+                "SELECT count(*) FROM flyway_schema_history WHERE success AND version = '3' "
+                        + "AND script = "
+                        + "'V3__tim_create_command_target_authority_evidence.sql'",
+                Integer.class)).isOne();
+        assertThat(admin.queryForObject(
+                "SELECT count(*) FROM flyway_schema_history WHERE success AND version = '4' "
+                        + "AND script = 'V4__tim_harden_sod_and_projection_locks.sql'",
+                Integer.class)).isOne();
+        assertThat(admin.queryForObject(
                 "SELECT count(*) FROM pg_tables WHERE schemaname='public' "
                         + "AND tablename LIKE 'tim_%'",
-                Integer.class)).isEqualTo(11);
+                Integer.class)).isEqualTo(16);
         assertThat(admin.queryForObject(
                 "SELECT count(*) FROM pg_class WHERE relnamespace='public'::regnamespace "
                         + "AND relname LIKE 'tim_%' AND relkind='r' "
@@ -118,8 +159,11 @@ class TimeMigrationCleanUpgradeTest {
                 "SELECT p.proname, p.prosecdef, p.proconfig FROM pg_proc p "
                         + "JOIN pg_namespace n ON n.oid=p.pronamespace "
                         + "WHERE n.nspname='public' AND p.proname LIKE 'tim\\_%' ESCAPE '\\' "
-                        + "AND (NOT p.prosecdef OR NOT coalesce(p.proconfig, ARRAY[]::text[]) "
-                        + "@> ARRAY['search_path=pg_catalog, public, pg_temp'])"))
+                        + "AND (NOT p.prosecdef OR NOT ("
+                        + "coalesce(p.proconfig, ARRAY[]::text[]) "
+                        + "@> ARRAY['search_path=pg_catalog, public, pg_temp'] OR "
+                        + "coalesce(p.proconfig, ARRAY[]::text[]) "
+                        + "@> ARRAY['search_path=pg_catalog, pg_temp']))"))
                 .isEmpty();
         assertThat(admin.queryForObject(
                 "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace "
@@ -141,6 +185,31 @@ class TimeMigrationCleanUpgradeTest {
                 "SELECT has_table_privilege(?, 'public.tim_rule_pack_parameters', 'INSERT') "
                         + "OR has_table_privilege(?, 'public.tim_rule_pack_parameters', 'UPDATE')",
                 Boolean.class, RUNTIME_ROLE, RUNTIME_ROLE)).isFalse();
+        assertThat(admin.queryForObject(
+                "SELECT has_table_privilege(?, "
+                        + "'public.tim_target_population_projections', 'INSERT') "
+                        + "OR has_table_privilege(?, "
+                        + "'public.tim_target_population_actor_grants', 'UPDATE') "
+                        + "OR has_table_privilege(?, "
+                        + "'public.tim_target_population_members', 'DELETE')",
+                Boolean.class, RUNTIME_ROLE, RUNTIME_ROLE, RUNTIME_ROLE)).isFalse();
+        assertThat(admin.queryForObject(
+                "SELECT has_table_privilege(?, "
+                        + "'public.tim_work_plan_target_evidence', 'INSERT') "
+                        + "AND NOT has_table_privilege(?, "
+                        + "'public.tim_work_plan_target_evidence', 'UPDATE')",
+                Boolean.class, RUNTIME_ROLE, RUNTIME_ROLE)).isTrue();
+        assertThat(admin.queryForObject(
+                "SELECT has_table_privilege(?, "
+                        + "'public.tim_work_regime_command_authority_evidence', 'SELECT') "
+                        + "AND has_table_privilege(?, "
+                        + "'public.tim_work_regime_command_authority_evidence', 'INSERT') "
+                        + "AND NOT has_table_privilege(?, "
+                        + "'public.tim_work_regime_command_authority_evidence', 'UPDATE') "
+                        + "AND NOT has_table_privilege(?, "
+                        + "'public.tim_work_regime_command_authority_evidence', 'DELETE')",
+                Boolean.class,
+                RUNTIME_ROLE, RUNTIME_ROLE, RUNTIME_ROLE, RUNTIME_ROLE)).isTrue();
         assertThat(admin.queryForObject(
                 "SELECT count(*) FROM pg_constraint WHERE conname IN ("
                         + "'fk_tim_schedule_simulation_rule_pack', "
@@ -618,6 +687,35 @@ class TimeMigrationCleanUpgradeTest {
     private static String migrationSql() throws IOException {
         try (InputStream input = TimeMigrationCleanUpgradeTest.class.getClassLoader()
                 .getResourceAsStream("db/migration/V1__tim_create_work_regime_foundation.sql")) {
+            assertThat(input).isNotNull();
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static String targetPopulationMigrationSql() throws IOException {
+        try (InputStream input = TimeMigrationCleanUpgradeTest.class.getClassLoader()
+                .getResourceAsStream(
+                        "db/migration/"
+                                + "V2__tim_create_target_population_authority_projection.sql")) {
+            assertThat(input).isNotNull();
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static String commandAuthorityMigrationSql() throws IOException {
+        try (InputStream input = TimeMigrationCleanUpgradeTest.class.getClassLoader()
+                .getResourceAsStream(
+                        "db/migration/"
+                                + "V3__tim_create_command_target_authority_evidence.sql")) {
+            assertThat(input).isNotNull();
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static String sodHardeningMigrationSql() throws IOException {
+        try (InputStream input = TimeMigrationCleanUpgradeTest.class.getClassLoader()
+                .getResourceAsStream(
+                        "db/migration/V4__tim_harden_sod_and_projection_locks.sql")) {
             assertThat(input).isNotNull();
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }

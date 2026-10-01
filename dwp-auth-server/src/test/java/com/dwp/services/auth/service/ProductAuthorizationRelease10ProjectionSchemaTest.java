@@ -26,17 +26,17 @@ class ProductAuthorizationRelease10ProjectionSchemaTest {
     private ProductAuthorizationContractDtos.BundleContract typed(JsonNode bundle) throws Exception {
         return json.treeToValue(bundle, ProductAuthorizationContractDtos.BundleContract.class);
     }
-    @Test void exactFullImmutableBundleAndIndexKeepTenWhileLatestAdvancesToThirtyTwo() throws Exception {
+    @Test void exactFullImmutableBundleAndIndexKeepTenWhileLatestAdvancesToThirtyThree() throws Exception {
         var actual = bundle();
         assertEquals(10, validator.validateDocument(actual).version());
         assertEquals(318, actual.path("routes").size());
         try (var stream = new ClassPathResource("product-authorization/product-surfaces-v1.index.generated.json").getInputStream()) {
-            assertEquals(32, validator.validateSeedIndexDocument(json.readTree(stream)).latestVersion());
+            assertEquals(33, validator.validateSeedIndexDocument(json.readTree(stream)).latestVersion());
         }
-        for (long version = 11; version <= 32; version++)
+        for (long version = 11; version <= 33; version++)
             assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(version));
-        assertFalse(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(33));
-        actual.put("version", 33); actual.put("checksum", validator.checksum(actual));
+        assertFalse(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(34));
+        actual.put("version", 34); actual.put("checksum", validator.checksum(actual));
         assertThrows(IllegalArgumentException.class, () -> validator.validateDocument(actual));
     }
     @Test void allEightActualDataDescriptorsMatchAndInheritedBinaryRemainsNullableBase() throws Exception {

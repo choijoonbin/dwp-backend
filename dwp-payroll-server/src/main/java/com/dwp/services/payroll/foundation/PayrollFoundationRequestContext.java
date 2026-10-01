@@ -3,7 +3,9 @@ package com.dwp.services.payroll.foundation;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 
-import java.util.Set;
+import java.time.Instant;
+
+import static com.dwp.services.payroll.foundation.PayrollFoundationModels.FoundationAction;
 
 final class PayrollFoundationRequestContext {
 
@@ -33,16 +35,22 @@ final class PayrollFoundationRequestContext {
     record VerifiedSubject(
             long tenantId,
             long actorId,
-            Set<String> roles,
-            Set<String> permissions,
+            FoundationAction action,
             String purpose,
-            String legalEntityScope,
+            String contextKey,
+            String contextScopeKey,
             String policyRevision,
-            String authorizationRevision) {
+            String authorizationRevision,
+            Instant revalidateAt,
+            String routeContractKey) {
 
         VerifiedSubject {
-            roles = Set.copyOf(roles);
-            permissions = Set.copyOf(permissions);
+            if (tenantId <= 0 || actorId <= 0) {
+                throw new IllegalArgumentException("tenantId and actorId must be positive");
+            }
+            if (action == null || revalidateAt == null) {
+                throw new IllegalArgumentException("action and revalidateAt are required");
+            }
         }
     }
 }

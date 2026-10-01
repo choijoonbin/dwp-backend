@@ -257,6 +257,10 @@ final class JdbcWorkRegimeSimulationPersistence {
                        s.end_day_offset,
                        current_assignment.zone_id
                   FROM tim_work_plan_assignments target_assignment
+                  JOIN tim_work_plan_target_evidence target_evidence
+                    ON target_evidence.tenant_id = target_assignment.tenant_id
+                   AND target_evidence.work_plan_assignment_id =
+                       target_assignment.work_plan_assignment_id
                   JOIN tim_work_plan_assignments current_assignment
                     ON current_assignment.tenant_id = target_assignment.tenant_id
                    AND current_assignment.people_assignment_public_id =
@@ -265,13 +269,50 @@ final class JdbcWorkRegimeSimulationPersistence {
                    AND current_assignment.effective_from <= ?
                    AND (current_assignment.effective_to IS NULL
                         OR current_assignment.effective_to > ?)
+                  JOIN tim_work_regime_versions current_regime
+                    ON current_regime.tenant_id = current_assignment.tenant_id
+                   AND current_regime.work_regime_version_id =
+                       current_assignment.work_regime_version_id
+                   AND current_regime.policy_revision = current_assignment.policy_revision
+                   AND current_regime.lifecycle_state = 'PUBLISHED'
+                  JOIN tim_work_plan_target_evidence current_evidence
+                    ON current_evidence.tenant_id = current_assignment.tenant_id
+                   AND current_evidence.work_plan_assignment_id =
+                       current_assignment.work_plan_assignment_id
+                   AND current_evidence.population_public_id =
+                       target_evidence.population_public_id
+                  JOIN tim_target_population_projections population
+                    ON population.tenant_id = current_evidence.tenant_id
+                   AND population.population_public_id = current_evidence.population_public_id
+                   AND population.projection_revision = current_evidence.population_revision
+                   AND population.source_digest = current_evidence.population_digest
+                   AND population.lifecycle_state = 'ACTIVE'
+                  JOIN tim_target_population_members member
+                    ON member.tenant_id = current_assignment.tenant_id
+                   AND member.population_public_id = population.population_public_id
+                   AND member.population_revision = population.projection_revision
+                   AND member.worker_public_id = current_assignment.worker_public_id
+                   AND member.people_assignment_public_id =
+                       current_assignment.people_assignment_public_id
+                   AND member.people_assignment_revision =
+                       current_assignment.people_assignment_revision
+                   AND member.membership_revision = current_evidence.membership_revision
+                   AND member.source_digest = current_evidence.membership_digest
+                   AND member.lifecycle_state = 'ACTIVE'
                   JOIN tim_work_regime_segments s
                     ON s.tenant_id = current_assignment.tenant_id
                    AND s.work_regime_version_id = current_assignment.work_regime_version_id
                  WHERE target_assignment.tenant_id = ?
                    AND target_assignment.public_id = ?
+                   AND target_evidence.population_public_id = ?
                    AND s.iso_day_of_week = ?
                    AND s.segment_key = ?
+                   AND current_regime.effective_from <= ?
+                   AND (current_regime.effective_to IS NULL
+                        OR current_regime.effective_to > ?)
+                   AND member.effective_from <= ?
+                   AND (member.effective_to IS NULL OR member.effective_to > ?)
+                 FOR SHARE OF current_assignment, current_regime, population, member
                 """, (row, number) -> new SegmentDefinition(
                     row.getString("segment_key"),
                     SegmentKind.valueOf(row.getString("segment_kind")),
@@ -281,8 +322,10 @@ final class JdbcWorkRegimeSimulationPersistence {
                 key.workDate(),
                 simulation.tenantId(),
                 assignment.publicId(),
+                simulation.commandEvidence().targetAuthorization().populationPublicId(),
                 key.workDate().getDayOfWeek().getValue(),
-                key.segmentKey());
+                key.segmentKey(),
+                key.workDate(), key.workDate(), key.workDate(), key.workDate());
         SegmentDefinition definition = exactlyOne(
                 definitions, "removed segment evidence", key);
         return new SegmentEvidence(

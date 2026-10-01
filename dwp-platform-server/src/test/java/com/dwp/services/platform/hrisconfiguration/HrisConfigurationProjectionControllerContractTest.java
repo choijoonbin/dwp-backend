@@ -1,5 +1,6 @@
 package com.dwp.services.platform.hrisconfiguration;
 
+import com.dwp.core.exception.BaseException;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -10,6 +11,7 @@ import org.springframework.web.bind.annotation.PutMapping;
 import java.util.Arrays;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 
 class HrisConfigurationProjectionControllerContractTest {
@@ -56,5 +58,16 @@ class HrisConfigurationProjectionControllerContractTest {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(HrisConfigurationProjectionController.class);
                 });
+    }
+
+    @Test
+    void acceptsOnlyTheAbsentLegacyViewOrExactSystemView() {
+        HrisConfigurationProjectionController.requireSupportedView(null);
+        HrisConfigurationProjectionController.requireSupportedView("system");
+
+        assertThatThrownBy(
+                () -> HrisConfigurationProjectionController.requireSupportedView("personal"))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("Unsupported HRIS configuration projection view");
     }
 }

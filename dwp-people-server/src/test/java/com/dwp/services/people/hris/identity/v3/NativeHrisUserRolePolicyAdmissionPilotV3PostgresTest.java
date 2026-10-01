@@ -39,11 +39,11 @@ class NativeHrisUserRolePolicyAdmissionPilotV3PostgresTest {
     private UUID tenantPolicy;
     private final AtomicInteger nativeCalls=new AtomicInteger();
 
-    @BeforeAll static void actualFiftyMigrationsAndSelectOnlyNativeOwnerTables() throws SQLException {
+    @BeforeAll static void actualFiftyOneMigrationsAndSelectOnlyNativeOwnerTables() throws SQLException {
         var admin=source(POSTGRES.getUsername(),POSTGRES.getPassword()); owner=new JdbcTemplate(admin);
         var flyway=Flyway.configure().dataSource(admin).locations("filesystem:src/main/resources/db/migration")
                 .validateOnMigrate(true).outOfOrder(false).load();flyway.migrate();
-        assertEquals("50",flyway.info().current().getVersion().getVersion());assertEquals(50,flyway.info().applied().length);
+        assertEquals("51",flyway.info().current().getVersion().getVersion());assertEquals(51,flyway.info().applied().length);
         try(Connection connection=admin.getConnection()) {
             try(var s=connection.prepareStatement("SELECT set_config('dwp.test_password', ?, false)")) {s.setString(1,PASSWORD);s.execute();}
             try(var s=connection.createStatement()) {s.execute("""
@@ -112,7 +112,7 @@ class NativeHrisUserRolePolicyAdmissionPilotV3PostgresTest {
         String constraintsSql="SELECT conname||':'||pg_catalog.pg_get_constraintdef(oid) FROM pg_catalog.pg_constraint WHERE conrelid='public.ppl_workforce_access_policies'::regclass AND conname<>'ck_workforce_access_policy_subject_ref' ORDER BY conname";
         var rows=jdbc.queryForList(rowsSql,String.class);var indexes=jdbc.queryForList(indexesSql,String.class);var constraints=jdbc.queryForList(constraintsSql,String.class);
         var after=Flyway.configure().dataSource(admin).locations("filesystem:src/main/resources/db/migration")
-                .validateOnMigrate(true).outOfOrder(false).load();assertEquals(1,after.migrate().migrationsExecuted);
+                .target("50").validateOnMigrate(true).outOfOrder(false).load();assertEquals(1,after.migrate().migrationsExecuted);
         assertEquals("50",after.info().current().getVersion().getVersion());assertEquals(50,after.info().applied().length);
         assertEquals(rows,jdbc.queryForList(rowsSql,String.class));assertEquals(indexes,jdbc.queryForList(indexesSql,String.class));
         assertEquals(constraints,jdbc.queryForList(constraintsSql,String.class));

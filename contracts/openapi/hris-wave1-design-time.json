@@ -11,6 +11,12 @@
                 "name": "X-Tenant-ID",
                 "required": false,
                 "schema": {"format": "int64", "type": "integer"}
+              },
+              {
+                "in": "query",
+                "name": "view",
+                "required": false,
+                "schema": {"enum": ["system"], "type": "string"}
               }
             ],
             "responses": {"200": {"description": "OK"}},
@@ -32,7 +38,8 @@
               {"in": "header", "name": "X-DWP-User-ID", "required": true, "schema": {"format": "int64", "type": "integer"}},
               {"in": "header", "name": "X-DWP-Permissions", "required": true, "schema": {"type": "string"}},
               {"in": "header", "name": "X-DWP-Roles", "required": true, "schema": {"type": "string"}},
-              {"in": "query", "name": "locale", "required": false, "schema": {"default": "en", "type": "string"}}
+              {"in": "query", "name": "locale", "required": false, "schema": {"default": "en", "type": "string"}},
+              {"in": "query", "name": "view", "required": false, "schema": {"enum": ["system"], "type": "string"}}
             ],
             "responses": {"200": {"description": "OK"}},
             "tags": ["hris-configuration-projection-controller"],
@@ -211,10 +218,10 @@
           "put": {"operationId": "hrisPayrollUpdateConfiguration", "parameters": [{"in": "path", "name": "configurationId", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "update", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
         },
         "/v1/hris/payroll/foundation/configurations/{configurationId}/publish": {
-          "post": {"operationId": "hrisPayrollPublishConfiguration", "parameters": [{"in": "path", "name": "configurationId", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "publish", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+          "post": {"operationId": "hrisPayrollPublishConfiguration", "parameters": [{"in": "path", "name": "configurationId", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}, {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "publish", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
         },
         "/v1/hris/payroll/foundation/configurations/{configurationId}/reversals": {
-          "post": {"operationId": "hrisPayrollReverseConfiguration", "parameters": [{"in": "path", "name": "configurationId", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "reverse", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+          "post": {"operationId": "hrisPayrollReverseConfiguration", "parameters": [{"in": "path", "name": "configurationId", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}, {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "reverse", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
         },
         "/v1/hris/payroll/foundation/configurations/{configurationId}/simulations": {
           "post": {"operationId": "hrisPayrollSimulateConfiguration", "parameters": [{"in": "path", "name": "configurationId", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "simulate", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}

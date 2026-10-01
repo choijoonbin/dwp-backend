@@ -31,7 +31,7 @@ superset. It expands projection bindings and descriptor-to-route reverse
 indexes, validates same-bundle references and computes SHA-256 over canonical
 JSON with the mutable `checksum` and `bundleStatus` members omitted. The
 canonical source contains a version 1 base plus append-only version 2 through
-25 waves. It emits complete snapshots rather than deltas:
+33 waves. It emits complete snapshots rather than deltas:
 
 - `product-surfaces-v1.bundle-v1.json` — W0/Canary, checksum `bc34f47b…`
 - `product-surfaces-v1.bundle-v2.json` — W1a Approvals, checksum `5b634a35…`
@@ -50,12 +50,17 @@ canonical source contains a version 1 base plus append-only version 2 through
 - `product-surfaces-v1.bundle-v23.json` — append-only Workplace provider-bound resource commands, space-planning report export, and safety emergency-contact/handoff closure, checksum `4687f384…`
 - `product-surfaces-v1.bundle-v24.json` — append-only DWAI.ON research downloads, routine evidence/rollback/webhook, and artifact comments closure, checksum `be3db891…`
 - `product-surfaces-v1.bundle-v25.json` — append-only DWAI.ON staged artifact review decision closure, checksum `805fa418…`
-- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v25
+- `product-surfaces-v1.bundle-v26.json` through `bundle-v28.json` — immutable Workplace Home read, action, and shadow-receipt closure
+- `product-surfaces-v1.bundle-v29.json` and `bundle-v30.json` — immutable Mail lifecycle/governance closure plus DWAI.ON research and routine extensions
+- `product-surfaces-v1.bundle-v31.json` — immutable Approvals studio, deployment, incident, policy, and workflow closure
+- `product-surfaces-v1.bundle-v32.json` — default-off HRIS People, performance, payroll-foundation, work-plan, and SYS owner-read contracts
+- `product-surfaces-v1.bundle-v33.json` — management-anchored HRIS system PAGE and exact query-dispatched owner bindings, checksum `254ead67…`
+- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v33
 - `product-surfaces-v1.index.json` — checksummed version/artifact index
 
 Auth classpath resources use the same names with `.generated.json` before the
 extension. Every contract snapshot is byte-identical to its Auth seed peer;
-the latest Auth alias is byte-identical to bundle v25. The generator verifies
+the latest Auth alias is byte-identical to bundle v33. The generator verifies
 all files, checksums, aliases, descriptor preservation and monotonic reverse
 references in both generate and `--check` modes.
 
@@ -87,6 +92,13 @@ Version 25 preserves every version 1-24 byte and appends the single governed
 DWAI.ON artifact review-decision route. It binds the exact Gateway and Agent
 POST paths to `dwaion.work.artifacts.update`, the self predicate and current
 tenant identity; it introduces no new capability or broader route prefix.
+
+Versions 26-31 preserve all earlier bytes while closing Workplace Home runtime,
+Mail work/administration, DWAI.ON research/routine, and Approvals governance
+operations. Version 32 adds the default-off HRIS owner-service read and action
+contracts without activating them. Version 33 adds the management SYS PAGE and
+uses the fixed `view=system` discriminator so the two shared owner GET paths do
+not inherit the legacy personal DATA route.
 
 Bundle version 1 contains only the W0 registry, Named Reviewer and the
 Communications/Services technical canary, including its exact responsibility,

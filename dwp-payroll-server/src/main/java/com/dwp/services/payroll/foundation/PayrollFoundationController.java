@@ -36,27 +36,30 @@ class PayrollFoundationController {
 
     private final PayrollFoundationService service;
     private final PayrollFoundationAccessPolicyProvider accessPolicyProvider;
+    private final PayrollLegalEntityScopeResolver legalEntityScopeResolver;
 
     PayrollFoundationController(
             PayrollFoundationService service,
-            PayrollFoundationAccessPolicyProvider accessPolicyProvider) {
+            PayrollFoundationAccessPolicyProvider accessPolicyProvider,
+            PayrollLegalEntityScopeResolver legalEntityScopeResolver) {
         this.service = service;
         this.accessPolicyProvider = accessPolicyProvider;
+        this.legalEntityScopeResolver = legalEntityScopeResolver;
     }
 
     @ModelAttribute("payrollFoundationActor")
     Actor actor() {
         PayrollFoundationRequestContext.VerifiedSubject subject =
                 PayrollFoundationRequestContext.require();
-        return PayrollFoundationAccess.actor(
+        return PayrollFoundationAccess.gatewayActor(
                 subject.tenantId(),
                 subject.actorId(),
-                String.join(",", subject.roles()),
-                String.join(",", subject.permissions()),
+                subject.action(),
                 subject.purpose(),
-                subject.legalEntityScope(),
+                subject.contextScopeKey(),
                 subject.policyRevision(),
                 subject.authorizationRevision(),
+                legalEntityScopeResolver.resolve(subject),
                 accessPolicyProvider.policyFor(subject.tenantId()));
     }
 

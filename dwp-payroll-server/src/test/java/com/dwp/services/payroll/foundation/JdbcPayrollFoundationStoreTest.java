@@ -18,6 +18,7 @@ import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.annotation.EnableTransactionManagement;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -28,6 +29,7 @@ import java.sql.Statement;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
@@ -62,6 +64,7 @@ class JdbcPayrollFoundationStoreTest {
 
     private static AnnotationConfigApplicationContext context;
     private static JdbcTemplate adminJdbc;
+    private static TransactionTemplate adminTransaction;
     private PayrollFoundationService service;
 
     @BeforeAll
@@ -80,6 +83,8 @@ class JdbcPayrollFoundationStoreTest {
                 .load()
                 .migrate();
         adminJdbc = new JdbcTemplate(adminDataSource);
+        adminTransaction = new TransactionTemplate(
+                new DataSourceTransactionManager(adminDataSource));
         context = new AnnotationConfigApplicationContext(DatabaseTestConfiguration.class);
     }
 
@@ -92,7 +97,8 @@ class JdbcPayrollFoundationStoreTest {
 
     @BeforeEach
     void reset() {
-        adminJdbc.execute("TRUNCATE TABLE pay_foundation_audit_events, "
+        adminJdbc.execute("TRUNCATE TABLE pay_legal_entity_scope_members, "
+                + "pay_legal_entity_scope_projections, pay_foundation_audit_events, "
                 + "pay_foundation_command_receipts, pay_foundation_versions, "
                 + "pay_foundation_configurations CASCADE");
         service = new PayrollFoundationService(
@@ -242,6 +248,443 @@ class JdbcPayrollFoundationStoreTest {
                 .isEqualTo(ReceiptStatus.REVERSAL_FAILED);
     }
 
+    @Test
+    void ownerProjectionResolvesExactCurrentMembershipAndDrivesServiceScope() {
+        Instant now = Instant.parse("2026-09-17T09:00:00Z");
+        String scopeKey = "scope-" + "1".repeat(32);
+        String policyRevision = "rollout-" + "b".repeat(64);
+        String authorizationRevision = "psr-" + "a".repeat(64);
+        UUID projectionId = UUID.randomUUID();
+        UUID otherLegalEntity = UUID.fromString(
+                "10000000-0000-0000-0000-000000000099");
+        UUID otherGroup = UUID.fromString(
+                "20000000-0000-0000-0000-000000000099");
+        insertScopeProjection(
+                1, 101, scopeKey, policyRevision, authorizationRevision,
+                projectionId, "pay-legal-scope-r17", now.minusSeconds(60),
+                now.plusSeconds(600), LEGAL_ENTITY_ID);
+
+        PayrollFoundationRequestContext.VerifiedSubject viewSubject = verifiedSubject(
+                1, 101, PayrollFoundationModels.FoundationAction.VIEW,
+                "PAYROLL_AUDIT", scopeKey, policyRevision, authorizationRevision,
+                now.plusSeconds(300));
+        PayrollLegalEntityScopeResolver.Resolution resolution = context
+                .getBean(PayrollLegalEntityScopeResolver.class)
+                .resolve(viewSubject);
+        PayrollFoundationAccess.Actor viewer = PayrollFoundationAccess.gatewayActor(
+                viewSubject.tenantId(), viewSubject.actorId(), viewSubject.action(),
+                viewSubject.purpose(), viewSubject.contextScopeKey(),
+                viewSubject.policyRevision(), viewSubject.authorizationRevision(),
+                resolution, PayrollFoundationAccess.compatibilityPolicy());
+
+        MutationResult first = service.create(
+                author(1, 900), UUID.randomUUID(), null,
+                new CreateConfigurationRequest(definition(
+                        LEGAL_ENTITY_ID, GROUP_ID,
+                        LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31),
+                        Set.of(currency("USD")), List.of())));
+        MutationResult second = service.create(
+                author(1, 900), UUID.randomUUID(), null,
+                new CreateConfigurationRequest(definition(
+                        otherLegalEntity, otherGroup,
+                        LocalDate.of(2026, 1, 1), LocalDate.of(2026, 12, 31),
+                        Set.of(currency("EUR")), List.of())));
+
+        assertThat(resolution.legalEntityIds()).containsExactly(LEGAL_ENTITY_ID);
+        assertThat(viewer.scope().allLegalEntities()).isFalse();
+        assertThat(service.list(viewer).configurations())
+                .extracting(configuration -> configuration.definition().legalEntity().id())
+                .containsExactly(LEGAL_ENTITY_ID);
+        assertThat(service.get(viewer, first.configuration().configurationId())
+                .definition().legalEntity().id()).isEqualTo(LEGAL_ENTITY_ID);
+        assertThatThrownBy(() -> service.get(
+                viewer, second.configuration().configurationId()))
+                .isInstanceOfSatisfying(BaseException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.FORBIDDEN));
+
+        PayrollFoundationRequestContext.VerifiedSubject editSubject = verifiedSubject(
+                1, 101, PayrollFoundationModels.FoundationAction.EDIT,
+                "PAYROLL_CONFIGURATION", scopeKey, policyRevision,
+                authorizationRevision, now.plusSeconds(300));
+        PayrollFoundationAccess.Actor editor = PayrollFoundationAccess.gatewayActor(
+                editSubject.tenantId(), editSubject.actorId(), editSubject.action(),
+                editSubject.purpose(), editSubject.contextScopeKey(),
+                editSubject.policyRevision(), editSubject.authorizationRevision(),
+                context.getBean(PayrollLegalEntityScopeResolver.class).resolve(editSubject),
+                PayrollFoundationAccess.compatibilityPolicy());
+        FoundationDefinition forbiddenDefinition = definition(
+                otherLegalEntity, UUID.randomUUID(),
+                LocalDate.of(2027, 1, 1), LocalDate.of(2027, 12, 31),
+                Set.of(currency("EUR")), List.of());
+        assertThatThrownBy(() -> service.create(
+                editor, UUID.randomUUID(), null,
+                new CreateConfigurationRequest(forbiddenDefinition)))
+                .isInstanceOfSatisfying(BaseException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.FORBIDDEN));
+        assertThatThrownBy(() -> service.update(
+                editor, second.configuration().configurationId(), UUID.randomUUID(), null,
+                new UpdateConfigurationRequest(
+                        second.configuration().version(), forbiddenDefinition)))
+                .isInstanceOfSatisfying(BaseException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.FORBIDDEN));
+
+        JdbcTemplate runtimeJdbc = new JdbcTemplate(context.getBean(DataSource.class));
+        assertThatThrownBy(() -> runtimeJdbc.update("""
+                UPDATE pay_legal_entity_scope_projections
+                   SET status = 'REVOKED'
+                 WHERE tenant_id = 1 AND projection_id = ?
+                """, projectionId))
+                .isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> runtimeJdbc.update("""
+                INSERT INTO pay_legal_entity_scope_members (
+                    tenant_id, projection_id, legal_entity_id)
+                VALUES (1, ?, ?)
+                """, projectionId, otherLegalEntity))
+                .isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> adminJdbc.update("""
+                UPDATE pay_legal_entity_scope_projections
+                   SET projection_revision = 'tampered'
+                 WHERE tenant_id = 1 AND projection_id = ?
+                """, projectionId))
+                .isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> adminJdbc.update("""
+                UPDATE pay_legal_entity_scope_members
+                   SET legal_entity_id = ?
+                 WHERE tenant_id = 1 AND projection_id = ?
+                   AND legal_entity_id = ?
+                """, otherLegalEntity, projectionId, LEGAL_ENTITY_ID))
+                .isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> adminJdbc.update("""
+                DELETE FROM pay_legal_entity_scope_members
+                 WHERE tenant_id = 1 AND projection_id = ?
+                """, projectionId))
+                .isInstanceOf(DataAccessException.class);
+    }
+
+    @Test
+    void ownerProjectionRejectsMissingExpiredRevisionActorAndTenantMembership() {
+        Instant now = Instant.parse("2026-09-17T09:00:00Z");
+        String policyRevision = "rollout-" + "b".repeat(64);
+        String authorizationRevision = "psr-" + "a".repeat(64);
+        PayrollLegalEntityScopeResolver resolver =
+                context.getBean(PayrollLegalEntityScopeResolver.class);
+        String expiredScope = "scope-" + "2".repeat(32);
+        insertScopeProjection(
+                1, 101, expiredScope, policyRevision, authorizationRevision,
+                UUID.randomUUID(), "expired-r1", now.minusSeconds(600),
+                now.minusSeconds(1), LEGAL_ENTITY_ID);
+        String otherRevisionScope = "scope-" + "3".repeat(32);
+        insertScopeProjection(
+                1, 101, otherRevisionScope, policyRevision, "psr-" + "c".repeat(64),
+                UUID.randomUUID(), "other-auth-r1", now.minusSeconds(60),
+                now.plusSeconds(600), LEGAL_ENTITY_ID);
+        String otherTenantScope = "scope-" + "4".repeat(32);
+        insertScopeProjection(
+                2, 101, otherTenantScope, policyRevision, authorizationRevision,
+                UUID.randomUUID(), "tenant-2-r1", now.minusSeconds(60),
+                now.plusSeconds(600), LEGAL_ENTITY_ID);
+        String emptyScope = "scope-" + "5".repeat(32);
+        insertBuildingScopeProjection(
+                1, 101, emptyScope, policyRevision, authorizationRevision,
+                UUID.randomUUID(), "empty-r1", now.minusSeconds(60),
+                now.plusSeconds(600));
+        String revokedScope = "scope-" + "6".repeat(32);
+        UUID revokedProjectionId = UUID.randomUUID();
+        insertScopeProjection(
+                1, 101, revokedScope, policyRevision, authorizationRevision,
+                revokedProjectionId, "revoked-r1", now.minusSeconds(60),
+                now.plusSeconds(600), LEGAL_ENTITY_ID);
+        adminJdbc.update("""
+                UPDATE pay_legal_entity_scope_projections
+                   SET status = 'REVOKED', valid_until = ?
+                 WHERE tenant_id = 1 AND projection_id = ?
+                """, OffsetDateTime.ofInstant(now, ZoneOffset.UTC), revokedProjectionId);
+
+        List<PayrollFoundationRequestContext.VerifiedSubject> rejected = List.of(
+                verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
+                        "PAYROLL_AUDIT", "scope-" + "0".repeat(32),
+                        policyRevision, authorizationRevision, now.plusSeconds(60)),
+                verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
+                        "PAYROLL_AUDIT", expiredScope,
+                        policyRevision, authorizationRevision, now.plusSeconds(60)),
+                verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
+                        "PAYROLL_AUDIT", otherRevisionScope,
+                        policyRevision, authorizationRevision, now.plusSeconds(60)),
+                verifiedSubject(1, 202, PayrollFoundationModels.FoundationAction.VIEW,
+                        "PAYROLL_AUDIT", otherRevisionScope,
+                        policyRevision, "psr-" + "c".repeat(64), now.plusSeconds(60)),
+                verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
+                        "PAYROLL_AUDIT", otherTenantScope,
+                        policyRevision, authorizationRevision, now.plusSeconds(60)),
+                verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
+                        "PAYROLL_AUDIT", emptyScope,
+                        policyRevision, authorizationRevision, now.plusSeconds(60)),
+                verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
+                        "PAYROLL_AUDIT", revokedScope,
+                        policyRevision, authorizationRevision, now.plusSeconds(60)),
+                verifiedSubject(2, 101, PayrollFoundationModels.FoundationAction.VIEW,
+                        "PAYROLL_AUDIT", otherTenantScope,
+                        policyRevision, authorizationRevision, now.minusSeconds(1)));
+
+        for (PayrollFoundationRequestContext.VerifiedSubject subject : rejected) {
+            assertThatThrownBy(() -> resolver.resolve(subject))
+                    .isInstanceOfSatisfying(BaseException.class,
+                            exception -> assertThat(exception.getErrorCode())
+                                    .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
+        }
+    }
+
+    @Test
+    void buildingProjectionIsInvisibleUntilACompleteMembershipIsSealed() {
+        Instant now = Instant.parse("2026-09-17T09:00:00Z");
+        String scopeKey = "scope-" + "7".repeat(32);
+        String policyRevision = "rollout-" + "b".repeat(64);
+        String authorizationRevision = "psr-" + "a".repeat(64);
+        UUID projectionId = UUID.randomUUID();
+        UUID secondLegalEntity = UUID.fromString(
+                "10000000-0000-0000-0000-000000000077");
+        PayrollFoundationRequestContext.VerifiedSubject subject = verifiedSubject(
+                1, 101, PayrollFoundationModels.FoundationAction.VIEW,
+                "PAYROLL_AUDIT", scopeKey, policyRevision, authorizationRevision,
+                now.plusSeconds(300));
+        PayrollLegalEntityScopeResolver resolver =
+                context.getBean(PayrollLegalEntityScopeResolver.class);
+
+        adminTransaction.executeWithoutResult(transaction -> {
+            insertBuildingScopeProjection(
+                    1, 101, scopeKey, policyRevision, authorizationRevision,
+                    projectionId, "pay-building-r1", now.minusSeconds(60),
+                    now.plusSeconds(600));
+            insertScopeMember(1, projectionId, LEGAL_ENTITY_ID);
+            insertScopeMember(1, projectionId, secondLegalEntity);
+        });
+
+        assertThatThrownBy(() -> resolver.resolve(subject))
+                .isInstanceOfSatisfying(BaseException.class,
+                        exception -> assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
+
+        adminJdbc.update("""
+                UPDATE pay_legal_entity_scope_projections
+                   SET status = 'ACTIVE'
+                 WHERE tenant_id = 1 AND projection_id = ?
+                """, projectionId);
+
+        assertThat(resolver.resolve(subject).legalEntityIds())
+                .containsExactlyInAnyOrder(LEGAL_ENTITY_ID, secondLegalEntity);
+    }
+
+    @Test
+    void sealRejectsEmptyOrDirectActiveProjectionAndActiveMemberAppend() {
+        Instant now = Instant.parse("2026-09-17T09:00:00Z");
+        String policyRevision = "rollout-" + "b".repeat(64);
+        String authorizationRevision = "psr-" + "a".repeat(64);
+        UUID emptyProjectionId = UUID.randomUUID();
+        String emptyScopeKey = "scope-" + "8".repeat(32);
+        insertBuildingScopeProjection(
+                1, 101, emptyScopeKey, policyRevision, authorizationRevision,
+                emptyProjectionId, "pay-empty-r1", now.minusSeconds(60),
+                now.plusSeconds(600));
+
+        assertThatThrownBy(() -> adminJdbc.update("""
+                UPDATE pay_legal_entity_scope_projections
+                   SET status = 'ACTIVE'
+                 WHERE tenant_id = 1 AND projection_id = ?
+                """, emptyProjectionId))
+                .isInstanceOf(DataAccessException.class);
+        assertThat(adminJdbc.queryForObject("""
+                SELECT status
+                  FROM pay_legal_entity_scope_projections
+                 WHERE tenant_id = 1 AND projection_id = ?
+                """, String.class, emptyProjectionId)).isEqualTo("BUILDING");
+        assertThatThrownBy(() -> adminJdbc.update("""
+                UPDATE pay_legal_entity_scope_projections
+                   SET status = 'REVOKED', valid_until = ?
+                 WHERE tenant_id = 1 AND projection_id = ?
+                """, OffsetDateTime.ofInstant(now, ZoneOffset.UTC), emptyProjectionId))
+                .isInstanceOf(DataAccessException.class);
+
+        assertThatThrownBy(() -> adminJdbc.update("""
+                INSERT INTO pay_legal_entity_scope_projections (
+                    tenant_id, projection_id, actor_id, context_scope_key,
+                    policy_revision, authorization_revision, projection_revision,
+                    status, valid_from, valid_until, recorded_at)
+                VALUES (1, ?, 101, ?, ?, ?, 'pay-direct-active-r1',
+                        'ACTIVE', ?, ?, ?)
+                """, UUID.randomUUID(), "scope-" + "9".repeat(32), policyRevision,
+                authorizationRevision,
+                OffsetDateTime.ofInstant(now.minusSeconds(60), ZoneOffset.UTC),
+                OffsetDateTime.ofInstant(now.plusSeconds(600), ZoneOffset.UTC),
+                OffsetDateTime.ofInstant(now.minusSeconds(60), ZoneOffset.UTC)))
+                .isInstanceOf(DataAccessException.class);
+
+        insertScopeMember(1, emptyProjectionId, LEGAL_ENTITY_ID);
+        adminJdbc.update("""
+                UPDATE pay_legal_entity_scope_projections
+                   SET status = 'ACTIVE'
+                 WHERE tenant_id = 1 AND projection_id = ?
+                """, emptyProjectionId);
+        assertThatThrownBy(() -> adminJdbc.update("""
+                UPDATE pay_legal_entity_scope_projections
+                   SET status = 'BUILDING'
+                 WHERE tenant_id = 1 AND projection_id = ?
+                """, emptyProjectionId))
+                .isInstanceOf(DataAccessException.class);
+        assertThatThrownBy(() -> insertScopeMember(
+                1, emptyProjectionId,
+                UUID.fromString("10000000-0000-0000-0000-000000000088")))
+                .isInstanceOf(DataAccessException.class);
+    }
+
+    @Test
+    void terminalTransitionsKeepSealedMembersAndLeaveResolution() {
+        Instant now = Instant.parse("2026-09-17T09:00:00Z");
+        String policyRevision = "rollout-" + "b".repeat(64);
+        String authorizationRevision = "psr-" + "a".repeat(64);
+        PayrollLegalEntityScopeResolver resolver =
+                context.getBean(PayrollLegalEntityScopeResolver.class);
+
+        for (String terminalStatus : List.of("SUPERSEDED", "REVOKED")) {
+            UUID projectionId = UUID.randomUUID();
+            String scopeKey = terminalStatus.equals("SUPERSEDED")
+                    ? "scope-" + "a".repeat(32)
+                    : "scope-" + "b".repeat(32);
+            insertScopeProjection(
+                    1, 101, scopeKey, policyRevision, authorizationRevision,
+                    projectionId, "pay-terminal-" + terminalStatus.toLowerCase(),
+                    now.minusSeconds(60), now.plusSeconds(600), LEGAL_ENTITY_ID);
+
+            adminJdbc.update("""
+                    UPDATE pay_legal_entity_scope_projections
+                       SET status = ?, valid_until = ?
+                     WHERE tenant_id = 1 AND projection_id = ?
+                    """, terminalStatus, OffsetDateTime.ofInstant(now, ZoneOffset.UTC),
+                    projectionId);
+
+            assertThat(adminJdbc.queryForObject("""
+                    SELECT COUNT(*)
+                      FROM pay_legal_entity_scope_members
+                     WHERE tenant_id = 1 AND projection_id = ?
+                    """, Long.class, projectionId)).isEqualTo(1L);
+            PayrollFoundationRequestContext.VerifiedSubject subject = verifiedSubject(
+                    1, 101, PayrollFoundationModels.FoundationAction.VIEW,
+                    "PAYROLL_AUDIT", scopeKey, policyRevision, authorizationRevision,
+                    now.plusSeconds(300));
+            assertThatThrownBy(() -> resolver.resolve(subject))
+                    .isInstanceOfSatisfying(BaseException.class,
+                            exception -> assertThat(exception.getErrorCode())
+                                    .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
+        }
+    }
+
+    @Test
+    void cleanMigrationForcesRlsAndKeepsRuntimeProjectionAccessSelectOnly() {
+        assertThat(adminJdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM flyway_schema_history
+                 WHERE version = '2' AND success
+                """, Long.class)).isEqualTo(1L);
+        assertThat(adminJdbc.queryForObject("""
+                SELECT bool_and(relrowsecurity AND relforcerowsecurity)
+                  FROM pg_class
+                 WHERE relname IN (
+                     'pay_legal_entity_scope_projections',
+                     'pay_legal_entity_scope_members')
+                """, Boolean.class)).isTrue();
+
+        JdbcTemplate runtimeJdbc = new JdbcTemplate(context.getBean(DataSource.class));
+        for (String table : List.of(
+                "pay_legal_entity_scope_projections",
+                "pay_legal_entity_scope_members")) {
+            assertThat(runtimeJdbc.queryForObject(
+                    "SELECT has_table_privilege(current_user, ?, 'SELECT')",
+                    Boolean.class, table)).isTrue();
+            for (String privilege : List.of("INSERT", "UPDATE", "DELETE", "TRUNCATE")) {
+                assertThat(runtimeJdbc.queryForObject(
+                        "SELECT has_table_privilege(current_user, ?, ?)",
+                        Boolean.class, table, privilege)).isFalse();
+            }
+        }
+    }
+
+    private void insertScopeProjection(
+            long tenantId,
+            long actorId,
+            String contextScopeKey,
+            String policyRevision,
+            String authorizationRevision,
+            UUID projectionId,
+            String projectionRevision,
+            Instant validFrom,
+            Instant validUntil,
+            UUID... legalEntityIds) {
+        adminTransaction.executeWithoutResult(transaction -> {
+            insertBuildingScopeProjection(
+                    tenantId, actorId, contextScopeKey, policyRevision,
+                    authorizationRevision, projectionId, projectionRevision,
+                    validFrom, validUntil);
+            for (UUID legalEntityId : legalEntityIds) {
+                insertScopeMember(tenantId, projectionId, legalEntityId);
+            }
+            adminJdbc.update("""
+                    UPDATE pay_legal_entity_scope_projections
+                       SET status = 'ACTIVE'
+                     WHERE tenant_id = ? AND projection_id = ?
+                    """, tenantId, projectionId);
+        });
+    }
+
+    private void insertBuildingScopeProjection(
+            long tenantId,
+            long actorId,
+            String contextScopeKey,
+            String policyRevision,
+            String authorizationRevision,
+            UUID projectionId,
+            String projectionRevision,
+            Instant validFrom,
+            Instant validUntil) {
+        adminJdbc.update("""
+                INSERT INTO pay_legal_entity_scope_projections (
+                    tenant_id, projection_id, actor_id, context_scope_key,
+                    policy_revision, authorization_revision, projection_revision,
+                    status, valid_from, valid_until, recorded_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'BUILDING', ?, ?, ?)
+                """, tenantId, projectionId, actorId, contextScopeKey,
+                policyRevision, authorizationRevision, projectionRevision,
+                OffsetDateTime.ofInstant(validFrom, ZoneOffset.UTC),
+                validUntil == null
+                        ? null : OffsetDateTime.ofInstant(validUntil, ZoneOffset.UTC),
+                OffsetDateTime.ofInstant(validFrom, ZoneOffset.UTC));
+    }
+
+    private void insertScopeMember(long tenantId, UUID projectionId, UUID legalEntityId) {
+        adminJdbc.update("""
+                INSERT INTO pay_legal_entity_scope_members (
+                    tenant_id, projection_id, legal_entity_id)
+                VALUES (?, ?, ?)
+                """, tenantId, projectionId, legalEntityId);
+    }
+
+    private PayrollFoundationRequestContext.VerifiedSubject verifiedSubject(
+            long tenantId,
+            long actorId,
+            PayrollFoundationModels.FoundationAction action,
+            String purpose,
+            String scopeKey,
+            String policyRevision,
+            String authorizationRevision,
+            Instant revalidateAt) {
+        return new PayrollFoundationRequestContext.VerifiedSubject(
+                tenantId, actorId, action, purpose,
+                "psc-" + "d".repeat(64), scopeKey,
+                policyRevision, authorizationRevision, revalidateAt,
+                "route.hcm.operations.payroll-foundation-test");
+    }
+
     private PayrollFoundationAccess.Actor author(long tenant, long actor) {
         return PayrollFoundationAccess.actor(
                 tenant, actor, "CONFIGURATION_AUTHOR",
@@ -292,6 +735,16 @@ class JdbcPayrollFoundationStoreTest {
         PayrollFoundationStore payrollFoundationStore(
                 NamedParameterJdbcTemplate jdbc, ObjectMapper objectMapper) {
             return new JdbcPayrollFoundationStore(jdbc, objectMapper);
+        }
+
+        @Bean
+        PayrollLegalEntityScopeResolver payrollLegalEntityScopeResolver(
+                NamedParameterJdbcTemplate jdbc) {
+            return new JdbcPayrollLegalEntityScopeResolver(
+                    jdbc,
+                    Clock.fixed(
+                            Instant.parse("2026-09-17T09:00:00Z"),
+                            ZoneOffset.UTC));
         }
     }
 }

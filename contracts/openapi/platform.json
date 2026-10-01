@@ -77493,6 +77493,17 @@
               "default": "en",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "enum": [
+                "system"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {

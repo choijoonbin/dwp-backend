@@ -127,7 +127,7 @@ PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 33))
+BUNDLE_VERSIONS = tuple(range(1, 34))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -225,6 +225,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 47, "routes": 911, "PAGE": 118, "DATA": 274, "ACTION": 519},
     32: {"capabilities": 219, "accessPolicies": 23, "entitlementExpressions": 17,
          "predicatePolicies": 53, "routes": 943, "PAGE": 118, "DATA": 289, "ACTION": 536},
+    33: {"capabilities": 219, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 53, "routes": 944, "PAGE": 119, "DATA": 289, "ACTION": 536},
 }
 
 V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES = frozenset({
@@ -267,6 +269,16 @@ V32_HRIS_QUERY_DISCRIMINATORS = {
         {"projection": {"kind": "ABSENT"}},
     ),
 }
+V33_HRIS_QUERY_DISCRIMINATORS = {
+    "route.hcm.personal.product-access-snapshot.data": (
+        "route.hcm.personal.product-access-snapshot.data.binding.01",
+        {"view": {"kind": "ABSENT"}},
+    ),
+    "route.hcm.personal.configuration-projection.data": (
+        "route.hcm.personal.configuration-projection.data.binding.01",
+        {"view": {"kind": "ABSENT"}},
+    ),
+}
 V30_RESEARCH_READ_AUTHORITY_UPGRADE_ROUTES = frozenset(
     key for key in V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES if key.endswith(".data")
 )
@@ -302,6 +314,8 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     29: "aac6b6dfc94b4f4ea2956862ff1aa73ccd3459b29548fb20b3cbc26ae29cdbd8",
     30: "7c437bd768225db7dfe1c2491bcdb6ff256a2376946bab6a4ba4a62a7f31ce80",
     31: "be4e1b6db3d3f0b5100182a3c80066a39c64479f9ba88d908fee661efd3335b8",
+    32: "9e4e274bf457d1a5947c8b54e83299d28fb9fe128d9f1100991bc30634b54344",
+    33: "254ead674e1126d50e8dcf1011486ea1127fb2479f7a82d832cdf0466995bc49",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -1309,6 +1323,14 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
             ):
                 continue
             if (
+                current["version"] == 33
+                and section == "routes"
+                and _is_v33_hris_query_discriminator_upgrade(
+                    descriptor_key, prior_descriptor, candidate_descriptor
+                )
+            ):
+                continue
+            if (
                 current["version"] == 30
                 and section == "accessPolicies"
                 and descriptor_key == "dwaion.work-access.v1"
@@ -1383,6 +1405,36 @@ def _is_v32_hris_query_discriminator_upgrade(
     current: dict[str, Any],
 ) -> bool:
     expected = V32_HRIS_QUERY_DISCRIMINATORS.get(route_key)
+    if expected is None:
+        return False
+    binding_key, constraints = expected
+    candidate = copy.deepcopy(current)
+    prior = copy.deepcopy(previous)
+    for field in ("gatewayApiBindings", "servicePepBindings"):
+        prior_bindings = unique(prior[field], "bindingKey", f"{route_key} prior bindings")
+        current_bindings = unique(
+            candidate[field], "bindingKey", f"{route_key} current bindings"
+        )
+        if binding_key not in prior_bindings or binding_key not in current_bindings:
+            return False
+        binding = current_bindings[binding_key]
+        if binding.get("queryParameterConstraints") != constraints:
+            return False
+        if "queryParameterConstraints" in prior_bindings[binding_key]:
+            binding["queryParameterConstraints"] = copy.deepcopy(
+                prior_bindings[binding_key]["queryParameterConstraints"]
+            )
+        else:
+            binding.pop("queryParameterConstraints", None)
+    return candidate == prior
+
+
+def _is_v33_hris_query_discriminator_upgrade(
+    route_key: str,
+    previous: dict[str, Any],
+    current: dict[str, Any],
+) -> bool:
+    expected = V33_HRIS_QUERY_DISCRIMINATORS.get(route_key)
     if expected is None:
         return False
     binding_key, constraints = expected

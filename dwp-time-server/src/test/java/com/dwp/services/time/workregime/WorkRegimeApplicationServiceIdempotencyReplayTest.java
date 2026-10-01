@@ -5,8 +5,12 @@ import static com.dwp.services.time.workregime.WorkRegimeApiModels.SIMULATION_PU
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowableOfType;
+import static com.dwp.services.time.workregime.WorkRegimeTargetPopulationTestSupport.GATEWAY_SCOPE_A;
+import static com.dwp.services.time.workregime.WorkRegimeTargetPopulationTestSupport.GATEWAY_SCOPE_B;
+import static com.dwp.services.time.workregime.WorkRegimeTargetPopulationTestSupport.GATEWAY_SCOPE_C;
 
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.common.ErrorCode;
 import com.dwp.services.time.workregime.WorkRegimeApiModels.CreateDraftRequest;
 import com.dwp.services.time.workregime.WorkRegimeApiModels.CreateDraftView;
 import com.dwp.services.time.workregime.WorkRegimeApiModels.SimulationCommandView;
@@ -40,8 +44,11 @@ import com.dwp.services.time.workregime.WorkRegimeRepository.CommandOutcomeEvide
 import com.dwp.services.time.workregime.WorkRegimeRepository.DraftWrite;
 import com.dwp.services.time.workregime.WorkRegimeRepository.SimulationWrite;
 import com.dwp.services.time.workregime.WorkRegimeRepository.StoredSimulation;
+import com.dwp.services.time.workregime.WorkRegimeRepository.TargetAuthorizationGuard;
 import com.dwp.services.time.workregime.WorkRegimeRepository.TransitionWrite;
 import com.dwp.services.time.workregime.WorkRegimeRepository.WorkPlanRecord;
+import com.dwp.services.time.workregime.WorkRegimeTargetPopulationResolver.PopulationAccess;
+import com.dwp.services.time.workregime.WorkRegimeTargetPopulationResolver.TargetMembershipEvidence;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
@@ -55,6 +62,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 
 class WorkRegimeApplicationServiceIdempotencyReplayTest {
@@ -64,8 +72,14 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
     private static final Instant NOW = Instant.parse("2026-09-17T09:00:00Z");
     private static final LocalDate START = LocalDate.parse("2026-10-01");
     private static final LocalDate END = LocalDate.parse("2026-11-01");
-    private static final String SCOPE = "LEGAL_ENTITY:SEOUL";
-    private static final String OTHER_SCOPE = "LEGAL_ENTITY:BUSAN";
+    private static final UUID POPULATION_ID =
+            UUID.fromString("29e82c58-8f47-4af5-99d3-d033642e4d70");
+    private static final UUID OTHER_POPULATION_ID =
+            UUID.fromString("29e82c58-8f47-4af5-99d3-d033642e4d71");
+    private static final String SCOPE =
+            WorkRegimeTargetPopulationResolver.stableScopeRef(POPULATION_ID);
+    private static final String OTHER_SCOPE =
+            WorkRegimeTargetPopulationResolver.stableScopeRef(OTHER_POPULATION_ID);
     private static final String PURPOSE = WorkRegimeLifecycleGuard.REQUIRED_PURPOSE;
     private static final String DECISION_ID = "psr-" + "a".repeat(64);
     private static final UUID PLAN_ID =
@@ -78,6 +92,214 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
             UUID.fromString("f4dad8b5-b617-481d-bbdf-dc06dbf52ec8");
     private static final UUID IDEMPOTENCY_KEY =
             UUID.fromString("1df15f79-f38d-466f-8290-4b84f4e52e70");
+
+    @Test
+    void threeIndependentActorsCanAuthorApproveAndPublishOneStablePopulation() {
+        long approverId = ACTOR_ID + 1;
+        long publisherId = ACTOR_ID + 2;
+        WorkRegimeTargetPopulationResolver resolver =
+                WorkRegimeTargetPopulationTestSupport.resolver(
+                        TENANT_ID,
+                        Map.of(
+                                GATEWAY_SCOPE_A, POPULATION_ID,
+                                GATEWAY_SCOPE_B, POPULATION_ID,
+                                GATEWAY_SCOPE_C, POPULATION_ID),
+                        WORKER_ID,
+                        ASSIGNMENT_ID,
+                        1L,
+                        new EffectivePeriod(START, END),
+                        NOW);
+        FakeRepository repository = new FakeRepository(
+                workPlan(PLAN_ID, SCOPE, PolicyState.SIMULATED, 2L));
+        WorkRegimeApplicationService service = service(
+                repository, new InMemoryReceiptStore(), resolver);
+
+        VerifiedRequest author = verifiedExact(
+                ACTOR_ID, GATEWAY_SCOPE_A, Duty.TIME_CONFIG_AUTHOR, false);
+        VerifiedRequest approver = verifiedExact(
+                approverId, GATEWAY_SCOPE_B, Duty.TIME_CONFIG_APPROVER, false);
+        VerifiedRequest publisher = verifiedExact(
+                publisherId, GATEWAY_SCOPE_C, Duty.TIME_CONFIG_APPROVER, true);
+
+        CreateDraftView created = service.createDraft(
+                author,
+                UUID.fromString("29000000-0000-4000-8000-000000000001"),
+                draft(SCOPE, "Three-person governed plan"));
+        UUID createdPlanId = UUID.fromString(created.workPlanId());
+        service.transition(
+                author,
+                createdPlanId,
+                UUID.fromString("29000000-0000-4000-8000-000000000002"),
+                LifecycleAction.VALIDATE,
+                1L);
+        service.simulate(
+                author,
+                createdPlanId,
+                UUID.fromString("29000000-0000-4000-8000-000000000003"),
+                new SimulationRequest(2L, "1", "1", SIMULATION_PURPOSE));
+        service.transition(
+                author,
+                createdPlanId,
+                UUID.fromString("29000000-0000-4000-8000-000000000004"),
+                LifecycleAction.SUBMIT_REVIEW,
+                3L);
+        service.transition(
+                approver,
+                createdPlanId,
+                UUID.fromString("29000000-0000-4000-8000-000000000005"),
+                LifecycleAction.APPLY_APPROVAL,
+                4L);
+        var published = service.transition(
+                publisher,
+                createdPlanId,
+                UUID.fromString("29000000-0000-4000-8000-000000000006"),
+                LifecycleAction.PUBLISH,
+                5L);
+
+        assertThat(published.status()).isEqualTo(ReceiptState.SUCCEEDED.name());
+        assertThat(repository.plan.revision().state()).isEqualTo(PolicyState.PUBLISHED);
+        assertThat(repository.plan.revision().authorActorId()).isEqualTo(ACTOR_ID);
+        assertThat(repository.plan.revision().approvalActorId()).isEqualTo(approverId);
+        assertThat(publisherId).isNotEqualTo(ACTOR_ID).isNotEqualTo(approverId);
+    }
+
+    @Test
+    void createFailsClosedForVictimCrossPopulationStaleUnmappedAndForeignTenantTargets() {
+        WorkRegimeTargetPopulationResolver resolver =
+                WorkRegimeTargetPopulationTestSupport.resolver(
+                        TENANT_ID,
+                        Map.of(GATEWAY_SCOPE_A, POPULATION_ID),
+                        WORKER_ID,
+                        ASSIGNMENT_ID,
+                        1L,
+                        new EffectivePeriod(START, END),
+                        NOW);
+        WorkRegimeApplicationService service = service(
+                new FakeRepository(null), new InMemoryReceiptStore(), resolver);
+        VerifiedRequest author = verifiedExact(
+                ACTOR_ID, GATEWAY_SCOPE_A, Duty.TIME_CONFIG_AUTHOR, false);
+
+        assertDenied(
+                () -> service.createDraft(
+                        author,
+                        UUID.fromString("29100000-0000-4000-8000-000000000001"),
+                        draftTarget(
+                                SCOPE,
+                                UUID.fromString("29100000-0000-4000-8000-000000000011"),
+                                ASSIGNMENT_ID,
+                                1L)),
+                ErrorCode.FORBIDDEN);
+        assertDenied(
+                () -> service.createDraft(
+                        author,
+                        UUID.fromString("29100000-0000-4000-8000-000000000002"),
+                        draftTarget(OTHER_SCOPE, WORKER_ID, ASSIGNMENT_ID, 1L)),
+                ErrorCode.FORBIDDEN);
+        assertDenied(
+                () -> service.createDraft(
+                        author,
+                        UUID.fromString("29100000-0000-4000-8000-000000000003"),
+                        draftTarget(SCOPE, WORKER_ID, ASSIGNMENT_ID, 2L)),
+                ErrorCode.FORBIDDEN);
+        assertDenied(
+                () -> service.createDraft(
+                        verifiedExact(
+                                ACTOR_ID, GATEWAY_SCOPE_C,
+                                Duty.TIME_CONFIG_AUTHOR, false),
+                        UUID.fromString("29100000-0000-4000-8000-000000000004"),
+                        draft(SCOPE, "Unmapped actor")),
+                ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
+
+        Authority foreignAuthority = new Authority(
+                TENANT_ID + 1,
+                ACTOR_ID,
+                Set.of(Duty.TIME_CONFIG_AUTHOR),
+                Set.of(SCOPE),
+                PURPOSE,
+                DECISION_ID,
+                false,
+                false);
+        VerifiedRequest foreignTenant = new VerifiedRequest(
+                foreignAuthority,
+                GATEWAY_SCOPE_A,
+                DECISION_ID,
+                NOW.plusSeconds(300),
+                UUID.fromString("29100000-0000-4000-8000-000000000099"));
+        assertDenied(
+                () -> service.createDraft(
+                        foreignTenant,
+                        UUID.fromString("29100000-0000-4000-8000-000000000005"),
+                        draft(SCOPE, "Foreign tenant")),
+                ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
+    }
+
+    @Test
+    void everyTransitionRevalidatesActorGrantAndTargetMembership() {
+        AtomicBoolean actorActive = new AtomicBoolean(true);
+        AtomicBoolean memberActive = new AtomicBoolean(false);
+        WorkRegimeTargetPopulationResolver resolver = new WorkRegimeTargetPopulationResolver() {
+            @Override
+            public Optional<PopulationAccess> resolveActorAccess(
+                    long tenantId, long actorId, String gatewayScopeKey, Instant checkedAt) {
+                if (!actorActive.get() || tenantId != TENANT_ID
+                        || !GATEWAY_SCOPE_A.equals(gatewayScopeKey)) {
+                    return Optional.empty();
+                }
+                return Optional.of(new PopulationAccess(
+                        TENANT_ID, actorId, gatewayScopeKey, POPULATION_ID, SCOPE,
+                        1L, 1L, "a".repeat(64), "b".repeat(64),
+                        NOW.plusSeconds(3_600)));
+            }
+
+            @Override
+            public Optional<TargetMembershipEvidence> resolveTargetMembership(
+                    long tenantId,
+                    UUID populationPublicId,
+                    UUID workerPublicId,
+                    UUID peopleAssignmentPublicId,
+                    long peopleAssignmentRevision,
+                    EffectivePeriod requiredPeriod,
+                    Instant checkedAt) {
+                if (!memberActive.get()) return Optional.empty();
+                return Optional.of(new TargetMembershipEvidence(
+                        TENANT_ID, POPULATION_ID, 1L, WORKER_ID, ASSIGNMENT_ID,
+                        1L, 1L, new EffectivePeriod(START, END),
+                        "a".repeat(64), "c".repeat(64)));
+            }
+        };
+        VerifiedRequest author = verifiedExact(
+                ACTOR_ID, GATEWAY_SCOPE_A, Duty.TIME_CONFIG_AUTHOR, false);
+
+        FakeRepository memberRepository = new FakeRepository(
+                workPlan(PLAN_ID, SCOPE, PolicyState.DRAFT, 1L));
+        WorkRegimeApplicationService memberService = service(
+                memberRepository, new InMemoryReceiptStore(), resolver);
+        assertDenied(
+                () -> memberService.transition(
+                        author,
+                        PLAN_ID,
+                        UUID.fromString("29200000-0000-4000-8000-000000000001"),
+                        LifecycleAction.VALIDATE,
+                        1L),
+                ErrorCode.FORBIDDEN);
+        assertThat(memberRepository.transitionMutations).isZero();
+
+        memberActive.set(true);
+        actorActive.set(false);
+        FakeRepository actorRepository = new FakeRepository(
+                workPlan(PLAN_ID, SCOPE, PolicyState.DRAFT, 1L));
+        WorkRegimeApplicationService actorService = service(
+                actorRepository, new InMemoryReceiptStore(), resolver);
+        assertDenied(
+                () -> actorService.transition(
+                        author,
+                        PLAN_ID,
+                        UUID.fromString("29200000-0000-4000-8000-000000000002"),
+                        LifecycleAction.VALIDATE,
+                        1L),
+                ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
+        assertThat(actorRepository.transitionMutations).isZero();
+    }
 
     @Test
     void simulationRetryReturnsOriginalReceiptAndSimulationBeforeStaleVersionChecks() {
@@ -159,26 +381,25 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
         FakeRepository repository = new FakeRepository(null);
         InMemoryReceiptStore receipts = new InMemoryReceiptStore();
         WorkRegimeApplicationService service = service(repository, receipts);
-        Set<String> coveredScopes = Set.of(SCOPE, OTHER_SCOPE);
         CreateDraftRequest original = draft(SCOPE, "Standard week");
 
         service.createDraft(
-                verified(ACTOR_ID, SCOPE, coveredScopes),
+                verified(ACTOR_ID, SCOPE, Set.of(SCOPE)),
                 IDEMPOTENCY_KEY,
                 original);
 
         assertThatThrownBy(() -> service.createDraft(
-                        verified(ACTOR_ID + 1, SCOPE, coveredScopes),
+                        verified(ACTOR_ID + 1, SCOPE, Set.of(SCOPE)),
                         IDEMPOTENCY_KEY,
                         original))
                 .isInstanceOf(IdempotencyConflictException.class);
         assertThatThrownBy(() -> service.createDraft(
-                        verified(ACTOR_ID, OTHER_SCOPE, coveredScopes),
+                        verified(ACTOR_ID, OTHER_SCOPE, Set.of(OTHER_SCOPE)),
                         IDEMPOTENCY_KEY,
                         draft(OTHER_SCOPE, "Standard week")))
                 .isInstanceOf(IdempotencyConflictException.class);
         assertThatThrownBy(() -> service.createDraft(
-                        verified(ACTOR_ID, SCOPE, coveredScopes),
+                        verified(ACTOR_ID, SCOPE, Set.of(SCOPE)),
                         IDEMPOTENCY_KEY,
                         draft(SCOPE, "Changed body")))
                 .isInstanceOf(IdempotencyConflictException.class);
@@ -190,8 +411,9 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
     }
 
     @Test
-    void receiptLookupMakesActorScopePurposeAndDutyMismatchesOpaque() {
-        FakeRepository repository = new FakeRepository(null);
+    void receiptLookupIsOpaqueForIdentityMismatchesButAllowsTheReadRouteDuty() {
+        FakeRepository repository = new FakeRepository(
+                workPlan(PLAN_ID, SCOPE, PolicyState.SIMULATED, 2L));
         InMemoryReceiptStore receipts = new InMemoryReceiptStore();
         UUID receiptId = UUID.fromString("8f334fb5-fef5-4ccf-85b7-a126a2721652");
         receipts.seed(receipt(
@@ -221,17 +443,19 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
                 Set.of(SCOPE),
                 Set.of(Duty.TIME_CONFIG_AUTHOR),
                 "TIME_REPORTING"));
-        assertOpaqueNotFound(service, receiptId, verified(
+        SimulationCommandView read = service.receipt(verified(
                 ACTOR_ID,
                 SCOPE,
                 Set.of(SCOPE),
                 Set.of(Duty.TIME_AUDITOR),
-                PURPOSE));
+                PURPOSE), receiptId);
 
+        assertThat(read.receipt().receiptId()).isEqualTo(receiptId.toString());
+        assertThat(read.receipt().status()).isEqualTo(ReceiptState.SUCCEEDED.name());
         assertThat(receipts.get(receiptId).receipt().state())
                 .isEqualTo(ReceiptState.SUCCEEDED);
         assertThat(repository.outcomeLookups).isZero();
-        assertThat(repository.simulationLookups).isZero();
+        assertThat(repository.simulationLookups).isOne();
     }
 
     @Test
@@ -272,7 +496,8 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
 
     @Test
     void staleAndResultUnknownLifecycleReceiptsRecoverFromCommandOutcomeEvidence() {
-        FakeRepository repository = new FakeRepository(null);
+        FakeRepository repository = new FakeRepository(
+                workPlan(PLAN_ID, SCOPE, PolicyState.IN_REVIEW, 4L));
         InMemoryReceiptStore receipts = new InMemoryReceiptStore();
         UUID staleReceiptId = UUID.fromString("87c88e8e-cc4b-4057-8426-7b8928490c42");
         UUID unknownReceiptId = UUID.fromString("fddce5dc-e657-49b5-937b-f70d1d8fa311");
@@ -326,7 +551,8 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
 
     @Test
     void resultUnknownReceiptWithoutMutationEvidenceBecomesFailed() {
-        FakeRepository repository = new FakeRepository(null);
+        FakeRepository repository = new FakeRepository(
+                workPlan(PLAN_ID, SCOPE, PolicyState.VALIDATED, 2L));
         InMemoryReceiptStore receipts = new InMemoryReceiptStore();
         UUID receiptId = UUID.fromString("f41aa033-a136-407f-931c-0ee3fc67ad29");
         receipts.seed(receipt(
@@ -353,11 +579,51 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
 
     private static WorkRegimeApplicationService service(
             WorkRegimeRepository repository, ReceiptStore receipts) {
+        return service(
+                repository,
+                receipts,
+                WorkRegimeTargetPopulationTestSupport.resolver(
+                        TENANT_ID,
+                        Map.of(
+                                GATEWAY_SCOPE_A, POPULATION_ID,
+                                GATEWAY_SCOPE_B, OTHER_POPULATION_ID),
+                        WORKER_ID,
+                        ASSIGNMENT_ID,
+                        1L,
+                        new EffectivePeriod(START, END),
+                        NOW));
+    }
+
+    private static WorkRegimeApplicationService service(
+            WorkRegimeRepository repository,
+            ReceiptStore receipts,
+            WorkRegimeTargetPopulationResolver resolver) {
         return new WorkRegimeApplicationService(
                 repository,
                 receipts,
                 new ObjectMapper().findAndRegisterModules(),
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                resolver);
+    }
+
+    private static VerifiedRequest verifiedExact(
+            long actorId, String gatewayScope, Duty duty, boolean stepUp) {
+        Authority authority = new Authority(
+                TENANT_ID,
+                actorId,
+                Set.of(duty),
+                Set.of(SCOPE),
+                PURPOSE,
+                DECISION_ID,
+                stepUp,
+                false);
+        return new VerifiedRequest(
+                authority,
+                gatewayScope,
+                DECISION_ID,
+                NOW.plusSeconds(300),
+                UUID.nameUUIDFromBytes(
+                        (actorId + ":" + gatewayScope).getBytes(StandardCharsets.UTF_8)));
     }
 
     private static VerifiedRequest verified(
@@ -385,9 +651,11 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
                 DECISION_ID,
                 false,
                 false);
+        String gatewayScope = SCOPE.equals(contextScope)
+                ? GATEWAY_SCOPE_A : GATEWAY_SCOPE_B;
         return new VerifiedRequest(
                 authority,
-                contextScope,
+                gatewayScope,
                 DECISION_ID,
                 NOW.plusSeconds(300),
                 UUID.nameUUIDFromBytes(
@@ -442,12 +710,34 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
     }
 
     private static CreateDraftRequest draft(String scope, String displayName) {
+        return draftTarget(scope, WORKER_ID, ASSIGNMENT_ID, 1L, displayName);
+    }
+
+    private static CreateDraftRequest draftTarget(
+            String scope,
+            UUID workerPublicId,
+            UUID peopleAssignmentPublicId,
+            long assignmentRevision) {
+        return draftTarget(
+                scope,
+                workerPublicId,
+                peopleAssignmentPublicId,
+                assignmentRevision,
+                "Hostile target");
+    }
+
+    private static CreateDraftRequest draftTarget(
+            String scope,
+            UUID workerPublicId,
+            UUID peopleAssignmentPublicId,
+            long assignmentRevision,
+            String displayName) {
         return new CreateDraftRequest(
                 "standard-week",
                 displayName,
                 ArrangementKind.FIXED,
                 null,
-                ScopeType.LEGAL_ENTITY,
+                ScopeType.POPULATION,
                 scope,
                 100,
                 START,
@@ -458,11 +748,19 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
                 "11",
                 1L,
                 1,
-                WORKER_ID,
-                ASSIGNMENT_ID,
-                1L,
+                workerPublicId,
+                peopleAssignmentPublicId,
+                assignmentRevision,
                 List.of(),
                 List.of());
+    }
+
+    private static void assertDenied(
+            org.assertj.core.api.ThrowableAssert.ThrowingCallable action,
+            ErrorCode expectedCode) {
+        BaseException denied = catchThrowableOfType(BaseException.class, action);
+        assertThat(denied).isNotNull();
+        assertThat(denied.getErrorCode()).isEqualTo(expectedCode);
     }
 
     private static WorkPlanRecord workPlan(
@@ -484,7 +782,7 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
                 "Replay fixture",
                 ArrangementKind.FIXED,
                 null,
-                ScopeType.LEGAL_ENTITY,
+                ScopeType.POPULATION,
                 RULE_PACK_ID,
                 "KR",
                 1L,
@@ -492,8 +790,17 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
                 "Asia/Seoul",
                 ASSIGNMENT_ID,
                 WORKER_ID,
+                ASSIGNMENT_ID,
                 1L,
                 period,
+                WorkRegimeTargetPopulationTestSupport.evidence(
+                        SCOPE.equals(scope) ? POPULATION_ID : OTHER_POPULATION_ID,
+                        WORKER_ID,
+                        ASSIGNMENT_ID,
+                        1L,
+                        ACTOR_ID,
+                        SCOPE.equals(scope) ? GATEWAY_SCOPE_A : GATEWAY_SCOPE_B,
+                        NOW),
                 List.of());
     }
 
@@ -533,11 +840,23 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
         }
 
         @Override
+        public List<WorkPlanRecord> findEffective(
+                TargetAuthorizationGuard guard, LocalDate effectiveOn) {
+            return findEffective(guard.tenantId(), effectiveOn);
+        }
+
+        @Override
         public Optional<WorkPlanRecord> findByPublicId(long tenantId, UUID publicId) {
             return plan != null
                     && plan.revision().tenantId() == tenantId
                     && plan.revision().publicId().equals(publicId)
                     ? Optional.of(plan) : Optional.empty();
+        }
+
+        @Override
+        public Optional<WorkPlanRecord> findByPublicId(
+                TargetAuthorizationGuard guard, UUID publicId) {
+            return findByPublicId(guard.tenantId(), publicId);
         }
 
         @Override
@@ -571,6 +890,12 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
         }
 
         @Override
+        public List<PolicyCandidate> findPolicyCandidates(
+                TargetAuthorizationGuard guard, String jurisdiction, long policyRevision) {
+            return findPolicyCandidates(guard.tenantId(), jurisdiction, policyRevision);
+        }
+
+        @Override
         public List<AssignmentPlan> findSimulationAssignments(
                 long tenantId, UUID workRegimePublicId, EffectivePeriod period) {
             assignmentLookups++;
@@ -579,11 +904,21 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
                     tenantId,
                     plan.assignmentPublicId(),
                     plan.workerPublicId(),
+                    plan.peopleAssignmentPublicId(),
                     plan.peopleAssignmentRevision(),
                     plan.assignmentPeriod(),
                     plan.zoneId(),
                     empty,
                     empty));
+        }
+
+        @Override
+        public List<AssignmentPlan> findSimulationAssignments(
+                TargetAuthorizationGuard guard,
+                UUID workRegimePublicId,
+                EffectivePeriod period) {
+            return findSimulationAssignments(
+                    guard.tenantId(), workRegimePublicId, period);
         }
 
         @Override
@@ -613,8 +948,10 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
                     draft.zoneId(),
                     draft.assignmentPublicId(),
                     draft.workerPublicId(),
+                    draft.peopleAssignmentPublicId(),
                     draft.peopleAssignmentRevision(),
                     draft.period(),
+                    draft.targetBindingEvidence(),
                     draft.segments());
             return plan;
         }
@@ -651,6 +988,13 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
         }
 
         @Override
+        public Optional<StoredSimulation> findSimulationByReceipt(
+                TargetAuthorizationGuard guard, UUID receiptId, UUID aggregateId) {
+            return findSimulationByReceipt(guard.tenantId(), receiptId).filter(
+                    stored -> stored.workRegimePublicId().equals(aggregateId));
+        }
+
+        @Override
         public Optional<CommandOutcomeEvidence> findCommandOutcome(
                 long tenantId,
                 UUID receiptId,
@@ -660,6 +1004,16 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
             if (tenantId != TENANT_ID) return Optional.empty();
             return Optional.ofNullable(outcomes.get(
                     new OutcomeKey(receiptId, aggregateId, operation)));
+        }
+
+        @Override
+        public Optional<CommandOutcomeEvidence> findCommandOutcome(
+                TargetAuthorizationGuard guard,
+                UUID receiptId,
+                UUID aggregateId,
+                LifecycleAction operation) {
+            return findCommandOutcome(
+                    guard.tenantId(), receiptId, aggregateId, operation);
         }
 
         private void seedSimulation(StoredSimulation simulation) {
@@ -696,7 +1050,8 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
                     previous.version() + 1,
                     transition.nextState(),
                     previous.authorActorId(),
-                    transition.approvalActorId(),
+                    transition.approvalActorId() == null
+                            ? previous.approvalActorId() : transition.approvalActorId(),
                     previous.scopeRef(),
                     previous.period(),
                     previous.artifactDigest());
@@ -713,8 +1068,10 @@ class WorkRegimeApplicationServiceIdempotencyReplayTest {
                     current.zoneId(),
                     current.assignmentPublicId(),
                     current.workerPublicId(),
+                    current.peopleAssignmentPublicId(),
                     current.peopleAssignmentRevision(),
                     current.assignmentPeriod(),
+                    current.targetBindingEvidence(),
                     current.segments());
         }
 

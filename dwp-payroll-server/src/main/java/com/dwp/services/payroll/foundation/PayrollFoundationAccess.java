@@ -87,6 +87,42 @@ final class PayrollFoundationAccess {
                 policy);
     }
 
+    static Actor gatewayActor(
+            long tenantId,
+            long actorId,
+            FoundationAction action,
+            String purpose,
+            String contextScopeKey,
+            String policyRevision,
+            String authorizationRevision,
+            PayrollLegalEntityScopeResolver.Resolution scopeResolution,
+            AccessPolicy policy) {
+        if (tenantId <= 0 || actorId <= 0 || action == null
+                || scopeResolution == null || policy == null) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Verified payroll authority is incomplete.");
+        }
+        if (contextScopeKey == null || !contextScopeKey.matches("scope-[0-9a-f]{32}")) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Verified payroll scope evidence is unavailable.");
+        }
+        String normalizedPurpose = requirePurpose(purpose, policy);
+        Scope scope = scopeResolution.scope();
+        return new Actor(
+                tenantId,
+                actorId,
+                Set.of(),
+                Set.of(action),
+                normalizedPurpose,
+                scope,
+                scopeResolution.evidenceDigest(contextScopeKey),
+                requireRevision(policyRevision),
+                requireRevision(authorizationRevision),
+                policy);
+    }
+
     static AccessPolicy compatibilityPolicy() {
         return COMPATIBILITY_POLICY;
     }

@@ -168,6 +168,14 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "requestBody": {
@@ -218,6 +226,14 @@
             "in": "header",
             "name": "X-Correlation-ID",
             "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
             "schema": {
               "type": "string"
             }

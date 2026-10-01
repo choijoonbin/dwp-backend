@@ -42,7 +42,11 @@ import com.dwp.services.time.workregime.WorkRegimeModels.ScopeType;
 import com.dwp.services.time.workregime.WorkRegimeModels.SegmentKind;
 import com.dwp.services.time.workregime.WorkRegimeOwnerAuthoritySource.VerifiedRequest;
 import com.dwp.services.time.workregime.WorkRegimeRepository.StoredSimulation;
+import com.dwp.services.time.workregime.WorkRegimeRepository.TargetAuthorizationGuard;
+import com.dwp.services.time.workregime.WorkRegimeRepository.TargetBindingEvidence;
 import com.dwp.services.time.workregime.WorkRegimeRepository.WorkPlanRecord;
+import com.dwp.services.time.workregime.WorkRegimeTargetPopulationResolver.PopulationAccess;
+import com.dwp.services.time.workregime.WorkRegimeTargetPopulationResolver.TargetMembershipEvidence;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.time.Clock;
 import java.time.DayOfWeek;
@@ -66,8 +70,14 @@ class WorkRegimeApplicationServiceHostileBindingTest {
     private static final Instant NOW = Instant.parse("2026-09-17T08:00:00Z");
     private static final LocalDate START = LocalDate.of(2026, 10, 1);
     private static final LocalDate END = LocalDate.of(2026, 11, 1);
-    private static final String OWNED_SCOPE = "LEGAL_ENTITY:OWNED";
-    private static final String FOREIGN_SCOPE = "LEGAL_ENTITY:FOREIGN";
+    private static final UUID OWNED_POPULATION =
+            UUID.fromString("07d5c896-7a4d-411b-9847-c4331de58ca4");
+    private static final UUID FOREIGN_POPULATION =
+            UUID.fromString("17d5c896-7a4d-411b-9847-c4331de58ca4");
+    private static final String OWNED_SCOPE =
+            WorkRegimeTargetPopulationResolver.stableScopeRef(OWNED_POPULATION);
+    private static final String FOREIGN_SCOPE =
+            WorkRegimeTargetPopulationResolver.stableScopeRef(FOREIGN_POPULATION);
     private static final String DECISION_REVISION = "psr-" + "a".repeat(64);
     private static final UUID PLAN_A = UUID.fromString("5b1ca21d-18a0-4bb5-a79d-fd116ca939f1");
     private static final UUID PLAN_B = UUID.fromString("f15df458-2696-4312-9ddc-9d772e27277b");
@@ -97,7 +107,7 @@ class WorkRegimeApplicationServiceHostileBindingTest {
                 "RESULT_UNKNOWN",
                 null,
                 NOW));
-        when(repository.findByPublicId(TENANT_ID, PLAN_B))
+        when(repository.findByPublicId(any(TargetAuthorizationGuard.class), eq(PLAN_B)))
                 .thenReturn(Optional.of(workPlan(PLAN_B, FOREIGN_SCOPE)));
         WorkRegimeApplicationService service = service(repository, receipts);
 
@@ -107,22 +117,28 @@ class WorkRegimeApplicationServiceHostileBindingTest {
 
         assertThat(denied).isNotNull();
         assertThat(denied.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND);
-        verify(repository, never()).findByPublicId(TENANT_ID, PLAN_B);
-        verify(repository, never()).findSimulationByReceipt(anyLong(), any(UUID.class));
+        verify(repository, never()).findByPublicId(
+                any(TargetAuthorizationGuard.class), eq(PLAN_B));
+        verify(repository, never()).findSimulationByReceipt(
+                any(TargetAuthorizationGuard.class), any(UUID.class), any(UUID.class));
     }
 
     @Test
     void sameSimulationKeyAndBodyCannotReplayAcrossDifferentWorkPlanIds() {
         WorkRegimeRepository repository = mock(WorkRegimeRepository.class);
         InMemoryReceiptStore receipts = new InMemoryReceiptStore();
-        when(repository.findByPublicId(eq(TENANT_ID), any(UUID.class)))
+        when(repository.findByPublicId(
+                any(TargetAuthorizationGuard.class), any(UUID.class)))
                 .thenAnswer(invocation -> {
                     UUID planId = invocation.getArgument(1);
                     return Optional.of(workPlan(planId, OWNED_SCOPE));
                 });
         when(repository.findRulePacks(TENANT_ID, "KR", 1L)).thenReturn(List.of());
-        when(repository.findPolicyCandidates(TENANT_ID, "KR", 1L)).thenReturn(List.of());
-        when(repository.findSimulationByReceipt(eq(TENANT_ID), any(UUID.class)))
+        when(repository.findPolicyCandidates(
+                any(TargetAuthorizationGuard.class), eq("KR"), eq(1L)))
+                .thenReturn(List.of());
+        when(repository.findSimulationByReceipt(
+                any(TargetAuthorizationGuard.class), any(UUID.class), any(UUID.class)))
                 .thenReturn(Optional.<StoredSimulation>empty());
         WorkRegimeApplicationService service = service(repository, receipts);
         SimulationRequest body = new SimulationRequest(
@@ -149,10 +165,13 @@ class WorkRegimeApplicationServiceHostileBindingTest {
         assertThat(receipts.onlyReceipt().aggregateId()).isEqualTo(PLAN_A);
 
         verify(repository, times(1)).findRulePacks(TENANT_ID, "KR", 1L);
-        verify(repository, times(1)).findPolicyCandidates(TENANT_ID, "KR", 1L);
+        verify(repository, times(1)).findPolicyCandidates(
+                any(TargetAuthorizationGuard.class), eq("KR"), eq(1L));
         verify(repository, times(1))
-                .findSimulationByReceipt(eq(TENANT_ID), any(UUID.class));
-        verify(repository, never()).findSimulationAssignments(anyLong(), any(), any());
+                .findSimulationByReceipt(
+                        any(TargetAuthorizationGuard.class), any(UUID.class), eq(PLAN_A));
+        verify(repository, never()).findSimulationAssignments(
+                any(TargetAuthorizationGuard.class), any(), any());
         verify(repository, never()).saveSimulation(any());
     }
 
@@ -161,22 +180,28 @@ class WorkRegimeApplicationServiceHostileBindingTest {
         WorkRegimeRepository repository = mock(WorkRegimeRepository.class);
         InMemoryReceiptStore receipts = new InMemoryReceiptStore();
         WorkPlanRecord plan = workPlan(PLAN_A, OWNED_SCOPE);
-        when(repository.findByPublicId(TENANT_ID, PLAN_A)).thenReturn(Optional.of(plan));
+        when(repository.findByPublicId(
+                any(TargetAuthorizationGuard.class), eq(PLAN_A)))
+                .thenReturn(Optional.of(plan));
         when(repository.findRulePacks(TENANT_ID, "KR", 1L)).thenReturn(List.of(rulePack()));
-        when(repository.findPolicyCandidates(TENANT_ID, "KR", 1L))
+        when(repository.findPolicyCandidates(
+                any(TargetAuthorizationGuard.class), eq("KR"), eq(1L)))
                 .thenReturn(List.of(candidate()));
         ScheduleTemplate empty = new ScheduleTemplate("EMPTY", 1L, List.of());
-        when(repository.findSimulationAssignments(eq(TENANT_ID), eq(PLAN_A), any()))
+        when(repository.findSimulationAssignments(
+                any(TargetAuthorizationGuard.class), eq(PLAN_A), any()))
                 .thenReturn(List.of(new AssignmentPlan(
                         TENANT_ID,
                         plan.assignmentPublicId(),
                         plan.workerPublicId(),
+                        plan.peopleAssignmentPublicId(),
                         plan.peopleAssignmentRevision(),
                         plan.assignmentPeriod(),
                         plan.zoneId(),
                         empty,
                         empty)));
-        when(repository.findSimulationByReceipt(eq(TENANT_ID), any(UUID.class)))
+        when(repository.findSimulationByReceipt(
+                any(TargetAuthorizationGuard.class), any(UUID.class), eq(PLAN_A)))
                 .thenReturn(Optional.empty());
         WorkRegimeApplicationService service = service(repository, receipts);
 
@@ -197,9 +222,12 @@ class WorkRegimeApplicationServiceHostileBindingTest {
         WorkRegimeRepository repository = mock(WorkRegimeRepository.class);
         InMemoryReceiptStore receipts = new InMemoryReceiptStore();
         WorkPlanRecord plan = workPlan(PLAN_A, OWNED_SCOPE);
-        when(repository.findByPublicId(TENANT_ID, PLAN_A)).thenReturn(Optional.of(plan));
+        when(repository.findByPublicId(
+                any(TargetAuthorizationGuard.class), eq(PLAN_A)))
+                .thenReturn(Optional.of(plan));
         when(repository.findRulePacks(TENANT_ID, "KR", 1L)).thenReturn(List.of(rulePack()));
-        when(repository.findPolicyCandidates(TENANT_ID, "KR", 1L))
+        when(repository.findPolicyCandidates(
+                any(TargetAuthorizationGuard.class), eq("KR"), eq(1L)))
                 .thenReturn(List.of(candidate()));
         ScheduleTemplate empty = new ScheduleTemplate("EMPTY", 1L, List.of());
         ScheduleTemplate overlapping = new ScheduleTemplate("OVERLAPPING", 1L, List.of(
@@ -211,17 +239,20 @@ class WorkRegimeApplicationServiceHostileBindingTest {
                         "SECOND", DayOfWeek.MONDAY, SegmentKind.WORK,
                         LocalTime.of(11, 0), LocalTime.of(14, 0), 0,
                         DstOverlapPolicy.REJECT)));
-        when(repository.findSimulationAssignments(eq(TENANT_ID), eq(PLAN_A), any()))
+        when(repository.findSimulationAssignments(
+                any(TargetAuthorizationGuard.class), eq(PLAN_A), any()))
                 .thenReturn(List.of(new AssignmentPlan(
                         TENANT_ID,
                         plan.assignmentPublicId(),
                         plan.workerPublicId(),
+                        plan.peopleAssignmentPublicId(),
                         plan.peopleAssignmentRevision(),
                         plan.assignmentPeriod(),
                         plan.zoneId(),
                         empty,
                         overlapping)));
-        when(repository.findSimulationByReceipt(eq(TENANT_ID), any(UUID.class)))
+        when(repository.findSimulationByReceipt(
+                any(TargetAuthorizationGuard.class), any(UUID.class), eq(PLAN_A)))
                 .thenReturn(Optional.empty());
         WorkRegimeApplicationService service = service(repository, receipts);
 
@@ -237,13 +268,143 @@ class WorkRegimeApplicationServiceHostileBindingTest {
         verify(repository, never()).transition(any());
     }
 
+    @Test
+    void storedTargetBindingMustStillMatchTheCurrentOwnerProjection() {
+        WorkRegimeRepository repository = mock(WorkRegimeRepository.class);
+        WorkPlanRecord plan = workPlan(PLAN_A, OWNED_SCOPE);
+        TargetBindingEvidence saved = plan.targetBindingEvidence();
+        TargetBindingEvidence stale = new TargetBindingEvidence(
+                saved.populationPublicId(),
+                saved.populationRevision(),
+                saved.workerPublicId(),
+                saved.peopleAssignmentPublicId(),
+                saved.peopleAssignmentRevision(),
+                saved.membershipRevision() + 1,
+                saved.authorActorId(),
+                saved.authorGatewayScopeKey(),
+                saved.authorGrantRevision(),
+                saved.populationDigest(),
+                "9".repeat(64),
+                saved.grantDigest(),
+                saved.verifiedAt());
+        WorkPlanRecord stalePlan = new WorkPlanRecord(
+                plan.revision(),
+                plan.displayName(),
+                plan.arrangementKind(),
+                plan.extensionCode(),
+                plan.scopeType(),
+                plan.rulePackPublicId(),
+                plan.jurisdiction(),
+                plan.policyRevision(),
+                plan.resolutionDigest(),
+                plan.zoneId(),
+                plan.assignmentPublicId(),
+                plan.workerPublicId(),
+                plan.peopleAssignmentPublicId(),
+                plan.peopleAssignmentRevision(),
+                plan.assignmentPeriod(),
+                stale,
+                plan.segments());
+        when(repository.findByPublicId(
+                any(TargetAuthorizationGuard.class), eq(PLAN_A)))
+                .thenReturn(Optional.of(stalePlan));
+        WorkRegimeApplicationService service = service(repository, new InMemoryReceiptStore());
+
+        BaseException denied = catchThrowableOfType(
+                BaseException.class,
+                () -> service.simulate(
+                        verifiedRequest(),
+                        PLAN_A,
+                        IDEMPOTENCY_KEY,
+                        new SimulationRequest(1L, "1", "1", SIMULATION_PURPOSE)));
+
+        assertThat(denied).isNotNull();
+        assertThat(denied.getErrorCode())
+                .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
+        verify(repository, never()).findRulePacks(anyLong(), any(), anyLong());
+        verify(repository, never()).findPolicyCandidates(
+                any(TargetAuthorizationGuard.class), any(), anyLong());
+        verify(repository, never()).saveSimulation(any());
+        verify(repository, never()).transition(any());
+    }
+
+    @Test
+    void ownerResolverResultCannotSubstituteAnotherWorkerForTheRequestedTarget() {
+        WorkRegimeRepository repository = mock(WorkRegimeRepository.class);
+        WorkPlanRecord plan = workPlan(PLAN_A, OWNED_SCOPE);
+        when(repository.findByPublicId(
+                any(TargetAuthorizationGuard.class), eq(PLAN_A)))
+                .thenReturn(Optional.of(plan));
+        WorkRegimeTargetPopulationResolver resolver =
+                mock(WorkRegimeTargetPopulationResolver.class);
+        when(resolver.resolveActorAccess(
+                eq(TENANT_ID), eq(ACTOR_ID), any(String.class), any(Instant.class)))
+                .thenReturn(Optional.of(new PopulationAccess(
+                        TENANT_ID,
+                        ACTOR_ID,
+                        WorkRegimeTargetPopulationTestSupport.GATEWAY_SCOPE_A,
+                        OWNED_POPULATION,
+                        OWNED_SCOPE,
+                        1L,
+                        1L,
+                        "a".repeat(64),
+                        "b".repeat(64),
+                        NOW.plusSeconds(3_600))));
+        when(resolver.resolveTargetMembership(
+                eq(TENANT_ID),
+                eq(OWNED_POPULATION),
+                eq(plan.workerPublicId()),
+                eq(plan.peopleAssignmentPublicId()),
+                eq(plan.peopleAssignmentRevision()),
+                eq(plan.assignmentPeriod()),
+                any(Instant.class)))
+                .thenReturn(Optional.of(new TargetMembershipEvidence(
+                        TENANT_ID,
+                        OWNED_POPULATION,
+                        1L,
+                        UUID.fromString("27d5c896-7a4d-411b-9847-c4331de58ca4"),
+                        plan.peopleAssignmentPublicId(),
+                        plan.peopleAssignmentRevision(),
+                        1L,
+                        plan.assignmentPeriod(),
+                        "a".repeat(64),
+                        "c".repeat(64))));
+        WorkRegimeApplicationService service = new WorkRegimeApplicationService(
+                repository,
+                new InMemoryReceiptStore(),
+                new ObjectMapper().findAndRegisterModules(),
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                resolver);
+
+        BaseException denied = catchThrowableOfType(
+                BaseException.class,
+                () -> service.simulate(
+                        verifiedRequest(),
+                        PLAN_A,
+                        IDEMPOTENCY_KEY,
+                        new SimulationRequest(1L, "1", "1", SIMULATION_PURPOSE)));
+
+        assertThat(denied).isNotNull();
+        assertThat(denied.getErrorCode())
+                .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
+        verify(repository, never()).findRulePacks(anyLong(), any(), anyLong());
+        verify(repository, never()).saveSimulation(any());
+        verify(repository, never()).transition(any());
+    }
+
     private static WorkRegimeApplicationService service(
             WorkRegimeRepository repository, ReceiptStore receipts) {
         return new WorkRegimeApplicationService(
                 repository,
                 receipts,
                 new ObjectMapper().findAndRegisterModules(),
-                Clock.fixed(NOW, ZoneOffset.UTC));
+                Clock.fixed(NOW, ZoneOffset.UTC),
+                WorkRegimeTargetPopulationTestSupport.resolverAnyMember(
+                        TENANT_ID,
+                        WorkRegimeTargetPopulationTestSupport.GATEWAY_SCOPE_A,
+                        OWNED_POPULATION,
+                        new EffectivePeriod(START, END),
+                        NOW));
     }
 
     private static VerifiedRequest verifiedRequest() {
@@ -258,7 +419,7 @@ class WorkRegimeApplicationServiceHostileBindingTest {
                 false);
         return new VerifiedRequest(
                 authority,
-                OWNED_SCOPE,
+                WorkRegimeTargetPopulationTestSupport.GATEWAY_SCOPE_A,
                 DECISION_REVISION,
                 NOW.plusSeconds(300),
                 UUID.fromString("669ea985-13f5-415f-8096-f6a4260d3c90"));
@@ -282,7 +443,7 @@ class WorkRegimeApplicationServiceHostileBindingTest {
                 "Hostile binding fixture",
                 ArrangementKind.FIXED,
                 null,
-                ScopeType.LEGAL_ENTITY,
+                ScopeType.POPULATION,
                 RULE_PACK_ID,
                 "KR",
                 1L,
@@ -290,8 +451,17 @@ class WorkRegimeApplicationServiceHostileBindingTest {
                 "Asia/Seoul",
                 UUID.nameUUIDFromBytes((publicId + ":assignment").getBytes()),
                 UUID.nameUUIDFromBytes((publicId + ":worker").getBytes()),
+                UUID.nameUUIDFromBytes((publicId + ":assignment").getBytes()),
                 1L,
                 period,
+                WorkRegimeTargetPopulationTestSupport.evidence(
+                        OWNED_SCOPE.equals(scopeRef) ? OWNED_POPULATION : FOREIGN_POPULATION,
+                        UUID.nameUUIDFromBytes((publicId + ":worker").getBytes()),
+                        UUID.nameUUIDFromBytes((publicId + ":assignment").getBytes()),
+                        1L,
+                        ACTOR_ID,
+                        WorkRegimeTargetPopulationTestSupport.GATEWAY_SCOPE_A,
+                        NOW),
                 List.of());
     }
 

@@ -40,9 +40,13 @@ import com.dwp.services.time.workregime.WorkRegimeRepository.CommandEvidence;
 import com.dwp.services.time.workregime.WorkRegimeRepository.PolicyTermWrite;
 import com.dwp.services.time.workregime.WorkRegimeRepository.SimulationWrite;
 import com.dwp.services.time.workregime.WorkRegimeRepository.StoredSimulation;
+import com.dwp.services.time.workregime.WorkRegimeRepository.TargetAuthorizationGuard;
+import com.dwp.services.time.workregime.WorkRegimeRepository.TargetBindingEvidence;
 import com.dwp.services.time.workregime.WorkRegimeRepository.TenantExtensionWrite;
 import com.dwp.services.time.workregime.WorkRegimeRepository.TransitionWrite;
 import com.dwp.services.time.workregime.WorkRegimeRepository.WorkPlanRecord;
+import com.dwp.services.time.workregime.WorkRegimeTargetPopulationResolver.PopulationAccess;
+import com.dwp.services.time.workregime.WorkRegimeTargetPopulationResolver.TargetMembershipEvidence;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
@@ -75,40 +79,55 @@ public final class WorkRegimeApplicationService {
     private final WorkRegimeLifecycleGuard lifecycle = new WorkRegimeLifecycleGuard();
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final WorkRegimeTargetPopulationResolver targetPopulationResolver;
 
     public WorkRegimeApplicationService(
             WorkRegimeRepository repository,
             ReceiptStore receipts,
-            ObjectMapper objectMapper) {
-        this(repository, receipts, objectMapper, Clock.systemUTC());
+            ObjectMapper objectMapper,
+            WorkRegimeTargetPopulationResolver targetPopulationResolver) {
+        this(
+                repository,
+                receipts,
+                objectMapper,
+                Clock.systemUTC(),
+                targetPopulationResolver);
     }
 
     WorkRegimeApplicationService(
             WorkRegimeRepository repository,
             ReceiptStore receipts,
             ObjectMapper objectMapper,
-            Clock clock) {
+            Clock clock,
+            WorkRegimeTargetPopulationResolver targetPopulationResolver) {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.commands = new WorkRegimeCommandCoordinator(receipts, clock);
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
+        this.targetPopulationResolver = Objects.requireNonNull(
+                targetPopulationResolver, "targetPopulationResolver must not be null");
     }
 
     public StudioView list(VerifiedRequest request, LocalDate effectiveOn) {
         Objects.requireNonNull(effectiveOn, "effectiveOn must not be null");
         Authority authority = request.authority();
         requireOwnerDuty(authority);
+        PopulationAccess access = requireCurrentAccess(request);
+        TargetAuthorizationGuard guard = targetAuthorization(request, access);
         List<WorkPlanView> views = new ArrayList<>();
-        List<String> failures = new ArrayList<>();
-        for (WorkPlanRecord record : repository.findEffective(authority.tenantId(), effectiveOn)) {
-            if (!covers(authority, record.revision().scopeRef())) continue;
+        boolean populationPlanUnavailable = false;
+        for (WorkPlanRecord record : repository.findEffective(guard, effectiveOn)) {
             try {
-                views.add(toWorkPlan(authority, record, effectiveOn));
+                if (!covers(authority, record.revision().scopeRef())) continue;
+                requireCurrentTargetMembership(access, record);
+                views.add(toWorkPlan(authority, access, guard, record, effectiveOn));
             } catch (RuntimeException unavailable) {
-                failures.add("WORK_PLAN_UNAVAILABLE:" + record.revision().publicId());
+                populationPlanUnavailable = true;
             }
         }
         views.sort(Comparator.comparing(WorkPlanView::workPlanId));
+        List<String> failures = populationPlanUnavailable
+                ? List.of("TARGET_POPULATION_PLAN_UNAVAILABLE") : List.of();
         String queryState = views.isEmpty()
                 ? (failures.isEmpty() ? "EMPTY" : "UNAVAILABLE")
                 : (failures.isEmpty() ? "COMPLETE" : "PARTIAL");
@@ -126,9 +145,21 @@ public final class WorkRegimeApplicationService {
             CreateDraftRequest request) {
         Authority authority = verified.authority();
         requireDuty(authority, Duty.TIME_CONFIG_AUTHOR);
+        PopulationAccess access = requireCurrentAccess(verified);
+        TargetAuthorizationGuard guard = targetAuthorization(verified, access);
         requireScope(authority, request.scopeRef());
+        if (request.scopeType() != WorkRegimeModels.ScopeType.POPULATION
+                || !access.scopePublicRef().equals(request.scopeRef())) {
+            throw new BaseException(ErrorCode.FORBIDDEN);
+        }
         EffectivePeriod period = new EffectivePeriod(
                 request.effectiveStart(), request.effectiveEnd());
+        TargetMembershipEvidence membership = requireCurrentTargetMembership(
+                access,
+                request.workerPublicId(),
+                request.peopleAssignmentPublicId(),
+                request.assignmentSnapshotRevision(),
+                period);
         validateZone(request.timeZone());
 
         UUID workPlanId = stableId(
@@ -147,9 +178,15 @@ public final class WorkRegimeApplicationService {
                 request.rulePackPublicId(), request.jurisdiction(),
                 request.jurisdictionSubdivision(), request.policyRevision(),
                 request.scopeType().name(), request.scopeRef(), request.priority(), period));
+        TargetBindingEvidence targetBindingEvidence = targetBindingEvidence(
+                authority, verified, access, membership);
         String sourceDigest = digest(new AssignmentEvidence(
                 request.workerPublicId(), request.peopleAssignmentPublicId(),
-                request.assignmentSnapshotRevision(), period, request.timeZone()));
+                request.assignmentSnapshotRevision(), period, request.timeZone(),
+                access.populationPublicId(), access.populationRevision(),
+                membership.membershipRevision(), access.grantRevision(),
+                access.populationDigest(), membership.membershipDigest(),
+                access.grantDigest()));
         List<PolicyTermWrite> terms = request.terms().stream().map(term -> new PolicyTermWrite(
                         term.extensionKind(), term.parameterName(), term.valueType(),
                         term.stringValue(), term.integerValue(), term.decimalValue(),
@@ -181,7 +218,8 @@ public final class WorkRegimeApplicationService {
                     request.jurisdictionSubdivision(), request.policyRevision(), resolutionDigest,
                     request.templateSchemaVersion(), templateDigest, sourceDigest,
                     authority.actorId(), verified.correlationId(), terms, segments,
-                    evidence(verified, running.receiptId()));
+                    targetBindingEvidence,
+                    evidence(verified, running.receiptId(), guard, command));
             WorkPlanRecord created = repository.createDraft(write);
             return TerminalOutcome.succeeded(
                     "DRAFT_CREATED", created.revision().artifactDigest());
@@ -197,7 +235,8 @@ public final class WorkRegimeApplicationService {
             SimulationRequest request) {
         Authority authority = verified.authority();
         requireDuty(authority, Duty.TIME_CONFIG_AUTHOR);
-        WorkPlanRecord plan = ownedPlan(authority, workPlanId);
+        OwnedPlan owned = ownedPlan(verified, workPlanId);
+        WorkPlanRecord plan = owned.plan();
         if (!SIMULATION_PURPOSE.equals(request.purpose())) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
         }
@@ -209,20 +248,24 @@ public final class WorkRegimeApplicationService {
                 verified, idempotencyKey, LifecycleAction.SIMULATE,
                 workPlanId, plan.revision().scopeRef(), request.expectedVersion(), requestDigest);
         CommandReceipt replay = commands.findReplay(command).orElse(null);
-        if (replay != null) return simulationCommand(authority.tenantId(), replay);
+        if (replay != null) return simulationCommand(owned.guard(), replay);
         requireVersion(plan, request.expectedVersion());
         requireRevision(request.assignmentSnapshotRevision(), plan.peopleAssignmentRevision(),
                 ErrorCode.OBJECT_VERSION_CONFLICT);
         requireRevision(request.policyRevision(), plan.policyRevision(),
                 ErrorCode.OBJECT_VERSION_CONFLICT);
         CommandReceipt receipt = commands.executeWithReceipt(command, (ignored, running) -> {
-            PolicyResolution resolution = resolveForSimulation(authority, plan, preview.from());
+            PolicyResolution resolution = resolveForSimulation(
+                    authority, owned.guard(), plan, preview.from());
             if (!resolution.resolved()) {
                 return TerminalOutcome.rejected(
                         resolution.code().name(), digest(resolution.code().name()));
             }
-            List<AssignmentPlan> assignments = repository.findSimulationAssignments(
-                    authority.tenantId(), workPlanId, preview);
+            List<AssignmentPlan> assignments = requireAuthorizedAssignments(
+                    owned.access(),
+                    repository.findSimulationAssignments(
+                            owned.guard(), workPlanId, preview),
+                    preview);
             SimulationResult result;
             try {
                 result = simulator.simulate(
@@ -238,7 +281,7 @@ public final class WorkRegimeApplicationService {
                     plan.zoneId(), result.tzdbVersion(), plan.rulePackPublicId(),
                     plan.policyRevision(), plan.resolutionDigest(), result,
                     result.calculatedAt(), authority.actorId(),
-                    evidence(verified, running.receiptId()));
+                    evidence(verified, running.receiptId(), owned.guard(), command));
             if (result.state() == SimulationState.SUCCEEDED) {
                 WorkRegimeRevision next = lifecycle.transition(
                         plan.revision(), LifecycleAction.SIMULATE,
@@ -246,7 +289,8 @@ public final class WorkRegimeApplicationService {
                 repository.saveSimulationAndTransition(
                         simulation,
                         transition(
-                                verified, next, request.expectedVersion(), running.receiptId()));
+                                verified, owned.guard(), next,
+                                request.expectedVersion(), running.receiptId(), command));
             } else {
                 repository.saveSimulation(simulation);
             }
@@ -255,7 +299,7 @@ public final class WorkRegimeApplicationService {
                             ? "SIMULATION_SUCCEEDED" : "SIMULATION_BLOCKED",
                     resultDigest);
         });
-        return simulationCommand(authority.tenantId(), receipt);
+        return simulationCommand(owned.guard(), receipt);
     }
 
     public ReceiptView transition(
@@ -275,7 +319,8 @@ public final class WorkRegimeApplicationService {
                 authority,
                 action == LifecycleAction.APPLY_APPROVAL || action == LifecycleAction.PUBLISH
                         ? Duty.TIME_CONFIG_APPROVER : Duty.TIME_CONFIG_AUTHOR);
-        WorkPlanRecord plan = ownedPlan(authority, workPlanId);
+        OwnedPlan owned = ownedPlan(verified, workPlanId);
+        WorkPlanRecord plan = owned.plan();
         String requestDigest = digest(new TransitionEvidence(
                 workPlanId, authority.actorId(), action, expectedVersion));
         Command command = command(
@@ -287,8 +332,12 @@ public final class WorkRegimeApplicationService {
         CommandReceipt receipt = commands.executeWithReceipt(command, (ignored, running) -> {
             if (action == LifecycleAction.VALIDATE || action == LifecycleAction.PUBLISH) {
                 PolicyResolution resolution = action == LifecycleAction.VALIDATE
-                        ? resolveForValidation(authority, plan, plan.revision().period().from())
-                        : resolveForAuthoring(authority, plan, plan.revision().period().from());
+                        ? resolveForValidation(
+                                authority, owned.guard(), plan,
+                                plan.revision().period().from())
+                        : resolveForAuthoring(
+                                authority, owned.guard(), plan,
+                                plan.revision().period().from());
                 if (!resolution.resolved()
                         || !resolution.rulePack().period().contains(plan.revision().period())) {
                     String code = resolution.resolved()
@@ -304,7 +353,7 @@ public final class WorkRegimeApplicationService {
                         denied.code().name(), digest(denied.code().name()));
             }
             repository.transition(transition(
-                    verified, next, expectedVersion, running.receiptId()));
+                    verified, owned.guard(), next, expectedVersion, running.receiptId(), command));
             return TerminalOutcome.succeeded(
                     action.name() + "_SUCCEEDED",
                     digest(next.state().name() + ":" + next.version()));
@@ -315,18 +364,23 @@ public final class WorkRegimeApplicationService {
     public SimulationCommandView receipt(VerifiedRequest verified, UUID receiptId) {
         Authority authority = verified.authority();
         requireOwnerDuty(authority);
+        PopulationAccess access = requireCurrentAccess(verified);
+        TargetAuthorizationGuard guard = targetAuthorization(verified, access);
         CommandReceipt receipt = commands.receipt(authority.tenantId(), receiptId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         requireReceiptAccess(authority, receipt);
+        OwnedPlan owned = ownedPlan(verified, receipt.aggregateId());
         CommandReceipt recovered = commands.recover(
-                authority.tenantId(), receiptId, this::reconcile);
-        return simulationCommand(authority.tenantId(), recovered);
+                authority.tenantId(), receiptId,
+                candidate -> reconcile(candidate, owned.guard()));
+        return simulationCommand(owned.guard(), recovered);
     }
 
-    private TerminalOutcome reconcile(CommandReceipt receipt) {
+    private TerminalOutcome reconcile(
+            CommandReceipt receipt, TargetAuthorizationGuard guard) {
         if (receipt.operation() == LifecycleAction.SIMULATE) {
             StoredSimulation stored = repository.findSimulationByReceipt(
-                    receipt.tenantId(), receipt.receiptId()).orElse(null);
+                    guard, receipt.receiptId(), receipt.aggregateId()).orElse(null);
             if (stored != null) {
                 String code = stored.result().state() == SimulationState.SUCCEEDED
                         ? "SIMULATION_SUCCEEDED" : "SIMULATION_BLOCKED";
@@ -334,7 +388,7 @@ public final class WorkRegimeApplicationService {
             }
         } else {
             var evidence = repository.findCommandOutcome(
-                    receipt.tenantId(), receipt.receiptId(),
+                    guard, receipt.receiptId(),
                     receipt.aggregateId(), receipt.operation()).orElse(null);
             if (evidence != null) {
                 return TerminalOutcome.succeeded(
@@ -345,13 +399,20 @@ public final class WorkRegimeApplicationService {
     }
 
     private WorkPlanView toWorkPlan(
-            Authority authority, WorkPlanRecord plan, LocalDate effectiveOn) {
-        PolicyResolution resolution = resolveForAuthoring(authority, plan, effectiveOn);
+            Authority authority,
+            PopulationAccess access,
+            TargetAuthorizationGuard guard,
+            WorkPlanRecord plan,
+            LocalDate effectiveOn) {
+        PolicyResolution resolution = resolveForAuthoring(authority, guard, plan, effectiveOn);
         List<SegmentView> segments = List.of();
         if (resolution.resolved()) {
             EffectivePeriod day = new EffectivePeriod(effectiveOn, effectiveOn.plusDays(1));
-            List<AssignmentPlan> assignments = repository.findSimulationAssignments(
-                    authority.tenantId(), plan.revision().publicId(), day);
+            List<AssignmentPlan> assignments = requireAuthorizedAssignments(
+                    access,
+                    repository.findSimulationAssignments(
+                            guard, plan.revision().publicId(), day),
+                    day);
             SimulationResult result = simulator.simulate(
                     resolution, assignments, day, clock.instant(), tzdbVersion(plan.zoneId()));
             segments = result.segments().stream().map(WorkRegimeViewMapper::segment).toList();
@@ -360,9 +421,11 @@ public final class WorkRegimeApplicationService {
                 authority.tenantId(), plan.jurisdiction(), plan.policyRevision());
         String packState = WorkRegimeViewMapper.packState(plan, effectiveOn, packs);
         List<PolicyCandidate> candidates = repository.findPolicyCandidates(
-                authority.tenantId(), plan.jurisdiction(), plan.policyRevision());
+                guard, plan.jurisdiction(), plan.policyRevision());
+        Set<UUID> consideredPolicyIds = Set.copyOf(resolution.consideredPolicyIds());
         List<PolicyTraceView> trace = candidates.stream()
                 .filter(candidate -> candidate.tenantId() == authority.tenantId())
+                .filter(candidate -> consideredPolicyIds.contains(candidate.publicId()))
                 .filter(candidate -> candidate.period().contains(effectiveOn))
                 .map(candidate -> new PolicyTraceView(
                         WorkRegimeViewMapper.precedenceLevel(candidate),
@@ -396,47 +459,214 @@ public final class WorkRegimeApplicationService {
                         authority, plan.revision().state(), resolution.resolved()));
     }
 
+    private List<AssignmentPlan> requireAuthorizedAssignments(
+            PopulationAccess access,
+            List<AssignmentPlan> assignments,
+            EffectivePeriod requiredPeriod) {
+        for (AssignmentPlan assignment : assignments) {
+            if (assignment.tenantId() != access.tenantId()) {
+                throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
+            }
+            requireCurrentTargetMembership(
+                    access,
+                    assignment.workerId(),
+                    assignment.peopleAssignmentId(),
+                    assignment.peopleAssignmentRevision(),
+                    requiredPeriod);
+        }
+        return List.copyOf(assignments);
+    }
+
     private PolicyResolution resolveForAuthoring(
-            Authority authority, WorkPlanRecord plan, LocalDate date) {
+            Authority authority,
+            TargetAuthorizationGuard guard,
+            WorkPlanRecord plan,
+            LocalDate date) {
         return resolver.resolveForAuthoring(
                 authority.tenantId(), plan.jurisdiction(), date, plan.policyRevision(),
                 plan.revision().revision(), authority.scopeRefs(),
                 repository.findRulePacks(
                         authority.tenantId(), plan.jurisdiction(), plan.policyRevision()),
                 repository.findPolicyCandidates(
-                        authority.tenantId(), plan.jurisdiction(), plan.policyRevision()),
+                        guard, plan.jurisdiction(), plan.policyRevision()),
                 plan.revision().publicId());
     }
 
     private PolicyResolution resolveForValidation(
-            Authority authority, WorkPlanRecord plan, LocalDate date) {
+            Authority authority,
+            TargetAuthorizationGuard guard,
+            WorkPlanRecord plan,
+            LocalDate date) {
         return resolver.resolveForValidation(
                 authority.tenantId(), plan.jurisdiction(), date, plan.policyRevision(),
                 plan.revision().revision(), authority.scopeRefs(),
                 repository.findRulePacks(
                         authority.tenantId(), plan.jurisdiction(), plan.policyRevision()),
                 repository.findPolicyCandidates(
-                        authority.tenantId(), plan.jurisdiction(), plan.policyRevision()),
+                        guard, plan.jurisdiction(), plan.policyRevision()),
                 plan.revision().publicId());
     }
 
     private PolicyResolution resolveForSimulation(
-            Authority authority, WorkPlanRecord plan, LocalDate date) {
+            Authority authority,
+            TargetAuthorizationGuard guard,
+            WorkPlanRecord plan,
+            LocalDate date) {
         return resolver.resolveForSimulation(
                 authority.tenantId(), plan.jurisdiction(), date, plan.policyRevision(),
                 plan.revision().revision(), authority.scopeRefs(),
                 repository.findRulePacks(
                         authority.tenantId(), plan.jurisdiction(), plan.policyRevision()),
                 repository.findPolicyCandidates(
-                        authority.tenantId(), plan.jurisdiction(), plan.policyRevision()),
+                        guard, plan.jurisdiction(), plan.policyRevision()),
                 plan.revision().publicId());
     }
 
-    private WorkPlanRecord ownedPlan(Authority authority, UUID publicId) {
-        WorkPlanRecord record = repository.findByPublicId(authority.tenantId(), publicId)
+    private OwnedPlan ownedPlan(VerifiedRequest verified, UUID publicId) {
+        Authority authority = verified.authority();
+        PopulationAccess access = requireCurrentAccess(verified);
+        TargetAuthorizationGuard guard = targetAuthorization(verified, access);
+        WorkPlanRecord record = repository.findByPublicId(guard, publicId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         requireScope(authority, record.revision().scopeRef());
-        return record;
+        requireCurrentTargetMembership(access, record);
+        return new OwnedPlan(access, guard, record);
+    }
+
+    private TargetAuthorizationGuard targetAuthorization(
+            VerifiedRequest verified, PopulationAccess access) {
+        return new TargetAuthorizationGuard(
+                access.tenantId(),
+                access.actorId(),
+                verified.contextScopeKey(),
+                access.populationPublicId(),
+                access.populationRevision(),
+                access.grantRevision(),
+                access.populationDigest(),
+                access.grantDigest(),
+                clock.instant());
+    }
+
+    private PopulationAccess requireCurrentAccess(VerifiedRequest verified) {
+        Authority authority = verified.authority();
+        PopulationAccess access;
+        try {
+            access = targetPopulationResolver.resolveActorAccess(
+                            authority.tenantId(),
+                            authority.actorId(),
+                            verified.contextScopeKey(),
+                            clock.instant())
+                    .orElseThrow(() -> new BaseException(
+                            ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                            "Current TIM target-population authority is unavailable."));
+        } catch (BaseException denied) {
+            throw denied;
+        } catch (RuntimeException unavailable) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Current TIM target-population authority could not be resolved.",
+                    unavailable);
+        }
+        boolean exact = access.tenantId() == authority.tenantId()
+                && access.actorId() == authority.actorId()
+                && access.gatewayScopeKey().equals(verified.contextScopeKey())
+                && access.validUntil().isAfter(clock.instant())
+                && authority.scopeRefs().equals(Set.of(access.scopePublicRef()));
+        if (!exact) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Current TIM target-population authority is stale or mismatched.");
+        }
+        return access;
+    }
+
+    private TargetMembershipEvidence requireCurrentTargetMembership(
+            PopulationAccess access, WorkPlanRecord plan) {
+        TargetBindingEvidence saved = plan.targetBindingEvidence();
+        if (!saved.populationPublicId().equals(access.populationPublicId())
+                || !plan.revision().scopeRef().equals(access.scopePublicRef())
+                || saved.populationRevision() != access.populationRevision()
+                || !saved.populationDigest().equals(access.populationDigest())) {
+            throw new BaseException(ErrorCode.FORBIDDEN);
+        }
+        TargetMembershipEvidence current = requireCurrentTargetMembership(
+                access,
+                plan.workerPublicId(),
+                plan.peopleAssignmentPublicId(),
+                plan.peopleAssignmentRevision(),
+                plan.assignmentPeriod());
+        if (saved.populationRevision() != current.populationRevision()
+                || !saved.populationDigest().equals(current.populationDigest())
+                || saved.membershipRevision() != current.membershipRevision()
+                || !saved.membershipDigest().equals(current.membershipDigest())) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Stored TIM target-population binding evidence is stale or mismatched.");
+        }
+        return current;
+    }
+
+    private TargetMembershipEvidence requireCurrentTargetMembership(
+            PopulationAccess access,
+            UUID workerPublicId,
+            UUID peopleAssignmentPublicId,
+            long peopleAssignmentRevision,
+            EffectivePeriod period) {
+        TargetMembershipEvidence membership;
+        try {
+            membership = targetPopulationResolver.resolveTargetMembership(
+                            access.tenantId(),
+                            access.populationPublicId(),
+                            workerPublicId,
+                            peopleAssignmentPublicId,
+                            peopleAssignmentRevision,
+                            period,
+                            clock.instant())
+                    .orElseThrow(() -> new BaseException(
+                            ErrorCode.FORBIDDEN,
+                            "The selected People assignment is outside the current target population."));
+        } catch (BaseException denied) {
+            throw denied;
+        } catch (RuntimeException unavailable) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Current TIM target-population membership could not be resolved.",
+                    unavailable);
+        }
+        if (membership.tenantId() != access.tenantId()
+                || !membership.populationPublicId().equals(access.populationPublicId())
+                || !membership.workerPublicId().equals(workerPublicId)
+                || !membership.peopleAssignmentPublicId().equals(peopleAssignmentPublicId)
+                || membership.peopleAssignmentRevision() != peopleAssignmentRevision
+                || !membership.effectivePeriod().contains(period)
+                || membership.populationRevision() != access.populationRevision()
+                || !membership.populationDigest().equals(access.populationDigest())) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "TIM target-population projections are inconsistent.");
+        }
+        return membership;
+    }
+
+    private TargetBindingEvidence targetBindingEvidence(
+            Authority authority,
+            VerifiedRequest verified,
+            PopulationAccess access,
+            TargetMembershipEvidence membership) {
+        return new TargetBindingEvidence(
+                access.populationPublicId(),
+                access.populationRevision(),
+                membership.workerPublicId(),
+                membership.peopleAssignmentPublicId(),
+                membership.peopleAssignmentRevision(),
+                membership.membershipRevision(),
+                authority.actorId(),
+                verified.contextScopeKey(),
+                access.grantRevision(),
+                access.populationDigest(),
+                membership.membershipDigest(),
+                access.grantDigest(),
+                clock.instant());
     }
 
     private void requireRulePack(
@@ -458,9 +688,11 @@ public final class WorkRegimeApplicationService {
 
     private TransitionWrite transition(
             VerifiedRequest verified,
+            TargetAuthorizationGuard guard,
             WorkRegimeRevision next,
             long expectedVersion,
-            UUID receiptId) {
+            UUID receiptId,
+            Command command) {
         return new TransitionWrite(
                 next.tenantId(), next.publicId(), expectedVersion, next.state(),
                 next.state() == PolicyState.APPROVED
@@ -469,14 +701,20 @@ public final class WorkRegimeApplicationService {
                 next.state() == PolicyState.PUBLISHED
                         ? verified.authority().actorId() : null,
                 next.state() == PolicyState.PUBLISHED ? receiptId : null,
-                verified.authority().actorId(), evidence(verified, receiptId));
+                verified.authority().actorId(), evidence(verified, receiptId, guard, command));
     }
 
-    private static CommandEvidence evidence(VerifiedRequest verified, UUID receiptId) {
+    private static CommandEvidence evidence(
+            VerifiedRequest verified,
+            UUID receiptId,
+            TargetAuthorizationGuard guard,
+            Command command) {
         Authority authority = verified.authority();
         return new CommandEvidence(
                 receiptId, verified.correlationId(), authority.actorId(),
-                authority.purpose(), authority.decisionId());
+                authority.purpose(), authority.decisionId(),
+                command.idempotencyKey(), command.operation(), command.aggregateId(),
+                command.expectedVersion(), command.requestDigest(), guard);
     }
 
     private Command command(
@@ -492,9 +730,11 @@ public final class WorkRegimeApplicationService {
                 scopePublicRef, expectedVersion, requestDigest, verified.correlationId());
     }
 
-    private SimulationCommandView simulationCommand(long tenantId, CommandReceipt receipt) {
+    private SimulationCommandView simulationCommand(
+            TargetAuthorizationGuard guard, CommandReceipt receipt) {
         StoredSimulation stored = receipt.operation() == LifecycleAction.SIMULATE
-                ? repository.findSimulationByReceipt(tenantId, receipt.receiptId()).orElse(null)
+                ? repository.findSimulationByReceipt(
+                        guard, receipt.receiptId(), receipt.aggregateId()).orElse(null)
                 : null;
         return new SimulationCommandView(
                 WorkRegimeViewMapper.receipt(receipt),
@@ -574,19 +814,17 @@ public final class WorkRegimeApplicationService {
 
     private static void requireReceiptAccess(
             Authority authority, CommandReceipt receipt) {
-        Duty exactDuty = switch (receipt.operation()) {
-            case CREATE_DRAFT, VALIDATE, SIMULATE, SUBMIT_REVIEW -> Duty.TIME_CONFIG_AUTHOR;
-            case APPLY_APPROVAL, PUBLISH -> Duty.TIME_CONFIG_APPROVER;
-            case REVISE_DRAFT, ASSIGN -> null;
-        };
-        boolean denied = exactDuty == null
+        boolean denied = receipt.operation() == LifecycleAction.REVISE_DRAFT
+                || receipt.operation() == LifecycleAction.ASSIGN
                 || authority.revoked()
                 || authority.actorId() != receipt.actorId()
                 || !authority.purpose().equals(receipt.purpose())
                 || !authority.scopeRefs().contains(receipt.scopePublicRef())
-                || !authority.duties().contains(exactDuty)
-                || (receipt.operation() == LifecycleAction.PUBLISH
-                        && !authority.stepUpSatisfied());
+                || authority.duties().stream().noneMatch(Set.of(
+                        Duty.TIME_CONFIG_AUTHOR,
+                        Duty.TIME_CONFIG_APPROVER,
+                        Duty.TIME_OPERATOR,
+                        Duty.TIME_AUDITOR)::contains);
         if (denied) throw new BaseException(ErrorCode.NOT_FOUND);
     }
 
@@ -617,10 +855,23 @@ public final class WorkRegimeApplicationService {
             UUID peopleAssignmentPublicId,
             long peopleAssignmentRevision,
             EffectivePeriod period,
-            String zoneId) {
+            String zoneId,
+            UUID populationPublicId,
+            long populationRevision,
+            long membershipRevision,
+            long grantRevision,
+            String populationDigest,
+            String membershipDigest,
+            String grantDigest) {
     }
 
     private record CreateCommandEvidence(long actorId, CreateDraftRequest request) {
+    }
+
+    private record OwnedPlan(
+            PopulationAccess access,
+            TargetAuthorizationGuard guard,
+            WorkPlanRecord plan) {
     }
 
     private record SimulationCommandEvidence(

@@ -48,7 +48,7 @@ class ProductAuthorizationRecovery11ProjectionSchemaTest {
         }
     }
 
-    @Test void exactV11BundleRemainsAdmittedWhileLatestIndexAdvancesToV32() throws Exception {
+    @Test void exactV11BundleRemainsAdmittedWhileLatestIndexAdvancesToV33() throws Exception {
         ObjectNode actual;
         try (var stream = new ClassPathResource(
                 "product-authorization/product-surfaces-v1.bundle-v11.generated.json")
@@ -60,10 +60,10 @@ class ProductAuthorizationRecovery11ProjectionSchemaTest {
         try (var stream = new ClassPathResource(
                 "product-authorization/product-surfaces-v1.index.generated.json")
                 .getInputStream()) {
-            assertEquals(32, validator.validateSeedIndexDocument(
+            assertEquals(33, validator.validateSeedIndexDocument(
                     json.readTree(stream)).latestVersion());
         }
-        actual.put("version", 33);
+        actual.put("version", 34);
         actual.put("checksum", validator.checksum(actual));
         assertThrows(IllegalArgumentException.class, () ->
                 validator.validateDocument(actual));

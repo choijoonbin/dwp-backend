@@ -296,6 +296,7 @@ public final class WorkRegimeModels {
             long tenantId,
             UUID assignmentId,
             UUID workerId,
+            UUID peopleAssignmentId,
             long peopleAssignmentRevision,
             EffectivePeriod period,
             String zoneId,
@@ -305,6 +306,8 @@ public final class WorkRegimeModels {
             requireTenant(tenantId);
             Objects.requireNonNull(assignmentId, "assignmentId must not be null");
             Objects.requireNonNull(workerId, "workerId must not be null");
+            Objects.requireNonNull(
+                    peopleAssignmentId, "peopleAssignmentId must not be null");
             if (peopleAssignmentRevision < 0) {
                 throw new IllegalArgumentException("peopleAssignmentRevision must not be negative");
             }

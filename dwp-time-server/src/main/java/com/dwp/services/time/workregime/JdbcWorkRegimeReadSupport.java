@@ -13,6 +13,7 @@ import com.dwp.services.time.workregime.WorkRegimeModels.ScheduleTemplate;
 import com.dwp.services.time.workregime.WorkRegimeModels.SegmentKind;
 import com.dwp.services.time.workregime.WorkRegimeModels.WorkRegimeRevision;
 import com.dwp.services.time.workregime.WorkRegimeRepository.WorkPlanRecord;
+import com.dwp.services.time.workregime.WorkRegimeRepository.TargetBindingEvidence;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.DayOfWeek;
@@ -57,10 +58,21 @@ final class JdbcWorkRegimeReadSupport {
                    wr.resolution_digest,
                    a.public_id AS assignment_public_id,
                    a.worker_public_id,
+                   a.people_assignment_public_id,
                    a.people_assignment_revision,
                    a.effective_from AS assignment_from,
                    a.effective_to AS assignment_to,
-                   a.zone_id
+                   a.zone_id,
+                   te.population_public_id AS target_population_public_id,
+                   te.population_revision AS target_population_revision,
+                   te.membership_revision AS target_membership_revision,
+                   te.author_actor_id AS target_author_actor_id,
+                   te.author_gateway_scope_key,
+                   te.author_grant_revision,
+                   te.population_digest,
+                   te.membership_digest,
+                   te.grant_digest,
+                   te.verified_at AS target_verified_at
               FROM tim_work_regime_versions wr
               JOIN tim_work_plan_assignments a
                 ON a.tenant_id = wr.tenant_id
@@ -70,6 +82,9 @@ final class JdbcWorkRegimeReadSupport {
                 ON rp.tenant_id = wr.tenant_id
                AND rp.public_id = wr.rule_pack_public_id
                AND rp.policy_revision = wr.policy_revision
+              JOIN tim_work_plan_target_evidence te
+                ON te.tenant_id = a.tenant_id
+               AND te.work_plan_assignment_id = a.work_plan_assignment_id
             """;
 
     private static final String SEGMENTS_SQL = """
@@ -117,8 +132,45 @@ final class JdbcWorkRegimeReadSupport {
                 effectiveOn));
     }
 
+    List<WorkPlanRecord> findEffective(
+            long tenantId, UUID populationPublicId, LocalDate effectiveOn) {
+        return hydrate(jdbc.query(
+                PLAN_COLUMNS + currentTargetJoins() + """
+                     WHERE wr.tenant_id = ?
+                       AND te.population_public_id = ?
+                       AND wr.scope_type = 'POPULATION'
+                       AND wr.scope_public_ref = p.scope_public_ref
+                       AND wr.author_actor_id = te.author_actor_id
+                       AND wr.lifecycle_state IN (
+                           'DRAFT', 'VALIDATED', 'SIMULATED',
+                           'IN_REVIEW', 'APPROVED', 'PUBLISHED'
+                       )
+                       AND a.lifecycle_state IN ('DRAFT', 'PUBLISHED')
+                       AND wr.effective_from <= ?
+                       AND (wr.effective_to IS NULL OR wr.effective_to > ?)
+                       AND a.effective_from <= ?
+                       AND (a.effective_to IS NULL OR a.effective_to > ?)
+                     ORDER BY wr.precedence_priority DESC, wr.revision DESC, a.public_id
+                     FOR SHARE OF p, m
+                    """,
+                JdbcWorkRegimeReadSupport::mapPlanRow,
+                tenantId, populationPublicId,
+                effectiveOn, effectiveOn, effectiveOn, effectiveOn));
+    }
+
     Optional<WorkPlanRecord> findByPublicId(long tenantId, UUID publicId) {
-        List<WorkPlanRecord> plans = findPlanRows(tenantId, publicId);
+        List<WorkPlanRecord> plans = findPlanRows(tenantId, publicId, null);
+        if (plans.size() > 1) {
+            throw new IllegalStateException(
+                    "Work-regime public id resolves to multiple assignments: " + publicId);
+        }
+        return plans.stream().findFirst();
+    }
+
+    Optional<WorkPlanRecord> findByPublicId(
+            long tenantId, UUID publicId, UUID populationPublicId) {
+        List<WorkPlanRecord> plans = findPlanRows(
+                tenantId, publicId, populationPublicId);
         if (plans.size() > 1) {
             throw new IllegalStateException(
                     "Work-regime public id resolves to multiple assignments: " + publicId);
@@ -183,28 +235,132 @@ final class JdbcWorkRegimeReadSupport {
                    AND rp.jurisdiction_country = ?
                    AND wr.policy_revision = ?
                  ORDER BY wr.public_id
-                """, (row, number) -> new PolicyCandidate(
-                    row.getLong("tenant_id"),
-                    uuid(row, "public_id"),
-                    row.getLong("revision"),
-                    ArrangementKind.valueOf(row.getString("arrangement_kind")),
-                    WorkRegimeModels.ScopeType.valueOf(row.getString("scope_type")),
-                    row.getString("scope_public_ref"),
-                    row.getInt("precedence_priority"),
-                    period(row, "effective_from", "effective_to"),
-                    uuid(row, "rule_pack_public_id"),
-                    row.getString("jurisdiction_country").trim(),
-                    row.getLong("policy_revision"),
-                    PolicyState.valueOf(row.getString("lifecycle_state")),
-                    row.getLong("author_actor_id"),
-                    row.getString("template_digest").trim()),
+                """, JdbcWorkRegimeReadSupport::mapPolicyCandidate,
                 tenantId,
                 jurisdiction,
                 policyRevision);
     }
 
+    List<PolicyCandidate> findPolicyCandidates(
+            long tenantId,
+            UUID populationPublicId,
+            long populationRevision,
+            String populationDigest,
+            String jurisdiction,
+            long policyRevision) {
+        List<PolicyCandidate> global = jdbc.query("""
+                SELECT wr.tenant_id,
+                       wr.public_id,
+                       wr.revision,
+                       wr.arrangement_kind,
+                       wr.scope_type,
+                       wr.scope_public_ref,
+                       wr.precedence_priority,
+                       wr.effective_from,
+                       wr.effective_to,
+                       wr.rule_pack_public_id,
+                       rp.jurisdiction_country,
+                       wr.policy_revision,
+                       wr.lifecycle_state,
+                       wr.author_actor_id,
+                       wr.template_digest
+                  FROM tim_work_regime_versions wr
+                  JOIN tim_rule_pack_versions rp
+                    ON rp.tenant_id = wr.tenant_id
+                   AND rp.public_id = wr.rule_pack_public_id
+                   AND rp.policy_revision = wr.policy_revision
+                 WHERE wr.tenant_id = ?
+                   AND wr.scope_type = 'GLOBAL'
+                   AND rp.jurisdiction_country = ?
+                   AND wr.policy_revision = ?
+                 ORDER BY wr.public_id
+                 FOR SHARE OF wr
+                """, JdbcWorkRegimeReadSupport::mapPolicyCandidate,
+                tenantId, jurisdiction, policyRevision);
+        List<PolicyCandidate> population = jdbc.query("""
+                SELECT wr.tenant_id,
+                       wr.public_id,
+                       wr.revision,
+                       wr.arrangement_kind,
+                       wr.scope_type,
+                       wr.scope_public_ref,
+                       wr.precedence_priority,
+                       wr.effective_from,
+                       wr.effective_to,
+                       wr.rule_pack_public_id,
+                       rp.jurisdiction_country,
+                       wr.policy_revision,
+                       wr.lifecycle_state,
+                       wr.author_actor_id,
+                       wr.template_digest
+                  FROM tim_work_regime_versions wr
+                  JOIN tim_rule_pack_versions rp
+                    ON rp.tenant_id = wr.tenant_id
+                   AND rp.public_id = wr.rule_pack_public_id
+                   AND rp.policy_revision = wr.policy_revision
+                  JOIN tim_work_plan_assignments a
+                    ON a.tenant_id = wr.tenant_id
+                   AND a.work_regime_version_id = wr.work_regime_version_id
+                   AND a.policy_revision = wr.policy_revision
+                  JOIN tim_work_plan_target_evidence te
+                    ON te.tenant_id = a.tenant_id
+                   AND te.work_plan_assignment_id = a.work_plan_assignment_id
+                  JOIN tim_target_population_projections p
+                    ON p.tenant_id = te.tenant_id
+                   AND p.population_public_id = te.population_public_id
+                   AND p.projection_revision = te.population_revision
+                   AND p.source_digest = te.population_digest
+                  JOIN tim_target_population_members m
+                    ON m.tenant_id = a.tenant_id
+                   AND m.population_public_id = p.population_public_id
+                   AND m.population_revision = p.projection_revision
+                   AND m.worker_public_id = a.worker_public_id
+                   AND m.people_assignment_public_id = a.people_assignment_public_id
+                   AND m.people_assignment_revision = a.people_assignment_revision
+                   AND m.membership_revision = te.membership_revision
+                   AND m.source_digest = te.membership_digest
+                 WHERE wr.tenant_id = ?
+                   AND wr.scope_type = 'POPULATION'
+                   AND wr.scope_public_ref = p.scope_public_ref
+                   AND wr.author_actor_id = te.author_actor_id
+                   AND p.population_public_id = ?
+                   AND p.projection_revision = ?
+                   AND p.source_digest = ?
+                   AND p.lifecycle_state = 'ACTIVE'
+                   AND p.effective_from <= (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date
+                   AND (p.effective_to IS NULL
+                        OR p.effective_to > (CURRENT_TIMESTAMP AT TIME ZONE 'UTC')::date)
+                   AND p.effective_from <= a.effective_from
+                   AND (p.effective_to IS NULL
+                        OR (a.effective_to IS NOT NULL AND p.effective_to >= a.effective_to))
+                   AND m.lifecycle_state = 'ACTIVE'
+                   AND m.effective_from <= a.effective_from
+                   AND (m.effective_to IS NULL
+                        OR (a.effective_to IS NOT NULL AND m.effective_to >= a.effective_to))
+                   AND rp.jurisdiction_country = ?
+                   AND wr.policy_revision = ?
+                 ORDER BY wr.public_id
+                 FOR SHARE OF wr, a, p, m
+                """, JdbcWorkRegimeReadSupport::mapPolicyCandidate,
+                tenantId, populationPublicId, populationRevision, populationDigest,
+                jurisdiction, policyRevision);
+        return java.util.stream.Stream.concat(global.stream(), population.stream())
+                .distinct()
+                .sorted(java.util.Comparator.comparing(candidate -> candidate.publicId().toString()))
+                .toList();
+    }
+
     List<AssignmentPlan> findSimulationAssignments(
             long tenantId, UUID workRegimePublicId, EffectivePeriod requestedPeriod) {
+        return findSimulationAssignments(
+                tenantId, workRegimePublicId, null, requestedPeriod);
+    }
+
+    List<AssignmentPlan> findSimulationAssignments(
+            long tenantId,
+            UUID workRegimePublicId,
+            UUID populationPublicId,
+            EffectivePeriod requestedPeriod) {
         List<AssignmentRow> targets = jdbc.query("""
                 SELECT a.work_plan_assignment_id,
                        a.public_id,
@@ -222,8 +378,28 @@ final class JdbcWorkRegimeReadSupport {
                     ON wr.tenant_id = a.tenant_id
                    AND wr.work_regime_version_id = a.work_regime_version_id
                    AND wr.policy_revision = a.policy_revision
+                  JOIN tim_work_plan_target_evidence target_evidence
+                    ON target_evidence.tenant_id = a.tenant_id
+                   AND target_evidence.work_plan_assignment_id = a.work_plan_assignment_id
+                  JOIN tim_target_population_projections population
+                    ON population.tenant_id = target_evidence.tenant_id
+                   AND population.population_public_id = target_evidence.population_public_id
+                   AND population.projection_revision = target_evidence.population_revision
+                   AND population.source_digest = target_evidence.population_digest
+                   AND population.lifecycle_state = 'ACTIVE'
+                  JOIN tim_target_population_members member
+                    ON member.tenant_id = a.tenant_id
+                   AND member.population_public_id = population.population_public_id
+                   AND member.population_revision = population.projection_revision
+                   AND member.worker_public_id = a.worker_public_id
+                   AND member.people_assignment_public_id = a.people_assignment_public_id
+                   AND member.people_assignment_revision = a.people_assignment_revision
+                   AND member.membership_revision = target_evidence.membership_revision
+                   AND member.source_digest = target_evidence.membership_digest
+                   AND member.lifecycle_state = 'ACTIVE'
                  WHERE a.tenant_id = ?
                    AND wr.public_id = ?
+                   AND (?::uuid IS NULL OR target_evidence.population_public_id = ?)
                    AND a.lifecycle_state IN ('DRAFT', 'PUBLISHED')
                    AND wr.lifecycle_state IN (
                        'DRAFT', 'VALIDATED', 'SIMULATED',
@@ -233,13 +409,21 @@ final class JdbcWorkRegimeReadSupport {
                    AND (a.effective_to IS NULL OR a.effective_to >= ?)
                    AND wr.effective_from <= ?
                    AND (wr.effective_to IS NULL OR wr.effective_to >= ?)
+                   AND member.effective_from <= ?
+                   AND (member.effective_to IS NULL
+                        OR (? IS NOT NULL AND member.effective_to >= ?))
                  ORDER BY a.public_id
                 """, JdbcWorkRegimeReadSupport::mapAssignment,
                 tenantId,
                 workRegimePublicId,
+                populationPublicId,
+                populationPublicId,
                 requestedPeriod.from(),
                 requestedPeriod.to(),
                 requestedPeriod.from(),
+                requestedPeriod.to(),
+                requestedPeriod.from(),
+                requestedPeriod.to(),
                 requestedPeriod.to());
 
         List<AssignmentPlan> plans = new ArrayList<>();
@@ -261,13 +445,15 @@ final class JdbcWorkRegimeReadSupport {
                     tenantId,
                     target.assignmentPublicId(),
                     target.workerPublicId(),
+                    target.peopleAssignmentPublicId(),
                     target.peopleAssignmentRevision(),
                     target.period(),
                     target.zoneId(),
                     empty,
                     draft));
             for (AssignmentRow existing : currentAssignments(
-                    tenantId, target.peopleAssignmentPublicId(), requestedPeriod)) {
+                    tenantId, populationPublicId,
+                    target.peopleAssignmentPublicId(), requestedPeriod)) {
                 requireSameWorker(
                         target.workerPublicId(), existing.workerPublicId(),
                         target.assignmentPublicId());
@@ -285,6 +471,7 @@ final class JdbcWorkRegimeReadSupport {
                         tenantId,
                         target.assignmentPublicId(),
                         target.workerPublicId(),
+                        target.peopleAssignmentPublicId(),
                         existing.peopleAssignmentRevision(),
                         existing.period(),
                         target.zoneId(),
@@ -292,7 +479,7 @@ final class JdbcWorkRegimeReadSupport {
                         empty));
             }
             for (AssignmentRow other : otherEffectiveAssignments(
-                    tenantId, target, requestedPeriod)) {
+                    tenantId, populationPublicId, target, requestedPeriod)) {
                 if (targetAssignmentIds.contains(other.assignmentPublicId())
                         || targetIdentities.contains(new WorkerAssignmentIdentity(
                                 other.workerPublicId(), other.peopleAssignmentPublicId()))
@@ -308,6 +495,7 @@ final class JdbcWorkRegimeReadSupport {
                         tenantId,
                         other.assignmentPublicId(),
                         other.workerPublicId(),
+                        other.peopleAssignmentPublicId(),
                         other.peopleAssignmentRevision(),
                         other.period(),
                         other.zoneId(),
@@ -338,12 +526,53 @@ final class JdbcWorkRegimeReadSupport {
                 "work-regime revision", publicId);
     }
 
-    private List<WorkPlanRecord> findPlanRows(long tenantId, UUID publicId) {
+    private List<WorkPlanRecord> findPlanRows(
+            long tenantId, UUID publicId, UUID populationPublicId) {
+        if (populationPublicId == null) {
+            return hydrate(jdbc.query(
+                    PLAN_COLUMNS
+                            + " WHERE wr.tenant_id = ? AND wr.public_id = ? ORDER BY a.public_id",
+                    JdbcWorkRegimeReadSupport::mapPlanRow, tenantId, publicId));
+        }
         return hydrate(jdbc.query(
-                PLAN_COLUMNS + " WHERE wr.tenant_id = ? AND wr.public_id = ? ORDER BY a.public_id",
-                JdbcWorkRegimeReadSupport::mapPlanRow,
-                tenantId,
-                publicId));
+                PLAN_COLUMNS + currentTargetJoins() + """
+                     WHERE wr.tenant_id = ?
+                       AND wr.public_id = ?
+                       AND te.population_public_id = ?
+                       AND wr.scope_type = 'POPULATION'
+                       AND wr.scope_public_ref = p.scope_public_ref
+                       AND wr.author_actor_id = te.author_actor_id
+                     ORDER BY a.public_id
+                     FOR SHARE OF p, m
+                    """, JdbcWorkRegimeReadSupport::mapPlanRow,
+                tenantId, publicId, populationPublicId));
+    }
+
+    private static String currentTargetJoins() {
+        return """
+              JOIN tim_target_population_projections p
+                ON p.tenant_id = te.tenant_id
+               AND p.population_public_id = te.population_public_id
+               AND p.projection_revision = te.population_revision
+               AND p.source_digest = te.population_digest
+               AND p.lifecycle_state = 'ACTIVE'
+               AND p.effective_from <= a.effective_from
+               AND (p.effective_to IS NULL
+                    OR (a.effective_to IS NOT NULL AND p.effective_to >= a.effective_to))
+              JOIN tim_target_population_members m
+                ON m.tenant_id = a.tenant_id
+               AND m.population_public_id = p.population_public_id
+               AND m.population_revision = p.projection_revision
+               AND m.worker_public_id = a.worker_public_id
+               AND m.people_assignment_public_id = a.people_assignment_public_id
+               AND m.people_assignment_revision = a.people_assignment_revision
+               AND m.membership_revision = te.membership_revision
+               AND m.source_digest = te.membership_digest
+               AND m.lifecycle_state = 'ACTIVE'
+               AND m.effective_from <= a.effective_from
+               AND (m.effective_to IS NULL
+                    OR (a.effective_to IS NOT NULL AND m.effective_to >= a.effective_to))
+            """;
     }
 
     private List<WorkPlanRecord> hydrate(List<PlanRow> rows) {
@@ -374,7 +603,10 @@ final class JdbcWorkRegimeReadSupport {
     }
 
     private List<AssignmentRow> currentAssignments(
-            long tenantId, UUID peopleAssignmentPublicId, EffectivePeriod period) {
+            long tenantId,
+            UUID populationPublicId,
+            UUID peopleAssignmentPublicId,
+            EffectivePeriod period) {
         return jdbc.query("""
                 SELECT a.work_plan_assignment_id,
                        a.public_id,
@@ -396,7 +628,27 @@ final class JdbcWorkRegimeReadSupport {
                     ON wr.tenant_id = a.tenant_id
                    AND wr.work_regime_version_id = a.work_regime_version_id
                    AND wr.policy_revision = a.policy_revision
+                  JOIN tim_work_plan_target_evidence target_evidence
+                    ON target_evidence.tenant_id = a.tenant_id
+                   AND target_evidence.work_plan_assignment_id = a.work_plan_assignment_id
+                  JOIN tim_target_population_projections population
+                    ON population.tenant_id = target_evidence.tenant_id
+                   AND population.population_public_id = target_evidence.population_public_id
+                   AND population.projection_revision = target_evidence.population_revision
+                   AND population.source_digest = target_evidence.population_digest
+                   AND population.lifecycle_state = 'ACTIVE'
+                  JOIN tim_target_population_members member
+                    ON member.tenant_id = a.tenant_id
+                   AND member.population_public_id = population.population_public_id
+                   AND member.population_revision = population.projection_revision
+                   AND member.worker_public_id = a.worker_public_id
+                   AND member.people_assignment_public_id = a.people_assignment_public_id
+                   AND member.people_assignment_revision = a.people_assignment_revision
+                   AND member.membership_revision = target_evidence.membership_revision
+                   AND member.source_digest = target_evidence.membership_digest
+                   AND member.lifecycle_state = 'ACTIVE'
                  WHERE a.tenant_id = ?
+                   AND (?::uuid IS NULL OR target_evidence.population_public_id = ?)
                    AND a.people_assignment_public_id = ?
                    AND a.lifecycle_state = 'PUBLISHED'
                    AND wr.lifecycle_state = 'PUBLISHED'
@@ -406,18 +658,27 @@ final class JdbcWorkRegimeReadSupport {
                    AND (wr.effective_to IS NULL OR wr.effective_to > ?)
                    AND daterange(a.effective_from, a.effective_to, '[)')
                        && daterange(wr.effective_from, wr.effective_to, '[)')
+                   AND member.effective_from <= ?
+                   AND (member.effective_to IS NULL OR member.effective_to >= ?)
                  ORDER BY a.effective_from, wr.revision, a.public_id
                 """, JdbcWorkRegimeReadSupport::mapAssignment,
                 tenantId,
+                populationPublicId,
+                populationPublicId,
                 peopleAssignmentPublicId,
                 period.to(),
                 period.from(),
                 period.to(),
-                period.from());
+                period.from(),
+                period.from(),
+                period.to());
     }
 
     private List<AssignmentRow> otherEffectiveAssignments(
-            long tenantId, AssignmentRow target, EffectivePeriod period) {
+            long tenantId,
+            UUID populationPublicId,
+            AssignmentRow target,
+            EffectivePeriod period) {
         return jdbc.query("""
                 SELECT a.work_plan_assignment_id,
                        a.public_id,
@@ -439,7 +700,27 @@ final class JdbcWorkRegimeReadSupport {
                     ON wr.tenant_id = a.tenant_id
                    AND wr.work_regime_version_id = a.work_regime_version_id
                    AND wr.policy_revision = a.policy_revision
+                  JOIN tim_work_plan_target_evidence target_evidence
+                    ON target_evidence.tenant_id = a.tenant_id
+                   AND target_evidence.work_plan_assignment_id = a.work_plan_assignment_id
+                  JOIN tim_target_population_projections population
+                    ON population.tenant_id = target_evidence.tenant_id
+                   AND population.population_public_id = target_evidence.population_public_id
+                   AND population.projection_revision = target_evidence.population_revision
+                   AND population.source_digest = target_evidence.population_digest
+                   AND population.lifecycle_state = 'ACTIVE'
+                  JOIN tim_target_population_members member
+                    ON member.tenant_id = a.tenant_id
+                   AND member.population_public_id = population.population_public_id
+                   AND member.population_revision = population.projection_revision
+                   AND member.worker_public_id = a.worker_public_id
+                   AND member.people_assignment_public_id = a.people_assignment_public_id
+                   AND member.people_assignment_revision = a.people_assignment_revision
+                   AND member.membership_revision = target_evidence.membership_revision
+                   AND member.source_digest = target_evidence.membership_digest
+                   AND member.lifecycle_state = 'ACTIVE'
                  WHERE a.tenant_id = ?
+                   AND (?::uuid IS NULL OR target_evidence.population_public_id = ?)
                    AND a.worker_public_id = ?
                    AND a.people_assignment_public_id <> ?
                    AND a.lifecycle_state = 'PUBLISHED'
@@ -450,15 +731,23 @@ final class JdbcWorkRegimeReadSupport {
                    AND (wr.effective_to IS NULL OR wr.effective_to > ?)
                    AND daterange(a.effective_from, a.effective_to, '[)')
                        && daterange(wr.effective_from, wr.effective_to, '[)')
+                   AND member.effective_from <= ?
+                   AND (member.effective_to IS NULL
+                        OR (? IS NOT NULL AND member.effective_to >= ?))
                  ORDER BY a.people_assignment_public_id, a.public_id
                 """, JdbcWorkRegimeReadSupport::mapAssignment,
                 tenantId,
+                populationPublicId,
+                populationPublicId,
                 target.workerPublicId(),
                 target.peopleAssignmentPublicId(),
                 period.to(),
                 period.from(),
                 period.to(),
-                period.from());
+                period.from(),
+                period.from(),
+                period.to(),
+                period.to());
     }
 
     private static PlanRow mapPlanRow(ResultSet row, int number) throws SQLException {
@@ -484,9 +773,24 @@ final class JdbcWorkRegimeReadSupport {
                 row.getString("resolution_digest").trim(),
                 uuid(row, "assignment_public_id"),
                 uuid(row, "worker_public_id"),
+                uuid(row, "people_assignment_public_id"),
                 row.getLong("people_assignment_revision"),
                 period(row, "assignment_from", "assignment_to"),
-                row.getString("zone_id"));
+                row.getString("zone_id"),
+                new TargetBindingEvidence(
+                        uuid(row, "target_population_public_id"),
+                        row.getLong("target_population_revision"),
+                        uuid(row, "worker_public_id"),
+                        uuid(row, "people_assignment_public_id"),
+                        row.getLong("people_assignment_revision"),
+                        row.getLong("target_membership_revision"),
+                        row.getLong("target_author_actor_id"),
+                        row.getString("author_gateway_scope_key"),
+                        row.getLong("author_grant_revision"),
+                        row.getString("population_digest").trim(),
+                        row.getString("membership_digest").trim(),
+                        row.getString("grant_digest").trim(),
+                        row.getTimestamp("target_verified_at").toInstant()));
     }
 
     private static AssignmentRow mapAssignment(ResultSet row, int number) throws SQLException {
@@ -514,6 +818,25 @@ final class JdbcWorkRegimeReadSupport {
                 nullableLong(row, "approval_actor_id"),
                 row.getString("scope_public_ref"),
                 period(row, "effective_from", "effective_to"),
+                row.getString("template_digest").trim());
+    }
+
+    private static PolicyCandidate mapPolicyCandidate(ResultSet row, int number)
+            throws SQLException {
+        return new PolicyCandidate(
+                row.getLong("tenant_id"),
+                uuid(row, "public_id"),
+                row.getLong("revision"),
+                ArrangementKind.valueOf(row.getString("arrangement_kind")),
+                WorkRegimeModels.ScopeType.valueOf(row.getString("scope_type")),
+                row.getString("scope_public_ref"),
+                row.getInt("precedence_priority"),
+                period(row, "effective_from", "effective_to"),
+                uuid(row, "rule_pack_public_id"),
+                row.getString("jurisdiction_country").trim(),
+                row.getLong("policy_revision"),
+                PolicyState.valueOf(row.getString("lifecycle_state")),
+                row.getLong("author_actor_id"),
                 row.getString("template_digest").trim());
     }
 
@@ -562,9 +885,11 @@ final class JdbcWorkRegimeReadSupport {
             String resolutionDigest,
             UUID assignmentPublicId,
             UUID workerPublicId,
+            UUID peopleAssignmentPublicId,
             long peopleAssignmentRevision,
             EffectivePeriod assignmentPeriod,
-            String zoneId) {
+            String zoneId,
+            TargetBindingEvidence targetBindingEvidence) {
 
         WorkPlanRecord toRecord(List<LocalSegment> segments) {
             return new WorkPlanRecord(
@@ -582,8 +907,10 @@ final class JdbcWorkRegimeReadSupport {
                     zoneId,
                     assignmentPublicId,
                     workerPublicId,
+                    peopleAssignmentPublicId,
                     peopleAssignmentRevision,
                     assignmentPeriod,
+                    targetBindingEvidence,
                     segments);
         }
     }

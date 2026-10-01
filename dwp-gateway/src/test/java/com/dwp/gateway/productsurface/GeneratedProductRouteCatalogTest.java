@@ -202,6 +202,45 @@ class GeneratedProductRouteCatalogTest {
     }
 
     @Test
+    void v33SeparatesLegacyPersonalAndSystemManagementViewsForBothOwnerApis() {
+        GeneratedProductRouteCatalog latest = catalog(33);
+        for (List<String> binding : List.of(
+                List.of(
+                        "/api/auth/hris/product-access/snapshot",
+                        "route.hcm.personal.product-access-snapshot.data"),
+                List.of(
+                        "/api/platform/v1/hris/configuration/projection",
+                        "route.hcm.personal.configuration-projection.data"))) {
+            String path = binding.get(0);
+            var legacy = latest.match("GET", path, null);
+            var system = latest.match("GET", path, "view=system");
+
+            assertThat(legacy.status()).as(path)
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(legacy.uniqueRoute().routeContractKey()).as(path).isEqualTo(binding.get(1));
+            assertThat(system.status()).as(path)
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(system.uniqueRoute().routeContractKey()).as(path)
+                    .isEqualTo("route.hcm.management.system.page");
+            assertThat(system.uniqueRoute().surfaceKey()).as(path).isEqualTo("hcm.management");
+            assertThat(latest.match("GET", path, "view=unknown").status()).as(path)
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+            assertThat(latest.match("GET", path, "view=system&view=system").status()).as(path)
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        }
+    }
+
+    @Test
+    void v33ClaimsOnlyTheHrisFamilyWithinTheSharedAuthService() {
+        GeneratedProductRouteCatalog latest = catalog(33);
+
+        assertThat(latest.match("GET", "/api/auth/me").status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.UNGOVERNED);
+        assertThat(latest.match("GET", "/api/auth/hris/not-registered").status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+    }
+
+    @Test
     void requiredQueryConstraintAcceptsExactlyOneNonBlankDynamicValue() throws Exception {
         ObjectNode document = bundle(3);
         ObjectNode route = null;

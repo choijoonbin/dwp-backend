@@ -22,9 +22,9 @@ CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 AGENT_PUBLIC_SNAPSHOT = CONTRACT_ROOT / "agent-public.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v32.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v33.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 32
+PRODUCT_AUTHORIZATION_VERSION = 33
 HRIS_DESIGN_TIME_OVERLAY = CONTRACT_ROOT / "hris-wave1-design-time.json"
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 PATH_PARAMETER_PATTERN = re.compile(r"\{[^{}]+}")
@@ -318,6 +318,39 @@ def parameter_identity(parameter: dict[str, Any]) -> tuple[str, str]:
     return str(parameter.get("in", "")).lower(), str(parameter.get("name", "")).lower()
 
 
+def merge_reviewed_parameters(
+        existing: dict[str, Any], reviewed: dict[str, Any]) -> None:
+    """Add reviewed parameters that springdoc does not yet expose.
+
+    The live operation remains authoritative for schemas it already publishes.  Design-time
+    overlays can still introduce reviewed parameters (for example a query-dispatched view)
+    without replacing those live schemas.
+    """
+    reviewed_parameters = reviewed.get("parameters", [])
+    if not isinstance(reviewed_parameters, list):
+        raise RuntimeError("HRIS design-time operation parameters must be an array")
+    if not reviewed_parameters:
+        return
+
+    parameters = existing.setdefault("parameters", [])
+    if not isinstance(parameters, list):
+        raise RuntimeError("HRIS live operation parameters must be an array")
+    identities = {
+        parameter_identity(parameter)
+        for parameter in parameters
+        if isinstance(parameter, dict)
+    }
+    for parameter in reviewed_parameters:
+        if not isinstance(parameter, dict):
+            raise RuntimeError("HRIS design-time operation parameter must be an object")
+        identity = parameter_identity(parameter)
+        if not all(identity):
+            raise RuntimeError("HRIS design-time operation parameter identity is invalid")
+        if identity not in identities:
+            parameters.append(copy.deepcopy(parameter))
+            identities.add(identity)
+
+
 def apply_design_time_overlay(
         service: ServiceContract, document: dict[str, Any]) -> dict[str, Any]:
     """Merge reviewed default-off HRIS operations into a runtime/approved service contract.
@@ -380,17 +413,7 @@ def apply_design_time_overlay(
                 existing["x-dwp-controller-variants"] = sorted(
                     variants, key=lambda item: item["controllerMethod"]
                 )
-                parameters = existing.setdefault("parameters", [])
-                identities = {
-                    parameter_identity(parameter)
-                    for parameter in parameters
-                    if isinstance(parameter, dict)
-                }
-                for parameter in reviewed.get("parameters", []):
-                    identity = parameter_identity(parameter)
-                    if identity not in identities:
-                        parameters.append(copy.deepcopy(parameter))
-                        identities.add(identity)
+                merge_reviewed_parameters(existing, reviewed)
                 continue
 
             canonical = copy.deepcopy(reviewed)
@@ -412,6 +435,7 @@ def apply_design_time_overlay(
                 live = copy.deepcopy(existing)
                 live["operationId"] = stable_operation_id
                 live["x-dwp-controller-method"] = controller_method
+                merge_reviewed_parameters(live, canonical)
                 for key, value in canonical.items():
                     if key.startswith("x-dwp-"):
                         live[key] = value

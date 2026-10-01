@@ -3,6 +3,7 @@ package com.dwp.services.payroll.foundation;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.exception.GlobalExceptionHandler;
+import com.dwp.core.security.ProductSurfaceScopeKey;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -48,8 +49,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.nullable;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -65,13 +68,18 @@ class PayrollFoundationControllerContractTest {
     private static final Instant NOW = Instant.parse("2026-09-17T09:00:00Z");
 
     private PayrollFoundationService service;
+    private PayrollLegalEntityScopeResolver scopeResolver;
     private MockMvc mvc;
 
     @BeforeEach
     void setUp() {
         service = mock(PayrollFoundationService.class);
+        scopeResolver = mock(PayrollLegalEntityScopeResolver.class);
+        when(scopeResolver.resolve(any())).thenReturn(scopeResolution());
         PayrollFoundationController controller = new PayrollFoundationController(
-                service, tenantId -> PayrollFoundationAccess.compatibilityPolicy());
+                service,
+                tenantId -> PayrollFoundationAccess.compatibilityPolicy(),
+                scopeResolver);
         mvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler(new StaticMessageSource()))
                 .addFilters(new PayrollFoundationSecurityFilter(
@@ -87,7 +95,9 @@ class PayrollFoundationControllerContractTest {
                 "NO_CONFIGURATION_SELECTED"),
                 List.of(new PartialFailure("DEPENDENCIES", "UNAVAILABLE"))));
 
-        mvc.perform(headers(get("/v1/hris/payroll/foundation/configurations"), 101))
+        mvc.perform(headers(
+                        get("/v1/hris/payroll/foundation/configurations"),
+                        101, PayrollFoundationRoute.LIST))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.configurations", hasSize(0)))
                 .andExpect(jsonPath("$.data.access.canCreate").value(true))
@@ -107,27 +117,39 @@ class PayrollFoundationControllerContractTest {
         ArgumentCaptor<PayrollFoundationAccess.Actor> actor =
                 ArgumentCaptor.forClass(PayrollFoundationAccess.Actor.class);
         verify(service).list(actor.capture());
-        assertThat(actor.getValue().purpose()).isEqualTo("PAYROLL_CONFIGURATION");
+        assertThat(actor.getValue().purpose()).isEqualTo("PAYROLL_AUDIT");
+        assertThat(actor.getValue().scope().allLegalEntities()).isFalse();
+        assertThat(actor.getValue().scope().legalEntityIds())
+                .containsExactly(LEGAL_ENTITY_ID);
         assertThat(actor.getValue().legalEntityScopeDigest())
-                .isEqualTo(PayrollFoundationCanonical.textDigest("*"));
-        assertThat(actor.getValue().policyRevision()).isEqualTo("pay-policy-42-v7");
-        assertThat(actor.getValue().authorizationRevision()).isEqualTo("authz-42-v19");
+                .isEqualTo(scopeResolution().evidenceDigest(
+                        scope(1, 101, PayrollFoundationRoute.LIST)));
+        assertThat(actor.getValue().policyRevision()).isEqualTo("rollout-" + "b".repeat(64));
+        assertThat(actor.getValue().authorizationRevision()).isEqualTo("psr-" + "a".repeat(64));
+        ArgumentCaptor<PayrollFoundationRequestContext.VerifiedSubject> subject =
+                ArgumentCaptor.forClass(
+                        PayrollFoundationRequestContext.VerifiedSubject.class);
+        verify(scopeResolver).resolve(subject.capture());
+        assertThat(subject.getValue().tenantId()).isEqualTo(1);
+        assertThat(subject.getValue().actorId()).isEqualTo(101);
+        assertThat(subject.getValue().contextScopeKey())
+                .isEqualTo(scope(1, 101, PayrollFoundationRoute.LIST));
     }
 
     @Test
     void requiresAppEntitlementAndModuleAction() throws Exception {
         mvc.perform(verifiedHeaders(
                         get("/v1/hris/payroll/foundation/configurations"),
-                        101, "PAYROLL_FOUNDATION:VIEW"))
+                        101, PayrollFoundationRoute.LIST, "DATA.HR_PAY:VIEW"))
                 .andExpect(status().isForbidden());
         mvc.perform(verifiedHeaders(
                         get("/v1/hris/payroll/foundation/configurations"),
-                        101, "APP.HRIS:VIEW"))
+                        101, PayrollFoundationRoute.LIST, "APP.HCM:VIEW"))
                 .andExpect(status().isForbidden());
     }
 
     @Test
-    void spoofedBusinessHeadersWithoutVerifiedGatewayAreRejected() throws Exception {
+    void spoofedBusinessHeadersWithoutVerifiedGatewayAreUnavailable() throws Exception {
         mvc.perform(get("/v1/hris/payroll/foundation/configurations")
                         .header("X-DWP-Tenant-ID", 1)
                         .header("X-DWP-User-ID", 101)
@@ -136,8 +158,9 @@ class PayrollFoundationControllerContractTest {
                                 "APP.HRIS:VIEW PAYROLL_FOUNDATION:EDIT")
                         .header("X-DWP-Purpose", "PAYROLL_CONFIGURATION")
                         .header("X-DWP-Legal-Entity-Scope", "*"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.errorCode").value("E2000"));
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("AUTHORITY_RESOLUTION_UNAVAILABLE"));
     }
 
     @Test
@@ -149,8 +172,9 @@ class PayrollFoundationControllerContractTest {
                         .header("X-DWP-Roles", "TENANT_DEFINED_PAYROLL_STEWARD")
                         .header("X-DWP-Permissions",
                                 "APP.HRIS:VIEW PAYROLL_FOUNDATION:VIEW"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.errorCode").value("E2000"));
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("AUTHORITY_RESOLUTION_UNAVAILABLE"));
     }
 
     @Test
@@ -165,21 +189,85 @@ class PayrollFoundationControllerContractTest {
                         .header("X-DWP-Purpose", "PAYROLL_CONFIGURATION")
                         .header("X-DWP-Legal-Entity-Scope", "*")
                         .header("X-DWP-Policy-Revision", "pay-policy-42-v7"))
-                .andExpect(status().isUnauthorized())
-                .andExpect(jsonPath("$.errorCode").value("E2000"));
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("AUTHORITY_RESOLUTION_UNAVAILABLE"));
+    }
+
+    @Test
+    void missingOwnerLegalEntityProjectionFailsClosedBeforeServiceDispatch() throws Exception {
+        doThrow(new BaseException(
+                ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                "No current owner scope projection."))
+                .when(scopeResolver).resolve(any());
+
+        mvc.perform(headers(
+                        get("/v1/hris/payroll/foundation/configurations"),
+                        101, PayrollFoundationRoute.LIST))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("AUTHORITY_RESOLUTION_UNAVAILABLE"));
+
+        verifyNoInteractions(service);
+    }
+
+    @Test
+    void gatewayRouteAndOwnerRouteMismatchIsAuthorityUnavailable() throws Exception {
+        mvc.perform(verifiedHeaders(
+                        get("/v1/hris/payroll/foundation/configurations"),
+                        101,
+                        PayrollFoundationRoute.CREATE,
+                        "APP.HCM:VIEW,DATA.HR_PAY:CREATE"))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("AUTHORITY_RESOLUTION_UNAVAILABLE"));
+    }
+
+    @Test
+    void staleGatewayDecisionIsAuthorityUnavailable() throws Exception {
+        mvc.perform(verifiedHeaders(
+                        get("/v1/hris/payroll/foundation/configurations"),
+                        101,
+                        PayrollFoundationRoute.LIST,
+                        "APP.HCM:VIEW,DATA.HR_PAY:VIEW",
+                        "NORMAL",
+                        Instant.now().minusSeconds(1)))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.errorCode")
+                        .value("AUTHORITY_RESOLUTION_UNAVAILABLE"));
+    }
+
+    @Test
+    void highRiskPayrollCommandRequiresElevatedGatewayDecision() throws Exception {
+        mvc.perform(verifiedHeaders(
+                        post("/v1/hris/payroll/foundation/configurations/{id}/publish",
+                                CONFIGURATION_ID),
+                        202,
+                        PayrollFoundationRoute.PUBLISH,
+                        "APP.HCM:VIEW,DATA.HR_PAY:PUBLISH",
+                        "NORMAL",
+                        Instant.now().plusSeconds(600))
+                        .header("Idempotency-Key", COMMAND_ID)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"expectedVersion\":3}"))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.errorCode").value("STEP_UP_REQUIRED"));
     }
 
     @Test
     void missingConfiguredGatewayIdentityFailsClosed() throws Exception {
         PayrollFoundationController controller = new PayrollFoundationController(
-                service, tenantId -> PayrollFoundationAccess.compatibilityPolicy());
+                service,
+                tenantId -> PayrollFoundationAccess.compatibilityPolicy(),
+                scopeResolver);
         MockMvc unconfigured = MockMvcBuilders.standaloneSetup(controller)
                 .addFilters(new PayrollFoundationSecurityFilter(
                         "", JsonMapper.builder().findAndAddModules().build()))
                 .build();
 
         unconfigured.perform(headers(
-                        get("/v1/hris/payroll/foundation/configurations"), 101))
+                        get("/v1/hris/payroll/foundation/configurations"),
+                        101, PayrollFoundationRoute.LIST))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.errorCode")
                         .value("AUTHORITY_RESOLUTION_UNAVAILABLE"));
@@ -188,7 +276,9 @@ class PayrollFoundationControllerContractTest {
     @Test
     void enabledHttpFailsClosedWithoutTenantPepAdapter() throws Exception {
         PayrollFoundationController unavailableController = new PayrollFoundationController(
-                service, new UnavailablePayrollFoundationAccessPolicyProvider());
+                service,
+                new UnavailablePayrollFoundationAccessPolicyProvider(),
+                scopeResolver);
         MockMvc unavailable = MockMvcBuilders.standaloneSetup(unavailableController)
                 .setControllerAdvice(new GlobalExceptionHandler(new StaticMessageSource()))
                 .addFilters(new PayrollFoundationSecurityFilter(
@@ -196,7 +286,8 @@ class PayrollFoundationControllerContractTest {
                 .build();
 
         unavailable.perform(headers(
-                        get("/v1/hris/payroll/foundation/configurations"), 101))
+                        get("/v1/hris/payroll/foundation/configurations"),
+                        101, PayrollFoundationRoute.LIST))
                 .andExpect(status().isServiceUnavailable())
                 .andExpect(jsonPath("$.errorCode")
                         .value("AUTHORITY_RESOLUTION_UNAVAILABLE"));
@@ -209,7 +300,7 @@ class PayrollFoundationControllerContractTest {
 
         mvc.perform(headers(get(
                         "/v1/hris/payroll/foundation/configurations/{id}", CONFIGURATION_ID),
-                202))
+                202, PayrollFoundationRoute.DETAIL))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.configurationId")
                         .value(CONFIGURATION_ID.toString()))
@@ -247,7 +338,7 @@ class PayrollFoundationControllerContractTest {
 
         mvc.perform(headers(get(
                         "/v1/hris/payroll/foundation/configurations/{id}", CONFIGURATION_ID),
-                202))
+                202, PayrollFoundationRoute.DETAIL))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.definition.effectivePeriod.endsOn")
                         .value(nullValue()));
@@ -272,7 +363,7 @@ class PayrollFoundationControllerContractTest {
 
         mvc.perform(headers(get(
                         "/v1/hris/payroll/foundation/configurations/{id}", CONFIGURATION_ID),
-                202))
+                202, PayrollFoundationRoute.DETAIL))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.definition.roundingPolicies.USD.increment")
                         .value("1000"));
@@ -297,7 +388,7 @@ class PayrollFoundationControllerContractTest {
 
         mvc.perform(headers(post(
                         "/v1/hris/payroll/foundation/configurations/{id}/reversals",
-                        CONFIGURATION_ID), 202)
+                        CONFIGURATION_ID), 202, PayrollFoundationRoute.REVERSE)
                         .header("Idempotency-Key", COMMAND_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"expectedVersion\":2,\"publishCommandId\":\""
@@ -317,7 +408,7 @@ class PayrollFoundationControllerContractTest {
 
         mvc.perform(headers(get(
                         "/v1/hris/payroll/foundation/receipts/{id}", COMMAND_ID),
-                202))
+                202, PayrollFoundationRoute.RECEIPT))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.receipt.commandId").value(COMMAND_ID.toString()))
                 .andExpect(jsonPath("$.data.receipt.commandType").value("PUBLISH"))
@@ -328,7 +419,7 @@ class PayrollFoundationControllerContractTest {
 
         mvc.perform(headers(post(
                         "/v1/hris/payroll/foundation/receipts/{id}/reconcile", COMMAND_ID),
-                202))
+                202, PayrollFoundationRoute.RECONCILE))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.receipt.status").value("RESULT_UNKNOWN"))
                 .andExpect(jsonPath("$.data.configuration.access.canReconcile").value(true));
@@ -344,7 +435,7 @@ class PayrollFoundationControllerContractTest {
 
         mvc.perform(headers(post(
                         "/v1/hris/payroll/foundation/configurations/{id}/publish",
-                        CONFIGURATION_ID), 202)
+                        CONFIGURATION_ID), 202, PayrollFoundationRoute.PUBLISH)
                         .header("Idempotency-Key", COMMAND_ID)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"expectedVersion\":3}"))
@@ -377,25 +468,66 @@ class PayrollFoundationControllerContractTest {
     }
 
     private MockHttpServletRequestBuilder headers(
-            MockHttpServletRequestBuilder request, long actorId) {
+            MockHttpServletRequestBuilder request,
+            long actorId,
+            PayrollFoundationRoute route) {
         return verifiedHeaders(
                 request,
                 actorId,
-                "APP.HRIS:VIEW PAYROLL_FOUNDATION:VIEW PAYROLL_FOUNDATION:PUBLISH "
-                        + "PAYROLL_FOUNDATION:REVERSE PAYROLL_FOUNDATION:RECONCILE");
+                route,
+                "APP.HCM:VIEW," + route.capability());
     }
 
     private MockHttpServletRequestBuilder verifiedHeaders(
-            MockHttpServletRequestBuilder request, long actorId, String permissions) {
-        return request
+            MockHttpServletRequestBuilder request,
+            long actorId,
+            PayrollFoundationRoute route,
+            String permissions) {
+        return verifiedHeaders(
+                request,
+                actorId,
+                route,
+                permissions,
+                route.requiresElevatedAccess() ? "ELEVATED" : "NORMAL",
+                Instant.now().plusSeconds(600));
+    }
+
+    private MockHttpServletRequestBuilder verifiedHeaders(
+            MockHttpServletRequestBuilder request,
+            long actorId,
+            PayrollFoundationRoute route,
+            String permissions,
+            String accessMode,
+            Instant revalidateAt) {
+        MockHttpServletRequestBuilder verified = request
                 .header("X-DWP-Service-Token", "verified-test-token")
                 .header("X-DWP-Tenant-ID", 1)
                 .header("X-DWP-User-ID", actorId)
-                .header("X-DWP-Roles", "CONFIGURATION_PUBLISHER")
                 .header("X-DWP-Permissions", permissions)
-                .header("X-DWP-Purpose", "PAYROLL_CONFIGURATION")
-                .header("X-DWP-Legal-Entity-Scope", "*")
-                .header("X-DWP-Policy-Revision", "pay-policy-42-v7")
-                .header("X-DWP-Authorization-Revision", "authz-42-v19");
+                .header("X-DWP-Route-Contract-Key", route.routeContractKey())
+                .header("X-DWP-Context-Key", "psc-" + "c".repeat(64))
+                .header("X-DWP-Context-Scope-Key", scope(1, actorId, route))
+                .header("X-DWP-Active-Access-Mode", accessMode)
+                .header("X-DWP-Current-Decision-Revision", "psr-" + "a".repeat(64))
+                .header("X-DWP-Current-Revalidate-At", revalidateAt)
+                .header("X-DWP-Rollout-State", "110")
+                .header("X-DWP-Rollout-Revision", "rollout-" + "b".repeat(64))
+                .header("X-DWP-Rollout-Cohort", "full");
+        if (route.command()) {
+            verified.header("X-DWP-Expected-Decision-Revision", "psr-" + "a".repeat(64));
+        }
+        return verified;
+    }
+
+    private static String scope(
+            long tenantId, long actorId, PayrollFoundationRoute route) {
+        return ProductSurfaceScopeKey.key(
+                tenantId, actorId, "hcm", "hcm.operations",
+                route.scopeSource(), "TARGET_POPULATION");
+    }
+
+    private static PayrollLegalEntityScopeResolver.Resolution scopeResolution() {
+        return new PayrollLegalEntityScopeResolver.Resolution(
+                "pay-scope-projection-r1", Set.of(LEGAL_ENTITY_ID));
     }
 }
