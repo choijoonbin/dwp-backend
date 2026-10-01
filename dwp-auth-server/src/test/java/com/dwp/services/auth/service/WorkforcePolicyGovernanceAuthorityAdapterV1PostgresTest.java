@@ -149,7 +149,7 @@ class WorkforcePolicyGovernanceAuthorityAdapterV1PostgresTest {
         // Login/mutation-only collaborators are absent, not mock read authorization.
         auth=new AuthService(users,null,null,roles,members,null,null,repos.getRepository(RolePermissionRepository.class),
                 repos.getRepository(ResourceRepository.class),repos.getRepository(PermissionRepository.class),
-                new PrincipalResourceGrantRepository(jdbc),null,null,null,null,governance,duties,null);
+                new PrincipalResourceGrantRepository(jdbc),null,null,null,null,null,governance,duties,null);
         identities=new ProductAuthorizationIdentityEvidenceService(auth,governance,duties);
         registry=new ProductAuthorizationContractRepository(jdbc,MAPPER);
         var jwtConfig=new JwtConfig(mock(SecurityExceptionHandler.class));ReflectionTestUtils.setField(jwtConfig,"jwtSecret",JWT_SECRET);

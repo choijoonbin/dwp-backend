@@ -80,7 +80,7 @@ public class HrisConfigurationProjectionService {
 
         try {
             List<HomeTemplateDtos.HomeTemplateResponse> templates =
-                    homeTemplates.list(tenantId, permissionsHeader, rolesHeader);
+                    homeTemplates.list(tenantId, permissionsHeader, rolesHeader).items();
             widgets = templates.stream()
                     .filter(template -> "PUBLISHED".equals(template.lifecycle()))
                     .filter(template -> Integer.valueOf(HomePreferenceDtos.SCHEMA_VERSION)

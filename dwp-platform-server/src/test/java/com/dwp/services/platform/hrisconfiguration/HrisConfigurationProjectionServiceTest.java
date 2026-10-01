@@ -47,7 +47,7 @@ class HrisConfigurationProjectionServiceTest {
                         node("hr.admin", "/hr/admin", "APP.HCM", "MANAGE"),
                         node("calendar", "/calendar", "APP.CALENDAR", "VIEW")))));
         when(homeTemplates.list(7L, "APP.HCM:VIEW", "CUSTOM_PEOPLE_LEAD"))
-                .thenReturn(List.of(
+                .thenReturn(page(
                         template("PUBLISHED", "hris-team", true),
                         template("REVOKED", "hris-revoked", true),
                         template("PUBLISHED", "calendar-agenda", true),
@@ -93,7 +93,7 @@ class HrisConfigurationProjectionServiceTest {
         when(navigation.runtimeTree(7L, "en")).thenReturn(List.of());
         String auditPermissions = "APP.HCM:VIEW,HCM.CONFIGURATION_WORKBENCH:AUDIT";
         when(homeTemplates.list(7L, auditPermissions, "CUSTOM_AUDITOR"))
-                .thenReturn(List.of());
+                .thenReturn(page());
 
         var audit = service.project(
                 7L, 11L, auditPermissions, "CUSTOM_AUDITOR", "en");
@@ -114,7 +114,7 @@ class HrisConfigurationProjectionServiceTest {
         String permissions = "APP.HCM:VIEW,HCM.CONFIGURATION_WORKBENCH:UPDATE";
         when(navigation.runtimeTree(7L, "en")).thenReturn(List.of());
         when(homeTemplates.list(7L, permissions, "CUSTOM_CONFIGURATION_OWNER"))
-                .thenReturn(List.of());
+                .thenReturn(page());
 
         var result = service.project(
                 7L, 11L, permissions, "CUSTOM_CONFIGURATION_OWNER", "en");
@@ -129,7 +129,7 @@ class HrisConfigurationProjectionServiceTest {
         when(navigation.runtimeTree(7L, "en")).thenReturn(List.of(
                 node("hr.self", "/hr/me", "APP.HCM", "VIEW")));
         when(homeTemplates.list(7L, "APP.HCM:VIEW", "WORKSPACE_MEMBER"))
-                .thenReturn(List.of(template("PUBLISHED", "hris-stale", true, 4)));
+                .thenReturn(page(template("PUBLISHED", "hris-stale", true, 4)));
 
         var result = service.project(
                 7L, 11L, "APP.HCM:VIEW", "WORKSPACE_MEMBER", "en");
@@ -149,7 +149,7 @@ class HrisConfigurationProjectionServiceTest {
         when(navigation.runtimeTree(7L, "en")).thenReturn(List.of(
                 node("hr.self", "/hr/me", "APP.HCM", "VIEW")));
         when(homeTemplates.list(7L, "APP.HCM:VIEW", "WORKSPACE_MEMBER"))
-                .thenReturn(List.of(template("REVOKED", "hris-former", true)));
+                .thenReturn(page(template("REVOKED", "hris-former", true)));
 
         var result = service.project(
                 7L, 11L, "APP.HCM:VIEW", "WORKSPACE_MEMBER", "en");
@@ -183,6 +183,11 @@ class HrisConfigurationProjectionServiceTest {
             String widgetKey,
             boolean visible) {
         return template(lifecycle, widgetKey, visible, 5);
+    }
+
+    private HomeTemplateDtos.HomeTemplatePage page(
+            HomeTemplateDtos.HomeTemplateResponse... templates) {
+        return new HomeTemplateDtos.HomeTemplatePage(List.of(templates), false, 100);
     }
 
     private HomeTemplateDtos.HomeTemplateResponse template(
