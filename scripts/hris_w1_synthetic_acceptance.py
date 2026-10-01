@@ -26,6 +26,7 @@ import re
 import secrets
 import signal
 import socket
+import stat
 import subprocess
 import sys
 import time
@@ -127,8 +128,10 @@ class GateState:
     http_evidence: list[HttpEvidence] = field(default_factory=list)
     processes: dict[str, ManagedProcess] = field(default_factory=dict)
     containers: list[str] = field(default_factory=list)
+    checkpoint_process_groups: list[int] = field(default_factory=list)
     network: str | None = None
     ports: dict[str, int] = field(default_factory=dict)
+    provenance: dict[str, Any] = field(default_factory=dict)
     active_revision: int = 0
     active_version: int | None = None
     rollback_complete: bool = False
@@ -163,6 +166,9 @@ class RuntimeSecrets:
     provider_token: str
     payroll_token: str
     time_token: str
+    gateway_agent_service_token: str
+    gateway_agent_identity_signing_secret: str
+    gateway_provider_support_validation_token: str
 
     @classmethod
     def generate(cls) -> "RuntimeSecrets":
@@ -255,6 +261,50 @@ def run_checked(
             f"argumentsSha256={command_digest}\n{detail}"
         )
     return result
+
+
+def sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as source:
+        for chunk in iter(lambda: source.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def tracked_source_provenance() -> dict[str, Any]:
+    status = run_checked(
+        ("git", "status", "--porcelain", "--untracked-files=no"),
+        timeout=30,
+    ).stdout.strip()
+    if status:
+        raise GateFailure(
+            "Tracked worktree must be clean before a provenance-bearing W1 run: "
+            + status.replace("\n", "; ")
+        )
+    head = run_checked(("git", "rev-parse", "HEAD"), timeout=30).stdout.strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", head):
+        raise GateFailure(f"Unable to bind W1 run to a Git commit: {head!r}")
+    run_checked(
+        ("git", "ls-files", "--error-unmatch", str(Path(__file__).resolve().relative_to(ROOT))),
+        timeout=30,
+    )
+    return {
+        "gitHead": head,
+        "trackedWorktreeClean": True,
+        "runnerPath": str(Path(__file__).resolve().relative_to(ROOT)),
+        "runnerSha256": sha256_file(Path(__file__).resolve()),
+    }
+
+
+def verify_source_provenance(expected: dict[str, Any]) -> dict[str, Any]:
+    actual = tracked_source_provenance()
+    for key in ("gitHead", "runnerPath", "runnerSha256"):
+        if actual[key] != expected[key]:
+            raise GateFailure(
+                f"Source provenance changed during the W1 build: {key} "
+                f"expected={expected[key]!r} actual={actual[key]!r}"
+            )
+    return actual
 
 
 def docker(*arguments: str, timeout: float = 120.0) -> str:
@@ -481,6 +531,14 @@ def start_jar(
 ) -> ManagedProcess:
     if not spec.jar.is_file():
         raise GateFailure(f"Missing executable bootJar: {spec.jar}")
+    expected_jar = state.provenance.get("jars", {}).get(spec.name)
+    if not isinstance(expected_jar, dict):
+        raise GateFailure(f"Missing bootJar provenance for service: {spec.name}")
+    actual_jar_sha256 = sha256_file(spec.jar)
+    if actual_jar_sha256 != expected_jar.get("sha256"):
+        raise GateFailure(
+            f"BootJar changed after provenance capture for service {spec.name}."
+        )
     process_name = runtime_name or spec.name
     log_path = state.output_dir / "logs" / f"{process_name}.log"
     log_handle = log_path.open("wb")
@@ -649,29 +707,78 @@ def service_specs(secrets_: RuntimeSecrets) -> dict[str, ServiceSpec]:
             "dwp-gateway",
             None,
             {
-                "DWP_AGENT_SERVICE_TOKEN": secrets.token_urlsafe(30),
-                "DWP_AGENT_IDENTITY_SIGNING_SECRET": secrets.token_urlsafe(40),
-                "DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN": secrets.token_urlsafe(30),
+                "DWP_AGENT_SERVICE_TOKEN": secrets_.gateway_agent_service_token,
+                "DWP_AGENT_IDENTITY_SIGNING_SECRET": (
+                    secrets_.gateway_agent_identity_signing_secret
+                ),
+                "DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN": (
+                    secrets_.gateway_provider_support_validation_token
+                ),
             },
         ),
     }
 
 
 def build_jars(args: argparse.Namespace, state: GateState, specs: dict[str, ServiceSpec]) -> None:
+    started_at = utc_now()
+    tasks = [f":{spec.module}:bootJar" for spec in specs.values()]
     if args.skip_build:
         missing = [str(spec.jar) for spec in specs.values() if not spec.jar.is_file()]
         if missing:
             raise GateFailure("--skip-build was used but bootJars are missing: " + ", ".join(missing))
-        state.phase("build-bootjars", "SKIPPED", reason="--skip-build")
-        return
-    tasks = [f":{spec.module}:bootJar" for spec in specs.values()]
-    command = (args.gradle_executable, "--no-daemon", *tasks)
-    run_checked(
-        command,
-        timeout=args.build_timeout,
-        log_path=state.output_dir / "logs" / "build.log",
-    )
-    state.phase("build-bootjars", "PASS", tasks=tasks)
+        build_provenance: dict[str, Any] = {
+            "freshBuild": False,
+            "diagnosticOnly": True,
+            "startedAt": started_at,
+            "finishedAt": utc_now(),
+            "tasks": tasks,
+        }
+        state.phase(
+            "build-bootjars",
+            "SKIPPED",
+            reason="--skip-build diagnostics can never produce a subgate PASS",
+        )
+    else:
+        command = (
+            args.gradle_executable,
+            "--no-daemon",
+            "--rerun-tasks",
+            *tasks,
+        )
+        build_log = state.output_dir / "logs" / "build.log"
+        run_checked(
+            command,
+            timeout=args.build_timeout,
+            log_path=build_log,
+        )
+        build_provenance = {
+            "freshBuild": True,
+            "diagnosticOnly": False,
+            "startedAt": started_at,
+            "finishedAt": utc_now(),
+            "rerunTasks": True,
+            "tasks": tasks,
+            "gradleExecutable": args.gradle_executable,
+            "buildLogPath": str(build_log.relative_to(state.output_dir)),
+            "buildLogSha256": sha256_file(build_log),
+        }
+        state.phase("build-bootjars", "PASS", tasks=tasks, rerunTasks=True)
+
+    jars: dict[str, dict[str, Any]] = {}
+    for name, spec in specs.items():
+        if (
+            not spec.jar.is_file()
+            or spec.jar.is_symlink()
+            or not stat.S_ISREG(spec.jar.stat().st_mode)
+        ):
+            raise GateFailure(f"Executable bootJar is not a regular file: {spec.jar}")
+        jars[name] = {
+            "path": str(spec.jar.relative_to(ROOT)),
+            "sha256": sha256_file(spec.jar),
+            "byteCount": spec.jar.stat().st_size,
+        }
+    state.provenance["build"] = build_provenance
+    state.provenance["jars"] = jars
 
 
 def provision_infrastructure(
@@ -937,9 +1044,9 @@ def start_and_verify_latest_clean_auth(
           FROM auth_product_authorization_seed_release
          WHERE bundle_key = 'product-surfaces' AND version IN (32, 33)
          ORDER BY version;
-        SELECT 'bundle-count|' || count(*)::text
+        SELECT 'bundle-total|' || count(*)::text
           FROM auth_product_authorization_bundle;
-        SELECT 'active-count|' || count(*)::text
+        SELECT 'active-total|' || count(*)::text
           FROM auth_product_authorization_active;
         """,
     )
@@ -951,8 +1058,8 @@ def start_and_verify_latest_clean_auth(
         "233|true",
         f"32|{V32_CHECKSUM}",
         f"33|{V33_CHECKSUM}",
-        "bundle-count|0",
-        "active-count|0",
+        "bundle-total|0",
+        "active-total|0",
     ]
     actual = [line.strip() for line in raw.splitlines() if line.strip()]
     if actual != expected:
@@ -982,13 +1089,14 @@ def verify_v232(postgres: str, state: GateState) -> None:
           FROM auth_product_authorization_seed_release
          WHERE bundle_key = 'product-surfaces' AND version IN (32, 33)
          ORDER BY version;
-        SELECT 'bundle|' || version::text || '|' || bundle_status || '|' || checksum
+        SELECT 'bundle-total|' || count(*)::text
+          FROM auth_product_authorization_bundle;
+        SELECT 'bundle|' || bundle_key || '|' || version::text || '|' ||
+               bundle_status || '|' || checksum
           FROM auth_product_authorization_bundle
-         WHERE bundle_key = 'product-surfaces' AND version IN (32, 33)
-         ORDER BY version;
-        SELECT 'active-count|' || count(*)::text
-          FROM auth_product_authorization_active
-         WHERE bundle_key = 'product-surfaces';
+         ORDER BY bundle_key, version;
+        SELECT 'active-total|' || count(*)::text
+          FROM auth_product_authorization_active;
         """,
     )
     (state.output_dir / "db" / "v232-state.txt").write_text(raw + "\n", encoding="utf-8")
@@ -996,8 +1104,9 @@ def verify_v232(postgres: str, state: GateState) -> None:
     expected = [
         "232|true",
         f"32|{V32_CHECKSUM}",
-        f"bundle|32|DRAFT|{V32_CHECKSUM}",
-        "active-count|0",
+        "bundle-total|1",
+        f"bundle|product-surfaces|32|DRAFT|{V32_CHECKSUM}",
+        "active-total|0",
     ]
     if lines != expected:
         raise GateFailure(f"V232 clean-install state mismatch: expected {expected}, got {lines}")
@@ -1005,6 +1114,8 @@ def verify_v232(postgres: str, state: GateState) -> None:
         "clean-install-through-v232-with-v32-draft",
         "PASS",
         imported=[32],
+        bundleCount=1,
+        exactBundles=[{"bundleKey": BUNDLE_KEY, "version": 32}],
         v33Absent=True,
         activePointerAbsent=True,
     )
@@ -1033,8 +1144,7 @@ def start_auth_latest(
         count = psql(
             postgres,
             "dwp_auth",
-            "SELECT count(*) FROM auth_product_authorization_bundle "
-            "WHERE bundle_key = 'product-surfaces' AND version IN (32, 33);",
+            "SELECT count(*) FROM auth_product_authorization_bundle;",
         ).strip()
         if count == "2":
             break
@@ -1057,10 +1167,14 @@ def start_auth_latest(
           FROM auth_product_authorization_seed_release
          WHERE bundle_key = 'product-surfaces' AND version IN (32, 33)
          ORDER BY version;
-        SELECT 'bundle|' || version::text || '|' || bundle_status || '|' || checksum
+        SELECT 'bundle-total|' || count(*)::text
+          FROM auth_product_authorization_bundle;
+        SELECT 'bundle|' || bundle_key || '|' || version::text || '|' ||
+               bundle_status || '|' || checksum
           FROM auth_product_authorization_bundle
-         WHERE bundle_key = 'product-surfaces' AND version IN (32, 33)
-         ORDER BY version;
+         ORDER BY bundle_key, version;
+        SELECT 'active-total|' || count(*)::text
+          FROM auth_product_authorization_active;
         SELECT 'active|' || bundle.version::text || '|' || active.revision::text ||
                '|' || active.activated_by
           FROM auth_product_authorization_active active
@@ -1078,8 +1192,10 @@ def start_auth_latest(
         "233|true",
         f"32|{V32_CHECKSUM}",
         f"33|{V33_CHECKSUM}",
-        f"bundle|32|ACTIVE|{V32_CHECKSUM}",
-        f"bundle|33|DRAFT|{V33_CHECKSUM}",
+        "bundle-total|2",
+        f"bundle|product-surfaces|32|ACTIVE|{V32_CHECKSUM}",
+        f"bundle|product-surfaces|33|DRAFT|{V33_CHECKSUM}",
+        "active-total|1",
         "active|32|1|w1-synthetic-release-v32",
     ]
     actual = [line.strip() for line in declaration.splitlines() if line.strip()]
@@ -1107,6 +1223,11 @@ def start_auth_latest(
         "upgrade-active-v32-r1-from-v232-to-v233",
         "PASS",
         imported=[33],
+        bundleCount=2,
+        exactBundles=[
+            {"bundleKey": BUNDLE_KEY, "version": 32},
+            {"bundleKey": BUNDLE_KEY, "version": 33},
+        ],
         preservedVersion=32,
         preservedRevision=1,
     )
@@ -1411,9 +1532,170 @@ def write_runtime_manifest(state: GateState) -> None:
     atomic_write_json(state.output_dir / "runtime.json", manifest)
 
 
+def validate_checkpoint_executable(
+    command: Sequence[str] | None, expected_sha256: str | None
+) -> dict[str, Any]:
+    if not command:
+        raise GateFailure(
+            "Full W1 backend mode requires an external live checkpoint command."
+        )
+    executable = Path(command[0])
+    if not executable.is_absolute():
+        raise GateFailure("Checkpoint executable must be an absolute path.")
+    if executable.is_symlink():
+        raise GateFailure("Checkpoint executable must not be a symlink.")
+    try:
+        metadata = executable.stat()
+    except OSError as error:
+        raise GateFailure(f"Checkpoint executable is unavailable: {error}") from error
+    if not stat.S_ISREG(metadata.st_mode) or not os.access(executable, os.X_OK):
+        raise GateFailure(
+            "Checkpoint executable must be an executable regular file."
+        )
+    if not isinstance(expected_sha256, str) or not re.fullmatch(
+        r"[0-9a-f]{64}", expected_sha256
+    ):
+        raise GateFailure(
+            "Full W1 backend mode requires a lowercase SHA-256 pin for the "
+            "checkpoint executable."
+        )
+    actual_sha256 = sha256_file(executable)
+    if actual_sha256 != expected_sha256:
+        raise GateFailure(
+            "Checkpoint executable SHA-256 does not match the supplied pin."
+        )
+    return {
+        "path": str(executable),
+        "sha256": actual_sha256,
+        "byteCount": metadata.st_size,
+        "nonSymlinkRegularExecutable": True,
+    }
+
+
+def process_group_alive(process_group_id: int) -> bool:
+    try:
+        os.killpg(process_group_id, 0)
+        return True
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+
+
+def wait_for_process_group_exit(process_group_id: int, timeout: float) -> bool:
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if not process_group_alive(process_group_id):
+            return True
+        time.sleep(0.05)
+    return not process_group_alive(process_group_id)
+
+
+def cleanup_checkpoint_process_group(
+    process_group_id: int,
+    parent: subprocess.Popen[bytes] | None = None,
+) -> dict[str, Any]:
+    residual_detected = process_group_alive(process_group_id)
+    term_sent = False
+    kill_sent = False
+    if residual_detected:
+        try:
+            os.killpg(process_group_id, signal.SIGTERM)
+            term_sent = True
+        except ProcessLookupError:
+            pass
+        if parent is not None and parent.poll() is None:
+            try:
+                parent.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
+        if not wait_for_process_group_exit(process_group_id, 2):
+            try:
+                os.killpg(process_group_id, signal.SIGKILL)
+                kill_sent = True
+            except ProcessLookupError:
+                pass
+            if parent is not None and parent.poll() is None:
+                try:
+                    parent.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass
+            wait_for_process_group_exit(process_group_id, 3)
+    if parent is not None and parent.poll() is None:
+        try:
+            parent.wait(timeout=1)
+        except subprocess.TimeoutExpired:
+            pass
+    return {
+        "processGroupId": process_group_id,
+        "residualDetected": residual_detected,
+        "termSent": term_sent,
+        "killSent": kill_sent,
+        "cleanupVerified": not process_group_alive(process_group_id),
+    }
+
+
+def run_checkpoint_process(
+    state: GateState,
+    command: Sequence[str],
+    environment: dict[str, str],
+    log_path: Path,
+    timeout: float,
+) -> dict[str, Any]:
+    timed_out = False
+    with log_path.open("wb") as log_handle:
+        process = subprocess.Popen(
+            tuple(command),
+            cwd=ROOT,
+            env=environment,
+            stdin=subprocess.DEVNULL,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+            start_new_session=True,
+        )
+        process_group_id = process.pid
+        state.checkpoint_process_groups.append(process_group_id)
+        try:
+            return_code = process.wait(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            return_code = None
+        cleanup = cleanup_checkpoint_process_group(process_group_id, process)
+        log_handle.flush()
+
+    outcome = {
+        "exitCode": return_code,
+        "timedOut": timed_out,
+        **cleanup,
+    }
+    state.provenance.setdefault("checkpoint", {})["processGroup"] = outcome
+    if cleanup["cleanupVerified"]:
+        state.checkpoint_process_groups.remove(process_group_id)
+    if timed_out:
+        raise GateFailure(
+            "External live checkpoint timed out; process-group cleanup "
+            f"verified={cleanup['cleanupVerified']}."
+        )
+    if return_code != 0:
+        raise GateFailure(
+            f"External live checkpoint exited with {return_code}; process-group "
+            f"cleanup verified={cleanup['cleanupVerified']}."
+        )
+    if cleanup["residualDetected"]:
+        raise GateFailure(
+            "External live checkpoint left descendant processes after exit; "
+            f"cleanup verified={cleanup['cleanupVerified']}."
+        )
+    if not cleanup["cleanupVerified"]:
+        raise GateFailure(
+            "External live checkpoint process-group cleanup was not verified."
+        )
+    return outcome
+
+
 def validate_checkpoint_manifest(
     state: GateState, manifest_path: Path
-) -> list[str]:
+) -> dict[str, Any]:
     if not manifest_path.is_file() or manifest_path.is_symlink():
         raise GateFailure(
             "External live checkpoint did not create its required regular-file manifest: "
@@ -1464,9 +1746,12 @@ def validate_checkpoint_manifest(
     assertions = manifest.get("assertions")
     if not isinstance(assertions, list) or not assertions:
         raise GateFailure(
-            "External live checkpoint manifest requires at least one evidence-backed assertion."
+            "External live checkpoint manifest requires evidence-backed assertions."
         )
     names: list[str] = []
+    evidence_paths: set[str] = set()
+    evidence_candidates: set[Path] = set()
+    evidence_bindings: dict[str, dict[str, Any]] = {}
     for index, assertion in enumerate(assertions):
         if not isinstance(assertion, dict):
             raise GateFailure(f"Checkpoint assertion {index} must be a JSON object.")
@@ -1482,6 +1767,12 @@ def validate_checkpoint_manifest(
             raise GateFailure(f"Checkpoint assertion did not pass: {name}")
         if not isinstance(evidence_path, str) or not evidence_path:
             raise GateFailure(f"Checkpoint assertion has no evidence path: {name}")
+        if evidence_path in evidence_paths:
+            raise GateFailure(
+                "Every checkpoint assertion requires a distinct evidence path: "
+                f"{evidence_path}"
+            )
+        evidence_paths.add(evidence_path)
         evidence_relative = Path(evidence_path)
         if evidence_relative.is_absolute() or ".." in evidence_relative.parts:
             raise GateFailure(f"Checkpoint assertion evidence path is unsafe: {name}")
@@ -1501,23 +1792,81 @@ def validate_checkpoint_manifest(
             raise GateFailure(
                 f"Checkpoint assertion evidence must be a separate regular file: {name}"
             )
+        if candidate in evidence_candidates:
+            raise GateFailure(
+                "Every checkpoint assertion requires a distinct evidence file: "
+                f"{candidate}"
+            )
+        evidence_candidates.add(candidate)
         if candidate.stat().st_size == 0:
             raise GateFailure(f"Checkpoint assertion evidence is empty: {name}")
         if not isinstance(evidence_sha256, str) or not re.fullmatch(
             r"[0-9a-f]{64}", evidence_sha256
         ):
             raise GateFailure(f"Checkpoint assertion digest is invalid: {name}")
-        actual_sha256 = hashlib.sha256(candidate.read_bytes()).hexdigest()
+        evidence_bytes = candidate.read_bytes()
+        actual_sha256 = hashlib.sha256(evidence_bytes).hexdigest()
         if actual_sha256 != evidence_sha256:
             raise GateFailure(f"Checkpoint assertion digest mismatch: {name}")
+        try:
+            evidence = json.loads(evidence_bytes)
+        except (UnicodeDecodeError, json.JSONDecodeError) as error:
+            raise GateFailure(
+                f"Checkpoint assertion evidence is not valid UTF-8 JSON: {name}: {error}"
+            ) from error
+        if not isinstance(evidence, dict):
+            raise GateFailure(
+                f"Checkpoint assertion evidence must be a JSON object: {name}"
+            )
+        expected_evidence_fields = {
+            "schemaVersion": 1,
+            "runId": state.run_id,
+            "syntheticOnly": True,
+            "assertionName": name,
+            "status": "PASS",
+            "activeBundle": {"version": 33, "revision": 2},
+            "endpoints": expected_endpoints,
+        }
+        evidence_mismatches = {
+            key: {"expected": expected, "actual": evidence.get(key)}
+            for key, expected in expected_evidence_fields.items()
+            if evidence.get(key) != expected
+        }
+        if evidence_mismatches:
+            raise GateFailure(
+                f"Checkpoint assertion evidence binding mismatch for {name}: "
+                f"{evidence_mismatches}"
+            )
+        observations = evidence.get("observations")
+        if (
+            not isinstance(observations, list)
+            or not observations
+            or any(not isinstance(item, dict) or not item for item in observations)
+        ):
+            raise GateFailure(
+                f"Checkpoint assertion evidence requires non-empty object observations: {name}"
+            )
+        evidence_bindings[name] = {
+            "path": evidence_path,
+            "sha256": actual_sha256,
+            "byteCount": candidate.stat().st_size,
+        }
         names.append(name)
     missing = sorted(set(REQUIRED_CHECKPOINT_ASSERTIONS) - set(names))
-    if missing:
+    unexpected = sorted(set(names) - set(REQUIRED_CHECKPOINT_ASSERTIONS))
+    if missing or unexpected or len(names) != len(REQUIRED_CHECKPOINT_ASSERTIONS):
         raise GateFailure(
-            "External live checkpoint manifest is missing required W1 assertions: "
-            + ", ".join(missing)
+            "External live checkpoint manifest assertion set mismatch: "
+            f"missing={missing}, unexpected={unexpected}"
         )
-    return names
+    return {
+        "manifest": {
+            "path": str(manifest_path.relative_to(state.output_dir)),
+            "sha256": hashlib.sha256(manifest_bytes).hexdigest(),
+            "byteCount": len(manifest_bytes),
+        },
+        "assertionEvidence": evidence_bindings,
+    }
 
 
 def run_checkpoint(
@@ -1527,6 +1876,18 @@ def run_checkpoint(
         raise GateFailure(
             "Full W1 backend mode requires an external live checkpoint command."
         )
+    checkpoint_provenance = state.provenance.setdefault("checkpoint", {})
+    pinned_executable = checkpoint_provenance.get("executable")
+    if not isinstance(pinned_executable, dict):
+        raise GateFailure("Checkpoint executable provenance was not established.")
+    immediate_executable = validate_checkpoint_executable(
+        command, pinned_executable.get("sha256")
+    )
+    if immediate_executable != pinned_executable:
+        raise GateFailure(
+            "Checkpoint executable provenance changed before execution."
+        )
+    checkpoint_provenance["verifiedImmediatelyBeforeExecution"] = True
     checkpoint_dir = state.output_dir / "checkpoint"
     checkpoint_dir.mkdir(mode=0o700, exist_ok=False)
     manifest_path = checkpoint_dir / "manifest.json"
@@ -1552,22 +1913,28 @@ def run_checkpoint(
         environment[f"DWP_W1_{name.upper()}_URL"] = (
             f"http://127.0.0.1:{state.ports[name]}"
         )
-    run_checked(
+    process_outcome = run_checkpoint_process(
+        state,
         command,
-        timeout=timeout,
-        log_path=state.output_dir / "logs" / "external-live-checkpoint.log",
-        environment=environment,
+        environment,
+        state.output_dir / "logs" / "external-live-checkpoint.log",
+        timeout,
     )
-    assertion_names = validate_checkpoint_manifest(state, manifest_path)
+    evidence_provenance = validate_checkpoint_manifest(state, manifest_path)
+    checkpoint_provenance.update(evidence_provenance)
+    checkpoint_provenance["processGroup"] = process_outcome
+    command_arguments_sha256 = hashlib.sha256(
+        "\0".join(command).encode("utf-8")
+    ).hexdigest()
+    checkpoint_provenance["commandArgumentsSha256"] = command_arguments_sha256
     state.phase(
         "external-live-checkpoint",
         "PASS",
-        executable=command[0],
-        commandSha256=hashlib.sha256(
-            "\0".join(command).encode("utf-8")
-        ).hexdigest(),
-        manifest=str(manifest_path.relative_to(state.output_dir)),
-        assertions=assertion_names,
+        executable=checkpoint_provenance.get("executable"),
+        commandArgumentsSha256=command_arguments_sha256,
+        manifest=evidence_provenance["manifest"],
+        assertionEvidence=evidence_provenance["assertionEvidence"],
+        processGroup=process_outcome,
     )
 
 
@@ -1729,6 +2096,7 @@ def result_payload(
             "revision": state.active_revision,
         },
         "rollbackComplete": state.rollback_complete,
+        "provenance": state.provenance,
         "phases": state.phases,
         "httpEvidence": [item.__dict__ for item in state.http_evidence],
         "failure": failure,
@@ -1737,6 +2105,11 @@ def result_payload(
 
 
 def teardown(state: GateState) -> dict[str, Any]:
+    checkpoint_group_results: dict[str, dict[str, Any]] = {}
+    for process_group_id in state.checkpoint_process_groups:
+        checkpoint_group_results[str(process_group_id)] = (
+            cleanup_checkpoint_process_group(process_group_id)
+        )
     process_results: dict[str, str] = {}
     managed_processes = {
         name: state.processes[name] for name in tuple(state.processes)
@@ -1826,6 +2199,11 @@ def teardown(state: GateState) -> dict[str, Any]:
         if value != "stopped"
     ]
     errors.extend(
+        f"checkpoint-process-group:{process_group_id}:{outcome}"
+        for process_group_id, outcome in checkpoint_group_results.items()
+        if outcome["residualDetected"] or not outcome["cleanupVerified"]
+    )
+    errors.extend(
         f"container:{name}:{value}"
         for name, value in container_results.items()
         if value != "removed"
@@ -1834,6 +2212,7 @@ def teardown(state: GateState) -> dict[str, Any]:
         errors.append(f"network:{state.network}:{network_status}")
     errors.extend(f"residual:{value}" for value in residuals)
     return {
+        "checkpointProcessGroups": checkpoint_group_results,
         "processes": process_results,
         "containers": container_results,
         "network": {state.network or "": network_status},
@@ -1860,6 +2239,10 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     parser.add_argument("--build-timeout", type=float, default=1200.0)
     parser.add_argument("--checkpoint-timeout", type=float, default=1800.0)
     parser.add_argument(
+        "--checkpoint-executable-sha256",
+        help="Required lowercase SHA-256 pin for the full-mode checkpoint executable.",
+    )
+    parser.add_argument(
         "--checkpoint-command",
         nargs=argparse.REMAINDER,
         help="Command run with v33 active and every required service healthy, before rollback.",
@@ -1867,12 +2250,17 @@ def parse_args(argv: Sequence[str]) -> argparse.Namespace:
     arguments = parser.parse_args(argv)
     if arguments.startup_timeout <= 0 or arguments.build_timeout <= 0 or arguments.checkpoint_timeout <= 0:
         parser.error("timeouts must be positive")
-    if arguments.auth_only and arguments.checkpoint_command:
-        parser.error("--checkpoint-command requires the full service runtime")
-    if not arguments.auth_only and not arguments.checkpoint_command:
+    if arguments.auth_only and (
+        arguments.checkpoint_command or arguments.checkpoint_executable_sha256
+    ):
+        parser.error("checkpoint options require the full service runtime")
+    if not arguments.auth_only and (
+        not arguments.checkpoint_command
+        or not arguments.checkpoint_executable_sha256
+    ):
         parser.error(
-            "full mode requires --checkpoint-command; use --auth-only for the "
-            "limited Auth lifecycle subgate"
+            "full mode requires --checkpoint-executable-sha256 and "
+            "--checkpoint-command; use --auth-only for the limited Auth lifecycle subgate"
         )
     return arguments
 
@@ -1896,7 +2284,32 @@ def execute(args: argparse.Namespace) -> tuple[GateState, str, str | None, dict[
     status = "HOLD"
     postgres = ""
     try:
+        source_provenance = tracked_source_provenance()
+        state.provenance["source"] = source_provenance
+        if not args.auth_only:
+            state.provenance["checkpoint"] = {
+                "executable": validate_checkpoint_executable(
+                    args.checkpoint_command,
+                    args.checkpoint_executable_sha256,
+                )
+            }
         build_jars(args, state, selected_specs)
+        verified_source = verify_source_provenance(source_provenance)
+        state.provenance["source"] = {
+            **source_provenance,
+            "verifiedAfterBuild": True,
+            "trackedWorktreeCleanAfterBuild": True,
+            "postBuildGitHead": verified_source["gitHead"],
+            "postBuildRunnerSha256": verified_source["runnerSha256"],
+        }
+        state.phase(
+            "source-and-jar-provenance",
+            "HOLD" if args.skip_build else "PASS",
+            gitHead=source_provenance["gitHead"],
+            runnerSha256=source_provenance["runnerSha256"],
+            freshBuild=not args.skip_build,
+            jars=state.provenance["jars"],
+        )
         postgres, _, postgres_port, redis_port = provision_infrastructure(state, secrets_, args)
         provision_databases(postgres, secrets_)
         state.phase("provision-synthetic-databases-and-runtime-roles", "PASS")
@@ -1944,11 +2357,18 @@ def execute(args: argparse.Namespace) -> tuple[GateState, str, str | None, dict[
         capture_governance_evidence(postgres, state)
         if checkpoint_failure is not None:
             raise checkpoint_failure
-        status = (
-            "AUTH_SUBGATE_PASS"
-            if args.auth_only
-            else "BACKEND_RUNTIME_SUBGATE_PASS"
-        )
+        if args.skip_build:
+            failure = (
+                "Diagnostic --skip-build run completed but cannot produce an "
+                "AUTH/BACKEND subgate PASS without a fresh --rerun-tasks build."
+            )
+            state.phase("fresh-build-pass-eligibility", "HOLD", diagnosticOnly=True)
+        else:
+            status = (
+                "AUTH_SUBGATE_PASS"
+                if args.auth_only
+                else "BACKEND_RUNTIME_SUBGATE_PASS"
+            )
     except Exception as error:
         failure = f"{type(error).__name__}: {error}"
         if isinstance(error, ExternalControlEvidenceRequired):

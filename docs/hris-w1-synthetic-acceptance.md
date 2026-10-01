@@ -23,12 +23,15 @@ pass.
 - Docker with permission to create and remove containers and networks.
 - Java suitable for the repository build and runtime.
 - The repository Gradle wrapper, or an explicit compatible Gradle executable.
+- A committed, tracked-clean worktree. The runner binds every result to Git
+  `HEAD` and its own SHA-256 before building, then verifies both again after the
+  build.
 - No shared database, Redis instance, customer data, or production credential
   is required or allowed.
 
 The runner starts uniquely named Postgres and Redis containers on random
 loopback ports. Postgres uses tmpfs and Redis persistence is disabled. It
-generates synthetic credentials and identities for every run. Service
+generates 19 synthetic credentials and identities for every run. Service
 processes receive an allowlisted host environment plus explicit synthetic
 configuration, so ambient `DWP_*`, `SPRING_*`, database, and cloud credentials
 cannot silently redirect them to another environment.
@@ -41,11 +44,16 @@ From the backend repository root:
 python3 scripts/hris_w1_synthetic_acceptance.py --auth-only
 ```
 
-To reuse already-built executable jars:
+To diagnose with already-built executable jars:
 
 ```sh
 python3 scripts/hris_w1_synthetic_acceptance.py --auth-only --skip-build
 ```
+
+`--skip-build` is diagnostic-only and always ends in `HOLD`, even when the
+lifecycle succeeds. A PASS-eligible run always invokes every selected
+`bootJar` task with Gradle `--rerun-tasks`, records each resulting JAR hash, and
+starts only JARs whose content still matches that hash.
 
 If the wrapper cannot be used, select a compatible Gradle executable:
 
@@ -67,6 +75,11 @@ This mode performs two independent database checks:
    v33 is imported, and both the database and HTTP API must show the preserved
    active v32 revision 1 pointer before any v33 operation is allowed.
 
+The V232 snapshot requires exactly one bundle row in the entire table:
+`product-surfaces` v32. The V233 snapshot requires exactly two total rows:
+`product-surfaces` v32 and v33. Any additional bundle key or version fails the
+gate.
+
 Against the running Auth service it verifies unauthenticated denial, separated
 maker/checker approval, CAS activation of v32 and v33, stale-revision denial,
 the active v33 pointer, rollback to v32, and immutable governance and activation
@@ -81,8 +94,16 @@ rest of the command line, so it must be last:
 
 ```sh
 python3 scripts/hris_w1_synthetic_acceptance.py \
+  --checkpoint-executable-sha256 <lowercase-sha256> \
   --checkpoint-command /absolute/path/to/approved-w1-live-checkpoint --its-argument
 ```
+
+The executable path must be absolute and identify a non-symlink, executable
+regular file. Its actual content must match
+`--checkpoint-executable-sha256` both before the build and immediately before
+execution. The hash binds the result to bytes; because the same caller supplies
+the executable and hash, it is provenance and drift protection, not an
+independent signature or authority attestation.
 
 The checkpoint starts only after Auth, Platform, People, Provider, Payroll,
 Time, and Gateway are healthy with v33 active. It receives these non-secret
@@ -154,12 +175,26 @@ The manifest must include every required, uniquely named passing assertion:
 - `rollout.flag-off`
 
 Each evidence path must be a non-symlink regular file inside the run directory,
-separate from the manifest, and its digest must match. The manifest is also
-bound to all seven loopback endpoints and the exact v33 revision 2 state. An
-arbitrary single assertion cannot promote the runtime to
+separate from the manifest and every other assertion, and its digest must
+match. Each evidence file must itself be a JSON object containing
+`schemaVersion: 1`, the exact run id, `syntheticOnly: true`, its assertion name,
+`status: PASS`, v33 revision 2, all seven exact endpoints, and a non-empty list
+of non-empty observation objects. The runner parses all 15 evidence files; it
+does not accept opaque files based on hash alone. The manifest SHA-256 and the
+complete assertion-to-path-and-digest map are preserved in both the checkpoint
+phase and result provenance.
+
+The checkpoint runs in a new process group. Success, non-zero exit, and timeout
+paths all inspect the group, terminate descendants, and verify that no member
+remains. A command that leaves a child behind results in `HOLD` even if cleanup
+succeeds; an unverified cleanup also makes teardown fail. Consequently no
+checkpoint process can remain able to modify evidence after the final scan.
+
+The manifest is also bound to all seven loopback endpoints and the exact v33
+revision 2 state. An arbitrary single assertion cannot promote the runtime to
 `BACKEND_RUNTIME_SUBGATE_PASS`.
 
-Omitting `--checkpoint-command` is an argument error. A no-op such as
+Omitting either checkpoint option is an argument error. A no-op such as
 `/usr/bin/true` cannot pass because it produces no evidence manifest. If the
 checkpoint fails, the runner still attempts the governed v33-to-v32 rollback
 before teardown.
@@ -201,7 +236,8 @@ new, absolute, and have the exact basename bound to the run id. Important files
 include:
 
 - `result.json`: scoped status, phases, rollback state, HTTP evidence digests,
-  and teardown verification.
+  teardown verification, Git/runner/JAR/build provenance, checkpoint executable
+  provenance, and any validated manifest/evidence digest bindings.
 - `db/`: latest-clean, V232/V233, governance-event, and activation-event
   evidence.
 - `health/`: successful service health responses.

@@ -21,6 +21,38 @@ SPEC.loader.exec_module(gate)
 
 
 class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
+    SERVICE_NAMES = (
+        "auth",
+        "platform",
+        "people",
+        "provider",
+        "payroll",
+        "time",
+        "gateway",
+    )
+
+    def checkpoint_state(self, output: Path, base_port: int = 20000):
+        state = gate.GateState(
+            "w1-20261001t050403z-0123abcd",
+            output,
+            "2026-10-01T05:04:03Z",
+        )
+        state.ports.update(
+            {
+                name: base_port + index
+                for index, name in enumerate(self.SERVICE_NAMES)
+            }
+        )
+        state.active_version = 33
+        state.active_revision = 2
+        return state
+
+    def expected_endpoints(self, state):
+        return {
+            name: f"http://127.0.0.1:{state.ports[name]}"
+            for name in self.SERVICE_NAMES
+        }
+
     def test_run_id_and_owned_resource_names_are_deterministic_and_scoped(self):
         instant = dt.datetime(2026, 10, 1, 5, 4, 3, tzinfo=dt.timezone.utc)
 
@@ -93,6 +125,22 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
         self.assertEqual("true", specs["payroll"].extra_environment["DWP_HRIS_PAYROLL_FOUNDATION_WAVE1_ENABLED"])
         self.assertEqual("true", specs["time"].extra_environment["DWP_TIME_WORK_REGIME_API_ENABLED"])
         self.assertEqual("false", specs["auth"].extra_environment["DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED"])
+        self.assertEqual(
+            secrets.gateway_agent_service_token,
+            specs["gateway"].extra_environment["DWP_AGENT_SERVICE_TOKEN"],
+        )
+        self.assertEqual(
+            secrets.gateway_agent_identity_signing_secret,
+            specs["gateway"].extra_environment[
+                "DWP_AGENT_IDENTITY_SIGNING_SECRET"
+            ],
+        )
+        self.assertEqual(
+            secrets.gateway_provider_support_validation_token,
+            specs["gateway"].extra_environment[
+                "DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN"
+            ],
+        )
 
     def test_service_specs_do_not_mint_or_inject_trusted_control_evidence(self):
         specs = gate.service_specs(gate.RuntimeSecrets.generate())
@@ -148,6 +196,18 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
         self.assertTrue(arguments.auth_only)
         self.assertIsNone(arguments.checkpoint_command)
 
+        full = gate.parse_args(
+            [
+                "--skip-build",
+                "--checkpoint-executable-sha256",
+                "0" * 64,
+                "--checkpoint-command",
+                "/usr/bin/false",
+            ]
+        )
+        self.assertFalse(full.auth_only)
+        self.assertEqual("0" * 64, full.checkpoint_executable_sha256)
+
     def test_run_checkpoint_fails_closed_without_command(self):
         state = gate.GateState(
             "w1-20261001t050403z-0123abcd",
@@ -162,64 +222,101 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
             (output / "logs").mkdir()
-            state = gate.GateState(
-                "w1-20261001t050403z-0123abcd",
-                output,
-                "2026-10-01T05:04:03Z",
-            )
-            state.ports.update(
-                {
-                    name: 20000 + index
-                    for index, name in enumerate(
-                        (
-                            "auth",
-                            "platform",
-                            "people",
-                            "provider",
-                            "payroll",
-                            "time",
-                            "gateway",
-                        )
-                    )
-                }
-            )
-            state.active_version = 33
-            state.active_revision = 2
+            state = self.checkpoint_state(output)
+            executable = Path("/usr/bin/true")
+            executable_sha256 = gate.sha256_file(executable)
+            state.provenance["checkpoint"] = {
+                "executable": gate.validate_checkpoint_executable(
+                    [str(executable)], executable_sha256
+                )
+            }
 
             with self.assertRaises(gate.GateFailure):
-                gate.run_checkpoint(state, ["/usr/bin/true"], 10.0)
+                gate.run_checkpoint(state, [str(executable)], 10.0)
+
+    def test_checkpoint_executable_requires_absolute_regular_non_symlink_hash_pin(self):
+        executable = Path("/usr/bin/false")
+        digest = gate.sha256_file(executable)
+
+        provenance = gate.validate_checkpoint_executable(
+            [str(executable)], digest
+        )
+
+        self.assertEqual(str(executable), provenance["path"])
+        self.assertEqual(digest, provenance["sha256"])
+        with self.assertRaises(gate.GateFailure):
+            gate.validate_checkpoint_executable(["false"], digest)
+        with self.assertRaises(gate.GateFailure):
+            gate.validate_checkpoint_executable([str(executable)], "0" * 64)
+        with tempfile.TemporaryDirectory() as temporary:
+            symlink = Path(temporary) / "false-link"
+            symlink.symlink_to(executable)
+            with self.assertRaises(gate.GateFailure):
+                gate.validate_checkpoint_executable([str(symlink)], digest)
+
+    def test_checkpoint_process_group_is_clean_on_success_timeout_and_descendant(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            state = self.checkpoint_state(output)
+            success = gate.run_checkpoint_process(
+                state,
+                ["/usr/bin/true"],
+                gate.allowlisted_host_environment(),
+                output / "success.log",
+                5.0,
+            )
+            self.assertFalse(success["residualDetected"])
+            self.assertTrue(success["cleanupVerified"])
+
+            child_code = (
+                "import subprocess,sys;"
+                "subprocess.Popen([sys.executable,'-c',"
+                "'import time; time.sleep(60)'])"
+            )
+            with self.assertRaises(gate.GateFailure):
+                gate.run_checkpoint_process(
+                    state,
+                    [sys.executable, "-c", child_code],
+                    gate.allowlisted_host_environment(),
+                    output / "descendant.log",
+                    5.0,
+                )
+            descendant = state.provenance["checkpoint"]["processGroup"]
+            self.assertTrue(descendant["residualDetected"])
+            self.assertTrue(descendant["cleanupVerified"])
+            self.assertFalse(
+                gate.process_group_alive(descendant["processGroupId"])
+            )
+
+            with self.assertRaises(gate.GateFailure):
+                gate.run_checkpoint_process(
+                    state,
+                    [sys.executable, "-c", "import time; time.sleep(60)"],
+                    gate.allowlisted_host_environment(),
+                    output / "timeout.log",
+                    0.1,
+                )
+            timeout = state.provenance["checkpoint"]["processGroup"]
+            self.assertTrue(timeout["timedOut"])
+            self.assertTrue(timeout["cleanupVerified"])
+            self.assertFalse(gate.process_group_alive(timeout["processGroupId"]))
+            self.assertEqual([], state.checkpoint_process_groups)
 
     def test_checkpoint_command_receives_only_allowlisted_synthetic_environment(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
             (output / "logs").mkdir()
-            state = gate.GateState(
-                "w1-20261001t050403z-0123abcd",
-                output,
-                "2026-10-01T05:04:03Z",
-            )
-            state.ports.update(
-                {
-                    name: 20500 + index
-                    for index, name in enumerate(
-                        (
-                            "auth",
-                            "platform",
-                            "people",
-                            "provider",
-                            "payroll",
-                            "time",
-                            "gateway",
-                        )
-                    )
-                }
-            )
-            state.active_version = 33
-            state.active_revision = 2
+            state = self.checkpoint_state(output, 20500)
+            executable = Path("/usr/bin/false")
+            state.provenance["checkpoint"] = {
+                "executable": gate.validate_checkpoint_executable(
+                    [str(executable)], gate.sha256_file(executable)
+                )
+            }
             captured: dict[str, str] = {}
 
-            def stop_after_capture(*_args, **kwargs):
-                captured.update(kwargs["environment"])
+            def stop_after_capture(_state, _command, environment, _log_path, _timeout):
+                captured.update(environment)
                 raise gate.GateFailure("captured")
 
             ambient = {
@@ -229,10 +326,10 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
             }
             with mock.patch.dict(os.environ, ambient, clear=True):
                 with mock.patch.object(
-                    gate, "run_checked", side_effect=stop_after_capture
+                    gate, "run_checkpoint_process", side_effect=stop_after_capture
                 ):
                     with self.assertRaises(gate.GateFailure):
-                        gate.run_checkpoint(state, ["checkpoint"], 10.0)
+                        gate.run_checkpoint(state, [str(executable)], 10.0)
 
             self.assertNotIn("DWP_PRODUCTION_ENDPOINT", captured)
             self.assertNotIn("AWS_SECRET_ACCESS_KEY", captured)
@@ -244,67 +341,58 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
             output = Path(temporary)
             checkpoint = output / "checkpoint"
             checkpoint.mkdir()
-            evidence = checkpoint / "owner-api.json"
-            evidence.write_text('{"status":"ok"}\n', encoding="utf-8")
-            state = gate.GateState(
-                "w1-20261001t050403z-0123abcd",
-                output,
-                "2026-10-01T05:04:03Z",
-            )
-            state.ports.update(
-                {
-                    name: 21000 + index
-                    for index, name in enumerate(
-                        (
-                            "auth",
-                            "platform",
-                            "people",
-                            "provider",
-                            "payroll",
-                            "time",
-                            "gateway",
-                        )
-                    )
-                }
-            )
+            state = self.checkpoint_state(output, 21000)
+            endpoints = self.expected_endpoints(state)
+            assertions = []
+            for index, name in enumerate(gate.REQUIRED_CHECKPOINT_ASSERTIONS):
+                evidence = checkpoint / f"assertion-{index:02d}.json"
+                evidence.write_text(
+                    json.dumps(
+                        {
+                            "schemaVersion": 1,
+                            "runId": state.run_id,
+                            "syntheticOnly": True,
+                            "assertionName": name,
+                            "status": "PASS",
+                            "activeBundle": {"version": 33, "revision": 2},
+                            "endpoints": endpoints,
+                            "observations": [{"observed": True}],
+                        }
+                    ),
+                    encoding="utf-8",
+                )
+                assertions.append(
+                    {
+                        "name": name,
+                        "status": "PASS",
+                        "evidencePath": str(evidence.relative_to(output)),
+                        "evidenceSha256": hashlib.sha256(
+                            evidence.read_bytes()
+                        ).hexdigest(),
+                    }
+                )
             manifest = {
                 "schemaVersion": 1,
                 "runId": state.run_id,
                 "syntheticOnly": True,
                 "status": "PASS",
                 "activeBundle": {"version": 33, "revision": 2},
-                "endpoints": {
-                    name: f"http://127.0.0.1:{state.ports[name]}"
-                    for name in (
-                        "auth",
-                        "platform",
-                        "people",
-                        "provider",
-                        "payroll",
-                        "time",
-                        "gateway",
-                    )
-                },
-                "assertions": [
-                    {
-                        "name": name,
-                        "status": "PASS",
-                        "evidencePath": "checkpoint/owner-api.json",
-                        "evidenceSha256": hashlib.sha256(
-                            evidence.read_bytes()
-                        ).hexdigest(),
-                    }
-                    for name in gate.REQUIRED_CHECKPOINT_ASSERTIONS
-                ],
+                "endpoints": endpoints,
+                "assertions": assertions,
             }
             manifest_path = checkpoint / "manifest.json"
             manifest_path.write_text(
                 json.dumps(manifest), encoding="utf-8"
             )
 
+            provenance = gate.validate_checkpoint_manifest(state, manifest_path)
             self.assertEqual(
-                list(gate.REQUIRED_CHECKPOINT_ASSERTIONS),
-                gate.validate_checkpoint_manifest(state, manifest_path),
+                set(gate.REQUIRED_CHECKPOINT_ASSERTIONS),
+                set(provenance["assertionEvidence"]),
+            )
+            self.assertEqual(
+                hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+                provenance["manifest"]["sha256"],
             )
 
             manifest["assertions"][0]["evidenceSha256"] = "0" * 64
@@ -314,10 +402,33 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
             with self.assertRaises(gate.GateFailure):
                 gate.validate_checkpoint_manifest(state, manifest_path)
 
-            manifest["assertions"] = manifest["assertions"][:1]
+            manifest["assertions"][1]["evidencePath"] = (
+                "checkpoint/assertion-01.json"
+            )
+            first_evidence = output / manifest["assertions"][0]["evidencePath"]
+            evidence_json = json.loads(first_evidence.read_text(encoding="utf-8"))
+            evidence_json["assertionName"] = "negative.wrong-binding"
+            first_evidence.write_text(
+                json.dumps(evidence_json), encoding="utf-8"
+            )
             manifest["assertions"][0]["evidenceSha256"] = hashlib.sha256(
-                evidence.read_bytes()
+                first_evidence.read_bytes()
             ).hexdigest()
+            manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+            with self.assertRaises(gate.GateFailure):
+                gate.validate_checkpoint_manifest(state, manifest_path)
+
+            evidence_json["assertionName"] = gate.REQUIRED_CHECKPOINT_ASSERTIONS[0]
+            first_evidence.write_text(
+                json.dumps(evidence_json), encoding="utf-8"
+            )
+            manifest["assertions"] = assertions
+            manifest["assertions"][0]["evidenceSha256"] = hashlib.sha256(
+                first_evidence.read_bytes()
+            ).hexdigest()
+            manifest["assertions"][1]["evidencePath"] = manifest["assertions"][0][
+                "evidencePath"
+            ]
             manifest_path.write_text(
                 json.dumps(manifest), encoding="utf-8"
             )
@@ -349,6 +460,7 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
         second = gate.RuntimeSecrets.generate()
 
         first_values = set(first.__dict__.values())
+        self.assertEqual(19, len(first.__dict__))
         self.assertEqual(len(first.__dict__), len(first_values))
         self.assertTrue(all(len(value) >= 30 for value in first_values))
         self.assertNotEqual(first, second)
