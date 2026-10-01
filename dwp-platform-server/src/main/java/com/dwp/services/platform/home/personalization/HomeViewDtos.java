@@ -165,6 +165,13 @@ public final class HomeViewDtos {
             Long createdBy) {
     }
 
+    @Schema(requiredProperties = {"items", "hasMore", "limit"})
+    public record HomeViewRevisionPage(
+            List<HomeViewRevisionResponse> items,
+            boolean hasMore,
+            int limit) {
+    }
+
     @Schema(requiredProperties = {
             "snapshotVersion", "legacyLayoutOnly", "view",
             "widgetConfigurations", "deviceLayouts"

@@ -330,7 +330,7 @@ public class WorkspaceService {
     }
 
     @Transactional(readOnly = true)
-    public List<WorkspaceDtos.AppAccessRequest> appAccessRequests(
+    public WorkspaceDtos.AppAccessRequestPage appAccessRequests(
             Long tenantId,
             String locale,
             String state,
@@ -344,10 +344,17 @@ public class WorkspaceService {
         if (!tenantWide && resourceKeys.isEmpty()) {
             throw new BaseException(ErrorCode.FORBIDDEN);
         }
-        return appAccessRequests.list(tenantId, normalized).stream()
-                .filter(value -> tenantWide || resourceKeys.contains(value.resourceKey()))
+        int limit = 500;
+        List<AppAccessRequestRepository.RequestRecord> records = appAccessRequests
+                .list(tenantId, normalized, tenantWide, resourceKeys, limit + 1);
+        boolean hasMore = records.size() > limit;
+        List<WorkspaceDtos.AppAccessRequest> items = records.stream()
+                .limit(limit)
                 .map(value -> dtoMapper.appAccessRequest(value, korean(locale)))
                 .toList();
+        return new WorkspaceDtos.AppAccessRequestPage(
+                items, limit, hasMore,
+                hasMore ? "TRUNCATED_AT_LIMIT" : "COMPLETE_WITHIN_FILTER");
     }
 
     @Transactional

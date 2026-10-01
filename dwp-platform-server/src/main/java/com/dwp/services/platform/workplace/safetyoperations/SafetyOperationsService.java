@@ -452,6 +452,16 @@ public class SafetyOperationsService {
         return content;
     }
 
+    @Transactional
+    public boolean recordDispatchOutcome(DispatchOutcome outcome) {
+        if (outcome.tenantId() <= 0 || outcome.state() == AttemptState.QUEUED
+                || outcome.state() == AttemptState.DISPATCHING
+                || outcome.state() == AttemptState.OFFLINE_QUEUED) {
+            throw invalid("Only terminal provider dispatch outcomes may be recorded.");
+        }
+        return incidents.recordOutcome(outcome);
+    }
+
     @Transactional(readOnly = true)
     public CommandReceipt command(long tenantId, UUID incidentId, UUID commandId) {
         CommandRow command = incidents.command(tenantId, incidentId, commandId)

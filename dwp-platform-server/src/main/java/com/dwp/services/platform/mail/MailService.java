@@ -766,58 +766,6 @@ public class MailService {
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND)));
     }
 
-    @Transactional
-    public MailDtos.ProposalHandoff recordProposalOutcome(
-            Long tenantId,
-            Long userId,
-            UUID proposalId,
-            String correlationId,
-            MailDtos.ProposalOutcomeRequest request) {
-        requireMailbox(queries.accounts(tenantId, userId));
-        if (request.status() == MailDtos.ProposalHandoffStatus.ACCEPTED) {
-            throw new BaseException(
-                    ErrorCode.INVALID_INPUT_VALUE,
-                    "An owner outcome must resolve, fail, cancel, or mark the result unknown.");
-        }
-        MailQueryRepository.ProposalHandoffRow before = queries
-                .proposalHandoff(tenantId, userId, proposalId)
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        if (!before.commandId().equals(request.commandId())) {
-            throw new BaseException(ErrorCode.INVALID_STATE, "The proposal command does not match.");
-        }
-        String normalizedResultRef = request.resultRef().trim();
-        if (before.ownerState().equals(request.status().name())
-                && normalizedResultRef.equals(before.resultRef())) {
-            return handoff(before);
-        }
-        if (!("ACCEPTED".equals(before.ownerState()) || "UNKNOWN".equals(before.ownerState()))) {
-            throw new BaseException(ErrorCode.INVALID_STATE, "The proposal outcome is final.");
-        }
-        if (commands.updateProposalOutcome(
-                tenantId, userId, proposalId, request.commandId(),
-                request.status().name(), normalizedResultRef, request.version()) != 1) {
-            conflict();
-        }
-        MailQueryRepository.ProposalHandoffRow after = queries
-                .proposalHandoff(tenantId, userId, proposalId)
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        commands.audit(
-                tenantId, userId, "mail.action.owner-outcome", "MAIL_ACTION_PROPOSAL",
-                proposalId.toString(), correlationId,
-                Map.of("status", before.ownerState(), "version", before.version()),
-                Map.of("status", after.ownerState(), "version", after.version(),
-                        "commandId", after.commandId(), "resultRef", normalizedResultRef));
-        commands.domainEvent(
-                tenantId, "MAIL_ACTION_PROPOSAL", proposalId,
-                "mail.action.owner-outcome", Map.of(
-                        "proposalId", proposalId,
-                        "commandId", after.commandId(),
-                        "status", after.ownerState(),
-                        "resultRef", normalizedResultRef,
-                        "version", after.version()), correlationId);
-        return handoff(after);
-    }
-
     private MailDtos.ProposalHandoff handoff(MailQueryRepository.ProposalHandoffRow row) {
         return new MailDtos.ProposalHandoff(
                 row.proposalId(), row.commandId(), row.ownerRoute(),

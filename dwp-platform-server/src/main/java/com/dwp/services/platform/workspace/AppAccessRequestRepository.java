@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 @Repository
@@ -80,28 +81,35 @@ public class AppAccessRequestRepository {
                 """, this::map, tenantId, requestId).stream().findFirst();
     }
 
-    public List<RequestRecord> list(Long tenantId, String state) {
-        if (state == null || state.isBlank() || "ALL".equalsIgnoreCase(state)) {
-            return jdbc.query("""
-                    SELECT request.*, app.name_ko, app.name_en, app.resource_key
-                      FROM usr_workspace_app_access_requests request
-                      JOIN adm_workspace_apps app
-                        ON app.tenant_id = request.tenant_id AND app.app_key = request.app_key
-                     WHERE request.tenant_id = ?
-                     ORDER BY CASE request.request_state WHEN 'PENDING' THEN 0 ELSE 1 END,
-                              request.created_at DESC
-                     LIMIT 500
-                    """, this::map, tenantId);
-        }
-        return jdbc.query("""
+    public List<RequestRecord> list(
+            Long tenantId,
+            String state,
+            boolean tenantWide,
+            Set<String> resourceKeys,
+            int limit) {
+        StringBuilder sql = new StringBuilder("""
                 SELECT request.*, app.name_ko, app.name_en, app.resource_key
                   FROM usr_workspace_app_access_requests request
                   JOIN adm_workspace_apps app
                     ON app.tenant_id = request.tenant_id AND app.app_key = request.app_key
-                 WHERE request.tenant_id = ? AND request.request_state = ?
-                 ORDER BY request.created_at DESC
-                 LIMIT 500
-                """, this::map, tenantId, state);
+                 WHERE request.tenant_id = ?
+                """);
+        List<Object> arguments = new java.util.ArrayList<>();
+        arguments.add(tenantId);
+        if (state != null && !state.isBlank() && !"ALL".equalsIgnoreCase(state)) {
+            sql.append(" AND request.request_state = ?");
+            arguments.add(state);
+        }
+        if (!tenantWide) {
+            sql.append(" AND app.resource_key IN (")
+                    .append(String.join(",", java.util.Collections.nCopies(resourceKeys.size(), "?")))
+                    .append(")");
+            arguments.addAll(resourceKeys);
+        }
+        sql.append(" ORDER BY CASE request.request_state WHEN 'PENDING' THEN 0 ELSE 1 END,")
+                .append(" request.created_at DESC LIMIT ?");
+        arguments.add(limit);
+        return jdbc.query(sql.toString(), this::map, arguments.toArray());
     }
 
     public RequestRecord create(

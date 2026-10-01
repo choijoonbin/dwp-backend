@@ -551,37 +551,6 @@ class MailWorkspaceServiceTest {
         verify(storage).load(1L, storageReference);
     }
 
-    @Test
-    void replyRequiresDefaultSignatureMandatoryContent() {
-        UUID threadId = UUID.randomUUID();
-        UUID accountId = UUID.randomUUID();
-        UUID signatureId = UUID.randomUUID();
-        when(repository.replyAccount(1L, 7L, threadId)).thenReturn(Optional.of(accountId));
-        when(repository.defaultSignatureForReply(1L, 7L, accountId)).thenReturn(Optional.of(
-                signature(signatureId, MailWorkspaceDtos.AssetScope.ORGANIZATION,
-                        null, "Company confidential notice")));
-
-        assertThatThrownBy(() -> service.validateReplyBody(
-                1L, 7L, threadId, "Thanks, I will review it."))
-                .isInstanceOf(BaseException.class)
-                .hasMessageContaining("mandatory content");
-
-        service.validateReplyBody(
-                1L, 7L, threadId,
-                "Thanks, I will review it.\n\nCompany   confidential notice");
-    }
-
-    @Test
-    void replyFailsClosedWhenItsSendingAccountIsNoLongerAvailable() {
-        UUID threadId = UUID.randomUUID();
-        when(repository.replyAccount(1L, 7L, threadId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.validateReplyBody(
-                1L, 7L, threadId, "Reply"))
-                .isInstanceOf(BaseException.class)
-                .hasMessageContaining("no longer available");
-    }
-
     private MailWorkspaceDtos.AdvancedComposeRequest request(
             UUID accountId, UUID attachmentId, UUID idempotencyKey) {
         return request(accountId, List.of(attachmentId), idempotencyKey,

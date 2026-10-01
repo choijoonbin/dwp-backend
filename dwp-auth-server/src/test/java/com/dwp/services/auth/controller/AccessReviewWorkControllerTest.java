@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.auth.dto.AccessReviewDtos;
 import com.dwp.services.auth.security.AccessReviewWorkRouteGuard;
 import com.dwp.services.auth.security.DurableIdentityPlaneGuard;
+import com.dwp.services.auth.security.TenantPermissionAuthorization;
 import com.dwp.services.auth.service.AccessReviewService;
 import com.dwp.services.auth.service.AccessReviewWorkService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -86,7 +87,11 @@ class AccessReviewWorkControllerTest {
     @Test
     void namedReviewerCannotEnterTheAdminCampaignApi() {
         AccessReviewService service = mock(AccessReviewService.class);
-        AccessReviewController controller = new AccessReviewController(service);
+        TenantPermissionAuthorization authorization =
+                mock(TenantPermissionAuthorization.class);
+        AccessReviewController controller = new AccessReviewController(service, authorization);
+        doThrow(new BaseException(ErrorCode.FORBIDDEN)).when(authorization).require(
+                1L, 7L, TenantPermissionAuthorization.ACCESS_REVIEWS, "VIEW");
 
         assertThatThrownBy(() -> controller.campaigns(
                 authentication(7L, List.of("APP_ACCESS_REVIEWER")), "1"))

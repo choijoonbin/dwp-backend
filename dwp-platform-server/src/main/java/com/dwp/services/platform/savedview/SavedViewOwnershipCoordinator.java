@@ -70,11 +70,11 @@ public class SavedViewOwnershipCoordinator {
         return service.orphaned(tenantId);
     }
 
-    public List<SavedViewDtos.OwnershipTransferSummary> transfers(Long tenantId, int limit) {
+    public SavedViewDtos.OwnershipTransferPage transfers(Long tenantId, int limit) {
         return service.ownershipTransfers(tenantId, limit);
     }
 
-    public List<SavedViewDtos.OrphanLifecycleResult> orphanActions(
+    public SavedViewDtos.OrphanLifecyclePage orphanActions(
             Long tenantId, int limit) {
         return orphanLifecycle.actions(tenantId, limit);
     }

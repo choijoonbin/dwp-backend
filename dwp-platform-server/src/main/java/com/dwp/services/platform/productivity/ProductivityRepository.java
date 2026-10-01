@@ -164,7 +164,7 @@ public class ProductivityRepository {
                  ORDER BY updated_at DESC
                  LIMIT :limit
                 """, new MapSqlParameterSource("tenantId", tenantId)
-                .addValue("limit", Math.min(500, Math.max(1, limit))), this::subject);
+                .addValue("limit", Math.min(501, Math.max(1, limit))), this::subject);
     }
 
     public Optional<SubjectRecord> subject(Long tenantId, UUID connectorId, Long userId) {
@@ -612,7 +612,7 @@ public class ProductivityRepository {
                  ORDER BY run.started_at DESC
                  LIMIT :limit
                 """, new MapSqlParameterSource("tenantId", tenantId)
-                .addValue("limit", Math.min(500, Math.max(1, limit))), this::run);
+                .addValue("limit", Math.min(501, Math.max(1, limit))), this::run);
     }
 
     public Metrics metrics(Long tenantId) {

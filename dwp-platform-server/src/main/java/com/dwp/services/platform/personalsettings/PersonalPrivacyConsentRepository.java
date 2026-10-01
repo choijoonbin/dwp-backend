@@ -8,7 +8,7 @@ import java.util.UUID;
 
 public interface PersonalPrivacyConsentRepository extends JpaRepository<PersonalPrivacyConsent, UUID> {
 
-    List<PersonalPrivacyConsent> findTop50ByTenantIdAndUserIdOrderByOccurredAtDesc(
+    List<PersonalPrivacyConsent> findTop51ByTenantIdAndUserIdOrderByOccurredAtDesc(
             Long tenantId, Long userId);
 
     Optional<PersonalPrivacyConsent> findTopByTenantIdAndUserIdAndPurposeKeyOrderByOccurredAtDesc(

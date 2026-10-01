@@ -248,4 +248,11 @@ public final class WorkspaceDtos {
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt) {
     }
+
+    public record AppAccessRequestPage(
+            List<AppAccessRequest> items,
+            int limit,
+            boolean hasMore,
+            String coverageState) {
+    }
 }

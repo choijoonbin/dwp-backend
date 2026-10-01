@@ -144,42 +144,6 @@ class MailOrganizationCommandRepository {
                 """, priority, userId, tenantId, userId, ruleId, version);
     }
 
-    UUID startRuleRun(Long tenantId, Long userId, UUID ruleId) {
-        UUID runId = UUID.randomUUID();
-        jdbc.update("""
-                INSERT INTO mail_rule_runs (
-                    run_id, tenant_id, rule_id, trigger_kind,
-                    run_status, initiated_by)
-                VALUES (?, ?, ?, 'MANUAL', 'RUNNING', ?)
-                """, runId, tenantId, ruleId, userId);
-        return runId;
-    }
-
-    void completeRuleRun(
-            Long tenantId,
-            Long userId,
-            UUID ruleId,
-            UUID runId,
-            int scanned,
-            int matched,
-            int changed) {
-        jdbc.update("""
-                UPDATE mail_rule_runs
-                   SET run_status = 'SUCCEEDED', scanned_count = ?,
-                       matched_count = ?, changed_count = ?,
-                       completed_at = CURRENT_TIMESTAMP
-                 WHERE tenant_id = ? AND rule_id = ? AND run_id = ?
-                   AND run_status = 'RUNNING'
-                """, scanned, matched, changed, tenantId, ruleId, runId);
-        jdbc.update("""
-                UPDATE mail_rules
-                   SET last_run_at = CURRENT_TIMESTAMP, last_match_count = ?,
-                       version = version + 1, updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                 WHERE tenant_id = ? AND owner_user_id = ? AND rule_id = ?
-                   AND lifecycle_state = 'ACTIVE'
-                """, matched, userId, tenantId, userId, ruleId);
-    }
-
     RuleApplication applyRuleActions(
             Long tenantId,
             Long userId,

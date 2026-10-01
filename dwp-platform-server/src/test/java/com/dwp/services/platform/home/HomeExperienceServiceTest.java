@@ -6,6 +6,7 @@ import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.experience.ExperienceRevisionStore;
 import com.dwp.services.platform.media.TenantMediaStorage;
 import com.dwp.services.platform.home.personalization.HomeViewCompatibilityBridge;
+import com.dwp.services.platform.support.CappedList;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -740,7 +741,7 @@ class HomeExperienceServiceTest {
     void revisionHistoryDisclosesWholeAggregateRollbackImpact() throws Exception {
         HomeExperience experience = experience(7L, 4L, null);
         when(repository.findById(7L)).thenReturn(Optional.of(experience));
-        when(revisionStore.list(7L, "HOME", 20)).thenReturn(List.of(
+        when(revisionStore.list(7L, "HOME", 20)).thenReturn(new CappedList<>(List.of(
                 new ExperienceRevisionStore.ExperienceRevision(
                         91L,
                         7L,
@@ -752,10 +753,10 @@ class HomeExperienceServiceTest {
                                 """),
                         "corr-history",
                         OffsetDateTime.now(),
-                        11L)));
+                        11L)), false, 20));
 
         HomeExperienceDtos.HomeExperienceRevisionResponse revision =
-                service.history(7L, 20).getFirst();
+                service.history(7L, 20).items().getFirst();
 
         assertThat(revision.affectedScopes()).containsExactly(
                 "PRESENTATION", "BACKGROUND_ASSET", "LAUNCHPAD", "COMPOSITION");

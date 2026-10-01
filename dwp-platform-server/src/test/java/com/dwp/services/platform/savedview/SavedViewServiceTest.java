@@ -18,6 +18,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -55,6 +56,20 @@ class SavedViewServiceTest {
 
     private SavedViewService service;
     private SavedViewSurfaceAccessPolicy surfaceAccess;
+
+    @Test
+    void reportsWhenOwnershipTransferHistoryExceedsTheResponseLimit() {
+        when(repository.transfers(TENANT_ID, 101))
+                .thenReturn(Collections.nCopies(101, null));
+
+        SavedViewDtos.OwnershipTransferPage result =
+                service.ownershipTransfers(TENANT_ID, 500);
+
+        assertThat(result.items()).hasSize(100);
+        assertThat(result.limit()).isEqualTo(100);
+        assertThat(result.hasMore()).isTrue();
+        verify(repository).transfers(TENANT_ID, 101);
+    }
 
     @BeforeEach
     void setUp() {

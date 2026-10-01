@@ -3,6 +3,7 @@ package com.dwp.services.auth.controller;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.services.auth.dto.PrivilegedAccessDtos;
 import com.dwp.services.auth.security.AuthenticatedUserResolver;
+import com.dwp.services.auth.security.TenantPermissionAuthorization;
 import com.dwp.services.auth.security.TenantContextResolver;
 import com.dwp.services.auth.service.DelegatedAdminScopeService;
 import com.dwp.services.auth.service.PrivilegedAccessService;
@@ -34,19 +35,23 @@ public class PrivilegedAccessController {
 
     private final PrivilegedAccessService service;
     private final DelegatedAdminScopeService delegatedScopeService;
+    private final TenantPermissionAuthorization authorization;
 
     public PrivilegedAccessController(
             PrivilegedAccessService service,
-            DelegatedAdminScopeService delegatedScopeService) {
+            DelegatedAdminScopeService delegatedScopeService,
+            TenantPermissionAuthorization authorization) {
         this.service = service;
         this.delegatedScopeService = delegatedScopeService;
+        this.authorization = authorization;
     }
 
     @GetMapping("/policies")
     public ApiResponse<List<PrivilegedAccessDtos.PolicySummary>> policies(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
-        return ApiResponse.success(service.policies(tenantAdmin(authentication, tenantHeader)));
+        return ApiResponse.success(service.policies(
+                authorizedTenant(authentication, tenantHeader, "VIEW")));
     }
 
     @PutMapping("/policies/{policyId}")
@@ -56,7 +61,7 @@ public class PrivilegedAccessController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable Long policyId,
             @Valid @RequestBody PrivilegedAccessDtos.UpdatePolicyRequest request) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(service.updatePolicy(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, policyId, request));
@@ -66,7 +71,8 @@ public class PrivilegedAccessController {
     public ApiResponse<List<PrivilegedAccessDtos.EligibilitySummary>> eligibilities(
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
-        return ApiResponse.success(service.eligibilities(tenantAdmin(authentication, tenantHeader)));
+        return ApiResponse.success(service.eligibilities(
+                authorizedTenant(authentication, tenantHeader, "VIEW")));
     }
 
     @GetMapping("/me/eligibilities")
@@ -84,7 +90,7 @@ public class PrivilegedAccessController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody PrivilegedAccessDtos.CreateEligibilityRequest request) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(service.createEligibility(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, request));
@@ -97,7 +103,7 @@ public class PrivilegedAccessController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable UUID eligibilityId,
             @RequestParam Long version) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(service.revokeEligibility(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, eligibilityId, version));
@@ -109,9 +115,9 @@ public class PrivilegedAccessController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
         Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
-        return ApiResponse.success(service.requests(
-                tenantId, actorId,
-                AuthenticatedUserResolver.hasTenantAdminRole(authentication)));
+        authorization.require(
+                tenantId, actorId, TenantPermissionAuthorization.PRIVILEGED_ACCESS, "VIEW");
+        return ApiResponse.success(service.requests(tenantId, actorId, true));
     }
 
     @GetMapping("/me/requests")
@@ -142,7 +148,7 @@ public class PrivilegedAccessController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable UUID requestId,
             @Valid @RequestBody PrivilegedAccessDtos.ApprovalDecisionRequest request) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "APPROVE");
         return ApiResponse.success(service.decide(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, requestId, request));
@@ -156,9 +162,14 @@ public class PrivilegedAccessController {
             @PathVariable UUID requestId,
             @Valid @RequestBody PrivilegedAccessDtos.RevokeRequest request) {
         Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
+        Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
         return ApiResponse.success(service.revoke(
-                tenantId, AuthenticatedUserResolver.requireUserId(authentication),
-                AuthenticatedUserResolver.hasTenantAdminRole(authentication),
+                tenantId, actorId,
+                authorization.can(
+                        tenantId,
+                        actorId,
+                        TenantPermissionAuthorization.PRIVILEGED_ACCESS,
+                        "MANAGE"),
                 correlationId, requestId, request));
     }
 
@@ -169,7 +180,7 @@ public class PrivilegedAccessController {
                     @RequestHeader(value = TENANT_HEADER, required = false)
                             String tenantHeader) {
         return ApiResponse.success(service.emergencyPrincipals(
-                tenantAdmin(authentication, tenantHeader)));
+                authorizedTenant(authentication, tenantHeader, "VIEW")));
     }
 
     @PostMapping("/emergency-principals")
@@ -182,7 +193,7 @@ public class PrivilegedAccessController {
                             String correlationId,
                     @Valid @RequestBody
                             PrivilegedAccessDtos.RegisterEmergencyPrincipalRequest request) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(service.registerEmergencyPrincipal(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, request));
@@ -199,7 +210,7 @@ public class PrivilegedAccessController {
                     @PathVariable UUID principalId,
                     @Valid @RequestBody
                             PrivilegedAccessDtos.VerifyEmergencyPrincipalRequest request) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(service.verifyEmergencyPrincipal(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, principalId, request));
@@ -210,7 +221,7 @@ public class PrivilegedAccessController {
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
         return ApiResponse.success(delegatedScopeService.scopes(
-                tenantAdmin(authentication, tenantHeader)));
+                authorizedTenant(authentication, tenantHeader, "VIEW")));
     }
 
     @PostMapping("/delegated-scopes")
@@ -219,7 +230,7 @@ public class PrivilegedAccessController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody PrivilegedAccessDtos.CreateDelegatedScopeRequest request) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(delegatedScopeService.create(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, request));
@@ -232,15 +243,24 @@ public class PrivilegedAccessController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable UUID scopeId,
             @RequestParam Long version) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = authorizedTenant(authentication, tenantHeader, "MANAGE");
         return ApiResponse.success(delegatedScopeService.revoke(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, scopeId, version));
     }
 
-    private Long tenantAdmin(Authentication authentication, String tenantHeader) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
-        return TenantContextResolver.requireTenantId(tenantHeader, authentication);
+    private Long authorizedTenant(
+            Authentication authentication,
+            String tenantHeader,
+            String permissionCode) {
+        Long actorId = AuthenticatedUserResolver.requireUserId(authentication);
+        Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
+        authorization.require(
+                tenantId,
+                actorId,
+                TenantPermissionAuthorization.PRIVILEGED_ACCESS,
+                permissionCode);
+        return tenantId;
     }
 
     private String assuranceLevel(Authentication authentication) {

@@ -358,28 +358,6 @@ public class MailWorkspaceService {
                 repository.signatures(tenantId, userId, includeArchived));
     }
 
-    @Transactional(readOnly = true)
-    public void validateReplyBody(
-            long tenantId, long userId, UUID threadId, String body) {
-        UUID accountId = repository.replyAccount(tenantId, userId, threadId)
-                .orElseThrow(() -> new BaseException(
-                        ErrorCode.FORBIDDEN,
-                        "The sending account is no longer available for this reply."));
-        Signature signature = repository.defaultSignatureForReply(
-                tenantId, userId, accountId).orElse(null);
-        if (signature == null || signature.mandatoryContent() == null
-                || signature.mandatoryContent().isBlank()) {
-            return;
-        }
-        String required = signature.bodyFormat() == BodyFormat.HTML
-                ? Jsoup.parseBodyFragment(
-                        sanitizedHtml(signature.mandatoryContent())).text()
-                : signature.mandatoryContent().trim();
-        if (!normalizedText(body).contains(normalizedText(required))) {
-            throw invalid("The reply must include the organization signature mandatory content.");
-        }
-    }
-
     @Transactional
     public Template createTemplate(long tenantId, long userId, TemplateRequest request) {
         validateAssetScope(tenantId, userId, request.scope(), request.accountId());
@@ -733,10 +711,6 @@ public class MailWorkspaceService {
             throw invalid("The message must include the selected "
                     + assetType + " mandatory content.");
         }
-    }
-
-    private String normalizedText(String value) {
-        return value == null ? "" : value.replaceAll("\\s+", " ").trim();
     }
 
     private void validateAttachmentTotalSize(

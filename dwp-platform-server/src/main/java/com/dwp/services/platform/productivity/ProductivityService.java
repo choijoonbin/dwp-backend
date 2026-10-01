@@ -72,7 +72,7 @@ public class ProductivityService {
                 metrics.failedRuns24h(),
                 metrics.lastSuccessfulSyncAt(),
                 connectors(tenantId),
-                runs(tenantId, 12));
+                runs(tenantId, 12).items());
     }
 
     public List<ProductivityDtos.Connector> connectors(Long tenantId) {
@@ -201,12 +201,20 @@ public class ProductivityService {
         return connector(suspended);
     }
 
-    public List<ProductivityDtos.Subject> subjects(Long tenantId, int limit) {
-        return repository.subjects(tenantId, limit).stream().map(this::subject).toList();
+    public ProductivityDtos.SubjectPage subjects(Long tenantId, int requestedLimit) {
+        int limit = Math.min(500, Math.max(1, requestedLimit));
+        List<ProductivityDtos.Subject> items = repository.subjects(tenantId, limit + 1).stream()
+                .map(this::subject).toList();
+        return new ProductivityDtos.SubjectPage(
+                items.stream().limit(limit).toList(), items.size() > limit, limit);
     }
 
-    public List<ProductivityDtos.SyncRun> runs(Long tenantId, int limit) {
-        return repository.runs(tenantId, limit).stream().map(this::run).toList();
+    public ProductivityDtos.SyncRunPage runs(Long tenantId, int requestedLimit) {
+        int limit = Math.min(500, Math.max(1, requestedLimit));
+        List<ProductivityDtos.SyncRun> items = repository.runs(tenantId, limit + 1).stream()
+                .map(this::run).toList();
+        return new ProductivityDtos.SyncRunPage(
+                items.stream().limit(limit).toList(), items.size() > limit, limit);
     }
 
     public List<ProductivityDtos.Connection> connections(Long tenantId, Long userId) {

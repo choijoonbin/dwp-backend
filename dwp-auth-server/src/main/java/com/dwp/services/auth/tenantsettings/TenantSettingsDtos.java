@@ -76,11 +76,13 @@ public final class TenantSettingsDtos {
             UUID publishReceiptId,
             long version,
             Instant createdAt,
-            Instant updatedAt) {
+            Instant updatedAt,
+            List<String> allowedActions) {
 
         public ChangeSet {
             beforeState = beforeState.deepCopy();
             proposedState = proposedState.deepCopy();
+            allowedActions = List.copyOf(allowedActions);
         }
     }
 
@@ -103,10 +105,27 @@ public final class TenantSettingsDtos {
             String state,
             List<String> includedOwners,
             List<String> exclusions,
-            Instant freshestSourceUpdatedAt) {
+            Instant freshestSourceUpdatedAt,
+            List<OwnerCoverage> owners) {
 
         public ProjectionCoverage {
             includedOwners = List.copyOf(includedOwners);
+            exclusions = List.copyOf(exclusions);
+            owners = List.copyOf(owners);
+        }
+    }
+
+    public record OwnerCoverage(
+            String ownerKey,
+            String state,
+            String freshnessState,
+            Instant observedAt,
+            Instant sourceUpdatedAt,
+            List<String> allowedActions,
+            List<String> exclusions) {
+
+        public OwnerCoverage {
+            allowedActions = List.copyOf(allowedActions);
             exclusions = List.copyOf(exclusions);
         }
     }
@@ -138,7 +157,149 @@ public final class TenantSettingsDtos {
             String lifecycleState,
             Instant validFrom,
             Instant validTo,
-            boolean privileged) {
+            boolean privileged,
+            Long requestedBy,
+            Long approvedBy,
+            Instant approvedAt,
+            Long activatedBy,
+            Instant activatedAt,
+            String approvalLineageState) {
+    }
+
+    public record TenantGovernanceSnapshot(
+            Instant observedAt,
+            TenantDirectoryProjection tenantDirectory,
+            OwnerObservation providerDomain,
+            LoginVerification loginVerification,
+            RecoveryCoverage recoveryVerification,
+            List<OwnerObservation> policyOwners,
+            List<EffectiveSetting> effectiveSettings) {
+
+        public TenantGovernanceSnapshot {
+            policyOwners = List.copyOf(policyOwners);
+            effectiveSettings = List.copyOf(effectiveSettings);
+        }
+    }
+
+    public record TenantDirectoryProjection(
+            String state,
+            Long tenantId,
+            String tenantCode,
+            String tenantName,
+            String defaultLocale,
+            Instant sourceUpdatedAt) {
+    }
+
+    public record OwnerObservation(
+            String ownerKey,
+            String state,
+            Instant observedAt,
+            List<String> exclusions) {
+
+        public OwnerObservation {
+            exclusions = List.copyOf(exclusions);
+        }
+    }
+
+    public record LoginVerification(
+            String internalPrerequisiteState,
+            String configuredProviderKey,
+            String externalProbeState,
+            Instant lastExternalProbeAt,
+            SsoTestLoginReceipt latestReceipt,
+            List<String> blockingReasons) {
+
+        public LoginVerification {
+            blockingReasons = List.copyOf(blockingReasons);
+        }
+    }
+
+    public record SsoTestLoginCommand(
+            @NotNull UUID idempotencyKey,
+            @NotBlank @Size(min = 10, max = 1000) String justification) {
+    }
+
+    public record SsoTestLoginReceipt(
+            UUID testLoginJobId,
+            String providerKey,
+            String lifecycleState,
+            String internalPrerequisiteState,
+            String externalProbeState,
+            List<String> blockingReasons,
+            String executionBoundary,
+            Long requestedBy,
+            Instant requestedAt,
+            Instant completedAt,
+            String receiptSha256) {
+
+        public SsoTestLoginReceipt {
+            blockingReasons = List.copyOf(blockingReasons);
+        }
+    }
+
+    public record SsoTestLoginReceiptPage(
+            List<SsoTestLoginReceipt> items,
+            int limit,
+            boolean hasMore) {
+
+        public SsoTestLoginReceiptPage {
+            items = List.copyOf(items);
+        }
+    }
+
+    public record RecoveryCoverage(
+            String state,
+            long total,
+            long verified,
+            long overdue,
+            long notVerified,
+            Instant freshestVerificationAt,
+            List<String> exclusions) {
+
+        public RecoveryCoverage {
+            exclusions = List.copyOf(exclusions);
+        }
+    }
+
+    public record EffectiveSetting(
+            String settingKey,
+            JsonNode effectiveValue,
+            String resolutionStrategy,
+            String effectiveSource,
+            boolean locked,
+            boolean overrideAllowed,
+            String overrideState,
+            List<SettingSource> sources,
+            Instant evaluatedAt,
+            String evidenceState) {
+
+        public EffectiveSetting {
+            effectiveValue = effectiveValue.deepCopy();
+            sources = List.copyOf(sources);
+        }
+    }
+
+    public record SettingSource(
+            String level,
+            String ownerKey,
+            JsonNode value,
+            String evaluation,
+            String reason) {
+
+        public SettingSource {
+            value = value == null ? null : value.deepCopy();
+        }
+    }
+
+    public record RestorePreferenceCommand(@NotNull @PositiveOrZero Long version) {
+    }
+
+    public record UserPreferenceState(
+            Long userId,
+            String preferredLocale,
+            String tenantDefaultLocale,
+            long version,
+            Instant updatedAt) {
     }
 
     public record RecoveryVerificationCommand(

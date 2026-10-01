@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -240,15 +241,48 @@ class HomeViewServiceTest {
         when(viewRepository.findByViewIdAndTenantIdAndUserId(viewId, 7L, 11L))
                 .thenReturn(Optional.of(view));
         when(revisionRepository
-                .findTop50ByViewIdAndTenantIdAndUserIdAndRestorableTrueOrderByRevisionNumberDesc(
+                .findTop51ByViewIdAndTenantIdAndUserIdAndRestorableTrueOrderByRevisionNumberDesc(
                         viewId, 7L, 11L)).thenReturn(List.of(revision));
 
-        assertThat(service.revisions(7L, 11L, viewId))
+        assertThat(service.revisions(7L, 11L, viewId).items())
                 .extracting(HomeViewDtos.HomeViewRevisionResponse::revisionId)
                 .containsExactly(revisionId);
         verify(revisionRepository)
-                .findTop50ByViewIdAndTenantIdAndUserIdAndRestorableTrueOrderByRevisionNumberDesc(
+                .findTop51ByViewIdAndTenantIdAndUserIdAndRestorableTrueOrderByRevisionNumberDesc(
                         viewId, 7L, 11L);
+    }
+
+    @Test
+    void revisionHistoryUsesTheFiftyFirstRowOnlyAsCoverageEvidence() {
+        UUID viewId = UUID.randomUUID();
+        HomePreferenceDtos.HomeLayoutPayload storedLayout = layout(List.of());
+        HomeView view = HomeView.builder()
+                .viewId(viewId).tenantId(7L).userId(11L)
+                .surfaceKey("workspace-home").viewKey("default").name("My home")
+                .defaultView(true).schemaVersion(5)
+                .layoutPayload(objectMapper.valueToTree(storedLayout)).version(0L).build();
+        HomeViewDtos.HomeViewSnapshot storedSnapshot = new HomeViewDtos.HomeViewSnapshot(
+                1, false,
+                new HomeViewDtos.HomeViewSnapshotView("My home", true, 5, storedLayout),
+                Map.of(), Map.of());
+        List<HomeViewRevision> rows = IntStream.rangeClosed(1, 51)
+                .mapToObj(index -> HomeViewRevision.builder()
+                        .revisionId(UUID.randomUUID()).viewId(viewId).tenantId(7L).userId(11L)
+                        .revisionNumber((long) index).schemaVersion(5)
+                        .snapshot(objectMapper.valueToTree(storedSnapshot))
+                        .source("USER").restorable(true).build())
+                .toList();
+        when(viewRepository.findByViewIdAndTenantIdAndUserId(viewId, 7L, 11L))
+                .thenReturn(Optional.of(view));
+        when(revisionRepository
+                .findTop51ByViewIdAndTenantIdAndUserIdAndRestorableTrueOrderByRevisionNumberDesc(
+                        viewId, 7L, 11L)).thenReturn(rows);
+
+        HomeViewDtos.HomeViewRevisionPage result = service.revisions(7L, 11L, viewId);
+
+        assertThat(result.items()).hasSize(50);
+        assertThat(result.hasMore()).isTrue();
+        assertThat(result.limit()).isEqualTo(50);
     }
 
     @Test

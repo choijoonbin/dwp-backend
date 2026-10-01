@@ -1,6 +1,6 @@
 {
   "dwp-auth-server/src/main/java/com/dwp/services/auth/service/AccessGovernanceService.java": 721,
-  "dwp-auth-server/src/main/java/com/dwp/services/auth/service/AppGovernanceService.java": 844,
+  "dwp-auth-server/src/main/java/com/dwp/services/auth/service/AppGovernanceService.java": 814,
   "dwp-auth-server/src/main/java/com/dwp/services/auth/service/PrivilegedAccessService.java": 931,
   "dwp-people-server/src/main/java/com/dwp/services/people/organization/OrganizationChartService.java": 997,
   "dwp-people-server/src/main/java/com/dwp/services/people/organization/OrganizationScenarioService.java": 733,

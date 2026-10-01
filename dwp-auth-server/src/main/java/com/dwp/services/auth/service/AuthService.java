@@ -21,6 +21,7 @@ import com.dwp.services.auth.entity.Tenant;
 import com.dwp.services.auth.entity.User;
 import com.dwp.services.auth.entity.UserAccount;
 import com.dwp.services.auth.repository.PermissionRepository;
+import com.dwp.services.auth.repository.OrganizationUnitRepository;
 import com.dwp.services.auth.repository.PrincipalResourceGrantRepository;
 import com.dwp.services.auth.repository.DirectoryGroupMemberRepository;
 import com.dwp.services.auth.repository.DirectoryGroupRepository;
@@ -65,6 +66,7 @@ public class AuthService {
     private final ResourceRepository resourceRepository;
     private final PermissionRepository permissionRepository;
     private final PrincipalResourceGrantRepository principalResourceGrantRepository;
+    private final OrganizationUnitRepository organizationUnitRepository;
     private final AuthSessionService authSessionService;
     private final AuthPolicyService authPolicyService;
     private final IdentityAccountService identityAccountService;
@@ -85,6 +87,7 @@ public class AuthService {
             ResourceRepository resourceRepository,
             PermissionRepository permissionRepository,
             PrincipalResourceGrantRepository principalResourceGrantRepository,
+            OrganizationUnitRepository organizationUnitRepository,
             AuthSessionService authSessionService,
             AuthPolicyService authPolicyService,
             IdentityAccountService identityAccountService,
@@ -103,6 +106,7 @@ public class AuthService {
         this.resourceRepository = resourceRepository;
         this.permissionRepository = permissionRepository;
         this.principalResourceGrantRepository = principalResourceGrantRepository;
+        this.organizationUnitRepository = organizationUnitRepository;
         this.authSessionService = authSessionService;
         this.authPolicyService = authPolicyService;
         this.identityAccountService = identityAccountService;
@@ -299,6 +303,10 @@ public class AuthService {
                 .displayName(user.getDisplayName())
                 .email(user.getEmail())
                 .jobTitle(user.getJobTitle())
+                .department(providerIdentity ? null : department(user))
+                .workerNumber(providerIdentity ? null : user.getWorkerNumber())
+                .identitySourceType(providerIdentity ? null : user.getSourceType())
+                .mfaEnabled(Boolean.TRUE.equals(user.getMfaEnabled()))
                 .preferredLocale(user.getPreferredLocale())
                 .tenantDefaultLocale(tenant.getDefaultLocale())
                 .tenantId(tenant.getTenantId())
@@ -315,6 +323,16 @@ public class AuthService {
                         ? List.of()
                         : resourceRoles(tenant.getTenantId(), user.getUserId()))
                 .build();
+    }
+
+    private String department(User user) {
+        if (user.getPrimaryOrgUnitId() == null) return null;
+        return organizationUnitRepository.findByOrgUnitIdAndTenantId(
+                        user.getPrimaryOrgUnitId(), user.getTenantId())
+                .filter(unit -> "ACTIVE".equalsIgnoreCase(unit.getStatus()))
+                .map(unit -> unit.getName() == null ? null : unit.getName().strip())
+                .filter(name -> name != null && !name.isBlank())
+                .orElse(null);
     }
 
     private List<AppGovernanceDtos.ResourceRole> resourceRoles(Long tenantId, Long userId) {

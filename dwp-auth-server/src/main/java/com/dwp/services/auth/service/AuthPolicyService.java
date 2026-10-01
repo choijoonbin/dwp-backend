@@ -39,6 +39,7 @@ public class AuthPolicyService {
                 .ssoLoginEnabled(policy.getSsoLoginEnabled())
                 .ssoProviderKey(policy.getSsoProviderKey())
                 .requireMfa(policy.getRequireMfa())
+                .tokenTtlSec(policy.getTokenTtlSec())
                 .build();
     }
 }

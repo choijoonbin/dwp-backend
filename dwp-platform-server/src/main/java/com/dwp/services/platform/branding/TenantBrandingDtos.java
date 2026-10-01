@@ -1,13 +1,15 @@
 package com.dwp.services.platform.branding;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 
-import java.time.OffsetDateTime;
 import java.time.LocalDateTime;
+import java.time.OffsetDateTime;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 public final class TenantBrandingDtos {
@@ -54,6 +56,13 @@ public final class TenantBrandingDtos {
             boolean current,
             OffsetDateTime createdAt,
             Long createdBy) {
+    }
+
+    @Schema(requiredProperties = {"items", "hasMore", "limit"})
+    public record BrandingRevisionPage(
+            List<BrandingRevisionResponse> items,
+            boolean hasMore,
+            int limit) {
     }
 
     static Map<String, Object> snapshot(TenantBranding branding) {

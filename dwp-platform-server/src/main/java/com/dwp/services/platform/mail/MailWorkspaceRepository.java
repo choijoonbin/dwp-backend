@@ -1687,15 +1687,6 @@ class MailWorkspaceRepository {
         }
     }
 
-    private OffsetDateTime instant(Object value) {
-        try {
-            return value == null || String.valueOf(value).isBlank()
-                    ? null : OffsetDateTime.parse(String.valueOf(value));
-        } catch (RuntimeException ignored) {
-            return null;
-        }
-    }
-
     private LocalDate date(Object value) {
         try {
             return value == null || String.valueOf(value).isBlank()

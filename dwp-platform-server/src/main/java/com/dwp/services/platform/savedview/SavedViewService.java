@@ -358,9 +358,13 @@ public class SavedViewService {
     }
 
     @Transactional(readOnly = true)
-    public List<SavedViewDtos.OwnershipTransferSummary> ownershipTransfers(
-            Long tenantId, int limit) {
-        return repository.transfers(tenantId, Math.max(1, Math.min(limit, 100)));
+    public SavedViewDtos.OwnershipTransferPage ownershipTransfers(
+            Long tenantId, int requestedLimit) {
+        int limit = Math.max(1, Math.min(requestedLimit, 100));
+        List<SavedViewDtos.OwnershipTransferSummary> items =
+                repository.transfers(tenantId, limit + 1);
+        return new SavedViewDtos.OwnershipTransferPage(
+                items.stream().limit(limit).toList(), limit, items.size() > limit);
     }
 
     @Transactional

@@ -13,7 +13,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Arrays;
-import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -35,7 +34,7 @@ public class AdminAppAccessRequestController {
     }
 
     @GetMapping
-    public ApiResponse<List<WorkspaceDtos.AppAccessRequest>> requests(
+    public ApiResponse<WorkspaceDtos.AppAccessRequestPage> requests(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(value = ROLES, required = false) String roles,
             @RequestHeader(value = RESOURCE_ROLES, required = false) String resourceRoles,

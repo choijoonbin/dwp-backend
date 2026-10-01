@@ -48,8 +48,15 @@ public class AuditIntegrityService {
     }
 
     @Transactional(readOnly = true)
-    public List<AuditControlDtos.IntegrityCheckpoint> list(Long tenantId) {
-        return repository.integrity(tenantId);
+    public AuditControlDtos.IntegrityCheckpointPage list(Long tenantId) {
+        int limit = 90;
+        List<AuditControlDtos.IntegrityCheckpoint> checkpoints = repository.integrity(tenantId, limit + 1);
+        boolean hasMore = checkpoints.size() > limit;
+        return new AuditControlDtos.IntegrityCheckpointPage(
+                checkpoints.stream().limit(limit).toList(),
+                limit,
+                hasMore,
+                hasMore ? "TRUNCATED_AT_LIMIT" : "COMPLETE_WITHIN_FILTER");
     }
 
     private String hmac(String value) {

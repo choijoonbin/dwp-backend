@@ -11,6 +11,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.domain.PageRequest;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -32,9 +33,15 @@ class PersonalSettingsOwnerServiceTest {
     @Mock
     private PersonalSettingActivityRepository activityRepository;
     @Mock
+    private PersonalSettingsWorkspaceStateRepository workspaceStateRepository;
+    @Mock
     private PersonalPrivacyConsentRepository consentRepository;
     @Mock
     private PersonalPrivacyRequestRepository requestRepository;
+    @Mock
+    private PersonalPrivacyRequestEventRepository requestEventRepository;
+    @Mock
+    private PersonalPrivacyRequestReceiptRepository requestReceiptRepository;
     @Mock
     private PlatformAuditService auditService;
 
@@ -45,7 +52,9 @@ class PersonalSettingsOwnerServiceTest {
     void setUp() {
         objectMapper = new ObjectMapper().findAndRegisterModules();
         service = new PersonalSettingsOwnerService(
-                favoriteRepository, activityRepository, consentRepository, requestRepository,
+                favoriteRepository, activityRepository, workspaceStateRepository,
+                consentRepository, requestRepository, requestEventRepository,
+                requestReceiptRepository,
                 auditService, objectMapper);
     }
 
@@ -60,6 +69,13 @@ class PersonalSettingsOwnerServiceTest {
                 .thenReturn(List.of(favorite));
         when(activityRepository.findTop50ByTenantIdAndUserIdOrderByOccurredAtDesc(7L, 11L))
                 .thenReturn(List.of(newest, duplicate, changed));
+        PersonalSettingsWorkspaceState state = PersonalSettingsWorkspaceState.builder()
+                .tenantId(7L).userId(11L)
+                .lastChangeAt(LocalDateTime.now().minusHours(1))
+                .lastConfirmedAt(LocalDateTime.now().minusHours(2))
+                .version(3L).build();
+        when(workspaceStateRepository.findById(new PersonalSettingsWorkspaceStateId(7L, 11L)))
+                .thenReturn(Optional.of(state));
 
         PersonalSettingsDtos.Workspace result = service.workspace(7L, 11L);
 
@@ -67,6 +83,10 @@ class PersonalSettingsOwnerServiceTest {
                 .containsExactly("security");
         assertThat(result.recentActivity()).extracting(PersonalSettingsDtos.Activity::activityType)
                 .containsExactly("VIEW", "CHANGE");
+        assertThat(result.observation().sourceState()).isEqualTo("AVAILABLE");
+        assertThat(result.observation().freshnessState())
+                .isEqualTo("CHANGED_SINCE_CONFIRMATION");
+        assertThat(result.observation().offlineBehavior()).isEqualTo("MEMORY_ONLY_READ_ONLY");
         verify(favoriteRepository).findByTenantIdAndUserIdOrderByUpdatedAtDesc(7L, 11L);
         verify(activityRepository).findTop50ByTenantIdAndUserIdOrderByOccurredAtDesc(7L, 11L);
     }
@@ -112,6 +132,43 @@ class PersonalSettingsOwnerServiceTest {
     }
 
     @Test
+    void passiveViewDoesNotInvalidateAnExplicitWorkspaceConfirmation() {
+        when(activityRepository
+                .findTopByTenantIdAndUserIdAndSettingKeyAndActivityTypeOrderByOccurredAtDesc(
+                        7L, 11L, "security", "VIEW"))
+                .thenReturn(Optional.empty());
+        when(activityRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        PersonalSettingsDtos.Activity result = service.recordView(7L, 11L, "security");
+
+        assertThat(result.activityType()).isEqualTo("VIEW");
+        verify(workspaceStateRepository, never()).save(any());
+    }
+
+    @Test
+    void aNewConsentDecisionIsAProfileChangeAndInvalidatesWorkspaceFreshness() {
+        when(consentRepository.findTopByTenantIdAndUserIdAndPurposeKeyOrderByOccurredAtDesc(
+                7L, 11L, "PRODUCT_ANALYTICS")).thenReturn(Optional.empty());
+        when(consentRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(activityRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(workspaceStateRepository.findById(new PersonalSettingsWorkspaceStateId(7L, 11L)))
+                .thenReturn(Optional.empty());
+
+        service.updateProductAnalyticsConsent(
+                7L, 11L, "corr-consent",
+                new PersonalSettingsDtos.UpdateConsentRequest(true, "notice-2"));
+
+        ArgumentCaptor<PersonalSettingActivity> activity =
+                ArgumentCaptor.forClass(PersonalSettingActivity.class);
+        verify(activityRepository).save(activity.capture());
+        assertThat(activity.getValue().getSettingKey()).isEqualTo("profile");
+        assertThat(activity.getValue().getActivityType()).isEqualTo("CHANGE");
+        assertThat(activity.getValue().getChangedFields().toString())
+                .contains("productAnalyticsConsent");
+        verify(workspaceStateRepository).save(any(PersonalSettingsWorkspaceState.class));
+    }
+
+    @Test
     void consentLedgerIsImmutableAndRepeatedSameNoticeIsIdempotent() {
         PersonalPrivacyConsent existing = PersonalPrivacyConsent.builder()
                 .id(UUID.randomUUID()).tenantId(7L).userId(11L)
@@ -126,6 +183,136 @@ class PersonalSettingsOwnerServiceTest {
 
         assertThat(result.consentId()).isEqualTo(existing.getId());
         verify(consentRepository, never()).save(any());
+    }
+
+    @Test
+    void consentLedgerStatesItsProductLocalCoverageAndBoundedHistory() {
+        LocalDateTime now = LocalDateTime.now();
+        List<PersonalPrivacyConsent> bounded = java.util.stream.IntStream.range(0, 51)
+                .mapToObj(index -> PersonalPrivacyConsent.builder()
+                        .id(UUID.randomUUID()).tenantId(7L).userId(11L)
+                        .purposeKey("PRODUCT_ANALYTICS")
+                        .consentState(index % 2 == 0 ? "GRANTED" : "WITHDRAWN")
+                        .noticeVersion("notice-" + index).source("ACCOUNT_SETTINGS")
+                        .occurredAt(now.minusMinutes(index)).build())
+                .toList();
+        when(consentRepository.findTop51ByTenantIdAndUserIdOrderByOccurredAtDesc(7L, 11L))
+                .thenReturn(bounded);
+        when(consentRepository.findTopByTenantIdAndUserIdAndPurposeKeyOrderByOccurredAtDesc(
+                7L, 11L, "PRODUCT_ANALYTICS")).thenReturn(Optional.of(bounded.getFirst()));
+
+        PersonalSettingsDtos.ConsentLedger result = service.consentLedger(7L, 11L);
+
+        assertThat(result.currentProductAnalytics().consentId()).isEqualTo(bounded.getFirst().getId());
+        assertThat(result.history()).hasSize(50);
+        assertThat(result.historyHasMore()).isTrue();
+        assertThat(result.historyLimit()).isEqualTo(50);
+        assertThat(result.coveredPurposes()).containsExactly("PRODUCT_ANALYTICS");
+        assertThat(result.coverageState()).isEqualTo("PRODUCT_LOCAL");
+        assertThat(result.coverageBoundary())
+                .isEqualTo("CROSS_PRODUCT_CONSENT_SOURCES_NOT_CONNECTED");
+    }
+
+    @Test
+    void privacyRequestAndLifecyclePagesExposeTheLimitPlusOneBoundary() {
+        LocalDateTime now = LocalDateTime.now();
+        List<PersonalPrivacyRequest> requests = java.util.stream.IntStream.range(0, 51)
+                .mapToObj(index -> {
+                    PersonalPrivacyRequest request = PersonalPrivacyRequest.builder()
+                            .id(new UUID(0L, index + 1L)).tenantId(7L).userId(11L)
+                            .requestType("DATA_EXPORT").requestState("RECEIVED")
+                            .requestedScope("ALL_PERSONAL_DATA").version(0L).build();
+                    request.setCreatedAt(now.minusMinutes(index));
+                    request.setUpdatedAt(now.minusMinutes(index));
+                    return request;
+                })
+                .toList();
+        UUID requestId = requests.getFirst().getId();
+        List<PersonalPrivacyRequestEvent> events = java.util.stream.IntStream.range(0, 51)
+                .mapToObj(index -> PersonalPrivacyRequestEvent.builder()
+                        .id(new UUID(1L, index + 1L)).requestId(requestId)
+                        .tenantId(7L).userId(11L)
+                        .eventType("REQUEST_RECEIVED").requestState("RECEIVED")
+                        .detailKey("PRIVACY_REQUEST_INTAKE_RECORDED")
+                        .occurredAt(now.minusSeconds(index)).build())
+                .toList();
+        when(requestRepository.findByTenantIdAndUserIdOrderByCreatedAtDescIdDesc(
+                7L, 11L, PageRequest.of(0, 51))).thenReturn(requests);
+        when(requestReceiptRepository
+                .findByTenantIdAndUserIdAndRequestIdInOrderByIssuedAtDescReceiptIdDesc(
+                        7L, 11L, requests.subList(0, 50).stream()
+                                .map(PersonalPrivacyRequest::getId).toList()))
+                .thenReturn(List.of());
+        when(requestEventRepository.findByRequestIdAndTenantIdAndUserIdOrderByOccurredAtDescIdDesc(
+                requestId, 7L, 11L, PageRequest.of(0, 51)))
+                .thenReturn(events);
+
+        PersonalSettingsDtos.PrivacyRequestPage result = service.privacyRequests(7L, 11L, 50);
+
+        assertThat(result.items()).hasSize(50);
+        assertThat(result.hasMore()).isTrue();
+        assertThat(result.limit()).isEqualTo(50);
+        assertThat(result.items().getFirst().lifecycle()).hasSize(50);
+        assertThat(result.items().getFirst().lifecycleHasMore()).isTrue();
+        assertThat(result.items().getFirst().lifecycleLimit()).isEqualTo(50);
+    }
+
+    @Test
+    void privacyRequestPageIsCompleteAtTheExactLimit() {
+        LocalDateTime now = LocalDateTime.now();
+        List<PersonalPrivacyRequest> requests = java.util.stream.IntStream.range(0, 50)
+                .mapToObj(index -> {
+                    PersonalPrivacyRequest request = PersonalPrivacyRequest.builder()
+                            .id(new UUID(2L, index + 1L)).tenantId(7L).userId(11L)
+                            .requestType("DATA_EXPORT").requestState("CANCELLED")
+                            .requestedScope("ALL_PERSONAL_DATA").version(1L).build();
+                    request.setCreatedAt(now.minusMinutes(index));
+                    request.setUpdatedAt(now.minusMinutes(index));
+                    return request;
+                })
+                .toList();
+        when(requestRepository.findByTenantIdAndUserIdOrderByCreatedAtDescIdDesc(
+                7L, 11L, PageRequest.of(0, 51))).thenReturn(requests);
+        when(requestReceiptRepository
+                .findByTenantIdAndUserIdAndRequestIdInOrderByIssuedAtDescReceiptIdDesc(
+                        7L, 11L, requests.stream().map(PersonalPrivacyRequest::getId).toList()))
+                .thenReturn(List.of());
+
+        PersonalSettingsDtos.PrivacyRequestPage result = service.privacyRequests(7L, 11L, 50);
+
+        assertThat(result.items()).hasSize(50);
+        assertThat(result.hasMore()).isFalse();
+        assertThat(result.limit()).isEqualTo(50);
+    }
+
+    @Test
+    void workspaceReconfirmationUsesOptimisticVersionAndRecordsTheConfirmation() {
+        PersonalSettingsWorkspaceState state = PersonalSettingsWorkspaceState.builder()
+                .tenantId(7L).userId(11L)
+                .lastChangeAt(LocalDateTime.now().minusHours(1))
+                .version(4L).build();
+        when(workspaceStateRepository.findById(new PersonalSettingsWorkspaceStateId(7L, 11L)))
+                .thenReturn(Optional.of(state));
+        when(workspaceStateRepository.saveAndFlush(state)).thenAnswer(invocation -> {
+            state.setVersion(5L);
+            return state;
+        });
+        when(favoriteRepository.findByTenantIdAndUserIdOrderByUpdatedAtDesc(7L, 11L))
+                .thenReturn(List.of());
+        when(activityRepository.findTop50ByTenantIdAndUserIdOrderByOccurredAtDesc(7L, 11L))
+                .thenReturn(List.of());
+
+        PersonalSettingsDtos.Workspace result = service.reconfirmWorkspace(7L, 11L, "corr-2", 4L);
+
+        assertThat(state.getLastConfirmedAt()).isNotNull();
+        assertThat(result.observation().freshnessState()).isEqualTo("CURRENT");
+        assertThat(result.observation().version()).isEqualTo(5L);
+        verify(auditService).success(
+                org.mockito.ArgumentMatchers.eq(7L), org.mockito.ArgumentMatchers.eq(11L),
+                org.mockito.ArgumentMatchers.eq("personal-settings.workspace.reconfirmed"),
+                org.mockito.ArgumentMatchers.eq("PERSONAL_SETTINGS_WORKSPACE"),
+                org.mockito.ArgumentMatchers.eq("11"), org.mockito.ArgumentMatchers.eq("corr-2"),
+                any(), any());
     }
 
     @Test
@@ -149,6 +336,8 @@ class PersonalSettingsOwnerServiceTest {
             value.setUpdatedAt(LocalDateTime.now());
             return value;
         });
+        when(requestReceiptRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+        when(requestEventRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
 
         PersonalSettingsDtos.PrivacyRequest result = service.createPrivacyRequest(
                 7L, 11L, "corr-1",
@@ -159,6 +348,11 @@ class PersonalSettingsOwnerServiceTest {
         assertThat(result.fulfillmentAvailable()).isFalse();
         assertThat(result.fulfillmentBoundary())
                 .isEqualTo("PRIVACY_OWNER_EXECUTION_NOT_CONNECTED");
+        assertThat(result.receipt().receiptType()).isEqualTo("INTAKE");
+        assertThat(result.receipt().evidenceState()).isEqualTo("INTAKE_ONLY");
+        assertThat(result.receipt().requestFingerprint()).hasSize(64);
+        assertThat(result.lifecycle()).extracting(PersonalSettingsDtos.PrivacyRequestEvent::eventType)
+                .containsExactly("REQUEST_RECEIVED", "FULFILLMENT_BOUNDARY_RECORDED");
     }
 
     private PersonalSettingActivity activity(String key, String type, LocalDateTime at) {

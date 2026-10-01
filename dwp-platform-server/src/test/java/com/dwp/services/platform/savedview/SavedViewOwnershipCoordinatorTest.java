@@ -93,9 +93,11 @@ class SavedViewOwnershipCoordinatorTest {
 
     @Test
     void keepsRetentionActionsSeparateFromOwnershipTransferHistory() {
-        when(orphanLifecycle.actions(3L, 50)).thenReturn(List.of());
+        SavedViewDtos.OrphanLifecyclePage page =
+                new SavedViewDtos.OrphanLifecyclePage(List.of(), 50, false);
+        when(orphanLifecycle.actions(3L, 50)).thenReturn(page);
 
-        assertThat(coordinator.orphanActions(3L, 50)).isEmpty();
+        assertThat(coordinator.orphanActions(3L, 50)).isSameAs(page);
 
         verify(orphanLifecycle).actions(3L, 50);
     }

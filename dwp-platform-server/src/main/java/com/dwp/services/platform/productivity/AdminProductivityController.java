@@ -113,7 +113,7 @@ public class AdminProductivityController {
     }
 
     @GetMapping("/subjects")
-    public ApiResponse<List<ProductivityDtos.Subject>> subjects(
+    public ApiResponse<ProductivityDtos.SubjectPage> subjects(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(PERMISSIONS) String permissions,
             @RequestParam(defaultValue = "100") int limit) {
@@ -122,7 +122,7 @@ public class AdminProductivityController {
     }
 
     @GetMapping("/runs")
-    public ApiResponse<List<ProductivityDtos.SyncRun>> runs(
+    public ApiResponse<ProductivityDtos.SyncRunPage> runs(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(PERMISSIONS) String permissions,
             @RequestParam(defaultValue = "100") int limit) {

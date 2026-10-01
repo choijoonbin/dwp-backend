@@ -15,6 +15,7 @@ import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.IntStream;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -43,6 +44,68 @@ class HomeTemplateServiceTest {
         service = new HomeTemplateService(
                 templates, views, preferenceService, access, audit,
                 new ObjectMapper().findAndRegisterModules(), revisions, receipts, scopeLock);
+    }
+
+    @Test
+    void templateListUsesTheOneHundredAndFirstRowOnlyAsCoverageEvidence() {
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        var layout = new com.dwp.services.platform.home.preference.HomePreferenceDtos
+                .HomeLayoutPayload(null, "balanced", List.of());
+        var rows = IntStream.rangeClosed(1, 101).mapToObj(index -> HomeTemplate.builder()
+                        .templateId(UUID.randomUUID()).tenantId(7L)
+                        .templateKey("template-" + index).name("Template " + index)
+                        .audiencePayload(mapper.valueToTree(
+                                new HomeTemplateDtos.TemplateAudience("ALL", List.of())))
+                        .lifecycleState("DRAFT").schemaVersion(5)
+                        .layoutPayload(mapper.valueToTree(layout)).version(0L).build())
+                .toList();
+        when(access.canViewDraftTemplates("ADMIN.HOME_TEMPLATE:VIEW")).thenReturn(true);
+        when(templates.findTop101ByTenantIdOrderByUpdatedAtDesc(7L)).thenReturn(rows);
+        when(views.layout(any())).thenReturn(layout);
+
+        HomeTemplateDtos.HomeTemplatePage result =
+                service.list(7L, "ADMIN.HOME_TEMPLATE:VIEW", null);
+
+        assertThat(result.items()).hasSize(100);
+        assertThat(result.hasMore()).isTrue();
+        assertThat(result.limit()).isEqualTo(100);
+        verify(templates).findTop101ByTenantIdOrderByUpdatedAtDesc(7L);
+    }
+
+    @Test
+    void templateRevisionHistoryUsesTheFiftyFirstRowOnlyAsCoverageEvidence() {
+        ObjectMapper mapper = new ObjectMapper().findAndRegisterModules();
+        UUID templateId = UUID.randomUUID();
+        var layout = new com.dwp.services.platform.home.preference.HomePreferenceDtos
+                .HomeLayoutPayload(null, "balanced", List.of());
+        HomeTemplate template = HomeTemplate.builder()
+                .templateId(templateId).tenantId(7L).templateKey("team-home").name("Team home")
+                .audiencePayload(mapper.valueToTree(
+                        new HomeTemplateDtos.TemplateAudience("ALL", List.of())))
+                .lifecycleState("PUBLISHED").schemaVersion(5)
+                .layoutPayload(mapper.valueToTree(layout)).version(1L).build();
+        HomeTemplateDtos.HomeTemplateSnapshot snapshot =
+                new HomeTemplateDtos.HomeTemplateSnapshot(
+                        "Team home", new HomeTemplateDtos.TemplateAudience("ALL", List.of()),
+                        "PUBLISHED", 5, layout, 1L, OffsetDateTime.now(), 11L);
+        List<HomeTemplateRevision> rows = IntStream.rangeClosed(1, 51)
+                .mapToObj(index -> HomeTemplateRevision.builder()
+                        .templateRevisionId(UUID.randomUUID()).templateId(templateId).tenantId(7L)
+                        .revisionNumber((long) index).snapshot(mapper.valueToTree(snapshot))
+                        .source("UPDATE").createdAt(OffsetDateTime.now()).createdBy(11L).build())
+                .toList();
+        when(access.canViewDraftTemplates("ADMIN.HOME_TEMPLATE:VIEW")).thenReturn(true);
+        when(templates.findByTemplateIdAndTenantId(templateId, 7L))
+                .thenReturn(java.util.Optional.of(template));
+        when(revisions.findTop51ByTemplateIdAndTenantIdOrderByRevisionNumberDesc(templateId, 7L))
+                .thenReturn(rows);
+
+        HomeTemplateDtos.HomeTemplateRevisionPage result =
+                service.revisions(7L, templateId, "ADMIN.HOME_TEMPLATE:VIEW");
+
+        assertThat(result.items()).hasSize(50);
+        assertThat(result.hasMore()).isTrue();
+        assertThat(result.limit()).isEqualTo(50);
     }
 
     @Test

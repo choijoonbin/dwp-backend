@@ -2,6 +2,7 @@ package com.dwp.services.auth.controller;
 
 import com.dwp.services.auth.scim.ScimConnectorDtos;
 import com.dwp.services.auth.scim.ScimCredentialService;
+import com.dwp.services.auth.security.TenantPermissionAuthorization;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -15,6 +16,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
@@ -24,8 +26,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class ScimConnectorAdminControllerTest {
 
     private final ScimCredentialService service = mock(ScimCredentialService.class);
+    private final TenantPermissionAuthorization authorization =
+            mock(TenantPermissionAuthorization.class);
     private final MockMvc mvc = MockMvcBuilders
-            .standaloneSetup(new ScimConnectorAdminController(service))
+            .standaloneSetup(new ScimConnectorAdminController(service, authorization))
             .build();
 
     @Test
@@ -52,6 +56,8 @@ class ScimConnectorAdminControllerTest {
                 .andExpect(header().string("Pragma", "no-cache"))
                 .andExpect(header().string("Expires", "Thu, 01 Jan 1970 00:00:00 GMT"))
                 .andExpect(jsonPath("$.data.bearerToken").value("one-time-create-secret"));
+        verify(authorization).require(
+                42L, 7L, TenantPermissionAuthorization.IDENTITY_PROVISIONING, "MANAGE");
     }
 
     @Test
@@ -81,6 +87,8 @@ class ScimConnectorAdminControllerTest {
                 .andExpect(header().string("Pragma", "no-cache"))
                 .andExpect(header().string("Expires", "Thu, 01 Jan 1970 00:00:00 GMT"))
                 .andExpect(jsonPath("$.data.bearerToken").value("one-time-rotated-secret"));
+        verify(authorization).require(
+                42L, 7L, TenantPermissionAuthorization.IDENTITY_PROVISIONING, "MANAGE");
     }
 
     private UsernamePasswordAuthenticationToken identityAdmin() {

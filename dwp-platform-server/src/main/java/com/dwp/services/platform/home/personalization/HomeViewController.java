@@ -217,7 +217,7 @@ public class HomeViewController {
     }
 
     @GetMapping("/{viewId}/revisions")
-    public ApiResponse<List<HomeViewDtos.HomeViewRevisionResponse>> revisions(
+    public ApiResponse<HomeViewDtos.HomeViewRevisionPage> revisions(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(USER) Long userId,
             @PathVariable UUID viewId) {

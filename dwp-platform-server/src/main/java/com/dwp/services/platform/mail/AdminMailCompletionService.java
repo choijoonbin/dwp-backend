@@ -1290,21 +1290,8 @@ public class AdminMailCompletionService {
 
     @Transactional
     public DeliveryExport createDeliveryExport(
-            long tenantId, long actorId, DeliveryExportRequest request) {
-        return createDeliveryExport(tenantId, actorId, request, true, true);
-    }
-
-    @Transactional
-    public DeliveryExport createDeliveryExport(
             long tenantId, long actorId, DeliveryExportRequest request,
             boolean revealSensitive) {
-        return createDeliveryExport(
-                tenantId, actorId, request, revealSensitive, false);
-    }
-
-    private DeliveryExport createDeliveryExport(
-            long tenantId, long actorId, DeliveryExportRequest request,
-            boolean revealSensitive, boolean legacyImmediateExport) {
         requireIdentity(tenantId, actorId);
         String fingerprint = fingerprints.digest(
                 "DELIVERY_EXPORT", actorId, request.filters(), request.purpose());
@@ -1352,17 +1339,11 @@ public class AdminMailCompletionService {
                 exportId, snapshotCutoff, expiresAt, watermark,
                 request.purpose().trim(), request.filters(), items, truncated);
         String payloadSha256 = sha256(payload);
-        UUID inserted = (legacyImmediateExport
-                ? repository.insertExport(
-                        exportId, tenantId, actorId, request.filters(),
-                        request.purpose().trim(), watermark, request.idempotencyKey(),
-                        expiresAt, payload, payloadSha256, items.size(), truncated,
-                        snapshotCutoff)
-                : repository.insertExport(
-                        exportId, tenantId, actorId, request.filters(),
-                        request.purpose().trim(), watermark, request.idempotencyKey(),
-                        expiresAt, payload, payloadSha256, items.size(), truncated,
-                        snapshotCutoff, "DELIVERY_AUDIT", Map.of(), null, fingerprint))
+        UUID inserted = repository.insertExport(
+                exportId, tenantId, actorId, request.filters(),
+                request.purpose().trim(), watermark, request.idempotencyKey(),
+                expiresAt, payload, payloadSha256, items.size(), truncated,
+                snapshotCutoff, "DELIVERY_AUDIT", Map.of(), null, fingerprint)
                 .orElse(null);
         if (inserted == null) {
             AdminMailCompletionRepository.ExportRow winner = repository.exportByCommand(

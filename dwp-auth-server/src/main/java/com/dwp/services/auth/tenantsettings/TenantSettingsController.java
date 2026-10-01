@@ -35,7 +35,7 @@ public class TenantSettingsController {
             Authentication authentication,
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader) {
         return ApiResponse.success(service.authPolicyChanges(
-                tenantAdmin(authentication, tenantHeader)));
+                tenant(authentication, tenantHeader), actor(authentication)));
     }
 
     @PostMapping("/auth-policy/changes")
@@ -44,7 +44,7 @@ public class TenantSettingsController {
             @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @Valid @RequestBody TenantSettingsDtos.CreateAuthPolicyChangeRequest request) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = tenant(authentication, tenantHeader);
         return ApiResponse.success(service.createAuthPolicyChange(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, request));
@@ -57,7 +57,7 @@ public class TenantSettingsController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable UUID changeSetId,
             @Valid @RequestBody TenantSettingsDtos.VersionedCommand command) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = tenant(authentication, tenantHeader);
         return ApiResponse.success(service.submit(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, changeSetId, command));
@@ -70,7 +70,7 @@ public class TenantSettingsController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable UUID changeSetId,
             @Valid @RequestBody TenantSettingsDtos.DecisionCommand command) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = tenant(authentication, tenantHeader);
         return ApiResponse.success(service.decide(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, changeSetId, command));
@@ -83,7 +83,7 @@ public class TenantSettingsController {
             @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
             @PathVariable UUID changeSetId,
             @Valid @RequestBody TenantSettingsDtos.VersionedCommand command) {
-        Long tenantId = tenantAdmin(authentication, tenantHeader);
+        Long tenantId = tenant(authentication, tenantHeader);
         return ApiResponse.success(service.publish(
                 tenantId, AuthenticatedUserResolver.requireUserId(authentication),
                 correlationId, changeSetId, command));
@@ -96,13 +96,59 @@ public class TenantSettingsController {
             @RequestParam(required = false) String query,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
-        AuthenticatedUserResolver.requireIdentityAdmin(authentication);
-        Long tenantId = TenantContextResolver.requireTenantId(tenantHeader, authentication);
-        return ApiResponse.success(service.accessProjection(tenantId, query, page, size));
+        Long tenantId = tenant(authentication, tenantHeader);
+        return ApiResponse.success(service.accessProjection(
+                tenantId, actor(authentication), query, page, size));
     }
 
-    private Long tenantAdmin(Authentication authentication, String tenantHeader) {
-        AuthenticatedUserResolver.requireTenantAdmin(authentication);
+    @GetMapping("/governance-snapshot")
+    public ApiResponse<TenantSettingsDtos.TenantGovernanceSnapshot> governanceSnapshot(
+            Authentication authentication,
+            @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
+            @RequestParam(required = false) Long userId) {
+        Long tenantId = tenant(authentication, tenantHeader);
+        Long targetUserId = userId == null
+                ? actor(authentication) : userId;
+        return ApiResponse.success(service.governanceSnapshot(
+                tenantId, actor(authentication), targetUserId));
+    }
+
+    @PostMapping("/sso-test-login-jobs")
+    public ApiResponse<TenantSettingsDtos.SsoTestLoginReceipt> requestSsoTestLogin(
+            Authentication authentication,
+            @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
+            @RequestHeader(value = CORRELATION_HEADER, required = false) String correlationId,
+            @Valid @RequestBody TenantSettingsDtos.SsoTestLoginCommand command) {
+        Long tenantId = tenant(authentication, tenantHeader);
+        return ApiResponse.success(service.requestSsoTestLogin(
+                tenantId, actor(authentication), correlationId, command));
+    }
+
+    @GetMapping("/sso-test-login-jobs")
+    public ApiResponse<TenantSettingsDtos.SsoTestLoginReceiptPage> ssoTestLoginReceipts(
+            Authentication authentication,
+            @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
+            @RequestParam(defaultValue = "20") int limit) {
+        Long tenantId = tenant(authentication, tenantHeader);
+        return ApiResponse.success(service.ssoTestLoginReceipts(
+                tenantId, actor(authentication), limit));
+    }
+
+    @GetMapping("/sso-test-login-jobs/{jobId}")
+    public ApiResponse<TenantSettingsDtos.SsoTestLoginReceipt> ssoTestLoginReceipt(
+            Authentication authentication,
+            @RequestHeader(value = TENANT_HEADER, required = false) String tenantHeader,
+            @PathVariable UUID jobId) {
+        Long tenantId = tenant(authentication, tenantHeader);
+        return ApiResponse.success(service.ssoTestLoginReceipt(
+                tenantId, actor(authentication), jobId));
+    }
+
+    private Long tenant(Authentication authentication, String tenantHeader) {
         return TenantContextResolver.requireTenantId(tenantHeader, authentication);
+    }
+
+    private Long actor(Authentication authentication) {
+        return AuthenticatedUserResolver.requireUserId(authentication);
     }
 }

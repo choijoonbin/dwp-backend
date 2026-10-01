@@ -6,6 +6,7 @@ import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.home.HomeCompositionPolicyReader;
 import com.dwp.services.platform.home.preference.HomePreferenceDtos;
 import com.dwp.services.platform.home.preference.HomePreferenceService;
+import com.dwp.services.platform.support.CappedList;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,6 +22,7 @@ import java.util.UUID;
 @Service
 public class HomeViewService extends HomeViewServiceSupport {
     private static final int MAX_VIEWS = 10;
+    private static final int REVISION_HISTORY_LIMIT = 50;
 
     private final HomeCompositionPolicyReader compositionPolicy;
     private final HomePersonalizationAccess access;
@@ -363,14 +365,19 @@ public class HomeViewService extends HomeViewServiceSupport {
     }
 
     @Transactional(readOnly = true)
-    public List<HomeViewDtos.HomeViewRevisionResponse> revisions(
+    public HomeViewDtos.HomeViewRevisionPage revisions(
             Long tenantId, Long userId, UUID viewId) {
         HomeView view = requireOwned(tenantId, userId, viewId);
         access.requirePersonalization();
-        return revisions
-                .findTop50ByViewIdAndTenantIdAndUserIdAndRestorableTrueOrderByRevisionNumberDesc(
-                        viewId, tenantId, userId)
-                .stream().map(this::revisionResponse).toList();
+        CappedList<HomeViewRevision> page = CappedList.from(
+                revisions
+                        .findTop51ByViewIdAndTenantIdAndUserIdAndRestorableTrueOrderByRevisionNumberDesc(
+                                viewId, tenantId, userId),
+                REVISION_HISTORY_LIMIT);
+        List<HomeViewDtos.HomeViewRevisionResponse> items = page.items().stream()
+                .map(this::revisionResponse).toList();
+        return new HomeViewDtos.HomeViewRevisionPage(
+                items, page.hasMore(), page.limit());
     }
 
     @Transactional

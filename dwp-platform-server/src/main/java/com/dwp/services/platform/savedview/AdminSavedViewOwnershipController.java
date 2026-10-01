@@ -64,7 +64,7 @@ public class AdminSavedViewOwnershipController {
     }
 
     @GetMapping("/orphaned/actions")
-    public ApiResponse<List<SavedViewDtos.OrphanLifecycleResult>> orphanActions(
+    public ApiResponse<SavedViewDtos.OrphanLifecyclePage> orphanActions(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(value = PERMISSIONS, required = false) String permissions,
             @RequestParam(defaultValue = "50") int limit) {
@@ -128,7 +128,7 @@ public class AdminSavedViewOwnershipController {
     }
 
     @GetMapping("/transfers")
-    public ApiResponse<List<SavedViewDtos.OwnershipTransferSummary>> transfers(
+    public ApiResponse<SavedViewDtos.OwnershipTransferPage> transfers(
             @RequestHeader(TENANT) Long tenantId,
             @RequestHeader(value = PERMISSIONS, required = false) String permissions,
             @RequestParam(defaultValue = "50") int limit) {

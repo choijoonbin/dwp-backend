@@ -10,8 +10,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface HomeTemplateRepository extends JpaRepository<HomeTemplate, UUID> {
-    List<HomeTemplate> findTop100ByTenantIdOrderByUpdatedAtDesc(Long tenantId);
-    List<HomeTemplate> findTop100ByTenantIdAndLifecycleStateOrderByUpdatedAtDesc(
+    List<HomeTemplate> findTop101ByTenantIdOrderByUpdatedAtDesc(Long tenantId);
+    List<HomeTemplate> findTop101ByTenantIdAndLifecycleStateOrderByUpdatedAtDesc(
             Long tenantId, String lifecycleState);
     Optional<HomeTemplate> findByTemplateIdAndTenantId(UUID templateId, Long tenantId);
 

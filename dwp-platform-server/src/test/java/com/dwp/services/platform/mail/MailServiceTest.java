@@ -159,66 +159,6 @@ class MailServiceTest {
     }
 
     @Test
-    void ownerOutcomeProjectsExecutionEvidenceAndPublishesAudit() {
-        UUID proposalId = UUID.randomUUID();
-        UUID commandId = UUID.randomUUID();
-        MailQueryRepository.ProposalHandoffRow before =
-                new MailQueryRepository.ProposalHandoffRow(
-                        proposalId, commandId, "/calendar/schedule?action=create",
-                        "ACCEPTED", null, OffsetDateTime.now(), 3L);
-        MailQueryRepository.ProposalHandoffRow after =
-                new MailQueryRepository.ProposalHandoffRow(
-                        proposalId, commandId, "/calendar/schedule?action=create",
-                        "EXECUTED", "calendar:event:42", OffsetDateTime.now(), 4L);
-        when(queries.accounts(1L, 7L)).thenReturn(List.of(account()));
-        when(queries.proposalHandoff(1L, 7L, proposalId))
-                .thenReturn(Optional.of(before))
-                .thenReturn(Optional.of(after));
-        when(commands.updateProposalOutcome(
-                1L, 7L, proposalId, commandId, "EXECUTED", "calendar:event:42", 3L))
-                .thenReturn(1);
-
-        MailDtos.ProposalHandoff result = service.recordProposalOutcome(
-                1L, 7L, proposalId, "corr-owner",
-                new MailDtos.ProposalOutcomeRequest(
-                        commandId, MailDtos.ProposalHandoffStatus.EXECUTED,
-                        "calendar:event:42", 3L));
-
-        assertThat(result.status()).isEqualTo(MailDtos.ProposalHandoffStatus.EXECUTED);
-        assertThat(result.resultRef()).isEqualTo("calendar:event:42");
-        verify(commands).audit(
-                eq(1L), eq(7L), eq("mail.action.owner-outcome"),
-                eq("MAIL_ACTION_PROPOSAL"), eq(proposalId.toString()),
-                eq("corr-owner"), anyMap(), anyMap());
-        verify(commands).domainEvent(
-                eq(1L), eq("MAIL_ACTION_PROPOSAL"), eq(proposalId),
-                eq("mail.action.owner-outcome"), anyMap(), eq("corr-owner"));
-    }
-
-    @Test
-    void repeatedOwnerOutcomeReturnsTheRecordedResultWithoutAnotherMutation() {
-        UUID proposalId = UUID.randomUUID();
-        UUID commandId = UUID.randomUUID();
-        MailQueryRepository.ProposalHandoffRow completed =
-                new MailQueryRepository.ProposalHandoffRow(
-                        proposalId, commandId, "/calendar/schedule?action=create",
-                        "EXECUTED", "calendar:event:42", OffsetDateTime.now(), 4L);
-        when(queries.accounts(1L, 7L)).thenReturn(List.of(account()));
-        when(queries.proposalHandoff(1L, 7L, proposalId)).thenReturn(Optional.of(completed));
-
-        MailDtos.ProposalHandoff result = service.recordProposalOutcome(
-                1L, 7L, proposalId, "corr-owner-replay",
-                new MailDtos.ProposalOutcomeRequest(
-                        commandId, MailDtos.ProposalHandoffStatus.EXECUTED,
-                        "calendar:event:42", 3L));
-
-        assertThat(result.version()).isEqualTo(4L);
-        verify(commands, never()).updateProposalOutcome(
-                eq(1L), eq(7L), eq(proposalId), eq(commandId),
-                eq("EXECUTED"), eq("calendar:event:42"), eq(3L));
-    }
-
-    @Test
     void externalConnectionCannotActivateWithoutVaultedCredentialReference() {
         UUID connectionId = UUID.randomUUID();
         MailService adminService = new MailService(

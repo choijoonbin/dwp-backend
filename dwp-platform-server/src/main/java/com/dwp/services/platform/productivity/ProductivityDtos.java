@@ -87,6 +87,9 @@ public final class ProductivityDtos {
             String lastErrorCode) {
     }
 
+    public record SubjectPage(List<Subject> items, boolean hasMore, int limit) {
+    }
+
     public record SyncRun(
             UUID runId,
             UUID connectorId,
@@ -104,6 +107,9 @@ public final class ProductivityDtos {
             Instant retryAfterAt,
             String safeErrorCode,
             String correlationId) {
+    }
+
+    public record SyncRunPage(List<SyncRun> items, boolean hasMore, int limit) {
     }
 
     public record Connection(

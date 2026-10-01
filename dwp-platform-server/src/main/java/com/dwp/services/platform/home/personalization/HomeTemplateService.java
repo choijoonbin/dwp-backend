@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.platform.audit.PlatformAuditService;
 import com.dwp.services.platform.home.preference.HomePreferenceDtos;
 import com.dwp.services.platform.home.preference.HomePreferenceService;
+import com.dwp.services.platform.support.CappedList;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -24,6 +25,7 @@ import java.util.UUID;
 @Service
 public class HomeTemplateService {
     private static final int MAX_TEMPLATES_PER_TENANT = 100;
+    private static final int REVISION_HISTORY_LIMIT = 50;
     private static final String DRAFT = "DRAFT";
     private static final String PUBLISHED = "PUBLISHED";
     private static final String REVOKED = "REVOKED";
@@ -60,17 +62,20 @@ public class HomeTemplateService {
     }
 
     @Transactional(readOnly = true)
-    public List<HomeTemplateDtos.HomeTemplateResponse> list(
+    public HomeTemplateDtos.HomeTemplatePage list(
             Long tenantId, String permissions, String roles) {
         access.requirePersonalization();
         List<HomeTemplate> result = access.canViewDraftTemplates(permissions)
-                ? templates.findTop100ByTenantIdOrderByUpdatedAtDesc(tenantId)
-                : templates.findTop100ByTenantIdAndLifecycleStateOrderByUpdatedAtDesc(
+                ? templates.findTop101ByTenantIdOrderByUpdatedAtDesc(tenantId)
+                : templates.findTop101ByTenantIdAndLifecycleStateOrderByUpdatedAtDesc(
                         tenantId, PUBLISHED);
+        CappedList<HomeTemplate> page = CappedList.from(result, MAX_TEMPLATES_PER_TENANT);
         Set<String> userRoles = access.roles(roles);
-        return result.stream().filter(value -> access.canViewDraftTemplates(permissions)
+        List<HomeTemplateDtos.HomeTemplateResponse> items = page.items().stream()
+                .filter(value -> access.canViewDraftTemplates(permissions)
                         || audienceAllows(value, userRoles))
                 .map(this::response).toList();
+        return new HomeTemplateDtos.HomeTemplatePage(items, page.hasMore(), page.limit());
     }
 
     @Transactional(readOnly = true)
@@ -87,17 +92,21 @@ public class HomeTemplateService {
     }
 
     @Transactional(readOnly = true)
-    public List<HomeTemplateDtos.HomeTemplateRevisionResponse> revisions(
+    public HomeTemplateDtos.HomeTemplateRevisionPage revisions(
             Long tenantId, UUID templateId, String permissions) {
         access.requirePersonalization();
         if (!access.canViewDraftTemplates(permissions)) {
             throw new BaseException(ErrorCode.FORBIDDEN);
         }
         requireTemplate(tenantId, templateId);
-        return revisions.findTop50ByTemplateIdAndTenantIdOrderByRevisionNumberDesc(
-                        templateId, tenantId).stream()
+        CappedList<HomeTemplateRevision> page = CappedList.from(
+                revisions.findTop51ByTemplateIdAndTenantIdOrderByRevisionNumberDesc(
+                        templateId, tenantId), REVISION_HISTORY_LIMIT);
+        List<HomeTemplateDtos.HomeTemplateRevisionResponse> items = page.items().stream()
                 .map(this::revisionResponse)
                 .toList();
+        return new HomeTemplateDtos.HomeTemplateRevisionPage(
+                items, page.hasMore(), page.limit());
     }
 
     @Transactional

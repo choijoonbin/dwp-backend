@@ -409,13 +409,6 @@ public final class MailDtos {
             long version) {
     }
 
-    public record ProposalOutcomeRequest(
-            @NotNull UUID commandId,
-            @NotNull ProposalHandoffStatus status,
-            @NotBlank @Size(max = 500) String resultRef,
-            @NotNull @Min(0) Long version) {
-    }
-
     public record ProposalHandoffCancelRequest(
             @NotNull UUID commandId,
             @NotNull @Min(0) Long version) {

@@ -514,36 +514,6 @@ class MailCommandRepository {
                 tenantId, proposalId, version, userId, userId);
     }
 
-    int updateProposalOutcome(
-            Long tenantId,
-            Long userId,
-            UUID proposalId,
-            UUID commandId,
-            String outcome,
-            String resultRef,
-            long version) {
-        String proposalStatus = "EXECUTED".equals(outcome) ? "EXECUTED" : "ACCEPTED";
-        return jdbc.update("""
-                UPDATE mail_action_proposals proposal
-                   SET proposal_status = ?, owner_state = ?, result_ref = ?,
-                       owner_updated_at = CURRENT_TIMESTAMP,
-                       version = proposal.version + 1,
-                       updated_at = CURRENT_TIMESTAMP, updated_by = ?
-                  FROM mail_threads thread, mail_accounts account
-                 WHERE proposal.tenant_id = ? AND proposal.proposal_id = ?
-                   AND proposal.owner_command_id = ?
-                   AND proposal.version = ?
-                   AND proposal.proposal_status IN ('ACCEPTED', 'EXECUTED')
-                   AND (proposal.owner_state IN ('EXECUTING', 'UNKNOWN')
-                        OR (proposal.owner_state = 'ACCEPTED'
-                            AND proposal.result_ref IS NULL))
-                   AND thread.tenant_id = proposal.tenant_id
-                   AND thread.thread_id = proposal.thread_id
-                """ + MailAccessSql.THREAD_MANAGE_ACCESS,
-                proposalStatus, outcome, resultRef, userId,
-                tenantId, proposalId, commandId, version, userId, userId);
-    }
-
     int updateProposalOutcomeFromOwner(
             long tenantId,
             long actorId,

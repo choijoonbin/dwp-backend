@@ -78,7 +78,9 @@ class ProviderWidgetRegistryAuthorityPostgresTest {
 
         flyway(null).migrate();
 
-        assertThat(latestVersion()).isEqualTo(57);
+        // The upgrade must include the V57 widget authority boundary, while later schema
+        // migrations remain allowed.
+        assertThat(latestVersion()).isGreaterThanOrEqualTo(57);
         assertThat(jdbc.queryForList("""
                 SELECT owner_product_key
                   FROM prv_operator_widget_owner_scopes

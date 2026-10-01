@@ -16,6 +16,10 @@ public class MeResponse {
     private String displayName;
     private String email;
     private String jobTitle;
+    private String department;
+    private String workerNumber;
+    private String identitySourceType;
+    private boolean mfaEnabled;
     private String preferredLocale;
     private String tenantDefaultLocale;
     private Long tenantId;

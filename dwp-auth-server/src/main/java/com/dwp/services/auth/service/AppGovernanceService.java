@@ -23,7 +23,6 @@ import java.util.UUID;
 @Service
 public class AppGovernanceService {
 
-    private static final String CATALOG_ADMIN = "APP_CATALOG_ADMIN";
     private static final Set<String> CONTROL_PLANE_RESPONSIBILITIES = Set.of(
             "APP_OWNER", "APP_ACCESS_MANAGER",
             "APP_ACCESS_APPROVER", "APP_ACCESS_REVIEWER");
@@ -44,20 +43,19 @@ public class AppGovernanceService {
 
     @Transactional(readOnly = true)
     public AppGovernanceDtos.Dashboard dashboard(Long tenantId, Long actorId) {
-        Set<String> roles = tenantRoles(tenantId, actorId);
-        boolean catalogAdmin = roles.contains(CATALOG_ADMIN);
+        AppGovernanceAuthorization.Visibility visibility =
+                authorization.requireVisibility(tenantId, actorId);
+        boolean catalogReader = visibility.queueReader();
+        boolean catalogManager = authorization.canPermission(
+                tenantId, actorId, AppGovernanceAuthorization.GOVERNANCE_RESOURCE, "MANAGE");
         List<AppGovernanceDtos.ResourceRole> actorScopes = resourceRoles(tenantId, actorId)
                 .stream()
                 .filter(scope -> CONTROL_PLANE_RESPONSIBILITIES.contains(
                         scope.responsibilityCode()))
                 .toList();
-        if (!catalogAdmin && actorScopes.isEmpty()) {
-            throw new BaseException(ErrorCode.FORBIDDEN);
-        }
-
         List<AppGovernanceDtos.ResourceSet> sets = resourceSets(tenantId);
         List<AppGovernanceDtos.Assignment> assignments = assignments(tenantId);
-        if (!catalogAdmin) {
+        if (!catalogReader) {
             Set<UUID> visible = actorScopes.stream()
                     .map(AppGovernanceDtos.ResourceRole::resourceSetId)
                     .collect(LinkedHashSet::new, Set::add, Set::addAll);
@@ -68,12 +66,12 @@ public class AppGovernanceService {
         }
         Set<UUID> firstApproverBootstrapEligibleIds =
                 assignmentStore.firstApproverBootstrapEligibleAssignmentIds(
-                        tenantId, actorId, catalogAdmin);
+                        tenantId, actorId, catalogManager);
         assignments = assignments.stream()
                 .map(value -> value.withFirstApproverBootstrapEligible(
                         firstApproverBootstrapEligibleIds.contains(value.assignmentId())))
                 .toList();
-        boolean canComposeResponsibilities = catalogAdmin || actorScopes.stream()
+        boolean canComposeResponsibilities = catalogManager || actorScopes.stream()
                 .anyMatch(value -> "APP_OWNER".equals(value.responsibilityCode()));
         return new AppGovernanceDtos.Dashboard(
                 metrics(tenantId, sets, assignments),
@@ -531,7 +529,10 @@ public class AppGovernanceService {
         }
         if (assignmentStore.isFirstApproverBootstrapEligible(
                 tenantId, actorId,
-                tenantRoles(tenantId, actorId).contains(CATALOG_ADMIN), assignmentId)) {
+                authorization.canPermission(
+                        tenantId, actorId,
+                        AppGovernanceAuthorization.GOVERNANCE_RESOURCE, "MANAGE"),
+                assignmentId)) {
             authorization.requireCatalogAdmin(
                     tenantId, actorId, correlationId,
                     "APP_ADMIN_ASSIGNMENT", assignmentId.toString());
@@ -559,7 +560,7 @@ public class AppGovernanceService {
                 correlationId, "APP_ADMIN_ASSIGNMENT", assignmentId.toString());
     }
 
-    private List<AppGovernanceDtos.Principal> principals(Long tenantId) {
+    List<AppGovernanceDtos.Principal> principals(Long tenantId) {
         return jdbc.query("""
                 SELECT principal_type, principal_ref, display_name, detail
                   FROM (
@@ -573,8 +574,7 @@ public class AppGovernanceService {
                         FROM com_groups
                        WHERE tenant_id = ? AND status = 'ACTIVE'
                   ) principal
-                 ORDER BY principal_type DESC, display_name
-                 LIMIT 500
+                 ORDER BY principal_type DESC, display_name, principal_ref
                 """, (result, ignored) -> new AppGovernanceDtos.Principal(
                 result.getString("principal_type"), result.getString("principal_ref"),
                 result.getString("display_name"), result.getString("detail")), tenantId, tenantId);
@@ -734,36 +734,6 @@ public class AppGovernanceService {
                 VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?)
                 """, UUID.randomUUID(), tenantId, resourceSetId, resource.resourceType(),
                 resource.resourceKey(), actorId, actorId));
-    }
-
-    private Set<String> tenantRoles(Long tenantId, Long userId) {
-        return new LinkedHashSet<>(jdbc.query("""
-                SELECT role.code
-                  FROM com_roles role
-                  JOIN (
-                      SELECT member.role_id
-                        FROM com_role_members member
-                       WHERE member.tenant_id = ? AND member.user_id = ?
-                      UNION
-                      SELECT assignment.role_id
-                        FROM com_group_role_assignments assignment
-                        JOIN com_group_members membership
-                          ON membership.tenant_id = assignment.tenant_id
-                         AND membership.group_id = assignment.group_id
-                        JOIN com_groups access_group
-                          ON access_group.tenant_id = membership.tenant_id
-                         AND access_group.group_id = membership.group_id
-                         AND access_group.status = 'ACTIVE'
-                       WHERE assignment.tenant_id = ? AND membership.user_id = ?
-                         AND assignment.lifecycle_state = 'ACTIVE'
-                         AND assignment.assignment_type = 'ACTIVE'
-                         AND assignment.scope_type = 'TENANT'
-                         AND (assignment.valid_from IS NULL OR assignment.valid_from <= CURRENT_TIMESTAMP)
-                         AND (assignment.valid_to IS NULL OR assignment.valid_to > CURRENT_TIMESTAMP)
-                  ) effective ON effective.role_id = role.role_id
-                 WHERE role.tenant_id = ? AND role.status = 'ACTIVE'
-                """, (result, ignored) -> result.getString(1),
-                tenantId, userId, tenantId, userId, tenantId));
     }
 
     private void validateWindow(OffsetDateTime validTo) {
