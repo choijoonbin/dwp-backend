@@ -67,7 +67,7 @@ class ProductSurfaceStepUpRuntimeSpringFixture {
     }
     @Bean ProductAuthorizationSeedLoader seeds(ProductAuthorizationContractValidator validator, ProductAuthorizationContractService contracts) {
         return new ProductAuthorizationSeedLoader(true, "classpath:product-authorization/product-surfaces-v1.index.generated.json",
-                new DefaultResourceLoader(), validator, contracts);
+                0, new DefaultResourceLoader(), validator, contracts);
     }
     @Bean ProductSurfaceAuthorityService authority(org.springframework.beans.factory.ObjectProvider<ProductSurfaceAuthorityPort> ports) {
         return new ProductSurfaceAuthorityService(ports);
