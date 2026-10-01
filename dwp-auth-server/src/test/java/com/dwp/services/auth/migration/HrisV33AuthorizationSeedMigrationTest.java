@@ -13,7 +13,7 @@ class HrisV33AuthorizationSeedMigrationTest {
     void declaresTheImmutableDraftWithoutImportingApprovingActivatingOrAssigningIt()
             throws IOException {
         try (var stream = getClass().getResourceAsStream(
-                "/db/migration/V226__declare_hris_v33_authorization_seed.sql")) {
+                "/db/migration/V233__declare_hris_v33_authorization_seed.sql")) {
             assertThat(stream).isNotNull();
             String sql = new String(stream.readAllBytes(), StandardCharsets.UTF_8);
 
