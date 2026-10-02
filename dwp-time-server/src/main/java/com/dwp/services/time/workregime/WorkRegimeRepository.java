@@ -1,5 +1,6 @@
 package com.dwp.services.time.workregime;
 
+import com.dwp.core.security.HcmEligibilityScopeKey;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
@@ -237,8 +238,8 @@ public interface WorkRegimeRepository {
                         "target authorization tenant and actor must be positive");
             }
             gatewayScopeKey = WorkRegimeModels.requireBoundedText(
-                    gatewayScopeKey, "gatewayScopeKey", 38);
-            if (!gatewayScopeKey.matches("scope-[0-9a-f]{32}")) {
+                    gatewayScopeKey, "gatewayScopeKey", 50);
+            if (!HcmEligibilityScopeKey.isCanonical(gatewayScopeKey)) {
                 throw new IllegalArgumentException("gatewayScopeKey is not canonical");
             }
             java.util.Objects.requireNonNull(
@@ -292,8 +293,8 @@ public interface WorkRegimeRepository {
                 throw new IllegalArgumentException("authorActorId must be positive");
             }
             authorGatewayScopeKey = WorkRegimeModels.requireBoundedText(
-                    authorGatewayScopeKey, "authorGatewayScopeKey", 38);
-            if (!authorGatewayScopeKey.matches("scope-[0-9a-f]{32}")) {
+                    authorGatewayScopeKey, "authorGatewayScopeKey", 50);
+            if (!HcmEligibilityScopeKey.isCanonical(authorGatewayScopeKey)) {
                 throw new IllegalArgumentException("authorGatewayScopeKey is not canonical");
             }
             if (authorGrantRevision <= 0) {

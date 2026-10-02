@@ -55,6 +55,33 @@ class PayrollServerApplicationContextTest {
                 });
     }
 
+    @Test
+    void configurationRejectsPublisherPlaceholderDrift() {
+        migrationContext().withPropertyValues(
+                        "spring.flyway.placeholders.payrollProjectionPublisherRole=other_publisher")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                            .hasStackTraceContaining("spring.flyway.placeholders");
+                });
+    }
+
+    @Test
+    void configurationRejectsPublisherThatEqualsRuntime() {
+        migrationContext().withPropertyValues(
+                        "spring.datasource.username=payroll_runtime",
+                        "payroll.projection-publisher.username=payroll_runtime",
+                        "spring.flyway.placeholders.payrollRuntimeRole=payroll_runtime",
+                        "spring.flyway.placeholders.payrollProjectionPublisherRole=payroll_runtime")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                            .hasStackTraceContaining("pairwise distinct");
+                });
+    }
+
     private static ApplicationContextRunner migrationContext() {
         return new ApplicationContextRunner()
                 .withUserConfiguration(PayrollDatabaseMigrationConfiguration.class)
@@ -92,7 +119,9 @@ class PayrollServerApplicationContextTest {
             "spring.flyway.ignore-migration-patterns=",
             "spring.flyway.connect-retries=3",
             "spring.flyway.lock-retry-count=10",
-            "spring.flyway.placeholders.payrollRuntimeRole=payroll_runtime"
+            "spring.flyway.placeholders.payrollRuntimeRole=payroll_runtime",
+            "payroll.projection-publisher.username=payroll_projection_publisher",
+            "spring.flyway.placeholders.payrollProjectionPublisherRole=payroll_projection_publisher"
         };
     }
 }

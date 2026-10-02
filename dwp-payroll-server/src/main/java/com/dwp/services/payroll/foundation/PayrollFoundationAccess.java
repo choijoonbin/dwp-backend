@@ -2,6 +2,7 @@ package com.dwp.services.payroll.foundation;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.security.HcmEligibilityScopeKey;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -103,7 +104,7 @@ final class PayrollFoundationAccess {
                     ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
                     "Verified payroll authority is incomplete.");
         }
-        if (contextScopeKey == null || !contextScopeKey.matches("scope-[0-9a-f]{32}")) {
+        if (!HcmEligibilityScopeKey.isCanonical(contextScopeKey)) {
             throw new BaseException(
                     ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
                     "Verified payroll scope evidence is unavailable.");

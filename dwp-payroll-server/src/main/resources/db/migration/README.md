@@ -8,3 +8,10 @@ create a `BUILDING` parent, insert its complete membership, then transition it t
 The application runtime role remains SELECT-only. Provisioning a distinct least-privilege
 projection-writer role and its delivery credentials is an activation gate; application-runtime
 DML must not be used as a substitute.
+
+`V3` grants only projection build, seal, and terminal transition columns to the separately
+provisioned `${payrollProjectionPublisherRole}`. The publisher has no Payroll configuration,
+receipt, audit, schema, or migration-history authority.
+
+`V4` rejects any legacy source-scope rows and changes the projection contract to the exact
+People-derived `hcm-scope-*` eligibility key returned by Gateway.

@@ -1,18 +1,58 @@
 package com.dwp.services.people.security;
 
+import com.dwp.services.people.integration.LocalSyntheticPeopleWorkforceBootstrapPaths;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
-import static org.assertj.core.api.Assertions.assertThat;
-
 import java.util.concurrent.atomic.AtomicReference;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class PeopleSecurityFilterTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+
+    @Test
+    void delegatesOnlyAnAuthorizedExactSyntheticPeoplePostToItsPurposeBuiltBoundary()
+            throws Exception {
+        PeopleSecurityFilter filter = new PeopleSecurityFilter("", objectMapper);
+        MockHttpServletRequest exact = new MockHttpServletRequest(
+                "POST", LocalSyntheticPeopleWorkforceBootstrapPaths.PATH);
+        exact.setAttribute(
+                LocalSyntheticPeopleWorkforceBootstrapPaths.AUTHORIZED_REQUEST_ATTRIBUTE,
+                Boolean.TRUE);
+        MockFilterChain exactChain = new MockFilterChain();
+
+        filter.doFilter(exact, new MockHttpServletResponse(), exactChain);
+
+        assertThat(exactChain.getRequest()).isSameAs(exact);
+
+        for (MockHttpServletRequest rejected : new MockHttpServletRequest[] {
+                new MockHttpServletRequest(
+                        "POST", LocalSyntheticPeopleWorkforceBootstrapPaths.PATH),
+                new MockHttpServletRequest(
+                        "GET", LocalSyntheticPeopleWorkforceBootstrapPaths.PATH),
+                new MockHttpServletRequest(
+                        "POST", LocalSyntheticPeopleWorkforceBootstrapPaths.PATH + "/extra")}) {
+            rejected.setAttribute(
+                    LocalSyntheticPeopleWorkforceBootstrapPaths.AUTHORIZED_REQUEST_ATTRIBUTE,
+                    Boolean.TRUE);
+            if ("POST".equals(rejected.getMethod())
+                    && LocalSyntheticPeopleWorkforceBootstrapPaths.PATH.equals(
+                            rejected.getRequestURI())) {
+                rejected.removeAttribute(
+                        LocalSyntheticPeopleWorkforceBootstrapPaths.AUTHORIZED_REQUEST_ATTRIBUTE);
+            }
+            MockHttpServletResponse response = new MockHttpServletResponse();
+            MockFilterChain chain = new MockFilterChain();
+            filter.doFilter(rejected, response, chain);
+            assertThat(response.getStatus()).isEqualTo(502);
+            assertThat(chain.getRequest()).isNull();
+        }
+    }
 
     @Test
     void rejectsProviderWorkforceReadsUntilTheSafeProjectionIsImplemented() throws Exception {

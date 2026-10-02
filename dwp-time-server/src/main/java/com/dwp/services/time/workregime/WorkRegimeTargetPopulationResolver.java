@@ -1,5 +1,6 @@
 package com.dwp.services.time.workregime;
 
+import com.dwp.core.security.HcmEligibilityScopeKey;
 import com.dwp.services.time.workregime.WorkRegimeModels.EffectivePeriod;
 import java.time.Instant;
 import java.util.Objects;
@@ -43,8 +44,8 @@ public interface WorkRegimeTargetPopulationResolver {
             requireTenant(tenantId);
             if (actorId <= 0) throw new IllegalArgumentException("actorId must be positive");
             gatewayScopeKey = WorkRegimeModels.requireBoundedText(
-                    gatewayScopeKey, "gatewayScopeKey", 38);
-            if (!gatewayScopeKey.matches("scope-[0-9a-f]{32}")) {
+                    gatewayScopeKey, "gatewayScopeKey", 50);
+            if (!HcmEligibilityScopeKey.isCanonical(gatewayScopeKey)) {
                 throw new IllegalArgumentException("gatewayScopeKey is not canonical");
             }
             Objects.requireNonNull(populationPublicId, "populationPublicId must not be null");

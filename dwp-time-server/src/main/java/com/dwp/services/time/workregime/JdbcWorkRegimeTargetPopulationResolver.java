@@ -1,5 +1,6 @@
 package com.dwp.services.time.workregime;
 
+import com.dwp.core.security.HcmEligibilityScopeKey;
 import com.dwp.services.time.workregime.WorkRegimeModels.EffectivePeriod;
 import com.dwp.services.time.workregime.WorkRegimeTargetPopulationResolver.PopulationAccess;
 import com.dwp.services.time.workregime.WorkRegimeTargetPopulationResolver.TargetMembershipEvidence;
@@ -172,7 +173,7 @@ final class JdbcWorkRegimeTargetPopulationResolver
             long tenantId, long actorId, String gatewayScopeKey, Instant checkedAt) {
         requireTenant(tenantId);
         if (actorId <= 0) throw new IllegalArgumentException("actorId must be positive");
-        if (gatewayScopeKey == null || !gatewayScopeKey.matches("scope-[0-9a-f]{32}")) {
+        if (!HcmEligibilityScopeKey.isCanonical(gatewayScopeKey)) {
             throw new IllegalArgumentException("gatewayScopeKey is not canonical");
         }
         Objects.requireNonNull(checkedAt, "checkedAt must not be null");

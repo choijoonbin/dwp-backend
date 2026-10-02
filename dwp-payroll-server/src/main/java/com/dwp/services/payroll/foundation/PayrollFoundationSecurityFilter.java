@@ -2,7 +2,7 @@ package com.dwp.services.payroll.foundation;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
-import com.dwp.core.security.ProductSurfaceScopeKey;
+import com.dwp.core.security.HcmEligibilityScopeKey;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -150,13 +150,6 @@ class PayrollFoundationSecurityFilter extends OncePerRequestFilter {
                     "Provider support cannot assume payroll owner authority.");
             return;
         }
-        String expectedScope = ProductSurfaceScopeKey.key(
-                tenantId, actorId, "hcm", "hcm.operations",
-                route.scopeSource(), "TARGET_POPULATION");
-        if (!constantTimeEquals(expectedScope, contextScopeKey)) {
-            unavailable(response, "Current payroll legal-entity scope is mismatched.");
-            return;
-        }
         Set<String> permissions = exactTokens(request, PERMISSIONS_HEADER);
         if (permissions == null
                 || !permissions.contains(APP_ENTITLEMENT)
@@ -250,7 +243,7 @@ class PayrollFoundationSecurityFilter extends OncePerRequestFilter {
     }
 
     private boolean canonicalScope(String value) {
-        return value != null && value.matches("scope-[0-9a-f]{32}");
+        return HcmEligibilityScopeKey.isCanonical(value);
     }
 
     private boolean canonicalDecision(String value) {

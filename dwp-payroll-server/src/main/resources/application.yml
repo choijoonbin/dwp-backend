@@ -16,6 +16,10 @@ springdoc:
   api-docs:
     enabled: ${DWP_OPENAPI_ENABLED:false}
 
+payroll:
+  projection-publisher:
+    username: ${PAYROLL_PROJECTION_PUBLISHER_DB_USERNAME:dwp_payroll_projection_publisher}
+
 spring:
   application:
     name: dwp-payroll-server
@@ -62,6 +66,7 @@ spring:
     lock-retry-count: 10
     placeholders:
       payrollRuntimeRole: ${PAYROLL_DB_USERNAME:dwp_payroll_runtime}
+      payrollProjectionPublisherRole: ${payroll.projection-publisher.username}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:
@@ -96,6 +101,14 @@ dwp:
       queue-capacity: ${DWP_API_HISTORY_QUEUE_CAPACITY:4096}
       batch-size: ${DWP_API_HISTORY_BATCH_SIZE:100}
       flush-interval: ${DWP_API_HISTORY_FLUSH_INTERVAL:PT1S}
+  hris:
+    payroll-foundation:
+      wave1:
+        enabled: ${DWP_HRIS_PAYROLL_FOUNDATION_WAVE1_ENABLED:false}
+      synthetic-bootstrap:
+        enabled: ${DWP_LOCAL_SYNTHETIC_PAYROLL_FOUNDATION_BOOTSTRAP_ENABLED:false}
+        token: ${DWP_LOCAL_SYNTHETIC_PAYROLL_FOUNDATION_BOOTSTRAP_TOKEN:}
+        run-id: ${DWP_LOCAL_SYNTHETIC_PAYROLL_FOUNDATION_BOOTSTRAP_RUN_ID:}
   payroll:
     database:
       adoption-receipt-sha256: ${DWP_PAYROLL_ADOPTION_RECEIPT_SHA256:}

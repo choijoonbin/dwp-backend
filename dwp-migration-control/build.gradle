@@ -1,0 +1,250 @@
+plugins {
+    id 'java-library'
+    id 'java-test-fixtures'
+}
+
+description = 'Trusted, non-application migration adoption control boundary'
+
+bootJar {
+    enabled = false
+}
+
+jar {
+    enabled = true
+}
+
+dependencies {
+    implementation(project(':dwp-core')) {
+        transitive = false
+    }
+    implementation 'org.flywaydb:flyway-core'
+    implementation 'org.flywaydb:flyway-database-postgresql'
+    implementation 'org.slf4j:slf4j-api'
+    // External startup authority shares core's strict canonical signed envelope;
+    // keep the single sealed project dependency and no application resources.
+    implementation 'com.fasterxml.jackson.core:jackson-databind'
+    runtimeOnly 'org.postgresql:postgresql'
+
+    testFixturesImplementation(project(':dwp-core')) {
+        transitive = false
+    }
+    testFixturesImplementation 'com.fasterxml.jackson.core:jackson-databind'
+    testFixturesImplementation 'org.testcontainers:postgresql'
+    testFixturesImplementation 'org.postgresql:postgresql'
+
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'org.testcontainers:junit-jupiter'
+    testImplementation 'org.testcontainers:postgresql'
+    testImplementation 'org.postgresql:postgresql'
+    testRuntimeOnly project(':dwp-notification-server')
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+}
+
+// Control executes only its compiled classes plus an exact, verified migration
+// resource staging root.  Its own resources are deliberately not executable.
+sourceSets {
+    main {
+        resources.srcDirs = []
+    }
+}
+
+def verifyControlRuntimeClasspath = tasks.register('verifyMigrationControlRuntimeClasspath') {
+    group = 'verification'
+    description = 'Verifies the Control runtime has one sealed project dependency and no own resources.'
+    doLast {
+        def projectPaths = configurations.runtimeClasspath.incoming.resolutionResult
+                .allComponents
+                .collect { component -> component.id }
+                .findAll { identifier ->
+                    identifier instanceof org.gradle.api.artifacts.component.ProjectComponentIdentifier
+                            && identifier.projectPath != project.path
+                }
+                .collect { identifier -> identifier.projectPath }
+                .toSet()
+        if (projectPaths != [':dwp-core'] as Set) {
+            throw new GradleException(
+                    "Unexpected Migration Control project runtime dependencies: ${projectPaths}")
+        }
+
+        def forbiddenProjectArtifacts = [
+                'dwp-audit',
+                'dwp-observability',
+                'dwp-platform-contracts',
+        ]
+        def runtimeNames = configurations.runtimeClasspath.files.collect { it.name }
+        forbiddenProjectArtifacts.each { artifactName ->
+            if (runtimeNames.any { name -> name.startsWith("${artifactName}-") }) {
+                throw new GradleException(
+                        "Forbidden transitive project artifact on Control runtime: ${artifactName}")
+            }
+        }
+
+        def ownResourcesRoot = layout.projectDirectory.dir('src/main/resources').asFile.toPath()
+        if (java.nio.file.Files.exists(ownResourcesRoot)) {
+            def stream = java.nio.file.Files.walk(ownResourcesRoot)
+            try {
+                def unexpected = stream
+                        .filter { path -> path != ownResourcesRoot }
+                        .filter { path ->
+                            java.nio.file.Files.isSymbolicLink(path)
+                                    || java.nio.file.Files.isRegularFile(
+                                            path, java.nio.file.LinkOption.NOFOLLOW_LINKS)
+                        }
+                        .findFirst()
+                if (unexpected.isPresent()) {
+                    throw new GradleException(
+                            "Migration Control own resources are forbidden: ${unexpected.get()}")
+                }
+            } finally {
+                stream.close()
+            }
+        }
+    }
+}
+
+tasks.named('test') {
+    dependsOn verifyControlRuntimeClasspath
+    systemProperty 'dwp.test.platform.migration-directory',
+            project(':dwp-platform-server').layout.projectDirectory
+                    .dir('src/main/resources/db/migration').asFile.absolutePath
+}
+
+def controlTargets = [
+        Auth: 'dwp-auth-server',
+        Platform: 'dwp-platform-server',
+        People: 'dwp-people-server',
+        Provider: 'dwp-provider-server',
+        Time: 'dwp-time-server',
+        Payroll: 'dwp-payroll-server',
+        Approval: 'dwp-approval-server',
+        Notification: 'dwp-notification-server',
+]
+
+controlTargets.each { taskSuffix, moduleName ->
+    def target = project(":${moduleName}")
+    def resourceSpecs = [[
+        source: target.layout.projectDirectory.dir('src/main/resources/db/migration'),
+        destination: 'db/migration',
+    ]]
+    if (moduleName == 'dwp-people-server') {
+        resourceSpecs.add([
+            source: target.layout.projectDirectory.dir(
+                    'src/main/resources/db/performance-migration'),
+            destination: 'db/performance-migration',
+        ])
+    }
+    def stageDirectory = layout.buildDirectory.dir(
+            "migration-control-resources/${moduleName}")
+    def stageTask = tasks.register("stage${taskSuffix}MigrationControlResources", Sync) {
+        group = 'migration control'
+        description = "Stages only attested ${taskSuffix} Flyway resources."
+        into stageDirectory
+        includeEmptyDirs = false
+        duplicatesStrategy = DuplicatesStrategy.FAIL
+        resourceSpecs.each { spec ->
+            from(spec.source) {
+                into spec.destination
+            }
+        }
+    }
+    def verifyTask = tasks.register("verify${taskSuffix}MigrationControlResources") {
+        group = 'verification'
+        description = "Verifies exact staged ${taskSuffix} migration byte closure."
+        dependsOn stageTask
+        inputs.files(resourceSpecs.collect { it.source })
+        inputs.dir(stageDirectory)
+        doLast {
+            def expected = [:]
+            resourceSpecs.each { spec ->
+                def sourceRoot = spec.source.asFile.toPath()
+                if (!java.nio.file.Files.isDirectory(sourceRoot)) {
+                    throw new GradleException(
+                            "Migration Control source directory is missing: ${sourceRoot}")
+                }
+                fileTree(sourceRoot.toFile()).files.each { sourceFile ->
+                    def sourcePath = sourceFile.toPath()
+                    if (java.nio.file.Files.isSymbolicLink(sourcePath)
+                            || !java.nio.file.Files.isRegularFile(
+                                    sourcePath, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                        throw new GradleException(
+                                "Migration Control source is not a regular file: ${sourcePath}")
+                    }
+                    def relative = sourceRoot.relativize(sourcePath)
+                            .toString().replace(File.separatorChar, '/' as char)
+                    def stagedRelative = "${spec.destination}/${relative}"
+                    if (expected.put(stagedRelative, sourceFile) != null) {
+                        throw new GradleException(
+                                "Duplicate Migration Control resource: ${stagedRelative}")
+                    }
+                }
+            }
+            if (expected.isEmpty()) {
+                throw new GradleException(
+                        "Migration Control source resource closure is empty")
+            }
+            def actual = [:]
+            def stagedRoot = stageDirectory.get().asFile.toPath()
+            fileTree(stagedRoot.toFile()).files.each { stagedFile ->
+                def stagedPath = stagedFile.toPath()
+                if (java.nio.file.Files.isSymbolicLink(stagedPath)
+                        || !java.nio.file.Files.isRegularFile(
+                                stagedPath, java.nio.file.LinkOption.NOFOLLOW_LINKS)) {
+                    throw new GradleException(
+                            "Staged Migration Control resource is not regular: ${stagedPath}")
+                }
+                def relative = stagedRoot.relativize(stagedPath)
+                        .toString().replace(File.separatorChar, '/' as char)
+                if (actual.put(relative, stagedFile) != null) {
+                    throw new GradleException(
+                            "Duplicate staged Migration Control resource: ${relative}")
+                }
+            }
+            if (actual.keySet() != expected.keySet()) {
+                throw new GradleException(
+                        "Staged Migration Control resource closure differs from source")
+            }
+            expected.each { relative, sourceFile ->
+                def sourceDigest = java.security.MessageDigest.getInstance('SHA-256')
+                        .digest(sourceFile.bytes)
+                def stagedDigest = java.security.MessageDigest.getInstance('SHA-256')
+                        .digest(actual[relative].bytes)
+                if (!java.security.MessageDigest.isEqual(sourceDigest, stagedDigest)) {
+                    throw new GradleException(
+                            "Staged Migration Control resource digest differs: ${relative}")
+                }
+            }
+        }
+    }
+    def trustedControlClasspath = sourceSets.main.output.classesDirs \
+            + configurations.runtimeClasspath \
+            + files(stageDirectory)
+    def controlCompilation = tasks.named('compileJava')
+    if (moduleName == 'dwp-approval-server') {
+        // Export the same verified non-application classpath to the fixture's
+        // external child. Approval-owned cross-module consumers use the same
+        // exact child runtime; test/application classes never enter it.
+        def backendRoot = rootProject.layout.projectDirectory.asFile.absolutePath
+        [target, project(':dwp-auth-server')].each { fixtureConsumer ->
+            fixtureConsumer.tasks.named('test') {
+                dependsOn controlCompilation
+                dependsOn verifyControlRuntimeClasspath
+                dependsOn verifyTask
+                dependsOn trustedControlClasspath
+                doFirst {
+                    systemProperty 'dwp.test.migration-control.backend-root', backendRoot
+                    systemProperty 'dwp.test.migration-control.classpath.approval',
+                            trustedControlClasspath.asPath
+                }
+            }
+        }
+    }
+    tasks.register("run${taskSuffix}MigrationControl", JavaExec) {
+        group = 'migration control'
+        description = "Runs the fail-closed ${taskSuffix} migration Control boundary."
+        dependsOn tasks.named('compileJava')
+        dependsOn verifyControlRuntimeClasspath
+        dependsOn verifyTask
+        classpath = trustedControlClasspath
+        mainClass.set('com.dwp.migration.control.MigrationControlMain')
+    }
+}

@@ -63,11 +63,21 @@ public final class SystemFlywayConfigurationGuard {
     public static Profile freshModuleProfile(String placeholderName, String runtimeRole) {
         requireSafeIdentifier("placeholderName", placeholderName);
         requireSafeIdentifier("runtimeRole", runtimeRole);
+        return freshModuleProfile(Map.of(placeholderName, runtimeRole));
+    }
+
+    /** Exact fresh-module profile with more than one pre-provisioned database principal. */
+    public static Profile freshModuleProfile(Map<String, String> placeholders) {
+        Objects.requireNonNull(placeholders, "placeholders must not be null").forEach(
+                (name, value) -> {
+                    requireSafeIdentifier("placeholderName", name);
+                    requireSafeIdentifier("placeholderValue", value);
+                });
         return new Profile(
                 false,
                 3,
                 10,
-                Map.of(placeholderName, runtimeRole),
+                placeholders,
                 List.of(LOCATION),
                 List.of(LOCATION));
     }

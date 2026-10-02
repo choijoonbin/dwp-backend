@@ -2,7 +2,7 @@ package com.dwp.services.time.workregime;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
-import com.dwp.core.security.ProductSurfaceScopeKey;
+import com.dwp.core.security.HcmEligibilityScopeKey;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
 
@@ -32,9 +32,9 @@ class GatewayVerifiedWorkRegimeOwnerAuthoritySourceTest {
             UUID.fromString("b4be4491-cf02-4b50-a3c4-2e59544e058c");
     private static final String STABLE_SCOPE =
             WorkRegimeTargetPopulationResolver.stableScopeRef(POPULATION_ID);
-    private static final String GATEWAY_SCOPE = ProductSurfaceScopeKey.key(
-            7, 41, "hcm", "hcm.operations",
-            WorkRegimeOwnerRoute.LIST.scopeSource(), "TARGET_POPULATION");
+    private static final String GATEWAY_SCOPE = HcmEligibilityScopeKey.derived(
+            7, 41, "hcm.operations", WorkRegimeOwnerRoute.LIST.scopeSource(),
+            "relationship-r1", "target-population-r1");
 
     private final GatewayVerifiedWorkRegimeOwnerAuthoritySource source =
             new GatewayVerifiedWorkRegimeOwnerAuthoritySource(
@@ -107,7 +107,7 @@ class GatewayVerifiedWorkRegimeOwnerAuthoritySourceTest {
 
         MockHttpServletRequest wrongScope = request(WorkRegimeOwnerRoute.LIST, "NORMAL");
         wrongScope.removeHeader("X-DWP-Context-Scope-Key");
-        wrongScope.addHeader("X-DWP-Context-Scope-Key", "scope-" + "d".repeat(32));
+        wrongScope.addHeader("X-DWP-Context-Scope-Key", "hcm-scope-" + "d".repeat(40));
         unavailable(() -> source.verify(wrongScope, WorkRegimeOwnerRoute.LIST));
     }
 
@@ -208,9 +208,9 @@ class GatewayVerifiedWorkRegimeOwnerAuthoritySourceTest {
     }
 
     private String scope(WorkRegimeOwnerRoute route) {
-        return ProductSurfaceScopeKey.key(
-                7, 41, "hcm", "hcm.operations",
-                route.scopeSource(), "TARGET_POPULATION");
+        return HcmEligibilityScopeKey.derived(
+                7, 41, "hcm.operations", route.scopeSource(),
+                "relationship-r1", "target-population-r1");
     }
 
     private void unavailable(org.assertj.core.api.ThrowableAssert.ThrowingCallable action) {

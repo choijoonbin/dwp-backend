@@ -65,8 +65,8 @@ dwp:
         display-name: People & Organization
         owner-service: dwp-people-server
         jdbc-url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${PEOPLE_DB_NAME:dwp_people}
-        username: ${DWP_METADATA_DB_USERNAME:${DB_USERNAME:dwp_user}}
-        password: ${DWP_METADATA_DB_PASSWORD:${DB_PASSWORD:dwp_password}}
+        username: ${DWP_PEOPLE_METADATA_DB_USERNAME:${DWP_METADATA_DB_USERNAME:${DB_USERNAME:dwp_user}}}
+        password: ${DWP_PEOPLE_METADATA_DB_PASSWORD:${DWP_METADATA_DB_PASSWORD:${DB_PASSWORD:dwp_password}}}
       - key: platform
         database-name: ${PLATFORM_DB_NAME:dwp_platform}
         display-name: Workplace Platform
@@ -107,6 +107,10 @@ dwp:
     support-cookie-secure: ${DWP_PROVIDER_SUPPORT_COOKIE_SECURE:true}
     support-activation-enabled: ${DWP_PROVIDER_SUPPORT_ACTIVATION_ENABLED:false}
     local-approval-fixtures-enabled: ${DWP_PROVIDER_LOCAL_APPROVAL_FIXTURES_ENABLED:false}
+    synthetic-product-surface-bootstrap:
+      enabled: ${DWP_LOCAL_SYNTHETIC_PRODUCT_SURFACE_BOOTSTRAP_ENABLED:false}
+      token: ${DWP_LOCAL_SYNTHETIC_PRODUCT_SURFACE_BOOTSTRAP_TOKEN:}
+      run-id: ${DWP_LOCAL_SYNTHETIC_PRODUCT_SURFACE_BOOTSTRAP_RUN_ID:}
     support-authority-reconciliation:
       enabled: ${DWP_PROVIDER_SUPPORT_AUTHORITY_RECONCILIATION_ENABLED:true}
       delay-ms: ${DWP_PROVIDER_SUPPORT_AUTHORITY_RECONCILIATION_DELAY_MS:5000}

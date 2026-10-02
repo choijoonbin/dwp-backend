@@ -54,6 +54,33 @@ class TimeServerApplicationContextTest {
                 });
     }
 
+    @Test
+    void configurationRejectsPublisherPlaceholderDrift() {
+        migrationContext().withPropertyValues(
+                        "spring.flyway.placeholders.timeProjectionPublisherRole=other_publisher")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                            .hasStackTraceContaining("spring.flyway.placeholders");
+                });
+    }
+
+    @Test
+    void configurationRejectsPublisherThatEqualsRuntime() {
+        migrationContext().withPropertyValues(
+                        "spring.datasource.username=time_runtime",
+                        "time.projection-publisher.username=time_runtime",
+                        "spring.flyway.placeholders.timeRuntimeRole=time_runtime",
+                        "spring.flyway.placeholders.timeProjectionPublisherRole=time_runtime")
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseInstanceOf(IllegalArgumentException.class)
+                            .hasStackTraceContaining("pairwise distinct");
+                });
+    }
+
     private static ApplicationContextRunner migrationContext() {
         return new ApplicationContextRunner()
                 .withUserConfiguration(TimeDatabaseMigrationConfiguration.class)
@@ -91,7 +118,9 @@ class TimeServerApplicationContextTest {
             "spring.flyway.ignore-migration-patterns=",
             "spring.flyway.connect-retries=3",
             "spring.flyway.lock-retry-count=10",
-            "spring.flyway.placeholders.timeRuntimeRole=time_runtime"
+            "spring.flyway.placeholders.timeRuntimeRole=time_runtime",
+            "time.projection-publisher.username=time_projection_publisher",
+            "spring.flyway.placeholders.timeProjectionPublisherRole=time_projection_publisher"
         };
     }
 }

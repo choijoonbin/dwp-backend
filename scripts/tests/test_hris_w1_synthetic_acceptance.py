@@ -8,6 +8,7 @@ import os
 import sys
 import tempfile
 import unittest
+import uuid
 from pathlib import Path
 from unittest import mock
 
@@ -45,6 +46,10 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
         )
         state.active_version = 33
         state.active_revision = 2
+        state.synthetic_tenants["A"] = {
+            "tenantId": 101,
+            "administratorUserId": 1001,
+        }
         return state
 
     def expected_endpoints(self, state):
@@ -52,6 +57,143 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
             name: f"http://127.0.0.1:{state.ports[name]}"
             for name in self.SERVICE_NAMES
         }
+
+    def checkpoint_credentials(self):
+        return (
+            gate.SyntheticTenantCredential(
+                lane="A",
+                provider_tenant_id="00000000-0000-0000-0000-00000000000a",
+                tenant_id=101,
+                administrator_user_id=1001,
+                person_public_id="10000000-0000-0000-0000-00000000000a",
+                worker_public_id="20000000-0000-0000-0000-00000000000a",
+                assignment_public_id="30000000-0000-0000-0000-00000000000a",
+                actor_legal_employer_public_id="40000000-0000-0000-0000-00000000000a",
+                target_person_public_id="50000000-0000-0000-0000-00000000000a",
+                target_worker_public_id="60000000-0000-0000-0000-00000000000a",
+                target_assignment_public_id="70000000-0000-0000-0000-00000000000a",
+                target_population_revision="people-population-revision-a",
+                target_population_count=2,
+                tenant_key="w1-a-0123abcd",
+                email="hris-w1-a-0123abcd@dwp.test",
+                password="Aa1!synthetic-checkpoint-password-a",
+            ),
+            gate.SyntheticTenantCredential(
+                lane="B",
+                provider_tenant_id="00000000-0000-0000-0000-00000000000b",
+                tenant_id=102,
+                administrator_user_id=1002,
+                person_public_id="10000000-0000-0000-0000-00000000000b",
+                worker_public_id="20000000-0000-0000-0000-00000000000b",
+                assignment_public_id="30000000-0000-0000-0000-00000000000b",
+                actor_legal_employer_public_id="40000000-0000-0000-0000-00000000000b",
+                target_person_public_id="50000000-0000-0000-0000-00000000000b",
+                target_worker_public_id="60000000-0000-0000-0000-00000000000b",
+                target_assignment_public_id="70000000-0000-0000-0000-00000000000b",
+                target_population_revision="people-population-revision-b",
+                target_population_count=2,
+                tenant_key="w1-b-0123abcd",
+                email="hris-w1-b-0123abcd@dwp.test",
+                password="Bb2!synthetic-checkpoint-password-b",
+            ),
+        )
+
+    def negative_observation(self, state, name, index):
+        evidence_state = gate.NEGATIVE_OBSERVATION_STATES[name]
+        transition, database_status, database_validity = (
+            gate.NEGATIVE_PROJECTION_STATES[evidence_state]
+        )
+        projection_material = {
+            "tenantId": 101,
+            "actorId": 1001,
+            "evidenceState": evidence_state,
+            "projectionId": str(uuid.UUID(int=index + 1)),
+            "projectionRevision": f"{index + 10:064x}",
+            "contextScopeKey": "hcm-scope-" + f"{index + 20:040x}",
+            "policyRevision": "rollout-" + f"{index + 30:064x}",
+            "authorizationRevision": "psr-" + f"{index + 40:064x}",
+            "databaseTransition": transition,
+            "databaseStatus": database_status,
+            "databaseValidity": database_validity,
+            "databaseMemberCount": 1,
+        }
+        observation = {
+            "assertionName": name,
+            "source": "LIVE_GATEWAY_OWNER_REQUEST",
+            "method": "GET",
+            "path": f"/api/payroll/synthetic-negative/{index}",
+            **projection_material,
+            "projectionObservationSha256": gate.canonical_json_sha256(
+                projection_material
+            ),
+            "status": gate.NEGATIVE_OWNER_STATUS,
+            "errorCode": gate.NEGATIVE_OWNER_ERROR_CODE,
+            "ownerErrorMessage": gate.NEGATIVE_OWNER_ERROR_MESSAGE,
+            "observedAt": "2026-10-01T05:04:03Z",
+            "responseBodySha256": f"{index:064x}",
+        }
+        observation["observationSha256"] = gate.canonical_json_sha256(
+            observation
+        )
+        return observation
+
+    def control_receipt(
+        self,
+        *,
+        service="payroll",
+        stream_keys=None,
+    ):
+        if stream_keys is None:
+            stream_keys = (f"{service}-main",)
+        receipt = {
+            "schemaVersion": "2.0",
+            "mode": "NATIVE_FRESH",
+            "service": service,
+            "database": f"dwp_{service}",
+            "migrationPrincipal": f"dwp_{service}_migration",
+            "controlReference": "dwp-migration-control-v2:" + "a" * 64,
+            "previousRunReceiptSha256": "",
+            "postgresVersion": "18.4",
+            "temporaryPrivilegeRevoked": True,
+            "streams": [
+                {
+                    "streamKey": stream_key,
+                    "historyMaxInstalledRank": 3,
+                    "historyRowCount": 3,
+                    "historySha256": "b" * 64,
+                    "inventoryObjectCount": 17,
+                    "inventorySha256": "c" * 64,
+                    "adoptionReceiptSha256": "",
+                }
+                for stream_key in stream_keys
+            ],
+        }
+        digest = hashlib.sha256()
+        for value in (
+            "migration-control-run-receipt-v2",
+            receipt["mode"],
+            receipt["service"],
+            receipt["database"],
+            receipt["migrationPrincipal"],
+            receipt["controlReference"],
+            receipt["previousRunReceiptSha256"],
+            receipt["postgresVersion"],
+            receipt["temporaryPrivilegeRevoked"],
+        ):
+            gate._canonical_control_field(digest, value)
+        for stream in receipt["streams"]:
+            for field in (
+                "streamKey",
+                "historyMaxInstalledRank",
+                "historyRowCount",
+                "historySha256",
+                "inventoryObjectCount",
+                "inventorySha256",
+                "adoptionReceiptSha256",
+            ):
+                gate._canonical_control_field(digest, stream[field])
+        receipt["receiptSha256"] = digest.hexdigest()
+        return receipt
 
     def test_run_id_and_owned_resource_names_are_deterministic_and_scoped(self):
         instant = dt.datetime(2026, 10, 1, 5, 4, 3, tzinfo=dt.timezone.utc)
@@ -117,7 +259,7 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
     def test_service_specs_enable_only_the_explicit_w1_owner_slices(self):
         secrets = gate.RuntimeSecrets.generate()
 
-        specs = gate.service_specs(secrets)
+        specs = gate.service_specs(secrets, "w1-20261001t050403z-0123abcd")
 
         self.assertEqual("true", specs["auth"].extra_environment["DWP_HRIS_SYSTEM_WAVE1_ENABLED"])
         self.assertEqual("true", specs["platform"].extra_environment["DWP_HRIS_SYSTEM_WAVE1_ENABLED"])
@@ -141,9 +283,31 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                 "DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN"
             ],
         )
+        self.assertEqual(
+            secrets.provider_provisioning_token,
+            specs["platform"].extra_environment["DWP_PROVIDER_PROVISIONING_TOKEN"],
+        )
+        self.assertEqual(
+            "true",
+            specs["people"].extra_environment["DWP_SYNTHETIC_IMPORT_ENABLED"],
+        )
+        self.assertEqual(
+            secrets.synthetic_people_workforce_bootstrap_token,
+            specs["people"].extra_environment[
+                "DWP_HRIS_PEOPLE_WORKFORCE_SYNTHETIC_BOOTSTRAP_TOKEN"
+            ],
+        )
+        self.assertEqual(
+            "w1-20261001t050403z-0123abcd",
+            specs["people"].extra_environment[
+                "DWP_HRIS_PEOPLE_WORKFORCE_SYNTHETIC_BOOTSTRAP_RUN_ID"
+            ],
+        )
 
     def test_service_specs_do_not_mint_or_inject_trusted_control_evidence(self):
-        specs = gate.service_specs(gate.RuntimeSecrets.generate())
+        specs = gate.service_specs(
+            gate.RuntimeSecrets.generate(), "w1-20261001t050403z-0123abcd"
+        )
 
         configured_names = {
             name
@@ -216,7 +380,9 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
         )
 
         with self.assertRaises(gate.GateFailure):
-            gate.run_checkpoint(state, None, 10.0)
+            gate.run_checkpoint(
+                "test-postgres", state, None, 10.0, self.checkpoint_credentials()
+            )
 
     def test_successful_noop_command_cannot_pass_without_checkpoint_manifest(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -232,7 +398,13 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
             }
 
             with self.assertRaises(gate.GateFailure):
-                gate.run_checkpoint(state, [str(executable)], 10.0)
+                gate.run_checkpoint(
+                    "test-postgres",
+                    state,
+                    [str(executable)],
+                    10.0,
+                    self.checkpoint_credentials(),
+                )
 
     def test_checkpoint_executable_requires_absolute_regular_non_symlink_hash_pin(self):
         executable = Path("/usr/bin/false")
@@ -329,12 +501,106 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                     gate, "run_checkpoint_process", side_effect=stop_after_capture
                 ):
                     with self.assertRaises(gate.GateFailure):
-                        gate.run_checkpoint(state, [str(executable)], 10.0)
+                        gate.run_checkpoint(
+                            "test-postgres",
+                            state,
+                            [str(executable)],
+                            10.0,
+                            self.checkpoint_credentials(),
+                        )
 
             self.assertNotIn("DWP_PRODUCTION_ENDPOINT", captured)
             self.assertNotIn("AWS_SECRET_ACCESS_KEY", captured)
             self.assertEqual(state.run_id, captured["DWP_W1_RUN_ID"])
             self.assertIn("DWP_W1_CHECKPOINT_MANIFEST", captured)
+            self.assertEqual("101", captured["DWP_W1_TENANT_A_ID"])
+            self.assertEqual(
+                "10000000-0000-0000-0000-00000000000a",
+                captured["DWP_W1_TENANT_A_PERSON_PUBLIC_ID"],
+            )
+            self.assertEqual(
+                "hris-w1-a-0123abcd@dwp.test",
+                captured["DWP_W1_TENANT_A_EMAIL"],
+            )
+            self.assertEqual(
+                "Aa1!synthetic-checkpoint-password-a",
+                captured["DWP_W1_TENANT_A_PASSWORD"],
+            )
+            self.assertEqual(
+                "40000000-0000-0000-0000-00000000000a",
+                captured[
+                    "DWP_W1_TENANT_A_ACTOR_LEGAL_EMPLOYER_PUBLIC_ID"
+                ],
+            )
+            self.assertEqual(
+                "60000000-0000-0000-0000-00000000000a",
+                captured["DWP_W1_TENANT_A_TARGET_WORKER_PUBLIC_ID"],
+            )
+            self.assertEqual(
+                "people-population-revision-a",
+                captured["DWP_W1_TENANT_A_TARGET_POPULATION_REVISION"],
+            )
+            self.assertNotIn("HRIS_W1_TENANT_A_PASSWORD", captured)
+
+    def test_control_receipt_requires_exact_canonical_shape_order_and_digest(self):
+        receipt = self.control_receipt()
+        validated = gate.validate_control_receipt(
+            receipt,
+            service="payroll",
+            database="dwp_payroll",
+            migration_principal="dwp_payroll_migration",
+            mode="NATIVE_FRESH",
+            control_reference="dwp-migration-control-v2:" + "a" * 64,
+        )
+        self.assertEqual(receipt, validated)
+
+        mutations = []
+        with_extra = json.loads(json.dumps(receipt))
+        with_extra["unexpected"] = True
+        mutations.append(with_extra)
+        tampered = json.loads(json.dumps(receipt))
+        tampered["streams"][0]["historyRowCount"] = 4
+        mutations.append(tampered)
+        wrong_mode = json.loads(json.dumps(receipt))
+        wrong_mode["mode"] = "STRICT_FRESH"
+        mutations.append(wrong_mode)
+        for candidate in mutations:
+            with self.subTest(candidate=candidate):
+                with self.assertRaises(gate.GateFailure):
+                    gate.validate_control_receipt(
+                        candidate,
+                        service="payroll",
+                        database="dwp_payroll",
+                        migration_principal="dwp_payroll_migration",
+                        mode="NATIVE_FRESH",
+                        control_reference="dwp-migration-control-v2:" + "a" * 64,
+                    )
+
+        people = self.control_receipt(
+            service="people",
+            stream_keys=("people-main", "people-performance"),
+        )
+        self.assertEqual(
+            people,
+            gate.validate_control_receipt(
+                people,
+                service="people",
+                database="dwp_people",
+                migration_principal="dwp_people_migration",
+                mode="NATIVE_FRESH",
+                control_reference="dwp-migration-control-v2:" + "a" * 64,
+            ),
+        )
+        people["streams"].reverse()
+        with self.assertRaises(gate.GateFailure):
+            gate.validate_control_receipt(
+                people,
+                service="people",
+                database="dwp_people",
+                migration_principal="dwp_people_migration",
+                mode="NATIVE_FRESH",
+                control_reference="dwp-migration-control-v2:" + "a" * 64,
+            )
 
     def test_checkpoint_manifest_requires_bound_digest_backed_assertions(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -342,10 +608,58 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
             checkpoint = output / "checkpoint"
             checkpoint.mkdir()
             state = self.checkpoint_state(output, 21000)
+            configuration_id = "80000000-0000-0000-0000-000000000001"
+            state.projection_feed["payrollFoundationDatabaseObservation"] = {
+                "configurationId": configuration_id,
+                "observationSha256": "a" * 64,
+            }
+            state.projection_feed["payrollFoundation"] = {
+                "createCommandId": "80000000-0000-0000-0000-000000000002",
+                "simulateCommandId": "80000000-0000-0000-0000-000000000003",
+            }
+            provenance = {
+                "frontend": {},
+                "runtimeManifest": {
+                    "path": "runtime.json",
+                    "sha256": "9" * 64,
+                    "byteCount": 1024,
+                    "negativeObservationAggregateSha256": "8" * 64,
+                    "payrollFoundationDatabaseObservationSha256": "a" * 64,
+                },
+                "browser": {},
+            }
             endpoints = self.expected_endpoints(state)
             assertions = []
+            negative_observations = []
             for index, name in enumerate(gate.REQUIRED_CHECKPOINT_ASSERTIONS):
                 evidence = checkpoint / f"assertion-{index:02d}.json"
+                observations = [{"observed": True}]
+                if name in gate.NEGATIVE_OBSERVATION_STATES:
+                    observation = self.negative_observation(state, name, index)
+                    observations = [observation]
+                    negative_observations.append(observation)
+                if name == "path.browser-gateway-owner-db":
+                    observation = {
+                        "source": "BROWSER_GATEWAY_OWNER_DB",
+                        "tenantId": 101,
+                        "configurationId": configuration_id,
+                        "preflightObservationSha256": "a" * 64,
+                        "payrollConfigurationIds": [configuration_id],
+                        "workspaceResponseSha256": "b" * 64,
+                        "updateCommandId": (
+                            "80000000-0000-0000-0000-000000000004"
+                        ),
+                        "updateResponseSha256": "c" * 64,
+                        "simulateCommandId": (
+                            "80000000-0000-0000-0000-000000000005"
+                        ),
+                        "simulateResponseSha256": "d" * 64,
+                        "expectedFinalVersion": 4,
+                    }
+                    observation["observationSha256"] = (
+                        gate.canonical_json_sha256(observation)
+                    )
+                    observations = [observation]
                 evidence.write_text(
                     json.dumps(
                         {
@@ -356,7 +670,8 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                             "status": "PASS",
                             "activeBundle": {"version": 33, "revision": 2},
                             "endpoints": endpoints,
-                            "observations": [{"observed": True}],
+                            "provenance": provenance,
+                            "observations": observations,
                         }
                     ),
                     encoding="utf-8",
@@ -371,6 +686,13 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                         ).hexdigest(),
                     }
                 )
+            state.projection_feed["negativeObservations"] = {
+                "schemaVersion": 1,
+                "observations": negative_observations,
+                "aggregateSha256": gate.canonical_json_sha256(
+                    negative_observations
+                ),
+            }
             manifest = {
                 "schemaVersion": 1,
                 "runId": state.run_id,
@@ -378,6 +700,7 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                 "status": "PASS",
                 "activeBundle": {"version": 33, "revision": 2},
                 "endpoints": endpoints,
+                "provenance": provenance,
                 "assertions": assertions,
             }
             manifest_path = checkpoint / "manifest.json"
@@ -435,6 +758,35 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
             with self.assertRaises(gate.GateFailure):
                 gate.validate_checkpoint_manifest(state, manifest_path)
 
+    def test_negative_observation_rejects_generic_failure_and_projection_drift(self):
+        state = self.checkpoint_state(Path("/tmp/w1-negative-observation"))
+        name = "negative.stale-evidence-denied"
+        observation = self.negative_observation(state, name, 1)
+
+        generic = dict(observation)
+        generic["status"] = 403
+        generic["errorCode"] = "E2001"
+        generic["ownerErrorMessage"] = "Forbidden"
+        generic["observationSha256"] = gate.canonical_json_sha256(
+            {key: value for key, value in generic.items()
+             if key != "observationSha256"}
+        )
+        with self.assertRaises(gate.GateFailure):
+            gate.validate_negative_observation(
+                generic, assertion_name=name, state=state
+            )
+
+        drifted = dict(observation)
+        drifted["databaseStatus"] = "ACTIVE"
+        drifted["observationSha256"] = gate.canonical_json_sha256(
+            {key: value for key, value in drifted.items()
+             if key != "observationSha256"}
+        )
+        with self.assertRaises(gate.GateFailure):
+            gate.validate_negative_observation(
+                drifted, assertion_name=name, state=state
+            )
+
     def test_secret_scan_deletes_leaking_evidence_and_reports_only_field_name(self):
         with tempfile.TemporaryDirectory() as temporary:
             output = Path(temporary)
@@ -455,12 +807,69 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
             self.assertFalse(leaked.exists())
             self.assertNotIn(secrets.activation_token, json.dumps(findings))
 
+    def test_secret_scan_never_follows_non_regular_evidence(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary) / "evidence"
+            output.mkdir()
+            external = Path(temporary) / "outside.txt"
+            external.write_text("outside-must-not-be-read", encoding="utf-8")
+            linked = output / "linked.log"
+            linked.symlink_to(external)
+            state = gate.GateState(
+                "w1-20261001t050403z-0123abcd",
+                output,
+                "2026-10-01T05:04:03Z",
+            )
+
+            findings = gate.scan_evidence_for_generated_secrets(
+                state, gate.RuntimeSecrets.generate()
+            )
+
+            self.assertEqual(["linked.log:non_regular_evidence"], findings)
+            self.assertFalse(linked.exists())
+            self.assertEqual(
+                "outside-must-not-be-read",
+                external.read_text(encoding="utf-8"),
+            )
+
+    def test_teardown_raw_browser_artifact_scan_deletes_har_without_reading(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            raw = output / "crash-raw.har"
+            raw.write_text("raw browser credentials", encoding="utf-8")
+            linked = output / "crash-copy-raw.har.zip"
+            outside = output.parent / "outside-har"
+            outside.write_text("outside", encoding="utf-8")
+            linked.symlink_to(outside)
+            sanitized = output / "tenant-a.sanitized.har"
+            sanitized.write_text("sanitized browser evidence", encoding="utf-8")
+            state = gate.GateState(
+                "w1-20261001t050403z-0123abcd",
+                output,
+                "2026-10-01T05:04:03Z",
+            )
+
+            result = gate.remove_raw_browser_artifacts(state)
+
+            self.assertEqual([], result["errors"])
+            self.assertEqual(
+                ["crash-copy-raw.har.zip", "crash-raw.har"],
+                sorted(result["deleted"]),
+            )
+            self.assertFalse(raw.exists())
+            self.assertFalse(linked.exists())
+            self.assertEqual(
+                "sanitized browser evidence",
+                sanitized.read_text(encoding="utf-8"),
+            )
+            self.assertEqual("outside", outside.read_text(encoding="utf-8"))
+
     def test_runtime_secrets_are_distinct_and_not_fixed_fixtures(self):
         first = gate.RuntimeSecrets.generate()
         second = gate.RuntimeSecrets.generate()
 
         first_values = set(first.__dict__.values())
-        self.assertEqual(19, len(first.__dict__))
+        self.assertEqual(29, len(first.__dict__))
         self.assertEqual(len(first.__dict__), len(first_values))
         self.assertTrue(all(len(value) >= 30 for value in first_values))
         self.assertNotEqual(first, second)

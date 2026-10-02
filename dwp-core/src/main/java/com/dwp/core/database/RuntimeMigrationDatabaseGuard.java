@@ -14,14 +14,12 @@ import javax.sql.DataSource;
 
 /** Verifies that an application connection cannot act as its Flyway owner. */
 public final class RuntimeMigrationDatabaseGuard {
-
     public enum MigrationPrincipalPolicy {
         STRICT,
         LOCAL_LEGACY
     }
 
     public record HistoryTable(String schema, String table) {
-
         public HistoryTable {
             requireText("history schema", schema);
             requireText("history table", table);
@@ -41,7 +39,6 @@ public final class RuntimeMigrationDatabaseGuard {
             Set<AuxiliaryRoleAclGuard.AllowedPrivilege> requiredAclPrivileges,
             Map<String, String> protectedSchemaOwners)
             implements RuntimeMigrationDatabaseTypes.AuxiliaryAuthorityPolicyView {
-
         public static final AuxiliaryAuthorityPolicy NONE =
                 new AuxiliaryAuthorityPolicy(
                         Set.of(), Set.of(), "", Set.of(), Set.of(), Map.of());
@@ -124,7 +121,6 @@ public final class RuntimeMigrationDatabaseGuard {
                         "Every protected schema owner must be an auxiliary object owner");
             }
         }
-
     }
 
     private RuntimeMigrationDatabaseGuard() {
@@ -173,7 +169,8 @@ public final class RuntimeMigrationDatabaseGuard {
                 legacyPrincipal,
                 legacyCatalog,
                 Set.of(),
-                AuxiliaryAuthorityPolicy.NONE);
+                AuxiliaryAuthorityPolicy.NONE,
+                TrustedPublisherPolicy.NONE);
     }
 
     public static void verify(
@@ -204,7 +201,8 @@ public final class RuntimeMigrationDatabaseGuard {
                 legacyPrincipal,
                 legacyCatalog,
                 allowedApplicationMemberships,
-                AuxiliaryAuthorityPolicy.NONE);
+                AuxiliaryAuthorityPolicy.NONE,
+                TrustedPublisherPolicy.NONE);
     }
 
     public static void verify(
@@ -221,7 +219,8 @@ public final class RuntimeMigrationDatabaseGuard {
             String legacyPrincipal,
             String legacyCatalog,
             Set<String> allowedApplicationMemberships,
-            AuxiliaryAuthorityPolicy auxiliaryAuthorityPolicy) {
+            AuxiliaryAuthorityPolicy auxiliaryAuthorityPolicy,
+            TrustedPublisherPolicy trustedPublisherPolicy) {
         requireText("serviceName", serviceName);
         requireText("configuredMigrationUser", configuredMigrationUser);
         requireText("configuredApplicationUser", configuredApplicationUser);
@@ -244,6 +243,9 @@ public final class RuntimeMigrationDatabaseGuard {
         Objects.requireNonNull(
                 auxiliaryAuthorityPolicy,
                 "auxiliaryAuthorityPolicy must not be null");
+        Objects.requireNonNull(
+                trustedPublisherPolicy,
+                "trustedPublisherPolicy must not be null");
         if (!protectedSchemas.containsAll(
                 auxiliaryAuthorityPolicy.protectedSchemaOwners().keySet())) {
             throw new IllegalArgumentException(
@@ -271,6 +273,13 @@ public final class RuntimeMigrationDatabaseGuard {
                 || auxiliaryPrincipals.contains(configuredApplicationUser)) {
             throw new IllegalArgumentException(
                     "Auxiliary authority roles must differ from service login roles");
+        }
+        if (!trustedPublisherPolicy.principal().isEmpty()
+                && (trustedPublisherPolicy.principal().equals(configuredMigrationUser)
+                        || trustedPublisherPolicy.principal().equals(configuredApplicationUser)
+                        || auxiliaryPrincipals.contains(trustedPublisherPolicy.principal()))) {
+            throw new IllegalArgumentException(
+                    "Trusted publisher must differ from service and auxiliary roles");
         }
         Set<String> protectedObjectOwners = new LinkedHashSet<>();
         protectedObjectOwners.add(configuredMigrationUser);
@@ -361,6 +370,13 @@ public final class RuntimeMigrationDatabaseGuard {
                     migrationDataSource,
                     protectedSchemas,
                     auxiliaryAuthorityPolicy);
+            TrustedPublisherDatabaseGuard.verify(
+                    serviceName,
+                    migrationDataSource,
+                    migration.database(),
+                    migrationSchema,
+                    protectedSchemas,
+                    trustedPublisherPolicy);
             RuntimeLoginRoleGuard.verifyExactDatabaseConnectivity(
                     serviceName, "migration", migrationDataSource, migration.database());
             RuntimeLoginRoleGuard.verifyExactDatabaseConnectivity(
@@ -392,6 +408,9 @@ public final class RuntimeMigrationDatabaseGuard {
             allowedAclGrantees.addAll(allowedMemberships);
             allowedAclGrantees.addAll(
                     auxiliaryAuthorityPolicy.protectedAclGrantees());
+            if (!trustedPublisherPolicy.principal().isEmpty()) {
+                allowedAclGrantees.add(trustedPublisherPolicy.principal());
+            }
             ProtectedSchemaAclGranteeGuard.verify(
                     serviceName,
                     migrationDataSource,

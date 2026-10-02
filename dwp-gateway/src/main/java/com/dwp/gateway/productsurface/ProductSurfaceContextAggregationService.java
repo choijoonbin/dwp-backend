@@ -617,15 +617,21 @@ public class ProductSurfaceContextAggregationService {
             return result.scopes().isEmpty();
         }
         if (result.scopes().isEmpty() || result.revalidateAt() == null) return false;
-        Set<String> keys = new java.util.HashSet<>();
+        Set<String> sourceKeys = new java.util.HashSet<>();
         if (result.scopes().stream().anyMatch(scope -> scope == null
                 || blank(scope.sourceScopeKey()) || blank(scope.key())
                 || blank(scope.kind()) || blank(scope.displayName())
-                || !keys.add(scope.key()))) return false;
+                || !sourceKeys.add(scope.sourceScopeKey()))) return false;
+        long distinctScopes = result.scopes().stream()
+                .map(ProductSurfaceContextDtos.EligibleScope::key)
+                .distinct()
+                .count();
         long defaults = result.scopes().stream()
                 .filter(ProductSurfaceContextDtos.EligibleScope::isDefault)
+                .map(ProductSurfaceContextDtos.EligibleScope::key)
+                .distinct()
                 .count();
-        return defaults <= 1 && (result.scopes().size() != 1 || defaults == 1);
+        return defaults <= 1 && (distinctScopes != 1 || defaults == 1);
     }
 
     private record CandidateResolution(

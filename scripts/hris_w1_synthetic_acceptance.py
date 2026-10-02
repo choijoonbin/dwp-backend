@@ -20,6 +20,7 @@ import argparse
 import datetime as dt
 import hashlib
 import http.client
+import http.cookiejar
 import json
 import os
 import re
@@ -32,6 +33,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Iterable, Sequence
@@ -50,6 +52,7 @@ APPROVAL_IDENTITY = "dwp-provider-server"
 ACTIVATION_IDENTITY = "dwp-platform-server"
 MAX_PERSISTED_HTTP_BODY_BYTES = 256 * 1024
 MAX_CHECKPOINT_MANIFEST_BYTES = 1024 * 1024
+MAX_CHECKPOINT_EVIDENCE_BYTES = 4 * 1024 * 1024
 RUNTIME_ENVIRONMENT_ALLOWLIST = (
     "JAVA_HOME",
     "LANG",
@@ -75,6 +78,21 @@ REQUIRED_CHECKPOINT_ASSERTIONS = (
     "path.browser-gateway-owner-db",
     "rollout.flag-off",
 )
+NEGATIVE_OBSERVATION_STATES = {
+    "negative.stale-evidence-denied": "STALE",
+    "negative.expired-evidence-denied": "EXPIRED",
+    "negative.revoked-evidence-denied": "REVOKED",
+}
+NEGATIVE_OWNER_STATUS = 503
+NEGATIVE_OWNER_ERROR_CODE = "AUTHORITY_RESOLUTION_UNAVAILABLE"
+NEGATIVE_OWNER_ERROR_MESSAGE = (
+    "No current Payroll-owned legal-entity membership matches the authority."
+)
+NEGATIVE_PROJECTION_STATES = {
+    "STALE": ("BUILDING->ACTIVE->SUPERSEDED", "SUPERSEDED", "EXPIRED"),
+    "EXPIRED": ("BUILDING->ACTIVE", "ACTIVE", "EXPIRED"),
+    "REVOKED": ("BUILDING->ACTIVE->REVOKED", "REVOKED", "EXPIRED"),
+}
 
 
 class GateFailure(RuntimeError):
@@ -135,6 +153,9 @@ class GateState:
     active_revision: int = 0
     active_version: int | None = None
     rollback_complete: bool = False
+    control_receipts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    synthetic_tenants: dict[str, dict[str, Any]] = field(default_factory=dict)
+    projection_feed: dict[str, Any] = field(default_factory=dict)
 
     def phase(self, name: str, status: str, **details: Any) -> None:
         item = {
@@ -158,6 +179,7 @@ class RuntimeSecrets:
     payroll_migration_password: str
     time_password: str
     time_migration_password: str
+    people_metadata_password: str
     approval_token: str
     activation_token: str
     product_surface_token: str
@@ -169,12 +191,44 @@ class RuntimeSecrets:
     gateway_agent_service_token: str
     gateway_agent_identity_signing_secret: str
     gateway_provider_support_validation_token: str
+    provider_provisioning_token: str
+    synthetic_identity_bootstrap_token: str
+    synthetic_rollout_bootstrap_token: str
+    synthetic_payroll_foundation_bootstrap_token: str
+    synthetic_people_workforce_bootstrap_token: str
+    payroll_projection_publisher_password: str
+    time_projection_publisher_password: str
+    tenant_a_password: str
+    tenant_b_password: str
 
     @classmethod
     def generate(cls) -> "RuntimeSecrets":
-        return cls(
-            *(secrets.token_urlsafe(30) for _ in range(len(cls.__dataclass_fields__)))
-        )
+        values = {
+            name: secrets.token_urlsafe(30) for name in cls.__dataclass_fields__
+        }
+        values["tenant_a_password"] = "Aa1!" + secrets.token_urlsafe(28)
+        values["tenant_b_password"] = "Bb2!" + secrets.token_urlsafe(28)
+        return cls(**values)
+
+
+@dataclass(frozen=True)
+class SyntheticTenantCredential:
+    lane: str
+    provider_tenant_id: str
+    tenant_id: int
+    administrator_user_id: int
+    person_public_id: str
+    worker_public_id: str
+    assignment_public_id: str
+    actor_legal_employer_public_id: str
+    target_person_public_id: str
+    target_worker_public_id: str
+    target_assignment_public_id: str
+    target_population_revision: str
+    target_population_count: int
+    tenant_key: str
+    email: str
+    password: str
 
 
 @dataclass(frozen=True)
@@ -187,6 +241,14 @@ class ServiceSpec:
     @property
     def jar(self) -> Path:
         return ROOT / self.module / "build" / "libs" / f"{self.module}-1.0.0.jar"
+
+
+@dataclass
+class GatewayBrowserSession:
+    credential: SyntheticTenantCredential
+    opener: urllib.request.OpenerDirector
+    csrf_header: str = ""
+    csrf_token: str = ""
 
 
 def utc_now() -> str:
@@ -264,21 +326,18 @@ def run_checked(
 
 
 def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as source:
-        for chunk in iter(lambda: source.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
+    return hashlib.sha256(_attested_regular_bytes(path)).hexdigest()
 
 
 def tracked_source_provenance() -> dict[str, Any]:
     status = run_checked(
-        ("git", "status", "--porcelain", "--untracked-files=no"),
+        ("git", "status", "--porcelain", "--untracked-files=all"),
         timeout=30,
     ).stdout.strip()
     if status:
         raise GateFailure(
-            "Tracked worktree must be clean before a provenance-bearing W1 run: "
+            "Worktree, including untracked files, must be clean before a "
+            "provenance-bearing W1 run: "
             + status.replace("\n", "; ")
         )
     head = run_checked(("git", "rev-parse", "HEAD"), timeout=30).stdout.strip()
@@ -290,7 +349,9 @@ def tracked_source_provenance() -> dict[str, Any]:
     )
     return {
         "gitHead": head,
+        "worktreeClean": True,
         "trackedWorktreeClean": True,
+        "untrackedFilesIncludedInCleanFence": True,
         "runnerPath": str(Path(__file__).resolve().relative_to(ROOT)),
         "runnerSha256": sha256_file(Path(__file__).resolve()),
     }
@@ -365,7 +426,12 @@ def create_database(container: str, database: str) -> None:
 
 
 def create_role(container: str, role: str, password: str) -> None:
-    if not re.fullmatch(r"dwp_[a-z]+_(runtime|migration)", role):
+    if not re.fullmatch(
+        r"(?:dwp_(?:people|payroll|time)_(?:runtime|migration)"
+        r"|dwp_provider_metadata_people"
+        r"|dwp_(?:payroll|time)_projection_publisher)",
+        role,
+    ):
         raise GateFailure(f"Unsafe synthetic service role: {role}")
     psql(
         container,
@@ -448,6 +514,74 @@ def http_request(
     if status not in allowed:
         text = body.decode("utf-8", errors="replace")[:1000]
         raise GateFailure(f"{name} returned HTTP {status}, expected {sorted(allowed)}: {text}")
+    return status, parsed, body
+
+
+def gateway_session_request(
+    state: GateState,
+    session: GatewayBrowserSession,
+    *,
+    name: str,
+    method: str,
+    path: str,
+    payload: dict[str, Any] | None = None,
+    expected_status: int | Iterable[int] = 200,
+    persist_body: bool = True,
+) -> tuple[int, dict[str, Any] | None, bytes]:
+    data = None
+    headers: dict[str, str] = {}
+    if payload is not None:
+        data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
+        headers["Content-Type"] = "application/json"
+    if method not in {"GET", "HEAD", "OPTIONS"} and session.csrf_token:
+        headers[session.csrf_header] = session.csrf_token
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{state.ports['gateway']}{path}",
+        data=data,
+        headers=headers,
+        method=method,
+    )
+    try:
+        with session.opener.open(request, timeout=30) as response:
+            status = response.status
+            body = response.read()
+    except urllib.error.HTTPError as error:
+        status = error.code
+        body = error.read()
+    allowed = {expected_status} if isinstance(expected_status, int) else set(expected_status)
+    parsed: dict[str, Any] | None = None
+    if body:
+        try:
+            decoded = json.loads(body)
+            if isinstance(decoded, dict):
+                parsed = decoded
+        except json.JSONDecodeError:
+            pass
+    body_sha256 = hashlib.sha256(body).hexdigest()
+    body_path = state.output_dir / "http" / f"{name}.json"
+    if persist_body:
+        if len(body) > MAX_PERSISTED_HTTP_BODY_BYTES:
+            raise GateFailure(f"{name} response exceeds the evidence body size limit")
+        body_path.write_bytes(body)
+    state.http_evidence.append(
+        HttpEvidence(
+            name=name,
+            status=status,
+            path=(
+                str(body_path.relative_to(state.output_dir))
+                if persist_body
+                else ""
+            ),
+            sha256=body_sha256,
+            byte_count=len(body),
+            summary=summarize_http_body(parsed),
+        )
+    )
+    if status not in allowed:
+        detail = body.decode("utf-8", errors="replace")[:1000]
+        raise GateFailure(
+            f"{name} returned HTTP {status}, expected {sorted(allowed)}: {detail}"
+        )
     return status, parsed, body
 
 
@@ -611,7 +745,7 @@ def common_environment(
     return environment
 
 
-def service_specs(secrets_: RuntimeSecrets) -> dict[str, ServiceSpec]:
+def service_specs(secrets_: RuntimeSecrets, run_id: str) -> dict[str, ServiceSpec]:
     return {
         "auth": ServiceSpec(
             "auth",
@@ -623,6 +757,12 @@ def service_specs(secrets_: RuntimeSecrets) -> dict[str, ServiceSpec]:
                 "DWP_PRODUCT_AUTHORIZATION_PLATFORM_ACTIVATION_TOKEN": secrets_.activation_token,
                 "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "false",
                 "DWP_HRIS_SYSTEM_WAVE1_ENABLED": "true",
+                "DWP_PROVIDER_PROVISIONING_TOKEN": secrets_.provider_provisioning_token,
+                "DWP_LOCAL_SYNTHETIC_IDENTITY_BOOTSTRAP_ENABLED": "true",
+                "DWP_LOCAL_SYNTHETIC_IDENTITY_BOOTSTRAP_TOKEN": (
+                    secrets_.synthetic_identity_bootstrap_token
+                ),
+                "DWP_LOCAL_SYNTHETIC_IDENTITY_BOOTSTRAP_RUN_ID": run_id,
             },
         ),
         "platform": ServiceSpec(
@@ -632,6 +772,7 @@ def service_specs(secrets_: RuntimeSecrets) -> dict[str, ServiceSpec]:
             {
                 "PLATFORM_DB_NAME": "dwp_platform",
                 "DWP_HRIS_SYSTEM_WAVE1_ENABLED": "true",
+                "DWP_PROVIDER_PROVISIONING_TOKEN": secrets_.provider_provisioning_token,
                 "DWP_WORKPLACE_VISIT_PROVIDER_WORKER_ENABLED": "false",
                 "DWP_WORKPLACE_SERVICE_PROVIDER_WORKER_ENABLED": "false",
                 "DWP_WORKPLACE_NAVIGATION_COMMAND_WORKER_ENABLED": "false",
@@ -654,6 +795,13 @@ def service_specs(secrets_: RuntimeSecrets) -> dict[str, ServiceSpec]:
                 "DWP_PEOPLE_HRIS_DATABASE_SERVICE_INSTANCE": "w1-synthetic-people",
                 "DWP_HRIS_PERFORMANCE_WAVE1_ENABLED": "true",
                 "DWP_IDENTITY_SYNC_ENABLED": "false",
+                "DWP_PROVIDER_PROVISIONING_TOKEN": secrets_.provider_provisioning_token,
+                "DWP_SYNTHETIC_IMPORT_ENABLED": "true",
+                "DWP_HRIS_PEOPLE_WORKFORCE_SYNTHETIC_BOOTSTRAP_ENABLED": "true",
+                "DWP_HRIS_PEOPLE_WORKFORCE_SYNTHETIC_BOOTSTRAP_TOKEN": (
+                    secrets_.synthetic_people_workforce_bootstrap_token
+                ),
+                "DWP_HRIS_PEOPLE_WORKFORCE_SYNTHETIC_BOOTSTRAP_RUN_ID": run_id,
             },
         ),
         "provider": ServiceSpec(
@@ -667,11 +815,18 @@ def service_specs(secrets_: RuntimeSecrets) -> dict[str, ServiceSpec]:
                 "PLATFORM_DB_NAME": "dwp_platform",
                 "DWP_METADATA_DB_USERNAME": "postgres",
                 "DWP_METADATA_DB_PASSWORD": secrets_.postgres_password,
+                "DWP_PEOPLE_METADATA_DB_USERNAME": "dwp_provider_metadata_people",
+                "DWP_PEOPLE_METADATA_DB_PASSWORD": secrets_.people_metadata_password,
                 "DWP_PROVIDER_SUPPORT_ACTIVATION_ENABLED": "false",
                 "DWP_PROVIDER_SUPPORT_AUTHORITY_RECONCILIATION_ENABLED": "false",
                 "DWP_PROVIDER_LOCAL_APPROVAL_FIXTURES_ENABLED": "false",
                 "DWP_PRODUCT_SURFACE_ROLLOUT_RELAY_ENABLED": "false",
                 "DWP_PRODUCT_SURFACE_ROLLOUT_PUBLISHER_ENABLED": "false",
+                "DWP_LOCAL_SYNTHETIC_PRODUCT_SURFACE_BOOTSTRAP_ENABLED": "true",
+                "DWP_LOCAL_SYNTHETIC_PRODUCT_SURFACE_BOOTSTRAP_TOKEN": (
+                    secrets_.synthetic_rollout_bootstrap_token
+                ),
+                "DWP_LOCAL_SYNTHETIC_PRODUCT_SURFACE_BOOTSTRAP_RUN_ID": run_id,
             },
         ),
         "payroll": ServiceSpec(
@@ -684,8 +839,19 @@ def service_specs(secrets_: RuntimeSecrets) -> dict[str, ServiceSpec]:
                 "PAYROLL_DB_PASSWORD": secrets_.payroll_password,
                 "PAYROLL_MIGRATION_DB_USERNAME": "dwp_payroll_migration",
                 "PAYROLL_MIGRATION_DB_PASSWORD": secrets_.payroll_migration_password,
+                "PAYROLL_PROJECTION_PUBLISHER_DB_USERNAME": (
+                    "dwp_payroll_projection_publisher"
+                ),
+                "PAYROLL_PROJECTION_PUBLISHER_DB_PASSWORD": (
+                    secrets_.payroll_projection_publisher_password
+                ),
                 "DWP_PAYROLL_DB_POOL_SIZE": "3",
                 "DWP_HRIS_PAYROLL_FOUNDATION_WAVE1_ENABLED": "true",
+                "DWP_LOCAL_SYNTHETIC_PAYROLL_FOUNDATION_BOOTSTRAP_ENABLED": "true",
+                "DWP_LOCAL_SYNTHETIC_PAYROLL_FOUNDATION_BOOTSTRAP_TOKEN": (
+                    secrets_.synthetic_payroll_foundation_bootstrap_token
+                ),
+                "DWP_LOCAL_SYNTHETIC_PAYROLL_FOUNDATION_BOOTSTRAP_RUN_ID": run_id,
             },
         ),
         "time": ServiceSpec(
@@ -698,6 +864,12 @@ def service_specs(secrets_: RuntimeSecrets) -> dict[str, ServiceSpec]:
                 "TIME_DB_PASSWORD": secrets_.time_password,
                 "TIME_MIGRATION_DB_USERNAME": "dwp_time_migration",
                 "TIME_MIGRATION_DB_PASSWORD": secrets_.time_migration_password,
+                "TIME_PROJECTION_PUBLISHER_DB_USERNAME": (
+                    "dwp_time_projection_publisher"
+                ),
+                "TIME_PROJECTION_PUBLISHER_DB_PASSWORD": (
+                    secrets_.time_projection_publisher_password
+                ),
                 "DWP_TIME_DB_POOL_SIZE": "3",
                 "DWP_TIME_WORK_REGIME_API_ENABLED": "true",
             },
@@ -868,6 +1040,15 @@ def provision_databases(postgres: str, secrets_: RuntimeSecrets) -> None:
         ("dwp_payroll_migration", secrets_.payroll_migration_password),
         ("dwp_time_runtime", secrets_.time_password),
         ("dwp_time_migration", secrets_.time_migration_password),
+        ("dwp_provider_metadata_people", secrets_.people_metadata_password),
+        (
+            "dwp_payroll_projection_publisher",
+            secrets_.payroll_projection_publisher_password,
+        ),
+        (
+            "dwp_time_projection_publisher",
+            secrets_.time_projection_publisher_password,
+        ),
     ):
         create_role(postgres, role, password)
     psql(
@@ -892,19 +1073,23 @@ def provision_databases(postgres: str, secrets_: RuntimeSecrets) -> None:
         runtime_role="dwp_people_runtime",
         migration_role="dwp_people_migration",
         auxiliary_schemas=("hris_performance",),
+        read_only_roles=("dwp_provider_metadata_people",),
     )
     configure_strict_database_roles(
         postgres,
         database="dwp_payroll",
         runtime_role="dwp_payroll_runtime",
         migration_role="dwp_payroll_migration",
+        publisher_role="dwp_payroll_projection_publisher",
     )
     configure_strict_database_roles(
         postgres,
         database="dwp_time",
         runtime_role="dwp_time_runtime",
         migration_role="dwp_time_migration",
+        publisher_role="dwp_time_projection_publisher",
     )
+    provision_required_extensions(postgres)
 
 
 def configure_strict_database_roles(
@@ -914,8 +1099,17 @@ def configure_strict_database_roles(
     runtime_role: str,
     migration_role: str,
     auxiliary_schemas: Sequence[str] = (),
+    read_only_roles: Sequence[str] = (),
+    publisher_role: str | None = None,
 ) -> None:
-    identifiers = (database, runtime_role, migration_role, *auxiliary_schemas)
+    optional_roles = (*read_only_roles, *((publisher_role,) if publisher_role else ()))
+    identifiers = (
+        database,
+        runtime_role,
+        migration_role,
+        *auxiliary_schemas,
+        *optional_roles,
+    )
     if not all(re.fullmatch(r"[a-z][a-z0-9_]{1,62}", value) for value in identifiers):
         raise GateFailure(f"Unsafe strict database boundary identifiers: {identifiers}")
     for candidate in (
@@ -933,6 +1127,12 @@ def configure_strict_database_roles(
             f'REVOKE CONNECT ON DATABASE "{candidate}" FROM "{runtime_role}"; '
             f'REVOKE CONNECT ON DATABASE "{candidate}" FROM "{migration_role}";',
         )
+        for role in optional_roles:
+            psql(
+                postgres,
+                "postgres",
+                f'REVOKE CONNECT ON DATABASE "{candidate}" FROM "{role}";',
+            )
     psql(
         postgres,
         "postgres",
@@ -944,7 +1144,21 @@ def configure_strict_database_roles(
         f'ALTER ROLE "{runtime_role}" IN DATABASE "{database}" '
         f'SET search_path TO pg_catalog, public; '
         f'ALTER ROLE "{migration_role}" IN DATABASE "{database}" '
-        f'SET search_path TO pg_catalog, public;',
+        f'SET search_path TO pg_catalog, public;'
+        + "".join(
+            f' ALTER ROLE "{role}" IN DATABASE "{database}" '
+            f'SET search_path TO pg_catalog;'
+            f' REVOKE TEMPORARY, CREATE ON DATABASE "{database}" FROM "{role}";'
+            f' GRANT CONNECT ON DATABASE "{database}" TO "{role}";'
+            for role in read_only_roles
+        )
+        + "".join(
+            f' ALTER ROLE "{role}" IN DATABASE "{database}" '
+            f'SET search_path TO pg_catalog, public;'
+            f' REVOKE TEMPORARY, CREATE ON DATABASE "{database}" FROM "{role}";'
+            f' GRANT CONNECT ON DATABASE "{database}" TO "{role}";'
+            for role in ((publisher_role,) if publisher_role else ())
+        ),
     )
     schema_statements = [
         "DROP SCHEMA public CASCADE",
@@ -952,6 +1166,10 @@ def configure_strict_database_roles(
         "REVOKE ALL ON SCHEMA public FROM PUBLIC",
         f'GRANT USAGE ON SCHEMA public TO "{runtime_role}"',
     ]
+    if publisher_role:
+        schema_statements.append(
+            f'GRANT USAGE ON SCHEMA public TO "{publisher_role}"'
+        )
     for schema in auxiliary_schemas:
         schema_statements.extend(
             (
@@ -962,6 +1180,834 @@ def configure_strict_database_roles(
             )
         )
     psql(postgres, database, "; ".join(schema_statements) + ";")
+
+
+def provision_required_extensions(postgres: str) -> None:
+    expected = {
+        "dwp_people": (("btree_gist", "1.7"), ("pgcrypto", "1.3")),
+        "dwp_payroll": (("btree_gist", "1.7"),),
+        "dwp_time": (("btree_gist", "1.7"),),
+    }
+    for database, extensions in expected.items():
+        statements = "; ".join(
+            f'CREATE EXTENSION "{extension}" WITH SCHEMA public VERSION {sql_literal(version)}'
+            for extension, version in extensions
+        )
+        psql(postgres, database, statements + ";")
+        actual = psql(
+            postgres,
+            database,
+            "SELECT extname || '|' || extversion || '|' || namespace.nspname || '|' || "
+            "pg_get_userbyid(extension.extowner) "
+            "FROM pg_extension extension "
+            "JOIN pg_namespace namespace ON namespace.oid=extension.extnamespace "
+            "WHERE extname <> 'plpgsql' ORDER BY extname;",
+        ).splitlines()
+        wanted = [
+            f"{extension}|{version}|public|postgres"
+            for extension, version in sorted(extensions)
+        ]
+        if actual != wanted:
+            raise GateFailure(
+                f"Required extension inventory mismatch for {database}: "
+                f"expected={wanted}, actual={actual}"
+            )
+
+
+def _canonical_control_field(digest: Any, value: object) -> None:
+    canonical = "true" if value is True else "false" if value is False else str(value)
+    encoded = canonical.encode("utf-8")
+    digest.update(str(len(encoded)).encode("ascii"))
+    digest.update(b":")
+    digest.update(encoded)
+
+
+def canonical_json_sha256(value: Any) -> str:
+    return hashlib.sha256(
+        json.dumps(
+            value,
+            ensure_ascii=False,
+            separators=(",", ":"),
+            sort_keys=True,
+        ).encode("utf-8")
+    ).hexdigest()
+
+
+def java_name_uuid_from_bytes(value: str) -> uuid.UUID:
+    digest = bytearray(hashlib.md5(
+        value.encode("utf-8"), usedforsecurity=False
+    ).digest())
+    digest[6] = (digest[6] & 0x0F) | 0x30
+    digest[8] = (digest[8] & 0x3F) | 0x80
+    return uuid.UUID(bytes=bytes(digest))
+
+
+def people_workforce_receipt_sha256(workforce: dict[str, Any]) -> str:
+    binding = workforce["authWorkforceBinding"]
+    event = binding["event"]
+    fields = (
+        ("runId", workforce["runId"]),
+        ("providerTenantId", workforce["providerTenantId"]),
+        ("tenantId", workforce["tenantId"]),
+        ("administratorActorId", workforce["administratorActorId"]),
+        ("actorPersonPublicId", workforce["actorPersonPublicId"]),
+        ("actorWorkerPublicId", workforce["actorWorkerPublicId"]),
+        ("actorAssignmentPublicId", workforce["actorAssignmentPublicId"]),
+        ("actorLegalEmployerPublicId", workforce["actorLegalEmployerPublicId"]),
+        ("actorWorkerNumber", workforce["actorWorkerNumber"]),
+        ("targetPersonPublicId", workforce["targetPersonPublicId"]),
+        ("targetWorkerPublicId", workforce["targetWorkerPublicId"]),
+        ("targetAssignmentPublicId", workforce["targetAssignmentPublicId"]),
+        ("syncRunId", workforce["syncRunId"]),
+        ("importReplayed", workforce["importReplayed"]),
+        ("importedWorkerCount", workforce["importedWorkerCount"]),
+        ("workforceAccessPolicyId", workforce["workforceAccessPolicyId"]),
+        ("workforceAccessPolicyVersion", workforce["workforceAccessPolicyVersion"]),
+        ("targetPopulationCount", workforce["targetPopulationCount"]),
+        ("targetPopulationRevision", workforce["targetPopulationRevision"]),
+        ("auth.endpoint", binding["endpoint"]),
+        ("auth.tokenHeader", binding["tokenHeader"]),
+        ("auth.expectedAdministratorUserId", binding["expectedAdministratorUserId"]),
+        ("auth.event.eventId", event["eventId"]),
+        ("auth.event.providerTenantId", event["providerTenantId"]),
+        ("auth.event.personPublicId", event["personPublicId"]),
+        ("auth.event.externalId", event["externalId"]),
+        ("auth.event.workerNumber", event["workerNumber"]),
+        ("auth.event.displayName", event["displayName"]),
+        ("auth.event.givenName", event["givenName"]),
+        ("auth.event.familyName", event["familyName"]),
+        ("auth.event.workEmail", event["workEmail"]),
+        ("auth.event.jobTitle", event["jobTitle"]),
+        ("auth.event.preferredLocale", event["preferredLocale"]),
+        ("auth.event.workerStatus", event["workerStatus"]),
+        ("auth.event.sourceVersion", event["sourceVersion"]),
+    )
+    material = []
+    for name, raw in fields:
+        if raw is None:
+            value = "N"
+        elif raw is True:
+            value = "Vtrue"
+        elif raw is False:
+            value = "Vfalse"
+        else:
+            value = "V" + str(raw)
+        material.append(f"{len(name)}:{name}={len(value)}:{value}\n")
+    return hashlib.sha256("".join(material).encode("utf-8")).hexdigest()
+
+
+def validate_people_workforce_bootstrap_response(
+    value: Any,
+    *,
+    run_id: str,
+    lane: str,
+    provider_tenant_id: uuid.UUID,
+    tenant_id: int,
+    administrator_actor_id: int,
+) -> dict[str, Any]:
+    expected_fields = {
+        "runId",
+        "providerTenantId",
+        "tenantId",
+        "administratorActorId",
+        "actorPersonPublicId",
+        "actorWorkerPublicId",
+        "actorAssignmentPublicId",
+        "actorLegalEmployerPublicId",
+        "actorWorkerNumber",
+        "targetPersonPublicId",
+        "targetWorkerPublicId",
+        "targetAssignmentPublicId",
+        "syncRunId",
+        "importReplayed",
+        "importedWorkerCount",
+        "workforceAccessPolicyId",
+        "workforceAccessPolicyVersion",
+        "targetPopulationCount",
+        "targetPopulationRevision",
+        "authWorkforceBinding",
+        "receiptSha256",
+    }
+    if not isinstance(value, dict) or set(value) != expected_fields:
+        raise GateFailure(
+            f"Tenant {lane} People workforce bootstrap response shape is invalid"
+        )
+    binding = value.get("authWorkforceBinding")
+    event = binding.get("event") if isinstance(binding, dict) else None
+    expected_event = {
+        "eventId": str(java_name_uuid_from_bytes("|".join((
+            run_id,
+            "auth-workforce-event",
+            str(provider_tenant_id),
+            str(tenant_id),
+            str(administrator_actor_id),
+        )))),
+        "providerTenantId": str(provider_tenant_id),
+        "personPublicId": value.get("actorPersonPublicId"),
+        "externalId": "WD-WORKER-0001",
+        "workerNumber": "E100001",
+        "displayName": "Minseo Kim",
+        "givenName": "Minseo",
+        "familyName": "Kim",
+        "workEmail": "minseo.kim@sk.com",
+        "jobTitle": "Network Operations Lead",
+        "preferredLocale": "ko-KR",
+        "workerStatus": "ACTIVE",
+        "sourceVersion": "2026-08-10T00:00:01Z",
+    }
+    public_id_fields = (
+        "actorPersonPublicId",
+        "actorWorkerPublicId",
+        "actorAssignmentPublicId",
+        "actorLegalEmployerPublicId",
+        "targetPersonPublicId",
+        "targetWorkerPublicId",
+        "targetAssignmentPublicId",
+        "syncRunId",
+        "workforceAccessPolicyId",
+    )
+    try:
+        parsed_ids = {field: uuid.UUID(str(value.get(field))) for field in public_id_fields}
+        uuid.UUID(str(expected_event["eventId"]))
+    except (TypeError, ValueError) as error:
+        raise GateFailure(
+            f"Tenant {lane} People workforce bootstrap contains an invalid public id"
+        ) from error
+    if (
+        value.get("runId") != run_id
+        or value.get("providerTenantId") != str(provider_tenant_id)
+        or value.get("tenantId") != tenant_id
+        or value.get("administratorActorId") != administrator_actor_id
+        or value.get("actorWorkerNumber") != "E100001"
+        or value.get("importReplayed") is not False
+        or type(value.get("importedWorkerCount")) is not int
+        or value["importedWorkerCount"] != 3
+        or type(value.get("targetPopulationCount")) is not int
+        or value["targetPopulationCount"] != 2
+        or not re.fullmatch(
+            r"[0-9a-f]{32}", str(value.get("targetPopulationRevision", ""))
+        )
+        or type(value.get("workforceAccessPolicyVersion")) is not int
+        or value["workforceAccessPolicyVersion"] < 0
+        or parsed_ids["actorPersonPublicId"] == parsed_ids["targetPersonPublicId"]
+        or parsed_ids["actorWorkerPublicId"] == parsed_ids["targetWorkerPublicId"]
+        or parsed_ids["actorAssignmentPublicId"] == parsed_ids["targetAssignmentPublicId"]
+        or not isinstance(binding, dict)
+        or set(binding) != {
+            "endpoint", "tokenHeader", "expectedAdministratorUserId", "event"
+        }
+        or binding.get("expectedAdministratorUserId") != administrator_actor_id
+        or binding.get("endpoint") != "/internal/identity/v1/workforce-events"
+        or binding.get("tokenHeader") != "X-DWP-Identity-Sync-Token"
+        or not isinstance(event, dict)
+        or event != expected_event
+        or not re.fullmatch(r"[0-9a-f]{64}", str(value.get("receiptSha256", "")))
+        or value.get("receiptSha256") != people_workforce_receipt_sha256(value)
+    ):
+        raise GateFailure(
+            f"Tenant {lane} People workforce bootstrap response is invalid"
+        )
+    return value
+
+
+def validate_negative_observation(
+    value: Any,
+    *,
+    assertion_name: str,
+    state: GateState,
+) -> dict[str, Any]:
+    expected_fields = {
+        "assertionName",
+        "source",
+        "method",
+        "path",
+        "tenantId",
+        "actorId",
+        "evidenceState",
+        "projectionId",
+        "projectionRevision",
+        "contextScopeKey",
+        "policyRevision",
+        "authorizationRevision",
+        "databaseTransition",
+        "databaseStatus",
+        "databaseValidity",
+        "databaseMemberCount",
+        "projectionObservationSha256",
+        "status",
+        "errorCode",
+        "ownerErrorMessage",
+        "observedAt",
+        "responseBodySha256",
+        "observationSha256",
+    }
+    if not isinstance(value, dict) or set(value) != expected_fields:
+        raise GateFailure(
+            f"Negative checkpoint observation shape is not exact: {assertion_name}"
+        )
+    tenant = state.synthetic_tenants.get("A")
+    if not isinstance(tenant, dict):
+        raise GateFailure("Negative checkpoint observations require tenant A lineage")
+    method = value.get("method")
+    path = value.get("path")
+    error_code = value.get("errorCode")
+    observed_at = value.get("observedAt")
+    evidence_state = NEGATIVE_OBSERVATION_STATES[assertion_name]
+    expected_transition, expected_database_status, expected_validity = (
+        NEGATIVE_PROJECTION_STATES[evidence_state]
+    )
+    projection_material = {
+        "tenantId": value.get("tenantId"),
+        "actorId": value.get("actorId"),
+        "evidenceState": value.get("evidenceState"),
+        "projectionId": value.get("projectionId"),
+        "projectionRevision": value.get("projectionRevision"),
+        "contextScopeKey": value.get("contextScopeKey"),
+        "policyRevision": value.get("policyRevision"),
+        "authorizationRevision": value.get("authorizationRevision"),
+        "databaseTransition": value.get("databaseTransition"),
+        "databaseStatus": value.get("databaseStatus"),
+        "databaseValidity": value.get("databaseValidity"),
+        "databaseMemberCount": value.get("databaseMemberCount"),
+    }
+    if (
+        value.get("assertionName") != assertion_name
+        or value.get("source") != "LIVE_GATEWAY_OWNER_REQUEST"
+        or value.get("tenantId") != tenant.get("tenantId")
+        or value.get("actorId") != tenant.get("administratorUserId")
+        or value.get("evidenceState") != evidence_state
+        or value.get("databaseTransition") != expected_transition
+        or value.get("databaseStatus") != expected_database_status
+        or value.get("databaseValidity") != expected_validity
+        or value.get("databaseMemberCount") != 1
+        or value.get("projectionObservationSha256")
+        != canonical_json_sha256(projection_material)
+        or type(value.get("status")) is not int
+        or value["status"] != NEGATIVE_OWNER_STATUS
+        or value.get("errorCode") != NEGATIVE_OWNER_ERROR_CODE
+        or value.get("ownerErrorMessage") != NEGATIVE_OWNER_ERROR_MESSAGE
+        or not re.fullmatch(
+            r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}",
+            str(value.get("projectionId", "")),
+        )
+        or not re.fullmatch(
+            r"[0-9a-f]{64}", str(value.get("projectionRevision", ""))
+        )
+        or not re.fullmatch(
+            r"hcm-scope-[0-9a-f]{40}", str(value.get("contextScopeKey", ""))
+        )
+        or not re.fullmatch(
+            r"rollout-[0-9a-f]{64}", str(value.get("policyRevision", ""))
+        )
+        or not re.fullmatch(
+            r"psr-[0-9a-f]{64}", str(value.get("authorizationRevision", ""))
+        )
+        or not isinstance(method, str)
+        or not re.fullmatch(r"[A-Z]{3,8}", method)
+        or not isinstance(path, str)
+        or not path.startswith("/")
+        or len(path) > 500
+        or path != path.strip()
+        or not isinstance(observed_at, str)
+        or not observed_at.endswith("Z")
+        or not re.fullmatch(
+            r"[0-9a-f]{64}", str(value.get("responseBodySha256", ""))
+        )
+    ):
+        raise GateFailure(
+            f"Negative checkpoint observation binding is invalid: {assertion_name}"
+        )
+    try:
+        parsed_at = dt.datetime.fromisoformat(observed_at.removesuffix("Z") + "+00:00")
+    except ValueError as error:
+        raise GateFailure(
+            f"Negative checkpoint observation time is invalid: {assertion_name}"
+        ) from error
+    if parsed_at.tzinfo != dt.timezone.utc:
+        raise GateFailure(
+            f"Negative checkpoint observation time is not UTC: {assertion_name}"
+        )
+    unsigned = {key: item for key, item in value.items() if key != "observationSha256"}
+    if value["observationSha256"] != canonical_json_sha256(unsigned):
+        raise GateFailure(
+            f"Negative checkpoint observation digest is invalid: {assertion_name}"
+        )
+    return value
+
+
+def validate_payroll_browser_database_observation(
+    value: Any,
+    *,
+    state: GateState,
+) -> dict[str, Any]:
+    expected_fields = {
+        "source",
+        "tenantId",
+        "configurationId",
+        "preflightObservationSha256",
+        "payrollConfigurationIds",
+        "workspaceResponseSha256",
+        "updateCommandId",
+        "updateResponseSha256",
+        "simulateCommandId",
+        "simulateResponseSha256",
+        "expectedFinalVersion",
+        "observationSha256",
+    }
+    if not isinstance(value, dict) or set(value) != expected_fields:
+        raise GateFailure(
+            "Browser-to-PAY database checkpoint observation shape is not exact"
+        )
+    tenant = state.synthetic_tenants.get("A")
+    preflight = state.projection_feed.get("payrollFoundationDatabaseObservation")
+    fixture = state.projection_feed.get("payrollFoundation")
+    if not all(isinstance(item, dict) for item in (tenant, preflight, fixture)):
+        raise GateFailure(
+            "Browser-to-PAY database checkpoint requires backend preflight lineage"
+        )
+    configuration_id = preflight.get("configurationId")
+    update_command_id = value.get("updateCommandId")
+    simulate_command_id = value.get("simulateCommandId")
+    unsigned = {key: item for key, item in value.items() if key != "observationSha256"}
+    if (
+        value.get("source") != "BROWSER_GATEWAY_OWNER_DB"
+        or value.get("tenantId") != tenant.get("tenantId")
+        or value.get("configurationId") != configuration_id
+        or value.get("preflightObservationSha256")
+        != preflight.get("observationSha256")
+        or value.get("payrollConfigurationIds") != [configuration_id]
+        or value.get("expectedFinalVersion") != 4
+        or update_command_id == simulate_command_id
+        or update_command_id in {
+            fixture.get("createCommandId"), fixture.get("simulateCommandId")
+        }
+        or simulate_command_id in {
+            fixture.get("createCommandId"), fixture.get("simulateCommandId")
+        }
+        or any(not re.fullmatch(
+            r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}", str(item or "")
+        ) for item in (configuration_id, update_command_id, simulate_command_id))
+        or any(not re.fullmatch(r"[0-9a-f]{64}", str(value.get(field, "")))
+               for field in (
+                   "preflightObservationSha256",
+                   "workspaceResponseSha256",
+                   "updateResponseSha256",
+                   "simulateResponseSha256",
+               ))
+        or value.get("observationSha256") != canonical_json_sha256(unsigned)
+    ):
+        raise GateFailure(
+            "Browser-to-PAY database checkpoint observation binding is invalid"
+        )
+    return value
+
+
+def _read_attested_descriptor(
+    descriptor: int,
+    path: Path,
+    *,
+    max_bytes: int | None = None,
+    require_executable: bool = False,
+) -> bytes:
+    before = os.fstat(descriptor)
+    if not stat.S_ISREG(before.st_mode):
+        raise GateFailure(f"Attestation input is not a regular file: {path}")
+    if require_executable and before.st_mode & 0o111 == 0:
+        raise GateFailure(f"Attestation input is not executable: {path}")
+    if max_bytes is not None and before.st_size > max_bytes:
+        raise GateFailure(f"Attestation input is too large: {path}")
+    chunks: list[bytes] = []
+    total = 0
+    while True:
+        chunk = os.read(descriptor, 1024 * 1024)
+        if not chunk:
+            break
+        total += len(chunk)
+        if max_bytes is not None and total > max_bytes:
+            raise GateFailure(f"Attestation input is too large: {path}")
+        chunks.append(chunk)
+    after = os.fstat(descriptor)
+    fingerprint = lambda item: (
+        item.st_dev,
+        item.st_ino,
+        item.st_size,
+        item.st_mtime_ns,
+        item.st_ctime_ns,
+    )
+    content = b"".join(chunks)
+    if fingerprint(before) != fingerprint(after) or len(content) != before.st_size:
+        raise GateFailure(f"Attestation input changed while being read: {path}")
+    return content
+
+
+def _attested_regular_bytes(
+    path: Path,
+    *,
+    max_bytes: int | None = None,
+    require_executable: bool = False,
+) -> bytes:
+    flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    try:
+        descriptor = os.open(path, flags)
+    except OSError as error:
+        raise GateFailure(f"Attestation input cannot be opened safely: {path}: {error}") from error
+    try:
+        return _read_attested_descriptor(
+            descriptor,
+            path,
+            max_bytes=max_bytes,
+            require_executable=require_executable,
+        )
+    finally:
+        os.close(descriptor)
+
+
+def _attested_output_regular_bytes(
+    output_dir: Path,
+    relative: Path,
+    *,
+    max_bytes: int,
+) -> bytes:
+    if relative.is_absolute() or not relative.parts or ".." in relative.parts:
+        raise GateFailure(f"Unsafe evidence path: {relative}")
+    directory_flags = (
+        os.O_RDONLY
+        | getattr(os, "O_CLOEXEC", 0)
+        | getattr(os, "O_NOFOLLOW", 0)
+        | getattr(os, "O_DIRECTORY", 0)
+    )
+    file_flags = os.O_RDONLY | getattr(os, "O_CLOEXEC", 0) | getattr(os, "O_NOFOLLOW", 0)
+    descriptors: list[int] = []
+    try:
+        descriptors.append(os.open(output_dir, directory_flags))
+        for component in relative.parts[:-1]:
+            descriptors.append(
+                os.open(component, directory_flags, dir_fd=descriptors[-1])
+            )
+        descriptor = os.open(
+            relative.parts[-1], file_flags, dir_fd=descriptors[-1]
+        )
+        descriptors.append(descriptor)
+        return _read_attested_descriptor(
+            descriptor, output_dir / relative, max_bytes=max_bytes
+        )
+    except OSError as error:
+        raise GateFailure(
+            f"Evidence path cannot be opened without following links: {relative}: {error}"
+        ) from error
+    finally:
+        for descriptor in reversed(descriptors):
+            os.close(descriptor)
+
+
+def migration_control_attestation_files() -> tuple[Path, ...]:
+    files = {
+        Path(__file__).resolve(),
+        ROOT / "build.gradle",
+        ROOT / "settings.gradle",
+        ROOT / "gradlew",
+        ROOT / "gradle" / "wrapper" / "gradle-wrapper.jar",
+        ROOT / "gradle" / "wrapper" / "gradle-wrapper.properties",
+        ROOT / "gradle" / "verification-metadata.xml",
+        ROOT / "dwp-core" / "build.gradle",
+        ROOT / "dwp-migration-control" / "build.gradle",
+        ROOT / "dwp-migration-control" / "README.md",
+    }
+    for root in (
+        ROOT / "dwp-migration-control" / "src" / "main" / "java",
+        ROOT / "dwp-core" / "src" / "main" / "java",
+        ROOT / "dwp-core" / "src" / "main" / "resources",
+    ):
+        files.update(path for path in root.rglob("*") if path.is_file())
+    for module in ("dwp-people-server", "dwp-payroll-server", "dwp-time-server"):
+        module_root = ROOT / module
+        files.add(module_root / "build.gradle")
+        files.add(module_root / "src" / "main" / "resources" / "application.yml")
+        files.update(
+            path
+            for path in (module_root / "src" / "main" / "resources").rglob("*.sql")
+            if path.is_file()
+        )
+        files.update(
+            path
+            for path in (module_root / "src" / "main" / "java").rglob(
+                "*DatabaseMigrationConfiguration.java"
+            )
+            if path.is_file()
+        )
+    missing = sorted(str(path) for path in files if not path.is_file())
+    if missing:
+        raise GateFailure(
+            "Migration Control attestation boundary is incomplete: " + ", ".join(missing)
+        )
+    return tuple(sorted(files, key=lambda path: path.relative_to(ROOT).as_posix()))
+
+
+def migration_control_reference() -> str:
+    digest = hashlib.sha256()
+    _canonical_control_field(digest, "dwp-migration-control-attestation-v2")
+    for path in migration_control_attestation_files():
+        _canonical_control_field(digest, path.relative_to(ROOT).as_posix())
+        _canonical_control_field(digest, _attested_regular_bytes(path).hex())
+    return "dwp-migration-control-v2:" + digest.hexdigest()
+
+
+def validate_control_receipt(
+    receipt: Any,
+    *,
+    service: str,
+    database: str,
+    migration_principal: str,
+    mode: str,
+    control_reference: str,
+) -> dict[str, Any]:
+    if not isinstance(receipt, dict):
+        raise GateFailure(f"Migration Control {service} receipt is not an object")
+    top_level_fields = {
+        "schemaVersion",
+        "mode",
+        "service",
+        "database",
+        "migrationPrincipal",
+        "controlReference",
+        "previousRunReceiptSha256",
+        "postgresVersion",
+        "temporaryPrivilegeRevoked",
+        "streams",
+        "receiptSha256",
+    }
+    stream_fields = {
+        "streamKey",
+        "historyMaxInstalledRank",
+        "historyRowCount",
+        "historySha256",
+        "inventoryObjectCount",
+        "inventorySha256",
+        "adoptionReceiptSha256",
+    }
+    if set(receipt) != top_level_fields:
+        raise GateFailure(
+            f"Migration Control {service} receipt fields are not exact"
+        )
+    expected = {
+        "schemaVersion": "2.0",
+        "mode": mode,
+        "service": service,
+        "database": database,
+        "migrationPrincipal": migration_principal,
+        "controlReference": control_reference,
+        "previousRunReceiptSha256": "",
+        "temporaryPrivilegeRevoked": True,
+    }
+    drift = {
+        key: {"expected": value, "actual": receipt.get(key)}
+        for key, value in expected.items()
+        if receipt.get(key) != value
+    }
+    if drift:
+        raise GateFailure(f"Migration Control {service} receipt drift: {drift}")
+    if not re.fullmatch(r"[0-9a-f]{64}", str(receipt.get("receiptSha256", ""))):
+        raise GateFailure(f"Migration Control {service} receipt digest is invalid")
+    if not re.fullmatch(r"[0-9]+(?:\.[0-9]+){1,2}", str(receipt.get("postgresVersion", ""))):
+        raise GateFailure(f"Migration Control {service} PostgreSQL version is invalid")
+    streams = receipt.get("streams")
+    expected_streams = {
+        "people": ["people-main", "people-performance"],
+        "payroll": ["payroll-main"],
+        "time": ["time-main"],
+    }[service]
+    if (
+        not isinstance(streams, list)
+        or len(streams) != len(expected_streams)
+        or any(not isinstance(item, dict) or set(item) != stream_fields for item in streams)
+        or [item["streamKey"] for item in streams] != expected_streams
+    ):
+        raise GateFailure(f"Migration Control {service} stream set is invalid")
+    for stream in streams:
+        if not re.fullmatch(r"[a-z][a-z0-9-]{0,62}", str(stream["streamKey"])):
+            raise GateFailure(f"Migration Control {service} stream key is invalid")
+        for field, minimum in (
+            ("historyMaxInstalledRank", 0),
+            ("historyRowCount", 0),
+            ("inventoryObjectCount", 1),
+        ):
+            if type(stream[field]) is not int or stream[field] < minimum:
+                raise GateFailure(
+                    f"Migration Control {service} stream {field} is invalid"
+                )
+        if stream.get("adoptionReceiptSha256") != "":
+            raise GateFailure(
+                f"Migration Control {service} fresh receipt contains adoption evidence"
+            )
+        for field in ("historySha256", "inventorySha256"):
+            if not re.fullmatch(r"[0-9a-f]{64}", str(stream.get(field, ""))):
+                raise GateFailure(
+                    f"Migration Control {service} stream {field} is invalid"
+                )
+    digest = hashlib.sha256()
+    for value in (
+        "migration-control-run-receipt-v2",
+        receipt["mode"],
+        receipt["service"],
+        receipt["database"],
+        receipt["migrationPrincipal"],
+        receipt["controlReference"],
+        receipt["previousRunReceiptSha256"],
+        receipt["postgresVersion"],
+        receipt["temporaryPrivilegeRevoked"],
+    ):
+        _canonical_control_field(digest, value)
+    for stream in streams:
+        for field in (
+            "streamKey",
+            "historyMaxInstalledRank",
+            "historyRowCount",
+            "historySha256",
+            "inventoryObjectCount",
+            "inventorySha256",
+            "adoptionReceiptSha256",
+        ):
+            _canonical_control_field(digest, stream[field])
+    if digest.hexdigest() != receipt["receiptSha256"]:
+        raise GateFailure(
+            f"Migration Control {service} receipt canonical digest is invalid"
+        )
+    return receipt
+
+
+def run_migration_controls(
+    state: GateState,
+    secrets_: RuntimeSecrets,
+    postgres_port: int,
+    gradle_executable: str,
+    timeout: float,
+) -> None:
+    control_reference = migration_control_reference()
+    configurations = (
+        (
+            "people",
+            "dwp_people",
+            "PEOPLE_FRESH",
+            "People",
+            "dwp_people_migration",
+            secrets_.people_migration_password,
+            "dwp_people_runtime",
+            secrets_.people_password,
+            "",
+            "",
+        ),
+        (
+            "payroll",
+            "dwp_payroll",
+            "STRICT_FRESH",
+            "Payroll",
+            "dwp_payroll_migration",
+            secrets_.payroll_migration_password,
+            "dwp_payroll_runtime",
+            secrets_.payroll_password,
+            "dwp_payroll_projection_publisher",
+            secrets_.payroll_projection_publisher_password,
+        ),
+        (
+            "time",
+            "dwp_time",
+            "STRICT_FRESH",
+            "Time",
+            "dwp_time_migration",
+            secrets_.time_migration_password,
+            "dwp_time_runtime",
+            secrets_.time_password,
+            "dwp_time_projection_publisher",
+            secrets_.time_projection_publisher_password,
+        ),
+    )
+    for (
+        service,
+        database,
+        mode,
+        task_suffix,
+        migration_principal,
+        migration_password,
+        runtime_principal,
+        runtime_password,
+        publisher_principal,
+        publisher_password,
+    ) in configurations:
+        environment = allowlisted_host_environment()
+        environment.update(
+            {
+                "DWP_MIGRATION_CONTROL_MODE": mode,
+                "DWP_MIGRATION_CONTROL_SERVICE": service,
+                "DWP_MIGRATION_CONTROL_JDBC_URL": (
+                    f"jdbc:postgresql://127.0.0.1:{postgres_port}/{database}"
+                ),
+                "DWP_MIGRATION_CONTROL_DATABASE": database,
+                "DWP_MIGRATION_CONTROL_BOOTSTRAP_PRINCIPAL": "postgres",
+                "DWP_MIGRATION_CONTROL_BOOTSTRAP_PASSWORD": secrets_.postgres_password,
+                "DWP_MIGRATION_CONTROL_MIGRATION_PRINCIPAL": migration_principal,
+                "DWP_MIGRATION_CONTROL_MIGRATION_PASSWORD": migration_password,
+                "DWP_MIGRATION_CONTROL_RUNTIME_PRINCIPAL": runtime_principal,
+                "DWP_MIGRATION_CONTROL_RUNTIME_PASSWORD": runtime_password,
+                "DWP_MIGRATION_CONTROL_REFERENCE": control_reference,
+            }
+        )
+        if publisher_principal:
+            environment.update(
+                {
+                    "DWP_MIGRATION_CONTROL_PROJECTION_PUBLISHER_PRINCIPAL": (
+                        publisher_principal
+                    ),
+                    "DWP_MIGRATION_CONTROL_PROJECTION_PUBLISHER_PASSWORD": (
+                        publisher_password
+                    ),
+                }
+            )
+        log_path = state.output_dir / "logs" / f"migration-control-{service}.log"
+        result = run_checked(
+            (
+                gradle_executable,
+                "--no-daemon",
+                "--console=plain",
+                f":dwp-migration-control:run{task_suffix}MigrationControl",
+            ),
+            timeout=timeout,
+            log_path=log_path,
+            environment=environment,
+        )
+        prefix = "DWP_MIGRATION_CONTROL_RECEIPT="
+        receipt_lines = [
+            line.removeprefix(prefix)
+            for line in result.stdout.splitlines()
+            if line.startswith(prefix)
+        ]
+        if len(receipt_lines) != 1:
+            raise GateFailure(
+                f"Migration Control {service} produced {len(receipt_lines)} receipt lines"
+            )
+        try:
+            decoded = json.loads(receipt_lines[0])
+        except json.JSONDecodeError as error:
+            raise GateFailure(
+                f"Migration Control {service} receipt is invalid JSON"
+            ) from error
+        receipt = validate_control_receipt(
+            decoded,
+            service=service,
+            database=database,
+            migration_principal=migration_principal,
+            mode="NATIVE_FRESH",
+            control_reference=control_reference,
+        )
+        receipt_path = state.output_dir / "db" / f"migration-control-{service}.json"
+        atomic_write_json(receipt_path, receipt)
+        state.control_receipts[service] = receipt
+        state.phase(
+            f"migration-control-{service}",
+            "PASS",
+            receiptSha256=receipt["receiptSha256"],
+            controlReference=control_reference,
+            evidencePath=str(receipt_path.relative_to(state.output_dir)),
+        )
 
 
 def auth_headers(secrets_: RuntimeSecrets, lane: str) -> dict[str, str]:
@@ -1431,6 +2477,1816 @@ def lifecycle_approve_activate_v33_after_upgrade(
     )
 
 
+def bootstrap_synthetic_identities(
+    state: GateState, secrets_: RuntimeSecrets
+) -> tuple[SyntheticTenantCredential, SyntheticTenantCredential]:
+    token_header = {"X-DWP-Provisioning-Token": secrets_.provider_provisioning_token}
+    identity_header = {
+        "X-DWP-Synthetic-Bootstrap-Token": (
+            secrets_.synthetic_identity_bootstrap_token
+        )
+    }
+    people_header = {
+        "X-DWP-Synthetic-People-Bootstrap-Token": (
+            secrets_.synthetic_people_workforce_bootstrap_token
+        )
+    }
+    suffix = state.run_id.rsplit("-", 1)[-1]
+    credentials: list[SyntheticTenantCredential] = []
+    for lane, password, entitlements in (
+        ("a", secrets_.tenant_a_password, ["core.workspace", "core.people"]),
+        ("b", secrets_.tenant_b_password, ["core.workspace"]),
+    ):
+        provider_tenant_id = uuid.uuid5(
+            uuid.NAMESPACE_URL, f"dwp:{state.run_id}:tenant-{lane}"
+        )
+        tenant_key = f"w1-{lane}-{suffix}"
+        email = f"hris-w1-{lane}-{suffix}@dwp.test"
+        display_name = f"HRIS W1 synthetic tenant {lane.upper()}"
+        _, provisioned, _ = http_request(
+            state,
+            name=f"20-tenant-{lane}-auth-provision",
+            port=state.ports["auth"],
+            method="POST",
+            path="/internal/provider/v1/tenants",
+            headers=token_header,
+            payload={
+                "providerTenantId": str(provider_tenant_id),
+                "tenantKey": tenant_key,
+                "displayName": display_name,
+                "dataRegion": "local",
+                "isolationModel": "POOL",
+                "defaultLocale": "ko",
+                "timeZone": "Asia/Seoul",
+                "administratorDisplayName": f"W1 {lane.upper()} Administrator",
+                "administratorEmail": email,
+                "entitlementKeys": entitlements,
+            },
+        )
+        if provisioned is None:
+            raise GateFailure(f"Tenant {lane} Auth provisioning returned no object")
+        tenant_id = provisioned.get("tenantId")
+        administrator_user_id = provisioned.get("administratorUserId")
+        if (
+            provisioned.get("providerTenantId") != str(provider_tenant_id)
+            or provisioned.get("lifecycleState") != "PROVISIONING"
+            or not isinstance(tenant_id, int)
+            or tenant_id <= 0
+            or not isinstance(administrator_user_id, int)
+            or administrator_user_id <= 0
+            or provisioned.get("administratorEmail") != email
+        ):
+            raise GateFailure(f"Tenant {lane} Auth provisioning response is invalid")
+
+        _, platform_provisioned, _ = http_request(
+            state,
+            name=f"21-tenant-{lane}-platform-provision",
+            port=state.ports["platform"],
+            method="POST",
+            path="/internal/provider/v1/tenants",
+            headers=token_header,
+            payload={
+                "providerTenantId": str(provider_tenant_id),
+                "tenantId": tenant_id,
+                "tenantKey": tenant_key,
+                "displayName": display_name,
+                "dataRegion": "local",
+                "isolationModel": "POOL",
+                "defaultLocale": "ko",
+                "entitlementKeys": entitlements,
+            },
+        )
+        if platform_provisioned is None or any(
+            (
+                platform_provisioned.get("providerTenantId") != str(provider_tenant_id),
+                platform_provisioned.get("tenantId") != tenant_id,
+                platform_provisioned.get("lifecycleState") != "PROVISIONING",
+            )
+        ):
+            raise GateFailure(f"Tenant {lane} Platform provisioning response is invalid")
+
+        _, people_provisioned, _ = http_request(
+            state,
+            name=f"21-tenant-{lane}-people-provision",
+            port=state.ports["people"],
+            method="POST",
+            path="/internal/provider/v1/tenants",
+            headers=token_header,
+            payload={
+                "providerTenantId": str(provider_tenant_id),
+                "tenantId": tenant_id,
+                "tenantKey": tenant_key,
+                "displayName": display_name,
+                "dataRegion": "local",
+                "isolationModel": "POOL",
+            },
+        )
+        if people_provisioned is None or any(
+            (
+                people_provisioned.get("providerTenantId")
+                != str(provider_tenant_id),
+                people_provisioned.get("tenantId") != tenant_id,
+                people_provisioned.get("lifecycleState") != "PROVISIONING",
+            )
+        ):
+            raise GateFailure(f"Tenant {lane} People provisioning response is invalid")
+
+        for service in ("auth", "platform", "people"):
+            _, activated_tenant, _ = http_request(
+                state,
+                name=f"22-tenant-{lane}-{service}-lifecycle-active",
+                port=state.ports[service],
+                method="PATCH",
+                path=(
+                    f"/internal/provider/v1/tenants/{provider_tenant_id}/lifecycle"
+                ),
+                headers=token_header,
+                payload={"lifecycleState": "ACTIVE"},
+            )
+            if (
+                activated_tenant is None
+                or activated_tenant.get("providerTenantId") != str(provider_tenant_id)
+                or activated_tenant.get("tenantId") != tenant_id
+                or activated_tenant.get("lifecycleState") != "ACTIVE"
+            ):
+                raise GateFailure(
+                    f"Tenant {lane} {service} lifecycle activation is invalid"
+                )
+
+        people_payload = {
+            "runId": state.run_id,
+            "providerTenantId": str(provider_tenant_id),
+            "tenantId": tenant_id,
+            "administratorActorId": administrator_user_id,
+        }
+        if lane == "a":
+            http_request(
+                state,
+                name="23-synthetic-people-wrong-token-denied",
+                port=state.ports["people"],
+                method="POST",
+                path="/internal/synthetic/v1/people-workforce/bootstrap",
+                headers={
+                    "X-DWP-Synthetic-People-Bootstrap-Token": "x" * 40
+                },
+                payload=people_payload,
+                expected_status=401,
+            )
+            wrong_run = state.run_id[:-8] + (
+                "feedface" if not state.run_id.endswith("feedface") else "deadbeef"
+            )
+            http_request(
+                state,
+                name="24-synthetic-people-wrong-run-denied",
+                port=state.ports["people"],
+                method="POST",
+                path="/internal/synthetic/v1/people-workforce/bootstrap",
+                headers=people_header,
+                payload={**people_payload, "runId": wrong_run},
+                expected_status=403,
+            )
+        _, workforce, _ = http_request(
+            state,
+            name=f"25-tenant-{lane}-people-workforce-bootstrap",
+            port=state.ports["people"],
+            method="POST",
+            path="/internal/synthetic/v1/people-workforce/bootstrap",
+            headers=people_header,
+            payload=people_payload,
+        )
+        workforce = validate_people_workforce_bootstrap_response(
+            workforce,
+            run_id=state.run_id,
+            lane=lane,
+            provider_tenant_id=provider_tenant_id,
+            tenant_id=tenant_id,
+            administrator_actor_id=administrator_user_id,
+        )
+        person_public_id = workforce["actorPersonPublicId"]
+        worker_public_id = workforce["actorWorkerPublicId"]
+        assignment_public_id = workforce["actorAssignmentPublicId"]
+        actor_legal_employer_public_id = workforce["actorLegalEmployerPublicId"]
+        target_person_public_id = workforce["targetPersonPublicId"]
+        target_worker_public_id = workforce["targetWorkerPublicId"]
+        target_assignment_public_id = workforce["targetAssignmentPublicId"]
+        population_revision = workforce["targetPopulationRevision"]
+        population_count = workforce["targetPopulationCount"]
+        http_request(
+            state,
+            name=f"25-tenant-{lane}-people-workforce-one-shot",
+            port=state.ports["people"],
+            method="POST",
+            path="/internal/synthetic/v1/people-workforce/bootstrap",
+            headers=people_header,
+            payload=people_payload,
+            expected_status=409,
+        )
+
+        activation_payload = {
+            "runId": state.run_id,
+            "providerTenantId": str(provider_tenant_id),
+            "administratorUserId": administrator_user_id,
+            "personPublicId": person_public_id,
+            "administratorEmail": email,
+            "password": password,
+            "roleCodes": ["HR_ADMIN", "PAYROLL_ADMIN"] if lane == "a" else [],
+        }
+        if lane == "a":
+            http_request(
+                state,
+                name="23-synthetic-identity-wrong-token-denied",
+                port=state.ports["auth"],
+                method="POST",
+                path="/internal/synthetic/v1/identity/activate",
+                headers={"X-DWP-Synthetic-Bootstrap-Token": "x" * 40},
+                payload=activation_payload,
+                expected_status=401,
+            )
+            wrong_run = (
+                state.run_id[:-8]
+                + ("feedface" if not state.run_id.endswith("feedface") else "deadbeef")
+            )
+            http_request(
+                state,
+                name="24-synthetic-identity-wrong-run-denied",
+                port=state.ports["auth"],
+                method="POST",
+                path="/internal/synthetic/v1/identity/activate",
+                headers=identity_header,
+                payload={**activation_payload, "runId": wrong_run},
+                expected_status=403,
+            )
+        _, identity, _ = http_request(
+            state,
+            name=f"25-tenant-{lane}-synthetic-identity-activate",
+            port=state.ports["auth"],
+            method="POST",
+            path="/internal/synthetic/v1/identity/activate",
+            headers=identity_header,
+            payload=activation_payload,
+            persist_body=False,
+        )
+        if (
+            identity is None
+            or identity.get("runId") != state.run_id
+            or identity.get("providerTenantId") != str(provider_tenant_id)
+            or identity.get("tenantId") != tenant_id
+            or identity.get("administratorUserId") != administrator_user_id
+            or identity.get("personPublicId") != activation_payload["personPublicId"]
+            or identity.get("administratorEmail") != email
+            or identity.get("lifecycleState") != "ACTIVE"
+            or identity.get("roleCodes") != activation_payload["roleCodes"]
+            or not re.fullmatch(r"[0-9a-f]{64}", str(identity.get("receiptSha256", "")))
+        ):
+            raise GateFailure(f"Tenant {lane} synthetic identity activation is invalid")
+        http_request(
+            state,
+            name=f"26-tenant-{lane}-synthetic-identity-one-shot",
+            port=state.ports["auth"],
+            method="POST",
+            path="/internal/synthetic/v1/identity/activate",
+            headers=identity_header,
+            payload=activation_payload,
+            expected_status=409,
+            persist_body=False,
+        )
+        credential = SyntheticTenantCredential(
+            lane.upper(),
+            str(provider_tenant_id),
+            tenant_id,
+            administrator_user_id,
+            str(person_public_id),
+            str(worker_public_id),
+            str(assignment_public_id),
+            str(actor_legal_employer_public_id),
+            str(target_person_public_id),
+            str(target_worker_public_id),
+            str(target_assignment_public_id),
+            population_revision,
+            population_count,
+            tenant_key,
+            email,
+            password,
+        )
+        credentials.append(credential)
+        state.synthetic_tenants[credential.lane] = {
+            "providerTenantId": credential.provider_tenant_id,
+            "tenantId": credential.tenant_id,
+            "administratorUserId": credential.administrator_user_id,
+            "personPublicId": credential.person_public_id,
+            "workerPublicId": credential.worker_public_id,
+            "assignmentPublicId": credential.assignment_public_id,
+            "actorLegalEmployerPublicId": (
+                credential.actor_legal_employer_public_id
+            ),
+            "targetPersonPublicId": credential.target_person_public_id,
+            "targetWorkerPublicId": credential.target_worker_public_id,
+            "targetAssignmentPublicId": credential.target_assignment_public_id,
+            "targetPopulationRevision": credential.target_population_revision,
+            "targetPopulationCount": credential.target_population_count,
+            "peopleWorkforceReceiptSha256": workforce["receiptSha256"],
+            "authBindingExecution": {
+                "mode": "LOCAL_SYNTHETIC_ACTIVATE",
+                "officialWorkforceEventContractValidated": True,
+                "officialWorkforceEventExecuted": False,
+                "gap": (
+                    "The official workforce event cannot select the already-provisioned "
+                    "LOCAL administrator; this run binds it only through the run-bound "
+                    "local synthetic activation boundary."
+                ),
+            },
+            "tenantKey": credential.tenant_key,
+            "administratorEmail": credential.email,
+            "identityReceiptSha256": identity["receiptSha256"],
+            "hcmState": "111" if credential.lane == "A" else "000",
+        }
+    state.phase(
+        "synthetic-tenant-identities",
+        "PASS",
+        tenantStates={"A": "ACTIVE", "B": "ACTIVE"},
+        credentialLoginVerified=False,
+        peopleWorkforceBound=True,
+        authBindingMode="LOCAL_SYNTHETIC_ACTIVATE",
+        officialWorkforceEventExecuted=False,
+        secretsPersisted=False,
+    )
+    return credentials[0], credentials[1]
+
+
+def bootstrap_synthetic_rollouts(
+    state: GateState,
+    secrets_: RuntimeSecrets,
+    credentials: Sequence[SyntheticTenantCredential],
+) -> None:
+    bootstrap_header = {
+        "X-DWP-Synthetic-Rollout-Token": secrets_.synthetic_rollout_bootstrap_token
+    }
+    evaluation_header = {
+        "X-DWP-Service-Token": secrets_.provider_token,
+        "X-DWP-Service-Identity": "dwp-gateway",
+    }
+    flag_keys = (
+        "access.product-surfaces.context-shadow.v1",
+        "access.product-surfaces.capability-enforcement.hcm.v1",
+        "ux.product-surfaces.hcm.v1",
+    )
+    rollout_by_lane: dict[str, dict[str, Any]] = {}
+    for credential in credentials:
+        hcm_state = "111" if credential.lane == "A" else "000"
+        payload = {
+            "runId": state.run_id,
+            "providerTenantId": credential.provider_tenant_id,
+            "authTenantId": credential.tenant_id,
+            "tenantKey": credential.tenant_key,
+            "displayName": f"HRIS W1 synthetic tenant {credential.lane}",
+            "hcmState": hcm_state,
+        }
+        if credential.lane == "A":
+            http_request(
+                state,
+                name="30-synthetic-rollout-wrong-token-denied",
+                port=state.ports["provider"],
+                method="POST",
+                path="/internal/synthetic/v1/product-surface/bootstrap",
+                headers={"X-DWP-Synthetic-Rollout-Token": "x" * 40},
+                payload=payload,
+                expected_status=401,
+            )
+            wrong_run = (
+                state.run_id[:-8]
+                + ("feedface" if not state.run_id.endswith("feedface") else "deadbeef")
+            )
+            http_request(
+                state,
+                name="31-synthetic-rollout-wrong-run-denied",
+                port=state.ports["provider"],
+                method="POST",
+                path="/internal/synthetic/v1/product-surface/bootstrap",
+                headers=bootstrap_header,
+                payload={**payload, "runId": wrong_run},
+                expected_status=403,
+            )
+        _, bootstrapped, _ = http_request(
+            state,
+            name=f"32-tenant-{credential.lane.lower()}-rollout-bootstrap",
+            port=state.ports["provider"],
+            method="POST",
+            path="/internal/synthetic/v1/product-surface/bootstrap",
+            headers=bootstrap_header,
+            payload=payload,
+        )
+        if (
+            bootstrapped is None
+            or bootstrapped.get("runId") != state.run_id
+            or bootstrapped.get("providerTenantId") != credential.provider_tenant_id
+            or bootstrapped.get("authTenantId") != credential.tenant_id
+            or bootstrapped.get("tenantKey") != credential.tenant_key
+            or bootstrapped.get("hcmState") != hcm_state
+            or set((bootstrapped.get("rolloutRevisions") or {}).keys())
+            != set(flag_keys)
+            or not re.fullmatch(
+                r"[0-9a-f]{64}", str(bootstrapped.get("receiptSha256", ""))
+            )
+        ):
+            raise GateFailure(
+                f"Tenant {credential.lane} rollout bootstrap response is invalid"
+            )
+        http_request(
+            state,
+            name=f"33-tenant-{credential.lane.lower()}-rollout-one-shot",
+            port=state.ports["provider"],
+            method="POST",
+            path="/internal/synthetic/v1/product-surface/bootstrap",
+            headers=bootstrap_header,
+            payload=payload,
+            expected_status=409,
+        )
+        decisions: list[dict[str, Any]] = []
+        for index, flag_key in enumerate(flag_keys):
+            _, envelope, _ = http_request(
+                state,
+                name=(
+                    f"34-tenant-{credential.lane.lower()}-rollout-evaluate-{index}"
+                ),
+                port=state.ports["provider"],
+                method="POST",
+                path="/internal/provider/v1/feature-rollouts/evaluate",
+                headers=evaluation_header,
+                payload={
+                    "authTenantId": credential.tenant_id,
+                    "flagKey": flag_key,
+                },
+            )
+            decision = envelope.get("data") if isinstance(envelope, dict) else None
+            enabled = hcm_state[index] == "1"
+            if (
+                not isinstance(decision, dict)
+                or decision.get("flagKey") != flag_key
+                or decision.get("enabled") is not enabled
+                or not re.fullmatch(
+                    r"rev-[0-9]{20}", str(decision.get("opaqueRevision", ""))
+                )
+                or decision.get("cohort") != ("full" if enabled else "baseline")
+            ):
+                raise GateFailure(
+                    f"Tenant {credential.lane} rollout decision is invalid: {flag_key}"
+                )
+            decisions.append(decision)
+        material = "hcm" + "".join(
+            "\n"
+            + decision["flagKey"]
+            + "="
+            + decision["opaqueRevision"]
+            + ":"
+            + str(decision["enabled"]).lower()
+            + ":true"
+            for decision in decisions
+        )
+        combined = "rollout-" + hashlib.sha256(material.encode("utf-8")).hexdigest()
+        rollout_by_lane[credential.lane] = {
+            "state": hcm_state,
+            "cohort": "full" if hcm_state == "111" else "baseline",
+            "revision": combined,
+            "flags": {
+                decision["flagKey"]: decision["opaqueRevision"]
+                for decision in decisions
+            },
+            "receiptSha256": bootstrapped["receiptSha256"],
+        }
+        state.synthetic_tenants[credential.lane]["rollout"] = rollout_by_lane[
+            credential.lane
+        ]
+    state.projection_feed["rollouts"] = rollout_by_lane
+    state.phase(
+        "synthetic-product-surface-rollouts",
+        "PASS",
+        states={lane: value["state"] for lane, value in rollout_by_lane.items()},
+        evaluatedByTrustedProviderPath=True,
+    )
+
+
+def login_gateway_sessions(
+    state: GateState,
+    credentials: Sequence[SyntheticTenantCredential],
+) -> dict[str, GatewayBrowserSession]:
+    sessions: dict[str, GatewayBrowserSession] = {}
+    for credential in credentials:
+        opener = urllib.request.build_opener(
+            urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
+        )
+        session = GatewayBrowserSession(credential, opener)
+        _, login, _ = gateway_session_request(
+            state,
+            session,
+            name=f"27-tenant-{credential.lane.lower()}-gateway-login",
+            method="POST",
+            path="/api/auth/login",
+            payload={
+                "email": credential.email,
+                "password": credential.password,
+                "tenantId": str(credential.tenant_id),
+            },
+            persist_body=False,
+        )
+        login_data = login.get("data") if isinstance(login, dict) else None
+        if (
+            not isinstance(login_data, dict)
+            or login_data.get("tenantId") != str(credential.tenant_id)
+            or login_data.get("userId")
+            != str(credential.administrator_user_id)
+        ):
+            raise GateFailure(
+                f"Tenant {credential.lane} Gateway credential login failed"
+            )
+        _, csrf, _ = gateway_session_request(
+            state,
+            session,
+            name=f"28-tenant-{credential.lane.lower()}-gateway-csrf",
+            method="GET",
+            path="/api/auth/csrf",
+            persist_body=False,
+        )
+        csrf_data = csrf.get("data") if isinstance(csrf, dict) else None
+        if (
+            not isinstance(csrf_data, dict)
+            or csrf_data.get("headerName") != "X-XSRF-TOKEN"
+            or not isinstance(csrf_data.get("token"), str)
+            or len(csrf_data["token"]) < 16
+        ):
+            raise GateFailure(
+                f"Tenant {credential.lane} Gateway CSRF bootstrap failed"
+            )
+        session.csrf_header = csrf_data["headerName"]
+        session.csrf_token = csrf_data["token"]
+        sessions[credential.lane] = session
+    state.phase(
+        "synthetic-gateway-sessions",
+        "PASS",
+        lanes=sorted(sessions),
+        credentialLoginVerified=True,
+        csrfBound=True,
+        secretsPersisted=False,
+    )
+    return sessions
+
+
+def gateway_evaluate(
+    state: GateState,
+    session: GatewayBrowserSession,
+    *,
+    name: str,
+    route_contract_key: str,
+    context_key: str | None,
+    scope_key: str | None,
+) -> dict[str, Any]:
+    _, envelope, _ = gateway_session_request(
+        state,
+        session,
+        name=name,
+        method="POST",
+        path="/api/auth/product-surface-access/evaluate",
+        payload={
+            "subject": {
+                "type": "PRODUCT",
+                "productKey": "hcm",
+                "surfaceKey": "hcm.operations",
+            },
+            "routeContractKey": route_contract_key,
+            "contextKey": context_key,
+            "contextScopeKey": scope_key,
+        },
+    )
+    data = envelope.get("data") if isinstance(envelope, dict) else None
+    if not isinstance(data, dict):
+        raise GateFailure(f"{name} returned no Gateway decision object")
+    return data
+
+
+def resolve_gateway_authorities(
+    state: GateState,
+    sessions: dict[str, GatewayBrowserSession],
+) -> dict[str, dict[str, str]]:
+    if set(sessions) != {"A", "B"}:
+        raise GateFailure("Gateway evaluation requires exact tenant A/B sessions")
+    session_a = sessions["A"]
+    _, envelope, _ = gateway_session_request(
+        state,
+        session_a,
+        name="40-tenant-a-gateway-product-surface-contexts",
+        method="GET",
+        path="/api/auth/product-surface-contexts",
+    )
+    data = envelope.get("data") if isinstance(envelope, dict) else None
+    contexts = data.get("contexts") if isinstance(data, dict) else None
+    matches = [
+        value
+        for value in contexts or []
+        if isinstance(value, dict)
+        and value.get("productKey") == "hcm"
+        and value.get("surfaceKey") == "hcm.operations"
+        and value.get("accessMode") == "NORMAL"
+    ]
+    if len(matches) != 1:
+        raise GateFailure("Tenant A has no unique live HCM operations context")
+    context = matches[0]
+    context_key = context.get("contextKey")
+    if not isinstance(context_key, str) or not re.fullmatch(
+        r"psc-[0-9a-f]{64}", context_key
+    ):
+        raise GateFailure("Tenant A HCM operations context key is invalid")
+
+    def capability_scope(capability_key: str) -> str:
+        grants = [
+            grant
+            for grant in context.get("effectiveGrants") or []
+            if isinstance(grant, dict)
+            and grant.get("grantKind") == "CAPABILITY"
+            and grant.get("capabilityContractKey") == capability_key
+        ]
+        keys = grants[0].get("scopeKeys") if len(grants) == 1 else None
+        if (
+            not isinstance(keys, list)
+            or len(keys) != 1
+            or not re.fullmatch(r"hcm-scope-[0-9a-f]{40}", str(keys[0]))
+        ):
+            raise GateFailure(
+                f"Tenant A has no unique derived scope for {capability_key}"
+            )
+        return str(keys[0])
+
+    requests = {
+        "payroll": (
+            "hcm.operations.pay.read",
+            "route.hcm.operations.payroll-foundation-configurations.data",
+            "ALLOWED",
+        ),
+        "time": (
+            "hcm.operations.time.read",
+            "route.hcm.operations.work-plans-list.data",
+            "ALLOWED",
+        ),
+        "page": (
+            "hcm.operations.pay.read",
+            "route.hcm.operations.overview.page",
+            "ALLOWED",
+        ),
+        "payrollPublish": (
+            "hcm.operations.payroll-foundation.publish",
+            "route.hcm.operations.payroll-foundation-publish.action",
+            "STEP_UP_REQUIRED",
+        ),
+        "payrollStale": (
+            "hcm.operations.pay.read",
+            "route.hcm.operations.payroll-foundation-configuration.data",
+            "ALLOWED",
+        ),
+        "payrollExpired": (
+            "hcm.operations.pay.read",
+            "route.hcm.operations.payroll-foundation-versions.data",
+            "ALLOWED",
+        ),
+        "payrollRevoked": (
+            "hcm.operations.pay.read",
+            "route.hcm.operations.payroll-foundation-receipt.data",
+            "ALLOWED",
+        ),
+    }
+    results: dict[str, dict[str, str]] = {}
+    for key, (capability, route, expected) in requests.items():
+        scope_key = capability_scope(capability)
+        decision = gateway_evaluate(
+            state,
+            session_a,
+            name=f"41-tenant-a-gateway-{key}",
+            route_contract_key=route,
+            context_key=context_key,
+            scope_key=scope_key,
+        )
+        revision = decision.get("decisionRevision")
+        revalidate_at = decision.get("revalidateAt")
+        if (
+            decision.get("decision") != expected
+            or not isinstance(revision, str)
+            or not re.fullmatch(r"psr-[0-9a-f]{64}", revision)
+            or not isinstance(revalidate_at, str)
+            or not revalidate_at
+        ):
+            raise GateFailure(f"Tenant A Gateway {key} decision is invalid")
+        if expected == "ALLOWED":
+            selected = decision.get("scope")
+            selected_context = decision.get("context")
+            if (
+                not isinstance(selected, dict)
+                or selected.get("key") != scope_key
+                or not isinstance(selected_context, dict)
+                or selected_context.get("contextKey") != context_key
+            ):
+                raise GateFailure(
+                    f"Tenant A Gateway {key} lost its selected context/scope"
+                )
+        results[key] = {
+            "routeContractKey": route,
+            "contextKey": context_key,
+            "scopeKey": scope_key,
+            "decision": expected,
+            "decisionRevision": revision,
+            "revalidateAt": revalidate_at,
+        }
+
+    denied = gateway_evaluate(
+        state,
+        sessions["B"],
+        name="42-tenant-b-gateway-payroll-feature-off",
+        route_contract_key=(
+            "route.hcm.operations.payroll-foundation-configurations.data"
+        ),
+        context_key=None,
+        scope_key=None,
+    )
+    if denied.get("decision") not in {
+        "APP_DENIED",
+        "SURFACE_DENIED",
+        "ROUTE_DENIED",
+    }:
+        raise GateFailure("Tenant B Gateway feature-off decision did not deny HCM")
+    state.projection_feed["gatewayAuthorities"] = {
+        "A": results,
+        "B": {
+            "payroll": {
+                "decision": denied["decision"],
+                "reasonCode": denied.get("reasonCode"),
+                "decisionRevision": denied.get("decisionRevision"),
+            }
+        },
+    }
+    state.phase(
+        "live-gateway-hcm-authority",
+        "PASS",
+        tenantA={key: value["decision"] for key, value in results.items()},
+        tenantB=denied["decision"],
+        derivedScopes=True,
+        directAuthShortcut=False,
+    )
+    return results
+
+
+def psql_as(
+    container: str,
+    database: str,
+    role: str,
+    password: str,
+    sql: str,
+    *,
+    expect_success: bool = True,
+    expected_sqlstate: str | None = None,
+) -> str:
+    for label, value in (("database", database), ("role", role)):
+        if not re.fullmatch(r"[a-z][a-z0-9_]{1,62}", value):
+            raise GateFailure(f"Unsafe {label} for service-principal SQL: {value}")
+    result = subprocess.run(
+        (
+            "docker",
+            "exec",
+            "-i",
+            container,
+            "sh",
+            "-c",
+            "IFS= read -r PGPASSWORD; export PGPASSWORD; exec \"$@\"",
+            "dwp-psql-as",
+            "psql",
+            "-X",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-v",
+            "VERBOSITY=verbose",
+            "-A",
+            "-t",
+            "-h",
+            "127.0.0.1",
+            "-U",
+            role,
+            "-d",
+            database,
+            "-f",
+            "-",
+        ),
+        input=password + "\n" + sql,
+        check=False,
+        text=True,
+        capture_output=True,
+        timeout=180,
+    )
+    succeeded = result.returncode == 0
+    if succeeded != expect_success:
+        detail = (result.stderr or result.stdout or "").strip()[-1200:]
+        expectation = "success" if expect_success else "failure"
+        raise GateFailure(
+            f"Service-principal SQL expected {expectation} for {role}: {detail}"
+        )
+    if not expect_success:
+        if not isinstance(expected_sqlstate, str) or not re.fullmatch(
+            r"[0-9A-Z]{5}", expected_sqlstate
+        ):
+            raise GateFailure(
+                "A failed service-principal SQL assertion requires an exact SQLSTATE."
+            )
+        diagnostic = (result.stderr or "") + "\n" + (result.stdout or "")
+        if not re.search(
+            rf"(?:ERROR|FATAL):\s+{re.escape(expected_sqlstate)}\b", diagnostic
+        ):
+            raise GateFailure(
+                f"Service-principal SQL for {role} failed with an unexpected "
+                f"SQLSTATE; required {expected_sqlstate}."
+            )
+    return (result.stdout or "").strip()
+
+
+def require_exact_publisher_acl(
+    postgres: str,
+    database: str,
+    role: str,
+    password: str,
+    *,
+    table_privileges: Sequence[str],
+    update_columns: Sequence[str],
+) -> None:
+    actual_tables = psql_as(
+        postgres,
+        database,
+        role,
+        password,
+        """
+        SELECT table_name || '|' || privilege_type
+          FROM information_schema.table_privileges
+         WHERE grantee=current_user AND table_schema='public'
+         ORDER BY table_name, privilege_type;
+        """,
+    ).splitlines()
+    actual_columns = psql_as(
+        postgres,
+        database,
+        role,
+        password,
+        """
+        SELECT table_name || '|' || column_name || '|UPDATE'
+          FROM information_schema.column_privileges
+         WHERE grantee=current_user AND table_schema='public'
+           AND privilege_type='UPDATE'
+         ORDER BY table_name, column_name;
+        """,
+    ).splitlines()
+    if actual_tables != sorted(table_privileges) or actual_columns != sorted(update_columns):
+        raise GateFailure(
+            f"Publisher ACL inventory mismatch for {role}: "
+            f"tables={actual_tables}, updateColumns={actual_columns}"
+        )
+
+
+def bootstrap_payroll_foundation_fixture(
+    state: GateState,
+    secrets_: RuntimeSecrets,
+    tenant: SyntheticTenantCredential,
+    payroll_entry: dict[str, str],
+    payroll_authority: dict[str, str],
+) -> dict[str, Any]:
+    author_actor_id = tenant.administrator_user_id + 1_000_000_000
+    if author_actor_id == tenant.administrator_user_id:
+        raise GateFailure("Synthetic payroll author must differ from the browser administrator")
+    payload = {
+        "runId": state.run_id,
+        "tenantId": tenant.tenant_id,
+        "authorActorId": author_actor_id,
+        "legalEntityId": payroll_entry["legalEntityId"],
+    }
+    header = {
+        "X-DWP-Synthetic-Payroll-Bootstrap-Token": (
+            secrets_.synthetic_payroll_foundation_bootstrap_token
+        )
+    }
+    http_request(
+        state,
+        name="41-synthetic-payroll-foundation-wrong-token-denied",
+        port=state.ports["payroll"],
+        method="POST",
+        path="/internal/synthetic/v1/payroll-foundation/bootstrap",
+        headers={"X-DWP-Synthetic-Payroll-Bootstrap-Token": "x" * 40},
+        payload=payload,
+        expected_status=401,
+    )
+    wrong_run = (
+        state.run_id[:-8]
+        + ("feedface" if not state.run_id.endswith("feedface") else "deadbeef")
+    )
+    http_request(
+        state,
+        name="42-synthetic-payroll-foundation-wrong-run-denied",
+        port=state.ports["payroll"],
+        method="POST",
+        path="/internal/synthetic/v1/payroll-foundation/bootstrap",
+        headers=header,
+        payload={**payload, "runId": wrong_run},
+        expected_status=403,
+    )
+    _, fixture, _ = http_request(
+        state,
+        name="43-synthetic-payroll-foundation-bootstrap",
+        port=state.ports["payroll"],
+        method="POST",
+        path="/internal/synthetic/v1/payroll-foundation/bootstrap",
+        headers=header,
+        payload=payload,
+    )
+    expected_fixture_receipt = ""
+    if isinstance(fixture, dict):
+        expected_fixture_receipt = hashlib.sha256("|".join((
+            state.run_id,
+            str(tenant.tenant_id),
+            str(author_actor_id),
+            payroll_entry["legalEntityId"],
+            str(fixture.get("configurationId")),
+            str(fixture.get("version")),
+            str(fixture.get("createCommandId")),
+            str(fixture.get("simulateCommandId")),
+        )).encode("utf-8")).hexdigest()
+    if (
+        not isinstance(fixture, dict)
+        or fixture.get("runId") != state.run_id
+        or fixture.get("tenantId") != tenant.tenant_id
+        or fixture.get("authorActorId") != author_actor_id
+        or fixture.get("legalEntityId") != payroll_entry["legalEntityId"]
+        or fixture.get("lifecycleState") != "SIMULATED"
+        or fixture.get("dependencyFreshness") != "LIVE"
+        or fixture.get("version") != 2
+        or not re.fullmatch(
+            r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}",
+            str(fixture.get("configurationId", "")),
+        )
+        or not re.fullmatch(
+            r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}",
+            str(fixture.get("createCommandId", "")),
+        )
+        or not re.fullmatch(
+            r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}",
+            str(fixture.get("simulateCommandId", "")),
+        )
+        or fixture.get("createCommandId") == fixture.get("simulateCommandId")
+        or fixture.get("receiptSha256") != expected_fixture_receipt
+    ):
+        raise GateFailure("Synthetic payroll foundation fixture response is invalid")
+    http_request(
+        state,
+        name="44-synthetic-payroll-foundation-one-shot",
+        port=state.ports["payroll"],
+        method="POST",
+        path="/internal/synthetic/v1/payroll-foundation/bootstrap",
+        headers=header,
+        payload=payload,
+        expected_status=409,
+    )
+
+    rollout = state.projection_feed["rollouts"][tenant.lane]
+    _, workspace_envelope, _ = http_request(
+        state,
+        name="45-tenant-a-payroll-publish-preview-readiness",
+        port=state.ports["payroll"],
+        method="GET",
+        path="/v1/hris/payroll/foundation/configurations",
+        headers={
+            "X-DWP-Service-Token": secrets_.payroll_token,
+            "X-DWP-Tenant-ID": str(tenant.tenant_id),
+            "X-DWP-User-ID": str(tenant.administrator_user_id),
+            "X-DWP-Permissions": "APP.HCM:VIEW,DATA.HR_PAY:VIEW",
+            "X-DWP-Route-Contract-Key": (
+                "route.hcm.operations.payroll-foundation-configurations.data"
+            ),
+            "X-DWP-Context-Key": payroll_authority["contextKey"],
+            "X-DWP-Context-Scope-Key": payroll_entry["scopeKey"],
+            "X-DWP-Active-Access-Mode": "NORMAL",
+            "X-DWP-Current-Decision-Revision": (
+                payroll_authority["decisionRevision"]
+            ),
+            "X-DWP-Current-Revalidate-At": payroll_authority["revalidateAt"],
+            "X-DWP-Rollout-State": rollout["state"],
+            "X-DWP-Rollout-Revision": rollout["revision"],
+            "X-DWP-Rollout-Cohort": rollout["cohort"],
+        },
+    )
+    workspace = (
+        workspace_envelope.get("data")
+        if isinstance(workspace_envelope, dict)
+        else None
+    )
+    configurations = workspace.get("configurations") if isinstance(workspace, dict) else None
+    matching = [
+        item
+        for item in configurations or []
+        if isinstance(item, dict)
+        and item.get("configurationId") == fixture["configurationId"]
+    ]
+    if len(matching) != 1:
+        raise GateFailure("Synthetic payroll foundation is absent from the owner read model")
+    view = matching[0]
+    access = view.get("access")
+    freshness = view.get("freshness")
+    if (
+        view.get("status") != "SIMULATED"
+        or view.get("authorId") == tenant.administrator_user_id
+        or not isinstance(access, dict)
+        or access.get("canPublish") is not True
+        or access.get("publishDenialCode") is not None
+        or not isinstance(freshness, dict)
+        or freshness.get("state") != "LIVE"
+    ):
+        raise GateFailure(
+            "Tenant A payroll foundation does not satisfy HIGH preview prerequisites"
+        )
+    return {
+        "configurationId": fixture["configurationId"],
+        "version": fixture["version"],
+        "lifecycleState": fixture["lifecycleState"],
+        "dependencyFreshness": fixture["dependencyFreshness"],
+        "authorActorId": author_actor_id,
+        "browserActorId": tenant.administrator_user_id,
+        "canPublish": True,
+        "createCommandId": fixture["createCommandId"],
+        "simulateCommandId": fixture["simulateCommandId"],
+        "receiptSha256": fixture["receiptSha256"],
+    }
+
+
+def observe_payroll_foundation_preflight(
+    postgres: str,
+    state: GateState,
+    tenant: SyntheticTenantCredential,
+    fixture: dict[str, Any],
+) -> dict[str, Any]:
+    raw = psql(
+        postgres,
+        "dwp_payroll",
+        f"""
+        SELECT jsonb_build_object(
+            'schemaVersion', 1,
+            'phase', 'PREFLIGHT',
+            'tenantId', configuration.tenant_id,
+            'configurationId', configuration.configuration_id,
+            'currentVersion', configuration.current_version,
+            'lifecycleState', configuration.lifecycle_state,
+            'legalEntityId', configuration.legal_entity_id,
+            'authorId', configuration.author_id,
+            'publisherId', configuration.publisher_id,
+            'lastCommandId', configuration.last_command_id,
+            'fixtureReceiptSha256', {sql_literal(fixture['receiptSha256'])},
+            'definitionDigest', version.definition_digest,
+            'dependencyDigest', version.dependency_digest,
+            'lastCommandReceipt', jsonb_build_object(
+                'commandId', receipt.command_id,
+                'commandType', receipt.command_type,
+                'receiptStatus', receipt.receipt_status,
+                'resultVersion', receipt.result_version,
+                'requestDigest', receipt.request_digest))::text
+          FROM pay_foundation_configurations configuration
+          JOIN pay_foundation_versions version
+            ON version.tenant_id=configuration.tenant_id
+           AND version.configuration_id=configuration.configuration_id
+           AND version.version=configuration.current_version
+          JOIN pay_foundation_command_receipts receipt
+            ON receipt.tenant_id=configuration.tenant_id
+           AND receipt.command_id=configuration.last_command_id
+         WHERE configuration.tenant_id={tenant.tenant_id}
+           AND configuration.configuration_id=
+               {sql_literal(fixture['configurationId'])}::uuid;
+        """,
+    ).strip()
+    try:
+        observation = json.loads(raw)
+    except (TypeError, json.JSONDecodeError) as error:
+        raise GateFailure(
+            "PAY foundation preflight database observation is not exact JSON"
+        ) from error
+    if not isinstance(observation, dict):
+        raise GateFailure("PAY foundation preflight database observation is absent")
+    receipt = observation.get("lastCommandReceipt")
+    expected = {
+        "schemaVersion": 1,
+        "phase": "PREFLIGHT",
+        "tenantId": tenant.tenant_id,
+        "configurationId": fixture["configurationId"],
+        "currentVersion": 2,
+        "lifecycleState": "SIMULATED",
+        "legalEntityId": tenant.actor_legal_employer_public_id,
+        "authorId": fixture["authorActorId"],
+        "publisherId": None,
+        "lastCommandId": fixture["simulateCommandId"],
+        "fixtureReceiptSha256": fixture["receiptSha256"],
+    }
+    drift = {
+        key: {"expected": value, "actual": observation.get(key)}
+        for key, value in expected.items()
+        if not isinstance(observation, dict) or observation.get(key) != value
+    }
+    if (
+        drift
+        or set(observation) != {
+            *expected,
+            "definitionDigest",
+            "dependencyDigest",
+            "lastCommandReceipt",
+        }
+        or not re.fullmatch(r"[0-9a-f]{64}", str(observation.get("definitionDigest", "")))
+        or not re.fullmatch(r"[0-9a-f]{64}", str(observation.get("dependencyDigest", "")))
+        or not isinstance(receipt, dict)
+        or set(receipt) != {
+            "commandId", "commandType", "receiptStatus", "resultVersion", "requestDigest"
+        }
+        or receipt.get("commandId") != fixture["simulateCommandId"]
+        or receipt.get("commandType") != "SIMULATE"
+        or receipt.get("receiptStatus") != "SUCCEEDED"
+        or receipt.get("resultVersion") != 2
+        or not re.fullmatch(r"[0-9a-f]{64}", str(receipt.get("requestDigest", "")))
+    ):
+        raise GateFailure(
+            f"PAY foundation preflight database lineage is invalid: {drift}"
+        )
+    observation["observationSha256"] = canonical_json_sha256(observation)
+    atomic_write_json(
+        state.output_dir / "db" / "payroll-foundation-preflight.json",
+        observation,
+    )
+    return observation
+
+
+def seed_trusted_projection_feeds(
+    postgres: str,
+    state: GateState,
+    secrets_: RuntimeSecrets,
+    credentials: Sequence[SyntheticTenantCredential],
+    authorities: dict[str, dict[str, str]],
+    sessions: dict[str, GatewayBrowserSession],
+) -> None:
+    by_lane = {credential.lane: credential for credential in credentials}
+    tenant_a = by_lane["A"]
+    required_authorities = {
+        "payroll",
+        "time",
+        "payrollStale",
+        "payrollExpired",
+        "payrollRevoked",
+    }
+    if (
+        set(by_lane) != {"A", "B"}
+        or set(sessions) != {"A", "B"}
+        or not required_authorities.issubset(authorities)
+    ):
+        raise GateFailure("Projection feeds require exact A/B and live PAY/TIM authority")
+    payroll_authority = authorities["payroll"]
+    payroll_scope_a = payroll_authority["scopeKey"]
+    negative_revisions = [
+        authorities[key]["decisionRevision"]
+        for key in ("payrollStale", "payrollExpired", "payrollRevoked")
+    ]
+    if len(set([payroll_authority["decisionRevision"], *negative_revisions])) != 4:
+        raise GateFailure(
+            "PAY positive and negative observations require four distinct governed decisions"
+        )
+    rollout_revision = state.projection_feed["rollouts"][tenant_a.lane]["revision"]
+    legal_entity_id = uuid.UUID(tenant_a.actor_legal_employer_public_id)
+
+    def publish_negative_projection(
+        evidence_state: str,
+        authority: dict[str, str],
+        *,
+        valid_until: str,
+        terminal_state: str | None,
+    ) -> dict[str, Any]:
+        projection_id = uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"dwp:{state.run_id}:payroll:negative:{evidence_state.lower()}",
+        )
+        projection_revision = hashlib.sha256(
+            f"{state.run_id}|payroll|negative|{evidence_state}".encode("utf-8")
+        ).hexdigest()
+        transition = (
+            "UPDATE pay_legal_entity_scope_projections SET status='ACTIVE' "
+            f"WHERE tenant_id={tenant_a.tenant_id} "
+            f"AND projection_id={sql_literal(str(projection_id))}::uuid;"
+        )
+        if terminal_state:
+            transition += (
+                " UPDATE pay_legal_entity_scope_projections "
+                f"SET status={sql_literal(terminal_state)}, "
+                "valid_until=CURRENT_TIMESTAMP "
+                f"WHERE tenant_id={tenant_a.tenant_id} "
+                f"AND projection_id={sql_literal(str(projection_id))}::uuid;"
+            )
+        psql_as(
+            postgres,
+            "dwp_payroll",
+            "dwp_payroll_projection_publisher",
+            secrets_.payroll_projection_publisher_password,
+            f"""
+            BEGIN;
+            SELECT set_config('dwp.payroll_tenant_id',
+                              {sql_literal(str(tenant_a.tenant_id))}, true);
+            INSERT INTO pay_legal_entity_scope_projections (
+                tenant_id, projection_id, actor_id, context_scope_key,
+                policy_revision, authorization_revision, projection_revision,
+                status, valid_from, valid_until, recorded_at)
+            VALUES (
+                {tenant_a.tenant_id}, {sql_literal(str(projection_id))}::uuid,
+                {tenant_a.administrator_user_id},
+                {sql_literal(authority['scopeKey'])},
+                {sql_literal(rollout_revision)},
+                {sql_literal(authority['decisionRevision'])},
+                {sql_literal(projection_revision)},
+                'BUILDING', CURRENT_TIMESTAMP - INTERVAL '5 minutes',
+                {valid_until}, CURRENT_TIMESTAMP);
+            INSERT INTO pay_legal_entity_scope_members (
+                tenant_id, projection_id, legal_entity_id)
+            VALUES (
+                {tenant_a.tenant_id}, {sql_literal(str(projection_id))}::uuid,
+                {sql_literal(str(legal_entity_id))}::uuid);
+            {transition}
+            COMMIT;
+            """,
+        )
+        observed = psql_as(
+            postgres,
+            "dwp_payroll",
+            "dwp_payroll_projection_publisher",
+            secrets_.payroll_projection_publisher_password,
+            f"""
+            SELECT set_config('dwp.payroll_tenant_id',
+                              {sql_literal(str(tenant_a.tenant_id))}, false);
+            SELECT projection.projection_id::text || '|' ||
+                   projection.projection_revision || '|' || projection.status || '|' ||
+                   CASE WHEN projection.valid_until <= CURRENT_TIMESTAMP
+                        THEN 'EXPIRED' ELSE 'CURRENT' END || '|' ||
+                   projection.context_scope_key || '|' || projection.policy_revision || '|' ||
+                   projection.authorization_revision || '|' ||
+                   count(member.projection_id)::text
+              FROM pay_legal_entity_scope_projections projection
+              LEFT JOIN pay_legal_entity_scope_members member
+                ON member.tenant_id=projection.tenant_id
+               AND member.projection_id=projection.projection_id
+             WHERE projection.tenant_id={tenant_a.tenant_id}
+               AND projection.projection_id={sql_literal(str(projection_id))}::uuid
+             GROUP BY projection.projection_id, projection.projection_revision,
+                      projection.status, projection.valid_until,
+                      projection.context_scope_key, projection.policy_revision,
+                      projection.authorization_revision;
+            """,
+        ).splitlines()
+        if len(observed) < 2:
+            raise GateFailure(
+                f"PAY {evidence_state} projection was not observed after transition"
+            )
+        row = observed[-1].split("|")
+        if len(row) != 8:
+            raise GateFailure(
+                f"PAY {evidence_state} projection observation is malformed"
+            )
+        transition = NEGATIVE_PROJECTION_STATES[evidence_state][0]
+        material: dict[str, Any] = {
+            "tenantId": tenant_a.tenant_id,
+            "actorId": tenant_a.administrator_user_id,
+            "evidenceState": evidence_state,
+            "projectionId": row[0],
+            "projectionRevision": row[1],
+            "contextScopeKey": row[4],
+            "policyRevision": row[5],
+            "authorizationRevision": row[6],
+            "databaseTransition": transition,
+            "databaseStatus": row[2],
+            "databaseValidity": row[3],
+            "databaseMemberCount": int(row[7]),
+        }
+        expected = {
+            "projectionId": str(projection_id),
+            "projectionRevision": projection_revision,
+            "contextScopeKey": authority["scopeKey"],
+            "policyRevision": rollout_revision,
+            "authorizationRevision": authority["decisionRevision"],
+            "databaseStatus": NEGATIVE_PROJECTION_STATES[evidence_state][1],
+            "databaseValidity": NEGATIVE_PROJECTION_STATES[evidence_state][2],
+            "databaseMemberCount": 1,
+        }
+        drift = {
+            key: {"expected": value, "actual": material.get(key)}
+            for key, value in expected.items()
+            if material.get(key) != value
+        }
+        if drift:
+            raise GateFailure(
+                f"PAY {evidence_state} projection transition drift: {drift}"
+            )
+        material["projectionObservationSha256"] = canonical_json_sha256(material)
+        return material
+
+    negative_specs = (
+        (
+            "negative.stale-evidence-denied",
+            "STALE",
+            "payrollStale",
+            "/api/payroll/v1/hris/payroll/foundation/configurations/"
+            + str(uuid.uuid5(uuid.NAMESPACE_URL, f"dwp:{state.run_id}:negative:stale")),
+            "NULL",
+            "SUPERSEDED",
+        ),
+        (
+            "negative.expired-evidence-denied",
+            "EXPIRED",
+            "payrollExpired",
+            "/api/payroll/v1/hris/payroll/foundation/configurations/"
+            + str(uuid.uuid5(uuid.NAMESPACE_URL, f"dwp:{state.run_id}:negative:expired"))
+            + "/versions",
+            "CURRENT_TIMESTAMP - INTERVAL '1 minute'",
+            None,
+        ),
+        (
+            "negative.revoked-evidence-denied",
+            "REVOKED",
+            "payrollRevoked",
+            "/api/payroll/v1/hris/payroll/foundation/receipts/"
+            + str(uuid.uuid5(uuid.NAMESPACE_URL, f"dwp:{state.run_id}:negative:revoked")),
+            "NULL",
+            "REVOKED",
+        ),
+    )
+    observations: list[dict[str, Any]] = []
+    negative_projections: dict[str, dict[str, Any]] = {}
+    for assertion_name, evidence_state, authority_key, path, valid_until, terminal in negative_specs:
+        projection = publish_negative_projection(
+            evidence_state,
+            authorities[authority_key],
+            valid_until=valid_until,
+            terminal_state=terminal,
+        )
+        status, error, body = gateway_session_request(
+            state,
+            sessions["A"],
+            name=f"46-payroll-{evidence_state.lower()}-owner-denied",
+            method="GET",
+            path=path,
+            expected_status=NEGATIVE_OWNER_STATUS,
+        )
+        error_code = None
+        if isinstance(error, dict):
+            error_code = error.get("errorCode") or error.get("code")
+        if (
+            not isinstance(error, dict)
+            or error.get("status") != "ERROR"
+            or error.get("success") is not False
+            or error_code != NEGATIVE_OWNER_ERROR_CODE
+            or error.get("message") != NEGATIVE_OWNER_ERROR_MESSAGE
+        ):
+            raise GateFailure(
+                f"PAY {evidence_state} denial did not originate from owner projection resolution"
+            )
+        observation: dict[str, Any] = {
+            "assertionName": assertion_name,
+            "source": "LIVE_GATEWAY_OWNER_REQUEST",
+            "method": "GET",
+            "path": path,
+            "tenantId": tenant_a.tenant_id,
+            "actorId": tenant_a.administrator_user_id,
+            "evidenceState": evidence_state,
+            **projection,
+            "status": status,
+            "errorCode": error_code,
+            "ownerErrorMessage": error["message"],
+            "observedAt": utc_now(),
+            "responseBodySha256": hashlib.sha256(body).hexdigest(),
+        }
+        observation["observationSha256"] = canonical_json_sha256(observation)
+        validate_negative_observation(
+            observation,
+            assertion_name=assertion_name,
+            state=state,
+        )
+        observations.append(observation)
+        negative_projections[evidence_state] = projection
+        if evidence_state == "EXPIRED":
+            psql_as(
+                postgres,
+                "dwp_payroll",
+                "dwp_payroll_projection_publisher",
+                secrets_.payroll_projection_publisher_password,
+                f"""
+                BEGIN;
+                SELECT set_config('dwp.payroll_tenant_id',
+                                  {sql_literal(str(tenant_a.tenant_id))}, true);
+                UPDATE pay_legal_entity_scope_projections
+                   SET status='SUPERSEDED'
+                 WHERE tenant_id={tenant_a.tenant_id}
+                   AND projection_id={sql_literal(projection['projectionId'])}::uuid;
+                COMMIT;
+                """,
+            )
+    state.projection_feed["negativeObservations"] = {
+        "schemaVersion": 1,
+        "observations": observations,
+        "aggregateSha256": canonical_json_sha256(observations),
+    }
+    state.projection_feed["negativeObservationProjections"] = {
+        "schemaVersion": 1,
+        "disposable": True,
+        "restoredPositiveAfterObservations": True,
+        "projections": negative_projections,
+        "aggregateSha256": canonical_json_sha256(negative_projections),
+    }
+
+    payroll_entries: dict[str, dict[str, str]] = {}
+    for credential, scope_key, status, authority_revision in ((
+        tenant_a,
+        payroll_scope_a,
+        "ACTIVE",
+        payroll_authority["decisionRevision"],
+    ),):
+        projection_id = uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"dwp:{state.run_id}:payroll:{credential.lane}:projection",
+        )
+        legal_entity_id = uuid.UUID(credential.actor_legal_employer_public_id)
+        rollout_revision = state.projection_feed["rollouts"][credential.lane][
+            "revision"
+        ]
+        projection_revision = hashlib.sha256(
+            f"{state.run_id}|payroll|{credential.lane}|1".encode("utf-8")
+        ).hexdigest()
+        terminal = (
+            "UPDATE pay_legal_entity_scope_projections "
+            "SET status='ACTIVE' "
+            f"WHERE tenant_id={credential.tenant_id} "
+            f"AND projection_id={sql_literal(str(projection_id))}::uuid;"
+        )
+        if status == "REVOKED":
+            terminal += (
+                " UPDATE pay_legal_entity_scope_projections "
+                "SET status='REVOKED', valid_until=CURRENT_TIMESTAMP "
+                f"WHERE tenant_id={credential.tenant_id} "
+                f"AND projection_id={sql_literal(str(projection_id))}::uuid;"
+            )
+        sql = f"""
+            BEGIN;
+            SELECT set_config('dwp.payroll_tenant_id',
+                              {sql_literal(str(credential.tenant_id))}, true);
+            INSERT INTO pay_legal_entity_scope_projections (
+                tenant_id, projection_id, actor_id, context_scope_key,
+                policy_revision, authorization_revision, projection_revision,
+                status, valid_from, valid_until, recorded_at)
+            VALUES (
+                {credential.tenant_id}, {sql_literal(str(projection_id))}::uuid,
+                {credential.administrator_user_id}, {sql_literal(scope_key)},
+                {sql_literal(rollout_revision)}, {sql_literal(authority_revision)},
+                {sql_literal(projection_revision)}, 'BUILDING',
+                CURRENT_TIMESTAMP - INTERVAL '5 minutes', NULL, CURRENT_TIMESTAMP);
+            INSERT INTO pay_legal_entity_scope_members (
+                tenant_id, projection_id, legal_entity_id)
+            VALUES (
+                {credential.tenant_id}, {sql_literal(str(projection_id))}::uuid,
+                {sql_literal(str(legal_entity_id))}::uuid);
+            {terminal}
+            COMMIT;
+        """
+        psql_as(
+            postgres,
+            "dwp_payroll",
+            "dwp_payroll_projection_publisher",
+            secrets_.payroll_projection_publisher_password,
+            sql,
+        )
+        payroll_entries[credential.lane] = {
+            "scopeKey": scope_key,
+            "projectionId": str(projection_id),
+            "legalEntityId": str(legal_entity_id),
+            "status": status,
+            "policyRevision": rollout_revision,
+            "authorizationRevision": authority_revision,
+        }
+
+    time_entries: dict[str, dict[str, Any]] = {}
+    for credential, lifecycle in ((tenant_a, "ACTIVE"),):
+        scope_key = authorities["time"]["scopeKey"]
+        population_id = uuid.uuid5(
+            uuid.NAMESPACE_URL,
+            f"dwp:{state.run_id}:time:{credential.lane}:population",
+        )
+        worker_id = uuid.UUID(credential.target_worker_public_id)
+        assignment_id = uuid.UUID(credential.target_assignment_public_id)
+        digest = lambda kind: hashlib.sha256(
+            (
+                f"{state.run_id}|time|{credential.lane}|{kind}|"
+                f"{credential.target_population_revision}"
+            ).encode("utf-8")
+        ).hexdigest()
+        valid_to = (
+            "CURRENT_TIMESTAMP + INTERVAL '1 day'"
+            if lifecycle == "ACTIVE"
+            else "CURRENT_TIMESTAMP + INTERVAL '5 minutes'"
+        )
+        effective_to = "CURRENT_DATE + 1"
+        sql = f"""
+            BEGIN;
+            SELECT set_config('dwp.tenant_id',
+                              {sql_literal(str(credential.tenant_id))}, true);
+            INSERT INTO tim_target_population_projections (
+                tenant_id, population_public_id, scope_public_ref,
+                projection_revision, lifecycle_state, effective_from, effective_to,
+                source_digest, updated_by)
+            VALUES (
+                {credential.tenant_id}, {sql_literal(str(population_id))}::uuid,
+                {sql_literal('population:' + str(population_id))}, 1,
+                {sql_literal(lifecycle)}, CURRENT_DATE - 1, {effective_to},
+                {sql_literal(digest('population'))},
+                {credential.administrator_user_id});
+            INSERT INTO tim_target_population_actor_grants (
+                tenant_id, actor_id, gateway_scope_key, population_public_id,
+                population_revision, grant_revision, lifecycle_state,
+                valid_from, valid_to, source_digest, updated_by)
+            VALUES (
+                {credential.tenant_id}, {credential.administrator_user_id},
+                {sql_literal(scope_key)}, {sql_literal(str(population_id))}::uuid,
+                1, 1, {sql_literal(lifecycle)},
+                CURRENT_TIMESTAMP - INTERVAL '5 minutes', {valid_to},
+                {sql_literal(digest('grant'))}, {credential.administrator_user_id});
+            INSERT INTO tim_target_population_members (
+                tenant_id, population_public_id, population_revision,
+                worker_public_id, people_assignment_public_id,
+                people_assignment_revision, membership_revision, lifecycle_state,
+                effective_from, effective_to, source_digest, updated_by)
+            VALUES (
+                {credential.tenant_id}, {sql_literal(str(population_id))}::uuid, 1,
+                {sql_literal(str(worker_id))}::uuid,
+                {sql_literal(str(assignment_id))}::uuid,
+                1, 1, {sql_literal(lifecycle)}, CURRENT_DATE - 1,
+                {effective_to}, {sql_literal(digest('membership'))},
+                {credential.administrator_user_id});
+            COMMIT;
+        """
+        psql_as(
+            postgres,
+            "dwp_time",
+            "dwp_time_projection_publisher",
+            secrets_.time_projection_publisher_password,
+            sql,
+        )
+        time_entries[credential.lane] = {
+            "scopeKey": scope_key,
+            "populationPublicId": str(population_id),
+            "workerPublicId": str(worker_id),
+            "peopleAssignmentPublicId": str(assignment_id),
+            "peopleAssignmentRevision": 1,
+            "lifecycleState": lifecycle,
+            "peopleTargetPersonPublicId": credential.target_person_public_id,
+            "peopleTargetPopulationRevision": (
+                credential.target_population_revision
+            ),
+            "populationIdentityKind": "TIM_PROJECTION_RUN_BOUND",
+        }
+
+    denied_payroll_projection_id = uuid.uuid5(
+        uuid.NAMESPACE_URL, f"dwp:{state.run_id}:payroll:runtime-denied"
+    )
+    payroll_runtime_insert = f"""
+        BEGIN;
+        SELECT set_config('dwp.payroll_tenant_id',
+                          {sql_literal(str(tenant_a.tenant_id))}, true);
+        INSERT INTO pay_legal_entity_scope_projections (
+            tenant_id, projection_id, actor_id, context_scope_key,
+            policy_revision, authorization_revision, projection_revision,
+            status, valid_from, valid_until, recorded_at)
+        VALUES (
+            {tenant_a.tenant_id},
+            {sql_literal(str(denied_payroll_projection_id))}::uuid,
+            {tenant_a.administrator_user_id},
+            {sql_literal(payroll_entries['A']['scopeKey'])},
+            {sql_literal(payroll_entries['A']['policyRevision'])},
+            {sql_literal(payroll_entries['A']['authorizationRevision'])},
+            'runtime-denied-1', 'BUILDING', CURRENT_TIMESTAMP,
+            CURRENT_TIMESTAMP + INTERVAL '1 day', CURRENT_TIMESTAMP);
+        ROLLBACK;
+    """
+    psql_as(
+        postgres,
+        "dwp_payroll",
+        "dwp_payroll_runtime",
+        secrets_.payroll_password,
+        payroll_runtime_insert,
+        expect_success=False,
+        expected_sqlstate="42501",
+    )
+    payroll_a_projection = payroll_entries["A"]["projectionId"]
+    for statement in (
+        f"""
+        BEGIN;
+        SELECT set_config('dwp.payroll_tenant_id',
+                          {sql_literal(str(tenant_a.tenant_id))}, true);
+        UPDATE pay_legal_entity_scope_projections
+           SET valid_until=CURRENT_TIMESTAMP + INTERVAL '1 day'
+         WHERE tenant_id={tenant_a.tenant_id}
+           AND projection_id={sql_literal(payroll_a_projection)}::uuid;
+        ROLLBACK;
+        """,
+        f"""
+        BEGIN;
+        SELECT set_config('dwp.payroll_tenant_id',
+                          {sql_literal(str(tenant_a.tenant_id))}, true);
+        DELETE FROM pay_legal_entity_scope_projections
+         WHERE tenant_id={tenant_a.tenant_id}
+           AND projection_id={sql_literal(payroll_a_projection)}::uuid;
+        ROLLBACK;
+        """,
+    ):
+        psql_as(
+            postgres,
+            "dwp_payroll",
+            "dwp_payroll_runtime",
+            secrets_.payroll_password,
+            statement,
+            expect_success=False,
+            expected_sqlstate="42501",
+        )
+    psql_as(
+        postgres,
+        "dwp_payroll",
+        "dwp_payroll_projection_publisher",
+        secrets_.payroll_projection_publisher_password,
+        f"""
+        BEGIN;
+        SELECT set_config('dwp.payroll_tenant_id',
+                          {sql_literal(str(tenant_a.tenant_id))}, true);
+        SELECT 1 FROM pay_foundation_configurations
+         WHERE tenant_id={tenant_a.tenant_id} LIMIT 1;
+        ROLLBACK;
+        """,
+        expect_success=False,
+        expected_sqlstate="42501",
+    )
+    psql_as(
+        postgres,
+        "dwp_time",
+        "dwp_time_runtime",
+        secrets_.time_password,
+        f"""
+        BEGIN;
+        SELECT set_config('dwp.tenant_id',
+                          {sql_literal(str(tenant_a.tenant_id))}, true);
+        INSERT INTO tim_target_population_projections (
+            tenant_id, population_public_id, scope_public_ref,
+            projection_revision, lifecycle_state, effective_from, effective_to,
+            source_digest, updated_by)
+        VALUES (
+            {tenant_a.tenant_id},
+            {sql_literal(str(uuid.uuid5(uuid.NAMESPACE_URL, f'dwp:{state.run_id}:time:runtime-denied')))}::uuid,
+            {sql_literal('population:' + str(uuid.uuid5(uuid.NAMESPACE_URL, f'dwp:{state.run_id}:time:runtime-denied')))},
+            1, 'ACTIVE', CURRENT_DATE, CURRENT_DATE + 1,
+            {sql_literal(hashlib.sha256(f'{state.run_id}|time|runtime-denied'.encode('utf-8')).hexdigest())},
+            {tenant_a.administrator_user_id});
+        ROLLBACK;
+        """,
+        expect_success=False,
+        expected_sqlstate="42501",
+    )
+    time_a_population = time_entries["A"]["populationPublicId"]
+    for statement in (
+        f"""
+        BEGIN;
+        SELECT set_config('dwp.tenant_id',
+                          {sql_literal(str(tenant_a.tenant_id))}, true);
+        UPDATE tim_target_population_projections
+           SET projection_revision=projection_revision + 1
+         WHERE tenant_id={tenant_a.tenant_id}
+           AND population_public_id={sql_literal(time_a_population)}::uuid;
+        ROLLBACK;
+        """,
+        f"""
+        BEGIN;
+        SELECT set_config('dwp.tenant_id',
+                          {sql_literal(str(tenant_a.tenant_id))}, true);
+        DELETE FROM tim_target_population_projections
+         WHERE tenant_id={tenant_a.tenant_id}
+           AND population_public_id={sql_literal(time_a_population)}::uuid;
+        ROLLBACK;
+        """,
+    ):
+        psql_as(
+            postgres,
+            "dwp_time",
+            "dwp_time_runtime",
+            secrets_.time_password,
+            statement,
+            expect_success=False,
+            expected_sqlstate="42501",
+        )
+    psql_as(
+        postgres,
+        "dwp_time",
+        "dwp_time_projection_publisher",
+        secrets_.time_projection_publisher_password,
+        f"""
+        BEGIN;
+        SELECT set_config('dwp.tenant_id',
+                          {sql_literal(str(tenant_a.tenant_id))}, true);
+        SELECT 1 FROM tim_work_regime_versions
+         WHERE tenant_id={tenant_a.tenant_id} LIMIT 1;
+        ROLLBACK;
+        """,
+        expect_success=False,
+        expected_sqlstate="42501",
+    )
+    require_exact_publisher_acl(
+        postgres,
+        "dwp_payroll",
+        "dwp_payroll_projection_publisher",
+        secrets_.payroll_projection_publisher_password,
+        table_privileges=(
+            "pay_legal_entity_scope_members|INSERT",
+            "pay_legal_entity_scope_members|SELECT",
+            "pay_legal_entity_scope_projections|INSERT",
+            "pay_legal_entity_scope_projections|SELECT",
+        ),
+        update_columns=(
+            "pay_legal_entity_scope_projections|status|UPDATE",
+            "pay_legal_entity_scope_projections|valid_until|UPDATE",
+        ),
+    )
+    require_exact_publisher_acl(
+        postgres,
+        "dwp_time",
+        "dwp_time_projection_publisher",
+        secrets_.time_projection_publisher_password,
+        table_privileges=(
+            "tim_target_population_actor_grants|INSERT",
+            "tim_target_population_actor_grants|SELECT",
+            "tim_target_population_members|INSERT",
+            "tim_target_population_members|SELECT",
+            "tim_target_population_projections|INSERT",
+            "tim_target_population_projections|SELECT",
+        ),
+        update_columns=(
+            "tim_target_population_actor_grants|grant_revision|UPDATE",
+            "tim_target_population_actor_grants|lifecycle_state|UPDATE",
+            "tim_target_population_actor_grants|population_public_id|UPDATE",
+            "tim_target_population_actor_grants|population_revision|UPDATE",
+            "tim_target_population_actor_grants|source_digest|UPDATE",
+            "tim_target_population_actor_grants|updated_at|UPDATE",
+            "tim_target_population_actor_grants|updated_by|UPDATE",
+            "tim_target_population_actor_grants|valid_from|UPDATE",
+            "tim_target_population_actor_grants|valid_to|UPDATE",
+            "tim_target_population_members|effective_from|UPDATE",
+            "tim_target_population_members|effective_to|UPDATE",
+            "tim_target_population_members|lifecycle_state|UPDATE",
+            "tim_target_population_members|membership_revision|UPDATE",
+            "tim_target_population_members|people_assignment_revision|UPDATE",
+            "tim_target_population_members|population_revision|UPDATE",
+            "tim_target_population_members|source_digest|UPDATE",
+            "tim_target_population_members|updated_at|UPDATE",
+            "tim_target_population_members|updated_by|UPDATE",
+            "tim_target_population_projections|effective_from|UPDATE",
+            "tim_target_population_projections|effective_to|UPDATE",
+            "tim_target_population_projections|lifecycle_state|UPDATE",
+            "tim_target_population_projections|projection_revision|UPDATE",
+            "tim_target_population_projections|source_digest|UPDATE",
+            "tim_target_population_projections|updated_at|UPDATE",
+            "tim_target_population_projections|updated_by|UPDATE",
+        ),
+    )
+    payroll_foundation = bootstrap_payroll_foundation_fixture(
+        state,
+        secrets_,
+        tenant_a,
+        payroll_entries["A"],
+        payroll_authority,
+    )
+    payroll_foundation_database = observe_payroll_foundation_preflight(
+        postgres,
+        state,
+        tenant_a,
+        payroll_foundation,
+    )
+    state.projection_feed.update(
+        {
+            "payroll": payroll_entries,
+            "time": time_entries,
+            "payrollAuthority": payroll_authority,
+            "payrollFoundation": payroll_foundation,
+            "payrollFoundationDatabaseObservation": payroll_foundation_database,
+            "runtimeMutationDenied": True,
+            "publisherForbiddenTableDenied": True,
+        }
+    )
+    state.phase(
+        "trusted-payroll-time-projection-feeds",
+        "PASS",
+        payrollStates={lane: item["status"] for lane, item in payroll_entries.items()},
+        timeStates={
+            lane: item["lifecycleState"] for lane, item in time_entries.items()
+        },
+        runtimeMutationDenied=True,
+        publisherForbiddenTableDenied=True,
+    )
+
+
 def rollback_v33_to_v32(state: GateState, secrets_: RuntimeSecrets) -> None:
     if state.rollback_complete:
         return
@@ -1503,6 +4359,26 @@ def start_remaining_services(
         environment = base_environment.copy()
         environment.update(shared_urls)
         environment.update(spec.extra_environment)
+        if name in ("people", "payroll", "time"):
+            receipt = state.control_receipts.get(name)
+            if receipt is None:
+                raise GateFailure(
+                    f"{name} cannot start without its Migration Control receipt"
+                )
+            prefix = f"DWP_{name.upper()}"
+            environment.update(
+                {
+                    f"{prefix}_MIGRATION_CONTROL_RUN_RECEIPT_JSON": json.dumps(
+                        receipt, separators=(",", ":"), sort_keys=True
+                    ),
+                    f"{prefix}_MIGRATION_CONTROL_RUN_RECEIPT_SHA256": str(
+                        receipt["receiptSha256"]
+                    ),
+                    f"{prefix}_MIGRATION_CONTROL_REFERENCE": str(
+                        receipt["controlReference"]
+                    ),
+                }
+            )
         environment["SERVER_PORT"] = str(state.ports[name])
         if name == "time":
             environment["DWP_TIME_SERVER_PORT"] = str(state.ports[name])
@@ -1523,6 +4399,16 @@ def write_runtime_manifest(state: GateState) -> None:
         "syntheticOnly": True,
         "secretsPersisted": False,
         "activeBundle": {"version": state.active_version, "revision": state.active_revision},
+        "migrationControl": {
+            service: {
+                "receiptSha256": receipt["receiptSha256"],
+                "controlReference": receipt["controlReference"],
+                "mode": receipt["mode"],
+            }
+            for service, receipt in sorted(state.control_receipts.items())
+        },
+        "syntheticTenants": state.synthetic_tenants,
+        "projectionFeed": state.projection_feed,
         "endpoints": {
             name: f"http://127.0.0.1:{port}"
             for name, port in state.ports.items()
@@ -1542,13 +4428,15 @@ def validate_checkpoint_executable(
     executable = Path(command[0])
     if not executable.is_absolute():
         raise GateFailure("Checkpoint executable must be an absolute path.")
-    if executable.is_symlink():
-        raise GateFailure("Checkpoint executable must not be a symlink.")
     try:
-        metadata = executable.stat()
+        metadata = executable.lstat()
     except OSError as error:
         raise GateFailure(f"Checkpoint executable is unavailable: {error}") from error
-    if not stat.S_ISREG(metadata.st_mode) or not os.access(executable, os.X_OK):
+    if (
+        stat.S_ISLNK(metadata.st_mode)
+        or not stat.S_ISREG(metadata.st_mode)
+        or not os.access(executable, os.X_OK)
+    ):
         raise GateFailure(
             "Checkpoint executable must be an executable regular file."
         )
@@ -1559,7 +4447,10 @@ def validate_checkpoint_executable(
             "Full W1 backend mode requires a lowercase SHA-256 pin for the "
             "checkpoint executable."
         )
-    actual_sha256 = sha256_file(executable)
+    executable_bytes = _attested_regular_bytes(
+        executable, require_executable=True
+    )
+    actual_sha256 = hashlib.sha256(executable_bytes).hexdigest()
     if actual_sha256 != expected_sha256:
         raise GateFailure(
             "Checkpoint executable SHA-256 does not match the supplied pin."
@@ -1567,7 +4458,7 @@ def validate_checkpoint_executable(
     return {
         "path": str(executable),
         "sha256": actual_sha256,
-        "byteCount": metadata.st_size,
+        "byteCount": len(executable_bytes),
         "nonSymlinkRegularExecutable": True,
     }
 
@@ -1696,12 +4587,17 @@ def run_checkpoint_process(
 def validate_checkpoint_manifest(
     state: GateState, manifest_path: Path
 ) -> dict[str, Any]:
-    if not manifest_path.is_file() or manifest_path.is_symlink():
+    try:
+        manifest_relative = manifest_path.relative_to(state.output_dir)
+    except ValueError as error:
         raise GateFailure(
-            "External live checkpoint did not create its required regular-file manifest: "
-            f"{manifest_path}"
-        )
-    manifest_bytes = manifest_path.read_bytes()
+            "External live checkpoint manifest escapes the run directory."
+        ) from error
+    manifest_bytes = _attested_output_regular_bytes(
+        state.output_dir,
+        manifest_relative,
+        max_bytes=MAX_CHECKPOINT_MANIFEST_BYTES,
+    )
     if not manifest_bytes or len(manifest_bytes) > MAX_CHECKPOINT_MANIFEST_BYTES:
         raise GateFailure("External live checkpoint manifest is empty or too large.")
     try:
@@ -1742,6 +4638,37 @@ def validate_checkpoint_manifest(
         raise GateFailure(
             f"External live checkpoint manifest binding mismatch: {mismatches}"
         )
+    provenance = manifest.get("provenance")
+    runtime_provenance = (
+        provenance.get("runtimeManifest") if isinstance(provenance, dict) else None
+    )
+    preflight = state.projection_feed.get("payrollFoundationDatabaseObservation")
+    if (
+        not isinstance(provenance, dict)
+        or set(provenance) != {"frontend", "runtimeManifest", "browser"}
+        or not isinstance(provenance.get("frontend"), dict)
+        or not isinstance(provenance.get("browser"), dict)
+        or not isinstance(runtime_provenance, dict)
+        or set(runtime_provenance) != {
+            "path",
+            "sha256",
+            "byteCount",
+            "negativeObservationAggregateSha256",
+            "payrollFoundationDatabaseObservationSha256",
+        }
+        or runtime_provenance.get("path") != "runtime.json"
+        or not re.fullmatch(r"[0-9a-f]{64}", str(runtime_provenance.get("sha256", "")))
+        or type(runtime_provenance.get("byteCount")) is not int
+        or runtime_provenance["byteCount"] <= 0
+        or not re.fullmatch(
+            r"[0-9a-f]{64}",
+            str(runtime_provenance.get("negativeObservationAggregateSha256", "")),
+        )
+        or not isinstance(preflight, dict)
+        or runtime_provenance.get("payrollFoundationDatabaseObservationSha256")
+        != preflight.get("observationSha256")
+    ):
+        raise GateFailure("Checkpoint runtime provenance is not exact or DB-bound")
 
     assertions = manifest.get("assertions")
     if not isinstance(assertions, list) or not assertions:
@@ -1752,6 +4679,8 @@ def validate_checkpoint_manifest(
     evidence_paths: set[str] = set()
     evidence_candidates: set[Path] = set()
     evidence_bindings: dict[str, dict[str, Any]] = {}
+    checkpoint_negative_observations: dict[str, dict[str, Any]] = {}
+    payroll_browser_database_observation: dict[str, Any] | None = None
     for index, assertion in enumerate(assertions):
         if not isinstance(assertion, dict):
             raise GateFailure(f"Checkpoint assertion {index} must be a JSON object.")
@@ -1776,35 +4705,27 @@ def validate_checkpoint_manifest(
         evidence_relative = Path(evidence_path)
         if evidence_relative.is_absolute() or ".." in evidence_relative.parts:
             raise GateFailure(f"Checkpoint assertion evidence path is unsafe: {name}")
-        unresolved_candidate = state.output_dir / evidence_relative
-        if unresolved_candidate.is_symlink():
-            raise GateFailure(
-                f"Checkpoint assertion evidence cannot be a symlink: {name}"
-            )
-        candidate = unresolved_candidate.resolve()
-        try:
-            candidate.relative_to(state.output_dir.resolve())
-        except ValueError as error:
-            raise GateFailure(
-                f"Checkpoint assertion evidence escapes the run directory: {name}"
-            ) from error
-        if candidate == manifest_path.resolve() or not candidate.is_file():
+        if evidence_relative == manifest_relative:
             raise GateFailure(
                 f"Checkpoint assertion evidence must be a separate regular file: {name}"
             )
-        if candidate in evidence_candidates:
+        if evidence_relative in evidence_candidates:
             raise GateFailure(
                 "Every checkpoint assertion requires a distinct evidence file: "
-                f"{candidate}"
+                f"{evidence_relative}"
             )
-        evidence_candidates.add(candidate)
-        if candidate.stat().st_size == 0:
-            raise GateFailure(f"Checkpoint assertion evidence is empty: {name}")
+        evidence_candidates.add(evidence_relative)
         if not isinstance(evidence_sha256, str) or not re.fullmatch(
             r"[0-9a-f]{64}", evidence_sha256
         ):
             raise GateFailure(f"Checkpoint assertion digest is invalid: {name}")
-        evidence_bytes = candidate.read_bytes()
+        evidence_bytes = _attested_output_regular_bytes(
+            state.output_dir,
+            evidence_relative,
+            max_bytes=MAX_CHECKPOINT_EVIDENCE_BYTES,
+        )
+        if not evidence_bytes:
+            raise GateFailure(f"Checkpoint assertion evidence is empty: {name}")
         actual_sha256 = hashlib.sha256(evidence_bytes).hexdigest()
         if actual_sha256 != evidence_sha256:
             raise GateFailure(f"Checkpoint assertion digest mismatch: {name}")
@@ -1826,6 +4747,7 @@ def validate_checkpoint_manifest(
             "status": "PASS",
             "activeBundle": {"version": 33, "revision": 2},
             "endpoints": expected_endpoints,
+            "provenance": provenance,
         }
         evidence_mismatches = {
             key: {"expected": expected, "actual": evidence.get(key)}
@@ -1846,10 +4768,28 @@ def validate_checkpoint_manifest(
             raise GateFailure(
                 f"Checkpoint assertion evidence requires non-empty object observations: {name}"
             )
+        if name in NEGATIVE_OBSERVATION_STATES:
+            if len(observations) != 1:
+                raise GateFailure(
+                    f"Negative checkpoint assertion requires one observation: {name}"
+                )
+            checkpoint_negative_observations[name] = validate_negative_observation(
+                observations[0], assertion_name=name, state=state
+            )
+        if name == "path.browser-gateway-owner-db":
+            if len(observations) != 1:
+                raise GateFailure(
+                    "Browser-to-PAY database checkpoint requires one observation"
+                )
+            payroll_browser_database_observation = (
+                validate_payroll_browser_database_observation(
+                    observations[0], state=state
+                )
+            )
         evidence_bindings[name] = {
             "path": evidence_path,
             "sha256": actual_sha256,
-            "byteCount": candidate.stat().st_size,
+            "byteCount": len(evidence_bytes),
         }
         names.append(name)
     missing = sorted(set(REQUIRED_CHECKPOINT_ASSERTIONS) - set(names))
@@ -1859,6 +4799,29 @@ def validate_checkpoint_manifest(
             "External live checkpoint manifest assertion set mismatch: "
             f"missing={missing}, unexpected={unexpected}"
         )
+    runtime_negative = state.projection_feed.get("negativeObservations")
+    ordered_negative = [
+        checkpoint_negative_observations[name]
+        for name in NEGATIVE_OBSERVATION_STATES
+        if name in checkpoint_negative_observations
+    ]
+    expected_negative = {
+        "schemaVersion": 1,
+        "observations": ordered_negative,
+        "aggregateSha256": canonical_json_sha256(ordered_negative),
+    }
+    if (
+        len(ordered_negative) != len(NEGATIVE_OBSERVATION_STATES)
+        or runtime_negative != expected_negative
+    ):
+        raise GateFailure(
+            "Checkpoint negative observations are not the exact runner-observed "
+            "Gateway-to-owner evidence bound in runtime.json."
+        )
+    if payroll_browser_database_observation is None:
+        raise GateFailure(
+            "Checkpoint omitted browser-to-PAY database lineage observation"
+        )
     return {
         "manifest": {
             "path": str(manifest_path.relative_to(state.output_dir)),
@@ -1866,11 +4829,278 @@ def validate_checkpoint_manifest(
             "byteCount": len(manifest_bytes),
         },
         "assertionEvidence": evidence_bindings,
+        "payrollFoundationBrowserObservation": payroll_browser_database_observation,
     }
 
 
+def observe_payroll_foundation_postflight(
+    postgres: str,
+    state: GateState,
+    browser: dict[str, Any],
+) -> dict[str, Any]:
+    preflight = state.projection_feed["payrollFoundationDatabaseObservation"]
+    update_command_id = browser["updateCommandId"]
+    simulate_command_id = browser["simulateCommandId"]
+    tenant_id = preflight["tenantId"]
+    configuration_id = preflight["configurationId"]
+    raw = psql(
+        postgres,
+        "dwp_payroll",
+        f"""
+        SELECT jsonb_build_object(
+            'schemaVersion', 1,
+            'phase', 'POSTFLIGHT',
+            'tenantId', configuration.tenant_id,
+            'configurationId', configuration.configuration_id,
+            'currentVersion', configuration.current_version,
+            'lifecycleState', configuration.lifecycle_state,
+            'legalEntityId', configuration.legal_entity_id,
+            'authorId', configuration.author_id,
+            'publisherId', configuration.publisher_id,
+            'lastCommandId', configuration.last_command_id,
+            'definitionDigest', current_version.definition_digest,
+            'dependencyDigest', current_version.dependency_digest,
+            'preflightObservationSha256',
+                {sql_literal(preflight['observationSha256'])},
+            'browserObservationSha256',
+                {sql_literal(browser['observationSha256'])},
+            'workspaceResponseSha256',
+                {sql_literal(browser['workspaceResponseSha256'])},
+            'updateResponseSha256',
+                {sql_literal(browser['updateResponseSha256'])},
+            'simulateResponseSha256',
+                {sql_literal(browser['simulateResponseSha256'])},
+            'versionRows', jsonb_build_array(
+                jsonb_build_object(
+                    'version', 3,
+                    'rowCount', (SELECT count(*) FROM pay_foundation_versions item
+                                  WHERE item.tenant_id=configuration.tenant_id
+                                    AND item.configuration_id=configuration.configuration_id
+                                    AND item.version=3),
+                    'commandId', (SELECT item.command_id FROM pay_foundation_versions item
+                                   WHERE item.tenant_id=configuration.tenant_id
+                                     AND item.configuration_id=configuration.configuration_id
+                                     AND item.version=3),
+                    'lifecycleState', (SELECT item.lifecycle_state
+                                         FROM pay_foundation_versions item
+                                        WHERE item.tenant_id=configuration.tenant_id
+                                          AND item.configuration_id=configuration.configuration_id
+                                          AND item.version=3),
+                    'authoredBy', (SELECT item.authored_by
+                                     FROM pay_foundation_versions item
+                                    WHERE item.tenant_id=configuration.tenant_id
+                                      AND item.configuration_id=configuration.configuration_id
+                                      AND item.version=3),
+                    'definitionDigest', (SELECT item.definition_digest
+                                           FROM pay_foundation_versions item
+                                          WHERE item.tenant_id=configuration.tenant_id
+                                            AND item.configuration_id=configuration.configuration_id
+                                            AND item.version=3),
+                    'dependencyDigest', (SELECT item.dependency_digest
+                                           FROM pay_foundation_versions item
+                                          WHERE item.tenant_id=configuration.tenant_id
+                                            AND item.configuration_id=configuration.configuration_id
+                                            AND item.version=3)),
+                jsonb_build_object(
+                    'version', 4,
+                    'rowCount', (SELECT count(*) FROM pay_foundation_versions item
+                                  WHERE item.tenant_id=configuration.tenant_id
+                                    AND item.configuration_id=configuration.configuration_id
+                                    AND item.version=4),
+                    'commandId', (SELECT item.command_id FROM pay_foundation_versions item
+                                   WHERE item.tenant_id=configuration.tenant_id
+                                     AND item.configuration_id=configuration.configuration_id
+                                     AND item.version=4),
+                    'lifecycleState', (SELECT item.lifecycle_state
+                                         FROM pay_foundation_versions item
+                                        WHERE item.tenant_id=configuration.tenant_id
+                                          AND item.configuration_id=configuration.configuration_id
+                                          AND item.version=4),
+                    'authoredBy', (SELECT item.authored_by
+                                     FROM pay_foundation_versions item
+                                    WHERE item.tenant_id=configuration.tenant_id
+                                      AND item.configuration_id=configuration.configuration_id
+                                      AND item.version=4),
+                    'definitionDigest', (SELECT item.definition_digest
+                                           FROM pay_foundation_versions item
+                                          WHERE item.tenant_id=configuration.tenant_id
+                                            AND item.configuration_id=configuration.configuration_id
+                                            AND item.version=4),
+                    'dependencyDigest', (SELECT item.dependency_digest
+                                           FROM pay_foundation_versions item
+                                          WHERE item.tenant_id=configuration.tenant_id
+                                            AND item.configuration_id=configuration.configuration_id
+                                            AND item.version=4))),
+            'updateReceipt', jsonb_build_object(
+                'rowCount', (SELECT count(*) FROM pay_foundation_command_receipts receipt
+                              WHERE receipt.tenant_id=configuration.tenant_id
+                                AND receipt.command_id={sql_literal(update_command_id)}::uuid),
+                'commandId', (SELECT receipt.command_id FROM pay_foundation_command_receipts receipt
+                               WHERE receipt.tenant_id=configuration.tenant_id
+                                 AND receipt.command_id={sql_literal(update_command_id)}::uuid),
+                'commandType', (SELECT receipt.command_type FROM pay_foundation_command_receipts receipt
+                                 WHERE receipt.tenant_id=configuration.tenant_id
+                                   AND receipt.command_id={sql_literal(update_command_id)}::uuid),
+                'receiptStatus', (SELECT receipt.receipt_status FROM pay_foundation_command_receipts receipt
+                                   WHERE receipt.tenant_id=configuration.tenant_id
+                                     AND receipt.command_id={sql_literal(update_command_id)}::uuid),
+                'configurationId', (SELECT receipt.configuration_id FROM pay_foundation_command_receipts receipt
+                                     WHERE receipt.tenant_id=configuration.tenant_id
+                                       AND receipt.command_id={sql_literal(update_command_id)}::uuid),
+                'resultVersion', (SELECT receipt.result_version FROM pay_foundation_command_receipts receipt
+                                   WHERE receipt.tenant_id=configuration.tenant_id
+                                     AND receipt.command_id={sql_literal(update_command_id)}::uuid),
+                'actorId', (SELECT receipt.actor_id FROM pay_foundation_command_receipts receipt
+                             WHERE receipt.tenant_id=configuration.tenant_id
+                               AND receipt.command_id={sql_literal(update_command_id)}::uuid),
+                'requestDigest', (SELECT receipt.request_digest FROM pay_foundation_command_receipts receipt
+                                   WHERE receipt.tenant_id=configuration.tenant_id
+                                     AND receipt.command_id={sql_literal(update_command_id)}::uuid)),
+            'simulateReceipt', jsonb_build_object(
+                'rowCount', (SELECT count(*) FROM pay_foundation_command_receipts receipt
+                              WHERE receipt.tenant_id=configuration.tenant_id
+                                AND receipt.command_id={sql_literal(simulate_command_id)}::uuid),
+                'commandId', (SELECT receipt.command_id FROM pay_foundation_command_receipts receipt
+                               WHERE receipt.tenant_id=configuration.tenant_id
+                                 AND receipt.command_id={sql_literal(simulate_command_id)}::uuid),
+                'commandType', (SELECT receipt.command_type FROM pay_foundation_command_receipts receipt
+                                 WHERE receipt.tenant_id=configuration.tenant_id
+                                   AND receipt.command_id={sql_literal(simulate_command_id)}::uuid),
+                'receiptStatus', (SELECT receipt.receipt_status FROM pay_foundation_command_receipts receipt
+                                   WHERE receipt.tenant_id=configuration.tenant_id
+                                     AND receipt.command_id={sql_literal(simulate_command_id)}::uuid),
+                'configurationId', (SELECT receipt.configuration_id FROM pay_foundation_command_receipts receipt
+                                     WHERE receipt.tenant_id=configuration.tenant_id
+                                       AND receipt.command_id={sql_literal(simulate_command_id)}::uuid),
+                'resultVersion', (SELECT receipt.result_version FROM pay_foundation_command_receipts receipt
+                                   WHERE receipt.tenant_id=configuration.tenant_id
+                                     AND receipt.command_id={sql_literal(simulate_command_id)}::uuid),
+                'actorId', (SELECT receipt.actor_id FROM pay_foundation_command_receipts receipt
+                             WHERE receipt.tenant_id=configuration.tenant_id
+                               AND receipt.command_id={sql_literal(simulate_command_id)}::uuid),
+                'requestDigest', (SELECT receipt.request_digest FROM pay_foundation_command_receipts receipt
+                                   WHERE receipt.tenant_id=configuration.tenant_id
+                                     AND receipt.command_id={sql_literal(simulate_command_id)}::uuid)))::text
+          FROM pay_foundation_configurations configuration
+          JOIN pay_foundation_versions current_version
+            ON current_version.tenant_id=configuration.tenant_id
+           AND current_version.configuration_id=configuration.configuration_id
+           AND current_version.version=configuration.current_version
+         WHERE configuration.tenant_id={tenant_id}
+           AND configuration.configuration_id={sql_literal(configuration_id)}::uuid;
+        """,
+    ).strip()
+    try:
+        observation = json.loads(raw)
+    except (TypeError, json.JSONDecodeError) as error:
+        raise GateFailure(
+            "PAY foundation postflight database observation is not exact JSON"
+        ) from error
+    if not isinstance(observation, dict):
+        raise GateFailure("PAY foundation postflight database observation is absent")
+    expected = {
+        "schemaVersion": 1,
+        "phase": "POSTFLIGHT",
+        "tenantId": tenant_id,
+        "configurationId": configuration_id,
+        "currentVersion": 4,
+        "lifecycleState": "SIMULATED",
+        "legalEntityId": preflight["legalEntityId"],
+        "authorId": state.synthetic_tenants["A"]["administratorUserId"],
+        "publisherId": preflight["publisherId"],
+        "lastCommandId": simulate_command_id,
+        "preflightObservationSha256": preflight["observationSha256"],
+        "browserObservationSha256": browser["observationSha256"],
+        "workspaceResponseSha256": browser["workspaceResponseSha256"],
+        "updateResponseSha256": browser["updateResponseSha256"],
+        "simulateResponseSha256": browser["simulateResponseSha256"],
+    }
+    drift = {
+        key: {"expected": value, "actual": observation.get(key)}
+        for key, value in expected.items()
+        if observation.get(key) != value
+    }
+    versions = observation.get("versionRows")
+    receipts = (observation.get("updateReceipt"), observation.get("simulateReceipt"))
+    if (
+        drift
+        or set(observation) != {
+            *expected,
+            "definitionDigest",
+            "dependencyDigest",
+            "versionRows",
+            "updateReceipt",
+            "simulateReceipt",
+        }
+        or not re.fullmatch(r"[0-9a-f]{64}", str(observation.get("definitionDigest", "")))
+        or not re.fullmatch(r"[0-9a-f]{64}", str(observation.get("dependencyDigest", "")))
+        or not isinstance(versions, list)
+        or len(versions) != 2
+        or any(not isinstance(item, dict) for item in versions)
+        or any(set(item) != {
+            "version", "rowCount", "commandId", "lifecycleState", "authoredBy",
+            "definitionDigest", "dependencyDigest"
+        } for item in versions)
+        or versions[0].get("version") != 3
+        or versions[0].get("rowCount") != 1
+        or versions[0].get("commandId") != update_command_id
+        or versions[0].get("lifecycleState") != "DRAFT"
+        or versions[0].get("authoredBy")
+        != state.synthetic_tenants["A"]["administratorUserId"]
+        or versions[1].get("version") != 4
+        or versions[1].get("rowCount") != 1
+        or versions[1].get("commandId") != simulate_command_id
+        or versions[1].get("lifecycleState") != "SIMULATED"
+        or versions[1].get("authoredBy")
+        != state.synthetic_tenants["A"]["administratorUserId"]
+        or versions[0].get("definitionDigest") != versions[1].get("definitionDigest")
+        or versions[0].get("dependencyDigest") != versions[1].get("dependencyDigest")
+        or observation.get("definitionDigest") != versions[1].get("definitionDigest")
+        or observation.get("dependencyDigest") != versions[1].get("dependencyDigest")
+        or any(not isinstance(receipt, dict) for receipt in receipts)
+    ):
+        raise GateFailure(
+            f"PAY foundation postflight database lineage is invalid: {drift}"
+        )
+    for receipt, command_id, command_type, result_version in (
+        (receipts[0], update_command_id, "UPDATE", 3),
+        (receipts[1], simulate_command_id, "SIMULATE", 4),
+    ):
+        if (
+            set(receipt) != {
+                "rowCount", "commandId", "commandType", "receiptStatus",
+                "configurationId", "resultVersion", "actorId", "requestDigest"
+            }
+            or receipt.get("rowCount") != 1
+            or receipt.get("commandId") != command_id
+            or receipt.get("commandType") != command_type
+            or receipt.get("receiptStatus") != "SUCCEEDED"
+            or receipt.get("configurationId") != configuration_id
+            or receipt.get("resultVersion") != result_version
+            or receipt.get("actorId") != state.synthetic_tenants["A"][
+                "administratorUserId"
+            ]
+            or not re.fullmatch(
+                r"[0-9a-f]{64}", str(receipt.get("requestDigest", ""))
+            )
+        ):
+            raise GateFailure(
+                f"PAY foundation {command_type} receipt lineage is invalid"
+            )
+    observation["observationSha256"] = canonical_json_sha256(observation)
+    atomic_write_json(
+        state.output_dir / "db" / "payroll-foundation-postflight.json",
+        observation,
+    )
+    return observation
+
+
 def run_checkpoint(
-    state: GateState, command: Sequence[str] | None, timeout: float
+    postgres: str,
+    state: GateState,
+    command: Sequence[str] | None,
+    timeout: float,
+    credentials: Sequence[SyntheticTenantCredential],
 ) -> None:
     if not command:
         raise GateFailure(
@@ -1891,6 +5121,11 @@ def run_checkpoint(
     checkpoint_dir = state.output_dir / "checkpoint"
     checkpoint_dir.mkdir(mode=0o700, exist_ok=False)
     manifest_path = checkpoint_dir / "manifest.json"
+    credentials_by_lane = {credential.lane: credential for credential in credentials}
+    if set(credentials_by_lane) != {"A", "B"} or len(credentials) != 2:
+        raise GateFailure(
+            "Live checkpoint requires exactly one in-memory credential for tenant A and B."
+        )
     environment = allowlisted_host_environment()
     environment.update(
         {
@@ -1913,6 +5148,39 @@ def run_checkpoint(
         environment[f"DWP_W1_{name.upper()}_URL"] = (
             f"http://127.0.0.1:{state.ports[name]}"
         )
+    for lane, credential in sorted(credentials_by_lane.items()):
+        prefix = f"DWP_W1_TENANT_{lane}"
+        environment.update(
+            {
+                f"{prefix}_PROVIDER_TENANT_ID": credential.provider_tenant_id,
+                f"{prefix}_ID": str(credential.tenant_id),
+                f"{prefix}_USER_ID": str(credential.administrator_user_id),
+                f"{prefix}_PERSON_PUBLIC_ID": credential.person_public_id,
+                f"{prefix}_WORKER_PUBLIC_ID": credential.worker_public_id,
+                f"{prefix}_ASSIGNMENT_PUBLIC_ID": credential.assignment_public_id,
+                f"{prefix}_ACTOR_LEGAL_EMPLOYER_PUBLIC_ID": (
+                    credential.actor_legal_employer_public_id
+                ),
+                f"{prefix}_TARGET_PERSON_PUBLIC_ID": (
+                    credential.target_person_public_id
+                ),
+                f"{prefix}_TARGET_WORKER_PUBLIC_ID": (
+                    credential.target_worker_public_id
+                ),
+                f"{prefix}_TARGET_ASSIGNMENT_PUBLIC_ID": (
+                    credential.target_assignment_public_id
+                ),
+                f"{prefix}_TARGET_POPULATION_REVISION": (
+                    credential.target_population_revision
+                ),
+                f"{prefix}_TARGET_POPULATION_COUNT": str(
+                    credential.target_population_count
+                ),
+                f"{prefix}_KEY": credential.tenant_key,
+                f"{prefix}_EMAIL": credential.email,
+                f"{prefix}_PASSWORD": credential.password,
+            }
+        )
     process_outcome = run_checkpoint_process(
         state,
         command,
@@ -1921,6 +5189,20 @@ def run_checkpoint(
         timeout,
     )
     evidence_provenance = validate_checkpoint_manifest(state, manifest_path)
+    postflight = observe_payroll_foundation_postflight(
+        postgres,
+        state,
+        evidence_provenance["payrollFoundationBrowserObservation"],
+    )
+    state.projection_feed["payrollFoundationDatabasePostflight"] = postflight
+    postflight_path = state.output_dir / "db" / "payroll-foundation-postflight.json"
+    postflight_bytes = _attested_regular_bytes(postflight_path)
+    evidence_provenance["payrollFoundationDatabasePostflight"] = {
+        "path": str(postflight_path.relative_to(state.output_dir)),
+        "sha256": hashlib.sha256(postflight_bytes).hexdigest(),
+        "byteCount": len(postflight_bytes),
+        "observationSha256": postflight["observationSha256"],
+    }
     checkpoint_provenance.update(evidence_provenance)
     checkpoint_provenance["processGroup"] = process_outcome
     command_arguments_sha256 = hashlib.sha256(
@@ -2017,28 +5299,78 @@ def scan_evidence_for_generated_secrets(
     }
     findings: list[str] = []
     for path in sorted(state.output_dir.rglob("*")):
-        if not path.is_file():
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
             continue
-        content = path.read_bytes()
+        if stat.S_ISDIR(metadata.st_mode):
+            continue
+        relative = path.relative_to(state.output_dir)
+        if not stat.S_ISREG(metadata.st_mode):
+            findings.append(f"{relative}:non_regular_evidence")
+            try:
+                path.unlink()
+            except OSError as error:
+                raise GateFailure(
+                    "Non-regular evidence could not be removed without reading it: "
+                    f"{relative}: {error}"
+                ) from error
+            continue
+        try:
+            content = _attested_output_regular_bytes(
+                state.output_dir,
+                relative,
+                max_bytes=max(metadata.st_size, 1),
+            )
+        except GateFailure as error:
+            try:
+                path.unlink()
+            except OSError as quarantine_error:
+                raise GateFailure(
+                    "Mutating evidence could not be quarantined: "
+                    f"{relative}: {quarantine_error}"
+                ) from error
+            findings.append(f"{relative}:unsafe_or_mutating_evidence")
+            continue
         path_findings: list[str] = []
         for name, value in secret_values.items():
             if value in content:
                 path_findings.append(name)
         if path_findings:
-            relative = path.relative_to(state.output_dir)
             findings.extend(f"{relative}:{name}" for name in path_findings)
             try:
                 path.unlink()
             except OSError as error:
-                try:
-                    path.write_bytes(b"")
-                    path.unlink()
-                except OSError as quarantine_error:
-                    raise GateFailure(
-                        "Evidence containing generated secrets could not be "
-                        f"quarantined or deleted: {relative}: {quarantine_error}"
-                    ) from error
+                raise GateFailure(
+                    "Evidence containing generated secrets could not be deleted: "
+                    f"{relative}: {error}"
+                ) from error
     return findings
+
+
+def remove_raw_browser_artifacts(state: GateState) -> dict[str, Any]:
+    deleted: list[str] = []
+    errors: list[str] = []
+    for path in sorted(state.output_dir.rglob("*")):
+        lowered = path.name.lower()
+        if not (
+            lowered.endswith("-raw.har")
+            or lowered.endswith("-raw.har.zip")
+        ):
+            continue
+        relative = str(path.relative_to(state.output_dir))
+        try:
+            metadata = path.lstat()
+            if stat.S_ISDIR(metadata.st_mode):
+                errors.append(f"raw-browser-artifact-is-directory:{relative}")
+                continue
+            path.unlink()
+            deleted.append(relative)
+        except FileNotFoundError:
+            continue
+        except OSError as error:
+            errors.append(f"raw-browser-artifact:{relative}:{error}")
+    return {"deleted": deleted, "errors": errors}
 
 
 def redact_generated_secrets(value: Any, secrets_: RuntimeSecrets) -> Any:
@@ -2120,6 +5452,7 @@ def teardown(state: GateState) -> dict[str, Any]:
             process_results[name] = "stopped"
         except Exception as error:  # teardown must continue
             process_results[name] = f"error: {error}"
+    raw_browser_artifacts = remove_raw_browser_artifacts(state)
     container_results: dict[str, str] = {}
     for container in reversed(state.containers):
         try:
@@ -2211,12 +5544,14 @@ def teardown(state: GateState) -> dict[str, Any]:
     if network_status not in {"removed", "not-created"}:
         errors.append(f"network:{state.network}:{network_status}")
     errors.extend(f"residual:{value}" for value in residuals)
+    errors.extend(raw_browser_artifacts["errors"])
     return {
         "checkpointProcessGroups": checkpoint_group_results,
         "processes": process_results,
         "containers": container_results,
         "network": {state.network or "": network_status},
         "residuals": residuals,
+        "rawBrowserArtifacts": raw_browser_artifacts,
         "errors": errors,
         "verifiedClean": not errors,
     }
@@ -2276,7 +5611,7 @@ def execute(args: argparse.Namespace) -> tuple[GateState, str, str | None, dict[
         (output_dir / child).mkdir(mode=0o700)
     state = GateState(run_id, output_dir, utc_now())
     secrets_ = RuntimeSecrets.generate()
-    specs = service_specs(secrets_)
+    specs = service_specs(secrets_, run_id)
     selected_specs = (
         {"auth": specs["auth"]} if args.auth_only else specs
     )
@@ -2298,6 +5633,7 @@ def execute(args: argparse.Namespace) -> tuple[GateState, str, str | None, dict[
         state.provenance["source"] = {
             **source_provenance,
             "verifiedAfterBuild": True,
+            "worktreeCleanAfterBuild": True,
             "trackedWorktreeCleanAfterBuild": True,
             "postBuildGitHead": verified_source["gitHead"],
             "postBuildRunnerSha256": verified_source["runnerSha256"],
@@ -2313,6 +5649,14 @@ def execute(args: argparse.Namespace) -> tuple[GateState, str, str | None, dict[
         postgres, _, postgres_port, redis_port = provision_infrastructure(state, secrets_, args)
         provision_databases(postgres, secrets_)
         state.phase("provision-synthetic-databases-and-runtime-roles", "PASS")
+        if not args.auth_only:
+            run_migration_controls(
+                state,
+                secrets_,
+                postgres_port,
+                args.gradle_executable,
+                args.build_timeout,
+            )
         for name in ("auth", "platform", "people", "provider", "payroll", "time", "gateway"):
             state.ports[name] = allocate_loopback_port()
         base_environment = common_environment(state, secrets_, postgres_port, redis_port)
@@ -2344,9 +5688,29 @@ def execute(args: argparse.Namespace) -> tuple[GateState, str, str | None, dict[
         checkpoint_failure: Exception | None = None
         if not args.auth_only:
             start_remaining_services(state, specs, base_environment, args)
+            tenant_credentials = bootstrap_synthetic_identities(state, secrets_)
+            gateway_sessions = login_gateway_sessions(state, tenant_credentials)
+            bootstrap_synthetic_rollouts(state, secrets_, tenant_credentials)
+            gateway_authorities = resolve_gateway_authorities(
+                state, gateway_sessions
+            )
+            seed_trusted_projection_feeds(
+                postgres,
+                state,
+                secrets_,
+                tenant_credentials,
+                gateway_authorities,
+                gateway_sessions,
+            )
             write_runtime_manifest(state)
             try:
-                run_checkpoint(state, args.checkpoint_command, args.checkpoint_timeout)
+                run_checkpoint(
+                    postgres,
+                    state,
+                    args.checkpoint_command,
+                    args.checkpoint_timeout,
+                    tenant_credentials,
+                )
             except Exception as error:
                 checkpoint_failure = error
                 state.phase("external-live-checkpoint", "FAIL", error=str(error))

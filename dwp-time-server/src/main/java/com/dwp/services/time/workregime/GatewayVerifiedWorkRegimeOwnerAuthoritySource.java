@@ -2,7 +2,7 @@ package com.dwp.services.time.workregime;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
-import com.dwp.core.security.ProductSurfaceScopeKey;
+import com.dwp.core.security.HcmEligibilityScopeKey;
 import com.dwp.services.time.workregime.WorkRegimeModels.Authority;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -111,7 +111,7 @@ final class GatewayVerifiedWorkRegimeOwnerAuthoritySource
         if (tenantId == null || actorId == null
                 || !route.routeContractKey().equals(routeKey)
                 || contextKey == null || !contextKey.matches("psc-[0-9a-f]{64}")
-                || contextScopeKey == null || !contextScopeKey.matches("scope-[0-9a-f]{32}")
+                || !HcmEligibilityScopeKey.isCanonical(contextScopeKey)
                 || !ACCESS_MODES.contains(accessMode)
                 || decisionRevision == null
                 || !decisionRevision.matches("psr-[0-9a-f]{64}")
@@ -125,12 +125,6 @@ final class GatewayVerifiedWorkRegimeOwnerAuthoritySource
         }
         if (request.getHeader(SUPPORT_SESSION_HEADER) != null) {
             return Optional.empty();
-        }
-        String expectedScope = ProductSurfaceScopeKey.key(
-                tenantId, actorId, "hcm", "hcm.operations",
-                route.scopeSource(), "TARGET_POPULATION");
-        if (!constantTimeEquals(expectedScope, contextScopeKey)) {
-            throw unavailable("Current TIM owner scope is mismatched.");
         }
         PopulationAccess populationAccess = targetPopulationResolver.resolveActorAccess(
                         tenantId, actorId, contextScopeKey, clock.instant())

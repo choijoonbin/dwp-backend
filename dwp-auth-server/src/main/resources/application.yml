@@ -90,6 +90,10 @@ dwp:
     token: ${DWP_IDENTITY_SYNC_TOKEN:}
   provider:
     provisioning-token: ${DWP_PROVIDER_PROVISIONING_TOKEN:}
+  synthetic-identity-bootstrap:
+    enabled: ${DWP_LOCAL_SYNTHETIC_IDENTITY_BOOTSTRAP_ENABLED:false}
+    token: ${DWP_LOCAL_SYNTHETIC_IDENTITY_BOOTSTRAP_TOKEN:}
+    run-id: ${DWP_LOCAL_SYNTHETIC_IDENTITY_BOOTSTRAP_RUN_ID:}
   product-authorization:
     seed:
       enabled: ${DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED:false}

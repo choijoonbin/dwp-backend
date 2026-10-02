@@ -24,6 +24,9 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 
 import javax.sql.DataSource;
+import java.io.IOException;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.sql.Connection;
 import java.sql.Statement;
 import java.time.Clock;
@@ -57,6 +60,7 @@ class JdbcPayrollFoundationStoreTest {
 
     private static final String RUNTIME_USER = "payroll_runtime";
     private static final String RUNTIME_PASSWORD = "runtime-test-password";
+    private static final String PUBLISHER_USER = "payroll_projection_publisher";
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
@@ -75,11 +79,15 @@ class JdbcPayrollFoundationStoreTest {
              Statement statement = connection.createStatement()) {
             statement.execute("CREATE ROLE " + RUNTIME_USER
                     + " LOGIN PASSWORD '" + RUNTIME_PASSWORD + "'");
+            statement.execute("CREATE ROLE " + PUBLISHER_USER
+                    + " LOGIN NOINHERIT PASSWORD 'publisher-test-password'");
         }
         Flyway.configure()
                 .dataSource(adminDataSource)
                 .locations("classpath:db/migration")
-                .placeholders(Map.of("payrollRuntimeRole", RUNTIME_USER))
+                .placeholders(Map.of(
+                        "payrollRuntimeRole", RUNTIME_USER,
+                        "payrollProjectionPublisherRole", PUBLISHER_USER))
                 .load()
                 .migrate();
         adminJdbc = new JdbcTemplate(adminDataSource);
@@ -251,7 +259,7 @@ class JdbcPayrollFoundationStoreTest {
     @Test
     void ownerProjectionResolvesExactCurrentMembershipAndDrivesServiceScope() {
         Instant now = Instant.parse("2026-09-17T09:00:00Z");
-        String scopeKey = "scope-" + "1".repeat(32);
+        String scopeKey = "hcm-scope-" + "1".repeat(40);
         String policyRevision = "rollout-" + "b".repeat(64);
         String authorizationRevision = "psr-" + "a".repeat(64);
         UUID projectionId = UUID.randomUUID();
@@ -371,27 +379,27 @@ class JdbcPayrollFoundationStoreTest {
         String authorizationRevision = "psr-" + "a".repeat(64);
         PayrollLegalEntityScopeResolver resolver =
                 context.getBean(PayrollLegalEntityScopeResolver.class);
-        String expiredScope = "scope-" + "2".repeat(32);
+        String expiredScope = "hcm-scope-" + "2".repeat(40);
         insertScopeProjection(
                 1, 101, expiredScope, policyRevision, authorizationRevision,
                 UUID.randomUUID(), "expired-r1", now.minusSeconds(600),
                 now.minusSeconds(1), LEGAL_ENTITY_ID);
-        String otherRevisionScope = "scope-" + "3".repeat(32);
+        String otherRevisionScope = "hcm-scope-" + "3".repeat(40);
         insertScopeProjection(
                 1, 101, otherRevisionScope, policyRevision, "psr-" + "c".repeat(64),
                 UUID.randomUUID(), "other-auth-r1", now.minusSeconds(60),
                 now.plusSeconds(600), LEGAL_ENTITY_ID);
-        String otherTenantScope = "scope-" + "4".repeat(32);
+        String otherTenantScope = "hcm-scope-" + "4".repeat(40);
         insertScopeProjection(
                 2, 101, otherTenantScope, policyRevision, authorizationRevision,
                 UUID.randomUUID(), "tenant-2-r1", now.minusSeconds(60),
                 now.plusSeconds(600), LEGAL_ENTITY_ID);
-        String emptyScope = "scope-" + "5".repeat(32);
+        String emptyScope = "hcm-scope-" + "5".repeat(40);
         insertBuildingScopeProjection(
                 1, 101, emptyScope, policyRevision, authorizationRevision,
                 UUID.randomUUID(), "empty-r1", now.minusSeconds(60),
                 now.plusSeconds(600));
-        String revokedScope = "scope-" + "6".repeat(32);
+        String revokedScope = "hcm-scope-" + "6".repeat(40);
         UUID revokedProjectionId = UUID.randomUUID();
         insertScopeProjection(
                 1, 101, revokedScope, policyRevision, authorizationRevision,
@@ -405,7 +413,7 @@ class JdbcPayrollFoundationStoreTest {
 
         List<PayrollFoundationRequestContext.VerifiedSubject> rejected = List.of(
                 verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
-                        "PAYROLL_AUDIT", "scope-" + "0".repeat(32),
+                        "PAYROLL_AUDIT", "hcm-scope-" + "0".repeat(40),
                         policyRevision, authorizationRevision, now.plusSeconds(60)),
                 verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
                         "PAYROLL_AUDIT", expiredScope,
@@ -440,7 +448,7 @@ class JdbcPayrollFoundationStoreTest {
     @Test
     void buildingProjectionIsInvisibleUntilACompleteMembershipIsSealed() {
         Instant now = Instant.parse("2026-09-17T09:00:00Z");
-        String scopeKey = "scope-" + "7".repeat(32);
+        String scopeKey = "hcm-scope-" + "7".repeat(40);
         String policyRevision = "rollout-" + "b".repeat(64);
         String authorizationRevision = "psr-" + "a".repeat(64);
         UUID projectionId = UUID.randomUUID();
@@ -483,7 +491,7 @@ class JdbcPayrollFoundationStoreTest {
         String policyRevision = "rollout-" + "b".repeat(64);
         String authorizationRevision = "psr-" + "a".repeat(64);
         UUID emptyProjectionId = UUID.randomUUID();
-        String emptyScopeKey = "scope-" + "8".repeat(32);
+        String emptyScopeKey = "hcm-scope-" + "8".repeat(40);
         insertBuildingScopeProjection(
                 1, 101, emptyScopeKey, policyRevision, authorizationRevision,
                 emptyProjectionId, "pay-empty-r1", now.minusSeconds(60),
@@ -514,7 +522,7 @@ class JdbcPayrollFoundationStoreTest {
                     status, valid_from, valid_until, recorded_at)
                 VALUES (1, ?, 101, ?, ?, ?, 'pay-direct-active-r1',
                         'ACTIVE', ?, ?, ?)
-                """, UUID.randomUUID(), "scope-" + "9".repeat(32), policyRevision,
+                """, UUID.randomUUID(), "hcm-scope-" + "9".repeat(40), policyRevision,
                 authorizationRevision,
                 OffsetDateTime.ofInstant(now.minusSeconds(60), ZoneOffset.UTC),
                 OffsetDateTime.ofInstant(now.plusSeconds(600), ZoneOffset.UTC),
@@ -550,8 +558,8 @@ class JdbcPayrollFoundationStoreTest {
         for (String terminalStatus : List.of("SUPERSEDED", "REVOKED")) {
             UUID projectionId = UUID.randomUUID();
             String scopeKey = terminalStatus.equals("SUPERSEDED")
-                    ? "scope-" + "a".repeat(32)
-                    : "scope-" + "b".repeat(32);
+                    ? "hcm-scope-" + "a".repeat(40)
+                    : "hcm-scope-" + "b".repeat(40);
             insertScopeProjection(
                     1, 101, scopeKey, policyRevision, authorizationRevision,
                     projectionId, "pay-terminal-" + terminalStatus.toLowerCase(),
@@ -585,7 +593,7 @@ class JdbcPayrollFoundationStoreTest {
         assertThat(adminJdbc.queryForObject("""
                 SELECT COUNT(*)
                   FROM flyway_schema_history
-                 WHERE version = '2' AND success
+                 WHERE version = '4' AND success
                 """, Long.class)).isEqualTo(1L);
         assertThat(adminJdbc.queryForObject("""
                 SELECT bool_and(relrowsecurity AND relforcerowsecurity)
@@ -608,6 +616,19 @@ class JdbcPayrollFoundationStoreTest {
                         Boolean.class, table, privilege)).isFalse();
             }
         }
+    }
+
+    @Test
+    void derivedScopeMigrationRejectsLegacyRowsWithoutRewritingThem() throws IOException {
+        String sql = derivedScopeMigrationSql();
+
+        assertThat(sql)
+                .contains("PAY contains legacy/noncanonical scope keys")
+                .contains("FROM pay_legal_entity_scope_projections")
+                .contains("ALTER COLUMN context_scope_key TYPE VARCHAR(50)")
+                .contains("CHECK (context_scope_key ~ '^hcm-scope-[0-9a-f]{40}$')")
+                .doesNotContain("UPDATE pay_legal_entity_scope_projections")
+                .doesNotContain("DELETE FROM pay_legal_entity_scope_projections");
     }
 
     private void insertScopeProjection(
@@ -635,6 +656,15 @@ class JdbcPayrollFoundationStoreTest {
                      WHERE tenant_id = ? AND projection_id = ?
                     """, tenantId, projectionId);
         });
+    }
+
+    private static String derivedScopeMigrationSql() throws IOException {
+        try (InputStream input = JdbcPayrollFoundationStoreTest.class.getClassLoader()
+                .getResourceAsStream(
+                        "db/migration/V4__pay_adopt_derived_hcm_scope_keys.sql")) {
+            assertThat(input).isNotNull();
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
     }
 
     private void insertBuildingScopeProjection(

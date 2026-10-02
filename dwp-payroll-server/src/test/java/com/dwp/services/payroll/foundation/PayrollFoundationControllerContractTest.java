@@ -3,7 +3,7 @@ package com.dwp.services.payroll.foundation;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.exception.GlobalExceptionHandler;
-import com.dwp.core.security.ProductSurfaceScopeKey;
+import com.dwp.core.security.HcmEligibilityScopeKey;
 import com.fasterxml.jackson.databind.json.JsonMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -521,9 +521,9 @@ class PayrollFoundationControllerContractTest {
 
     private static String scope(
             long tenantId, long actorId, PayrollFoundationRoute route) {
-        return ProductSurfaceScopeKey.key(
-                tenantId, actorId, "hcm", "hcm.operations",
-                route.scopeSource(), "TARGET_POPULATION");
+        return HcmEligibilityScopeKey.derived(
+                tenantId, actorId, "hcm.operations", route.scopeSource(),
+                "relationship-r1", "target-population-r1");
     }
 
     private static PayrollLegalEntityScopeResolver.Resolution scopeResolution() {

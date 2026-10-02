@@ -67,6 +67,12 @@ spring:
     ignore-migration-patterns: []
 
 dwp:
+  hris:
+    people-workforce:
+      synthetic-bootstrap:
+        enabled: ${DWP_HRIS_PEOPLE_WORKFORCE_SYNTHETIC_BOOTSTRAP_ENABLED:false}
+        token: ${DWP_HRIS_PEOPLE_WORKFORCE_SYNTHETIC_BOOTSTRAP_TOKEN:}
+        run-id: ${DWP_HRIS_PEOPLE_WORKFORCE_SYNTHETIC_BOOTSTRAP_RUN_ID:}
   http:
     client:
       connect-timeout: ${DWP_HTTP_CONNECT_TIMEOUT:2s}

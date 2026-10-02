@@ -16,6 +16,10 @@ springdoc:
   api-docs:
     enabled: ${DWP_OPENAPI_ENABLED:false}
 
+time:
+  projection-publisher:
+    username: ${TIME_PROJECTION_PUBLISHER_DB_USERNAME:dwp_time_projection_publisher}
+
 spring:
   application:
     name: dwp-time-server
@@ -62,6 +66,7 @@ spring:
     lock-retry-count: 10
     placeholders:
       timeRuntimeRole: ${TIME_DB_USERNAME:dwp_time_runtime}
+      timeProjectionPublisherRole: ${time.projection-publisher.username}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
     producer:

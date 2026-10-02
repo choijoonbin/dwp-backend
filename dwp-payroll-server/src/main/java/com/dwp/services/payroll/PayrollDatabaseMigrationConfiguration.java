@@ -1,17 +1,20 @@
 package com.dwp.services.payroll;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
 import javax.sql.DataSource;
 
 import com.dwp.core.database.DomainEventLedgerRuntimeGuard;
+import com.dwp.core.database.AuxiliaryRoleAclGuard;
 import com.dwp.core.database.MigrationAdoptionGuard;
 import com.dwp.core.database.MigrationControlRunReceiptGuard;
 import com.dwp.core.database.OwnerTriggerExecutionBoundaryGuard;
 import com.dwp.core.database.RuntimeMigrationDatabaseGuard;
 import com.dwp.core.database.RuntimeMigrationDatabaseGuard.MigrationPrincipalPolicy;
+import com.dwp.core.database.TrustedPublisherPolicy;
 import com.dwp.core.database.RuntimeRoutineExecutionGuard;
 import com.dwp.core.database.SystemFlywayConfigurationGuard;
 import org.flywaydb.core.Flyway;
@@ -38,11 +41,39 @@ public class PayrollDatabaseMigrationConfiguration {
     @Bean
     SystemFlywayConfigurationGuard payrollFlywayConfigurationGuard(
             FlywayProperties properties,
-            @Value("${spring.datasource.username}") String applicationUser) {
+            @Value("${spring.datasource.username}") String applicationUser,
+            @Value("${payroll.projection-publisher.username}")
+                    String projectionPublisherUser,
+            @Value("${spring.flyway.placeholders.payrollProjectionPublisherRole}")
+                    String projectionPublisherPlaceholder) {
+        requirePublisherPlaceholder(
+                projectionPublisherUser, projectionPublisherPlaceholder);
+        requireDistinctPublisher(
+                properties.getUser(), applicationUser, projectionPublisherUser);
         return SystemFlywayConfigurationGuard.verify(
                 properties,
-                SystemFlywayConfigurationGuard.freshModuleProfile(
-                        "payrollRuntimeRole", applicationUser));
+                SystemFlywayConfigurationGuard.freshModuleProfile(Map.of(
+                        "payrollRuntimeRole", applicationUser,
+                        "payrollProjectionPublisherRole", projectionPublisherUser)));
+    }
+
+    private static void requirePublisherPlaceholder(
+            String publisherUser, String placeholderUser) {
+        if (!Objects.equals(publisherUser, placeholderUser)) {
+            throw new IllegalArgumentException(
+                    "spring.flyway.placeholders.payrollProjectionPublisherRole "
+                            + "must match payroll.projection-publisher.username");
+        }
+    }
+
+    private static void requireDistinctPublisher(
+            String migrationUser, String applicationUser, String publisherUser) {
+        if (publisherUser == null || publisherUser.isBlank()
+                || publisherUser.equals(migrationUser)
+                || publisherUser.equals(applicationUser)) {
+            throw new IllegalArgumentException(
+                    "Payroll migration, runtime and projection publisher roles must be pairwise distinct");
+        }
     }
 
     @Bean
@@ -50,6 +81,8 @@ public class PayrollDatabaseMigrationConfiguration {
             SystemFlywayConfigurationGuard configurationGuard,
             DataSource applicationDataSource,
             @Value("${spring.datasource.username}") String applicationUser,
+            @Value("${payroll.projection-publisher.username}")
+                    String projectionPublisherUser,
             @Value("${dwp.payroll.database.adoption-receipt-sha256:}")
                     String receiptSha256,
             @Value("${dwp.payroll.database.adoption-control-reference:}")
@@ -65,6 +98,7 @@ public class PayrollDatabaseMigrationConfiguration {
                 configurationGuard,
                 applicationDataSource,
                 applicationUser,
+                projectionPublisherUser,
                 receiptSha256,
                 controlReference,
                 controlRunReceiptJson,
@@ -77,6 +111,7 @@ public class PayrollDatabaseMigrationConfiguration {
             SystemFlywayConfigurationGuard configurationGuard,
             DataSource applicationDataSource,
             String applicationUser,
+            String projectionPublisherUser,
             String receiptSha256,
             String controlReference,
             String controlRunReceiptJson,
@@ -98,7 +133,10 @@ public class PayrollDatabaseMigrationConfiguration {
                 "strict",
                 "strict",
                 "unused",
-                "unused");
+                "unused",
+                Set.of(),
+                RuntimeMigrationDatabaseGuard.AuxiliaryAuthorityPolicy.NONE,
+                publisherPolicy(projectionPublisherUser, false));
         MigrationControlRunReceiptGuard.RunReceipt controlRunReceipt =
                 MigrationControlRunReceiptGuard.verify(
                         "payroll",
@@ -144,7 +182,10 @@ public class PayrollDatabaseMigrationConfiguration {
                 "strict",
                 "strict",
                 "unused",
-                "unused");
+                "unused",
+                Set.of(),
+                RuntimeMigrationDatabaseGuard.AuxiliaryAuthorityPolicy.NONE,
+                publisherPolicy(projectionPublisherUser, true));
         MigrationAdoptionGuard.requireNoPendingAfterMigration(
                 ADOPTION_CONTRACT, flyway, adoption);
         MigrationAdoptionGuard.verifyAfterMigration(
@@ -176,6 +217,36 @@ public class PayrollDatabaseMigrationConfiguration {
                 "Payroll", applicationDataSource,
                 List.of(SystemFlywayConfigurationGuard.SCHEMA),
                 configurationGuard.migrationUser());
+    }
+
+    private static TrustedPublisherPolicy publisherPolicy(
+            String publisher, boolean requireSteadyState) {
+        Set<AuxiliaryRoleAclGuard.AllowedPrivilege> allowed = Set.of(
+                privilege(publisher, "SCHEMA", "public", "public", "USAGE"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_legal_entity_scope_projections", "SELECT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_legal_entity_scope_projections", "INSERT"),
+                privilege(publisher, "COLUMN", "public",
+                        "public.pay_legal_entity_scope_projections.status", "UPDATE"),
+                privilege(publisher, "COLUMN", "public",
+                        "public.pay_legal_entity_scope_projections.valid_until", "UPDATE"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_legal_entity_scope_members", "SELECT"),
+                privilege(publisher, "RELATION", "public",
+                        "public.pay_legal_entity_scope_members", "INSERT"));
+        return new TrustedPublisherPolicy(
+                publisher, allowed, requireSteadyState ? allowed : Set.of());
+    }
+
+    private static AuxiliaryRoleAclGuard.AllowedPrivilege privilege(
+            String grantee,
+            String objectClass,
+            String schema,
+            String identity,
+            String privilege) {
+        return new AuxiliaryRoleAclGuard.AllowedPrivilege(
+                grantee, objectClass, schema, identity, privilege);
     }
 
     @Bean

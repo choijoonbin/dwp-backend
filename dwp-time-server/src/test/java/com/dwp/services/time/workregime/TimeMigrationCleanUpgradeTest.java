@@ -31,6 +31,8 @@ class TimeMigrationCleanUpgradeTest {
 
     private static final String RUNTIME_ROLE = "tim_wave1_runtime";
     private static final String RUNTIME_PASSWORD = "tim-wave1-runtime-test";
+    private static final String PUBLISHER_ROLE = "tim_projection_publisher";
+    private static final String PUBLISHER_PASSWORD = "tim-projection-publisher-test";
     private static final String DIGEST_A = "a".repeat(64);
     private static final String DIGEST_B = "b".repeat(64);
     private static final String DIGEST_C = "c".repeat(64);
@@ -54,6 +56,9 @@ class TimeMigrationCleanUpgradeTest {
         admin.execute("CREATE ROLE " + RUNTIME_ROLE
                 + " LOGIN PASSWORD '" + RUNTIME_PASSWORD
                 + "' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS");
+        admin.execute("CREATE ROLE " + PUBLISHER_ROLE
+                + " LOGIN PASSWORD '" + PUBLISHER_PASSWORD
+                + "' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS");
         runtimeDataSource = dataSource(RUNTIME_ROLE, RUNTIME_PASSWORD);
         flyway = Flyway.configure()
                 .dataSource(adminDataSource)
@@ -64,7 +69,9 @@ class TimeMigrationCleanUpgradeTest {
                 .baselineOnMigrate(false)
                 .validateOnMigrate(true)
                 .placeholderReplacement(true)
-                .placeholders(Map.of("timeRuntimeRole", RUNTIME_ROLE))
+                .placeholders(Map.of(
+                        "timeRuntimeRole", RUNTIME_ROLE,
+                        "timeProjectionPublisherRole", PUBLISHER_ROLE))
                 .load();
         assertThat(flyway.migrate().migrationsExecuted)
                 .as("TIM owner foundation, target projection, and shared event ledger")
@@ -82,6 +89,7 @@ class TimeMigrationCleanUpgradeTest {
         String targetSql = targetPopulationMigrationSql();
         String commandAuthoritySql = commandAuthorityMigrationSql();
         String sodHardeningSql = sodHardeningMigrationSql();
+        String derivedScopeSql = derivedScopeMigrationSql();
         assertThat(sql)
                 .contains("BASE-TFR-TIM-016 / MIGLEASE-HRIS-W1-TIM-001")
                 .contains("'SELECTIVE'", "'SPLIT_SHIFT'", "'TENANT_EXTENSION'")
@@ -122,6 +130,17 @@ class TimeMigrationCleanUpgradeTest {
                 .contains("GRANT UPDATE (updated_at)")
                 .contains("TIM runtime cannot mutate target-population authority projections")
                 .doesNotContain("GRANT ALL");
+        assertThat(derivedScopeSql)
+                .contains("TIM contains legacy/noncanonical scope keys")
+                .contains("FROM tim_target_population_actor_grants")
+                .contains("FROM tim_work_plan_target_evidence")
+                .contains("FROM tim_work_regime_command_authority_evidence")
+                .contains("ALTER COLUMN gateway_scope_key TYPE VARCHAR(50)")
+                .contains("ALTER COLUMN author_gateway_scope_key TYPE VARCHAR(50)")
+                .contains("CHECK (gateway_scope_key ~ '^hcm-scope-[0-9a-f]{40}$')")
+                .contains("CHECK (author_gateway_scope_key ~ '^hcm-scope-[0-9a-f]{40}$')")
+                .doesNotContain("UPDATE tim_")
+                .doesNotContain("DELETE FROM tim_");
     }
 
     @Test
@@ -145,6 +164,14 @@ class TimeMigrationCleanUpgradeTest {
         assertThat(admin.queryForObject(
                 "SELECT count(*) FROM flyway_schema_history WHERE success AND version = '4' "
                         + "AND script = 'V4__tim_harden_sod_and_projection_locks.sql'",
+                Integer.class)).isOne();
+        assertThat(admin.queryForObject(
+                "SELECT count(*) FROM flyway_schema_history WHERE success AND version = '5' "
+                        + "AND script = 'V5__tim_authorize_projection_publisher.sql'",
+                Integer.class)).isOne();
+        assertThat(admin.queryForObject(
+                "SELECT count(*) FROM flyway_schema_history WHERE success AND version = '6' "
+                        + "AND script = 'V6__tim_adopt_derived_hcm_scope_keys.sql'",
                 Integer.class)).isOne();
         assertThat(admin.queryForObject(
                 "SELECT count(*) FROM pg_tables WHERE schemaname='public' "
@@ -716,6 +743,15 @@ class TimeMigrationCleanUpgradeTest {
         try (InputStream input = TimeMigrationCleanUpgradeTest.class.getClassLoader()
                 .getResourceAsStream(
                         "db/migration/V4__tim_harden_sod_and_projection_locks.sql")) {
+            assertThat(input).isNotNull();
+            return new String(input.readAllBytes(), StandardCharsets.UTF_8);
+        }
+    }
+
+    private static String derivedScopeMigrationSql() throws IOException {
+        try (InputStream input = TimeMigrationCleanUpgradeTest.class.getClassLoader()
+                .getResourceAsStream(
+                        "db/migration/V6__tim_adopt_derived_hcm_scope_keys.sql")) {
             assertThat(input).isNotNull();
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }

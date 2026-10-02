@@ -4,6 +4,7 @@ import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.security.RolePlaneBoundary;
 import com.dwp.services.provider.rollout.FeatureRolloutInternalEvaluationSecurityFilter;
+import com.dwp.services.provider.rollout.LocalSyntheticProductSurfaceBootstrapFilter;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -53,6 +54,10 @@ public class ProviderSecurityFilter extends OncePerRequestFilter {
         return path.startsWith("/actuator/health")
                 || path.startsWith("/v3/api-docs")
                 || path.startsWith("/v1/tenant/settings")
+                || (path.equals("/internal/synthetic/v1/product-surface/bootstrap")
+                    && "POST".equals(request.getMethod())
+                    && Boolean.TRUE.equals(request.getAttribute(
+                        LocalSyntheticProductSurfaceBootstrapFilter.AUTHORIZED_REQUEST_ATTRIBUTE)))
                 || path.equals(FeatureRolloutInternalEvaluationSecurityFilter.PATH)
                 || path.equals(FeatureRolloutInternalEvaluationSecurityFilter.RECEIPT_PATH)
                 || path.equals("/error");

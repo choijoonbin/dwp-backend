@@ -11,9 +11,9 @@ import java.util.UUID;
 
 final class WorkRegimeTargetPopulationTestSupport {
 
-    static final String GATEWAY_SCOPE_A = "scope-" + "a".repeat(32);
-    static final String GATEWAY_SCOPE_B = "scope-" + "b".repeat(32);
-    static final String GATEWAY_SCOPE_C = "scope-" + "c".repeat(32);
+    static final String GATEWAY_SCOPE_A = "hcm-scope-" + "a".repeat(40);
+    static final String GATEWAY_SCOPE_B = "hcm-scope-" + "b".repeat(40);
+    static final String GATEWAY_SCOPE_C = "hcm-scope-" + "c".repeat(40);
     static final String DIGEST_A = "a".repeat(64);
     static final String DIGEST_B = "b".repeat(64);
     static final String DIGEST_C = "c".repeat(64);

@@ -1,7 +1,7 @@
 package com.dwp.gateway.productsurface;
 
 import java.time.OffsetDateTime;
-import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,10 +26,19 @@ final class ProductSurfaceScopeIntersection {
         } catch (RuntimeException exception) {
             throw unavailable();
         }
-        Set<String> derivedKeys = new HashSet<>();
-        List<ProductSurfaceContextDtos.EffectiveScope> scopes = eligibleScopes.stream()
-                .map(eligible -> derivedScope(sourceScopes, derivedKeys, eligible))
-                .toList();
+        Map<String, ProductSurfaceContextDtos.EffectiveScope> derivedScopes =
+                new LinkedHashMap<>();
+        for (ProductSurfaceContextDtos.EligibleScope eligible : eligibleScopes) {
+            ProductSurfaceContextDtos.EffectiveScope derived =
+                    derivedScope(sourceScopes, eligible);
+            ProductSurfaceContextDtos.EffectiveScope existing =
+                    derivedScopes.putIfAbsent(derived.key(), derived);
+            if (existing != null && !existing.equals(derived)) {
+                throw unavailable();
+            }
+        }
+        List<ProductSurfaceContextDtos.EffectiveScope> scopes =
+                List.copyOf(derivedScopes.values());
         if (scopes.isEmpty()) throw unavailable();
         List<ProductSurfaceContextDtos.EffectiveGrant> rebound = grants.stream()
                 .map(grant -> rebind(grant, eligibleScopes))
@@ -39,12 +48,10 @@ final class ProductSurfaceScopeIntersection {
 
     private static ProductSurfaceContextDtos.EffectiveScope derivedScope(
             Map<String, ProductSurfaceContextDtos.EffectiveScope> sources,
-            Set<String> derivedKeys,
             ProductSurfaceContextDtos.EligibleScope eligible) {
         ProductSurfaceContextDtos.EffectiveScope source =
                 sources.get(eligible.sourceScopeKey());
-        if (source == null || blank(eligible.key()) || blank(eligible.kind())
-                || !derivedKeys.add(eligible.key())) {
+        if (source == null || blank(eligible.key()) || blank(eligible.kind())) {
             throw unavailable();
         }
         return new ProductSurfaceContextDtos.EffectiveScope(

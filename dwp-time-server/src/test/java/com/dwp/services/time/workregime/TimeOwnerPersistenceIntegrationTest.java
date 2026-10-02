@@ -70,15 +70,16 @@ class TimeOwnerPersistenceIntegrationTest {
     private static final long PUBLISHER = AUTHOR + 2;
     private static final String RUNTIME_ROLE = "tim_owner_it_runtime";
     private static final String RUNTIME_PASSWORD = "tim-owner-it-runtime-password";
+    private static final String PUBLISHER_ROLE = "tim_owner_it_projection_publisher";
     private static final String PURPOSE = "TIME_CONFIGURATION";
     private static final String DECISION = "psr-" + "7".repeat(64);
     private static final UUID POPULATION_ID =
             UUID.fromString("71000000-0000-0000-0000-000000000071");
     private static final String SCOPE =
             WorkRegimeTargetPopulationResolver.stableScopeRef(POPULATION_ID);
-    private static final String GATEWAY_SCOPE = "scope-" + "7".repeat(32);
-    private static final String APPROVER_GATEWAY_SCOPE = "scope-" + "8".repeat(32);
-    private static final String PUBLISHER_GATEWAY_SCOPE = "scope-" + "9".repeat(32);
+    private static final String GATEWAY_SCOPE = "hcm-scope-" + "7".repeat(40);
+    private static final String APPROVER_GATEWAY_SCOPE = "hcm-scope-" + "8".repeat(40);
+    private static final String PUBLISHER_GATEWAY_SCOPE = "hcm-scope-" + "9".repeat(40);
     private static final String DIGEST_A = "a".repeat(64);
     private static final String DIGEST_B = "b".repeat(64);
     private static final String DIGEST_C = "c".repeat(64);
@@ -142,6 +143,9 @@ class TimeOwnerPersistenceIntegrationTest {
         admin.execute("CREATE ROLE " + RUNTIME_ROLE
                 + " LOGIN PASSWORD '" + RUNTIME_PASSWORD
                 + "' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS");
+        admin.execute("CREATE ROLE " + PUBLISHER_ROLE
+                + " LOGIN PASSWORD 'tim-owner-it-publisher-password'"
+                + " NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS");
 
         Flyway flyway = Flyway.configure()
                 .dataSource(adminDataSource)
@@ -149,15 +153,17 @@ class TimeOwnerPersistenceIntegrationTest {
                 .schemas("public")
                 .defaultSchema("public")
                 .table("flyway_schema_history")
-                .target(MigrationVersion.fromVersion("4"))
+                .target(MigrationVersion.fromVersion("6"))
                 .repeatableSqlMigrationPrefix("DO_NOT_RUN_REPEATABLE_")
                 .placeholderReplacement(true)
-                .placeholders(Map.of("timeRuntimeRole", RUNTIME_ROLE))
+                .placeholders(Map.of(
+                        "timeRuntimeRole", RUNTIME_ROLE,
+                        "timeProjectionPublisherRole", PUBLISHER_ROLE))
                 .load();
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(4);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(6);
         assertThat(admin.queryForObject(
                 "SELECT count(*) FROM flyway_schema_history WHERE success",
-                Integer.class)).isEqualTo(4);
+                Integer.class)).isEqualTo(6);
         assertThat(admin.queryForObject(
                 "SELECT script FROM flyway_schema_history WHERE success AND version = '1'",
                 String.class)).isEqualTo("V1__tim_create_work_regime_foundation.sql");
@@ -462,7 +468,7 @@ class TimeOwnerPersistenceIntegrationTest {
         long approver = APPROVER;
         long publisher = PUBLISHER;
         long revokedActor = AUTHOR + 3;
-        String revokedGatewayScope = "scope-" + "d".repeat(32);
+        String revokedGatewayScope = "hcm-scope-" + "d".repeat(40);
         UUID revokedWorker = UUID.fromString("71900000-0000-0000-0000-000000000014");
         UUID revokedAssignment = UUID.fromString("71900000-0000-0000-0000-000000000015");
         adminTenantRun(() -> {
@@ -519,7 +525,7 @@ class TimeOwnerPersistenceIntegrationTest {
         assertThat(resolver.resolveActorAccess(
                 TENANT + 1, AUTHOR, GATEWAY_SCOPE, NOW)).isEmpty();
         assertThat(resolver.resolveActorAccess(
-                TENANT, AUTHOR, "scope-" + "0".repeat(32), NOW)).isEmpty();
+                TENANT, AUTHOR, "hcm-scope-" + "0".repeat(40), NOW)).isEmpty();
         assertThat(resolver.resolveActorAccess(
                 TENANT, AUTHOR, GATEWAY_SCOPE, GRANT_VALID_TO.plusSeconds(1))).isEmpty();
         assertThat(resolver.resolveActorAccess(
