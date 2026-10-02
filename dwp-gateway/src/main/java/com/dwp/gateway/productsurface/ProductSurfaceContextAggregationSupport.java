@@ -43,6 +43,23 @@ final class ProductSurfaceContextAggregationSupport {
         return compositeRevision(requestContext, revisions, List.of());
     }
 
+    static String productEvaluationRevision(
+            ProductSurfaceContextDtos.RequestContext requestContext,
+            ProductSurfaceContextDtos.SourceRevisions revisions,
+            ProductSurfaceContextDtos.ProductEvaluationRequest request,
+            String routeGrantRef) {
+        ProductSurfaceContextDtos.Subject subject = request.subject();
+        String material = String.join("\n",
+                "dwp:product-surface-evaluation-revision:v1",
+                compositeRevision(requestContext, revisions),
+                Objects.toString(subject == null ? null : subject.type(), ""),
+                Objects.toString(subject == null ? null : subject.productKey(), ""),
+                Objects.toString(subject == null ? null : subject.surfaceKey(), ""),
+                Objects.toString(request.routeContractKey(), ""),
+                Objects.toString(routeGrantRef, ""));
+        return "psr-" + digest(material);
+    }
+
     static String compositeRevision(
             ProductSurfaceContextDtos.RequestContext requestContext,
             ProductSurfaceContextDtos.SourceRevisions revisions,

@@ -2,6 +2,9 @@ package com.dwp.services.auth.provisioning;
 
 import com.dwp.core.exception.BaseException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.validation.Validation;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Size;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
 import org.springframework.boot.autoconfigure.security.servlet.SecurityAutoConfiguration;
@@ -24,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class LocalSyntheticIdentityBootstrapBoundaryTest {
@@ -103,6 +107,27 @@ class LocalSyntheticIdentityBootstrapBoundaryTest {
     }
 
     @Test
+    void requestContractAllowsTheThreeTenantARolesAndRejectsExtraOrUnknownRoles() {
+        try (var validation = Validation.buildDefaultValidatorFactory()) {
+            var validator = validation.getValidator();
+
+            assertThat(validator.validate(activateRequest(List.of(
+                    "HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN"))))
+                    .isEmpty();
+            assertThat(validator.validate(activateRequest(List.of(
+                    "HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN", "HR_ADMIN"))))
+                    .anySatisfy(violation -> assertThat(
+                            violation.getConstraintDescriptor().getAnnotation())
+                            .isInstanceOf(Size.class));
+            assertThat(validator.validate(activateRequest(List.of(
+                    "HR_ADMIN", "PAYROLL_ADMIN", "AUDITOR"))))
+                    .anySatisfy(violation -> assertThat(
+                            violation.getConstraintDescriptor().getAnnotation())
+                            .isInstanceOf(Pattern.class));
+        }
+    }
+
+    @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
     void activatesExactlyOneInvitedAccountAndThenFailsTheOneShotFence() throws Exception {
         UUID publicId = UUID.fromString("5e1180fe-d98f-5bbc-bc19-60c21f69cd7e");
@@ -126,22 +151,26 @@ class LocalSyntheticIdentityBootstrapBoundaryTest {
                 .thenAnswer(invocation -> {
                     String sql = invocation.getArgument(0);
                     if (sql.contains("sys_role_assignment_policies")) {
-                        return List.of("HR_ADMIN", "PAYROLL_ADMIN");
+                        assertThat(sql).contains(
+                                "'HR_ADMIN', 'PAYROLL_ADMIN', 'PEOPLE_ADMIN'");
+                        return List.of("HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN");
                     }
                     if (sql.contains("sys_role_conflict_policies")) {
+                        assertThat(sql).contains(
+                                "('HR_ADMIN'), ('PAYROLL_ADMIN'), ('PEOPLE_ADMIN')");
                         return List.of();
                     }
                     return List.of("TENANT_ADMIN", "WORKSPACE_MEMBER");
                 });
         when(encoder.encode("Aa1!synthetic-password")).thenReturn("encoded-password");
         when(jdbc.update(anyString(), any(Object[].class)))
-                .thenReturn(1, 1, 1, 1, 0);
+                .thenReturn(1, 1, 1, 1, 1, 0);
         var service = new LocalSyntheticIdentityBootstrapService(jdbc, encoder, RUN_ID);
         UUID personPublicId = UUID.fromString("1b730d64-fee8-531c-90f3-594bd10ffb17");
         var request = new LocalSyntheticIdentityBootstrapDtos.ActivateRequest(
                 RUN_ID, publicId, 501L, personPublicId,
                 "hris-w1-a-0123abcd@dwp.test", "Aa1!synthetic-password",
-                List.of("HR_ADMIN", "PAYROLL_ADMIN"));
+                List.of("HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN"));
 
         var response = service.activate(request);
 
@@ -149,11 +178,25 @@ class LocalSyntheticIdentityBootstrapBoundaryTest {
         assertThat(response.administratorUserId()).isEqualTo(501L);
         assertThat(response.personPublicId()).isEqualTo(personPublicId);
         assertThat(response.lifecycleState()).isEqualTo("ACTIVE");
-        assertThat(response.roleCodes()).containsExactly("HR_ADMIN", "PAYROLL_ADMIN");
+        assertThat(response.roleCodes()).containsExactly(
+                "HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN");
         assertThat(response.receiptSha256()).matches("[0-9a-f]{64}");
         assertThatThrownBy(() -> service.activate(request))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("one-shot fence");
+    }
+
+    @Test
+    void tenantALaneRejectsTheFormerTwoRoleSetBeforeDatabaseAccess() {
+        JdbcTemplate jdbc = mock(JdbcTemplate.class);
+        PasswordEncoder encoder = mock(PasswordEncoder.class);
+        var service = new LocalSyntheticIdentityBootstrapService(jdbc, encoder, RUN_ID);
+
+        assertThatThrownBy(() -> service.activate(activateRequest(List.of(
+                "HR_ADMIN", "PAYROLL_ADMIN"))))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("exact tenant lane policy");
+        verifyNoInteractions(jdbc, encoder);
     }
 
     @Test
@@ -167,11 +210,23 @@ class LocalSyntheticIdentityBootstrapBoundaryTest {
                 UUID.randomUUID(),
                 "hris-w1-a-0123abcd@dwp.test",
                 "Aa1!synthetic-password",
-                List.of("HR_ADMIN", "PAYROLL_ADMIN"));
+                List.of("HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN"));
 
         assertThatThrownBy(() -> service.activate(request))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("not bound to this runtime");
+    }
+
+    private static LocalSyntheticIdentityBootstrapDtos.ActivateRequest activateRequest(
+            List<String> roleCodes) {
+        return new LocalSyntheticIdentityBootstrapDtos.ActivateRequest(
+                RUN_ID,
+                UUID.fromString("5e1180fe-d98f-5bbc-bc19-60c21f69cd7e"),
+                501L,
+                UUID.fromString("1b730d64-fee8-531c-90f3-594bd10ffb17"),
+                "hris-w1-a-0123abcd@dwp.test",
+                "Aa1!synthetic-password",
+                roleCodes);
     }
 
     private static MockHttpServletRequest request(String remoteAddress, String token) {

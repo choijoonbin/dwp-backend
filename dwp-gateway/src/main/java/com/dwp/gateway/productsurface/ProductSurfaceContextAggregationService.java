@@ -466,7 +466,11 @@ public class ProductSurfaceContextAggregationService {
                 reasonCode = "SCOPE_SELECTION_REQUIRED";
             }
         }
-        String revision = compositeRevision(requestContext, resolution.revisions());
+        String revision = productEvaluationRevision(
+                requestContext,
+                resolution.revisions(),
+                request,
+                resolution.authority().routeGrantRef());
         ProductSurfaceContextDtos.EffectiveContext context =
                 decision == ProductSurfaceContextDtos.Decision.ALLOWED
                         ? resolution.context()

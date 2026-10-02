@@ -1385,7 +1385,9 @@ def validate_people_workforce_bootstrap_response(
         or type(value.get("targetPopulationCount")) is not int
         or value["targetPopulationCount"] != 2
         or not re.fullmatch(
-            r"[0-9a-f]{32}", str(value.get("targetPopulationRevision", ""))
+            r"[0-9a-f]{32}:true\|\[\]\|"
+            r"\[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS\]\|READ",
+            str(value.get("targetPopulationRevision", "")),
         )
         or type(value.get("workforceAccessPolicyVersion")) is not int
         or value["workforceAccessPolicyVersion"] < 0
@@ -2689,7 +2691,11 @@ def bootstrap_synthetic_identities(
             "personPublicId": person_public_id,
             "administratorEmail": email,
             "password": password,
-            "roleCodes": ["HR_ADMIN", "PAYROLL_ADMIN"] if lane == "a" else [],
+            "roleCodes": (
+                ["HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN"]
+                if lane == "a"
+                else []
+            ),
         }
         if lane == "a":
             http_request(
@@ -2975,10 +2981,30 @@ def login_gateway_sessions(
             urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar())
         )
         session = GatewayBrowserSession(credential, opener)
+        _, csrf, _ = gateway_session_request(
+            state,
+            session,
+            name=f"27-tenant-{credential.lane.lower()}-gateway-csrf",
+            method="GET",
+            path="/api/auth/csrf",
+            persist_body=False,
+        )
+        csrf_data = csrf.get("data") if isinstance(csrf, dict) else None
+        if (
+            not isinstance(csrf_data, dict)
+            or csrf_data.get("headerName") != "X-XSRF-TOKEN"
+            or not isinstance(csrf_data.get("token"), str)
+            or len(csrf_data["token"]) < 16
+        ):
+            raise GateFailure(
+                f"Tenant {credential.lane} Gateway CSRF bootstrap failed"
+            )
+        session.csrf_header = csrf_data["headerName"]
+        session.csrf_token = csrf_data["token"]
         _, login, _ = gateway_session_request(
             state,
             session,
-            name=f"27-tenant-{credential.lane.lower()}-gateway-login",
+            name=f"28-tenant-{credential.lane.lower()}-gateway-login",
             method="POST",
             path="/api/auth/login",
             payload={
@@ -2998,26 +3024,30 @@ def login_gateway_sessions(
             raise GateFailure(
                 f"Tenant {credential.lane} Gateway credential login failed"
             )
-        _, csrf, _ = gateway_session_request(
+        _, refreshed_csrf, _ = gateway_session_request(
             state,
             session,
-            name=f"28-tenant-{credential.lane.lower()}-gateway-csrf",
+            name=f"29-tenant-{credential.lane.lower()}-gateway-csrf-refresh",
             method="GET",
             path="/api/auth/csrf",
             persist_body=False,
         )
-        csrf_data = csrf.get("data") if isinstance(csrf, dict) else None
+        refreshed_csrf_data = (
+            refreshed_csrf.get("data")
+            if isinstance(refreshed_csrf, dict)
+            else None
+        )
         if (
-            not isinstance(csrf_data, dict)
-            or csrf_data.get("headerName") != "X-XSRF-TOKEN"
-            or not isinstance(csrf_data.get("token"), str)
-            or len(csrf_data["token"]) < 16
+            not isinstance(refreshed_csrf_data, dict)
+            or refreshed_csrf_data.get("headerName") != "X-XSRF-TOKEN"
+            or not isinstance(refreshed_csrf_data.get("token"), str)
+            or len(refreshed_csrf_data["token"]) < 16
         ):
             raise GateFailure(
-                f"Tenant {credential.lane} Gateway CSRF bootstrap failed"
+                f"Tenant {credential.lane} authenticated CSRF refresh failed"
             )
-        session.csrf_header = csrf_data["headerName"]
-        session.csrf_token = csrf_data["token"]
+        session.csrf_header = refreshed_csrf_data["headerName"]
+        session.csrf_token = refreshed_csrf_data["token"]
         sessions[credential.lane] = session
     state.phase(
         "synthetic-gateway-sessions",

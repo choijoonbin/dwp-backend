@@ -25,7 +25,7 @@ class HcmPerformanceCycleAuthorityAdapterTest {
     private static final UUID SUBJECT =
             UUID.fromString("10000000-0000-0000-0000-000000000019");
     private static final String CONTEXT = "psc-" + "a".repeat(64);
-    private static final String SCOPE = "scope-" + "b".repeat(32);
+    private static final String SCOPE = "hcm-scope-" + "b".repeat(40);
     private static final String REVISION = "psr-" + "c".repeat(64);
 
     @Test

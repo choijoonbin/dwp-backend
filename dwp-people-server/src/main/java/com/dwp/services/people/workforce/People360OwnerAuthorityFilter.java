@@ -2,6 +2,7 @@ package com.dwp.services.people.workforce;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.core.common.ErrorCode;
+import com.dwp.core.security.HcmEligibilityScopeKey;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmV3PepRegistry;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -184,8 +185,7 @@ public final class People360OwnerAuthorityFilter extends OncePerRequestFilter {
                 && evidence.rolloutState().matches("[01]1[01]")
                 && evidence.contextKey() != null
                 && evidence.contextKey().matches("psc-[0-9a-f]{64}")
-                && evidence.scopeKey() != null
-                && evidence.scopeKey().matches("scope-[0-9a-f]{32}")
+                && HcmEligibilityScopeKey.isCanonical(evidence.scopeKey())
                 && evidence.decisionRevision() != null
                 && evidence.decisionRevision().matches("psr-[0-9a-f]{64}");
     }

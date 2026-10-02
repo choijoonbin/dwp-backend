@@ -34,7 +34,7 @@ public class LocalSyntheticIdentityBootstrapService {
     private static final UUID URL_NAMESPACE =
             UUID.fromString("6ba7b811-9dad-11d1-80b4-00c04fd430c8");
     private static final List<String> TENANT_A_ROLES =
-            List.of("HR_ADMIN", "PAYROLL_ADMIN");
+            List.of("HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN");
     private static final Set<String> FOUNDATION_ROLES =
             Set.of("TENANT_ADMIN", "WORKSPACE_MEMBER");
 
@@ -218,7 +218,8 @@ public class LocalSyntheticIdentityBootstrapService {
                   FROM sys_role_assignment_policies policy
                  WHERE policy.assignment_mode IN ('DIRECT', 'APPROVAL')
                    AND policy.lifecycle_state = 'ACTIVE'
-                   AND policy.target_role_code IN ('HR_ADMIN', 'PAYROLL_ADMIN')
+                   AND policy.target_role_code IN (
+                       'HR_ADMIN', 'PAYROLL_ADMIN', 'PEOPLE_ADMIN')
                    AND policy.grantor_role_code IN (
                        SELECT role.code
                          FROM com_role_members membership
@@ -246,7 +247,8 @@ public class LocalSyntheticIdentityBootstrapService {
                      WHERE membership.tenant_id = ?
                        AND membership.user_id = ?
                        AND role.status = 'ACTIVE'
-                    UNION ALL VALUES ('HR_ADMIN'), ('PAYROLL_ADMIN')
+                    UNION ALL VALUES
+                        ('HR_ADMIN'), ('PAYROLL_ADMIN'), ('PEOPLE_ADMIN')
                 )
                 SELECT policy.reason_code
                   FROM sys_role_conflict_policies policy

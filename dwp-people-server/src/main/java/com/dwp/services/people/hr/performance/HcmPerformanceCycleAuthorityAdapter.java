@@ -2,6 +2,7 @@ package com.dwp.services.people.hr.performance;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.security.HcmEligibilityScopeKey;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmV3PepRegistry;
 import com.dwp.services.people.security.PeopleRequestContext;
@@ -173,7 +174,7 @@ final class HcmPerformanceCycleAuthorityAdapter implements PerformanceCycleAutho
     }
 
     private boolean canonicalScope(String value) {
-        return value != null && value.matches("scope-[0-9a-f]{32}");
+        return HcmEligibilityScopeKey.isCanonical(value);
     }
 
     private boolean canonicalDecision(String value) {

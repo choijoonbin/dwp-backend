@@ -42,7 +42,10 @@ class HrisW1SyntheticLineageTest(unittest.TestCase):
             "workforceAccessPolicyId": "90000000-0000-0000-0000-00000000000a",
             "workforceAccessPolicyVersion": 0,
             "targetPopulationCount": 2,
-            "targetPopulationRevision": "a" * 32,
+            "targetPopulationRevision": (
+                "a" * 32
+                + ":true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ"
+            ),
             "authWorkforceBinding": {
                 "endpoint": "/internal/identity/v1/workforce-events",
                 "tokenHeader": "X-DWP-Identity-Sync-Token",

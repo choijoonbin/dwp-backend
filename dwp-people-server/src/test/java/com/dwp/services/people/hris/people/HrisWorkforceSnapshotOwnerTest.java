@@ -149,7 +149,7 @@ class HrisWorkforceSnapshotOwnerTest {
         return new HcmPepContext.Evidence(
                 authority, "psr-" + "c".repeat(64),
                 OffsetDateTime.ofInstant(revalidateAt, ZoneOffset.UTC),
-                "psc-" + "a".repeat(64), "scope-" + "b".repeat(32), "111");
+                "psc-" + "a".repeat(64), "hcm-scope-" + "b".repeat(40), "111");
     }
 
     private HcmPopulationScopeService.ResolvedPopulation population() {

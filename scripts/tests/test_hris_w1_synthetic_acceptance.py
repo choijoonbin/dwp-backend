@@ -72,7 +72,10 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                 target_person_public_id="50000000-0000-0000-0000-00000000000a",
                 target_worker_public_id="60000000-0000-0000-0000-00000000000a",
                 target_assignment_public_id="70000000-0000-0000-0000-00000000000a",
-                target_population_revision="people-population-revision-a",
+                target_population_revision=(
+                    "a" * 32
+                    + ":true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ"
+                ),
                 target_population_count=2,
                 tenant_key="w1-a-0123abcd",
                 email="hris-w1-a-0123abcd@dwp.test",
@@ -90,7 +93,10 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                 target_person_public_id="50000000-0000-0000-0000-00000000000b",
                 target_worker_public_id="60000000-0000-0000-0000-00000000000b",
                 target_assignment_public_id="70000000-0000-0000-0000-00000000000b",
-                target_population_revision="people-population-revision-b",
+                target_population_revision=(
+                    "b" * 32
+                    + ":true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ"
+                ),
                 target_population_count=2,
                 tenant_key="w1-b-0123abcd",
                 email="hris-w1-b-0123abcd@dwp.test",
@@ -218,6 +224,59 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
 
         with self.assertRaises(gate.GateFailure):
             gate.resource_name("w1-20261001t050403z-0123abcd", "../postgres")
+
+    def test_gateway_login_bootstraps_csrf_before_each_mutation(self):
+        state = self.checkpoint_state(Path("/tmp/w1-gateway-session"))
+        calls = []
+
+        def request(_state, session, **arguments):
+            calls.append((arguments["name"], arguments["method"]))
+            if arguments["path"] == "/api/auth/csrf":
+                refresh = arguments["name"].endswith("csrf-refresh")
+                self.assertEqual(
+                    "csrf-token-for-login" if refresh else "",
+                    session.csrf_token,
+                )
+                return 200, {
+                    "data": {
+                        "headerName": "X-XSRF-TOKEN",
+                        "token": (
+                            "csrf-token-after-login"
+                            if refresh
+                            else "csrf-token-for-login"
+                        ),
+                    }
+                }, b""
+            self.assertEqual("X-XSRF-TOKEN", session.csrf_header)
+            self.assertEqual("csrf-token-for-login", session.csrf_token)
+            return 200, {
+                "data": {
+                    "tenantId": str(session.credential.tenant_id),
+                    "userId": str(session.credential.administrator_user_id),
+                }
+            }, b""
+
+        with mock.patch.object(gate, "gateway_session_request", side_effect=request):
+            sessions = gate.login_gateway_sessions(
+                state, self.checkpoint_credentials()
+            )
+
+        self.assertEqual({"A", "B"}, set(sessions))
+        self.assertEqual(
+            [
+                ("27-tenant-a-gateway-csrf", "GET"),
+                ("28-tenant-a-gateway-login", "POST"),
+                ("29-tenant-a-gateway-csrf-refresh", "GET"),
+                ("27-tenant-b-gateway-csrf", "GET"),
+                ("28-tenant-b-gateway-login", "POST"),
+                ("29-tenant-b-gateway-csrf-refresh", "GET"),
+            ],
+            calls,
+        )
+        self.assertTrue(all(
+            session.csrf_token == "csrf-token-after-login"
+            for session in sessions.values()
+        ))
 
     def test_output_directory_must_be_new_and_exactly_bound_to_run(self):
         run_id = "w1-20261001t050403z-0123abcd"
@@ -537,7 +596,8 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                 captured["DWP_W1_TENANT_A_TARGET_WORKER_PUBLIC_ID"],
             )
             self.assertEqual(
-                "people-population-revision-a",
+                "a" * 32
+                + ":true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ",
                 captured["DWP_W1_TENANT_A_TARGET_POPULATION_REVISION"],
             )
             self.assertNotIn("HRIS_W1_TENANT_A_PASSWORD", captured)

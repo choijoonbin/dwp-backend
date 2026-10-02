@@ -25,8 +25,8 @@ public final class LocalSyntheticIdentityBootstrapDtos {
             @NotNull UUID personPublicId,
             @NotBlank @Email @Size(max = 255) String administratorEmail,
             @NotBlank @Size(min = 16, max = 128) String password,
-            @NotNull @Size(max = 2) List<
-                    @Pattern(regexp = "(?:HR_ADMIN|PAYROLL_ADMIN)") String> roleCodes) {
+            @NotNull @Size(max = 3) List<
+                    @Pattern(regexp = "(?:HR_ADMIN|PAYROLL_ADMIN|PEOPLE_ADMIN)") String> roleCodes) {
     }
 
     public record ActivateResponse(

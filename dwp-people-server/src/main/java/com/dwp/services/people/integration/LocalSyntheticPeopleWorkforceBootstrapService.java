@@ -38,7 +38,8 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
     private static final Set<String> BOOTSTRAP_ROLES = Set.of("ADMIN", POLICY_ROLE);
     private static final Set<String> BOOTSTRAP_PERMISSIONS =
             Set.of("ADMIN.WORKFORCE_ACCESS:MANAGE");
-    private static final Set<String> POLICY_FIELD_GROUPS = Set.of("DIRECTORY");
+    private static final Set<String> POLICY_FIELD_GROUPS =
+            Set.of("DIRECTORY", "EMPLOYMENT", "WORKER_IDENTIFIERS");
     private static final Set<String> POLICY_ACTIONS = Set.of("READ");
 
     private final HrisImportService imports;
@@ -175,7 +176,7 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
                     policy.policyId(),
                     policy.version(),
                     population.evidence().count(),
-                    population.evidence().revision(),
+                    population.targetPopulationRevision(),
                     binding);
             String receipt = receiptSha256(evidence);
             return new LocalSyntheticPeopleWorkforceBootstrapDtos.BootstrapResponse(
@@ -197,7 +198,7 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
                     policy.policyId(),
                     policy.version(),
                     population.evidence().count(),
-                    population.evidence().revision(),
+                    population.targetPopulationRevision(),
                     binding,
                     receipt);
         } finally {

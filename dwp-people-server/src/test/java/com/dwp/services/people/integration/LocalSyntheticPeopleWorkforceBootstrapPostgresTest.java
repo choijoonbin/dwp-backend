@@ -112,6 +112,9 @@ class LocalSyntheticPeopleWorkforceBootstrapPostgresTest {
         assertThat(response.importReplayed()).isFalse();
         assertThat(response.importedWorkerCount()).isEqualTo(3);
         assertThat(response.targetPopulationCount()).isEqualTo(2);
+        assertThat(response.targetPopulationRevision()).matches(
+                "[0-9a-f]{32}:true\\|\\[\\]\\|\\[DIRECTORY, EMPLOYMENT, "
+                        + "WORKER_IDENTIFIERS\\]\\|READ");
         assertThat(response.actorPersonPublicId()).isNotEqualTo(response.targetPersonPublicId());
         assertThat(response.receiptSha256()).matches("[0-9a-f]{64}");
         assertThat(integrationRepository.findWorkforceIdentity(tenantId, "E100001"))
@@ -126,6 +129,8 @@ class LocalSyntheticPeopleWorkforceBootstrapPostgresTest {
                 SELECT COUNT(*) FROM ppl_workforce_access_policies
                  WHERE tenant_id=? AND subject_type='ROLE'
                    AND subject_ref='TENANT_ADMIN' AND lifecycle_state='ACTIVE'
+                   AND field_groups @> ARRAY['DIRECTORY','EMPLOYMENT','WORKER_IDENTIFIERS']::varchar[]
+                   AND cardinality(field_groups)=3
                 """, Long.class, tenantId)).isEqualTo(1);
         assertThat(jdbc.queryForObject("""
                 SELECT COUNT(*) FROM sys_people_audit_events
@@ -151,7 +156,8 @@ class LocalSyntheticPeopleWorkforceBootstrapPostgresTest {
             try {
                 policies.create(new WorkforceAccessDtos.CreatePolicyRequest(
                         "ROLE", "TENANT_ADMIN", "TENANT", null,
-                        List.of("DIRECTORY"), List.of("READ", "EXPORT"),
+                        List.of("DIRECTORY", "EMPLOYMENT", "WORKER_IDENTIFIERS"),
+                        List.of("READ", "EXPORT"),
                         null, null, "Deliberate near-match for rollback verification."),
                         "bootstrap-conflict-precondition");
             } finally {

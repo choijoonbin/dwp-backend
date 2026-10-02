@@ -167,6 +167,8 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
         assertThat(response.targetAssignmentPublicId()).isEqualTo(TARGET_ASSIGNMENT_ID);
         assertThat(response.importedWorkerCount()).isEqualTo(3);
         assertThat(response.targetPopulationCount()).isEqualTo(2);
+        assertThat(response.targetPopulationRevision()).isEqualTo(
+                "abc123:true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ");
         assertThat(response.receiptSha256()).matches("[0-9a-f]{64}");
         assertThat(response.authWorkforceBinding().endpoint())
                 .isEqualTo("/internal/identity/v1/workforce-events");
@@ -420,7 +422,7 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
                 "TENANT",
                 null,
                 null,
-                List.of("DIRECTORY"),
+                List.of("DIRECTORY", "EMPLOYMENT", "WORKER_IDENTIFIERS"),
                 List.of("READ"),
                 null,
                 null,
@@ -449,8 +451,8 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
                 null,
                 true,
                 Set.of(),
-                Set.of("DIRECTORY"),
-                "true|[]|[DIRECTORY]|READ");
+                Set.of("DIRECTORY", "EMPLOYMENT", "WORKER_IDENTIFIERS"),
+                "true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ");
         return new HcmPopulationScopeService.ResolvedPopulation(
                 actor, scope, new HcmPopulationRepository.PopulationEvidence(count, "abc123"));
     }

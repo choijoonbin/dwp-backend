@@ -2,6 +2,7 @@ package com.dwp.services.people.hris.people;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.security.HcmEligibilityScopeKey;
 import com.dwp.services.people.hr.HcmPopulationScopeService;
 import com.dwp.services.people.hris.contracts.workforce.v1.VerifiedWorkforceSnapshotCursor;
 import com.dwp.services.people.hris.contracts.workforce.v1.VerifiedWorkforceSnapshotRequest;
@@ -76,8 +77,7 @@ final class HrisWorkforceSnapshotAuthorityVerifier
                 || !evidence.authority().targetBindingKinds().contains("TARGET_POPULATION")
                 || evidence.contextKey() == null
                 || !evidence.contextKey().matches("psc-[0-9a-f]{64}")
-                || evidence.scopeKey() == null
-                || !evidence.scopeKey().matches("scope-[0-9a-f]{32}")
+                || !HcmEligibilityScopeKey.isCanonical(evidence.scopeKey())
                 || evidence.decisionRevision() == null
                 || !evidence.decisionRevision().matches("psr-[0-9a-f]{64}")
                 || !actor.hasPermission("DATA.HR_TALENT", "UPDATE", "MANAGE")) {
