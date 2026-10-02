@@ -153,17 +153,17 @@ class TimeOwnerPersistenceIntegrationTest {
                 .schemas("public")
                 .defaultSchema("public")
                 .table("flyway_schema_history")
-                .target(MigrationVersion.fromVersion("6"))
+                .target(MigrationVersion.fromVersion("7"))
                 .repeatableSqlMigrationPrefix("DO_NOT_RUN_REPEATABLE_")
                 .placeholderReplacement(true)
                 .placeholders(Map.of(
                         "timeRuntimeRole", RUNTIME_ROLE,
                         "timeProjectionPublisherRole", PUBLISHER_ROLE))
                 .load();
-        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(6);
+        assertThat(flyway.migrate().migrationsExecuted).isEqualTo(7);
         assertThat(admin.queryForObject(
                 "SELECT count(*) FROM flyway_schema_history WHERE success",
-                Integer.class)).isEqualTo(6);
+                Integer.class)).isEqualTo(7);
         assertThat(admin.queryForObject(
                 "SELECT script FROM flyway_schema_history WHERE success AND version = '1'",
                 String.class)).isEqualTo("V1__tim_create_work_regime_foundation.sql");

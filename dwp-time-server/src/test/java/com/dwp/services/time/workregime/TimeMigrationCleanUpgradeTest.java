@@ -174,6 +174,10 @@ class TimeMigrationCleanUpgradeTest {
                         + "AND script = 'V6__tim_adopt_derived_hcm_scope_keys.sql'",
                 Integer.class)).isOne();
         assertThat(admin.queryForObject(
+                "SELECT count(*) FROM flyway_schema_history WHERE success AND version = '7' "
+                        + "AND script = 'V7__tim_harden_owner_trigger_boundaries.sql'",
+                Integer.class)).isOne();
+        assertThat(admin.queryForObject(
                 "SELECT count(*) FROM pg_tables WHERE schemaname='public' "
                         + "AND tablename LIKE 'tim_%'",
                 Integer.class)).isEqualTo(16);
@@ -186,11 +190,8 @@ class TimeMigrationCleanUpgradeTest {
                 "SELECT p.proname, p.prosecdef, p.proconfig FROM pg_proc p "
                         + "JOIN pg_namespace n ON n.oid=p.pronamespace "
                         + "WHERE n.nspname='public' AND p.proname LIKE 'tim\\_%' ESCAPE '\\' "
-                        + "AND (NOT p.prosecdef OR NOT ("
-                        + "coalesce(p.proconfig, ARRAY[]::text[]) "
-                        + "@> ARRAY['search_path=pg_catalog, public, pg_temp'] OR "
-                        + "coalesce(p.proconfig, ARRAY[]::text[]) "
-                        + "@> ARRAY['search_path=pg_catalog, pg_temp']))"))
+                        + "AND (NOT p.prosecdef OR p.proconfig IS DISTINCT FROM "
+                        + "ARRAY['search_path=pg_catalog, public, pg_temp']::text[])"))
                 .isEmpty();
         assertThat(admin.queryForObject(
                 "SELECT count(*) FROM pg_proc p JOIN pg_namespace n ON n.oid=p.pronamespace "

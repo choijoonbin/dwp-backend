@@ -16,3 +16,5 @@ approved, immutable versioned migrations in this location.
   immutable evidence, audit, rule-pack, schema, or migration-history authority.
 - `V6` rejects any legacy source-scope rows and changes every persisted Gateway-scope field
   to the exact People-derived `hcm-scope-*` eligibility key returned by Gateway.
+- `V7` normalizes every post-foundation trigger function to the migration-owner execution
+  profile with a fixed search path and no direct service-role execution.

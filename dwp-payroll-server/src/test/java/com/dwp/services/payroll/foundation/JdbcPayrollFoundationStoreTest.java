@@ -593,7 +593,7 @@ class JdbcPayrollFoundationStoreTest {
         assertThat(adminJdbc.queryForObject("""
                 SELECT COUNT(*)
                   FROM flyway_schema_history
-                 WHERE version = '4' AND success
+                 WHERE version = '5' AND success
                 """, Long.class)).isEqualTo(1L);
         assertThat(adminJdbc.queryForObject("""
                 SELECT bool_and(relrowsecurity AND relforcerowsecurity)
@@ -616,6 +616,20 @@ class JdbcPayrollFoundationStoreTest {
                         Boolean.class, table, privilege)).isFalse();
             }
         }
+        assertThat(adminJdbc.queryForList("""
+                SELECT routine.proname
+                  FROM pg_proc routine
+                  JOIN pg_namespace namespace ON namespace.oid = routine.pronamespace
+                 WHERE namespace.nspname = 'public'
+                   AND routine.proname IN (
+                       'pay_foundation_guard_receipt_transition',
+                       'pay_guard_legal_entity_scope_projection_transition',
+                       'pay_guard_legal_entity_scope_member_lifecycle')
+                   AND (NOT routine.prosecdef
+                        OR routine.proconfig IS DISTINCT FROM
+                           ARRAY['search_path=pg_catalog, public, pg_temp']::text[]
+                        OR has_function_privilege(?, routine.oid, 'EXECUTE'))
+                """, RUNTIME_USER)).isEmpty();
     }
 
     @Test

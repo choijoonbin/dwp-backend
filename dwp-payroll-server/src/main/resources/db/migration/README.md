@@ -15,3 +15,6 @@ receipt, audit, schema, or migration-history authority.
 
 `V4` rejects any legacy source-scope rows and changes the projection contract to the exact
 People-derived `hcm-scope-*` eligibility key returned by Gateway.
+
+`V5` makes each migration-owned trigger function `SECURITY DEFINER`, pins its search path,
+and revokes direct execution while preserving trigger-only enforcement for runtime and publisher DML.
