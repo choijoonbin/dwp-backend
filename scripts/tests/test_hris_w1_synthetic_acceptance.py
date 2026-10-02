@@ -278,6 +278,144 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
             for session in sessions.values()
         ))
 
+    def test_gateway_authorities_recompute_and_replay_direct_route_contexts(self):
+        state = self.checkpoint_state(Path("/tmp/w1-gateway-authorities"))
+        session_a = mock.sentinel.tenant_a_session
+        session_b = mock.sentinel.tenant_b_session
+        sessions = {"A": session_a, "B": session_b}
+        entry_context_key = "psc-" + "e" * 64
+        pay_scope = "hcm-scope-" + "a" * 40
+        time_scope = "hcm-scope-" + "b" * 40
+        publish_scope = "hcm-scope-" + "c" * 40
+        capability_scopes = {
+            "hcm.operations.pay.read": pay_scope,
+            "hcm.operations.time.read": time_scope,
+            "hcm.operations.payroll-foundation.publish": publish_scope,
+        }
+        publish_route = (
+            "route.hcm.operations.payroll-foundation-publish.action"
+        )
+        calls = []
+        challenge_overrides = {}
+        context = {
+            "productKey": "hcm",
+            "surfaceKey": "hcm.operations",
+            "accessMode": "NORMAL",
+            "contextKey": entry_context_key,
+            "effectiveGrants": [
+                {
+                    "grantKind": "CAPABILITY",
+                    "capabilityContractKey": capability,
+                    "scopeKeys": [scope],
+                }
+                for capability, scope in capability_scopes.items()
+            ],
+        }
+
+        def route_context(route):
+            return "psc-" + hashlib.sha256(route.encode()).hexdigest()
+
+        def route_scope(route):
+            if route == publish_route:
+                return publish_scope
+            if route.endswith("work-plans-list.data"):
+                return time_scope
+            return pay_scope
+
+        def evaluate(
+            _state,
+            session,
+            *,
+            name,
+            route_contract_key,
+            context_key,
+            scope_key,
+        ):
+            calls.append(
+                (session, name, route_contract_key, context_key, scope_key)
+            )
+            if session is session_b:
+                return {"decision": "SURFACE_DENIED"}
+            common = {
+                "decisionRevision": "psr-"
+                + hashlib.sha256(route_contract_key.encode()).hexdigest(),
+                "revalidateAt": "2026-10-01T05:09:03Z",
+            }
+            if route_contract_key == publish_route:
+                return {
+                    **common,
+                    "decision": "STEP_UP_REQUIRED",
+                    "reasonCode": "STEP_UP_REQUIRED",
+                    "requiredAssurance": "urn:dwp:assurance:high",
+                    "context": None,
+                    "scope": None,
+                    **challenge_overrides,
+                }
+            return {
+                **common,
+                "decision": "ALLOWED",
+                "context": {"contextKey": route_context(route_contract_key)},
+                "scope": {"key": route_scope(route_contract_key)},
+            }
+
+        def resolve():
+            with contextlib.redirect_stdout(io.StringIO()):
+                return gate.resolve_gateway_authorities(state, sessions)
+
+        with mock.patch.object(
+            gate,
+            "gateway_session_request",
+            return_value=(200, {"data": {"contexts": [context]}}, b""),
+        ), mock.patch.object(gate, "gateway_evaluate", side_effect=evaluate):
+            results = resolve()
+            tenant_a = [call for call in calls if call[0] is session_a]
+            initial = [
+                call for call in tenant_a if not call[1].endswith("-rebound")
+            ]
+            rebound = [call for call in tenant_a if call[1].endswith("-rebound")]
+            self.assertEqual(7, len(initial))
+            self.assertEqual([None] * 7, [call[3] for call in initial])
+            self.assertEqual(
+                [route_scope(call[2]) for call in initial],
+                [call[4] for call in initial],
+            )
+            self.assertEqual(6, len(rebound))
+            self.assertEqual(
+                [
+                    (route_context(call[2]), route_scope(call[2]))
+                    for call in rebound
+                ],
+                [(call[3], call[4]) for call in rebound],
+            )
+            self.assertNotIn(entry_context_key, {call[3] for call in tenant_a})
+            for result in results.values():
+                if result["decision"] == "ALLOWED":
+                    route = result["routeContractKey"]
+                    self.assertEqual(route_context(route), result["contextKey"])
+                    self.assertEqual(route_scope(route), result["scopeKey"])
+            challenge = results["payrollPublish"]
+            self.assertEqual("STEP_UP_REQUIRED", challenge["decision"])
+            self.assertEqual("STEP_UP_REQUIRED", challenge["reasonCode"])
+            self.assertEqual(
+                "urn:dwp:assurance:high", challenge["requiredAssurance"]
+            )
+            self.assertIsNone(challenge["contextKey"])
+            self.assertIsNone(challenge["scopeKey"])
+
+            unsafe_challenges = (
+                {"requiredAssurance": "urn:dwp:assurance:medium"},
+                {"context": {"contextKey": "psc-" + "d" * 64}},
+                {"scope": {"key": publish_scope}},
+            )
+            for overrides in unsafe_challenges:
+                with self.subTest(overrides=overrides):
+                    challenge_overrides.clear()
+                    challenge_overrides.update(overrides)
+                    with self.assertRaisesRegex(
+                        gate.GateFailure, "exposed or weakened"
+                    ):
+                        resolve()
+
     def test_output_directory_must_be_new_and_exactly_bound_to_run(self):
         run_id = "w1-20261001t050403z-0123abcd"
         with tempfile.TemporaryDirectory() as temporary:
@@ -321,6 +459,10 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
         specs = gate.service_specs(secrets, "w1-20261001t050403z-0123abcd")
 
         self.assertEqual("true", specs["auth"].extra_environment["DWP_HRIS_SYSTEM_WAVE1_ENABLED"])
+        self.assertEqual(
+            "urn:dwp:assurance:high",
+            specs["auth"].extra_environment["DWP_AUTH_STEP_UP_REQUIRED_ACR"],
+        )
         self.assertEqual("true", specs["platform"].extra_environment["DWP_HRIS_SYSTEM_WAVE1_ENABLED"])
         self.assertEqual("true", specs["people"].extra_environment["DWP_HRIS_PERFORMANCE_WAVE1_ENABLED"])
         self.assertEqual("true", specs["payroll"].extra_environment["DWP_HRIS_PAYROLL_FOUNDATION_WAVE1_ENABLED"])

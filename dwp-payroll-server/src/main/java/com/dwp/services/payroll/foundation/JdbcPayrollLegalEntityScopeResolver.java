@@ -37,7 +37,6 @@ class JdbcPayrollLegalEntityScopeResolver implements PayrollLegalEntityScopeReso
                AND p.actor_id = :actorId
                AND p.context_scope_key = :contextScopeKey
                AND p.policy_revision = :policyRevision
-               AND p.authorization_revision = :authorizationRevision
                AND p.status = 'ACTIVE'
                AND p.valid_from <= :resolvedAt
                AND (p.valid_until IS NULL OR p.valid_until > :resolvedAt)
@@ -76,7 +75,6 @@ class JdbcPayrollLegalEntityScopeResolver implements PayrollLegalEntityScopeReso
                             .addValue("actorId", subject.actorId())
                             .addValue("contextScopeKey", subject.contextScopeKey())
                             .addValue("policyRevision", subject.policyRevision())
-                            .addValue("authorizationRevision", subject.authorizationRevision())
                             .addValue("resolvedAt", OffsetDateTime.ofInstant(
                                     resolvedAt, ZoneOffset.UTC)),
                     (result, rowNumber) -> new MembershipRow(

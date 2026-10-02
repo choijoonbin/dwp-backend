@@ -757,6 +757,7 @@ def service_specs(secrets_: RuntimeSecrets, run_id: str) -> dict[str, ServiceSpe
                 "DWP_PRODUCT_AUTHORIZATION_PLATFORM_ACTIVATION_TOKEN": secrets_.activation_token,
                 "DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED": "false",
                 "DWP_HRIS_SYSTEM_WAVE1_ENABLED": "true",
+                "DWP_AUTH_STEP_UP_REQUIRED_ACR": "urn:dwp:assurance:high",
                 "DWP_PROVIDER_PROVISIONING_TOKEN": secrets_.provider_provisioning_token,
                 "DWP_LOCAL_SYNTHETIC_IDENTITY_BOOTSTRAP_ENABLED": "true",
                 "DWP_LOCAL_SYNTHETIC_IDENTITY_BOOTSTRAP_TOKEN": (
@@ -3095,7 +3096,7 @@ def gateway_evaluate(
 def resolve_gateway_authorities(
     state: GateState,
     sessions: dict[str, GatewayBrowserSession],
-) -> dict[str, dict[str, str]]:
+) -> dict[str, dict[str, Any]]:
     if set(sessions) != {"A", "B"}:
         raise GateFailure("Gateway evaluation requires exact tenant A/B sessions")
     session_a = sessions["A"]
@@ -3119,9 +3120,9 @@ def resolve_gateway_authorities(
     if len(matches) != 1:
         raise GateFailure("Tenant A has no unique live HCM operations context")
     context = matches[0]
-    context_key = context.get("contextKey")
-    if not isinstance(context_key, str) or not re.fullmatch(
-        r"psc-[0-9a-f]{64}", context_key
+    entry_context_key = context.get("contextKey")
+    if not isinstance(entry_context_key, str) or not re.fullmatch(
+        r"psc-[0-9a-f]{64}", entry_context_key
     ):
         raise GateFailure("Tenant A HCM operations context key is invalid")
 
@@ -3181,7 +3182,7 @@ def resolve_gateway_authorities(
             "ALLOWED",
         ),
     }
-    results: dict[str, dict[str, str]] = {}
+    results: dict[str, dict[str, Any]] = {}
     for key, (capability, route, expected) in requests.items():
         scope_key = capability_scope(capability)
         decision = gateway_evaluate(
@@ -3189,7 +3190,9 @@ def resolve_gateway_authorities(
             session_a,
             name=f"41-tenant-a-gateway-{key}",
             route_contract_key=route,
-            context_key=context_key,
+            # Navigation and direct route contexts are independently recomputed.
+            # The selected owner-derived scope is reusable; the entry context key is not.
+            context_key=None,
             scope_key=scope_key,
         )
         revision = decision.get("decisionRevision")
@@ -3202,6 +3205,8 @@ def resolve_gateway_authorities(
             or not revalidate_at
         ):
             raise GateFailure(f"Tenant A Gateway {key} decision is invalid")
+        route_context_key: str | None = None
+        recorded_scope_key: str | None = None
         if expected == "ALLOWED":
             selected = decision.get("scope")
             selected_context = decision.get("context")
@@ -3209,19 +3214,60 @@ def resolve_gateway_authorities(
                 not isinstance(selected, dict)
                 or selected.get("key") != scope_key
                 or not isinstance(selected_context, dict)
-                or selected_context.get("contextKey") != context_key
+                or not re.fullmatch(
+                    r"psc-[0-9a-f]{64}",
+                    str(selected_context.get("contextKey", "")),
+                )
             ):
                 raise GateFailure(
                     f"Tenant A Gateway {key} lost its selected context/scope"
                 )
-        results[key] = {
+            route_context_key = str(selected_context["contextKey"])
+            recorded_scope_key = scope_key
+            rebound = gateway_evaluate(
+                state,
+                session_a,
+                name=f"41-tenant-a-gateway-{key}-rebound",
+                route_contract_key=route,
+                context_key=route_context_key,
+                scope_key=scope_key,
+            )
+            if (
+                rebound.get("decision") != expected
+                or rebound.get("decisionRevision") != revision
+                or not isinstance(rebound.get("context"), dict)
+                or rebound["context"].get("contextKey") != route_context_key
+                or not isinstance(rebound.get("scope"), dict)
+                or rebound["scope"].get("key") != scope_key
+            ):
+                raise GateFailure(
+                    f"Tenant A Gateway {key} did not revalidate its direct context"
+                )
+        elif (
+            decision.get("reasonCode") != "STEP_UP_REQUIRED"
+            or decision.get("requiredAssurance") != "urn:dwp:assurance:high"
+            or decision.get("context") is not None
+            or decision.get("scope") is not None
+        ):
+            raise GateFailure(
+                f"Tenant A Gateway {key} exposed or weakened its HIGH challenge"
+            )
+        result: dict[str, Any] = {
             "routeContractKey": route,
-            "contextKey": context_key,
-            "scopeKey": scope_key,
+            "contextKey": route_context_key,
+            "scopeKey": recorded_scope_key,
             "decision": expected,
             "decisionRevision": revision,
             "revalidateAt": revalidate_at,
         }
+        if expected == "STEP_UP_REQUIRED":
+            result.update(
+                {
+                    "reasonCode": decision["reasonCode"],
+                    "requiredAssurance": decision["requiredAssurance"],
+                }
+            )
+        results[key] = result
 
     denied = gateway_evaluate(
         state,
@@ -3377,7 +3423,7 @@ def bootstrap_payroll_foundation_fixture(
     secrets_: RuntimeSecrets,
     tenant: SyntheticTenantCredential,
     payroll_entry: dict[str, str],
-    payroll_authority: dict[str, str],
+    session: GatewayBrowserSession,
 ) -> dict[str, Any]:
     author_actor_id = tenant.administrator_user_id + 1_000_000_000
     if author_actor_id == tenant.administrator_user_id:
@@ -3474,32 +3520,15 @@ def bootstrap_payroll_foundation_fixture(
         expected_status=409,
     )
 
-    rollout = state.projection_feed["rollouts"][tenant.lane]
-    _, workspace_envelope, _ = http_request(
+    _, workspace_envelope, _ = gateway_session_request(
         state,
+        session,
         name="45-tenant-a-payroll-publish-preview-readiness",
-        port=state.ports["payroll"],
         method="GET",
-        path="/v1/hris/payroll/foundation/configurations",
-        headers={
-            "X-DWP-Service-Token": secrets_.payroll_token,
-            "X-DWP-Tenant-ID": str(tenant.tenant_id),
-            "X-DWP-User-ID": str(tenant.administrator_user_id),
-            "X-DWP-Permissions": "APP.HCM:VIEW,DATA.HR_PAY:VIEW",
-            "X-DWP-Route-Contract-Key": (
-                "route.hcm.operations.payroll-foundation-configurations.data"
-            ),
-            "X-DWP-Context-Key": payroll_authority["contextKey"],
-            "X-DWP-Context-Scope-Key": payroll_entry["scopeKey"],
-            "X-DWP-Active-Access-Mode": "NORMAL",
-            "X-DWP-Current-Decision-Revision": (
-                payroll_authority["decisionRevision"]
-            ),
-            "X-DWP-Current-Revalidate-At": payroll_authority["revalidateAt"],
-            "X-DWP-Rollout-State": rollout["state"],
-            "X-DWP-Rollout-Revision": rollout["revision"],
-            "X-DWP-Rollout-Cohort": rollout["cohort"],
-        },
+        path=(
+            "/api/payroll/v1/hris/payroll/foundation/configurations"
+            f"?contextScopeKey={payroll_entry['scopeKey']}"
+        ),
     )
     workspace = (
         workspace_envelope.get("data")
@@ -3650,7 +3679,7 @@ def seed_trusted_projection_feeds(
     state: GateState,
     secrets_: RuntimeSecrets,
     credentials: Sequence[SyntheticTenantCredential],
-    authorities: dict[str, dict[str, str]],
+    authorities: dict[str, dict[str, Any]],
     sessions: dict[str, GatewayBrowserSession],
 ) -> None:
     by_lane = {credential.lane: credential for credential in credentials}
@@ -4286,7 +4315,7 @@ def seed_trusted_projection_feeds(
         secrets_,
         tenant_a,
         payroll_entries["A"],
-        payroll_authority,
+        sessions["A"],
     )
     payroll_foundation_database = observe_payroll_foundation_preflight(
         postgres,

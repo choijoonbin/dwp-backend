@@ -257,24 +257,26 @@ class JdbcPayrollFoundationStoreTest {
     }
 
     @Test
-    void ownerProjectionResolvesExactCurrentMembershipAndDrivesServiceScope() {
+    void ownerProjectionResolvesExactCurrentMembershipAcrossRouteDecisions() {
         Instant now = Instant.parse("2026-09-17T09:00:00Z");
         String scopeKey = "hcm-scope-" + "1".repeat(40);
         String policyRevision = "rollout-" + "b".repeat(64);
-        String authorizationRevision = "psr-" + "a".repeat(64);
+        String projectionAuthorizationRevision = "psr-" + "a".repeat(64);
+        String viewDecisionRevision = "psr-" + "c".repeat(64);
+        String editDecisionRevision = "psr-" + "d".repeat(64);
         UUID projectionId = UUID.randomUUID();
         UUID otherLegalEntity = UUID.fromString(
                 "10000000-0000-0000-0000-000000000099");
         UUID otherGroup = UUID.fromString(
                 "20000000-0000-0000-0000-000000000099");
         insertScopeProjection(
-                1, 101, scopeKey, policyRevision, authorizationRevision,
+                1, 101, scopeKey, policyRevision, projectionAuthorizationRevision,
                 projectionId, "pay-legal-scope-r17", now.minusSeconds(60),
                 now.plusSeconds(600), LEGAL_ENTITY_ID);
 
         PayrollFoundationRequestContext.VerifiedSubject viewSubject = verifiedSubject(
                 1, 101, PayrollFoundationModels.FoundationAction.VIEW,
-                "PAYROLL_AUDIT", scopeKey, policyRevision, authorizationRevision,
+                "PAYROLL_AUDIT", scopeKey, policyRevision, viewDecisionRevision,
                 now.plusSeconds(300));
         PayrollLegalEntityScopeResolver.Resolution resolution = context
                 .getBean(PayrollLegalEntityScopeResolver.class)
@@ -299,6 +301,7 @@ class JdbcPayrollFoundationStoreTest {
                         Set.of(currency("EUR")), List.of())));
 
         assertThat(resolution.legalEntityIds()).containsExactly(LEGAL_ENTITY_ID);
+        assertThat(viewer.authorizationRevision()).isEqualTo(viewDecisionRevision);
         assertThat(viewer.scope().allLegalEntities()).isFalse();
         assertThat(service.list(viewer).configurations())
                 .extracting(configuration -> configuration.definition().legalEntity().id())
@@ -314,13 +317,14 @@ class JdbcPayrollFoundationStoreTest {
         PayrollFoundationRequestContext.VerifiedSubject editSubject = verifiedSubject(
                 1, 101, PayrollFoundationModels.FoundationAction.EDIT,
                 "PAYROLL_CONFIGURATION", scopeKey, policyRevision,
-                authorizationRevision, now.plusSeconds(300));
+                editDecisionRevision, now.plusSeconds(300));
         PayrollFoundationAccess.Actor editor = PayrollFoundationAccess.gatewayActor(
                 editSubject.tenantId(), editSubject.actorId(), editSubject.action(),
                 editSubject.purpose(), editSubject.contextScopeKey(),
                 editSubject.policyRevision(), editSubject.authorizationRevision(),
                 context.getBean(PayrollLegalEntityScopeResolver.class).resolve(editSubject),
                 PayrollFoundationAccess.compatibilityPolicy());
+        assertThat(editor.authorizationRevision()).isEqualTo(editDecisionRevision);
         FoundationDefinition forbiddenDefinition = definition(
                 otherLegalEntity, UUID.randomUUID(),
                 LocalDate.of(2027, 1, 1), LocalDate.of(2027, 12, 31),
@@ -384,9 +388,10 @@ class JdbcPayrollFoundationStoreTest {
                 1, 101, expiredScope, policyRevision, authorizationRevision,
                 UUID.randomUUID(), "expired-r1", now.minusSeconds(600),
                 now.minusSeconds(1), LEGAL_ENTITY_ID);
-        String otherRevisionScope = "hcm-scope-" + "3".repeat(40);
+        String otherRouteDecisionScope = "hcm-scope-" + "3".repeat(40);
         insertScopeProjection(
-                1, 101, otherRevisionScope, policyRevision, "psr-" + "c".repeat(64),
+                1, 101, otherRouteDecisionScope, policyRevision,
+                "psr-" + "c".repeat(64),
                 UUID.randomUUID(), "other-auth-r1", now.minusSeconds(60),
                 now.plusSeconds(600), LEGAL_ENTITY_ID);
         String otherTenantScope = "hcm-scope-" + "4".repeat(40);
@@ -410,6 +415,18 @@ class JdbcPayrollFoundationStoreTest {
                    SET status = 'REVOKED', valid_until = ?
                  WHERE tenant_id = 1 AND projection_id = ?
                 """, OffsetDateTime.ofInstant(now, ZoneOffset.UTC), revokedProjectionId);
+        String otherPolicyScope = "hcm-scope-" + "c".repeat(40);
+        insertScopeProjection(
+                1, 101, otherPolicyScope, "rollout-" + "d".repeat(64),
+                authorizationRevision, UUID.randomUUID(), "other-policy-r1",
+                now.minusSeconds(60), now.plusSeconds(600), LEGAL_ENTITY_ID);
+
+        PayrollFoundationRequestContext.VerifiedSubject anotherRoute = verifiedSubject(
+                1, 101, PayrollFoundationModels.FoundationAction.EDIT,
+                "PAYROLL_CONFIGURATION", otherRouteDecisionScope,
+                policyRevision, "psr-" + "e".repeat(64), now.plusSeconds(60));
+        assertThat(resolver.resolve(anotherRoute).legalEntityIds())
+                .containsExactly(LEGAL_ENTITY_ID);
 
         List<PayrollFoundationRequestContext.VerifiedSubject> rejected = List.of(
                 verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
@@ -418,11 +435,8 @@ class JdbcPayrollFoundationStoreTest {
                 verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
                         "PAYROLL_AUDIT", expiredScope,
                         policyRevision, authorizationRevision, now.plusSeconds(60)),
-                verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
-                        "PAYROLL_AUDIT", otherRevisionScope,
-                        policyRevision, authorizationRevision, now.plusSeconds(60)),
                 verifiedSubject(1, 202, PayrollFoundationModels.FoundationAction.VIEW,
-                        "PAYROLL_AUDIT", otherRevisionScope,
+                        "PAYROLL_AUDIT", otherRouteDecisionScope,
                         policyRevision, "psr-" + "c".repeat(64), now.plusSeconds(60)),
                 verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
                         "PAYROLL_AUDIT", otherTenantScope,
@@ -432,6 +446,9 @@ class JdbcPayrollFoundationStoreTest {
                         policyRevision, authorizationRevision, now.plusSeconds(60)),
                 verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
                         "PAYROLL_AUDIT", revokedScope,
+                        policyRevision, authorizationRevision, now.plusSeconds(60)),
+                verifiedSubject(1, 101, PayrollFoundationModels.FoundationAction.VIEW,
+                        "PAYROLL_AUDIT", otherPolicyScope,
                         policyRevision, authorizationRevision, now.plusSeconds(60)),
                 verifiedSubject(2, 101, PayrollFoundationModels.FoundationAction.VIEW,
                         "PAYROLL_AUDIT", otherTenantScope,

@@ -8,7 +8,10 @@ import java.util.UUID;
  * Payroll-owner boundary for resolving an opaque Gateway scope key into exact legal entities.
  *
  * <p>The Gateway key proves which scope was selected. It intentionally does not carry business
- * membership. Only an owner-local, current projection may supply that membership.</p>
+ * membership. Only an owner-local, current projection for the tenant, actor, derived scope and
+ * rollout revision may supply that membership. Route-specific decision revisions remain enforced
+ * by the Gateway and {@link PayrollFoundationSecurityFilter}; they are audit evidence, not part of
+ * the owner membership identity.</p>
  */
 interface PayrollLegalEntityScopeResolver {
 
