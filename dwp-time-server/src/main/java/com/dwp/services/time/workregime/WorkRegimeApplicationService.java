@@ -64,6 +64,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.UUID;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
@@ -81,6 +82,7 @@ public final class WorkRegimeApplicationService {
     private final Clock clock;
     private final WorkRegimeTargetPopulationResolver targetPopulationResolver;
 
+    @Autowired
     public WorkRegimeApplicationService(
             WorkRegimeRepository repository,
             ReceiptStore receipts,
