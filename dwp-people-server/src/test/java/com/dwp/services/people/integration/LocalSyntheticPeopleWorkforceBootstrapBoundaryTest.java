@@ -237,6 +237,36 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
     }
 
     @Test
+    void rejectsAnExistingTenantAdminBoundaryThatDoesNotMatchTheFixtureContract() {
+        HrisImportService imports = mock(HrisImportService.class);
+        HrisIntegrationRepository repository = mock(HrisIntegrationRepository.class);
+        WorkforceAccessPolicyService policies = mock(WorkforceAccessPolicyService.class);
+        HcmPopulationScopeService populations = mock(HcmPopulationScopeService.class);
+        when(imports.importSyntheticWorkdayFixture(anyString(), anyString()))
+                .thenReturn(importResult(UUID.randomUUID(), false));
+        when(repository.isActiveTenantBinding(41L, PROVIDER_TENANT_ID)).thenReturn(true);
+        when(repository.findWorkforceIdentity(41L, "E100001"))
+                .thenReturn(Optional.of(identity()));
+        when(repository.findWorkforceIdentity(41L, "E100002"))
+                .thenReturn(Optional.of(targetIdentity()));
+        WorkforceAccessDtos.Policy conflicting = policy(UUID.randomUUID());
+        when(policies.list()).thenReturn(List.of(new WorkforceAccessDtos.Policy(
+                conflicting.policyId(), conflicting.subjectType(), conflicting.subjectRef(),
+                conflicting.populationType(), conflicting.organizationId(),
+                conflicting.organizationName(), conflicting.fieldGroups(),
+                List.of("READ", "EXPORT"), conflicting.validFrom(), conflicting.validTo(),
+                conflicting.lifecycleState(), conflicting.justification(), conflicting.version())));
+        var service = new LocalSyntheticPeopleWorkforceBootstrapService(
+                imports, repository, policies, populations, RUN_ID);
+
+        assertThatThrownBy(() -> service.bootstrap(request()))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("conflicts with the active tenant-admin policy");
+        verify(policies, never()).create(any(), anyString());
+        verify(populations, never()).findOperations(anyString());
+    }
+
+    @Test
     void rejectsAnotherRunMismatchedTenantAReplayAndAnEmptyOwnerPopulation() {
         HrisImportService imports = mock(HrisImportService.class);
         HrisIntegrationRepository repository = mock(HrisIntegrationRepository.class);
@@ -292,7 +322,7 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
         when(repository.isActiveTenantBinding(41L, PROVIDER_TENANT_ID)).thenReturn(true);
         when(imports.importSyntheticWorkdayFixture(anyString(), anyString()))
                 .thenReturn(new HrisDtos.ImportResult(
-                        UUID.randomUUID(), "workday-reference", "COMPLETED",
+                        UUID.randomUUID(), "workday-reference", "SUCCEEDED",
                         2, 2, 0, 0, false, true,
                         List.of("people.worker-projection.changed")));
         var service = new LocalSyntheticPeopleWorkforceBootstrapService(
@@ -329,7 +359,7 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
         return new HrisDtos.ImportResult(
                 syncRunId,
                 "workday-reference",
-                "COMPLETED",
+                "SUCCEEDED",
                 3,
                 replayed ? 0 : 3,
                 replayed ? 3 : 0,

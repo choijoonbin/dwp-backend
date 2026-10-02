@@ -32,6 +32,7 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
     private static final String ACTOR_WORKER_NUMBER = "E100001";
     private static final String TARGET_WORKER_NUMBER = "E100002";
     private static final String POLICY_ROLE = "TENANT_ADMIN";
+    private static final String SUCCESSFUL_IMPORT_STATE = "SUCCEEDED";
     private static final String AUTH_ENDPOINT = "/internal/identity/v1/workforce-events";
     private static final String AUTH_TOKEN_HEADER = "X-DWP-Identity-Sync-Token";
     private static final Set<String> BOOTSTRAP_ROLES = Set.of("ADMIN", POLICY_ROLE);
@@ -96,7 +97,7 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
                         "Synthetic People bootstrap is a one-shot runtime boundary.");
             }
             if (!imported.syntheticFixture()
-                    || !"COMPLETED".equals(imported.lifecycleState())
+                    || !SUCCESSFUL_IMPORT_STATE.equals(imported.lifecycleState())
                     || imported.rejectedCount() != 0
                     || imported.readCount() != 3
                     || imported.createdCount() + imported.updatedCount() != 3) {
@@ -205,18 +206,24 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
     }
 
     private WorkforceAccessDtos.Policy ensureOperationsPolicy(UUID correlationId) {
-        List<WorkforceAccessDtos.Policy> matching = accessPolicies.list().stream()
+        List<WorkforceAccessDtos.Policy> activeBoundaries = accessPolicies.list().stream()
                 .filter(policy -> "ROLE".equals(policy.subjectType()))
                 .filter(policy -> POLICY_ROLE.equals(policy.subjectRef()))
                 .filter(policy -> "TENANT".equals(policy.populationType()))
                 .filter(policy -> "ACTIVE".equals(policy.lifecycleState()))
+                .toList();
+        if (activeBoundaries.size() > 1) {
+            throw new IllegalStateException(
+                    "Synthetic People workforce resolved multiple active tenant-admin policies.");
+        }
+        List<WorkforceAccessDtos.Policy> matching = activeBoundaries.stream()
                 .filter(policy -> Set.copyOf(policy.fieldGroups()).equals(POLICY_FIELD_GROUPS))
                 .filter(policy -> Set.copyOf(policy.actionCodes()).equals(POLICY_ACTIONS))
                 .filter(policy -> policy.validFrom() == null && policy.validTo() == null)
                 .toList();
-        if (matching.size() > 1) {
+        if (!activeBoundaries.isEmpty() && matching.isEmpty()) {
             throw new IllegalStateException(
-                    "Synthetic People workforce resolved multiple active tenant-admin policies.");
+                    "Synthetic People workforce conflicts with the active tenant-admin policy.");
         }
         if (!matching.isEmpty()) return matching.getFirst();
         return accessPolicies.create(
