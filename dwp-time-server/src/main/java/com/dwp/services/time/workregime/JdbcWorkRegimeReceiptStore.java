@@ -30,7 +30,7 @@ import org.springframework.transaction.support.TransactionTemplate;
 /** PostgreSQL receipt adapter. Every RLS-protected statement runs after a transaction-local tenant binding. */
 @Repository
 @ConditionalOnProperty(name = "dwp.time.work-regime-api.enabled", havingValue = "true")
-public final class JdbcWorkRegimeReceiptStore implements ReceiptStore {
+public class JdbcWorkRegimeReceiptStore implements ReceiptStore {
 
     private static final String SET_TENANT_SQL =
             "SELECT set_config('dwp.tenant_id', ?, true)";

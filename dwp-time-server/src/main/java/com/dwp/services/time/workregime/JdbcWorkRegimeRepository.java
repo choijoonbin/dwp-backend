@@ -42,7 +42,7 @@ import org.springframework.transaction.support.TransactionTemplate;
         name = "dwp.time.work-regime-api.enabled",
         havingValue = "true",
         matchIfMissing = false)
-public final class JdbcWorkRegimeRepository implements WorkRegimeRepository {
+public class JdbcWorkRegimeRepository implements WorkRegimeRepository {
 
     private static final String SET_TENANT_SQL =
             "SELECT set_config('dwp.tenant_id', ?, true)";

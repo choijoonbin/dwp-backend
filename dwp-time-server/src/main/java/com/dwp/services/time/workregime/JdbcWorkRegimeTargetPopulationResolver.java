@@ -25,7 +25,7 @@ import org.springframework.transaction.support.TransactionTemplate;
         name = "dwp.time.work-regime-api.enabled",
         havingValue = "true",
         matchIfMissing = false)
-final class JdbcWorkRegimeTargetPopulationResolver
+class JdbcWorkRegimeTargetPopulationResolver
         implements WorkRegimeTargetPopulationResolver {
 
     private static final String SET_TENANT_SQL =
