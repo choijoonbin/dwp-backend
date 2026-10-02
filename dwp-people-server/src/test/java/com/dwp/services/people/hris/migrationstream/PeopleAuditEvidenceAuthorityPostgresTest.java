@@ -59,6 +59,7 @@ class PeopleAuditEvidenceAuthorityPostgresTest {
         owner.execute("CREATE EXTENSION pgcrypto SCHEMA public");
         Flyway beforeHardening = Flyway.configure()
                 .dataSource(ownerDataSource)
+                .defaultSchema("public")
                 .locations("filesystem:src/main/resources/db/migration")
                 .target("50")
                 .load();
@@ -75,10 +76,11 @@ class PeopleAuditEvidenceAuthorityPostgresTest {
 
         Flyway afterHardening = Flyway.configure()
                 .dataSource(ownerDataSource)
+                .defaultSchema("public")
                 .locations("filesystem:src/main/resources/db/migration")
                 .load();
         afterHardening.migrate();
-        assertThat(afterHardening.info().current().getVersion().getVersion()).isEqualTo("51");
+        assertThat(afterHardening.info().current().getVersion().getVersion()).isEqualTo("52");
         preExistingEvidenceCountAfterHardening = owner.queryForObject("""
                 SELECT COUNT(*)
                   FROM public.sys_people_audit_events
@@ -246,7 +248,7 @@ class PeopleAuditEvidenceAuthorityPostgresTest {
 
     @Test
     void uuidDefaultsUseThePgCatalogBuiltinWithoutExtensionExecute() {
-        assertThat(pgcryptoUuidDefaultCount(owner)).isZero();
+        assertThat(pgcryptoUuidDefaults(owner)).isEmpty();
         assertThat(owner.queryForObject(
                 "SELECT has_function_privilege(?, "
                         + "'public.gen_random_uuid()', 'EXECUTE')",
@@ -254,21 +256,26 @@ class PeopleAuditEvidenceAuthorityPostgresTest {
                 RUNTIME)).isFalse();
     }
 
-    private static int pgcryptoUuidDefaultCount(JdbcTemplate jdbc) {
-        return jdbc.queryForObject("""
-                SELECT COUNT(*)
+    private static List<String> pgcryptoUuidDefaults(JdbcTemplate jdbc) {
+        return jdbc.queryForList("""
+                SELECT format('%I.%I.%I', table_namespace.nspname,
+                              relation.relname, attribute.attname)
                   FROM pg_catalog.pg_attrdef default_value
                   JOIN pg_catalog.pg_class relation
                     ON relation.oid=default_value.adrelid
                   JOIN pg_catalog.pg_namespace table_namespace
                     ON table_namespace.oid=relation.relnamespace
+                  JOIN pg_catalog.pg_attribute attribute
+                    ON attribute.attrelid=relation.oid
+                   AND attribute.attnum=default_value.adnum
                   JOIN pg_catalog.pg_depend dependency
                     ON dependency.classid='pg_attrdef'::pg_catalog.regclass
                    AND dependency.objid=default_value.oid
                    AND dependency.refclassid='pg_proc'::pg_catalog.regclass
                  WHERE table_namespace.nspname='public'
                    AND dependency.refobjid='public.gen_random_uuid()'::pg_catalog.regprocedure
-                """, Integer.class);
+                 ORDER BY 1
+                """, String.class);
     }
 
     private static DataSource dataSource(String user, String password) {

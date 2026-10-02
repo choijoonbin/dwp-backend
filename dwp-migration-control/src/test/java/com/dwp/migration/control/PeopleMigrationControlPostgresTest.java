@@ -1,5 +1,6 @@
 package com.dwp.migration.control;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.nio.file.Files;
@@ -128,6 +129,15 @@ class PeopleMigrationControlPostgresTest {
                     receipt.toJson(),
                     receipt.receiptSha256());
 
+            try (Connection runtime = connection(
+                    postgres.getJdbcUrl(), RUNTIME, RUNTIME_PASSWORD)) {
+                DatabaseControl.execute(runtime, """
+                        INSERT INTO public.ppl_organization_type_catalog (
+                            tenant_id, type_key, display_name)
+                        VALUES (900001, 'RUNTIME_FIXTURE', 'Runtime fixture')
+                        """);
+            }
+
             ReadOnlyMetadataDatabaseGuard.Source metadata =
                     new ReadOnlyMetadataDatabaseGuard.Source(
                             "Provider", "people", DATABASE, postgres.getJdbcUrl(),
@@ -136,6 +146,27 @@ class PeopleMigrationControlPostgresTest {
 
             try (Connection admin = connection(
                     postgres.getJdbcUrl(), ADMIN, ADMIN_PASSWORD)) {
+                assertEquals(0L, DatabaseControl.scalarLong(admin, """
+                        SELECT CASE WHEN pg_catalog.has_function_privilege(
+                            'dwp_people_runtime',
+                            'public.gen_random_uuid()',
+                            'EXECUTE') THEN 1 ELSE 0 END
+                        """));
+                assertEquals(0L, DatabaseControl.scalarLong(admin, """
+                        SELECT COUNT(*)
+                          FROM pg_catalog.pg_attrdef default_value
+                          JOIN pg_catalog.pg_class relation
+                            ON relation.oid=default_value.adrelid
+                          JOIN pg_catalog.pg_namespace table_namespace
+                            ON table_namespace.oid=relation.relnamespace
+                          JOIN pg_catalog.pg_depend dependency
+                            ON dependency.classid='pg_attrdef'::pg_catalog.regclass
+                           AND dependency.objid=default_value.oid
+                           AND dependency.refclassid='pg_proc'::pg_catalog.regclass
+                         WHERE table_namespace.nspname='public'
+                           AND dependency.refobjid=
+                               'public.gen_random_uuid()'::pg_catalog.regprocedure
+                        """));
                 DatabaseControl.execute(
                         admin, "GRANT SELECT ON TABLE public.ppl_persons TO " + METADATA);
             }

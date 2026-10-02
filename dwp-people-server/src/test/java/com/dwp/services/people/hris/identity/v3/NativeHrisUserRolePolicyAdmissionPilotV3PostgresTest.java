@@ -39,11 +39,11 @@ class NativeHrisUserRolePolicyAdmissionPilotV3PostgresTest {
     private UUID tenantPolicy;
     private final AtomicInteger nativeCalls=new AtomicInteger();
 
-    @BeforeAll static void actualFiftyOneMigrationsAndSelectOnlyNativeOwnerTables() throws SQLException {
+    @BeforeAll static void actualFiftyTwoMigrationsAndSelectOnlyNativeOwnerTables() throws SQLException {
         var admin=source(POSTGRES.getUsername(),POSTGRES.getPassword()); owner=new JdbcTemplate(admin);
         var flyway=Flyway.configure().dataSource(admin).locations("filesystem:src/main/resources/db/migration")
                 .validateOnMigrate(true).outOfOrder(false).load();flyway.migrate();
-        assertEquals("51",flyway.info().current().getVersion().getVersion());assertEquals(51,flyway.info().applied().length);
+        assertEquals("52",flyway.info().current().getVersion().getVersion());assertEquals(52,flyway.info().applied().length);
         try(Connection connection=admin.getConnection()) {
             try(var s=connection.prepareStatement("SELECT set_config('dwp.test_password', ?, false)")) {s.setString(1,PASSWORD);s.execute();}
             try(var s=connection.createStatement()) {s.execute("""
