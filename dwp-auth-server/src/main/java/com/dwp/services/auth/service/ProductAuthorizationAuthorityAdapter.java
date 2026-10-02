@@ -28,6 +28,8 @@ import static com.dwp.services.auth.service.ProductAuthorizationAuthoritySupport
 public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAuthorityPort {
 
     private static final String BUNDLE_KEY = "product-surfaces";
+    private static final Set<String> HCM_PEOPLE_ELIGIBILITY_SCOPE_KINDS = Set.of(
+            "SELF", "TARGET_POPULATION", "RESOURCE_SET");
 
     private final ProductAuthorizationContractRepository repository;
     private final ProductAuthorizationIdentityEvidenceService evidenceService;
@@ -302,7 +304,7 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             if (blockingProfileDenial(result)) return result.forRoute();
             if (result.allowed() || result.decision()
                     == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED) {
-                return routed(request, registry, identity, route, profile, result);
+                return routed(request, identity, route, result);
             }
             if (firstDenial == null) firstDenial = result;
         }
@@ -367,12 +369,10 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
 
     private Evaluation routed(
             ProductSurfaceAuthorityDtos.EvaluateRequest request,
-            Registry registry,
             ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity,
             ProductAuthorizationContractDtos.GovernedRoute route,
-            ProductAuthorizationContractDtos.AccessProfile profile,
             Evaluation result) {
-        boolean peopleEligibility = requiresPeopleEligibility(request, registry, route, profile);
+        boolean peopleEligibility = requiresPeopleEligibility(request, route, result);
         if (!result.allowed()) {
             Evaluation denial = result.forRoute();
             return denial.decision() == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED
@@ -389,21 +389,29 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
     }
 
     /**
-     * People is the current owner-service eligibility evaluator. Every normal/elevated route
-     * delegated to the People PEP must intersect Auth's source authority with People-owned scope
-     * evidence. Profile predicates and target bindings are authorization details, not reliable
-     * ownership markers: overview routes can intentionally have neither while still sharing the
-     * same People owner boundary.
+     * People is the current owner-service eligibility evaluator. Explicit People PEP routes and
+     * HCM routes that materialize a People-owned scope must intersect Auth's source authority with
+     * People eligibility. Profile predicates, target bindings, and execution-service ownership are
+     * not reliable ownership markers: payroll, time, and platform routes can still carry HCM scope
+     * that is owned by People.
      */
     private boolean requiresPeopleEligibility(
             ProductSurfaceAuthorityDtos.EvaluateRequest request,
-            Registry registry,
             ProductAuthorizationContractDtos.GovernedRoute route,
-            ProductAuthorizationContractDtos.AccessProfile profile) {
+            Evaluation result) {
         if (request.activeAccessMode()
                 == ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT) {
             return false;
         }
+        return hasPeoplePepBinding(route)
+                || ("hcm".equals(request.productKey())
+                        && result.scopes().stream()
+                                .map(ProductSurfaceAuthorityDtos.EffectiveScope::kind)
+                                .anyMatch(HCM_PEOPLE_ELIGIBILITY_SCOPE_KINDS::contains));
+    }
+
+    private boolean hasPeoplePepBinding(
+            ProductAuthorizationContractDtos.GovernedRoute route) {
         return route.servicePepBindings() != null
                 && route.servicePepBindings().stream()
                         .anyMatch(value -> "people".equals(value.serviceKey()));
@@ -421,10 +429,9 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 .filter(route -> request.productKey().equals(route.subject().productKey()))
                 .filter(route -> request.surfaceKey().equals(route.subject().surfaceKey()))
                 .anyMatch(route -> route.accessProfiles().stream()
-                        .filter(profile -> profile.activeAccessModes().contains(
+                        .anyMatch(profile -> profile.activeAccessModes().contains(
                                 request.activeAccessMode().name()))
-                        .anyMatch(profile -> requiresPeopleEligibility(
-                                request, registry, route, profile)));
+                        && hasPeoplePepBinding(route));
     }
 
     private Evaluation evaluatePolicy(

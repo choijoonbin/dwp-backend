@@ -26,27 +26,63 @@ final class ProductSurfaceScopeIntersection {
         } catch (RuntimeException exception) {
             throw unavailable();
         }
-        Map<String, ProductSurfaceContextDtos.EffectiveScope> derivedScopes =
+        List<ProductSurfaceContextDtos.EffectiveGrant> rebound = grants.stream()
+                .map(grant -> rebind(grant, eligibleScopes))
+                .filter(java.util.Objects::nonNull)
+                .toList();
+        if (rebound.isEmpty()) throw unavailable();
+        Set<String> usedScopeKeys = rebound.stream()
+                .flatMap(grant -> grant.scopeKeys().stream())
+                .collect(Collectors.toUnmodifiableSet());
+        Map<String, DerivedAlias> derivedScopes =
                 new LinkedHashMap<>();
         for (ProductSurfaceContextDtos.EligibleScope eligible : eligibleScopes) {
-            ProductSurfaceContextDtos.EffectiveScope derived =
+            DerivedAlias derived =
                     derivedScope(sourceScopes, eligible);
-            ProductSurfaceContextDtos.EffectiveScope existing =
-                    derivedScopes.putIfAbsent(derived.key(), derived);
-            if (existing != null && !existing.equals(derived)) {
-                throw unavailable();
+            if (!usedScopeKeys.contains(derived.scope().key())) continue;
+            DerivedAlias existing =
+                    derivedScopes.putIfAbsent(derived.scope().key(), derived);
+            if (existing != null) {
+                derivedScopes.put(derived.scope().key(), mergeAlias(existing, derived));
             }
         }
         List<ProductSurfaceContextDtos.EffectiveScope> scopes =
-                List.copyOf(derivedScopes.values());
+                derivedScopes.values().stream().map(DerivedAlias::scope).toList();
         if (scopes.isEmpty()) throw unavailable();
-        List<ProductSurfaceContextDtos.EffectiveGrant> rebound = grants.stream()
-                .map(grant -> rebind(grant, eligibleScopes))
-                .toList();
         return new Intersection(rebound, scopes);
     }
 
-    private static ProductSurfaceContextDtos.EffectiveScope derivedScope(
+    /**
+     * Multiple Auth resolver aliases may intentionally name the same owner population. The
+     * derived key binds the owner material, while read-only and expiry constraints remain
+     * grant-specific. Collapse only aliases with the same semantic identity, taking the most
+     * restrictive expiry and leaving scope mutability enabled only when at least one surviving
+     * grant can mutate it. Grant-level read-only flags continue to constrain each route.
+     */
+    private static DerivedAlias mergeAlias(
+            DerivedAlias left,
+            DerivedAlias right) {
+        ProductSurfaceContextDtos.EffectiveScope leftScope = left.scope();
+        ProductSurfaceContextDtos.EffectiveScope rightScope = right.scope();
+        if (!leftScope.key().equals(rightScope.key())
+                || !leftScope.kind().equals(rightScope.kind())
+                || !java.util.Objects.equals(
+                        leftScope.displayName(), rightScope.displayName())
+                || leftScope.isDefault() != rightScope.isDefault()
+                // An owner-service read-only difference is not an Auth alias difference and
+                // cannot be weakened by another source alias.
+                || left.ownerReadOnly() != right.ownerReadOnly()) {
+            throw unavailable();
+        }
+        return new DerivedAlias(new ProductSurfaceContextDtos.EffectiveScope(
+                leftScope.key(), leftScope.kind(), leftScope.displayName(),
+                leftScope.isDefault(),
+                leftScope.readOnly() && rightScope.readOnly(),
+                earliest(leftScope.validUntil(), rightScope.validUntil())),
+                left.ownerReadOnly());
+    }
+
+    private static DerivedAlias derivedScope(
             Map<String, ProductSurfaceContextDtos.EffectiveScope> sources,
             ProductSurfaceContextDtos.EligibleScope eligible) {
         ProductSurfaceContextDtos.EffectiveScope source =
@@ -54,10 +90,11 @@ final class ProductSurfaceScopeIntersection {
         if (source == null || blank(eligible.key()) || blank(eligible.kind())) {
             throw unavailable();
         }
-        return new ProductSurfaceContextDtos.EffectiveScope(
-                eligible.key(), eligible.kind(), eligible.displayName(), eligible.isDefault(),
-                source.readOnly() || eligible.readOnly(),
-                earliest(source.validUntil(), eligible.validUntil()));
+        return new DerivedAlias(new ProductSurfaceContextDtos.EffectiveScope(
+                    eligible.key(), eligible.kind(), eligible.displayName(),
+                    eligible.isDefault(), source.readOnly() || eligible.readOnly(),
+                    earliest(source.validUntil(), eligible.validUntil())),
+                eligible.readOnly());
     }
 
     private static ProductSurfaceContextDtos.EffectiveGrant rebind(
@@ -68,7 +105,11 @@ final class ProductSurfaceScopeIntersection {
                 .map(ProductSurfaceContextDtos.EligibleScope::key)
                 .distinct()
                 .toList();
-        if (keys.isEmpty()) throw unavailable();
+        // Eligibility is an intersection, not an all-or-nothing assertion over a mixed Auth
+        // context. A surface may combine People-owned scopes with route-only Auth/Platform
+        // scopes. Unmatched grants are removed here; direct routes that do not require People
+        // eligibility never enter this intersection.
+        if (keys.isEmpty()) return null;
         if (grant instanceof ProductSurfaceContextDtos.CapabilityGrant capability) {
             return new ProductSurfaceContextDtos.CapabilityGrant(
                     capability.capabilityContractKey(), capability.resolvedCapabilityCode(),
@@ -130,5 +171,10 @@ final class ProductSurfaceScopeIntersection {
     record Intersection(
             List<ProductSurfaceContextDtos.EffectiveGrant> grants,
             List<ProductSurfaceContextDtos.EffectiveScope> scopes) {
+    }
+
+    private record DerivedAlias(
+            ProductSurfaceContextDtos.EffectiveScope scope,
+            boolean ownerReadOnly) {
     }
 }

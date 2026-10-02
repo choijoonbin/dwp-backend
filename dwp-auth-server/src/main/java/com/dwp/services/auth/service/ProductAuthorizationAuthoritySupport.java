@@ -151,15 +151,9 @@ final class ProductAuthorizationAuthoritySupport {
             ProductSurfaceAuthorityDtos.EvaluateRequest request,
             Registry registry,
             ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity) {
-        return registry.policies().stream()
-                .filter(ProductAuthorizationContractDtos.AccessPolicy::requiresProductEntitlement)
-                .filter(policy -> request.productKey().equals(policy.productKey()))
-                .filter(policy -> request.surfaceKey().equals(policy.surfaceKey()))
-                .map(ProductAuthorizationContractDtos.AccessPolicy::entitlementExpressionKey)
-                .filter(Objects::nonNull)
-                .map(registry.expressionsByKey()::get)
-                .filter(Objects::nonNull)
-                .anyMatch(expression -> evaluateEntitlement(expression.expression(), identity));
+        String resourceKey = productResourceKey(request, registry);
+        return resourceKey != null
+                && identity.hasPermission(resourceKey + ":VIEW");
     }
 
     static boolean evaluateEntitlement(
