@@ -23,6 +23,12 @@ class NotificationAdminRepositoryTest {
     }
 
     @Test
+    void peopleNotificationsUseTheHrisProductName() {
+        assertThat(NotificationQueryRepository.appName("hcm")).isEqualTo("HRIS");
+        assertThat(NotificationQueryRepository.appName("people")).isEqualTo("HRIS");
+    }
+
+    @Test
     @SuppressWarnings({"unchecked", "rawtypes"})
     void nullableContractFiltersAreBoundWithExplicitPostgresqlTypes() {
         NamedParameterJdbcTemplate jdbc = mock(NamedParameterJdbcTemplate.class);

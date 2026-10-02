@@ -531,7 +531,7 @@ public class NotificationQueryRepository {
         if (appKey == null || appKey.isBlank()) return "DWP";
         return switch (appKey.toLowerCase(Locale.ROOT)) {
             case "approvals" -> "Approvals";
-            case "hcm", "people" -> "HR";
+            case "hcm", "people" -> "HRIS";
             case "space" -> "Space";
             case "messaging" -> "Messenger";
             case "platform" -> "Digital Workplace";

@@ -180,6 +180,21 @@ class HomeWaveOneMigrationPostgresIntegrationTest {
                 .doesNotContain("APP.MAIL_CALENDAR", "APP.COLLABORATION", "APP.ROOMS", "APP.HRIS");
         assertThat(migratedLaunchpad.path("extensionMarker").asText()).isEqualTo("preserve-me");
         assertThat(jdbc.queryForObject("""
+                SELECT display_name FROM sys_code_sets
+                 WHERE code_set_key = 'PLATFORM.HCM_HOME_WIDGET'
+                """, String.class)).isEqualTo("HRIS home widget");
+        assertThat(jdbc.queryForObject("""
+                SELECT display_name FROM sys_code_values
+                 WHERE code_set_key = 'PLATFORM.HOME_SURFACE' AND code = 'hcm-home'
+                """, String.class)).isEqualTo("HRIS home");
+        assertThat(jdbc.queryForList("""
+                SELECT label_i18n ->> locale
+                  FROM sys_code_values
+                 CROSS JOIN (VALUES ('ko'), ('en')) AS locale_value(locale)
+                 WHERE code_set_key = 'PLATFORM.HOME_SURFACE' AND code = 'hcm-home'
+                 ORDER BY locale
+                """, String.class)).containsExactly("HRIS home", "HRIS 홈");
+        assertThat(jdbc.queryForObject("""
                 SELECT composition_policy ->> 'schemaVersion'
                   FROM adm_home_experiences WHERE tenant_id = 1
                 """, String.class)).isEqualTo("3");
@@ -442,7 +457,7 @@ class HomeWaveOneMigrationPostgresIntegrationTest {
         PlatformTenantProvisioningDtos.ProvisionTenantRequest provisionRequest =
                 new PlatformTenantProvisioningDtos.ProvisionTenantRequest(
                         providerTenantId, newTenantId, "wave-one-new", "Wave One New Tenant",
-                        "local", "POOL", "ko", List.of("core.workspace"));
+                        "local", "POOL", "ko", List.of("core.workspace", "core.people"));
         PlatformTenantProvisioningService provisioningService =
                 new PlatformTenantProvisioningService(
                         jdbc,
@@ -483,6 +498,40 @@ class HomeWaveOneMigrationPostgresIntegrationTest {
                 .containsOnly("VIEW");
         assertThat(newTenantApps).filteredOn(app -> "APP.NOTIFICATIONS".equals(app.resourceKey()))
                 .extracting(AppRow::badgeSourceKey).containsExactly("notifications");
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*)
+                  FROM adm_workspace_apps
+                 WHERE tenant_id IN (1, ?)
+                   AND app_key = 'ref-app-people'
+                   AND (name_ko, name_en, owner_name)
+                       IS DISTINCT FROM ('HRIS', 'HRIS', 'HRIS')
+                """, Integer.class, newTenantId)).isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*)
+                  FROM adm_navigation_labels label
+                  JOIN adm_navigation_items item
+                    ON item.tenant_id = label.tenant_id
+                   AND item.navigation_item_id = label.navigation_item_id
+                 WHERE label.tenant_id IN (1, ?)
+                   AND item.navigation_key = 'hcm'
+                   AND label.label <> 'HRIS'
+                """, Integer.class, newTenantId)).isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*)
+                  FROM adm_navigation_labels label
+                  JOIN adm_navigation_items item
+                    ON item.tenant_id = label.tenant_id
+                   AND item.navigation_item_id = label.navigation_item_id
+                 WHERE label.tenant_id = ?
+                   AND item.navigation_key = 'hcm'
+                   AND label.label = 'HRIS'
+                """, Integer.class, newTenantId)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("""
+                SELECT count(*)
+                  FROM adm_registry_entries
+                 WHERE tenant_id = ? AND registry_type = 'APP'
+                   AND entry_key = 'DWP_HCM' AND name = 'HRIS'
+                """, Integer.class, newTenantId)).isOne();
 
         JsonNode newTenantLaunchpad = objectMapper.readTree(jdbc.queryForObject("""
                 SELECT launchpad_configuration::text
@@ -532,8 +581,8 @@ class HomeWaveOneMigrationPostgresIntegrationTest {
         Long catalogVersions = jdbc.queryForObject(
                 "SELECT sum(version) FROM adm_workspace_apps", Long.class);
         new ResourceDatabasePopulator(
-                new ClassPathResource("db/migration/V292__align_approved_home_launchpad.sql"),
-                new ClassPathResource("db/migration/V293__scope_home_views_by_mode_and_device.sql"))
+                new ClassPathResource("db/migration/V293__scope_home_views_by_mode_and_device.sql"),
+                new ClassPathResource("db/migration/V320__rename_visible_hcm_product_to_hris.sql"))
                 .execute(dataSource);
         assertThat(jdbc.queryForObject(
                 "SELECT version FROM adm_home_experiences WHERE tenant_id = 1", Long.class))

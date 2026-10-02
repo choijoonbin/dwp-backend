@@ -39,8 +39,8 @@ public final class ApprovedHomeApplicationCatalog {
 
             app("ref-app-service", "APP.EMPLOYEE_SERVICES", "services", 10, "서비스", "Services",
                     "/services", "services", null, "core.workspace", "Shared Services", "SERVICE", "NATIVE", "HEALTHY"),
-            app("ref-app-people", "APP.HCM", "services", 20, "인사", "HR",
-                    "/hr", "hcm", "hcm", "core.people", "DWP HCM", "PEOPLE", "NATIVE", "HEALTHY"),
+            app("ref-app-people", "APP.HCM", "services", 20, "HRIS", "HRIS",
+                    "/hr", "hcm", "hcm", "core.people", "HRIS", "PEOPLE", "NATIVE", "HEALTHY"),
 
             app("ref-app-knowledge", "APP.KNOWLEDGE", "systems", 10, "지식", "Knowledge",
                     "/apps?app=ref-app-knowledge", "knowledge", null, "core.workspace", "Knowledge Office", "KNOWLEDGE", "DEEP_LINK", "CONFIGURATION_REQUIRED"),

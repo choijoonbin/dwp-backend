@@ -14,6 +14,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ApprovedHomeApplicationCatalogTest {
 
     @Test
+    void hrisKeepsTechnicalAliasesButUsesOneVisibleProductIdentity() {
+        assertThat(ApprovedHomeApplicationCatalog.findByResourceKey("APP.HCM"))
+                .hasValueSatisfying(application -> {
+                    assertThat(application.appKey()).isEqualTo("ref-app-people");
+                    assertThat(application.nameKo()).isEqualTo("HRIS");
+                    assertThat(application.nameEn()).isEqualTo("HRIS");
+                    assertThat(application.owner()).isEqualTo("HRIS");
+                    assertThat(application.launchTarget()).isEqualTo("/hr");
+                });
+        assertThat(ApprovedHomeApplicationCatalog.findByResourceKey("APP.HRIS"))
+                .isEqualTo(ApprovedHomeApplicationCatalog.findByResourceKey("APP.HCM"));
+    }
+
+    @Test
     void javaCatalogExactlyMatchesTheSharedMachineReadableContract() throws Exception {
         JsonNode contract = new ObjectMapper().readTree(
                 Path.of("../contracts/home-launchpad-contract.v1.json").toFile());
