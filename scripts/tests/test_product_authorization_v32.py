@@ -23,8 +23,8 @@ class ProductAuthorizationV32Test(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.snapshots = GENERATOR.build_snapshots(GENERATOR.load_source())
-        cls.v31 = cls.snapshots[-2]
-        cls.v32 = cls.snapshots[-1]
+        cls.v31 = next(value for value in cls.snapshots if value["version"] == 31)
+        cls.v32 = next(value for value in cls.snapshots if value["version"] == 32)
 
     def test_v32_adds_only_the_communications_code_set_boundary(self) -> None:
         self.assertEqual(32, self.v32["version"])

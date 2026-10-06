@@ -14,11 +14,11 @@ class HcmV3PepRegistryTest {
             new HcmV3PepRegistry(new ObjectMapper().findAndRegisterModules());
 
     @Test
-    void loadsTheExactV3PeopleClosure() {
-        assertThat(registry.bindingContracts()).hasSize(75);
+    void loadsTheExactV34PeopleClosure() {
+        assertThat(registry.bindingContracts()).hasSize(94);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)
-                .distinct()).hasSize(48);
+                .distinct()).hasSize(67);
         assertThat(registry.bindingContracts())
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.team.home.page")
@@ -30,9 +30,13 @@ class HcmV3PepRegistryTest {
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.management.org-design.page")
                         && value.servicePath()
-                        .equals("/v1/workforce/organization/candidates"));
+                        .equals("/v1/workforce/organization/candidates"))
+                .anyMatch(value -> value.routeContractKey()
+                        .equals("route.hcm.operations.assignment-proposal-submit.action")
+                        && value.servicePath().equals(
+                        "/v1/workforce/assignment-proposals/{proposalId}/submit"));
         assertThat(registry.highRiskBindingContracts())
-                .hasSize(7)
+                .hasSize(9)
                 .extracting(HcmV3PepRegistry.BindingContract::routeContractKey)
                 .containsExactlyInAnyOrder(
                         "route.hcm.management.org-publish.action",
@@ -41,9 +45,11 @@ class HcmV3PepRegistryTest {
                         "route.hcm.management.integration-execute.action",
                         "route.hcm.management.integration-execute.action",
                         "route.hcm.management.integration-execute.action",
-                        "route.hcm.management.integration-execute.action");
+                        "route.hcm.management.integration-execute.action",
+                        "route.hcm.operations.performance-cycle-publish.action",
+                        "route.hcm.operations.assignment-proposal-submit.action");
         assertThat(HcmScopeSelectionValidator.ownerPredicateClosure())
-                .hasSize(11)
+                .hasSize(13)
                 .containsOnlyKeys(
                         "predicate.directory-visible-person.v1",
                         "predicate.hcm-configuration-scope.v1",
@@ -52,6 +58,8 @@ class HcmV3PepRegistryTest {
                         "predicate.hcm-integration-nonsecret-update.v1",
                         "predicate.hcm-org-approval-sod.v1",
                         "predicate.hcm-org-publish-sod.v1",
+                        "predicate.hcm-performance-cycle-object.v1",
+                        "predicate.hcm-performance-cycle-publish-sod.v1",
                         "predicate.hcm-workforce-visible-person.v1",
                         "predicate.people.object-version.v1",
                         "predicate.self-person.v1",
@@ -148,6 +156,56 @@ class HcmV3PepRegistryTest {
                 "GET", "/v1/hr/team/time", Set.of("APP.HCM:VIEW"), null,
                 "NORMAL", Set.of(), "route.hcm.team.time.page", null);
         assertThat(registry.authorize(missing).allowed()).isFalse();
+    }
+
+    @Test
+    void assignmentProposalBindingsExposeExactReadAndStepUpAuthority() {
+        HcmV3PepRegistry.Decision read = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "GET",
+                        "/v1/workforce/assignments/00000000-0000-0000-0000-000000000001",
+                        Set.of("DATA.WORKFORCE:VIEW"),
+                        null,
+                        "NORMAL",
+                        Set.of(),
+                        "route.hcm.operations.assignment-detail.data",
+                        null));
+
+        assertThat(read.allowed()).isTrue();
+        assertThat(read.authority().capabilityContractKey())
+                .isEqualTo("hcm.operations.workforce.read");
+        assertThat(read.authority().predicatePolicyKeys())
+                .containsExactly("predicate.hcm-workforce-visible-person.v1");
+        assertThat(read.authority().targetBindingKinds())
+                .containsExactly("TARGET_POPULATION");
+
+        HcmV3PepRegistry.Decision submit = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "POST",
+                        "/v1/workforce/assignment-proposals/"
+                                + "00000000-0000-0000-0000-000000000002/submit",
+                        Set.of("DATA.WORKFORCE:MANAGE"),
+                        null,
+                        "NORMAL",
+                        Set.of(),
+                        "route.hcm.operations.assignment-proposal-submit.action",
+                        null));
+
+        assertThat(submit.allowed()).isTrue();
+        assertThat(submit.authority().capabilityContractKey())
+                .isEqualTo("hcm.operations.assignment-proposal.submit");
+        assertThat(submit.authority().activationPolicy())
+                .isEqualTo("STEPUP-MGMT-HIGH-V1");
+        assertThat(submit.authority().predicatePolicyKeys()).containsExactlyInAnyOrder(
+                "predicate.hcm-workforce-visible-person.v1",
+                "predicate.people.object-version.v1");
+        assertThat(submit.authority().targetBindingKinds()).containsExactlyInAnyOrder(
+                "OBJECT", "TARGET_POPULATION");
+        HcmV3PepRegistry.StepUpBinding stepUp = submit.authority().stepUpBinding();
+        assertThat(stepUp.targetType()).isEqualTo("ASSIGNMENT_PROPOSAL");
+        assertThat(stepUp.targetIdPathParameter()).isEqualTo("proposalId");
+        assertThat(stepUp.ownerServiceKey()).isEqualTo("people");
+        assertThat(stepUp.audience()).isEqualTo("dwp-people-server");
     }
 
     @Test

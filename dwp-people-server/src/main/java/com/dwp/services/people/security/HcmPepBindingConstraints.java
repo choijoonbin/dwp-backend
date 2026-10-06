@@ -99,6 +99,9 @@ final class HcmPepBindingConstraints {
                             require(value.isTextual() && allowed.add(value.asText()),
                                     "Invalid HCM query allowlist"));
                     require(!allowed.isEmpty(), "Empty HCM query allowlist");
+                } else if ("REQUIRED".equals(kind)) {
+                    require(entry.getValue().size() == 1,
+                            "Invalid HCM required query constraint");
                 } else {
                     require("ABSENT".equals(kind), "Invalid HCM query constraint kind");
                 }
@@ -120,6 +123,8 @@ final class HcmPepBindingConstraints {
                 List<String> present = actual.getOrDefault(entry.getKey(), List.of());
                 if ("ABSENT".equals(entry.getValue().kind())) {
                     if (!present.isEmpty()) return false;
+                } else if ("REQUIRED".equals(entry.getValue().kind())) {
+                    if (present.size() != 1 || present.getFirst().isBlank()) return false;
                 } else if (present.size() != 1
                         || !entry.getValue().allowed().contains(present.getFirst())) {
                     return false;

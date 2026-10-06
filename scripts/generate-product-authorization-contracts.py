@@ -120,17 +120,23 @@ LEGACY_PLATFORM_WORKPLACE_PEP_V23_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.
 PLATFORM_WORKPLACE_PEP_OUTPUT = LEGACY_PLATFORM_WORKPLACE_PEP_OUTPUT.with_name(
     "platform-workplace-pep-v24.generated.json"
 )
-HCM_PEOPLE_PEP_OUTPUT = (
+LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT = (
     ROOT
     / "dwp-people-server/src/main/resources/product-authorization/"
     / "hcm-people-pep-v3.generated.json"
+)
+LEGACY_HCM_PEOPLE_PEP_V33_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+    "hcm-people-pep-v33.generated.json"
+)
+HCM_PEOPLE_PEP_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+    "hcm-people-pep-v34.generated.json"
 )
 PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 33))
+BUNDLE_VERSIONS = tuple(range(1, 35))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -228,6 +234,10 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 47, "routes": 911, "PAGE": 118, "DATA": 274, "ACTION": 519},
     32: {"capabilities": 205, "accessPolicies": 22, "entitlementExpressions": 16,
          "predicatePolicies": 48, "routes": 912, "PAGE": 118, "DATA": 275, "ACTION": 519},
+    33: {"capabilities": 219, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 54, "routes": 945, "PAGE": 119, "DATA": 290, "ACTION": 536},
+    34: {"capabilities": 223, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 54, "routes": 952, "PAGE": 119, "DATA": 293, "ACTION": 540},
 }
 
 V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES = frozenset({
@@ -244,6 +254,39 @@ V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES = frozenset({
     "route.dwaion.work.research-run-start.action",
     "route.dwaion.work.research-runs.data",
 })
+V33_HRIS_QUERY_DISCRIMINATORS = {
+    "route.hcm.operations.people.page": (
+        "route.hcm.operations.people.page.binding.01",
+        {"view": {"kind": "ABSENT"}, "projection": {"kind": "ABSENT"}},
+    ),
+    "route.hcm.operations.assignments.page": (
+        "route.hcm.operations.assignments.page.binding.01",
+        {
+            "view": {"kind": "FIXED", "value": "assignments"},
+            "projection": {"kind": "ABSENT"},
+        },
+    ),
+    "route.hcm.operations.person-detail.data": (
+        "route.hcm.operations.person-detail.data.binding.01",
+        {"projection": {"kind": "ABSENT"}},
+    ),
+    "route.hcm.personal.home.page": (
+        "route.hcm.personal.home.page.binding.01",
+        {"projection": {"kind": "ABSENT"}},
+    ),
+    "route.hcm.team.home.page": (
+        "route.hcm.team.home.page.binding.01",
+        {"projection": {"kind": "ABSENT"}},
+    ),
+    "route.hcm.personal.product-access-snapshot.data": (
+        "route.hcm.personal.product-access-snapshot.data.binding.01",
+        {"view": {"kind": "ABSENT"}},
+    ),
+    "route.hcm.personal.configuration-projection.data": (
+        "route.hcm.personal.configuration-projection.data.binding.01",
+        {"view": {"kind": "ABSENT"}},
+    ),
+}
 V30_RESEARCH_READ_AUTHORITY_UPGRADE_ROUTES = frozenset(
     key for key in V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES if key.endswith(".data")
 )
@@ -280,6 +323,8 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     30: "7c437bd768225db7dfe1c2491bcdb6ff256a2376946bab6a4ba4a62a7f31ce80",
     31: "be4e1b6db3d3f0b5100182a3c80066a39c64479f9ba88d908fee661efd3335b8",
     32: "b620ea86a8310cf23796e3e380b74c39764bdca28f41033496d21887a89da9cc",
+    33: "9c9a18b44eb83de0e98f4ec16e44c1df0ce216e00bc7075462f4e35f7fb87639",
+    34: "852d20e1e639e1a7170f02b5714d21d8c51a9eb8ff5ac32d8b7940b82d6be83b",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -814,10 +859,12 @@ SERVICE_PATH_PREFIXES = {
     "meeting": ("/v1/",),
     "messaging": ("/v1/",),
     "notification": ("/v1/",),
+    "payroll": ("/v1/",),
     "platform": ("/v1/", "/v2/"),
     "approval": ("/v1/",),
     "people": ("/v1/",),
     "space": ("/v1/",),
+    "time": ("/v1/",),
 }
 
 
@@ -1135,6 +1182,7 @@ def _apply_descriptor_enrichments(
             set(patch) <= {
                 "routeContractKey", "authorizationEquivalenceKey",
                 "queryParameterConstraintsByBinding", "projectionBindings",
+                "versionedQueryParameterConstraints",
                 "stepUpCommandBindings", "requiredAccessByProfile",
                 "introducedInVersion"
             },
@@ -1167,6 +1215,27 @@ def _apply_descriptor_enrichments(
             "queryParameterConstraintsByBinding", {}
         ).items():
             _apply_query_constraints(route, binding_key, constraints)
+        versioned_query_constraints = patch.get(
+            "versionedQueryParameterConstraints", []
+        )
+        require(
+            isinstance(versioned_query_constraints, list)
+            and all(
+                isinstance(value, dict)
+                and set(value) == {"introducedInVersion", "bindingKey", "constraints"}
+                and isinstance(value["introducedInVersion"], int)
+                and 1 <= value["introducedInVersion"] <= BUNDLE_VERSIONS[-1]
+                and isinstance(value["bindingKey"], str)
+                and value["bindingKey"]
+                for value in versioned_query_constraints
+            ),
+            f"{key}: invalid versioned query constraints",
+        )
+        for value in versioned_query_constraints:
+            if version >= value["introducedInVersion"]:
+                _apply_query_constraints(
+                    route, value["bindingKey"], value["constraints"]
+                )
         for projection in patch.get("projectionBindings", []):
             _apply_projection_binding(route, projection)
     return candidate
@@ -1259,6 +1328,14 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
             ):
                 continue
             if (
+                current["version"] == 33
+                and section == "routes"
+                and _is_v33_hris_query_discriminator_upgrade(
+                    descriptor_key, prior_descriptor, candidate_descriptor
+                )
+            ):
+                continue
+            if (
                 current["version"] == 30
                 and section == "accessPolicies"
                 and descriptor_key == "dwaion.work-access.v1"
@@ -1325,6 +1402,36 @@ def _is_v30_research_authority_upgrade(
             previous_profiles[profile_key]["requiredAccess"]
         )
     return previous_copy == current_copy
+
+
+def _is_v33_hris_query_discriminator_upgrade(
+    route_key: str,
+    previous: dict[str, Any],
+    current: dict[str, Any],
+) -> bool:
+    expected = V33_HRIS_QUERY_DISCRIMINATORS.get(route_key)
+    if expected is None:
+        return False
+    binding_key, constraints = expected
+    candidate = copy.deepcopy(current)
+    prior = copy.deepcopy(previous)
+    for field in ("gatewayApiBindings", "servicePepBindings"):
+        prior_bindings = unique(prior[field], "bindingKey", f"{route_key} prior bindings")
+        current_bindings = unique(
+            candidate[field], "bindingKey", f"{route_key} current bindings"
+        )
+        if binding_key not in prior_bindings or binding_key not in current_bindings:
+            return False
+        binding = current_bindings[binding_key]
+        if binding.get("queryParameterConstraints") != constraints:
+            return False
+        if "queryParameterConstraints" in prior_bindings[binding_key]:
+            binding["queryParameterConstraints"] = copy.deepcopy(
+                prior_bindings[binding_key]["queryParameterConstraints"]
+            )
+        else:
+            binding.pop("queryParameterConstraints", None)
+    return candidate == prior
 
 
 def _validate_release_snapshot(snapshot: dict[str, Any]) -> None:
@@ -2041,6 +2148,9 @@ def _validate_parameter_constraint(constraint: Any, label: str, allow_absent: bo
                 and len(values) == len(set(values))
                 and all(isinstance(value, str) and value for value in values),
                 f"{label}: invalid ALLOWLIST constraint")
+    elif kind == "REQUIRED":
+        require(allow_absent and constraint == {"kind": "REQUIRED"},
+                f"{label}: invalid REQUIRED constraint")
     else:
         require(allow_absent and constraint == {"kind": "ABSENT"},
                 f"{label}: invalid constraint kind")
@@ -2786,6 +2896,8 @@ def verify_no_out_of_lineage_artifacts() -> None:
         LEGACY_PLATFORM_WORKPLACE_PEP_V23_OUTPUT,
         PLATFORM_WORKPLACE_PEP_OUTPUT,
         PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT,
+        LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT,
+        LEGACY_HCM_PEOPLE_PEP_V33_OUTPUT,
         HCM_PEOPLE_PEP_OUTPUT,
     }
     candidates = {
@@ -2820,7 +2932,7 @@ def main() -> int:
         rollout_inventory = build_rollout_inventory(source)
         index = build_index(snapshots)
         platform_canary_pep_v1 = build_platform_canary_pep(snapshots[0], 1)
-        platform_canary_pep = build_platform_canary_pep(snapshots[-1], 2)
+        platform_canary_pep = build_platform_canary_pep(snapshots[31], 2)
         approval_pilot_pep = build_approvals_pep(
             snapshots[1],
             "approval",
@@ -3026,7 +3138,7 @@ def main() -> int:
         platform_telemetry_dimensions = build_platform_telemetry_dimensions(
             snapshots[2]
         )
-        hcm_people_pep = build_approvals_pep(
+        legacy_hcm_people_pep_v3 = build_approvals_pep(
             snapshots[2],
             "people",
             "hcm-people-pep-v3",
@@ -3040,6 +3152,38 @@ def main() -> int:
                 "predicatePolicies": 11,
             },
             version=3,
+            product_key="hcm",
+        )
+        legacy_hcm_people_pep_v33 = build_approvals_pep(
+            snapshots[32],
+            "people",
+            "hcm-people-pep-v33",
+            {
+                "routes": 60,
+                "bindings": 87,
+                "routeKinds": {"ACTION": 26, "DATA": 10, "PAGE": 24},
+                "capabilities": 31,
+                "accessPolicies": 5,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 13,
+            },
+            version=33,
+            product_key="hcm",
+        )
+        hcm_people_pep = build_approvals_pep(
+            snapshots[33],
+            "people",
+            "hcm-people-pep-v34",
+            {
+                "routes": 67,
+                "bindings": 94,
+                "routeKinds": {"ACTION": 30, "DATA": 13, "PAGE": 24},
+                "capabilities": 35,
+                "accessPolicies": 5,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 13,
+            },
+            version=34,
             product_key="hcm",
         )
     except ContractError as exc:
@@ -3139,6 +3283,16 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT,
+                render(legacy_hcm_people_pep_v3),
+                args.check,
+            ),
+            write_or_check(
+                LEGACY_HCM_PEOPLE_PEP_V33_OUTPUT,
+                render(legacy_hcm_people_pep_v33),
+                args.check,
+            ),
+            write_or_check(
                 HCM_PEOPLE_PEP_OUTPUT,
                 render(hcm_people_pep),
                 args.check,
@@ -3191,6 +3345,12 @@ def main() -> int:
         )
         verify_approvals_pep(PLATFORM_WORKPLACE_PEP_OUTPUT, platform_workplace_pep)
         verify_platform_telemetry_dimensions(platform_telemetry_dimensions)
+        verify_approvals_pep(
+            LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT, legacy_hcm_people_pep_v3
+        )
+        verify_approvals_pep(
+            LEGACY_HCM_PEOPLE_PEP_V33_OUTPUT, legacy_hcm_people_pep_v33
+        )
         verify_approvals_pep(HCM_PEOPLE_PEP_OUTPUT, hcm_people_pep)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)

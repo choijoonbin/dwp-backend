@@ -72,6 +72,56 @@ class HcmHighRiskCommandGuardTest {
     }
 
     @Test
+    void exactCommandFailsClosedWhenGovernedPepEvidenceIsAbsent() {
+        HcmPepContext.clear();
+
+        assertThatThrownBy(() -> guard.requireExact(
+                CAPABILITY, "ORG_SCENARIO", "scenario-1", 7L, PATH,
+                java.util.Map.of("version", 7), headers()))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
+        verify(verifier, never()).verify(any(), any());
+        verify(replay, never()).consume(any());
+    }
+
+    @Test
+    void exactCommandExpandsTheProposalIdPathTemplateBeforeVerification() {
+        String proposalId = "5c211af4-7dc4-4d99-a71a-8d530814d0bb";
+        String capability = "hcm.operations.assignment-proposal.submit";
+        String path = "/api/people/v1/workforce/assignment-proposals/"
+                + proposalId + "/submit";
+        setTemplatedProposalContext(capability);
+        ProductSurfaceStepUpChallengeVerifier.VerifiedChallenge challenge = challenge();
+        when(verifier.verify(eq("signed"), any())).thenReturn(challenge);
+
+        guard.requireExact(
+                capability, "ASSIGNMENT_PROPOSAL", proposalId, 7L, path,
+                java.util.Map.of("version", 7), headers());
+
+        verify(verifier).verify(eq("signed"), any());
+        verify(replay).consume(challenge);
+    }
+
+    @Test
+    void exactCommandRejectsAPathBoundToAnotherProposalBeforeVerification() {
+        String proposalId = "5c211af4-7dc4-4d99-a71a-8d530814d0bb";
+        String otherProposalId = "73339392-e3d2-49e9-b66f-21baf7920f79";
+        String capability = "hcm.operations.assignment-proposal.submit";
+        setTemplatedProposalContext(capability);
+
+        assertThatThrownBy(() -> guard.requireExact(
+                capability, "ASSIGNMENT_PROPOSAL", proposalId, 7L,
+                "/api/people/v1/workforce/assignment-proposals/"
+                        + otherProposalId + "/submit",
+                java.util.Map.of("version", 7), headers()))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.FORBIDDEN));
+        verify(verifier, never()).verify(any(), any());
+        verify(replay, never()).consume(any());
+    }
+
+    @Test
     void exactCommandMaterialIsVerifiedAndConsumed() {
         ProductSurfaceStepUpChallengeVerifier.VerifiedChallenge challenge = challenge();
         when(verifier.verify(eq("signed"), any())).thenReturn(challenge);
@@ -122,6 +172,23 @@ class HcmHighRiskCommandGuardTest {
 
     private HcmStepUpHeaders headers() {
         return new HcmStepUpHeaders("signed", "idem-1", REVISION, 7L);
+    }
+
+    private void setTemplatedProposalContext(String capability) {
+        HcmPepContext.set(new HcmPepContext.Evidence(
+                new HcmV3PepRegistry.RouteAuthority(
+                        "route.hcm.operations.assignment-proposal-submit.action",
+                        "ACTION", "full-operations", false,
+                        Set.of("predicate.hcm-assignment-proposal-submit.v1"),
+                        Set.of("TARGET_POPULATION"),
+                        "route.hcm.operations.assignment-proposal-submit.action.binding.01",
+                        capability, "STEPUP-MGMT-HIGH-V1", "POST",
+                        "/api/people/v1/workforce/assignment-proposals/{proposalId}/submit",
+                        new HcmV3PepRegistry.StepUpBinding(
+                                "ASSIGNMENT_PROPOSAL", "proposalId", List.of(),
+                                "people", "dwp-people-server")),
+                REVISION, OffsetDateTime.parse("2099-01-01T00:00:00Z"),
+                "hcm.operations", "scope-1", "110"));
     }
 
     private ProductSurfaceStepUpChallengeVerifier.VerifiedChallenge challenge() {

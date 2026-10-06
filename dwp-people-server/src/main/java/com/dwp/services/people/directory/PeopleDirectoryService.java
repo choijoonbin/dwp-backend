@@ -46,7 +46,7 @@ public class PeopleDirectoryService {
             String cursor,
             int requestedSize,
             LocalDate requestedAsOf) {
-        return search(query, status, cursor, requestedSize, requestedAsOf, false);
+        return search(query, status, cursor, requestedSize, requestedAsOf, false, null);
     }
 
     @Transactional(readOnly = true)
@@ -56,7 +56,10 @@ public class PeopleDirectoryService {
             String cursor,
             int requestedSize,
             LocalDate requestedAsOf) {
-        return search(query, status, cursor, requestedSize, requestedAsOf, true);
+        HcmPopulationScopeService.ResolvedPopulation population =
+                requireTrustedWorkforceScope();
+        return search(
+                query, status, cursor, requestedSize, requestedAsOf, true, population);
     }
 
     private PeopleDtos.CursorPage<PeopleDtos.PersonSummary> search(
@@ -65,26 +68,30 @@ public class PeopleDirectoryService {
             String cursor,
             int requestedSize,
             LocalDate requestedAsOf,
-            boolean workforceAccess) {
+            boolean workforceAccess,
+            HcmPopulationScopeService.ResolvedPopulation population) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         int size = Math.min(100, Math.max(1, requestedSize));
         LocalDate asOf = requestedAsOf == null ? LocalDate.now() : requestedAsOf;
         String normalizedStatus = normalizeStatus(status);
         if (!workforceAccess) populationScopes.requireSelfScope();
         WorkforceAccessPolicyService.Decision decision = workforceAccess
-                ? accessPolicyService.require("READ")
+                ? populationDecision(population)
                 : null;
-        if (workforceAccess) requireTrustedWorkforceScope();
-        String policyFingerprint = decision == null ? "directory" : decision.fingerprint();
+        String policyFingerprint = population == null
+                ? "directory"
+                : "target-population|" + population.relationshipRevision()
+                        + '|' + population.targetPopulationRevision();
         String fingerprint = cursorCodec.fingerprint(
                 query, normalizedStatus, asOf + "|" + policyFingerprint);
         long afterPersonId = cursor == null || cursor.isBlank()
                 ? 0L
                 : cursorCodec.decode(cursor, actor.tenantId(), fingerprint);
         List<PeopleDirectoryRepository.DirectoryRow> rows = workforceAccess
-                ? repository.search(
+                ? repository.searchWithinPopulation(
                         actor.tenantId(), afterPersonId, query, normalizedStatus, asOf, size + 1,
-                        decision.tenantWide(), decision.organizationIds())
+                        decision.field("WORKER_IDENTIFIERS"), decision.field("JOB_GRADE"),
+                        population.scope())
                 : repository.search(
                         actor.tenantId(), afterPersonId, query, normalizedStatus, asOf, size + 1);
         boolean hasMore = rows.size() > size;
@@ -105,6 +112,20 @@ public class PeopleDirectoryService {
                 asOf);
     }
 
+    private WorkforceAccessPolicyService.Decision populationDecision(
+            HcmPopulationScopeService.ResolvedPopulation population) {
+        if (population == null || population.scope() == null) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "A resolved workforce target population is required.");
+        }
+        return new WorkforceAccessPolicyService.Decision(
+                population.scope().tenantWide(),
+                population.scope().organizationIds(),
+                population.scope().fieldGroups(),
+                "READ");
+    }
+
     @Transactional(readOnly = true)
     public PeopleDtos.PersonDetail get(UUID publicId, LocalDate requestedAsOf) {
         return get(publicId, requestedAsOf, false);
@@ -123,21 +144,24 @@ public class PeopleDirectoryService {
         LocalDate asOf = requestedAsOf == null ? LocalDate.now() : requestedAsOf;
         if (!workforceAccess) requireSelfObject(actor, publicId);
         if (!workforceAccess) populationScopes.requireSelfScope();
-        WorkforceAccessPolicyService.Decision decision = workforceAccess
-                ? accessPolicyService.require("READ")
+        HcmPopulationScopeService.ResolvedPopulation population = workforceAccess
+                ? requireTrustedWorkforceScope()
                 : null;
-        if (workforceAccess) requireTrustedWorkforceScope();
+        WorkforceAccessPolicyService.Decision decision = workforceAccess
+                ? populationDecision(population)
+                : null;
         PeopleDirectoryRepository.DirectoryRow row = (workforceAccess
-                ? repository.findByPublicId(
-                        actor.tenantId(), publicId, asOf,
-                        decision.tenantWide(), decision.organizationIds())
+                ? repository.findByPublicIdWithinPopulation(
+                        actor.tenantId(), publicId, asOf, population.scope())
                 : repository.findByPublicId(actor.tenantId(), publicId, asOf))
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         boolean employment = decision != null && decision.field("EMPLOYMENT");
         boolean identifiers = decision != null && decision.field("WORKER_IDENTIFIERS");
         boolean jobGrade = decision != null && decision.field("JOB_GRADE");
         List<PeopleDtos.AssignmentSummary> assignments = employment
-                ? repository.findAssignments(actor.tenantId(), row.internalPersonId())
+                ? repository.findAssignmentsWithinPopulation(
+                        actor.tenantId(), row.internalPersonId(), asOf,
+                        population.scope())
                         .stream()
                         .map(assignment -> new PeopleDtos.AssignmentSummary(
                                 identifiers ? assignment.assignmentKey() : null,
@@ -156,7 +180,9 @@ public class PeopleDirectoryService {
                 : List.of();
         List<PeopleDtos.Worker> workers = employment
                 ? workforceEntities(
-                        repository.findWorkforceEntities(actor.tenantId(), row.internalPersonId()),
+                        repository.findWorkforceEntitiesWithinPopulation(
+                                actor.tenantId(), row.internalPersonId(), asOf,
+                                population.scope()),
                         identifiers,
                         jobGrade)
                 : List.of();
@@ -169,12 +195,13 @@ public class PeopleDirectoryService {
                 workers);
     }
 
-    private void requireTrustedWorkforceScope() {
+    private HcmPopulationScopeService.ResolvedPopulation requireTrustedWorkforceScope() {
         HcmPopulationScopeService.ResolvedPopulation population =
                 populationScopes.requireOperations("READ");
         populationScopes.requireTrustedScope(
                 population, "hcm.operations", "TARGET_POPULATION",
                 "WORKFORCE_TARGET_POPULATION", "ORG_UNIT/LEGAL_ENTITY");
+        return population;
     }
 
     private void requireSelfObject(PeopleRequestContext.Actor actor, UUID requestedPersonId) {

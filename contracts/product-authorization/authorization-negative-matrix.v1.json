@@ -7,13 +7,13 @@
     "checksum": "0385e6c66e1feac42198842bd4f20473405813be3a3f187d46cf7bba39fcd822"
   },
   "exactContract": {
-    "reference": "contracts/product-authorization/product-surfaces-v1.bundle-v5.json",
-    "checksum": "c69816a06349fcbd45a0d946debfbce1d67e09b3ed87a8b056ec8a43f852109f",
+    "reference": "contracts/product-authorization/product-surfaces-v1.bundle-v34.json",
+    "checksum": "852d20e1e639e1a7170f02b5714d21d8c51a9eb8ff5ac32d8b7940b82d6be83b",
     "products": ["approvals", "calendar", "communications", "dwaion", "hcm", "mail", "meetings", "messaging", "notifications", "services", "spaces", "workplace"]
   },
   "canonicalNegativeFixtures": {
     "reference": "contracts/product-authorization/pilot-fixtures.v1.generated.json",
-    "checksum": "30cbc6aad2296db483f3638b73903e42eb48192b84bf5492f09b0bc866755c7c",
+    "checksum": "d344d6c2b8dcd6e79270c23f5e2db25f5583ef132e558fd01a88384d53c1938f",
     "expectedCount": 46,
     "catalogIntegrityTestReferences": [
       "dwp-gateway/src/test/java/com/dwp/gateway/support/PilotAuthorizationFixtureAdapterTest.java#projectsEveryCanonicalNegativeFixtureWithItsSignedDenialExpectation"

@@ -31,7 +31,7 @@ superset. It expands projection bindings and descriptor-to-route reverse
 indexes, validates same-bundle references and computes SHA-256 over canonical
 JSON with the mutable `checksum` and `bundleStatus` members omitted. The
 canonical source contains a version 1 base plus append-only version 2 through
-25 waves. It emits complete snapshots rather than deltas:
+33 waves. It emits complete snapshots rather than deltas:
 
 - `product-surfaces-v1.bundle-v1.json` — W0/Canary, checksum `bc34f47b…`
 - `product-surfaces-v1.bundle-v2.json` — W1a Approvals, checksum `5b634a35…`
@@ -50,12 +50,16 @@ canonical source contains a version 1 base plus append-only version 2 through
 - `product-surfaces-v1.bundle-v23.json` — append-only Workplace provider-bound resource commands, space-planning report export, and safety emergency-contact/handoff closure, checksum `4687f384…`
 - `product-surfaces-v1.bundle-v24.json` — append-only DWAI.ON research downloads, routine evidence/rollback/webhook, and artifact comments closure, checksum `be3db891…`
 - `product-surfaces-v1.bundle-v25.json` — append-only DWAI.ON staged artifact review decision closure, checksum `805fa418…`
-- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v25
+- `product-surfaces-v1.bundle-v26.json` through `bundle-v31.json` — immutable Workplace Home, Mail, DWAI.ON and Approvals governance extensions
+- `product-surfaces-v1.bundle-v32.json` — immutable Communications code-set read boundary, checksum `b620ea86…`
+- `product-surfaces-v1.bundle-v33.json` — combined default-off HRIS Wave 1 and system-management closure, checksum `9c9a18b4…`
+- `product-surfaces-v1.bundle-v34.json` — assignment-proposal read/command authority closure, checksum `852d20e1…`
+- `product-surfaces-v1.json` — byte-identical latest/final alias of bundle v34
 - `product-surfaces-v1.index.json` — checksummed version/artifact index
 
 Auth classpath resources use the same names with `.generated.json` before the
 extension. Every contract snapshot is byte-identical to its Auth seed peer;
-the latest Auth alias is byte-identical to bundle v25. The generator verifies
+the latest Auth alias is byte-identical to bundle v34. The generator verifies
 all files, checksums, aliases, descriptor preservation and monotonic reverse
 references in both generate and `--check` modes.
 
@@ -87,6 +91,50 @@ Version 25 preserves every version 1-24 byte and appends the single governed
 DWAI.ON artifact review-decision route. It binds the exact Gateway and Agent
 POST paths to `dwaion.work.artifacts.update`, the self predicate and current
 tenant identity; it introduces no new capability or broader route prefix.
+
+Versions 26-31 preserve all earlier bytes while closing Workplace Home runtime,
+Mail work/administration, DWAI.ON research/routine, and Approvals governance
+operations. Version 32 is the canonical immutable Communications code-set
+release and remains byte-for-byte pinned at checksum `b620ea86…`. Version 33
+preserves that v32 snapshot and appends the reconciled HRIS People,
+performance, payroll-foundation, work-plan, product-access, configuration and
+system-management contracts as one monotonic DRAFT release. Generation, seed
+declaration and classpath loading do not approve, activate or assign v33.
+
+Canonical v34 preserves the complete v33 bytes and adds only four
+`DATA.WORKFORCE:MANAGE` assignment-proposal capabilities plus the seven exact
+People API bindings used for assignment detail, timeline and proposal
+lifecycle commands. Submit is the only HIGH-risk command and is closed by the
+`STEPUP-MGMT-HIGH-V1` assignment-proposal descriptor. V241 declares the seed
+manifest as DRAFT only; it does not import, approve, activate or assign v34.
+The runtime People projection advances to `hcm-people-pep-v34.generated.json`
+while the v3 and v33 projections remain immutable lineage artifacts.
+
+Two superseded integration-branch DRAFT artifacts used different v32/v33
+checksums (`9e4e274b…` and `254ead67…`). They are not members of the canonical
+`dwp-dev` lineage. Before deploying V240 or V241 to any shared database,
+operators must run this read-only preflight and stop if any non-canonical
+checksum exists:
+
+```sql
+SELECT bundle_key, version, checksum, intended_bundle_status,
+       automatic_import_enabled
+  FROM auth_product_authorization_seed_release
+ WHERE bundle_key = 'product-surfaces' AND version >= 32
+ ORDER BY version;
+
+SELECT b.version, b.checksum, b.bundle_status,
+       (a.bundle_id IS NOT NULL) AS active
+  FROM auth_product_authorization_bundle b
+  LEFT JOIN auth_product_authorization_active a ON a.bundle_id = b.bundle_id
+ WHERE b.bundle_key = 'product-surfaces' AND b.version >= 32
+ ORDER BY b.version;
+```
+
+No shared-database credentials are used by source validation. A conflicting
+imported, approved or active v33 or v34 requires an explicit database
+reconciliation decision; it must never be overwritten or repaired
+automatically.
 
 Bundle version 1 contains only the W0 registry, Named Reviewer and the
 Communications/Services technical canary, including its exact responsibility,
@@ -196,7 +244,7 @@ corrupt or unavailable durable state also fails closed. A higher approved
 revision with `E_p=false` is the only rollout path from `110` to `100`.
 
 Runtime loaders reject `test.*` keys and never read test registry overrides.
-The checksummed seed index imports versions 1 through 25 in order, all as `DRAFT`.
+The checksummed seed index imports versions 1 through 34 in order, all as `DRAFT`.
 It contains no active version field or pointer. Activation is an explicit CAS
 pointer transition after independent approval; loading a seed does not approve
 or activate it.

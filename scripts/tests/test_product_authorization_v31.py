@@ -50,8 +50,8 @@ class ProductAuthorizationV31Test(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
         cls.snapshots = GENERATOR.build_snapshots(GENERATOR.load_source())
-        cls.v30 = cls.snapshots[-2]
-        cls.v31 = cls.snapshots[-1]
+        cls.v30 = next(value for value in cls.snapshots if value["version"] == 30)
+        cls.v31 = next(value for value in cls.snapshots if value["version"] == 31)
         prior = {route["routeContractKey"] for route in cls.v30["routes"]}
         cls.added = [
             route for route in cls.v31["routes"]

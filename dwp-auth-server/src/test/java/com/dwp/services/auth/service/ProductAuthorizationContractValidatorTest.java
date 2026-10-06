@@ -257,13 +257,19 @@ class ProductAuthorizationContractValidatorTest {
                 generatedDocument("product-surfaces-v1.bundle-v30.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionThirtyOne = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v31.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(31);
-        assertThat(index.latestChecksum()).isEqualTo(versionThirtyOne.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionThirtyTwo = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v32.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionThirtyThree = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v33.generated.json"));
+        ProductAuthorizationContractDtos.BundleContract versionThirtyFour = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v34.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(34);
+        assertThat(index.latestChecksum()).isEqualTo(versionThirtyFour.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L,
-                        26L, 27L, 28L, 29L, 30L, 31L);
+                        26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -508,6 +514,61 @@ class ProductAuthorizationContractValidatorTest {
                         "route.approvals.admin.policy-governance-publish.action",
                         "route.approvals.admin.workflow-studio-retire.action",
                         "route.approvals.work.workflow-template.data");
+        assertThat(versionThirtyTwo.capabilities())
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionThirtyOne.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertThat(versionThirtyTwo.routes()).hasSize(912)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionThirtyOne.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains("route.communications.management.code-sets.data");
+        assertThat(versionThirtyThree.capabilities()).hasSize(219)
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsAll(versionThirtyTwo.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList())
+                .contains(
+                        "hcm.operations.talent.approve",
+                        "hcm.operations.payroll-foundation.publish",
+                        "hcm.time.work-regime.publish");
+        assertThat(versionThirtyThree.routes()).hasSize(945)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionThirtyTwo.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.communications.management.code-sets.data",
+                        "route.hcm.operations.people360-search.data",
+                        "route.hcm.operations.performance-cycle-publish.action",
+                        "route.hcm.operations.payroll-foundation-publish.action",
+                        "route.hcm.operations.work-plan-publish.action",
+                        "route.hcm.management.system.page");
+        assertThat(versionThirtyFour.capabilities()).hasSize(223)
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsAll(versionThirtyThree.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList())
+                .contains(
+                        "hcm.operations.assignment-proposal.create",
+                        "hcm.operations.assignment-proposal.validate",
+                        "hcm.operations.assignment-proposal.submit",
+                        "hcm.operations.assignment-proposal.cancel");
+        assertThat(versionThirtyFour.routes()).hasSize(952)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsAll(versionThirtyThree.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList())
+                .contains(
+                        "route.hcm.operations.assignment-detail.data",
+                        "route.hcm.operations.assignment-timeline.data",
+                        "route.hcm.operations.assignment-proposal-detail.data",
+                        "route.hcm.operations.assignment-proposal-create.action",
+                        "route.hcm.operations.assignment-proposal-validate.action",
+                        "route.hcm.operations.assignment-proposal-submit.action",
+                        "route.hcm.operations.assignment-proposal-cancel.action");
         assertThat(versionSix.routes()).filteredOn(value -> value.routeContractKey().equals(
                 "route.services.work.request-information-response.action"))
                 .singleElement().satisfies(route -> {

@@ -35,6 +35,37 @@ public class HcmHighRiskCommandGuard {
             HcmStepUpHeaders headers) {
         HcmPepContext.Evidence current = HcmPepContext.current();
         if (current == null) return; // Baseline rollout remains on its legacy contract.
+        requireBound(current, capabilityContractKey, targetType, targetId, currentVersion,
+                publicPath, canonicalPayload, headers);
+    }
+
+    /** Fails closed when a command has no exact governed route evidence. */
+    public void requireExact(
+            String capabilityContractKey,
+            String targetType,
+            String targetId,
+            long currentVersion,
+            String publicPath,
+            Object canonicalPayload,
+            HcmStepUpHeaders headers) {
+        HcmPepContext.Evidence current = HcmPepContext.current();
+        if (current == null) {
+            throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Exact governed HCM authority is required for this high-risk command.");
+        }
+        requireBound(current, capabilityContractKey, targetType, targetId, currentVersion,
+                publicPath, canonicalPayload, headers);
+    }
+
+    private void requireBound(
+            HcmPepContext.Evidence current,
+            String capabilityContractKey,
+            String targetType,
+            String targetId,
+            long currentVersion,
+            String publicPath,
+            Object canonicalPayload,
+            HcmStepUpHeaders headers) {
         HcmV3PepRegistry.RouteAuthority authority = current.authority();
         if (!authority.highRisk()) {
             throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
@@ -46,7 +77,8 @@ public class HcmHighRiskCommandGuard {
                 || !targetType.equals(stepUp.targetType())
                 || !"people".equals(stepUp.ownerServiceKey())
                 || !"dwp-people-server".equals(stepUp.audience())
-                || !authority.publicPath().equals(publicPath)) {
+                || !matchesCommandPath(
+                        authority.publicPath(), stepUp, targetId, publicPath)) {
             throw new BaseException(ErrorCode.FORBIDDEN,
                     "The exact HCM route does not authorize this high-risk command.");
         }
@@ -90,6 +122,23 @@ public class HcmHighRiskCommandGuard {
         // The caller is @Transactional. A later mutation failure rolls this insert
         // back; a concurrent replay blocks on the unique challenge/nonce key.
         replay.consume(challenge);
+    }
+
+    private boolean matchesCommandPath(
+            String publicPathTemplate,
+            HcmV3PepRegistry.StepUpBinding stepUp,
+            String targetId,
+            String commandPath) {
+        if (blank(publicPathTemplate) || blank(commandPath)) return false;
+        if (publicPathTemplate.equals(commandPath)) return true;
+        String pathParameter = stepUp.targetIdPathParameter();
+        if (blank(pathParameter)) return publicPathTemplate.equals(commandPath);
+        if (blank(targetId)) return false;
+        String token = "{" + pathParameter + "}";
+        int tokenIndex = publicPathTemplate.indexOf(token);
+        return tokenIndex >= 0
+                && tokenIndex == publicPathTemplate.lastIndexOf(token)
+                && publicPathTemplate.replace(token, targetId).equals(commandPath);
     }
 
     private boolean blank(String value) {

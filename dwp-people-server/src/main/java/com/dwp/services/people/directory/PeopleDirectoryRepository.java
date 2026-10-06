@@ -1,5 +1,6 @@
 package com.dwp.services.people.directory;
 
+import com.dwp.services.people.hr.HcmPopulationRepository;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -8,6 +9,7 @@ import java.sql.Date;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
@@ -15,6 +17,8 @@ import java.util.UUID;
 
 @Repository
 public class PeopleDirectoryRepository {
+
+    private static final UUID EMPTY_ORGANIZATION = new UUID(0L, 0L);
 
     private static final String DIRECTORY_SELECT = """
             SELECT p.person_id,
@@ -69,6 +73,18 @@ public class PeopleDirectoryRepository {
                        AND candidate.effective_start_date <= :asOf
                        AND (candidate.effective_end_date IS NULL
                             OR candidate.effective_end_date >= :asOf)
+                       AND (NOT :populationEnforced
+                            OR :populationTenantWide
+                            OR candidate.manager_assignment_key =
+                               :populationManagerAssignmentKey
+                            OR EXISTS (
+                                SELECT 1
+                                  FROM ppl_organizations boundary_organization
+                                 WHERE boundary_organization.tenant_id = candidate.tenant_id
+                                   AND boundary_organization.organization_id =
+                                       candidate.organization_id
+                                   AND boundary_organization.public_id IN
+                                       (:populationOrganizationIds)))
                      ORDER BY candidate.primary_assignment DESC,
                               candidate.effective_start_date DESC,
                               candidate.effective_sequence DESC,
@@ -156,7 +172,9 @@ public class PeopleDirectoryRepository {
             String workerStatus,
             LocalDate asOf,
             int limit) {
-        return search(tenantId, afterPersonId, query, workerStatus, asOf, limit, true, Set.of());
+        return search(
+                tenantId, afterPersonId, query, workerStatus, asOf, limit,
+                true, Set.of(), false, false, null);
     }
 
     public List<DirectoryRow> search(
@@ -168,6 +186,58 @@ public class PeopleDirectoryRepository {
             int limit,
             boolean tenantWide,
             Set<UUID> organizationIds) {
+        return search(
+                tenantId, afterPersonId, query, workerStatus, asOf, limit,
+                tenantWide, organizationIds, false, false, null);
+    }
+
+    public List<DirectoryRow> search(
+            Long tenantId,
+            long afterPersonId,
+            String query,
+            String workerStatus,
+            LocalDate asOf,
+            int limit,
+            boolean tenantWide,
+            Set<UUID> organizationIds,
+            boolean includeWorkerIdentifiers,
+            boolean includeJobGrade) {
+        return search(
+                tenantId, afterPersonId, query, workerStatus, asOf, limit,
+                tenantWide, organizationIds,
+                includeWorkerIdentifiers, includeJobGrade, null);
+    }
+
+    public List<DirectoryRow> searchWithinPopulation(
+            Long tenantId,
+            long afterPersonId,
+            String query,
+            String workerStatus,
+            LocalDate asOf,
+            int limit,
+            boolean includeWorkerIdentifiers,
+            boolean includeJobGrade,
+            HcmPopulationRepository.PopulationScope population) {
+        if (population == null) {
+            throw new IllegalArgumentException("A target population is required.");
+        }
+        return search(
+                tenantId, afterPersonId, query, workerStatus, asOf, limit,
+                true, Set.of(), includeWorkerIdentifiers, includeJobGrade, population);
+    }
+
+    private List<DirectoryRow> search(
+            Long tenantId,
+            long afterPersonId,
+            String query,
+            String workerStatus,
+            LocalDate asOf,
+            int limit,
+            boolean tenantWide,
+            Set<UUID> organizationIds,
+            boolean includeWorkerIdentifiers,
+            boolean includeJobGrade,
+            HcmPopulationRepository.PopulationScope population) {
         StringBuilder sql = new StringBuilder(DIRECTORY_SELECT).append("""
              WHERE p.tenant_id = :tenantId
                AND p.person_id > :afterPersonId
@@ -176,20 +246,24 @@ public class PeopleDirectoryRepository {
                 .addValue("afterPersonId", afterPersonId)
                 .addValue("limit", limit);
         if (query != null && !query.isBlank()) {
-            sql.append("""
-               AND (
-                    LOWER(p.display_name) LIKE :query
-                    OR LOWER(COALESCE(contact.display_value, '')) LIKE :query
-                    OR LOWER(COALESCE(w.worker_number, '')) LIKE :query
-                    OR LOWER(COALESCE(a.assignment_key, '')) LIKE :query
-                    OR LOWER(COALESCE(a.business_title, '')) LIKE :query
-                    OR LOWER(COALESCE(org.name, '')) LIKE :query
-                    OR LOWER(COALESCE(job.name, '')) LIKE :query
-                    OR LOWER(COALESCE(grade.name, '')) LIKE :query
-                    OR LOWER(COALESCE(loc.name, '')) LIKE :query
-                    OR LOWER(COALESCE(manager_person.display_name, '')) LIKE :query
-               )
-            """);
+            List<String> predicates = new ArrayList<>(List.of(
+                    "LOWER(p.display_name) LIKE :query",
+                    "LOWER(COALESCE(contact.display_value, '')) LIKE :query",
+                    "LOWER(COALESCE(a.business_title, '')) LIKE :query",
+                    "LOWER(COALESCE(org.name, '')) LIKE :query",
+                    "LOWER(COALESCE(job.name, '')) LIKE :query",
+                    "LOWER(COALESCE(loc.name, '')) LIKE :query",
+                    "LOWER(COALESCE(manager_person.display_name, '')) LIKE :query"));
+            if (includeWorkerIdentifiers) {
+                predicates.add("LOWER(COALESCE(w.worker_number, '')) LIKE :query");
+                predicates.add("LOWER(COALESCE(a.assignment_key, '')) LIKE :query");
+            }
+            if (includeJobGrade) {
+                predicates.add("LOWER(COALESCE(grade.name, '')) LIKE :query");
+            }
+            sql.append(" AND (\n     ")
+                    .append(String.join("\n     OR ", predicates))
+                    .append("\n )\n");
             parameters.addValue("query", "%" + query.trim().toLowerCase(java.util.Locale.ROOT) + "%");
         }
         if (workerStatus != null && !workerStatus.isBlank()) {
@@ -200,12 +274,80 @@ public class PeopleDirectoryRepository {
             sql.append(" AND org.public_id IN (:organizationIds)\n");
             parameters.addValue("organizationIds", organizationIds);
         }
+        if (population != null) {
+            appendTargetPopulation(sql);
+            parameters
+                    .addValue("populationEnforced", true)
+                    .addValue("populationActorWorkerId", population.actorWorkerId())
+                    .addValue("populationManagerAssignmentKey", population.managerAssignmentKey())
+                    .addValue("populationTenantWide", population.tenantWide())
+                    .addValue("populationOrganizationIds",
+                            population.organizationIds().isEmpty()
+                                    ? Set.of(EMPTY_ORGANIZATION)
+                                    : population.organizationIds());
+        }
         sql.append(" ORDER BY p.person_id ASC LIMIT :limit");
         return jdbc.query(sql.toString(), parameters, this::mapDirectoryRow);
     }
 
+    /** Applies current target-population membership before cursor pagination. */
+    private void appendTargetPopulation(StringBuilder sql) {
+        sql.append("""
+             AND EXISTS (
+                   SELECT 1
+                     FROM ppl_workers population_worker
+                     JOIN ppl_work_relationships population_relationship
+                       ON population_relationship.tenant_id = population_worker.tenant_id
+                      AND population_relationship.worker_id = population_worker.worker_id
+                      AND population_relationship.start_date <= CURRENT_DATE
+                      AND (population_relationship.end_date IS NULL
+                           OR population_relationship.end_date >= CURRENT_DATE)
+                     JOIN ppl_assignments population_assignment
+                       ON population_assignment.tenant_id = population_relationship.tenant_id
+                      AND population_assignment.work_relationship_id =
+                          population_relationship.work_relationship_id
+                      AND population_assignment.assignment_status IN
+                          ('ACTIVE', 'SUSPENDED', 'PENDING')
+                      AND population_assignment.effective_start_date <= CURRENT_DATE
+                      AND (population_assignment.effective_end_date IS NULL
+                           OR population_assignment.effective_end_date >= CURRENT_DATE)
+                     LEFT JOIN ppl_organizations population_organization
+                       ON population_organization.tenant_id = population_assignment.tenant_id
+                      AND population_organization.organization_id =
+                          population_assignment.organization_id
+                    WHERE population_worker.tenant_id = p.tenant_id
+                      AND population_worker.person_id = p.person_id
+                      AND population_worker.worker_status IN ('ACTIVE', 'LEAVE')
+                      AND population_worker.worker_id <> :populationActorWorkerId
+                      AND (:populationTenantWide
+                           OR population_assignment.manager_assignment_key =
+                              :populationManagerAssignmentKey
+                           OR population_organization.public_id IN
+                              (:populationOrganizationIds))
+             )
+            """);
+    }
+
     public Optional<DirectoryRow> findByPublicId(Long tenantId, UUID publicId, LocalDate asOf) {
         return findByPublicId(tenantId, publicId, asOf, true, Set.of());
+    }
+
+    public Optional<DirectoryRow> findByPublicIdWithinPopulation(
+            Long tenantId,
+            UUID publicId,
+            LocalDate asOf,
+            HcmPopulationRepository.PopulationScope population) {
+        if (population == null) {
+            throw new IllegalArgumentException("A target population is required.");
+        }
+        StringBuilder sql = new StringBuilder(DIRECTORY_SELECT).append(
+                " WHERE p.tenant_id = :tenantId AND p.public_id = :publicId");
+        appendTargetPopulation(sql);
+        MapSqlParameterSource parameters = commonParameters(tenantId, asOf)
+                .addValue("publicId", publicId);
+        addPopulationParameters(parameters, population);
+        return jdbc.query(sql.toString(), parameters, this::mapDirectoryRow)
+                .stream().findFirst();
     }
 
     public Optional<DirectoryRow> findByPublicId(
@@ -226,7 +368,12 @@ public class PeopleDirectoryRepository {
         return rows.stream().findFirst();
     }
 
-    public List<AssignmentRow> findAssignments(Long tenantId, long personId) {
+    public List<AssignmentRow> findAssignments(
+            Long tenantId,
+            long personId,
+            LocalDate asOf,
+            boolean tenantWide,
+            Set<UUID> organizationIds) {
         String sql = """
                 SELECT a.assignment_key,
                        a.assignment_status,
@@ -257,13 +404,20 @@ public class PeopleDirectoryRepository {
                     ON loc.tenant_id = a.tenant_id AND loc.location_id = a.location_id
                  WHERE a.tenant_id = :tenantId
                    AND worker.person_id = :personId
+                   AND relationship.start_date <= :asOf
+                   AND (relationship.end_date IS NULL OR relationship.end_date >= :asOf)
+                   AND a.effective_start_date <= :asOf
+                   AND (a.effective_end_date IS NULL OR a.effective_end_date >= :asOf)
+                """ + (tenantWide ? "" : " AND org.public_id IN (:organizationIds)\n") + """
                  ORDER BY a.effective_start_date DESC,
                           a.effective_sequence DESC,
                           a.assignment_id DESC
                 """;
+        MapSqlParameterSource parameters = commonParameters(tenantId, asOf)
+                .addValue("personId", personId);
+        if (!tenantWide) parameters.addValue("organizationIds", organizationIds);
         return jdbc.query(
-                sql,
-                new MapSqlParameterSource("tenantId", tenantId).addValue("personId", personId),
+                sql, parameters,
                 (resultSet, rowNumber) -> new AssignmentRow(
                         resultSet.getString("assignment_key"),
                         resultSet.getString("assignment_status"),
@@ -279,7 +433,83 @@ public class PeopleDirectoryRepository {
                         resultSet.getString("change_reason_code")));
     }
 
-    public List<WorkforceEntityRow> findWorkforceEntities(Long tenantId, long personId) {
+    public List<AssignmentRow> findAssignmentsWithinPopulation(
+            Long tenantId,
+            long personId,
+            LocalDate asOf,
+            HcmPopulationRepository.PopulationScope population) {
+        if (population == null) {
+            throw new IllegalArgumentException("A target population is required.");
+        }
+        String sql = """
+                SELECT a.assignment_key, a.assignment_status, a.primary_assignment,
+                       a.effective_start_date, a.effective_end_date, a.business_title,
+                       org.name AS organization_name, job.name AS job_profile_name,
+                       grade.name AS grade_name, loc.name AS location_name,
+                       a.manager_assignment_key, a.change_reason_code
+                  FROM ppl_assignments a
+                  JOIN ppl_work_relationships relationship
+                    ON relationship.tenant_id = a.tenant_id
+                   AND relationship.work_relationship_id = a.work_relationship_id
+                  JOIN ppl_workers worker
+                    ON worker.tenant_id = relationship.tenant_id
+                   AND worker.worker_id = relationship.worker_id
+                  LEFT JOIN ppl_organizations org
+                    ON org.tenant_id = a.tenant_id AND org.organization_id = a.organization_id
+                  LEFT JOIN ppl_job_profiles job
+                    ON job.tenant_id = a.tenant_id AND job.job_profile_id = a.job_profile_id
+                  LEFT JOIN ppl_job_grades grade
+                    ON grade.tenant_id = a.tenant_id AND grade.job_grade_id = a.job_grade_id
+                  LEFT JOIN ppl_locations loc
+                    ON loc.tenant_id = a.tenant_id AND loc.location_id = a.location_id
+                 WHERE a.tenant_id = :tenantId
+                   AND worker.person_id = :personId
+                   AND relationship.start_date <= :asOf
+                   AND (relationship.end_date IS NULL OR relationship.end_date >= :asOf)
+                   AND a.effective_start_date <= :asOf
+                   AND (a.effective_end_date IS NULL OR a.effective_end_date >= :asOf)
+                   AND (:populationTenantWide
+                        OR a.manager_assignment_key = :populationManagerAssignmentKey
+                        OR org.public_id IN (:populationOrganizationIds))
+                 ORDER BY a.effective_start_date DESC,
+                          a.effective_sequence DESC,
+                          a.assignment_id DESC
+                """;
+        MapSqlParameterSource parameters = commonParameters(tenantId, asOf)
+                .addValue("personId", personId);
+        addPopulationParameters(parameters, population);
+        return jdbc.query(sql, parameters, (resultSet, rowNumber) -> new AssignmentRow(
+                resultSet.getString("assignment_key"),
+                resultSet.getString("assignment_status"),
+                resultSet.getBoolean("primary_assignment"),
+                date(resultSet, "effective_start_date"),
+                date(resultSet, "effective_end_date"),
+                resultSet.getString("business_title"),
+                resultSet.getString("organization_name"),
+                resultSet.getString("job_profile_name"),
+                resultSet.getString("grade_name"),
+                resultSet.getString("location_name"),
+                resultSet.getString("manager_assignment_key"),
+                resultSet.getString("change_reason_code")));
+    }
+
+    public List<WorkforceEntityRow> findWorkforceEntities(
+            Long tenantId,
+            long personId,
+            LocalDate asOf,
+            boolean tenantWide,
+            Set<UUID> organizationIds) {
+        return findWorkforceEntities(
+                tenantId, personId, asOf, tenantWide, organizationIds, null);
+    }
+
+    private List<WorkforceEntityRow> findWorkforceEntities(
+            Long tenantId,
+            long personId,
+            LocalDate asOf,
+            boolean tenantWide,
+            Set<UUID> organizationIds,
+            HcmPopulationRepository.PopulationScope population) {
         String sql = """
                 SELECT worker.public_id AS worker_public_id,
                        worker.worker_number,
@@ -323,6 +553,21 @@ public class PeopleDirectoryRepository {
                   LEFT JOIN ppl_assignments assignment
                     ON assignment.tenant_id = relationship.tenant_id
                    AND assignment.work_relationship_id = relationship.work_relationship_id
+                   AND assignment.effective_start_date <= :asOf
+                   AND (assignment.effective_end_date IS NULL
+                        OR assignment.effective_end_date >= :asOf)
+                   AND (NOT :populationEnforced
+                        OR :populationTenantWide
+                        OR assignment.manager_assignment_key =
+                           :populationManagerAssignmentKey
+                        OR EXISTS (
+                            SELECT 1
+                              FROM ppl_organizations boundary_organization
+                             WHERE boundary_organization.tenant_id = assignment.tenant_id
+                               AND boundary_organization.organization_id =
+                                   assignment.organization_id
+                               AND boundary_organization.public_id IN
+                                   (:populationOrganizationIds)))
                   LEFT JOIN ppl_organizations organization
                     ON organization.tenant_id = assignment.tenant_id
                    AND organization.organization_id = assignment.organization_id
@@ -337,6 +582,40 @@ public class PeopleDirectoryRepository {
                    AND location.location_id = assignment.location_id
                  WHERE worker.tenant_id = :tenantId
                    AND worker.person_id = :personId
+                   AND relationship.start_date <= :asOf
+                   AND (relationship.end_date IS NULL OR relationship.end_date >= :asOf)
+                """ + (population != null ? "" : (tenantWide
+                ? "" : " AND organization.public_id IN (:organizationIds)\n")) + """
+                   AND (NOT :populationEnforced OR (
+                        worker.worker_id <> :populationActorWorkerId
+                        AND EXISTS (
+                            SELECT 1
+                              FROM ppl_work_relationships population_relationship
+                              JOIN ppl_assignments population_assignment
+                                ON population_assignment.tenant_id =
+                                   population_relationship.tenant_id
+                               AND population_assignment.work_relationship_id =
+                                   population_relationship.work_relationship_id
+                               AND population_assignment.assignment_status IN
+                                   ('ACTIVE', 'SUSPENDED', 'PENDING')
+                               AND population_assignment.effective_start_date <= CURRENT_DATE
+                               AND (population_assignment.effective_end_date IS NULL
+                                    OR population_assignment.effective_end_date >= CURRENT_DATE)
+                              LEFT JOIN ppl_organizations population_organization
+                                ON population_organization.tenant_id =
+                                   population_assignment.tenant_id
+                               AND population_organization.organization_id =
+                                   population_assignment.organization_id
+                             WHERE population_relationship.tenant_id = worker.tenant_id
+                               AND population_relationship.worker_id = worker.worker_id
+                               AND population_relationship.start_date <= CURRENT_DATE
+                               AND (population_relationship.end_date IS NULL
+                                    OR population_relationship.end_date >= CURRENT_DATE)
+                               AND (:populationTenantWide
+                                    OR population_assignment.manager_assignment_key =
+                                       :populationManagerAssignmentKey
+                                    OR population_organization.public_id IN
+                                       (:populationOrganizationIds)))))
                  ORDER BY worker.worker_id,
                           relationship.primary_relationship DESC,
                           relationship.start_date DESC,
@@ -344,9 +623,15 @@ public class PeopleDirectoryRepository {
                           assignment.effective_sequence DESC NULLS LAST,
                           assignment.assignment_id DESC NULLS LAST
                 """;
+        MapSqlParameterSource parameters = commonParameters(tenantId, asOf)
+                .addValue("personId", personId);
+        if (population != null) {
+            addPopulationParameters(parameters, population);
+        } else if (!tenantWide) {
+            parameters.addValue("organizationIds", organizationIds);
+        }
         return jdbc.query(
-                sql,
-                new MapSqlParameterSource("tenantId", tenantId).addValue("personId", personId),
+                sql, parameters,
                 (resultSet, rowNumber) -> new WorkforceEntityRow(
                         resultSet.getObject("worker_public_id", UUID.class),
                         resultSet.getString("worker_number"),
@@ -382,8 +667,40 @@ public class PeopleDirectoryRepository {
                         resultSet.getString("change_reason_code")));
     }
 
+    public List<WorkforceEntityRow> findWorkforceEntitiesWithinPopulation(
+            Long tenantId,
+            long personId,
+            LocalDate asOf,
+            HcmPopulationRepository.PopulationScope population) {
+        if (population == null) {
+            throw new IllegalArgumentException("A target population is required.");
+        }
+        return findWorkforceEntities(
+                tenantId, personId, asOf, true, Set.of(), population);
+    }
+
     private MapSqlParameterSource commonParameters(Long tenantId, LocalDate asOf) {
-        return new MapSqlParameterSource("tenantId", tenantId).addValue("asOf", Date.valueOf(asOf));
+        return new MapSqlParameterSource("tenantId", tenantId)
+                .addValue("asOf", Date.valueOf(asOf))
+                .addValue("populationEnforced", false)
+                .addValue("populationActorWorkerId", 0L)
+                .addValue("populationTenantWide", false)
+                .addValue("populationManagerAssignmentKey", null)
+                .addValue("populationOrganizationIds", Set.of(EMPTY_ORGANIZATION));
+    }
+
+    private void addPopulationParameters(
+            MapSqlParameterSource parameters,
+            HcmPopulationRepository.PopulationScope population) {
+        parameters
+                .addValue("populationEnforced", true)
+                .addValue("populationActorWorkerId", population.actorWorkerId())
+                .addValue("populationManagerAssignmentKey", population.managerAssignmentKey())
+                .addValue("populationTenantWide", population.tenantWide())
+                .addValue("populationOrganizationIds",
+                        population.organizationIds().isEmpty()
+                                ? Set.of(EMPTY_ORGANIZATION)
+                                : population.organizationIds());
     }
 
     private DirectoryRow mapDirectoryRow(ResultSet resultSet, int rowNumber) throws SQLException {

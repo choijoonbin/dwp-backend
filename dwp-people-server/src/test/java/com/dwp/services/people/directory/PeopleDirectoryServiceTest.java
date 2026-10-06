@@ -1,5 +1,8 @@
 package com.dwp.services.people.directory;
 
+import com.dwp.core.common.ErrorCode;
+import com.dwp.core.exception.BaseException;
+import com.dwp.services.people.hr.HcmPopulationRepository;
 import com.dwp.services.people.hr.HcmPopulationScopeService;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmV3PepRegistry;
@@ -8,26 +11,24 @@ import com.dwp.services.people.workforce.WorkforceAccessPolicyService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.time.LocalDate;
+import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
-import java.time.OffsetDateTime;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import com.dwp.core.exception.BaseException;
-import com.dwp.core.common.ErrorCode;
-import org.springframework.test.util.ReflectionTestUtils;
+import static org.mockito.Mockito.when;
 
 class PeopleDirectoryServiceTest {
 
@@ -42,6 +43,15 @@ class PeopleDirectoryServiceTest {
             mock(HcmPopulationScopeService.class);
     private final PeopleDirectoryService service = new PeopleDirectoryService(
             repository, cursorCodec, accessPolicyService, populationScopes);
+    private final HcmPopulationRepository.PopulationScope workforceScope =
+            new HcmPopulationRepository.PopulationScope(
+                    0L, null, true, Set.of(),
+                    Set.of("DIRECTORY", "WORKER_IDENTIFIERS", "EMPLOYMENT", "JOB_GRADE"),
+                    "policy-v1");
+    private final HcmPopulationScopeService.ResolvedPopulation workforcePopulation =
+            new HcmPopulationScopeService.ResolvedPopulation(
+                    null, workforceScope,
+                    new HcmPopulationRepository.PopulationEvidence(3L, "population-v1"));
 
     @BeforeEach
     void setContext() {
@@ -55,9 +65,11 @@ class PeopleDirectoryServiceTest {
                 Set.of("DIRECTORY", "WORKER_IDENTIFIERS", "EMPLOYMENT", "JOB_GRADE"),
                 "READ");
         when(accessPolicyService.require("READ")).thenReturn(decision);
-        when(repository.search(
+        when(populationScopes.requireOperations("READ"))
+                .thenReturn(workforcePopulation);
+        when(repository.searchWithinPopulation(
                 eq(TENANT_ID), anyLong(), any(), any(), eq(AS_OF), eq(21),
-                eq(true), eq(Set.of())))
+                eq(true), eq(true), eq(workforceScope)))
                 .thenReturn(List.of(directoryRow()));
     }
 
@@ -108,15 +120,18 @@ class PeopleDirectoryServiceTest {
         PeopleDirectoryRepository.DirectoryRow person = directoryRow();
         when(repository.findByPublicId(TENANT_ID, personId, AS_OF))
                 .thenReturn(Optional.of(person));
-        when(repository.findByPublicId(TENANT_ID, personId, AS_OF, true, Set.of()))
+        when(repository.findByPublicIdWithinPopulation(
+                TENANT_ID, personId, AS_OF, workforceScope))
                 .thenReturn(Optional.of(person));
-        when(repository.findAssignments(TENANT_ID, person.internalPersonId()))
+        when(repository.findAssignmentsWithinPopulation(
+                TENANT_ID, person.internalPersonId(), AS_OF, workforceScope))
                 .thenReturn(List.of(new PeopleDirectoryRepository.AssignmentRow(
                         "ASG-0042", "ACTIVE", true,
                         LocalDate.of(2025, 1, 1), null, "Enterprise Architect",
                         "AI Platform Team", "Enterprise Architect", "Senior", "Seoul",
                         "ASG-0001", "PROMOTION")));
-        when(repository.findWorkforceEntities(TENANT_ID, person.internalPersonId()))
+        when(repository.findWorkforceEntitiesWithinPopulation(
+                TENANT_ID, person.internalPersonId(), AS_OF, workforceScope))
                 .thenReturn(List.of(new PeopleDirectoryRepository.WorkforceEntityRow(
                         workerId, "SK000042", "EMPLOYEE", "ACTIVE",
                         LocalDate.of(2020, 2, 3), relationshipId, "REL-0042", "EMPLOYEE",
@@ -172,21 +187,61 @@ class PeopleDirectoryServiceTest {
     void workforceDetailNeverFallsBackToAnUnscopedTenantLookup() {
         UUID requested = UUID.randomUUID();
         UUID allowedOrganization = UUID.randomUUID();
-        WorkforceAccessPolicyService.Decision scoped =
-                new WorkforceAccessPolicyService.Decision(
-                        false, Set.of(allowedOrganization), Set.of("DIRECTORY"), "READ");
-        when(accessPolicyService.require("READ")).thenReturn(scoped);
-        when(repository.findByPublicId(
-                TENANT_ID, requested, AS_OF, false, Set.of(allowedOrganization)))
+        HcmPopulationRepository.PopulationScope scoped =
+                new HcmPopulationRepository.PopulationScope(
+                        91L, "MGR-91", false, Set.of(allowedOrganization),
+                        Set.of("DIRECTORY"), "policy-scoped");
+        HcmPopulationScopeService.ResolvedPopulation resolved =
+                new HcmPopulationScopeService.ResolvedPopulation(
+                        null, scoped,
+                        new HcmPopulationRepository.PopulationEvidence(1L, "population-scoped"));
+        when(populationScopes.requireOperations("READ")).thenReturn(resolved);
+        when(repository.findByPublicIdWithinPopulation(
+                TENANT_ID, requested, AS_OF, scoped))
                 .thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.getWorkforce(requested, AS_OF))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.NOT_FOUND));
 
-        verify(repository).findByPublicId(
-                TENANT_ID, requested, AS_OF, false, Set.of(allowedOrganization));
+        verify(repository).findByPublicIdWithinPopulation(
+                TENANT_ID, requested, AS_OF, scoped);
         verify(repository, never()).findByPublicId(TENANT_ID, requested, AS_OF);
+    }
+
+    @Test
+    void workforceCursorBindsPopulationRevisionAndFillsAcrossExcludedIdGaps() {
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        when(cursorCodec.fingerprint(
+                null, null,
+                AS_OF + "|target-population|operator|population-v1:policy-v1"))
+                .thenReturn("population-fingerprint");
+        when(cursorCodec.decode(
+                "before-page", TENANT_ID, "population-fingerprint"))
+                .thenReturn(100L);
+        when(repository.searchWithinPopulation(
+                TENANT_ID, 100L, null, null, AS_OF, 3,
+                true, true, workforceScope))
+                .thenReturn(List.of(
+                        directoryRow(101L, first),
+                        directoryRow(103L, second),
+                        directoryRow(104L, UUID.randomUUID())));
+        when(cursorCodec.encode(TENANT_ID, 103L, "population-fingerprint"))
+                .thenReturn("after-second-allowed");
+
+        PeopleDtos.CursorPage<PeopleDtos.PersonSummary> page =
+                service.searchWorkforce(null, null, "before-page", 2, AS_OF);
+
+        assertThat(page.items())
+                .extracting(PeopleDtos.PersonSummary::personId)
+                .containsExactly(first, second);
+        assertThat(page.hasMore()).isTrue();
+        assertThat(page.nextCursor()).isEqualTo("after-second-allowed");
+        verify(repository).searchWithinPopulation(
+                TENANT_ID, 100L, null, null, AS_OF, 3,
+                true, true, workforceScope);
+        verify(accessPolicyService, never()).require("READ");
     }
 
     private void setPep(String route) {
@@ -202,9 +257,14 @@ class PeopleDirectoryServiceTest {
     }
 
     private PeopleDirectoryRepository.DirectoryRow directoryRow() {
+        return directoryRow(42L, UUID.randomUUID());
+    }
+
+    private PeopleDirectoryRepository.DirectoryRow directoryRow(
+            long internalPersonId, UUID publicId) {
         return new PeopleDirectoryRepository.DirectoryRow(
-                42L,
-                UUID.randomUUID(),
+                internalPersonId,
+                publicId,
                 "Kim DWP",
                 "ko-KR",
                 "Asia/Seoul",
