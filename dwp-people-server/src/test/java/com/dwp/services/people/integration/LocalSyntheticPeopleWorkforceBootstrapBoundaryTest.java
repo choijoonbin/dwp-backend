@@ -34,6 +34,8 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
 
     private static final String RUN_ID = "w1-20261002t010203z-0123abcd";
     private static final String TOKEN = "local-people-token-0123456789abcdef";
+    private static final List<String> TENANT_A_PLANNED_IDENTITY_ROLES =
+            List.of("HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN");
     private static final long ACTOR_INTERNAL_WORKER_ID = 10L;
     private static final long TARGET_INTERNAL_WORKER_ID = 11L;
     private static final UUID PROVIDER_TENANT_ID =
@@ -149,7 +151,12 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
                 .thenReturn(Optional.of(targetIdentity()));
         when(policies.list()).thenReturn(List.of());
         when(policies.create(any(), anyString())).thenReturn(policy(policyId));
-        when(populations.findOperations("READ")).thenReturn(Optional.of(population()));
+        when(populations.findOperations("READ")).thenAnswer(ignored -> {
+            assertThat(PeopleRequestContext.require().roles()).containsExactlyInAnyOrder(
+                    "TENANT_ADMIN", "WORKSPACE_MEMBER", "HR_ADMIN",
+                    "PAYROLL_ADMIN", "PEOPLE_ADMIN");
+            return Optional.of(population());
+        });
         when(populations.containsWorker(any(), eq(TARGET_INTERNAL_WORKER_ID)))
                 .thenReturn(true);
         var service = new LocalSyntheticPeopleWorkforceBootstrapService(
@@ -165,10 +172,13 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
         assertThat(response.targetPersonPublicId()).isEqualTo(TARGET_PERSON_ID);
         assertThat(response.targetWorkerPublicId()).isEqualTo(TARGET_WORKER_ID);
         assertThat(response.targetAssignmentPublicId()).isEqualTo(TARGET_ASSIGNMENT_ID);
+        assertThat(response.plannedIdentityRoleCodes())
+                .isEqualTo(TENANT_A_PLANNED_IDENTITY_ROLES);
         assertThat(response.importedWorkerCount()).isEqualTo(3);
         assertThat(response.targetPopulationCount()).isEqualTo(2);
         assertThat(response.targetPopulationRevision()).isEqualTo(
-                "abc123:true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ");
+                "abc123:true|[]|[DIRECTORY, EMPLOYMENT, JOB_GRADE, "
+                        + "WORKER_IDENTIFIERS]|READ");
         assertThat(response.receiptSha256()).matches("[0-9a-f]{64}");
         assertThat(response.authWorkforceBinding().endpoint())
                 .isEqualTo("/internal/identity/v1/workforce-events");
@@ -185,21 +195,25 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
         assertThat(LocalSyntheticPeopleWorkforceBootstrapService.receiptSha256(evidence))
                 .isEqualTo(response.receiptSha256());
         assertThat(LocalSyntheticPeopleWorkforceBootstrapService.receiptSha256(
-                copyEvidence(evidence, null, null, null, 2L, null, null, null)))
+                copyEvidence(evidence, null, null, null, null, 2L, null, null, null)))
                 .isNotEqualTo(response.receiptSha256());
         assertThat(LocalSyntheticPeopleWorkforceBootstrapService.receiptSha256(
-                copyEvidence(evidence, null, null, null, null, 1L,
+                copyEvidence(evidence, null, null, null, null, null, 1L,
                         "tampered-population", null)))
                 .isNotEqualTo(response.receiptSha256());
         assertThat(LocalSyntheticPeopleWorkforceBootstrapService.receiptSha256(
-                copyEvidence(evidence, null, UUID.randomUUID(), UUID.randomUUID(),
+                copyEvidence(evidence, null, null, UUID.randomUUID(), UUID.randomUUID(),
                         null, null, null, null)))
                 .isNotEqualTo(response.receiptSha256());
         assertThat(LocalSyntheticPeopleWorkforceBootstrapService.receiptSha256(
-                copyEvidence(evidence, 1002L, null, null, null, null, null, null)))
+                copyEvidence(evidence, 1002L, null, null, null, null, null, null, null)))
                 .isNotEqualTo(response.receiptSha256());
         assertThat(LocalSyntheticPeopleWorkforceBootstrapService.receiptSha256(
-                copyEvidence(evidence, null, null, null, null, null, null,
+                copyEvidence(evidence, null, List.of(), null, null,
+                        null, null, null, null)))
+                .isNotEqualTo(response.receiptSha256());
+        assertThat(LocalSyntheticPeopleWorkforceBootstrapService.receiptSha256(
+                copyEvidence(evidence, null, null, null, null, null, null, null,
                         tamperedAuthBinding(response.authWorkforceBinding()))))
                 .isNotEqualTo(response.receiptSha256());
         verify(imports).importSyntheticWorkdayFixture(
@@ -209,6 +223,64 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
         verify(populations).containsWorker(any(), eq(ACTOR_INTERNAL_WORKER_ID));
         assertThatThrownBy(PeopleRequestContext::require)
                 .isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    void foundationOnlyPlanResolvesTheTenantBPopulationWithoutJobGrade() {
+        HrisImportService imports = mock(HrisImportService.class);
+        HrisIntegrationRepository repository = mock(HrisIntegrationRepository.class);
+        WorkforceAccessPolicyService policies = mock(WorkforceAccessPolicyService.class);
+        HcmPopulationScopeService populations = mock(HcmPopulationScopeService.class);
+        when(imports.importSyntheticWorkdayFixture(anyString(), anyString()))
+                .thenReturn(importResult(UUID.randomUUID(), false));
+        when(repository.isActiveTenantBinding(41L, PROVIDER_TENANT_ID)).thenReturn(true);
+        when(repository.findWorkforceIdentity(41L, "E100001"))
+                .thenReturn(Optional.of(identity()));
+        when(repository.findWorkforceIdentity(41L, "E100002"))
+                .thenReturn(Optional.of(targetIdentity()));
+        when(policies.list()).thenReturn(List.of());
+        when(policies.create(any(), anyString())).thenReturn(policy(UUID.randomUUID()));
+        when(populations.findOperations("READ")).thenAnswer(ignored -> {
+            assertThat(PeopleRequestContext.require().roles()).containsExactlyInAnyOrder(
+                    "TENANT_ADMIN", "WORKSPACE_MEMBER");
+            return Optional.of(population(2L, false));
+        });
+        when(populations.containsWorker(any(), eq(TARGET_INTERNAL_WORKER_ID)))
+                .thenReturn(true);
+        var service = new LocalSyntheticPeopleWorkforceBootstrapService(
+                imports, repository, policies, populations, RUN_ID);
+
+        var response = service.bootstrap(request(List.of()));
+
+        assertThat(response.plannedIdentityRoleCodes()).isEmpty();
+        assertThat(response.targetPopulationRevision()).isEqualTo(
+                "abc123:true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ");
+        assertThat(response.receiptSha256()).matches("[0-9a-f]{64}");
+    }
+
+    @Test
+    void rejectsDuplicateNonCanonicalOrPartialPlannedIdentityRolesBeforeMutation() {
+        HrisImportService imports = mock(HrisImportService.class);
+        HrisIntegrationRepository repository = mock(HrisIntegrationRepository.class);
+        WorkforceAccessPolicyService policies = mock(WorkforceAccessPolicyService.class);
+        HcmPopulationScopeService populations = mock(HcmPopulationScopeService.class);
+        when(repository.isActiveTenantBinding(41L, PROVIDER_TENANT_ID)).thenReturn(true);
+        var service = new LocalSyntheticPeopleWorkforceBootstrapService(
+                imports, repository, policies, populations, RUN_ID);
+
+        for (List<String> rejected : List.of(
+                List.of("HR_ADMIN", "HR_ADMIN"),
+                List.of("PEOPLE_ADMIN", "HR_ADMIN", "PAYROLL_ADMIN"),
+                List.of("HR_ADMIN"),
+                List.of("people_admin"))) {
+            assertThatThrownBy(() -> service.bootstrap(request(rejected)))
+                    .isInstanceOf(BaseException.class)
+                    .hasMessageContaining("unique and canonical");
+        }
+
+        verify(imports, never()).importSyntheticWorkdayFixture(anyString(), anyString());
+        verify(policies, never()).list();
+        verify(populations, never()).findOperations(anyString());
     }
 
     @Test
@@ -277,7 +349,8 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
         var service = new LocalSyntheticPeopleWorkforceBootstrapService(
                 imports, repository, policies, populations, RUN_ID);
         var anotherRun = new LocalSyntheticPeopleWorkforceBootstrapDtos.BootstrapRequest(
-                "w1-20261002t010203z-feedface", PROVIDER_TENANT_ID, 41L, 1001L);
+                "w1-20261002t010203z-feedface", PROVIDER_TENANT_ID, 41L, 1001L,
+                TENANT_A_PLANNED_IDENTITY_ROLES);
         assertThatThrownBy(() -> service.bootstrap(anotherRun))
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("not bound to this runtime");
@@ -372,8 +445,13 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
     }
 
     private static LocalSyntheticPeopleWorkforceBootstrapDtos.BootstrapRequest request() {
+        return request(TENANT_A_PLANNED_IDENTITY_ROLES);
+    }
+
+    private static LocalSyntheticPeopleWorkforceBootstrapDtos.BootstrapRequest request(
+            List<String> plannedIdentityRoleCodes) {
         return new LocalSyntheticPeopleWorkforceBootstrapDtos.BootstrapRequest(
-                RUN_ID, PROVIDER_TENANT_ID, 41L, 1001L);
+                RUN_ID, PROVIDER_TENANT_ID, 41L, 1001L, plannedIdentityRoleCodes);
     }
 
     private static HrisIntegrationRepository.WorkforceIdentityProjection identity() {
@@ -432,10 +510,16 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
     }
 
     private static HcmPopulationScopeService.ResolvedPopulation population() {
-        return population(2L);
+        return population(2L, true);
     }
 
     private static HcmPopulationScopeService.ResolvedPopulation population(long count) {
+        return population(count, true);
+    }
+
+    private static HcmPopulationScopeService.ResolvedPopulation population(
+            long count,
+            boolean includeJobGrade) {
         var actor = new HcmPopulationRepository.ActorWorkforce(
                 ACTOR_INTERNAL_WORKER_ID,
                 PERSON_ID,
@@ -451,8 +535,13 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
                 null,
                 true,
                 Set.of(),
-                Set.of("DIRECTORY", "EMPLOYMENT", "WORKER_IDENTIFIERS"),
-                "true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ");
+                includeJobGrade
+                        ? Set.of("DIRECTORY", "EMPLOYMENT", "JOB_GRADE", "WORKER_IDENTIFIERS")
+                        : Set.of("DIRECTORY", "EMPLOYMENT", "WORKER_IDENTIFIERS"),
+                includeJobGrade
+                        ? "true|[]|[DIRECTORY, EMPLOYMENT, JOB_GRADE, "
+                                + "WORKER_IDENTIFIERS]|READ"
+                        : "true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ");
         return new HcmPopulationScopeService.ResolvedPopulation(
                 actor, scope, new HcmPopulationRepository.PopulationEvidence(count, "abc123"));
     }
@@ -461,7 +550,8 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
             LocalSyntheticPeopleWorkforceBootstrapDtos.BootstrapResponse response) {
         return new LocalSyntheticPeopleWorkforceBootstrapService.ReceiptEvidence(
                 response.runId(), response.providerTenantId(), response.tenantId(),
-                response.administratorActorId(), response.actorPersonPublicId(),
+                response.administratorActorId(), response.plannedIdentityRoleCodes(),
+                response.actorPersonPublicId(),
                 response.actorWorkerPublicId(), response.actorAssignmentPublicId(),
                 response.actorLegalEmployerPublicId(), response.actorWorkerNumber(),
                 response.targetPersonPublicId(), response.targetWorkerPublicId(),
@@ -475,6 +565,7 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
     private static LocalSyntheticPeopleWorkforceBootstrapService.ReceiptEvidence copyEvidence(
             LocalSyntheticPeopleWorkforceBootstrapService.ReceiptEvidence source,
             Long administratorActorId,
+            List<String> plannedIdentityRoleCodes,
             UUID legalEmployerPublicId,
             UUID targetPersonPublicId,
             Long importedWorkerCount,
@@ -485,6 +576,8 @@ class LocalSyntheticPeopleWorkforceBootstrapBoundaryTest {
                 source.runId(), source.providerTenantId(), source.tenantId(),
                 administratorActorId == null
                         ? source.administratorActorId() : administratorActorId,
+                plannedIdentityRoleCodes == null
+                        ? source.plannedIdentityRoleCodes() : plannedIdentityRoleCodes,
                 source.actorPersonPublicId(), source.actorWorkerPublicId(),
                 source.actorAssignmentPublicId(), legalEmployerPublicId == null
                         ? source.actorLegalEmployerPublicId() : legalEmployerPublicId,

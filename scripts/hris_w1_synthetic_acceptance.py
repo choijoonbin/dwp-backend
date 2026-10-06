@@ -1274,6 +1274,10 @@ def people_workforce_receipt_sha256(workforce: dict[str, Any]) -> str:
         ("workforceAccessPolicyVersion", workforce["workforceAccessPolicyVersion"]),
         ("targetPopulationCount", workforce["targetPopulationCount"]),
         ("targetPopulationRevision", workforce["targetPopulationRevision"]),
+        (
+            "plannedIdentityRoleCodes",
+            ",".join(workforce["plannedIdentityRoleCodes"]),
+        ),
         ("auth.endpoint", binding["endpoint"]),
         ("auth.tokenHeader", binding["tokenHeader"]),
         ("auth.expectedAdministratorUserId", binding["expectedAdministratorUserId"]),
@@ -1314,6 +1318,8 @@ def validate_people_workforce_bootstrap_response(
     tenant_id: int,
     administrator_actor_id: int,
 ) -> dict[str, Any]:
+    if lane not in {"a", "b"}:
+        raise GateFailure(f"Unknown synthetic tenant lane: {lane}")
     expected_fields = {
         "runId",
         "providerTenantId",
@@ -1334,6 +1340,7 @@ def validate_people_workforce_bootstrap_response(
         "workforceAccessPolicyVersion",
         "targetPopulationCount",
         "targetPopulationRevision",
+        "plannedIdentityRoleCodes",
         "authWorkforceBinding",
         "receiptSha256",
     }
@@ -1382,6 +1389,16 @@ def validate_people_workforce_bootstrap_response(
         raise GateFailure(
             f"Tenant {lane} People workforce bootstrap contains an invalid public id"
         ) from error
+    expected_identity_role_codes = (
+        ["HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN"]
+        if lane == "a"
+        else []
+    )
+    expected_population_fields = (
+        "DIRECTORY, EMPLOYMENT, JOB_GRADE, WORKER_IDENTIFIERS"
+        if lane == "a"
+        else "DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS"
+    )
     if (
         value.get("runId") != run_id
         or value.get("providerTenantId") != str(provider_tenant_id)
@@ -1394,10 +1411,11 @@ def validate_people_workforce_bootstrap_response(
         or type(value.get("targetPopulationCount")) is not int
         or value["targetPopulationCount"] != 2
         or not re.fullmatch(
-            r"[0-9a-f]{32}:true\|\[\]\|"
-            r"\[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS\]\|READ",
+            rf"[0-9a-f]{{32}}:true\|\[\]\|"
+            rf"\[{expected_population_fields}\]\|READ",
             str(value.get("targetPopulationRevision", "")),
         )
+        or value.get("plannedIdentityRoleCodes") != expected_identity_role_codes
         or type(value.get("workforceAccessPolicyVersion")) is not int
         or value["workforceAccessPolicyVersion"] < 0
         or parsed_ids["actorPersonPublicId"] == parsed_ids["targetPersonPublicId"]
@@ -2740,6 +2758,11 @@ def bootstrap_synthetic_identities(
         tenant_key = f"w1-{lane}-{suffix}"
         email = f"hris-w1-{lane}-{suffix}@dwp.test"
         display_name = f"HRIS W1 synthetic tenant {lane.upper()}"
+        planned_identity_role_codes = (
+            ["HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN"]
+            if lane == "a"
+            else []
+        )
         _, provisioned, _ = http_request(
             state,
             name=f"20-tenant-{lane}-auth-provision",
@@ -2855,6 +2878,7 @@ def bootstrap_synthetic_identities(
             "providerTenantId": str(provider_tenant_id),
             "tenantId": tenant_id,
             "administratorActorId": administrator_user_id,
+            "plannedIdentityRoleCodes": planned_identity_role_codes,
         }
         if lane == "a":
             http_request(
@@ -2908,6 +2932,7 @@ def bootstrap_synthetic_identities(
         target_assignment_public_id = workforce["targetAssignmentPublicId"]
         population_revision = workforce["targetPopulationRevision"]
         population_count = workforce["targetPopulationCount"]
+        planned_identity_role_codes = workforce["plannedIdentityRoleCodes"]
         http_request(
             state,
             name=f"25-tenant-{lane}-people-workforce-one-shot",
@@ -2926,11 +2951,7 @@ def bootstrap_synthetic_identities(
             "personPublicId": person_public_id,
             "administratorEmail": email,
             "password": password,
-            "roleCodes": (
-                ["HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN"]
-                if lane == "a"
-                else []
-            ),
+            "roleCodes": planned_identity_role_codes,
         }
         if lane == "a":
             http_request(

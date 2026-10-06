@@ -15,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -36,6 +37,10 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
     private static final String AUTH_ENDPOINT = "/internal/identity/v1/workforce-events";
     private static final String AUTH_TOKEN_HEADER = "X-DWP-Identity-Sync-Token";
     private static final Set<String> BOOTSTRAP_ROLES = Set.of("ADMIN", POLICY_ROLE);
+    private static final Set<String> FOUNDATION_ROLES =
+            Set.of(POLICY_ROLE, "WORKSPACE_MEMBER");
+    private static final List<String> TENANT_A_PLANNED_IDENTITY_ROLES =
+            List.of("HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN");
     private static final Set<String> BOOTSTRAP_PERMISSIONS =
             Set.of("ADMIN.WORKFORCE_ACCESS:MANAGE");
     private static final Set<String> POLICY_FIELD_GROUPS =
@@ -80,6 +85,8 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
                     ErrorCode.FORBIDDEN,
                     "Synthetic People request is not bound to an active People tenant.");
         }
+        List<String> plannedIdentityRoleCodes = requireCanonicalPlannedIdentityRoles(
+                request.plannedIdentityRoleCodes());
 
         PeopleRequestContext.set(
                 request.administratorActorId(),
@@ -123,6 +130,15 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
                     BOOTSTRAP_ROLES,
                     BOOTSTRAP_PERMISSIONS);
             WorkforceAccessDtos.Policy policy = ensureOperationsPolicy(correlationId);
+            Set<String> plannedRuntimeRoles = new LinkedHashSet<>(FOUNDATION_ROLES);
+            plannedRuntimeRoles.addAll(plannedIdentityRoleCodes);
+            // Bind the receipt to the exact role union planned for synthetic Auth activation.
+            PeopleRequestContext.set(
+                    request.administratorActorId(),
+                    request.tenantId(),
+                    identity.personPublicId(),
+                    Set.copyOf(plannedRuntimeRoles),
+                    BOOTSTRAP_PERMISSIONS);
             HcmPopulationScopeService.ResolvedPopulation population = populations
                     .findOperations("READ")
                     .orElseThrow(() -> new IllegalStateException(
@@ -162,6 +178,7 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
                     request.providerTenantId(),
                     request.tenantId(),
                     request.administratorActorId(),
+                    plannedIdentityRoleCodes,
                     identity.personPublicId(),
                     identity.workerPublicId(),
                     identity.assignmentPublicId(),
@@ -184,6 +201,7 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
                     request.providerTenantId(),
                     request.tenantId(),
                     request.administratorActorId(),
+                    plannedIdentityRoleCodes,
                     identity.personPublicId(),
                     identity.workerPublicId(),
                     identity.assignmentPublicId(),
@@ -204,6 +222,18 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
         } finally {
             PeopleRequestContext.clear();
         }
+    }
+
+    private List<String> requireCanonicalPlannedIdentityRoles(List<String> requested) {
+        if (requested == null
+                || (!requested.isEmpty()
+                        && !TENANT_A_PLANNED_IDENTITY_ROLES.equals(requested))) {
+            throw new BaseException(
+                    ErrorCode.INVALID_INPUT_VALUE,
+                    "Planned synthetic identity roles must be the unique and canonical "
+                            + "tenant-A plan or the empty foundation-only plan.");
+        }
+        return List.copyOf(requested);
     }
 
     private WorkforceAccessDtos.Policy ensureOperationsPolicy(UUID correlationId) {
@@ -311,6 +341,8 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
         appendCanonical(material, "targetPopulationCount", evidence.targetPopulationCount());
         appendCanonical(material, "targetPopulationRevision",
                 evidence.targetPopulationRevision());
+        appendCanonical(material, "plannedIdentityRoleCodes",
+                String.join(",", evidence.plannedIdentityRoleCodes()));
 
         LocalSyntheticPeopleWorkforceBootstrapDtos.AuthWorkforceBinding binding =
                 evidence.authWorkforceBinding();
@@ -363,6 +395,7 @@ public class LocalSyntheticPeopleWorkforceBootstrapService {
             UUID providerTenantId,
             long tenantId,
             long administratorActorId,
+            List<String> plannedIdentityRoleCodes,
             UUID actorPersonPublicId,
             UUID actorWorkerPublicId,
             UUID actorAssignmentPublicId,

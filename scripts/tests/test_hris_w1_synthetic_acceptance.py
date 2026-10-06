@@ -75,7 +75,7 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                 target_assignment_public_id="70000000-0000-0000-0000-00000000000a",
                 target_population_revision=(
                     "a" * 32
-                    + ":true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ"
+                    + ":true|[]|[DIRECTORY, EMPLOYMENT, JOB_GRADE, WORKER_IDENTIFIERS]|READ"
                 ),
                 target_population_count=2,
                 tenant_key="w1-a-0123abcd",
@@ -1267,7 +1267,7 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
             )
             self.assertEqual(
                 "a" * 32
-                + ":true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ",
+                + ":true|[]|[DIRECTORY, EMPLOYMENT, JOB_GRADE, WORKER_IDENTIFIERS]|READ",
                 captured["DWP_W1_TENANT_A_TARGET_POPULATION_REVISION"],
             )
             self.assertNotIn("HRIS_W1_TENANT_A_PASSWORD", captured)

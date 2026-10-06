@@ -4,7 +4,9 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.Size;
 
+import java.util.List;
 import java.util.UUID;
 
 /** Wire contract for one disposable, run-bound People workforce fixture. */
@@ -24,7 +26,10 @@ final class LocalSyntheticPeopleWorkforceBootstrapDtos {
             @NotBlank @Pattern(regexp = "w1-[0-9]{8}t[0-9]{6}z-[0-9a-f]{8}") String runId,
             @NotNull UUID providerTenantId,
             @NotNull @Positive Long tenantId,
-            @NotNull @Positive Long administratorActorId) {
+            @NotNull @Positive Long administratorActorId,
+            @NotNull @Size(max = 3) List<
+                    @Pattern(regexp = "(?:HR_ADMIN|PAYROLL_ADMIN|PEOPLE_ADMIN)") String>
+                    plannedIdentityRoleCodes) {
     }
 
     record BootstrapResponse(
@@ -32,6 +37,7 @@ final class LocalSyntheticPeopleWorkforceBootstrapDtos {
             UUID providerTenantId,
             long tenantId,
             long administratorActorId,
+            List<String> plannedIdentityRoleCodes,
             UUID actorPersonPublicId,
             UUID actorWorkerPublicId,
             UUID actorAssignmentPublicId,

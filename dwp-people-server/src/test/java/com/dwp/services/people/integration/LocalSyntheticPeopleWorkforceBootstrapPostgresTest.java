@@ -39,6 +39,8 @@ class LocalSyntheticPeopleWorkforceBootstrapPostgresTest {
 
     private static final String RUN_ID = "w1-20261002t010203z-89abcdef";
     private static final long ADMINISTRATOR_ID = 1001L;
+    private static final List<String> TENANT_A_PLANNED_IDENTITY_ROLES =
+            List.of("HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN");
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES =
@@ -112,8 +114,10 @@ class LocalSyntheticPeopleWorkforceBootstrapPostgresTest {
         assertThat(response.importReplayed()).isFalse();
         assertThat(response.importedWorkerCount()).isEqualTo(3);
         assertThat(response.targetPopulationCount()).isEqualTo(2);
+        assertThat(response.plannedIdentityRoleCodes())
+                .isEqualTo(TENANT_A_PLANNED_IDENTITY_ROLES);
         assertThat(response.targetPopulationRevision()).matches(
-                "[0-9a-f]{32}:true\\|\\[\\]\\|\\[DIRECTORY, EMPLOYMENT, "
+                "[0-9a-f]{32}:true\\|\\[\\]\\|\\[DIRECTORY, EMPLOYMENT, JOB_GRADE, "
                         + "WORKER_IDENTIFIERS\\]\\|READ");
         assertThat(response.actorPersonPublicId()).isNotEqualTo(response.targetPersonPublicId());
         assertThat(response.receiptSha256()).matches("[0-9a-f]{64}");
@@ -144,6 +148,27 @@ class LocalSyntheticPeopleWorkforceBootstrapPostgresTest {
                 .isInstanceOf(BaseException.class)
                 .hasMessageContaining("one-shot runtime boundary");
         assertThat(evidenceCounts(tenantId)).isEqualTo(committed);
+    }
+
+    @Test
+    void foundationOnlyTenantBPlanCommitsPopulationWithoutJobGrade() {
+        UUID providerTenantId = UUID.fromString("10000000-0000-0000-0000-000000000103");
+        long tenantId = 9_181_003L;
+        activateTenant(providerTenantId, tenantId, "bootstrap-foundation-only");
+        LocalSyntheticPeopleWorkforceBootstrapService service = bootstrapService();
+
+        LocalSyntheticPeopleWorkforceBootstrapDtos.BootstrapResponse response =
+                transactions.execute(ignored -> service.bootstrap(
+                        request(providerTenantId, tenantId, List.of())));
+
+        assertThat(response).isNotNull();
+        assertThat(response.plannedIdentityRoleCodes()).isEmpty();
+        assertThat(response.targetPopulationCount()).isEqualTo(2);
+        assertThat(response.targetPopulationRevision()).matches(
+                "[0-9a-f]{32}:true\\|\\[\\]\\|\\[DIRECTORY, EMPLOYMENT, "
+                        + "WORKER_IDENTIFIERS\\]\\|READ");
+        assertThat(response.receiptSha256()).matches("[0-9a-f]{64}");
+        assertThat(syncRunState(tenantId)).isEqualTo("SUCCEEDED:3:3:0:0");
     }
 
     @Test
@@ -204,8 +229,16 @@ class LocalSyntheticPeopleWorkforceBootstrapPostgresTest {
     private static LocalSyntheticPeopleWorkforceBootstrapDtos.BootstrapRequest request(
             UUID providerTenantId,
             long tenantId) {
+        return request(providerTenantId, tenantId, TENANT_A_PLANNED_IDENTITY_ROLES);
+    }
+
+    private static LocalSyntheticPeopleWorkforceBootstrapDtos.BootstrapRequest request(
+            UUID providerTenantId,
+            long tenantId,
+            List<String> plannedIdentityRoleCodes) {
         return new LocalSyntheticPeopleWorkforceBootstrapDtos.BootstrapRequest(
-                RUN_ID, providerTenantId, tenantId, ADMINISTRATOR_ID);
+                RUN_ID, providerTenantId, tenantId, ADMINISTRATOR_ID,
+                plannedIdentityRoleCodes);
     }
 
     private static String syncRunState(long tenantId) {

@@ -44,8 +44,11 @@ class HrisW1SyntheticLineageTest(unittest.TestCase):
             "targetPopulationCount": 2,
             "targetPopulationRevision": (
                 "a" * 32
-                + ":true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ"
+                + ":true|[]|[DIRECTORY, EMPLOYMENT, JOB_GRADE, WORKER_IDENTIFIERS]|READ"
             ),
+            "plannedIdentityRoleCodes": [
+                "HR_ADMIN", "PAYROLL_ADMIN", "PEOPLE_ADMIN"
+            ],
             "authWorkforceBinding": {
                 "endpoint": "/internal/identity/v1/workforce-events",
                 "tokenHeader": "X-DWP-Identity-Sync-Token",
@@ -89,6 +92,7 @@ class HrisW1SyntheticLineageTest(unittest.TestCase):
             (("importedWorkerCount",), 2),
             (("targetPopulationCount",), 1),
             (("targetPopulationRevision",), "not-owner-revision"),
+            (("plannedIdentityRoleCodes",), []),
             (("authWorkforceBinding", "event", "workEmail"), "tampered@dwp.test"),
         ):
             candidate = copy.deepcopy(response)
@@ -117,6 +121,24 @@ class HrisW1SyntheticLineageTest(unittest.TestCase):
                 tenant_id=101,
                 administrator_actor_id=1001,
             )
+
+    def test_people_response_binds_lane_b_foundation_roles_without_job_grade(self):
+        response = self.workforce_response()
+        response["plannedIdentityRoleCodes"] = []
+        response["targetPopulationRevision"] = (
+            "b" * 32
+            + ":true|[]|[DIRECTORY, EMPLOYMENT, WORKER_IDENTIFIERS]|READ"
+        )
+        response["receiptSha256"] = gate.people_workforce_receipt_sha256(response)
+
+        self.assertEqual(response, gate.validate_people_workforce_bootstrap_response(
+            response,
+            run_id=self.RUN_ID,
+            lane="b",
+            provider_tenant_id=self.PROVIDER_ID,
+            tenant_id=101,
+            administrator_actor_id=1001,
+        ))
 
     def test_payroll_preflight_and_postflight_bind_exact_database_lineage(self):
         with tempfile.TemporaryDirectory() as temporary:
