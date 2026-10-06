@@ -85,9 +85,7 @@ NEGATIVE_OBSERVATION_STATES = {
 }
 NEGATIVE_OWNER_STATUS = 503
 NEGATIVE_OWNER_ERROR_CODE = "AUTHORITY_RESOLUTION_UNAVAILABLE"
-NEGATIVE_OWNER_ERROR_MESSAGE = (
-    "No current Payroll-owned legal-entity membership matches the authority."
-)
+NEGATIVE_OWNER_ERROR_MESSAGE = "Authority resolution is temporarily unavailable."
 NEGATIVE_PROJECTION_STATES = {
     "STALE": ("BUILDING->ACTIVE->SUPERSEDED", "SUPERSEDED", "EXPIRED"),
     "EXPIRED": ("BUILDING->ACTIVE", "ACTIVE", "EXPIRED"),
@@ -529,7 +527,10 @@ def gateway_session_request(
     persist_body: bool = True,
 ) -> tuple[int, dict[str, Any] | None, bytes]:
     data = None
-    headers: dict[str, str] = {}
+    headers: dict[str, str] = {
+        "X-Tenant-ID": str(session.credential.tenant_id),
+        "Accept-Language": "en",
+    }
     if payload is not None:
         data = json.dumps(payload, separators=(",", ":")).encode("utf-8")
         headers["Content-Type"] = "application/json"
@@ -3880,12 +3881,15 @@ def seed_trusted_projection_feeds(
             valid_until=valid_until,
             terminal_state=terminal,
         )
+        request_path = (
+            f"{path}?contextScopeKey={projection['contextScopeKey']}"
+        )
         status, error, body = gateway_session_request(
             state,
             sessions["A"],
             name=f"46-payroll-{evidence_state.lower()}-owner-denied",
             method="GET",
-            path=path,
+            path=request_path,
             expected_status=NEGATIVE_OWNER_STATUS,
         )
         error_code = None
@@ -3905,7 +3909,7 @@ def seed_trusted_projection_feeds(
             "assertionName": assertion_name,
             "source": "LIVE_GATEWAY_OWNER_REQUEST",
             "method": "GET",
-            "path": path,
+            "path": request_path,
             "tenantId": tenant_a.tenant_id,
             "actorId": tenant_a.administrator_user_id,
             "evidenceState": evidence_state,

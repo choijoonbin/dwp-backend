@@ -225,6 +225,35 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
         with self.assertRaises(gate.GateFailure):
             gate.resource_name("w1-20261001t050403z-0123abcd", "../postgres")
 
+    def test_gateway_session_request_binds_tenant_and_language_headers(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            (output / "http").mkdir()
+            state = self.checkpoint_state(output)
+            credential = self.checkpoint_credentials()[0]
+            opener = mock.Mock()
+            response = mock.MagicMock()
+            response.status = 200
+            response.read.return_value = b"{}"
+            response.__enter__.return_value = response
+            opener.open.return_value = response
+            session = gate.GatewayBrowserSession(credential, opener)
+
+            gate.gateway_session_request(
+                state,
+                session,
+                name="tenant-bound-request",
+                method="GET",
+                path="/api/payroll/v1/hris/payroll/foundation/configurations",
+            )
+
+            request = opener.open.call_args.args[0]
+            headers = {
+                name.lower(): value for name, value in request.header_items()
+            }
+            self.assertEqual(str(credential.tenant_id), headers["x-tenant-id"])
+            self.assertEqual("en", headers["accept-language"])
+
     def test_gateway_login_bootstraps_csrf_before_each_mutation(self):
         state = self.checkpoint_state(Path("/tmp/w1-gateway-session"))
         calls = []
@@ -415,6 +444,166 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                         gate.GateFailure, "exposed or weakened"
                     ):
                         resolve()
+
+    def test_negative_owner_requests_bind_scope_paths_and_public_message(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            state = self.checkpoint_state(Path(temporary))
+            rollout_revision = "rollout-" + "f" * 64
+            state.projection_feed["rollouts"] = {
+                "A": {"revision": rollout_revision}
+            }
+            credentials = self.checkpoint_credentials()
+            authorities = {
+                "payroll": {
+                    "scopeKey": "hcm-scope-" + "a" * 40,
+                    "decisionRevision": "psr-" + "1" * 64,
+                },
+                "time": {
+                    "scopeKey": "hcm-scope-" + "b" * 40,
+                    "decisionRevision": "psr-" + "2" * 64,
+                },
+                "payrollStale": {
+                    "scopeKey": "hcm-scope-" + "c" * 40,
+                    "decisionRevision": "psr-" + "3" * 64,
+                },
+                "payrollExpired": {
+                    "scopeKey": "hcm-scope-" + "d" * 40,
+                    "decisionRevision": "psr-" + "4" * 64,
+                },
+                "payrollRevoked": {
+                    "scopeKey": "hcm-scope-" + "e" * 40,
+                    "decisionRevision": "psr-" + "5" * 64,
+                },
+            }
+            states = ("STALE", "EXPIRED", "REVOKED")
+            authority_keys = (
+                "payrollStale",
+                "payrollExpired",
+                "payrollRevoked",
+            )
+            database_statuses = ("SUPERSEDED", "ACTIVE", "REVOKED")
+            observed_rows = iter(
+                "configured\n"
+                + "|".join(
+                    (
+                        str(uuid.uuid5(
+                            uuid.NAMESPACE_URL,
+                            f"dwp:{state.run_id}:payroll:negative:{evidence_state.lower()}",
+                        )),
+                        hashlib.sha256(
+                            f"{state.run_id}|payroll|negative|{evidence_state}".encode(
+                                "utf-8"
+                            )
+                        ).hexdigest(),
+                        database_status,
+                        "EXPIRED",
+                        authorities[authority_key]["scopeKey"],
+                        rollout_revision,
+                        authorities[authority_key]["decisionRevision"],
+                        "1",
+                    )
+                )
+                for evidence_state, authority_key, database_status in zip(
+                    states, authority_keys, database_statuses
+                )
+            )
+            stop_projection_id = str(
+                uuid.uuid5(
+                    uuid.NAMESPACE_URL,
+                    f"dwp:{state.run_id}:payroll:A:projection",
+                )
+            )
+            requested_paths = []
+            expected_public_message = (
+                "Authority resolution is temporarily unavailable."
+            )
+            self.assertEqual(
+                expected_public_message, gate.NEGATIVE_OWNER_ERROR_MESSAGE
+            )
+            public_error = {
+                "status": "ERROR",
+                "success": False,
+                "errorCode": gate.NEGATIVE_OWNER_ERROR_CODE,
+                "message": expected_public_message,
+            }
+            response_body = json.dumps(public_error).encode("utf-8")
+
+            class StopAfterNegativeObservations(RuntimeError):
+                pass
+
+            def psql_response(*arguments, **_keywords):
+                sql = arguments[4]
+                if stop_projection_id in sql:
+                    raise StopAfterNegativeObservations()
+                if "SELECT projection.projection_id::text" in sql:
+                    return next(observed_rows)
+                return ""
+
+            def gateway_response(_state, _session, **arguments):
+                self.assertEqual(
+                    gate.NEGATIVE_OWNER_STATUS, arguments["expected_status"]
+                )
+                requested_paths.append(arguments["path"])
+                return gate.NEGATIVE_OWNER_STATUS, public_error, response_body
+
+            with mock.patch.object(
+                gate, "psql_as", side_effect=psql_response
+            ), mock.patch.object(
+                gate, "gateway_session_request", side_effect=gateway_response
+            ):
+                with self.assertRaises(StopAfterNegativeObservations):
+                    gate.seed_trusted_projection_feeds(
+                        "test-postgres",
+                        state,
+                        gate.RuntimeSecrets.generate(),
+                        credentials,
+                        authorities,
+                        {
+                            "A": mock.sentinel.session_a,
+                            "B": mock.sentinel.session_b,
+                        },
+                    )
+
+            expected_paths = [
+                (
+                    "/api/payroll/v1/hris/payroll/foundation/configurations/"
+                    + str(uuid.uuid5(
+                        uuid.NAMESPACE_URL,
+                        f"dwp:{state.run_id}:negative:stale",
+                    ))
+                    + "?contextScopeKey="
+                    + authorities["payrollStale"]["scopeKey"]
+                ),
+                (
+                    "/api/payroll/v1/hris/payroll/foundation/configurations/"
+                    + str(uuid.uuid5(
+                        uuid.NAMESPACE_URL,
+                        f"dwp:{state.run_id}:negative:expired",
+                    ))
+                    + "/versions?contextScopeKey="
+                    + authorities["payrollExpired"]["scopeKey"]
+                ),
+                (
+                    "/api/payroll/v1/hris/payroll/foundation/receipts/"
+                    + str(uuid.uuid5(
+                        uuid.NAMESPACE_URL,
+                        f"dwp:{state.run_id}:negative:revoked",
+                    ))
+                    + "?contextScopeKey="
+                    + authorities["payrollRevoked"]["scopeKey"]
+                ),
+            ]
+            self.assertEqual(expected_paths, requested_paths)
+            observations = state.projection_feed["negativeObservations"][
+                "observations"
+            ]
+            self.assertEqual(
+                expected_paths, [value["path"] for value in observations]
+            )
+            self.assertEqual(
+                [expected_public_message] * 3,
+                [value["ownerErrorMessage"] for value in observations],
+            )
 
     def test_output_directory_must_be_new_and_exactly_bound_to_run(self):
         run_id = "w1-20261001t050403z-0123abcd"
