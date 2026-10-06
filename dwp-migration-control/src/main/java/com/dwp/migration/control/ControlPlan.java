@@ -209,6 +209,17 @@ record ControlPlan(
         };
     }
 
+    /** Narrow write ACLs required only to let PostgreSQL take row locks for reads. */
+    List<RuntimeColumnUpdateGrant> runtimeColumnUpdateGrants() {
+        if (!"time".equals(service)) {
+            return List.of();
+        }
+        return List.of(
+                projectionRuntimeLockGrant("tim_target_population_projections"),
+                projectionRuntimeLockGrant("tim_target_population_actor_grants"),
+                projectionRuntimeLockGrant("tim_target_population_members"));
+    }
+
     static ControlPlan forService(String service) {
         return switch (service) {
             case "auth" -> single(
@@ -428,6 +439,10 @@ record ControlPlan(
     private static RuntimeTableDenial projectionRuntimeReadOnly(String table) {
         return new RuntimeTableDenial(
                 "public", table, List.of("INSERT", "UPDATE", "DELETE"));
+    }
+
+    private static RuntimeColumnUpdateGrant projectionRuntimeLockGrant(String table) {
+        return new RuntimeColumnUpdateGrant("public", table, List.of("updated_at"));
     }
 
     private static Set<AllowedPrivilege> payrollPublisherPrivileges() {

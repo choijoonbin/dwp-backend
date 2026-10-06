@@ -296,6 +296,22 @@ class MigrationControlMainTest {
     }
 
     @Test
+    void timeControlDeclaresOnlyRuntimeRowLockColumnUpdates() {
+        assertEquals(
+                Set.of(
+                        "public.tim_target_population_projections:updated_at",
+                        "public.tim_target_population_actor_grants:updated_at",
+                        "public.tim_target_population_members:updated_at"),
+                ControlPlan.forService("time").runtimeColumnUpdateGrants().stream()
+                        .map(grant -> grant.schema() + "." + grant.table() + ":"
+                                + String.join(",", grant.columns()))
+                        .collect(java.util.stream.Collectors.toSet()));
+        assertEquals(
+                List.of(),
+                ControlPlan.forService("payroll").runtimeColumnUpdateGrants());
+    }
+
+    @Test
     void platformControlPinsDigestWrapperAndDeniesDirectAuditMutation() {
         ControlPlan platform = ControlPlan.forService("platform");
 

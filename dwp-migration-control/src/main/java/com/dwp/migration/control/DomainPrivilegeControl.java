@@ -84,6 +84,17 @@ final class DomainPrivilegeControl {
                     + " ON TABLE " + denial.qualifiedTable() + " FROM PUBLIC, "
                     + quoteIdentifier(environment.runtimePrincipal()));
         }
+        List<RuntimeColumnUpdateGrant> runtimeColumnUpdateGrants =
+                environment.plan().runtimeColumnUpdateGrants();
+        if (!runtimeColumnUpdateGrants.isEmpty()) {
+            TimeRuntimeProjectionLockControl.verify(
+                    connection, environment, runtimeColumnUpdateGrants);
+        }
+        for (RuntimeColumnUpdateGrant grant : runtimeColumnUpdateGrants) {
+            DatabaseControl.execute(connection, "GRANT UPDATE (" + grant.columnList()
+                    + ") ON TABLE " + grant.qualifiedTable() + " TO "
+                    + quoteIdentifier(environment.runtimePrincipal()));
+        }
         if (!"notification".equals(environment.plan().service())) {
             DomainEventLedgerAclControl.normalize(connection, environment);
         }

@@ -192,6 +192,11 @@ class ProjectionPublisherMigrationControlPostgresTest {
                     publisherInsert);
             assertPublisherCanInsert(
                     postgres, publisher, tenantSetting, publisherInsert);
+            if ("time".equals(service)) {
+                assertTimeRuntimeLockBoundary(postgres, runtime, publisher);
+                assertTimeRuntimePrincipalDriftRejectedBeforeGrant(
+                        postgres, configured, runtime);
+            }
 
             try (Connection admin = connection(
                     postgres.getJdbcUrl(), ADMIN, ADMIN_PASSWORD)) {
@@ -497,10 +502,250 @@ class ProjectionPublisherMigrationControlPostgresTest {
     }
 
     private static void assertDmlDenied(java.sql.Statement statement, String sql) {
+        assertSqlState(statement, sql, "42501");
+    }
+
+    private static void assertSqlState(
+            java.sql.Statement statement, String sql, String expectedSqlState) {
         SQLException denied = assertThrows(
                 SQLException.class,
                 () -> statement.execute(sql));
-        assertEquals("42501", denied.getSQLState());
+        assertEquals(expectedSqlState, denied.getSQLState());
+    }
+
+    private static void assertTimeRuntimeLockBoundary(
+            PostgreSQLContainer<?> postgres,
+            String runtime,
+            String publisher) throws Exception {
+        List<String> projectionTables = List.of(
+                "tim_target_population_actor_grants",
+                "tim_target_population_members",
+                "tim_target_population_projections");
+        try (Connection admin = connection(
+                postgres.getJdbcUrl(), ADMIN, ADMIN_PASSWORD);
+                var tablePrivilege = admin.prepareStatement("""
+                        SELECT table_name
+                          FROM unnest(?::text[]) table_name
+                         WHERE has_table_privilege(
+                                   ?, 'public.' || table_name, 'UPDATE')
+                         ORDER BY table_name
+                        """);
+                var columnPrivilege = admin.prepareStatement("""
+                        SELECT columns.table_name || '|' || columns.column_name
+                          FROM information_schema.columns columns
+                         WHERE columns.table_schema='public'
+                           AND columns.table_name=ANY (?::text[])
+                           AND has_column_privilege(
+                                   ?, format('%I.%I', columns.table_schema,
+                                             columns.table_name),
+                                   columns.column_name, 'UPDATE')
+                         ORDER BY columns.table_name, columns.ordinal_position
+                        """)) {
+            java.sql.Array tables = admin.createArrayOf(
+                    "text", projectionTables.toArray(String[]::new));
+            tablePrivilege.setArray(1, tables);
+            tablePrivilege.setString(2, runtime);
+            assertEquals(List.of(), stringRows(tablePrivilege.executeQuery()));
+            columnPrivilege.setArray(1, tables);
+            columnPrivilege.setString(2, runtime);
+            assertEquals(
+                    List.of(
+                            "tim_target_population_actor_grants|updated_at",
+                            "tim_target_population_members|updated_at",
+                            "tim_target_population_projections|updated_at"),
+                    stringRows(columnPrivilege.executeQuery()));
+        }
+
+        try (Connection publisherConnection = connection(
+                postgres.getJdbcUrl(), publisher, PUBLISHER_PASSWORD);
+                var statement = publisherConnection.createStatement()) {
+            statement.execute("SET dwp.tenant_id = '1'");
+            assertEquals(1, statement.executeUpdate("""
+                    INSERT INTO public.tim_target_population_actor_grants (
+                        tenant_id, actor_id, gateway_scope_key,
+                        population_public_id, population_revision, grant_revision,
+                        lifecycle_state, valid_from, valid_to, source_digest,
+                        updated_by)
+                    VALUES (
+                        1, 11,
+                        'hcm-scope-4444444444444444444444444444444444444444',
+                        '20000000-0000-0000-0000-000000000001', 1, 1,
+                        'ACTIVE', CURRENT_TIMESTAMP, NULL,
+                        '5555555555555555555555555555555555555555555555555555555555555555',
+                        11)
+                    """));
+            assertEquals(1, statement.executeUpdate("""
+                    INSERT INTO public.tim_target_population_members (
+                        tenant_id, population_public_id, population_revision,
+                        worker_public_id, people_assignment_public_id,
+                        people_assignment_revision, membership_revision,
+                        lifecycle_state, effective_from, effective_to,
+                        source_digest, updated_by)
+                    VALUES (
+                        1, '20000000-0000-0000-0000-000000000001', 1,
+                        '30000000-0000-0000-0000-000000000001',
+                        '40000000-0000-0000-0000-000000000001', 1, 1,
+                        'ACTIVE', CURRENT_DATE, NULL,
+                        '6666666666666666666666666666666666666666666666666666666666666666',
+                        11)
+                    """));
+        }
+
+        try (Connection runtimeConnection = connection(
+                postgres.getJdbcUrl(), runtime, RUNTIME_PASSWORD);
+                var statement = runtimeConnection.createStatement()) {
+            statement.execute("SET dwp.tenant_id = '1'");
+            try (var result = statement.executeQuery("""
+                    SELECT 1
+                      FROM public.tim_target_population_projections p
+                      JOIN public.tim_target_population_actor_grants g
+                        ON g.tenant_id=p.tenant_id
+                       AND g.population_public_id=p.population_public_id
+                       AND g.population_revision=p.projection_revision
+                      JOIN public.tim_target_population_members m
+                        ON m.tenant_id=p.tenant_id
+                       AND m.population_public_id=p.population_public_id
+                       AND m.population_revision=p.projection_revision
+                     WHERE p.tenant_id=1
+                       AND p.population_public_id=
+                           '20000000-0000-0000-0000-000000000001'
+                       AND g.actor_id=11
+                       AND g.gateway_scope_key=
+                           'hcm-scope-4444444444444444444444444444444444444444'
+                       AND m.people_assignment_public_id=
+                           '40000000-0000-0000-0000-000000000001'
+                     FOR SHARE OF p, g, m
+                    """)) {
+                assertTrue(result.next());
+                assertEquals(1, result.getInt(1));
+                assertFalse(result.next());
+            }
+            assertDmlDenied(
+                    statement,
+                    "UPDATE public.tim_target_population_projections "
+                            + "SET projection_revision=projection_revision");
+            assertDmlDenied(
+                    statement,
+                    "UPDATE public.tim_target_population_actor_grants "
+                            + "SET grant_revision=grant_revision");
+            assertDmlDenied(
+                    statement,
+                    "UPDATE public.tim_target_population_members "
+                            + "SET membership_revision=membership_revision");
+            for (String table : projectionTables) {
+                assertSqlState(
+                        statement,
+                        "UPDATE public." + table
+                                + " SET updated_at=updated_at WHERE tenant_id=1",
+                        "P0001");
+            }
+        }
+    }
+
+    private static void assertTimeRuntimePrincipalDriftRejectedBeforeGrant(
+            PostgreSQLContainer<?> postgres,
+            ControlEnvironment environment,
+            String runtime) throws Exception {
+        List<String> projectionTables = List.of(
+                "tim_target_population_actor_grants",
+                "tim_target_population_members",
+                "tim_target_population_projections");
+        try (Connection admin = connection(
+                postgres.getJdbcUrl(), ADMIN, ADMIN_PASSWORD);
+                var statement = admin.createStatement()) {
+            admin.setAutoCommit(false);
+            try {
+                List<RuntimeColumnUpdateGrant> unguardedGrants = new ArrayList<>(
+                        environment.plan().runtimeColumnUpdateGrants());
+                unguardedGrants.add(new RuntimeColumnUpdateGrant(
+                        "public",
+                        "tim_target_population_projections",
+                        List.of("source_digest")));
+                IllegalStateException unguardedGrantFailure = assertThrows(
+                        IllegalStateException.class,
+                        () -> TimeRuntimeProjectionLockControl.verify(
+                                admin, environment, unguardedGrants));
+                assertTrue(unguardedGrantFailure.getMessage().contains(
+                        "runtime column UPDATE grants differ"));
+                statement.execute("""
+                        CREATE OR REPLACE FUNCTION
+                            public.tim_reject_runtime_projection_update()
+                        RETURNS TRIGGER
+                        LANGUAGE plpgsql
+                        SECURITY DEFINER
+                        SET search_path = pg_catalog, public, pg_temp
+                        AS $function$
+                        BEGIN
+                            IF session_user = 'dwp_time_runtime_stale'
+                               OR current_setting('role', true) = 'dwp_time_runtime_stale' THEN
+                                RAISE EXCEPTION 'TIM runtime cannot mutate target-population authority projections';
+                            END IF;
+                            RETURN NEW;
+                        END;
+                        $function$
+                        """);
+                for (String table : projectionTables) {
+                    statement.execute("REVOKE UPDATE (updated_at) ON TABLE public."
+                            + table + " FROM " + runtime);
+                }
+                IllegalStateException failure = assertThrows(
+                        IllegalStateException.class,
+                        () -> DomainPrivilegeControl.normalize(admin, environment));
+                assertTrue(failure.getMessage().contains(
+                        "TIME runtime projection lock boundary is invalid"));
+                assertEquals(
+                        List.of(),
+                        runtimeUpdateColumns(
+                                admin, runtime, projectionTables));
+            } finally {
+                admin.rollback();
+            }
+            try {
+                statement.execute("""
+                        ALTER TABLE public.tim_target_population_projections
+                        DISABLE TRIGGER trg_tim_reject_runtime_population_update
+                        """);
+                for (String table : projectionTables) {
+                    statement.execute("REVOKE UPDATE (updated_at) ON TABLE public."
+                            + table + " FROM " + runtime);
+                }
+                IllegalStateException failure = assertThrows(
+                        IllegalStateException.class,
+                        () -> DomainPrivilegeControl.normalize(admin, environment));
+                assertTrue(failure.getMessage().contains(
+                        "TIME runtime projection lock boundary is invalid"));
+                assertEquals(
+                        List.of(),
+                        runtimeUpdateColumns(
+                                admin, runtime, projectionTables));
+            } finally {
+                admin.rollback();
+            }
+        }
+    }
+
+    private static List<String> runtimeUpdateColumns(
+            Connection connection,
+            String runtime,
+            List<String> tables) throws SQLException {
+        try (var statement = connection.prepareStatement("""
+                SELECT columns.table_name || '|' || columns.column_name
+                  FROM information_schema.columns columns
+                 WHERE columns.table_schema='public'
+                   AND columns.table_name=ANY (?::text[])
+                   AND has_column_privilege(
+                           ?, format('%I.%I', columns.table_schema,
+                                     columns.table_name),
+                           columns.column_name, 'UPDATE')
+                 ORDER BY columns.table_name, columns.ordinal_position
+                """)) {
+            statement.setArray(
+                    1,
+                    connection.createArrayOf(
+                            "text", tables.toArray(String[]::new)));
+            statement.setString(2, runtime);
+            return stringRows(statement.executeQuery());
+        }
     }
 
     private static void assertPublisherCanInsert(
