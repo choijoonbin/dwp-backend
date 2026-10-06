@@ -318,6 +318,7 @@ class PayrollFoundationControllerContractTest {
                 .andExpect(jsonPath("$.data.configuration").doesNotExist())
                 .andExpect(jsonPath("$.data.version").value(3))
                 .andExpect(jsonPath("$.data.status").value("SIMULATED"))
+                .andExpect(jsonPath("$.data.publisherId").value(nullValue()))
                 .andExpect(jsonPath("$.data.definition.effectivePeriod.endsOn")
                         .value("2026-12-31"))
                 .andExpect(jsonPath("$.data.definition.legalEntity.countryPack.version")

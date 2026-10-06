@@ -409,7 +409,7 @@ class JdbcPayrollFoundationStore implements PayrollFoundationStore {
         String simulationJson = row.getString("simulation_report");
         SimulationReport simulation = simulationJson == null ? null
                 : fromJson(simulationJson, SimulationReport.class);
-        long publisher = row.getLong("publisher_id");
+        Long publisherId = row.getObject("publisher_id", Long.class);
         return new ConfigurationSnapshot(
                 row.getLong("tenant_id"),
                 row.getObject("configuration_id", UUID.class),
@@ -417,7 +417,7 @@ class JdbcPayrollFoundationStore implements PayrollFoundationStore {
                 Lifecycle.valueOf(row.getString("lifecycle_state")),
                 definition,
                 row.getLong("author_id"),
-                row.wasNull() ? null : publisher,
+                publisherId,
                 row.getObject("created_at", java.time.OffsetDateTime.class).toInstant(),
                 row.getObject("updated_at", java.time.OffsetDateTime.class).toInstant(),
                 simulation,

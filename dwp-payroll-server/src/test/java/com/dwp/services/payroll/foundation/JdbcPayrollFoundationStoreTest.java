@@ -168,7 +168,18 @@ class JdbcPayrollFoundationStoreTest {
                 author(1, 101), createCommandId);
         assertThat(recoveredCreate.receipt().resultVersion()).isEqualTo(1L);
         assertThat(recoveredCreate.configuration().version()).isEqualTo(1L);
-        assertThat(store.current(1, firstId).orElseThrow().version()).isEqualTo(2L);
+        assertThat(store.current(1, firstId).orElseThrow())
+                .satisfies(configuration -> {
+                    assertThat(configuration.version()).isEqualTo(2L);
+                    assertThat(configuration.publisherId()).isNull();
+                });
+        assertThat(store.currentForTenant(1))
+                .filteredOn(configuration -> configuration.configurationId().equals(firstId))
+                .extracting(configuration -> configuration.publisherId())
+                .containsExactly((Long) null);
+        assertThat(store.versions(1, firstId))
+                .extracting(configuration -> configuration.publisherId())
+                .containsOnlyNulls();
         assertThatThrownBy(() -> adminJdbc.update("""
                 UPDATE pay_foundation_command_receipts
                    SET receipt_status = 'RESULT_UNKNOWN',
@@ -211,6 +222,9 @@ class JdbcPayrollFoundationStoreTest {
                 .containsExactly(
                         Lifecycle.PUBLISHED, Lifecycle.SIMULATED,
                         Lifecycle.DRAFT, Lifecycle.DRAFT);
+        assertThat(store.versions(1, secondId))
+                .extracting(snapshot -> snapshot.publisherId())
+                .containsExactly(303L, null, null, null);
         assertThat(store.current(2, secondId)).isEmpty();
         assertThat(service.receipt(
                 publisher(1, 303), published.receipt().commandId()).receipt())
