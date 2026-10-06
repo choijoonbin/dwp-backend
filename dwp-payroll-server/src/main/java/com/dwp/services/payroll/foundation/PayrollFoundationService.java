@@ -81,12 +81,12 @@ class PayrollFoundationService {
         return new WorkspaceView(
                 configurations,
                 new AccessProjection(
-                        actor.allowsAny(FoundationAction.EDIT),
+                        actor.projectsAny(FoundationAction.CREATE),
                         false,
                         false,
                         false,
                         false,
-                        actor.allowsAny(FoundationAction.RECONCILE),
+                        actor.projectsAny(FoundationAction.RECONCILE),
                         "NO_CONFIGURATION_SELECTED"),
                 List.of());
     }
@@ -121,7 +121,7 @@ class PayrollFoundationService {
         if (existing.isPresent()) {
             return existing.get();
         }
-        actor.require(FoundationAction.EDIT, definition.legalEntity().id());
+        actor.require(FoundationAction.CREATE, definition.legalEntity().id());
         rejectOverlap(actor.tenantId(), null, definition);
         ReservationOutcome reservation = reserve(
                 actor, commandId, CommandType.CREATE, digest, null, null, correlationId);
@@ -153,8 +153,8 @@ class PayrollFoundationService {
             return existing.get();
         }
         ConfigurationSnapshot current = requireConfiguration(actor.tenantId(), configurationId);
-        actor.require(FoundationAction.EDIT, current.definition().legalEntity().id());
-        actor.require(FoundationAction.EDIT, definition.legalEntity().id());
+        actor.require(FoundationAction.UPDATE, current.definition().legalEntity().id());
+        actor.require(FoundationAction.UPDATE, definition.legalEntity().id());
         requireExpectedVersion(current, expectedVersion);
         requireEditable(current);
         rejectOverlap(actor.tenantId(), configurationId, definition);
@@ -438,7 +438,8 @@ class PayrollFoundationService {
                     snapshot.configurationId(), snapshot.version(), clock.instant());
         }
         FoundationAction action = switch (effective.commandType()) {
-            case CREATE, UPDATE -> FoundationAction.EDIT;
+            case CREATE -> FoundationAction.CREATE;
+            case UPDATE -> FoundationAction.UPDATE;
             case SIMULATE -> FoundationAction.SIMULATE;
             case PUBLISH -> FoundationAction.PUBLISH;
             case REVERSE -> FoundationAction.REVERSE;
@@ -468,10 +469,10 @@ class PayrollFoundationService {
             CommandReceipt receipt,
             Optional<ConfigurationSnapshot> configuration) {
         if (receipt.actorId() == actor.actorId()) {
-            if (configuration.isPresent()
-                    && !actor.scope().allows(
-                    configuration.get().definition().legalEntity().id())) {
-                throw new BaseException(ErrorCode.FORBIDDEN, "Receipt is outside actor scope.");
+            if (configuration.isPresent()) {
+                actor.require(
+                        FoundationAction.VIEW,
+                        configuration.get().definition().legalEntity().id());
             }
             return;
         }
@@ -496,7 +497,7 @@ class PayrollFoundationService {
     private void requireReconcileAuthority(
             Actor actor, Optional<ConfigurationSnapshot> configuration) {
         if (configuration.isPresent()) {
-            actor.require(
+            actor.requireProjected(
                     FoundationAction.RECONCILE,
                     configuration.get().definition().legalEntity().id());
         } else {
@@ -532,12 +533,12 @@ class PayrollFoundationService {
 
     private ConfigurationView view(Actor actor, ConfigurationSnapshot snapshot) {
         UUID legalEntityId = snapshot.definition().legalEntity().id();
-        boolean canCreate = actor.allows(FoundationAction.EDIT, legalEntityId);
+        boolean canCreate = actor.projects(FoundationAction.CREATE, legalEntityId);
         boolean editableState = snapshot.status() == Lifecycle.DRAFT
                 || snapshot.status() == Lifecycle.SIMULATED;
         boolean authorPublisherConflict = snapshot.authorId() == actor.actorId();
         boolean simulationReady = hasExactSuccessfulSimulation(snapshot);
-        boolean publishPermission = actor.allows(FoundationAction.PUBLISH, legalEntityId);
+        boolean publishPermission = actor.projects(FoundationAction.PUBLISH, legalEntityId);
         DependencyFreshness dependencyFreshness = dependencyFreshness(snapshot);
         String publishDenial = null;
         if (!publishPermission) {
@@ -551,14 +552,14 @@ class PayrollFoundationService {
         }
         AccessProjection access = new AccessProjection(
                 canCreate,
-                editableState && actor.allows(FoundationAction.EDIT, legalEntityId),
-                editableState && actor.allows(FoundationAction.SIMULATE, legalEntityId),
+                editableState && actor.projects(FoundationAction.UPDATE, legalEntityId),
+                editableState && actor.projects(FoundationAction.SIMULATE, legalEntityId),
                 publishPermission && !authorPublisherConflict && simulationReady
                         && dependencyFreshness.state() == FreshnessState.LIVE,
                 snapshot.status() == Lifecycle.PUBLISHED
-                        && actor.allows(FoundationAction.REVERSE, legalEntityId)
+                        && actor.projects(FoundationAction.REVERSE, legalEntityId)
                         && !authorPublisherConflict,
-                actor.allows(FoundationAction.RECONCILE, legalEntityId),
+                actor.projects(FoundationAction.RECONCILE, legalEntityId),
                 publishDenial);
         return new ConfigurationView(
                 snapshot.configurationId(), snapshot.version(), snapshot.status(),

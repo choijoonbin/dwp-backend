@@ -95,9 +95,9 @@ class PayrollFoundationControllerContractTest {
                 "NO_CONFIGURATION_SELECTED"),
                 List.of(new PartialFailure("DEPENDENCIES", "UNAVAILABLE"))));
 
-        mvc.perform(headers(
+        mvc.perform(verifiedHeaders(
                         get("/v1/hris/payroll/foundation/configurations"),
-                        101, PayrollFoundationRoute.LIST))
+                        101, PayrollFoundationRoute.LIST, ownerPermissions()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.configurations", hasSize(0)))
                 .andExpect(jsonPath("$.data.access.canCreate").value(true))
@@ -117,7 +117,18 @@ class PayrollFoundationControllerContractTest {
         ArgumentCaptor<PayrollFoundationAccess.Actor> actor =
                 ArgumentCaptor.forClass(PayrollFoundationAccess.Actor.class);
         verify(service).list(actor.capture());
-        assertThat(actor.getValue().purpose()).isEqualTo("PAYROLL_AUDIT");
+        assertThat(actor.getValue().executionActions())
+                .containsExactly(PayrollFoundationModels.FoundationAction.VIEW);
+        assertThat(actor.getValue().projectedActions()).containsExactlyInAnyOrder(
+                PayrollFoundationModels.FoundationAction.VIEW,
+                PayrollFoundationModels.FoundationAction.CREATE,
+                PayrollFoundationModels.FoundationAction.UPDATE,
+                PayrollFoundationModels.FoundationAction.SIMULATE,
+                PayrollFoundationModels.FoundationAction.PUBLISH,
+                PayrollFoundationModels.FoundationAction.REVERSE,
+                PayrollFoundationModels.FoundationAction.RECONCILE);
+        assertThat(actor.getValue().executionPurpose()).isEqualTo("PAYROLL_CONFIGURATION");
+        assertThat(actor.getValue().projectionPurpose()).isEqualTo("PAYROLL_CONFIGURATION");
         assertThat(actor.getValue().scope().allLegalEntities()).isFalse();
         assertThat(actor.getValue().scope().legalEntityIds())
                 .containsExactly(LEGAL_ENTITY_ID);
@@ -155,7 +166,7 @@ class PayrollFoundationControllerContractTest {
                         .header("X-DWP-User-ID", 101)
                         .header("X-DWP-Roles", "CONFIGURATION_AUTHOR")
                         .header("X-DWP-Permissions",
-                                "APP.HRIS:VIEW PAYROLL_FOUNDATION:EDIT")
+                                "APP.HRIS:VIEW PAYROLL_FOUNDATION:CREATE")
                         .header("X-DWP-Purpose", "PAYROLL_CONFIGURATION")
                         .header("X-DWP-Legal-Entity-Scope", "*"))
                 .andExpect(status().isServiceUnavailable())
@@ -406,9 +417,9 @@ class PayrollFoundationControllerContractTest {
         when(service.receipt(any(), eq(COMMAND_ID))).thenReturn(result);
         when(service.reconcile(any(), eq(COMMAND_ID))).thenReturn(result);
 
-        mvc.perform(headers(get(
+        mvc.perform(verifiedHeaders(get(
                         "/v1/hris/payroll/foundation/receipts/{id}", COMMAND_ID),
-                202, PayrollFoundationRoute.RECEIPT))
+                202, PayrollFoundationRoute.RECEIPT, ownerPermissions()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.receipt.commandId").value(COMMAND_ID.toString()))
                 .andExpect(jsonPath("$.data.receipt.commandType").value("PUBLISH"))
@@ -423,6 +434,19 @@ class PayrollFoundationControllerContractTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.receipt.status").value("RESULT_UNKNOWN"))
                 .andExpect(jsonPath("$.data.configuration.access.canReconcile").value(true));
+
+        ArgumentCaptor<PayrollFoundationAccess.Actor> receiptActor =
+                ArgumentCaptor.forClass(PayrollFoundationAccess.Actor.class);
+        verify(service).receipt(receiptActor.capture(), eq(COMMAND_ID));
+        assertThat(receiptActor.getValue().executionActions())
+                .containsExactly(PayrollFoundationModels.FoundationAction.VIEW);
+        assertThat(receiptActor.getValue().executionPurpose()).isEqualTo("PAYROLL_AUDIT");
+        assertThat(receiptActor.getValue().projectionPurpose())
+                .isEqualTo("PAYROLL_CONFIGURATION");
+        assertThat(receiptActor.getValue().allows(
+                PayrollFoundationModels.FoundationAction.PUBLISH, LEGAL_ENTITY_ID)).isFalse();
+        assertThat(receiptActor.getValue().projects(
+                PayrollFoundationModels.FoundationAction.PUBLISH, LEGAL_ENTITY_ID)).isTrue();
     }
 
     @Test
@@ -476,6 +500,13 @@ class PayrollFoundationControllerContractTest {
                 actorId,
                 route,
                 "APP.HCM:VIEW," + route.capability());
+    }
+
+    private String ownerPermissions() {
+        return "APP.HCM:VIEW,DATA.HR_PAY:VIEW,DATA.HR_PAY:CREATE,"
+                + "DATA.HR_PAY:UPDATE,DATA.HR_PAY:SIMULATE,DATA.HR_PAY:PUBLISH,"
+                + "DATA.HR_PAY:REVERSE,DATA.HR_PAY:RECONCILE,"
+                + "DATA.HR_PAY:MANAGE,DATA.HR_PAY:APPROVE,DATA.HR_PAY:UNKNOWN";
     }
 
     private MockHttpServletRequestBuilder verifiedHeaders(

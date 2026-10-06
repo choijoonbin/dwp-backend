@@ -18,13 +18,15 @@ class PayrollFoundationAccessPolicyTest {
     void compatibilityPolicyUsesVerifiedPermissionPurposeAndScopeNotRoleName() {
         PayrollFoundationAccess.Actor actor = PayrollFoundationAccess.actor(
                 42L, 700L, "TENANT_DEFINED_PAYROLL_STEWARD",
-                "APP.HRIS:VIEW PAYROLL_FOUNDATION:VIEW PAYROLL_FOUNDATION:EDIT",
+                "APP.HRIS:VIEW PAYROLL_FOUNDATION:VIEW "
+                        + "PAYROLL_FOUNDATION:CREATE PAYROLL_FOUNDATION:UPDATE",
                 "PAYROLL_CONFIGURATION", LEGAL_ENTITY_ID.toString());
 
-        assertThat(actor.allows(FoundationAction.EDIT, LEGAL_ENTITY_ID)).isTrue();
+        assertThat(actor.allows(FoundationAction.CREATE, LEGAL_ENTITY_ID)).isTrue();
+        assertThat(actor.allows(FoundationAction.UPDATE, LEGAL_ENTITY_ID)).isTrue();
         assertThatThrownBy(() -> PayrollFoundationAccess.actor(
                 42L, 700L, "TENANT_DEFINED_PAYROLL_STEWARD",
-                "APP.HRIS:VIEW OTHER_RESOURCE:EDIT",
+                "APP.HRIS:VIEW OTHER_RESOURCE:CREATE",
                 "PAYROLL_CONFIGURATION", LEGAL_ENTITY_ID.toString()))
                 .isInstanceOf(BaseException.class);
     }
@@ -33,7 +35,7 @@ class PayrollFoundationAccessPolicyTest {
     void requiresBothHrisEntitlementAndModuleAction() {
         assertThatThrownBy(() -> PayrollFoundationAccess.actor(
                 42L, 700L, "TENANT_DEFINED_PAYROLL_STEWARD",
-                "PAYROLL_FOUNDATION:EDIT",
+                "PAYROLL_FOUNDATION:CREATE",
                 "PAYROLL_CONFIGURATION", LEGAL_ENTITY_ID.toString()))
                 .isInstanceOf(BaseException.class);
         assertThatThrownBy(() -> PayrollFoundationAccess.actor(
@@ -44,16 +46,16 @@ class PayrollFoundationAccessPolicyTest {
 
         assertThatThrownBy(() -> PayrollFoundationAccess.actor(
                 42L, 700L, "TENANT_DEFINED_PAYROLL_STEWARD",
-                "APP.HCM:VIEW PAYROLL_FOUNDATION:EDIT",
+                "APP.HCM:VIEW PAYROLL_FOUNDATION:CREATE",
                 "PAYROLL_CONFIGURATION", LEGAL_ENTITY_ID.toString()))
                 .isInstanceOf(BaseException.class);
 
         PayrollFoundationAccess.Actor actor = PayrollFoundationAccess.actor(
                 42L, 700L, "TENANT_DEFINED_PAYROLL_STEWARD",
-                "APP.HRIS:VIEW PAYROLL_FOUNDATION:EDIT",
+                "APP.HRIS:VIEW PAYROLL_FOUNDATION:CREATE",
                 "PAYROLL_CONFIGURATION", LEGAL_ENTITY_ID.toString());
 
-        assertThat(actor.allows(FoundationAction.EDIT, LEGAL_ENTITY_ID)).isTrue();
+        assertThat(actor.allows(FoundationAction.CREATE, LEGAL_ENTITY_ID)).isTrue();
     }
 
     @Test
@@ -67,19 +69,19 @@ class PayrollFoundationAccessPolicyTest {
                 Set.of("CUSTOM_AUDIT"),
                 Map.of(
                         "TENANT_STEWARD", Set.of(
-                                FoundationAction.VIEW, FoundationAction.EDIT),
+                                FoundationAction.VIEW, FoundationAction.UPDATE),
                         "TENANT_REVIEWER", Set.of(FoundationAction.PUBLISH)),
                 Map.of());
         PayrollFoundationAccessPolicyProvider provider = tenantId -> custom;
 
         PayrollFoundationAccess.Actor actor = PayrollFoundationAccess.actor(
                 42L, 700L, "TENANT_STEWARD",
-                "TENANT_APP:VIEW TENANT_PAY:VIEW TENANT_PAY:EDIT",
+                "TENANT_APP:VIEW TENANT_PAY:VIEW TENANT_PAY:UPDATE",
                 "CUSTOM_CONFIG", LEGAL_ENTITY_ID.toString(),
                 provider.policyFor(42));
 
         assertThat(actor.allows(FoundationAction.VIEW, LEGAL_ENTITY_ID)).isTrue();
-        assertThat(actor.allows(FoundationAction.EDIT, LEGAL_ENTITY_ID)).isTrue();
+        assertThat(actor.allows(FoundationAction.UPDATE, LEGAL_ENTITY_ID)).isTrue();
         assertThat(actor.allows(FoundationAction.PUBLISH, LEGAL_ENTITY_ID)).isFalse();
     }
 
@@ -92,12 +94,12 @@ class PayrollFoundationAccessPolicyTest {
                 Set.of("TENANT_APP:VIEW"),
                 Set.of("CUSTOM_CONFIG"),
                 Set.of("CUSTOM_AUDIT"),
-                Map.of("TENANT_STEWARD", Set.of(FoundationAction.EDIT)),
+                Map.of("TENANT_STEWARD", Set.of(FoundationAction.UPDATE)),
                 Map.of());
 
         assertThatThrownBy(() -> PayrollFoundationAccess.actor(
                 42L, 700L, "TENANT_STEWARD",
-                "TENANT_APP:VIEW PAYROLL_FOUNDATION:EDIT",
+                "TENANT_APP:VIEW PAYROLL_FOUNDATION:UPDATE",
                 "PAYROLL_CONFIGURATION", "*", custom))
                 .isInstanceOf(BaseException.class);
     }
@@ -120,15 +122,15 @@ class PayrollFoundationAccessPolicyTest {
                 Set.of("TENANT_APP:VIEW"),
                 Set.of("CUSTOM_CONFIG"),
                 Set.of("CUSTOM_AUDIT"),
-                Map.of("TENANT_STEWARD", Set.of(FoundationAction.EDIT)),
-                Map.of("TENANT_RESTRICTED", Set.of(FoundationAction.EDIT)));
+                Map.of("TENANT_STEWARD", Set.of(FoundationAction.UPDATE)),
+                Map.of("TENANT_RESTRICTED", Set.of(FoundationAction.UPDATE)));
 
         PayrollFoundationAccess.Actor actor = PayrollFoundationAccess.actor(
                 42L, 700L, "TENANT_STEWARD,TENANT_RESTRICTED",
-                "TENANT_APP:VIEW TENANT_PAY:EDIT",
+                "TENANT_APP:VIEW TENANT_PAY:UPDATE",
                 "CUSTOM_CONFIG", LEGAL_ENTITY_ID.toString(), custom);
 
-        assertThat(actor.allows(FoundationAction.EDIT, LEGAL_ENTITY_ID)).isFalse();
+        assertThat(actor.allows(FoundationAction.UPDATE, LEGAL_ENTITY_ID)).isFalse();
     }
 
     @Test

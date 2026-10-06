@@ -9,9 +9,10 @@ import java.util.Set;
 /**
  * Production PAY policy projection for requests already admitted by the exact Gateway route PEP.
  *
- * <p>The provider deliberately contains no role-name mapping. The request filter projects one
- * exact, Gateway-authorized route into one local action; tenant, subject, scope and freshness are
- * independently checked before this policy is consulted.</p>
+ * <p>The provider deliberately contains no role-name mapping. The request filter binds command
+ * execution to one exact Gateway-authorized route action, while separately projecting only the
+ * caller's exact verified payroll capabilities into configuration read-model affordances. Tenant,
+ * subject, scope and freshness are independently checked before this policy is consulted.</p>
  */
 @Component
 @ConditionalOnProperty(

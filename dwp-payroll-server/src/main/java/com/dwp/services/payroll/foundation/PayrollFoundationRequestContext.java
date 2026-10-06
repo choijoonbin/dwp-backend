@@ -4,6 +4,7 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 
 import java.time.Instant;
+import java.util.Set;
 
 import static com.dwp.services.payroll.foundation.PayrollFoundationModels.FoundationAction;
 
@@ -35,8 +36,10 @@ final class PayrollFoundationRequestContext {
     record VerifiedSubject(
             long tenantId,
             long actorId,
-            FoundationAction action,
-            String purpose,
+            FoundationAction routeAction,
+            Set<FoundationAction> projectedActions,
+            String executionPurpose,
+            String projectionPurpose,
             String contextKey,
             String contextScopeKey,
             String policyRevision,
@@ -48,8 +51,14 @@ final class PayrollFoundationRequestContext {
             if (tenantId <= 0 || actorId <= 0) {
                 throw new IllegalArgumentException("tenantId and actorId must be positive");
             }
-            if (action == null || revalidateAt == null) {
-                throw new IllegalArgumentException("action and revalidateAt are required");
+            if (routeAction == null || projectedActions == null || revalidateAt == null) {
+                throw new IllegalArgumentException(
+                        "routeAction, projectedActions and revalidateAt are required");
+            }
+            projectedActions = Set.copyOf(projectedActions);
+            if (!projectedActions.contains(routeAction)) {
+                throw new IllegalArgumentException(
+                        "projectedActions must contain the exact routeAction");
             }
         }
     }

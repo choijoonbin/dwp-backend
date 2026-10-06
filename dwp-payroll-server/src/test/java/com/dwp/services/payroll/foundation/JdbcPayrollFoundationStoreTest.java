@@ -282,8 +282,9 @@ class JdbcPayrollFoundationStoreTest {
                 .getBean(PayrollLegalEntityScopeResolver.class)
                 .resolve(viewSubject);
         PayrollFoundationAccess.Actor viewer = PayrollFoundationAccess.gatewayActor(
-                viewSubject.tenantId(), viewSubject.actorId(), viewSubject.action(),
-                viewSubject.purpose(), viewSubject.contextScopeKey(),
+                viewSubject.tenantId(), viewSubject.actorId(), viewSubject.routeAction(),
+                viewSubject.projectedActions(), viewSubject.executionPurpose(),
+                viewSubject.projectionPurpose(), viewSubject.contextScopeKey(),
                 viewSubject.policyRevision(), viewSubject.authorizationRevision(),
                 resolution, PayrollFoundationAccess.compatibilityPolicy());
 
@@ -314,29 +315,44 @@ class JdbcPayrollFoundationStoreTest {
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.FORBIDDEN));
 
-        PayrollFoundationRequestContext.VerifiedSubject editSubject = verifiedSubject(
-                1, 101, PayrollFoundationModels.FoundationAction.EDIT,
+        PayrollFoundationRequestContext.VerifiedSubject createSubject = verifiedSubject(
+                1, 101, PayrollFoundationModels.FoundationAction.CREATE,
                 "PAYROLL_CONFIGURATION", scopeKey, policyRevision,
                 editDecisionRevision, now.plusSeconds(300));
-        PayrollFoundationAccess.Actor editor = PayrollFoundationAccess.gatewayActor(
-                editSubject.tenantId(), editSubject.actorId(), editSubject.action(),
-                editSubject.purpose(), editSubject.contextScopeKey(),
-                editSubject.policyRevision(), editSubject.authorizationRevision(),
-                context.getBean(PayrollLegalEntityScopeResolver.class).resolve(editSubject),
+        PayrollFoundationAccess.Actor creator = PayrollFoundationAccess.gatewayActor(
+                createSubject.tenantId(), createSubject.actorId(),
+                createSubject.routeAction(), createSubject.projectedActions(),
+                createSubject.executionPurpose(), createSubject.projectionPurpose(),
+                createSubject.contextScopeKey(), createSubject.policyRevision(),
+                createSubject.authorizationRevision(),
+                context.getBean(PayrollLegalEntityScopeResolver.class).resolve(createSubject),
                 PayrollFoundationAccess.compatibilityPolicy());
-        assertThat(editor.authorizationRevision()).isEqualTo(editDecisionRevision);
+        PayrollFoundationRequestContext.VerifiedSubject updateSubject = verifiedSubject(
+                1, 101, PayrollFoundationModels.FoundationAction.UPDATE,
+                "PAYROLL_CONFIGURATION", scopeKey, policyRevision,
+                editDecisionRevision, now.plusSeconds(300));
+        PayrollFoundationAccess.Actor updater = PayrollFoundationAccess.gatewayActor(
+                updateSubject.tenantId(), updateSubject.actorId(),
+                updateSubject.routeAction(), updateSubject.projectedActions(),
+                updateSubject.executionPurpose(), updateSubject.projectionPurpose(),
+                updateSubject.contextScopeKey(), updateSubject.policyRevision(),
+                updateSubject.authorizationRevision(),
+                context.getBean(PayrollLegalEntityScopeResolver.class).resolve(updateSubject),
+                PayrollFoundationAccess.compatibilityPolicy());
+        assertThat(creator.authorizationRevision()).isEqualTo(editDecisionRevision);
+        assertThat(updater.authorizationRevision()).isEqualTo(editDecisionRevision);
         FoundationDefinition forbiddenDefinition = definition(
                 otherLegalEntity, UUID.randomUUID(),
                 LocalDate.of(2027, 1, 1), LocalDate.of(2027, 12, 31),
                 Set.of(currency("EUR")), List.of());
         assertThatThrownBy(() -> service.create(
-                editor, UUID.randomUUID(), null,
+                creator, UUID.randomUUID(), null,
                 new CreateConfigurationRequest(forbiddenDefinition)))
                 .isInstanceOfSatisfying(BaseException.class,
                         exception -> assertThat(exception.getErrorCode())
                                 .isEqualTo(ErrorCode.FORBIDDEN));
         assertThatThrownBy(() -> service.update(
-                editor, second.configuration().configurationId(), UUID.randomUUID(), null,
+                updater, second.configuration().configurationId(), UUID.randomUUID(), null,
                 new UpdateConfigurationRequest(
                         second.configuration().version(), forbiddenDefinition)))
                 .isInstanceOfSatisfying(BaseException.class,
@@ -422,7 +438,7 @@ class JdbcPayrollFoundationStoreTest {
                 now.minusSeconds(60), now.plusSeconds(600), LEGAL_ENTITY_ID);
 
         PayrollFoundationRequestContext.VerifiedSubject anotherRoute = verifiedSubject(
-                1, 101, PayrollFoundationModels.FoundationAction.EDIT,
+                1, 101, PayrollFoundationModels.FoundationAction.UPDATE,
                 "PAYROLL_CONFIGURATION", otherRouteDecisionScope,
                 policyRevision, "psr-" + "e".repeat(64), now.plusSeconds(60));
         assertThat(resolver.resolve(anotherRoute).legalEntityIds())
@@ -740,7 +756,8 @@ class JdbcPayrollFoundationStoreTest {
             String authorizationRevision,
             Instant revalidateAt) {
         return new PayrollFoundationRequestContext.VerifiedSubject(
-                tenantId, actorId, action, purpose,
+                tenantId, actorId, action, Set.of(action), purpose,
+                "PAYROLL_CONFIGURATION",
                 "psc-" + "d".repeat(64), scopeKey,
                 policyRevision, authorizationRevision, revalidateAt,
                 "route.hcm.operations.payroll-foundation-test");
@@ -749,7 +766,8 @@ class JdbcPayrollFoundationStoreTest {
     private PayrollFoundationAccess.Actor author(long tenant, long actor) {
         return PayrollFoundationAccess.actor(
                 tenant, actor, "CONFIGURATION_AUTHOR",
-                "APP.HRIS:VIEW PAYROLL_FOUNDATION:VIEW PAYROLL_FOUNDATION:EDIT "
+                "APP.HRIS:VIEW PAYROLL_FOUNDATION:VIEW PAYROLL_FOUNDATION:CREATE "
+                        + "PAYROLL_FOUNDATION:UPDATE "
                         + "PAYROLL_FOUNDATION:SIMULATE",
                 "PAYROLL_CONFIGURATION", "*");
     }

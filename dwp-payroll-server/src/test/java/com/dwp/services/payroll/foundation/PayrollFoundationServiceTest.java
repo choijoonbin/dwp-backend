@@ -21,6 +21,7 @@ import static com.dwp.services.payroll.foundation.PayrollFoundationModels.Comman
 import static com.dwp.services.payroll.foundation.PayrollFoundationModels.CreateConfigurationRequest;
 import static com.dwp.services.payroll.foundation.PayrollFoundationModels.DependencyPin;
 import static com.dwp.services.payroll.foundation.PayrollFoundationModels.FoundationDefinition;
+import static com.dwp.services.payroll.foundation.PayrollFoundationModels.FoundationAction;
 import static com.dwp.services.payroll.foundation.PayrollFoundationModels.FreshnessState;
 import static com.dwp.services.payroll.foundation.PayrollFoundationModels.Lifecycle;
 import static com.dwp.services.payroll.foundation.PayrollFoundationModels.Money;
@@ -172,6 +173,64 @@ class PayrollFoundationServiceTest {
                 .containsExactly(
                         Lifecycle.PUBLISHED, Lifecycle.SIMULATED,
                         Lifecycle.DRAFT, Lifecycle.DRAFT);
+    }
+
+    @Test
+    void gatewayReadProjectionPreservesExactCapabilitiesAndReceiptResult() {
+        MutationResult created = create(author(1, 900, "*"), defaultDefinition());
+        UUID configurationId = created.configuration().configurationId();
+        MutationResult fixture = service.simulate(
+                author(1, 900, "*"), configurationId, UUID.randomUUID(), null,
+                new VersionCommand(created.configuration().version()));
+
+        Set<FoundationAction> allCapabilities = Set.of(
+                FoundationAction.VIEW,
+                FoundationAction.CREATE,
+                FoundationAction.UPDATE,
+                FoundationAction.SIMULATE,
+                FoundationAction.PUBLISH,
+                FoundationAction.REVERSE,
+                FoundationAction.RECONCILE);
+        PayrollFoundationAccess.Actor reader = gatewayActor(
+                101, FoundationAction.VIEW, "PAYROLL_CONFIGURATION", allCapabilities);
+        assertThat(service.get(reader, configurationId).access().canPublish()).isTrue();
+        assertThat(service.get(reader, configurationId).access().publishDenialCode()).isNull();
+
+        PayrollFoundationAccess.Actor createOnly = gatewayActor(
+                101, FoundationAction.VIEW, "PAYROLL_CONFIGURATION",
+                Set.of(FoundationAction.VIEW, FoundationAction.CREATE));
+        assertThat(service.get(createOnly, configurationId).access().canCreate()).isTrue();
+        assertThat(service.get(createOnly, configurationId).access().canEdit()).isFalse();
+        PayrollFoundationAccess.Actor updateOnly = gatewayActor(
+                101, FoundationAction.VIEW, "PAYROLL_CONFIGURATION",
+                Set.of(FoundationAction.VIEW, FoundationAction.UPDATE));
+        assertThat(service.get(updateOnly, configurationId).access().canCreate()).isFalse();
+        assertThat(service.get(updateOnly, configurationId).access().canEdit()).isTrue();
+
+        MutationResult updated = service.update(
+                gatewayActor(101, FoundationAction.UPDATE,
+                        "PAYROLL_CONFIGURATION", allCapabilities),
+                configurationId, UUID.randomUUID(), null,
+                new UpdateConfigurationRequest(
+                        fixture.configuration().version(), defaultDefinition()));
+        MutationResult simulated = service.simulate(
+                gatewayActor(101, FoundationAction.SIMULATE,
+                        "PAYROLL_CONFIGURATION", allCapabilities),
+                configurationId, UUID.randomUUID(), null,
+                new VersionCommand(updated.configuration().version()));
+        PayrollFoundationAccess.Actor receiptReader = gatewayActor(
+                101, FoundationAction.VIEW, "PAYROLL_AUDIT", allCapabilities);
+        MutationResult receipt = service.receipt(
+                receiptReader, simulated.receipt().commandId());
+
+        assertThat(receipt).isEqualTo(simulated);
+        assertThat(receiptReader.allows(
+                FoundationAction.PUBLISH, LEGAL_ENTITY_ID)).isFalse();
+        assertThat(receiptReader.projects(
+                FoundationAction.PUBLISH, LEGAL_ENTITY_ID)).isTrue();
+        assertThat(receipt.configuration().access().canPublish()).isFalse();
+        assertThat(receipt.configuration().access().publishDenialCode())
+                .isEqualTo("AUTHOR_PUBLISHER_SOD");
     }
 
     @Test
@@ -513,7 +572,8 @@ class PayrollFoundationServiceTest {
                 .isInstanceOf(IllegalStateException.class);
         assertThat(store.receipt(actor.tenantId(), reversalCommandId).orElseThrow().status())
                 .isEqualTo(ReceiptStatus.REVERSAL_FAILED);
-        MutationResult lookup = service.receipt(actor, reversalCommandId);
+        MutationResult lookup = service.receipt(
+                auditor(1, 303, LEGAL_ENTITY_ID.toString()), reversalCommandId);
         assertThat(lookup.receipt().status()).isEqualTo(ReceiptStatus.REVERSAL_FAILED);
         assertThat(lookup.configuration().version()).isEqualTo(3);
     }
@@ -749,7 +809,8 @@ class PayrollFoundationServiceTest {
     private PayrollFoundationAccess.Actor author(long tenant, long actor, String scope) {
         return PayrollFoundationAccess.actor(
                 tenant, actor, "CONFIGURATION_AUTHOR",
-                "APP.HRIS:VIEW PAYROLL_FOUNDATION:VIEW PAYROLL_FOUNDATION:EDIT "
+                "APP.HRIS:VIEW PAYROLL_FOUNDATION:VIEW PAYROLL_FOUNDATION:CREATE "
+                        + "PAYROLL_FOUNDATION:UPDATE "
                         + "PAYROLL_FOUNDATION:SIMULATE",
                 "PAYROLL_CONFIGURATION", scope);
     }
@@ -774,5 +835,25 @@ class PayrollFoundationServiceTest {
                 tenant, actor, "TENANT_RECONCILER",
                 "APP.HRIS:VIEW PAYROLL_FOUNDATION:RECONCILE",
                 "PAYROLL_AUDIT", scope);
+    }
+
+    private PayrollFoundationAccess.Actor gatewayActor(
+            long actorId,
+            FoundationAction routeAction,
+            String executionPurpose,
+            Set<FoundationAction> projectedActions) {
+        return PayrollFoundationAccess.gatewayActor(
+                1,
+                actorId,
+                routeAction,
+                projectedActions,
+                executionPurpose,
+                "PAYROLL_CONFIGURATION",
+                "hcm-scope-" + "1".repeat(40),
+                "rollout-" + "b".repeat(64),
+                "psr-" + "a".repeat(64),
+                new PayrollLegalEntityScopeResolver.Resolution(
+                        "pay-scope-projection-r1", Set.of(LEGAL_ENTITY_ID)),
+                PayrollFoundationAccess.compatibilityPolicy());
     }
 }

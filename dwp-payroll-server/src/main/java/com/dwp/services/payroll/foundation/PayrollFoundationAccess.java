@@ -75,12 +75,16 @@ final class PayrollFoundationAccess {
             throw forbidden();
         }
         Scope scope = Scope.parse(legalEntityScope);
+        Set<FoundationAction> actions = parseActions(permissionTokens, policy);
+        String normalizedPurpose = requirePurpose(purpose, policy);
         return new Actor(
                 tenantId,
                 actorId,
                 parseRoles(roles),
-                parseActions(permissionTokens, policy),
-                requirePurpose(purpose, policy),
+                actions,
+                actions,
+                normalizedPurpose,
+                normalizedPurpose,
                 scope,
                 scope.digest(),
                 requireRevision(policyRevision),
@@ -91,32 +95,43 @@ final class PayrollFoundationAccess {
     static Actor gatewayActor(
             long tenantId,
             long actorId,
-            FoundationAction action,
-            String purpose,
+            FoundationAction routeAction,
+            Set<FoundationAction> projectedActions,
+            String executionPurpose,
+            String projectionPurpose,
             String contextScopeKey,
             String policyRevision,
             String authorizationRevision,
             PayrollLegalEntityScopeResolver.Resolution scopeResolution,
             AccessPolicy policy) {
-        if (tenantId <= 0 || actorId <= 0 || action == null
-                || scopeResolution == null || policy == null) {
+        if (tenantId <= 0 || actorId <= 0 || routeAction == null
+                || projectedActions == null || scopeResolution == null || policy == null) {
             throw new BaseException(
                     ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
                     "Verified payroll authority is incomplete.");
+        }
+        Set<FoundationAction> exactProjectedActions = Set.copyOf(projectedActions);
+        if (!exactProjectedActions.contains(routeAction)) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Verified payroll route capability is absent from projection evidence.");
         }
         if (!HcmEligibilityScopeKey.isCanonical(contextScopeKey)) {
             throw new BaseException(
                     ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
                     "Verified payroll scope evidence is unavailable.");
         }
-        String normalizedPurpose = requirePurpose(purpose, policy);
+        String normalizedExecutionPurpose = requirePurpose(executionPurpose, policy);
+        String normalizedProjectionPurpose = requirePurpose(projectionPurpose, policy);
         Scope scope = scopeResolution.scope();
         return new Actor(
                 tenantId,
                 actorId,
                 Set.of(),
-                Set.of(action),
-                normalizedPurpose,
+                Set.of(routeAction),
+                exactProjectedActions,
+                normalizedExecutionPurpose,
+                normalizedProjectionPurpose,
                 scope,
                 scopeResolution.evidenceDigest(contextScopeKey),
                 requireRevision(policyRevision),
@@ -132,8 +147,10 @@ final class PayrollFoundationAccess {
             long tenantId,
             long actorId,
             Set<String> roles,
-            Set<FoundationAction> actions,
-            String purpose,
+            Set<FoundationAction> executionActions,
+            Set<FoundationAction> projectedActions,
+            String executionPurpose,
+            String projectionPurpose,
             Scope scope,
             String legalEntityScopeDigest,
             String policyRevision,
@@ -142,29 +159,45 @@ final class PayrollFoundationAccess {
 
         Actor {
             roles = Set.copyOf(roles);
-            actions = Set.copyOf(actions);
+            executionActions = Set.copyOf(executionActions);
+            projectedActions = Set.copyOf(projectedActions);
         }
 
         boolean allows(FoundationAction action, UUID legalEntityId) {
-            if (!roleAndPurposeAllow(action) || !scope.allows(legalEntityId)) {
+            if (!executionAllows(action) || !scope.allows(legalEntityId)) {
                 return false;
             }
             return true;
         }
 
         boolean allowsUnscoped(FoundationAction action) {
-            return scope.allLegalEntities() && roleAndPurposeAllow(action);
+            return scope.allLegalEntities() && executionAllows(action);
         }
 
         boolean allowsAny(FoundationAction action) {
-            return roleAndPurposeAllow(action);
+            return executionAllows(action);
         }
 
-        private boolean roleAndPurposeAllow(FoundationAction action) {
-            if (!actions.contains(action)) {
+        boolean projects(FoundationAction action, UUID legalEntityId) {
+            return projectionAllows(action) && scope.allows(legalEntityId);
+        }
+
+        boolean projectsAny(FoundationAction action) {
+            return projectionAllows(action);
+        }
+
+        private boolean executionAllows(FoundationAction action) {
+            if (!executionActions.contains(action)) {
                 return false;
             }
-            return policy.allows(roles, purpose, action);
+            return policy.allows(roles, executionPurpose, action);
+        }
+
+        private boolean projectionAllows(FoundationAction action) {
+            if (!projectedActions.contains(action)) {
+                return false;
+            }
+            return policy.allows(roles, projectionPurpose, action);
         }
 
         void require(FoundationAction action, UUID legalEntityId) {
@@ -173,6 +206,18 @@ final class PayrollFoundationAccess {
                         ErrorCode.FORBIDDEN,
                         "Payroll foundation action is outside the actor's role, purpose, or scope.");
             }
+        }
+
+        void requireProjected(FoundationAction action, UUID legalEntityId) {
+            if (!projects(action, legalEntityId)) {
+                throw new BaseException(
+                        ErrorCode.FORBIDDEN,
+                        "Payroll foundation projection is outside the actor's role, purpose, or scope.");
+            }
+        }
+
+        String purpose() {
+            return executionPurpose;
         }
     }
 

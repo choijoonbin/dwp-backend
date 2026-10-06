@@ -54,8 +54,10 @@ class PayrollFoundationController {
         return PayrollFoundationAccess.gatewayActor(
                 subject.tenantId(),
                 subject.actorId(),
-                subject.action(),
-                subject.purpose(),
+                subject.routeAction(),
+                subject.projectedActions(),
+                subject.executionPurpose(),
+                subject.projectionPurpose(),
                 subject.contextScopeKey(),
                 subject.policyRevision(),
                 subject.authorizationRevision(),

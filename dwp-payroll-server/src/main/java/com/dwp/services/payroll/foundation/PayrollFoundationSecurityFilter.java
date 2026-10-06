@@ -177,8 +177,9 @@ class PayrollFoundationSecurityFilter extends OncePerRequestFilter {
                         tenantId,
                         actorId,
                         route.action(),
-                        route.action() == PayrollFoundationModels.FoundationAction.VIEW
-                                ? "PAYROLL_AUDIT" : "PAYROLL_CONFIGURATION",
+                        PayrollFoundationRoute.projectedActions(permissions),
+                        route.executionPurpose(),
+                        route.projectionPurpose(),
                         contextKey,
                         contextScopeKey,
                         rolloutRevision,

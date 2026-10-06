@@ -55,7 +55,8 @@ final class LocalSyntheticPayrollFoundationBootstrapService {
                 request.authorActorId(),
                 "SYNTHETIC_FIXTURE_AUTHOR",
                 "APP.HRIS:VIEW,PAYROLL_FOUNDATION:VIEW,"
-                        + "PAYROLL_FOUNDATION:EDIT,PAYROLL_FOUNDATION:SIMULATE",
+                        + "PAYROLL_FOUNDATION:CREATE,PAYROLL_FOUNDATION:UPDATE,"
+                        + "PAYROLL_FOUNDATION:SIMULATE",
                 "PAYROLL_CONFIGURATION",
                 request.legalEntityId().toString(),
                 PayrollFoundationAccess.compatibilityPolicy());

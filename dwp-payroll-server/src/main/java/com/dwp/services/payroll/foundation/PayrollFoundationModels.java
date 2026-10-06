@@ -64,7 +64,8 @@ public final class PayrollFoundationModels {
 
     public enum FoundationAction {
         VIEW,
-        EDIT,
+        CREATE,
+        UPDATE,
         SIMULATE,
         PUBLISH,
         REVERSE,
