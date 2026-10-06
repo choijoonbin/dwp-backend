@@ -1,4 +1,5 @@
 import contextlib
+import copy
 import datetime as dt
 import hashlib
 import importlib.util
@@ -200,6 +201,30 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                 gate._canonical_control_field(digest, stream[field])
         receipt["receiptSha256"] = digest.hexdigest()
         return receipt
+
+    def global_home_hris_observation(self):
+        return {
+            "schemaVersion": 1,
+            "phase": "GLOBAL_HOME_HRIS_DISPLAY_IDENTITY",
+            "database": "dwp_platform",
+            "table": "adm_workspace_apps",
+            "appKey": "ref-app-people",
+            "tenants": [
+                {
+                    "lane": lane,
+                    "tenantId": tenant_id,
+                    "rowCount": 1,
+                    "rows": [
+                        {
+                            "nameKo": "HRIS",
+                            "nameEn": "HRIS",
+                            "ownerName": "HRIS",
+                        }
+                    ],
+                }
+                for lane, tenant_id in (("A", 101), ("B", 102))
+            ],
+        }
 
     def test_run_id_and_owned_resource_names_are_deterministic_and_scoped(self):
         instant = dt.datetime(2026, 10, 1, 5, 4, 3, tzinfo=dt.timezone.utc)
@@ -858,6 +883,111 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
         self.assertEqual(
             "upgrade-v233-state-to-current-v234.1", state.phases[-1]["name"]
         )
+
+    def test_global_home_hris_display_identity_attests_both_synthetic_tenants(self):
+        credentials = self.checkpoint_credentials()
+        raw_observation = self.global_home_hris_observation()
+        expected_observation_sha256 = gate.canonical_json_sha256(raw_observation)
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            (output / "db").mkdir()
+            state = self.checkpoint_state(output)
+            state.synthetic_tenants["B"] = {
+                "tenantId": 102,
+                "administratorUserId": 1002,
+            }
+            with mock.patch.object(
+                gate, "psql", return_value=json.dumps(raw_observation)
+            ) as query:
+                observation = gate.attest_global_home_hris_display_identity(
+                    "postgres", state, credentials
+                )
+
+            evidence_path = (
+                output / "db" / "global-home-hris-display-identity.json"
+            )
+            persisted = json.loads(evidence_path.read_text(encoding="utf-8"))
+            self.assertEqual(observation, persisted)
+            self.assertEqual(
+                expected_observation_sha256,
+                persisted["observationSha256"],
+            )
+            self.assertEqual(state.run_id, persisted["runId"])
+            self.assertIs(True, persisted["syntheticOnly"])
+            self.assertEqual("PASS", persisted["status"])
+            self.assertEqual(
+                "global-home-hris-display-identity-database",
+                state.phases[-1]["name"],
+            )
+            self.assertEqual("PASS", state.phases[-1]["status"])
+            self.assertEqual(
+                "db/global-home-hris-display-identity.json",
+                state.phases[-1]["details"]["evidencePath"],
+            )
+            self.assertEqual(
+                gate.sha256_file(evidence_path),
+                state.phases[-1]["details"]["evidenceSha256"],
+            )
+
+        self.assertEqual("dwp_platform", query.call_args.args[1])
+        sql = query.call_args.args[2]
+        self.assertIn("('A', 101::bigint)", sql)
+        self.assertIn("('B', 102::bigint)", sql)
+        self.assertIn("app.app_key = 'ref-app-people'", sql)
+        self.assertIn("count(app.workspace_app_id)", sql)
+
+    def test_global_home_hris_display_identity_fails_closed_on_database_drift(self):
+        credentials = self.checkpoint_credentials()
+        drift_cases = {}
+
+        missing = self.global_home_hris_observation()
+        missing["tenants"][1]["rowCount"] = 0
+        missing["tenants"][1]["rows"] = []
+        drift_cases["missing-row"] = json.dumps(missing)
+
+        duplicate = self.global_home_hris_observation()
+        duplicate["tenants"][0]["rowCount"] = 2
+        duplicate["tenants"][0]["rows"].append(
+            copy.deepcopy(duplicate["tenants"][0]["rows"][0])
+        )
+        drift_cases["duplicate-row"] = json.dumps(duplicate)
+
+        for field, value in (
+            ("nameKo", "인사"),
+            ("nameEn", "HR"),
+            ("ownerName", "DWP HCM"),
+        ):
+            drifted = self.global_home_hris_observation()
+            drifted["tenants"][0]["rows"][0][field] = value
+            drift_cases[f"{field}-drift"] = json.dumps(drifted)
+
+        drift_cases["malformed-json"] = "not-json"
+        drift_cases["non-object-json"] = "[]"
+        extra_key = self.global_home_hris_observation()
+        extra_key["unexpected"] = True
+        drift_cases["unexpected-field"] = json.dumps(extra_key)
+
+        for label, raw in drift_cases.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary)
+                (output / "db").mkdir()
+                state = self.checkpoint_state(output)
+                state.synthetic_tenants["B"] = {
+                    "tenantId": 102,
+                    "administratorUserId": 1002,
+                }
+                with mock.patch.object(gate, "psql", return_value=raw), \
+                        self.assertRaisesRegex(
+                            gate.GateFailure, "Global Home HRIS database identity"
+                        ):
+                    gate.attest_global_home_hris_display_identity(
+                        "postgres", state, credentials
+                    )
+
+                self.assertEqual([], state.phases)
+                self.assertFalse(
+                    (output / "db" / "global-home-hris-display-identity.json").exists()
+                )
 
     def test_stop_process_retains_failed_process_for_teardown_retry(self):
         state = gate.GateState(

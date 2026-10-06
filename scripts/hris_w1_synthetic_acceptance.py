@@ -2963,6 +2963,153 @@ def bootstrap_synthetic_identities(
     return credentials[0], credentials[1]
 
 
+def attest_global_home_hris_display_identity(
+    postgres: str,
+    state: GateState,
+    credentials: Sequence[SyntheticTenantCredential],
+) -> dict[str, Any]:
+    by_lane: dict[str, SyntheticTenantCredential] = {}
+    for credential in credentials:
+        if credential.lane in by_lane:
+            raise GateFailure(
+                "Global Home HRIS database attestation requires one credential "
+                f"for each synthetic lane; duplicate lane: {credential.lane}"
+            )
+        by_lane[credential.lane] = credential
+    if set(by_lane) != {"A", "B"}:
+        raise GateFailure(
+            "Global Home HRIS database attestation requires exactly synthetic "
+            "tenant lanes A and B"
+        )
+    tenant_ids = [by_lane[lane].tenant_id for lane in ("A", "B")]
+    if (
+        any(not isinstance(tenant_id, int) or isinstance(tenant_id, bool)
+            or tenant_id <= 0 for tenant_id in tenant_ids)
+        or len(set(tenant_ids)) != 2
+    ):
+        raise GateFailure(
+            "Global Home HRIS database attestation requires two distinct positive "
+            "synthetic tenant ids"
+        )
+    for lane in ("A", "B"):
+        state_tenant = state.synthetic_tenants.get(lane)
+        if (
+            not isinstance(state_tenant, dict)
+            or state_tenant.get("tenantId") != by_lane[lane].tenant_id
+        ):
+            raise GateFailure(
+                "Global Home HRIS database attestation tenant binding does not "
+                f"match the activated synthetic lane {lane}"
+            )
+
+    expected_tenants_sql = ",\n".join(
+        f"            ({sql_literal(lane)}, {by_lane[lane].tenant_id}::bigint)"
+        for lane in ("A", "B")
+    )
+    raw = psql(
+        postgres,
+        "dwp_platform",
+        f"""
+        WITH expected_tenants(lane, tenant_id) AS (
+            VALUES
+{expected_tenants_sql}
+        ), observed AS (
+            SELECT expected.lane,
+                   expected.tenant_id,
+                   count(app.workspace_app_id) AS row_count,
+                   coalesce(
+                       jsonb_agg(
+                           jsonb_build_object(
+                               'nameKo', app.name_ko,
+                               'nameEn', app.name_en,
+                               'ownerName', app.owner_name)
+                           ORDER BY app.workspace_app_id)
+                           FILTER (WHERE app.workspace_app_id IS NOT NULL),
+                       '[]'::jsonb) AS rows
+              FROM expected_tenants expected
+              LEFT JOIN adm_workspace_apps app
+                ON app.tenant_id = expected.tenant_id
+               AND app.app_key = 'ref-app-people'
+             GROUP BY expected.lane, expected.tenant_id
+        )
+        SELECT jsonb_build_object(
+            'schemaVersion', 1,
+            'phase', 'GLOBAL_HOME_HRIS_DISPLAY_IDENTITY',
+            'database', 'dwp_platform',
+            'table', 'adm_workspace_apps',
+            'appKey', 'ref-app-people',
+            'tenants', jsonb_agg(
+                jsonb_build_object(
+                    'lane', lane,
+                    'tenantId', tenant_id,
+                    'rowCount', row_count,
+                    'rows', rows)
+                ORDER BY lane))::text
+          FROM observed;
+        """,
+    ).strip()
+    try:
+        observation = json.loads(raw)
+    except (TypeError, json.JSONDecodeError) as error:
+        raise GateFailure(
+            "Global Home HRIS database identity observation is not exact JSON"
+        ) from error
+
+    expected_identity = {
+        "nameKo": "HRIS",
+        "nameEn": "HRIS",
+        "ownerName": "HRIS",
+    }
+    expected = {
+        "schemaVersion": 1,
+        "phase": "GLOBAL_HOME_HRIS_DISPLAY_IDENTITY",
+        "database": "dwp_platform",
+        "table": "adm_workspace_apps",
+        "appKey": "ref-app-people",
+        "tenants": [
+            {
+                "lane": lane,
+                "tenantId": by_lane[lane].tenant_id,
+                "rowCount": 1,
+                "rows": [expected_identity],
+            }
+            for lane in ("A", "B")
+        ],
+    }
+    if observation != expected:
+        raise GateFailure(
+            "Global Home HRIS database identity mismatch: expected exactly one "
+            "dwp_platform.adm_workspace_apps ref-app-people row for each synthetic "
+            "tenant with name_ko, name_en, and owner_name all equal to HRIS"
+        )
+
+    evidence = {
+        **observation,
+        "runId": state.run_id,
+        "syntheticOnly": True,
+        "status": "PASS",
+        "observationSha256": canonical_json_sha256(observation),
+    }
+    evidence_path = (
+        state.output_dir / "db" / "global-home-hris-display-identity.json"
+    )
+    atomic_write_json(evidence_path, evidence)
+    relative_evidence_path = str(evidence_path.relative_to(state.output_dir))
+    state.phase(
+        "global-home-hris-display-identity-database",
+        "PASS",
+        database="dwp_platform",
+        table="adm_workspace_apps",
+        appKey="ref-app-people",
+        tenantCount=2,
+        rowCountPerTenant=1,
+        identity=expected_identity,
+        evidencePath=relative_evidence_path,
+        evidenceSha256=sha256_file(evidence_path),
+    )
+    return evidence
+
+
 def bootstrap_synthetic_rollouts(
     state: GateState,
     secrets_: RuntimeSecrets,
@@ -5903,6 +6050,9 @@ def execute(args: argparse.Namespace) -> tuple[GateState, str, str | None, dict[
         if not args.auth_only:
             start_remaining_services(state, specs, base_environment, args)
             tenant_credentials = bootstrap_synthetic_identities(state, secrets_)
+            attest_global_home_hris_display_identity(
+                postgres, state, tenant_credentials
+            )
             gateway_sessions = login_gateway_sessions(state, tenant_credentials)
             bootstrap_synthetic_rollouts(state, secrets_, tenant_credentials)
             gateway_authorities = resolve_gateway_authorities(

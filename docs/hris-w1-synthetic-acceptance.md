@@ -129,6 +129,14 @@ environment variables:
 - `DWP_W1_ACTIVE_BUNDLE_VERSION`
 - `DWP_W1_ACTIVE_BUNDLE_REVISION`
 
+Before the external checkpoint can start, the runner also queries the isolated
+`dwp_platform.adm_workspace_apps` table for the two run-owned synthetic tenant
+IDs. Each tenant must have exactly one `ref-app-people` row, and its `name_ko`,
+`name_en`, and `owner_name` values must all be exactly `HRIS`. Missing,
+duplicate, malformed, or differently labeled database evidence fails the gate
+closed. A successful observation is digest-bound into the
+`global-home-hris-display-identity-database` PASS phase.
+
 The command does not inherit arbitrary host variables. It receives only a
 small process-runtime allowlist (`PATH`, Java/locale/temp/time-zone settings)
 and the synthetic values above.
@@ -246,7 +254,8 @@ include:
   teardown verification, Git/runner/JAR/build provenance, checkpoint executable
   provenance, and any validated manifest/evidence digest bindings.
 - `db/`: current latest-clean, exact V232/V233 boundary, V234.1 post-boundary
-  upgrade, governance-event, and activation-event evidence.
+  upgrade, governance-event, activation-event, and
+  `global-home-hris-display-identity.json` Platform catalog evidence.
 - `health/`: successful service health responses.
 - `http/`: lifecycle responses. Bodies over 256 KiB are replaced by a minimal
   summary with their original byte count and SHA-256 digest.
