@@ -410,8 +410,8 @@ public class PlatformTenantProvisioningService {
         }
         if (entitlements.contains("core.people")) {
             apps.add(new AppSeed("hcm", "DWP_HCM", "/hr", "hcm",
-                    "APP.HCM", "HR", "인사",
-                    "DWP HCM personal HR, organization, and governed workforce operations",
+                    "APP.HCM", "HRIS", "HRIS",
+                    "HRIS personal HR, organization, and governed workforce operations",
                     "MEDIUM"));
         }
         return List.copyOf(apps);
@@ -571,8 +571,8 @@ public class PlatformTenantProvisioningService {
                         "DWAI·ON Workspace", "DWAI·ON 워크스페이스",
                         "AI workspace with evidence, sources, and an audit trace", "MEDIUM"),
                 new AppSeed("hcm", "DWP_HCM", "/hr", "hcm",
-                        "APP.HCM", "HR", "인사",
-                        "DWP HCM personal HR, organization, and governed workforce operations",
+                        "APP.HCM", "HRIS", "HRIS",
+                        "HRIS personal HR, organization, and governed workforce operations",
                         "MEDIUM"));
     }
 

@@ -312,7 +312,7 @@ class AuthServiceTest {
         PrincipalResourceGrantRepository.EffectiveGrant hcmDeny =
                 new PrincipalResourceGrantRepository.EffectiveGrant(
                         UUID.randomUUID().toString(), "APP", "app.hcm",
-                        "DWP HCM", "VIEW", "View", "DENY");
+                        "HRIS", "VIEW", "View", "DENY");
         PrincipalResourceGrantRepository.EffectiveGrant hrisAllow =
                 new PrincipalResourceGrantRepository.EffectiveGrant(
                         UUID.randomUUID().toString(), "APP", "App.HrIs",
@@ -329,7 +329,7 @@ class AuthServiceTest {
         PrincipalResourceGrantRepository.EffectiveGrant hcmAllow =
                 new PrincipalResourceGrantRepository.EffectiveGrant(
                         UUID.randomUUID().toString(), "APP", "APP.HCM",
-                        "DWP HCM", "VIEW", "View", "ALLOW");
+                        "HRIS", "VIEW", "View", "ALLOW");
         when(principalGrants.findEffective(1L, 10L))
                 .thenReturn(List.of(hrisDeny, hcmAllow));
 
