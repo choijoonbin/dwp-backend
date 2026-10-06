@@ -46,7 +46,7 @@ public class PeopleDirectoryService {
             String cursor,
             int requestedSize,
             LocalDate requestedAsOf) {
-        return search(query, status, cursor, requestedSize, requestedAsOf, false);
+        return search(query, status, cursor, requestedSize, requestedAsOf, false, null);
     }
 
     @Transactional(readOnly = true)
@@ -56,7 +56,21 @@ public class PeopleDirectoryService {
             String cursor,
             int requestedSize,
             LocalDate requestedAsOf) {
-        return search(query, status, cursor, requestedSize, requestedAsOf, true);
+        return search(query, status, cursor, requestedSize, requestedAsOf, true, null);
+    }
+
+    @Transactional(readOnly = true)
+    public PeopleDtos.CursorPage<PeopleDtos.PersonSummary> searchWorkforce(
+            String query,
+            String status,
+            String cursor,
+            int requestedSize,
+            LocalDate requestedAsOf,
+            HcmPopulationScopeService.ResolvedPopulation population) {
+        if (population == null || population.scope() == null) {
+            throw new IllegalArgumentException("A resolved target population is required.");
+        }
+        return search(query, status, cursor, requestedSize, requestedAsOf, true, population);
     }
 
     private PeopleDtos.CursorPage<PeopleDtos.PersonSummary> search(
@@ -65,23 +79,34 @@ public class PeopleDirectoryService {
             String cursor,
             int requestedSize,
             LocalDate requestedAsOf,
-            boolean workforceAccess) {
+            boolean workforceAccess,
+            HcmPopulationScopeService.ResolvedPopulation population) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         int size = Math.min(100, Math.max(1, requestedSize));
         LocalDate asOf = requestedAsOf == null ? LocalDate.now() : requestedAsOf;
         String normalizedStatus = normalizeStatus(status);
         if (!workforceAccess) populationScopes.requireSelfScope();
         WorkforceAccessPolicyService.Decision decision = workforceAccess
-                ? accessPolicyService.require("READ")
+                ? population == null
+                        ? accessPolicyService.require("READ")
+                        : populationDecision(population)
                 : null;
-        if (workforceAccess) requireTrustedWorkforceScope();
-        String policyFingerprint = decision == null ? "directory" : decision.fingerprint();
+        if (workforceAccess && population == null) requireTrustedWorkforceScope();
+        String policyFingerprint = population == null
+                ? decision == null ? "directory" : decision.fingerprint()
+                : "target-population|" + population.relationshipRevision()
+                        + '|' + population.targetPopulationRevision();
         String fingerprint = cursorCodec.fingerprint(
                 query, normalizedStatus, asOf + "|" + policyFingerprint);
         long afterPersonId = cursor == null || cursor.isBlank()
                 ? 0L
                 : cursorCodec.decode(cursor, actor.tenantId(), fingerprint);
-        List<PeopleDirectoryRepository.DirectoryRow> rows = workforceAccess
+        List<PeopleDirectoryRepository.DirectoryRow> rows = population != null
+                ? repository.searchWithinPopulation(
+                        actor.tenantId(), afterPersonId, query, normalizedStatus, asOf, size + 1,
+                        decision.field("WORKER_IDENTIFIERS"), decision.field("JOB_GRADE"),
+                        population.scope())
+                : workforceAccess
                 ? repository.search(
                         actor.tenantId(), afterPersonId, query, normalizedStatus, asOf, size + 1,
                         decision.tenantWide(), decision.organizationIds(),
@@ -104,6 +129,15 @@ public class PeopleDirectoryService {
                 pageRows.size(),
                 hasMore,
                 asOf);
+    }
+
+    private WorkforceAccessPolicyService.Decision populationDecision(
+            HcmPopulationScopeService.ResolvedPopulation population) {
+        return new WorkforceAccessPolicyService.Decision(
+                population.scope().tenantWide(),
+                population.scope().organizationIds(),
+                population.scope().fieldGroups(),
+                "READ");
     }
 
     @Transactional(readOnly = true)

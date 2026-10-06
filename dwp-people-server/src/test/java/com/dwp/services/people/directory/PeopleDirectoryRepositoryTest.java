@@ -1,5 +1,6 @@
 package com.dwp.services.people.directory;
 
+import com.dwp.services.people.hr.HcmPopulationRepository;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
@@ -95,6 +96,50 @@ class PeopleDirectoryRepositoryTest {
                 .doesNotContain("lower(coalesce(w.worker_number, '')) like :query")
                 .doesNotContain("lower(coalesce(a.assignment_key, '')) like :query")
                 .contains("lower(coalesce(grade.name, '')) like :query");
+    }
+
+    @Test
+    void asOfCandidatesRequireCurrentPopulationMembershipForEveryWorkerBeforePagination() {
+        NamedParameterJdbcTemplate jdbc = directoryJdbc();
+        PeopleDirectoryRepository repository = new PeopleDirectoryRepository(jdbc);
+        UUID organizationId = UUID.randomUUID();
+        HcmPopulationRepository.PopulationScope population =
+                new HcmPopulationRepository.PopulationScope(
+                        91L, null, false, Set.of(organizationId),
+                        Set.of("DIRECTORY", "EMPLOYMENT"), "policy-v3");
+
+        repository.searchWithinPopulation(
+                7L, 0L, null, null, LocalDate.of(2026, 9, 2), 3,
+                false, false, population);
+
+        ArgumentCaptor<String> sql = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<MapSqlParameterSource> parameters =
+                ArgumentCaptor.forClass(MapSqlParameterSource.class);
+        verify(jdbc).query(
+                sql.capture(), parameters.capture(),
+                ArgumentMatchers.<RowMapper<PeopleDirectoryRepository.DirectoryRow>>any());
+
+        String normalized = sql.getValue().replaceAll("\\s+", " ").trim().toLowerCase();
+        int populationPredicate = normalized.indexOf(
+                "and exists ( select 1 from ppl_workers candidate_worker");
+        int pagination = normalized.lastIndexOf("order by p.person_id asc limit :limit");
+        assertThat(populationPredicate).isGreaterThanOrEqualTo(0).isLessThan(pagination);
+        assertThat(normalized)
+                .contains("and not exists ( select 1 from ppl_workers candidate_worker")
+                .contains("candidate_relationship.start_date <= :asof")
+                .contains("population_worker.worker_id = candidate_worker.worker_id")
+                .contains("population_relationship.start_date <= current_date")
+                .contains("population_worker.worker_id <> :populationactorworkerid")
+                .contains("population_assignment.manager_assignment_key = "
+                        + ":populationmanagerassignmentkey")
+                .contains("population_organization.public_id in (:populationorganizationids)")
+                .doesNotContain("and org.public_id in (:organizationids)");
+        assertThat(parameters.getValue().getValue("populationActorWorkerId")).isEqualTo(91L);
+        assertThat(parameters.getValue().getValue("populationTenantWide")).isEqualTo(false);
+        assertThat(parameters.getValue().getValue("populationOrganizationIds"))
+                .isEqualTo(Set.of(organizationId));
+        assertThat(parameters.getValue().hasValue("organizationIds")).isFalse();
+        assertThat(parameters.getValue().getValue("limit")).isEqualTo(3);
     }
 
     @Test

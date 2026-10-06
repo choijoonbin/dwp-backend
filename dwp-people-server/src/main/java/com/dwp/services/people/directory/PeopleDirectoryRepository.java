@@ -1,5 +1,6 @@
 package com.dwp.services.people.directory;
 
+import com.dwp.services.people.hr.HcmPopulationRepository;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
@@ -16,6 +17,8 @@ import java.util.UUID;
 
 @Repository
 public class PeopleDirectoryRepository {
+
+    private static final UUID EMPTY_ORGANIZATION = new UUID(0L, 0L);
 
     private static final String DIRECTORY_SELECT = """
             SELECT p.person_id,
@@ -187,6 +190,42 @@ public class PeopleDirectoryRepository {
             Set<UUID> organizationIds,
             boolean includeWorkerIdentifiers,
             boolean includeJobGrade) {
+        return search(
+                tenantId, afterPersonId, query, workerStatus, asOf, limit,
+                tenantWide, organizationIds, includeWorkerIdentifiers, includeJobGrade, null);
+    }
+
+    public List<DirectoryRow> searchWithinPopulation(
+            Long tenantId,
+            long afterPersonId,
+            String query,
+            String workerStatus,
+            LocalDate asOf,
+            int limit,
+            boolean includeWorkerIdentifiers,
+            boolean includeJobGrade,
+            HcmPopulationRepository.PopulationScope population) {
+        if (population == null) {
+            throw new IllegalArgumentException("A target population is required.");
+        }
+        return search(
+                tenantId, afterPersonId, query, workerStatus, asOf, limit,
+                true, Set.of(), includeWorkerIdentifiers, includeJobGrade,
+                population);
+    }
+
+    private List<DirectoryRow> search(
+            Long tenantId,
+            long afterPersonId,
+            String query,
+            String workerStatus,
+            LocalDate asOf,
+            int limit,
+            boolean tenantWide,
+            Set<UUID> organizationIds,
+            boolean includeWorkerIdentifiers,
+            boolean includeJobGrade,
+            HcmPopulationRepository.PopulationScope population) {
         StringBuilder sql = new StringBuilder(DIRECTORY_SELECT).append("""
              WHERE p.tenant_id = :tenantId
                AND p.person_id > :afterPersonId
@@ -223,8 +262,99 @@ public class PeopleDirectoryRepository {
             sql.append(" AND org.public_id IN (:organizationIds)\n");
             parameters.addValue("organizationIds", organizationIds);
         }
+        if (population != null) {
+            appendTargetPopulation(sql);
+            parameters
+                    .addValue("populationActorWorkerId", population.actorWorkerId())
+                    .addValue("populationManagerAssignmentKey", population.managerAssignmentKey())
+                    .addValue("populationTenantWide", population.tenantWide())
+                    .addValue(
+                            "populationOrganizationIds",
+                            population.organizationIds().isEmpty()
+                                    ? Set.of(EMPTY_ORGANIZATION)
+                                    : population.organizationIds());
+        }
         sql.append(" ORDER BY p.person_id ASC LIMIT :limit");
         return jdbc.query(sql.toString(), parameters, this::mapDirectoryRow);
+    }
+
+    /**
+     * Selects candidate employments at the requested as-of date, then requires every candidate
+     * worker to satisfy the same current authority predicate used by containsWorker.
+     */
+    private void appendTargetPopulation(StringBuilder sql) {
+        sql.append("""
+             AND EXISTS (
+                   SELECT 1
+                     FROM ppl_workers candidate_worker
+                     JOIN ppl_work_relationships candidate_relationship
+                       ON candidate_relationship.tenant_id = candidate_worker.tenant_id
+                      AND candidate_relationship.worker_id = candidate_worker.worker_id
+                      AND candidate_relationship.start_date <= :asOf
+                      AND (candidate_relationship.end_date IS NULL
+                           OR candidate_relationship.end_date >= :asOf)
+                     JOIN ppl_legal_employers candidate_employer
+                       ON candidate_employer.tenant_id = candidate_relationship.tenant_id
+                      AND candidate_employer.legal_employer_id =
+                          candidate_relationship.legal_employer_id
+                    WHERE candidate_worker.tenant_id = p.tenant_id
+                      AND candidate_worker.person_id = p.person_id
+                      AND candidate_worker.worker_status IN ('ACTIVE', 'LEAVE', 'PENDING')
+             )
+             AND NOT EXISTS (
+                   SELECT 1
+                     FROM ppl_workers candidate_worker
+                     JOIN ppl_work_relationships candidate_relationship
+                       ON candidate_relationship.tenant_id = candidate_worker.tenant_id
+                      AND candidate_relationship.worker_id = candidate_worker.worker_id
+                      AND candidate_relationship.start_date <= :asOf
+                      AND (candidate_relationship.end_date IS NULL
+                           OR candidate_relationship.end_date >= :asOf)
+                     JOIN ppl_legal_employers candidate_employer
+                       ON candidate_employer.tenant_id = candidate_relationship.tenant_id
+                      AND candidate_employer.legal_employer_id =
+                          candidate_relationship.legal_employer_id
+                    WHERE candidate_worker.tenant_id = p.tenant_id
+                      AND candidate_worker.person_id = p.person_id
+                      AND candidate_worker.worker_status IN ('ACTIVE', 'LEAVE', 'PENDING')
+                      AND NOT EXISTS (
+                            SELECT 1
+                              FROM ppl_workers population_worker
+                              JOIN ppl_work_relationships population_relationship
+                                ON population_relationship.tenant_id =
+                                   population_worker.tenant_id
+                               AND population_relationship.worker_id =
+                                   population_worker.worker_id
+                               AND population_relationship.start_date <= CURRENT_DATE
+                               AND (population_relationship.end_date IS NULL
+                                    OR population_relationship.end_date >= CURRENT_DATE)
+                              JOIN ppl_assignments population_assignment
+                                ON population_assignment.tenant_id =
+                                   population_relationship.tenant_id
+                               AND population_assignment.work_relationship_id =
+                                   population_relationship.work_relationship_id
+                               AND population_assignment.assignment_status IN
+                                   ('ACTIVE', 'SUSPENDED', 'PENDING')
+                               AND population_assignment.effective_start_date <= CURRENT_DATE
+                               AND (population_assignment.effective_end_date IS NULL
+                                    OR population_assignment.effective_end_date >= CURRENT_DATE)
+                              LEFT JOIN ppl_organizations population_organization
+                                ON population_organization.tenant_id =
+                                   population_assignment.tenant_id
+                               AND population_organization.organization_id =
+                                   population_assignment.organization_id
+                             WHERE population_worker.tenant_id = p.tenant_id
+                               AND population_worker.worker_id = candidate_worker.worker_id
+                               AND population_worker.worker_status IN ('ACTIVE', 'LEAVE')
+                               AND population_worker.worker_id <> :populationActorWorkerId
+                               AND (:populationTenantWide
+                                    OR population_assignment.manager_assignment_key =
+                                       :populationManagerAssignmentKey
+                                    OR population_organization.public_id IN
+                                       (:populationOrganizationIds))
+                      )
+             )
+            """);
     }
 
     public Optional<DirectoryRow> findByPublicId(Long tenantId, UUID publicId, LocalDate asOf) {

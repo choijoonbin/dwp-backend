@@ -37,6 +37,10 @@ class People360ServiceTest {
             UUID.fromString("10000000-0000-0000-0000-000000000001");
     private static final UUID ACTOR_PERSON_ID =
             UUID.fromString("10000000-0000-0000-0000-000000000002");
+    private static final UUID OUT_OF_POPULATION_PERSON_ID =
+            UUID.fromString("10000000-0000-0000-0000-000000000003");
+    private static final UUID SECOND_ALLOWED_PERSON_ID =
+            UUID.fromString("10000000-0000-0000-0000-000000000004");
     private static final LocalDate AS_OF = LocalDate.of(2026, 9, 17);
 
     private final People360Repository repository = mock(People360Repository.class);
@@ -466,14 +470,15 @@ class People360ServiceTest {
         PeopleRequestContext.set(
                 17L, TENANT_ID, ACTOR_PERSON_ID,
                 Set.of("HR_OPERATOR"), Set.of("DATA.WORKFORCE:VIEW"));
-        when(directory.searchWorkforce("synthetic", "ACTIVE", "cursor-1", 25, AS_OF))
-                .thenReturn(new PeopleDtos.CursorPage<>(
-                        List.of(summary()), "cursor-2", 1, true, AS_OF));
-        stubPersonAndEmployments(List.of(employment(71L, true)));
         HcmPopulationScopeService.ResolvedPopulation operations = population(
                 0L, null, true, Set.of(),
                 Set.of("DIRECTORY", "EMPLOYMENT", "WORKER_IDENTIFIERS"));
         when(populationScopes.requireOperations("READ")).thenReturn(operations);
+        when(directory.searchWorkforce(
+                "synthetic", "ACTIVE", "cursor-1", 25, AS_OF, operations))
+                .thenReturn(new PeopleDtos.CursorPage<>(
+                        List.of(summary()), "cursor-2", 1, true, AS_OF));
+        stubPersonAndEmployments(List.of(employment(71L, true)));
         when(populations.containsWorker(TENANT_ID, operations.scope(), 71L)).thenReturn(true);
 
         People360Dtos.Page result = service.search(
@@ -492,28 +497,119 @@ class People360ServiceTest {
                             "employment.workerStatus", People360Dtos.FieldDecisionValue.VIEW);
         });
         assertThat(result.nextCursor()).isEqualTo("cursor-2");
+        assertThat(result.size()).isEqualTo(1);
         assertThat(result.hasMore()).isTrue();
-        verify(repository).findCurrentEmployments(TENANT_ID, 42L, AS_OF);
-        InOrder authorityBeforeDirectory = org.mockito.Mockito.inOrder(
-                populationScopes, directory);
-        authorityBeforeDirectory.verify(populationScopes).requireOperations("READ");
-        authorityBeforeDirectory.verify(populationScopes).requireTrustedScope(
+        InOrder authorityBeforeRead = org.mockito.Mockito.inOrder(
+                populationScopes, directory, repository, populations);
+        authorityBeforeRead.verify(populationScopes).requireOperations("READ");
+        authorityBeforeRead.verify(populationScopes).requireTrustedScope(
                 operations, "hcm.operations", "TARGET_POPULATION",
                 "WORKFORCE_TARGET_POPULATION", "ORG_UNIT/LEGAL_ENTITY");
-        authorityBeforeDirectory.verify(directory).searchWorkforce(
-                "synthetic", "ACTIVE", "cursor-1", 25, AS_OF);
+        authorityBeforeRead.verify(directory).searchWorkforce(
+                "synthetic", "ACTIVE", "cursor-1", 25, AS_OF, operations);
+        authorityBeforeRead.verify(repository).findPerson(TENANT_ID, PERSON_ID);
+        authorityBeforeRead.verify(repository).findCurrentEmployments(TENANT_ID, 42L, AS_OF);
+        authorityBeforeRead.verify(populations).containsWorker(
+                TENANT_ID, operations.scope(), 71L);
+    }
+
+    @Test
+    void people360ListPostFilterExcludesPopulationDriftAndPreservesAllowedOrder() {
+        PeopleRequestContext.set(
+                27L, TENANT_ID, ACTOR_PERSON_ID,
+                Set.of("HR_OPERATOR"), Set.of("DATA.WORKFORCE:VIEW"));
+        HcmPopulationScopeService.ResolvedPopulation operations = population(
+                0L, null, false,
+                Set.of(UUID.fromString("40000000-0000-0000-0000-000000000001")),
+                Set.of("DIRECTORY", "EMPLOYMENT", "WORKER_IDENTIFIERS"));
+        when(populationScopes.requireOperations("READ")).thenReturn(operations);
+        when(directory.searchWorkforce(null, null, null, 25, AS_OF, operations))
+                .thenReturn(new PeopleDtos.CursorPage<>(
+                        List.of(
+                                summary(PERSON_ID, "Allowed One"),
+                                summary(OUT_OF_POPULATION_PERSON_ID, "Excluded"),
+                                summary(SECOND_ALLOWED_PERSON_ID, "Allowed Two")),
+                        "cursor-2", 3, true, AS_OF));
+        stubPersonAndEmployments(
+                42L, PERSON_ID, "Allowed One", List.of(employment(71L, true)));
+        stubPersonAndEmployments(
+                43L, OUT_OF_POPULATION_PERSON_ID, "Excluded",
+                List.of(employment(72L, true)));
+        stubPersonAndEmployments(
+                44L, SECOND_ALLOWED_PERSON_ID, "Allowed Two",
+                List.of(employment(73L, true)));
+        when(populations.containsWorker(TENANT_ID, operations.scope(), 71L)).thenReturn(true);
+        when(populations.containsWorker(TENANT_ID, operations.scope(), 72L)).thenReturn(false);
+        when(populations.containsWorker(TENANT_ID, operations.scope(), 73L)).thenReturn(true);
+
+        People360Dtos.Page result = service.search(null, null, null, 25, AS_OF);
+
+        assertThat(result.items())
+                .extracting(item -> item.person().personId())
+                .containsExactly(PERSON_ID, SECOND_ALLOWED_PERSON_ID);
+        assertThat(result.size()).isEqualTo(2);
+        assertThat(result.nextCursor()).isEqualTo("cursor-2");
+        assertThat(result.hasMore()).isTrue();
+        verify(repository).findCurrentEmployments(TENANT_ID, 43L, AS_OF);
+        verify(populations).containsWorker(TENANT_ID, operations.scope(), 72L);
+    }
+
+    @Test
+    void people360ListReturnsTruthfulEmptyEnvelopeWhenEveryPersonIsOutOfPopulation() {
+        PeopleRequestContext.set(
+                28L, TENANT_ID, ACTOR_PERSON_ID,
+                Set.of("HR_OPERATOR"), Set.of("DATA.WORKFORCE:VIEW"));
+        HcmPopulationScopeService.ResolvedPopulation operations = population(
+                0L, null, false,
+                Set.of(UUID.fromString("40000000-0000-0000-0000-000000000001")),
+                Set.of("DIRECTORY", "EMPLOYMENT"));
+        when(populationScopes.requireOperations("READ")).thenReturn(operations);
+        when(directory.searchWorkforce(null, null, null, 25, AS_OF, operations))
+                .thenReturn(new PeopleDtos.CursorPage<>(
+                        List.of(summary(OUT_OF_POPULATION_PERSON_ID, "Excluded")),
+                        null, 1, false, AS_OF));
+        stubPersonAndEmployments(
+                43L, OUT_OF_POPULATION_PERSON_ID, "Excluded",
+                List.of(employment(72L, true)));
+        when(populations.containsWorker(TENANT_ID, operations.scope(), 72L)).thenReturn(false);
+
+        People360Dtos.Page result = service.search(null, null, null, 25, AS_OF);
+
+        assertThat(result.items()).isEmpty();
+        assertThat(result.size()).isZero();
+        assertThat(result.nextCursor()).isNull();
+        assertThat(result.hasMore()).isFalse();
+        assertThat(result.asOf()).isEqualTo(AS_OF);
     }
 
     private void stubPersonAndEmployments(
             List<People360Repository.CurrentEmploymentRow> employments) {
-        when(repository.findPerson(TENANT_ID, PERSON_ID)).thenReturn(Optional.of(person()));
-        when(repository.findCurrentEmployments(TENANT_ID, 42L, AS_OF))
+        stubPersonAndEmployments(
+                42L, PERSON_ID, "Synthetic Person", employments);
+    }
+
+    private void stubPersonAndEmployments(
+            long internalPersonId,
+            UUID personId,
+            String displayName,
+            List<People360Repository.CurrentEmploymentRow> employments) {
+        when(repository.findPerson(TENANT_ID, personId))
+                .thenReturn(Optional.of(person(internalPersonId, personId, displayName)));
+        when(repository.findCurrentEmployments(TENANT_ID, internalPersonId, AS_OF))
                 .thenReturn(employments);
     }
 
     private People360Repository.PersonRow person() {
+        return person(42L, PERSON_ID, "Synthetic Person");
+    }
+
+    private People360Repository.PersonRow person(
+            long internalPersonId,
+            UUID personId,
+            String displayName) {
         return new People360Repository.PersonRow(
-                42L, PERSON_ID, "Synthetic Person", "ko-KR", "Asia/Seoul", "ACTIVE", 4L);
+                internalPersonId, personId, displayName,
+                "ko-KR", "Asia/Seoul", "ACTIVE", 4L);
     }
 
     private People360Repository.CurrentEmploymentRow employment(
@@ -564,8 +660,12 @@ class People360ServiceTest {
     }
 
     private PeopleDtos.PersonSummary summary() {
+        return summary(PERSON_ID, "Synthetic Person");
+    }
+
+    private PeopleDtos.PersonSummary summary(UUID personId, String displayName) {
         return new PeopleDtos.PersonSummary(
-                PERSON_ID, "Synthetic Person", "ko-KR", "Asia/Seoul", "ACTIVE",
+                personId, displayName, "ko-KR", "Asia/Seoul", "ACTIVE",
                 "SYN-0042", "EMPLOYEE", "ACTIVE", "SYN-ASG-0042",
                 "Synthetic Engineer",
                 UUID.fromString("40000000-0000-0000-0000-000000000001"),

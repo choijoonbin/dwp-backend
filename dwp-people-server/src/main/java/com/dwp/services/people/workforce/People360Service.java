@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -63,12 +64,15 @@ public class People360Service {
         requireOperationsEvidence(population);
         Authorization authorization = operationsAuthorization(actor, population);
         PeopleDtos.CursorPage<PeopleDtos.PersonSummary> selected =
-                directory.searchWorkforce(query, status, cursor, size, asOf);
+                directory.searchWorkforce(query, status, cursor, size, asOf, population);
         List<People360Dtos.Snapshot> items = selected.items().stream()
-                .map(person -> snapshot(person.personId(), asOf, actor, authorization))
+                .map(person -> searchSnapshot(person.personId(), asOf, actor, authorization))
+                .flatMap(Optional::stream)
                 .toList();
+        // The opaque directory cursor must remain advanceable past filtered candidates,
+        // while size describes only items the caller is allowed to observe.
         return new People360Dtos.Page(
-                items, selected.nextCursor(), selected.size(), selected.hasMore(), asOf);
+                items, selected.nextCursor(), items.size(), selected.hasMore(), asOf);
     }
 
     @Transactional(readOnly = true)
@@ -124,7 +128,7 @@ public class People360Service {
                 People360ProjectionPolicyProvider.ProjectionPurpose.DETAIL);
     }
 
-    private People360Dtos.Snapshot snapshot(
+    private Optional<People360Dtos.Snapshot> searchSnapshot(
             UUID personId,
             LocalDate asOf,
             PeopleRequestContext.Actor actor,
@@ -133,10 +137,12 @@ public class People360Service {
         List<People360Repository.CurrentEmploymentRow> employments =
                 repository.findCurrentEmployments(
                         actor.tenantId(), person.internalPersonId(), asOf);
-        requirePopulationMembership(actor, authorization.population(), employments);
-        return project(
+        if (!inPopulation(actor, authorization.population(), employments)) {
+            return Optional.empty();
+        }
+        return Optional.of(project(
                 actor, person, uniquePrimary(employments), asOf, authorization,
-                People360ProjectionPolicyProvider.ProjectionPurpose.LIST);
+                People360ProjectionPolicyProvider.ProjectionPurpose.LIST));
     }
 
     private People360Repository.PersonRow person(

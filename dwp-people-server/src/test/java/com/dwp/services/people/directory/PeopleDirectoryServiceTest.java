@@ -1,5 +1,6 @@
 package com.dwp.services.people.directory;
 
+import com.dwp.services.people.hr.HcmPopulationRepository;
 import com.dwp.services.people.hr.HcmPopulationScopeService;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmV3PepRegistry;
@@ -115,6 +116,57 @@ class PeopleDirectoryServiceTest {
         verify(repository).search(
                 TENANT_ID, 0L, "SK000042", null, AS_OF, 21,
                 true, Set.of(), false, false);
+    }
+
+    @Test
+    void populationRevisionBoundContinuationFillsPageAcrossExcludedIdGap() {
+        HcmPopulationRepository.PopulationScope scope =
+                new HcmPopulationRepository.PopulationScope(
+                        91L, null, true, Set.of(),
+                        Set.of("DIRECTORY", "WORKER_IDENTIFIERS", "EMPLOYMENT", "JOB_GRADE"),
+                        "synthetic-policy-v3");
+        HcmPopulationScopeService.ResolvedPopulation population =
+                new HcmPopulationScopeService.ResolvedPopulation(
+                        null, scope, new HcmPopulationRepository.PopulationEvidence(
+                                3L, "synthetic-population-v9"));
+        UUID firstId = UUID.randomUUID();
+        UUID secondId = UUID.randomUUID();
+        String populationFingerprint =
+                AS_OF + "|target-population|operator|"
+                        + "synthetic-population-v9:synthetic-policy-v3";
+        when(cursorCodec.fingerprint(null, null, populationFingerprint))
+                .thenReturn("population-fingerprint");
+        when(cursorCodec.decode(
+                "cursor-before-page", TENANT_ID, "population-fingerprint"))
+                .thenReturn(100L);
+        // person_id 102 was removed by the SQL population predicate before LIMIT.
+        when(repository.searchWithinPopulation(
+                TENANT_ID, 100L, null, null, AS_OF, 3,
+                true, true, scope))
+                .thenReturn(List.of(
+                        directoryRow(101L, firstId),
+                        directoryRow(103L, secondId),
+                        directoryRow(104L, UUID.randomUUID())));
+        when(cursorCodec.encode(TENANT_ID, 103L, "population-fingerprint"))
+                .thenReturn("cursor-after-second-allowed");
+
+        PeopleDtos.CursorPage<PeopleDtos.PersonSummary> result = service.searchWorkforce(
+                null, null, "cursor-before-page", 2, AS_OF, population);
+
+        assertThat(result.items())
+                .extracting(PeopleDtos.PersonSummary::personId)
+                .containsExactly(firstId, secondId);
+        assertThat(result.size()).isEqualTo(2);
+        assertThat(result.hasMore()).isTrue();
+        assertThat(result.nextCursor()).isEqualTo("cursor-after-second-allowed");
+        verify(cursorCodec).fingerprint(null, null, populationFingerprint);
+        verify(cursorCodec).decode(
+                "cursor-before-page", TENANT_ID, "population-fingerprint");
+        verify(repository).searchWithinPopulation(
+                TENANT_ID, 100L, null, null, AS_OF, 3,
+                true, true, scope);
+        verify(accessPolicyService, never()).require("READ");
+        verify(populationScopes, never()).requireOperations("READ");
     }
 
     @Test
@@ -250,9 +302,15 @@ class PeopleDirectoryServiceTest {
     }
 
     private PeopleDirectoryRepository.DirectoryRow directoryRow() {
+        return directoryRow(42L, UUID.randomUUID());
+    }
+
+    private PeopleDirectoryRepository.DirectoryRow directoryRow(
+            long internalPersonId,
+            UUID personId) {
         return new PeopleDirectoryRepository.DirectoryRow(
-                42L,
-                UUID.randomUUID(),
+                internalPersonId,
+                personId,
                 "Kim DWP",
                 "ko-KR",
                 "Asia/Seoul",
