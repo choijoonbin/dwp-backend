@@ -654,6 +654,18 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
         )
         self.assertEqual("true", specs["platform"].extra_environment["DWP_HRIS_SYSTEM_WAVE1_ENABLED"])
         self.assertEqual("true", specs["people"].extra_environment["DWP_HRIS_PERFORMANCE_WAVE1_ENABLED"])
+        self.assertEqual(
+            "true",
+            specs["people"].extra_environment[
+                "DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED"
+            ],
+        )
+        self.assertEqual(
+            "true",
+            specs["people"].extra_environment[
+                "DWP_PEOPLE_PEOPLE360_RUNTIME_ENABLED"
+            ],
+        )
         self.assertEqual("true", specs["payroll"].extra_environment["DWP_HRIS_PAYROLL_FOUNDATION_WAVE1_ENABLED"])
         self.assertEqual("true", specs["time"].extra_environment["DWP_TIME_WORK_REGIME_API_ENABLED"])
         self.assertEqual("false", specs["auth"].extra_environment["DWP_PRODUCT_AUTHORIZATION_LOCAL_PILOT_ACTIVATION_ENABLED"])
@@ -693,6 +705,177 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                 "DWP_HRIS_PEOPLE_WORKFORCE_SYNTHETIC_BOOTSTRAP_RUN_ID"
             ],
         )
+
+    def test_latest_clean_auth_attests_current_migration_head(self):
+        raw = "\n".join(
+            [
+                "232|true",
+                "233|true",
+                "234|true",
+                "234.1|true",
+                "flyway-head|234.1",
+                f"32|{gate.V32_CHECKSUM}",
+                f"33|{gate.V33_CHECKSUM}",
+                "bundle-total|0",
+                "active-total|0",
+            ]
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            (output / "db").mkdir()
+            state = self.checkpoint_state(output)
+            spec = gate.service_specs(
+                gate.RuntimeSecrets.generate(), state.run_id
+            )["auth"]
+            with mock.patch.object(gate, "start_jar") as start, mock.patch.object(
+                gate, "psql", return_value=raw
+            ) as query:
+                gate.start_and_verify_latest_clean_auth(
+                    state, spec, {}, "postgres", 1.0
+                )
+
+        environment = start.call_args.args[2]
+        self.assertNotIn("SPRING_FLYWAY_TARGET", environment)
+        self.assertEqual("false", environment["DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED"])
+        self.assertEqual(
+            "latest-clean-install-through-v234.1", state.phases[-1]["name"]
+        )
+        self.assertEqual("234.1", state.phases[-1]["details"]["flywayVersion"])
+        migration_query = query.call_args.args[2]
+        self.assertNotIn("WHERE version IN", migration_query)
+        self.assertIn("installed_rank >=", migration_query)
+
+    def test_latest_clean_auth_rejects_stale_or_future_head_evidence(self):
+        base = [
+            "232|true",
+            "233|true",
+            "234|true",
+            "234.1|true",
+        ]
+        suffix = [
+            f"32|{gate.V32_CHECKSUM}",
+            f"33|{gate.V33_CHECKSUM}",
+            "bundle-total|0",
+            "active-total|0",
+        ]
+        cases = {
+            "stale-head": [*base, "flyway-head|233", *suffix],
+            "future-head": [*base, "flyway-head|235", *suffix],
+            "unexpected-intermediate": [
+                "232|true",
+                "233|true",
+                "233.1|true",
+                "234|true",
+                "234.1|true",
+                "flyway-head|234.1",
+                *suffix,
+            ],
+        }
+        for label, lines in cases.items():
+            with self.subTest(label=label), tempfile.TemporaryDirectory() as temporary:
+                output = Path(temporary)
+                (output / "db").mkdir()
+                state = self.checkpoint_state(output)
+                spec = gate.service_specs(
+                    gate.RuntimeSecrets.generate(), state.run_id
+                )["auth"]
+                raw = "\n".join(lines)
+                with mock.patch.object(gate, "start_jar"), mock.patch.object(
+                    gate, "psql", return_value=raw
+                ), self.assertRaises(gate.GateFailure):
+                    gate.start_and_verify_latest_clean_auth(
+                        state, spec, {}, "postgres", 1.0
+                    )
+
+    def test_auth_upgrade_uses_exact_v233_then_seedless_current_head(self):
+        v233 = "\n".join(
+            [
+                "232|true",
+                "233|true",
+                "flyway-head|233",
+                f"32|{gate.V32_CHECKSUM}",
+                f"33|{gate.V33_CHECKSUM}",
+                "bundle-total|2",
+                f"bundle|product-surfaces|32|ACTIVE|{gate.V32_CHECKSUM}",
+                f"bundle|product-surfaces|33|DRAFT|{gate.V33_CHECKSUM}",
+                "active-total|1",
+                "active|32|1|w1-synthetic-release-v32",
+            ]
+        )
+        current = "\n".join(
+            [
+                "232|true",
+                "233|true",
+                "234|true",
+                "234.1|true",
+                "flyway-head|234.1",
+                f"32|{gate.V32_CHECKSUM}",
+                f"33|{gate.V33_CHECKSUM}",
+                "bundle-total|2",
+                f"bundle|product-surfaces|32|ACTIVE|{gate.V32_CHECKSUM}",
+                f"bundle|product-surfaces|33|DRAFT|{gate.V33_CHECKSUM}",
+                "active-total|1",
+                "active|32|1|w1-synthetic-release-v32",
+            ]
+        )
+        active = {
+            "version": 32,
+            "bundleStatus": "ACTIVE",
+            "activeRevision": 1,
+            "checksum": gate.V32_CHECKSUM,
+        }
+        managed = mock.Mock()
+        managed.process.poll.return_value = None
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            (output / "db").mkdir()
+            state = self.checkpoint_state(output)
+            spec = gate.service_specs(
+                gate.RuntimeSecrets.generate(), state.run_id
+            )["auth"]
+            secrets = gate.RuntimeSecrets.generate()
+            with mock.patch.object(
+                gate, "start_jar", return_value=managed
+            ) as start, mock.patch.object(
+                gate, "psql", side_effect=["2", v233, current]
+            ), mock.patch.object(
+                gate, "http_request", return_value=(200, active, None)
+            ):
+                gate.start_auth_at_v233(
+                    state, spec, {}, "postgres", secrets, 1.0
+                )
+                gate.start_auth_latest(
+                    state, spec, {}, "postgres", secrets, 1.0
+                )
+
+        v233_environment = start.call_args_list[0].args[2]
+        current_environment = start.call_args_list[1].args[2]
+        self.assertEqual("233", v233_environment["SPRING_FLYWAY_TARGET"])
+        self.assertEqual("true", v233_environment["DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED"])
+        self.assertEqual("33", v233_environment["DWP_PRODUCT_AUTHORIZATION_SEED_ONLY_VERSION"])
+        self.assertNotIn("SPRING_FLYWAY_TARGET", current_environment)
+        self.assertEqual("false", current_environment["DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED"])
+        self.assertEqual(
+            "upgrade-v233-state-to-current-v234.1", state.phases[-1]["name"]
+        )
+
+    def test_stop_process_retains_failed_process_for_teardown_retry(self):
+        state = gate.GateState(
+            "w1-20261001t050403z-0123abcd",
+            Path("/tmp/hris-w1-synthetic-20261001t050403z-0123abcd"),
+            "2026-10-01T05:04:03Z",
+        )
+        managed = mock.Mock()
+        managed.stop.side_effect = RuntimeError("synthetic stop failure")
+        state.processes["auth-v233"] = managed
+
+        with self.assertRaises(RuntimeError):
+            gate.stop_process(state, "auth-v233")
+        self.assertIs(managed, state.processes["auth-v233"])
+
+        managed.stop.side_effect = None
+        gate.stop_process(state, "auth-v233")
+        self.assertNotIn("auth-v233", state.processes)
 
     def test_service_specs_do_not_mint_or_inject_trusted_control_evidence(self):
         specs = gate.service_specs(

@@ -7,11 +7,12 @@ ports, uses synthetic actors and credentials, and removes the containers in a
 finally block.  It never connects to an existing DWP database.
 
 The lifecycle exercised here is the production-shaped, token-separated HTTP
-lane. Flyway first stops at V232, Auth imports only v32 and activates it at
-revision 1, then the same database is upgraded to V233. The runner proves that
-the active v32 pointer survived the upgrade, imports and activates v33 with
-CAS, and rolls the active pointer back to v32 while retaining exact governance
-evidence.
+lane. A seedless clean database first proves the current Auth migration head.
+Flyway then stops a separate database at V232, Auth imports only v32 and
+activates it at revision 1, and that database is upgraded to the exact V233
+boundary. After proving the active v32 pointer survived, the runner upgrades to
+the current migration head, imports and activates v33 with CAS, and rolls the
+active pointer back to v32 while retaining exact governance evidence.
 """
 
 from __future__ import annotations
@@ -43,6 +44,8 @@ ROOT = Path(__file__).resolve().parents[1]
 BUNDLE_KEY = "product-surfaces"
 V32_CHECKSUM = "9e4e274bf457d1a5947c8b54e83299d28fb9fe128d9f1100991bc30634b54344"
 V33_CHECKSUM = "254ead674e1126d50e8dcf1011486ea1127fb2479f7a82d832cdf0466995bc49"
+CURRENT_AUTH_FLYWAY_VERSION = "234.1"
+CURRENT_AUTH_MIGRATION_TAIL = ("232", "233", "234", CURRENT_AUTH_FLYWAY_VERSION)
 RUN_ID_PATTERN = re.compile(r"^w1-[0-9]{8}t[0-9]{6}z-[0-9a-f]{8}$")
 OUTPUT_BASENAME_PATTERN = re.compile(
     r"^hris-w1-synthetic-[0-9]{8}t[0-9]{6}z-[0-9a-f]{8}$"
@@ -693,9 +696,10 @@ def start_jar(
 
 
 def stop_process(state: GateState, name: str) -> None:
-    process = state.processes.pop(name, None)
+    process = state.processes.get(name)
     if process is not None:
         process.stop()
+        state.processes.pop(name, None)
 
 
 def allowlisted_host_environment() -> dict[str, str]:
@@ -796,6 +800,8 @@ def service_specs(secrets_: RuntimeSecrets, run_id: str) -> dict[str, ServiceSpe
                 "DWP_PEOPLE_HRIS_DATABASE_RUNTIME_ENVIRONMENT": "local",
                 "DWP_PEOPLE_HRIS_DATABASE_SERVICE_INSTANCE": "w1-synthetic-people",
                 "DWP_HRIS_PERFORMANCE_WAVE1_ENABLED": "true",
+                "DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED": "true",
+                "DWP_PEOPLE_PEOPLE360_RUNTIME_ENABLED": "true",
                 "DWP_IDENTITY_SYNC_ENABLED": "false",
                 "DWP_PROVIDER_PROVISIONING_TOKEN": secrets_.provider_provisioning_token,
                 "DWP_SYNTHETIC_IMPORT_ENABLED": "true",
@@ -2088,8 +2094,17 @@ def start_and_verify_latest_clean_auth(
         """
         SELECT version || '|' || success::text
           FROM flyway_schema_history
-         WHERE version IN ('232', '233')
+         WHERE version IS NOT NULL
+           AND installed_rank >= (
+               SELECT installed_rank
+                 FROM flyway_schema_history
+                WHERE version = '232')
          ORDER BY installed_rank;
+        SELECT 'flyway-head|' || version
+          FROM flyway_schema_history
+         WHERE version IS NOT NULL AND success
+         ORDER BY installed_rank DESC
+         LIMIT 1;
         SELECT version || '|' || checksum
           FROM auth_product_authorization_seed_release
          WHERE bundle_key = 'product-surfaces' AND version IN (32, 33)
@@ -2104,8 +2119,8 @@ def start_and_verify_latest_clean_auth(
         raw + "\n", encoding="utf-8"
     )
     expected = [
-        "232|true",
-        "233|true",
+        *(f"{version}|true" for version in CURRENT_AUTH_MIGRATION_TAIL),
+        f"flyway-head|{CURRENT_AUTH_FLYWAY_VERSION}",
         f"32|{V32_CHECKSUM}",
         f"33|{V33_CHECKSUM}",
         "bundle-total|0",
@@ -2117,9 +2132,10 @@ def start_and_verify_latest_clean_auth(
             f"Latest clean-install state mismatch: expected {expected}, got {actual}"
         )
     state.phase(
-        "latest-clean-install-through-v233",
+        "latest-clean-install-through-v234.1",
         "PASS",
         isolatedDatabase="dwp_auth_latest_clean",
+        flywayVersion=CURRENT_AUTH_FLYWAY_VERSION,
         seedsImported=False,
         bundleCount=0,
         activePointerCount=0,
@@ -2133,8 +2149,17 @@ def verify_v232(postgres: str, state: GateState) -> None:
         """
         SELECT version || '|' || success::text
           FROM flyway_schema_history
-         WHERE version IN ('232', '233')
+         WHERE version IS NOT NULL
+           AND installed_rank >= (
+               SELECT installed_rank
+                 FROM flyway_schema_history
+                WHERE version = '232')
          ORDER BY installed_rank;
+        SELECT 'flyway-head|' || version
+          FROM flyway_schema_history
+         WHERE version IS NOT NULL AND success
+         ORDER BY installed_rank DESC
+         LIMIT 1;
         SELECT version || '|' || checksum
           FROM auth_product_authorization_seed_release
          WHERE bundle_key = 'product-surfaces' AND version IN (32, 33)
@@ -2153,6 +2178,7 @@ def verify_v232(postgres: str, state: GateState) -> None:
     lines = [line.strip() for line in raw.splitlines() if line.strip()]
     expected = [
         "232|true",
+        "flyway-head|232",
         f"32|{V32_CHECKSUM}",
         "bundle-total|1",
         f"bundle|product-surfaces|32|DRAFT|{V32_CHECKSUM}",
@@ -2171,7 +2197,7 @@ def verify_v232(postgres: str, state: GateState) -> None:
     )
 
 
-def start_auth_latest(
+def start_auth_at_v233(
     state: GateState,
     spec: ServiceSpec,
     base_environment: dict[str, str],
@@ -2184,11 +2210,14 @@ def start_auth_latest(
     environment.update(
         {
             "SERVER_PORT": str(state.ports["auth"]),
+            "SPRING_FLYWAY_TARGET": "233",
             "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "true",
             "DWP_PRODUCT_AUTHORIZATION_SEED_ONLY_VERSION": "33",
         }
     )
-    start_jar(state, spec, environment, timeout)
+    managed = start_jar(
+        state, spec, environment, timeout, runtime_name="auth-v233"
+    )
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         count = psql(
@@ -2198,8 +2227,7 @@ def start_auth_latest(
         ).strip()
         if count == "2":
             break
-        process = state.processes["auth"].process
-        if process.poll() is not None:
+        if managed.process.poll() is not None:
             raise GateFailure("Auth stopped while importing immutable product authorization seeds.")
         time.sleep(0.5)
     else:
@@ -2211,8 +2239,17 @@ def start_auth_latest(
         """
         SELECT version || '|' || success::text
           FROM flyway_schema_history
-         WHERE version IN ('232', '233')
+         WHERE version IS NOT NULL
+           AND installed_rank >= (
+               SELECT installed_rank
+                 FROM flyway_schema_history
+                WHERE version = '232')
          ORDER BY installed_rank;
+        SELECT 'flyway-head|' || version
+          FROM flyway_schema_history
+         WHERE version IS NOT NULL AND success
+         ORDER BY installed_rank DESC
+         LIMIT 1;
         SELECT version || '|' || checksum
           FROM auth_product_authorization_seed_release
          WHERE bundle_key = 'product-surfaces' AND version IN (32, 33)
@@ -2240,6 +2277,7 @@ def start_auth_latest(
     expected = [
         "232|true",
         "233|true",
+        "flyway-head|233",
         f"32|{V32_CHECKSUM}",
         f"33|{V33_CHECKSUM}",
         "bundle-total|2",
@@ -2278,6 +2316,110 @@ def start_auth_latest(
             {"bundleKey": BUNDLE_KEY, "version": 32},
             {"bundleKey": BUNDLE_KEY, "version": 33},
         ],
+        preservedVersion=32,
+        preservedRevision=1,
+    )
+
+
+def start_auth_latest(
+    state: GateState,
+    spec: ServiceSpec,
+    base_environment: dict[str, str],
+    postgres: str,
+    secrets_: RuntimeSecrets,
+    timeout: float,
+) -> None:
+    environment = base_environment.copy()
+    environment.update(spec.extra_environment)
+    environment.update(
+        {
+            "SERVER_PORT": str(state.ports["auth"]),
+            "DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED": "false",
+        }
+    )
+    start_jar(state, spec, environment, timeout)
+    declaration = psql(
+        postgres,
+        "dwp_auth",
+        """
+        SELECT version || '|' || success::text
+          FROM flyway_schema_history
+         WHERE version IS NOT NULL
+           AND installed_rank >= (
+               SELECT installed_rank
+                 FROM flyway_schema_history
+                WHERE version = '232')
+         ORDER BY installed_rank;
+        SELECT 'flyway-head|' || version
+          FROM flyway_schema_history
+         WHERE version IS NOT NULL AND success
+         ORDER BY installed_rank DESC
+         LIMIT 1;
+        SELECT version || '|' || checksum
+          FROM auth_product_authorization_seed_release
+         WHERE bundle_key = 'product-surfaces' AND version IN (32, 33)
+         ORDER BY version;
+        SELECT 'bundle-total|' || count(*)::text
+          FROM auth_product_authorization_bundle;
+        SELECT 'bundle|' || bundle_key || '|' || version::text || '|' ||
+               bundle_status || '|' || checksum
+          FROM auth_product_authorization_bundle
+         ORDER BY bundle_key, version;
+        SELECT 'active-total|' || count(*)::text
+          FROM auth_product_authorization_active;
+        SELECT 'active|' || bundle.version::text || '|' || active.revision::text ||
+               '|' || active.activated_by
+          FROM auth_product_authorization_active active
+          JOIN auth_product_authorization_bundle bundle
+            ON bundle.bundle_id = active.bundle_id
+           AND bundle.bundle_key = active.bundle_key
+         WHERE active.bundle_key = 'product-surfaces';
+        """,
+    )
+    (state.output_dir / "db" / "current-latest-state.txt").write_text(
+        declaration + "\n", encoding="utf-8"
+    )
+    expected = [
+        *(f"{version}|true" for version in CURRENT_AUTH_MIGRATION_TAIL),
+        f"flyway-head|{CURRENT_AUTH_FLYWAY_VERSION}",
+        f"32|{V32_CHECKSUM}",
+        f"33|{V33_CHECKSUM}",
+        "bundle-total|2",
+        f"bundle|product-surfaces|32|ACTIVE|{V32_CHECKSUM}",
+        f"bundle|product-surfaces|33|DRAFT|{V33_CHECKSUM}",
+        "active-total|1",
+        "active|32|1|w1-synthetic-release-v32",
+    ]
+    actual = [line.strip() for line in declaration.splitlines() if line.strip()]
+    if actual != expected:
+        raise GateFailure(
+            "Current Auth upgrade state mismatch at v234.1: "
+            f"expected {expected}, got {actual}"
+        )
+    _, active, _ = http_request(
+        state,
+        name="04-current-latest-active-v32",
+        port=state.ports["auth"],
+        method="GET",
+        path=f"{OPERATIONS_PATH}/{BUNDLE_KEY}/active",
+        headers=auth_headers(secrets_, "activation"),
+    )
+    assert_fields(
+        active,
+        {
+            "version": 32,
+            "bundleStatus": "ACTIVE",
+            "activeRevision": 1,
+            "checksum": V32_CHECKSUM,
+        },
+        "active v32 pointer preserved from V233 through current Auth migrations",
+    )
+    state.phase(
+        "upgrade-v233-state-to-current-v234.1",
+        "PASS",
+        flywayVersion=CURRENT_AUTH_FLYWAY_VERSION,
+        seedImportEnabled=False,
+        bundleCount=2,
         preservedVersion=32,
         preservedRevision=1,
     )
@@ -5738,6 +5880,15 @@ def execute(args: argparse.Namespace) -> tuple[GateState, str, str | None, dict[
         verify_v232(postgres, state)
         lifecycle_approve_activate_v32_at_v232(state, secrets_)
         stop_process(state, "auth-v232")
+        start_auth_at_v233(
+            state,
+            specs["auth"],
+            base_environment,
+            postgres,
+            secrets_,
+            args.startup_timeout,
+        )
+        stop_process(state, "auth-v233")
         start_auth_latest(
             state,
             specs["auth"],

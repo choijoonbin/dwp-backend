@@ -66,19 +66,26 @@ python3 scripts/hris_w1_synthetic_acceptance.py \
 This mode performs two independent database checks:
 
 1. A new `dwp_auth_latest_clean` database is installed to the repository's
-   latest Flyway version. The v32/v33 declarations must exist while the bundle
-   table remains empty and no active pointer exists.
+   current Flyway head (V234.1). The exact V232, V233, V234, and V234.1 tail and
+   the V234.1 head marker must be present. The v32/v33 declarations must exist
+   while the bundle table remains empty and no active pointer exists.
 2. A different new `dwp_auth` database is installed to Flyway V232, verified
    with only the v32 immutable bundle imported as `DRAFT` and v33 absent. Auth
    approves and activates v32 as revision 1 while the database is still at
-   V232. The process is stopped, the same database is upgraded to V233, only
-   v33 is imported, and both the database and HTTP API must show the preserved
-   active v32 revision 1 pointer before any v33 operation is allowed.
+   V232. The process is stopped, the same database is upgraded to the exact
+   V233 boundary, only v33 is imported, and both the database and HTTP API must
+   show the preserved active v32 revision 1 pointer.
+3. Auth is stopped again and the same database is upgraded, with seed import
+   disabled, to the current V234.1 head. The exact migration tail, both bundle
+   rows, and the active v32 revision 1 pointer must still match before any v33
+   approval or activation is allowed. This step also installs the V234 exact
+   payroll-operation grants required by the W1 runtime.
 
 The V232 snapshot requires exactly one bundle row in the entire table:
 `product-surfaces` v32. The V233 snapshot requires exactly two total rows:
 `product-surfaces` v32 and v33. Any additional bundle key or version fails the
-gate.
+gate. The V234.1 post-boundary snapshot must preserve those exact two rows and
+the v32 revision 1 pointer while independently proving the current Flyway head.
 
 Against the running Auth service it verifies unauthenticated denial, separated
 maker/checker approval, CAS activation of v32 and v33, stale-revision denial,
@@ -238,8 +245,8 @@ include:
 - `result.json`: scoped status, phases, rollback state, HTTP evidence digests,
   teardown verification, Git/runner/JAR/build provenance, checkpoint executable
   provenance, and any validated manifest/evidence digest bindings.
-- `db/`: latest-clean, V232/V233, governance-event, and activation-event
-  evidence.
+- `db/`: current latest-clean, exact V232/V233 boundary, V234.1 post-boundary
+  upgrade, governance-event, and activation-event evidence.
 - `health/`: successful service health responses.
 - `http/`: lifecycle responses. Bodies over 256 KiB are replaced by a minimal
   summary with their original byte count and SHA-256 digest.
