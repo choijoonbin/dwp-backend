@@ -74,6 +74,21 @@ class HcmHighRiskCommandGuardTest {
     }
 
     @Test
+    void exactCommandFailsClosedWhenGovernedPepEvidenceIsAbsent() {
+        HcmPepContext.clear();
+
+        assertThatThrownBy(() -> guard.requireExact(
+                CAPABILITY, "ORG_SCENARIO", "scenario-1", 7L, PATH,
+                java.util.Map.of("version", 7), headers()))
+                .isInstanceOfSatisfying(BaseException.class, exception ->
+                        assertThat(exception.getErrorCode())
+                                .isEqualTo(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE));
+
+        verify(verifier, never()).verify(any(), any());
+        verify(replay, never()).consume(any());
+    }
+
+    @Test
     void exactCommandMaterialIsVerifiedAndConsumed() {
         ProductSurfaceStepUpChallengeVerifier.VerifiedChallenge challenge = challenge();
         when(verifier.verify(eq("signed"), any())).thenReturn(challenge);

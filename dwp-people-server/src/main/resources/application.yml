@@ -152,7 +152,7 @@ dwp:
         out-of-order: false
     exports:
       execution-enabled: ${DWP_WORKFORCE_EXPORT_EXECUTION_ENABLED:false}
-      blockers: ${DWP_WORKFORCE_EXPORT_BLOCKERS:D-09,D-12}
+      blockers: ${DWP_WORKFORCE_EXPORT_BLOCKERS:D-09,D-12,G-05,PS-03}
       masking-profile: ${DWP_WORKFORCE_EXPORT_MASKING_PROFILE:WORKFORCE_MINIMUM}
       watermark-template: ${DWP_WORKFORCE_EXPORT_WATERMARK_TEMPLATE:DWP confidential | tenant={{tenantId}} | requester={{userId}} | recipient={{recipient}} | request={{requestId}}}
       artifact-ttl-hours: ${DWP_WORKFORCE_EXPORT_ARTIFACT_TTL_HOURS:24}

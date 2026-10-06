@@ -35,6 +35,41 @@ public class HcmHighRiskCommandGuard {
             HcmStepUpHeaders headers) {
         HcmPepContext.Evidence current = HcmPepContext.current();
         if (current == null) return; // Baseline rollout remains on its legacy contract.
+        requireBound(current, capabilityContractKey, targetType, targetId, currentVersion,
+                publicPath, canonicalPayload, headers);
+    }
+
+    /**
+     * Requires an exact governed route even while the wider product remains in compatibility
+     * rollout. Use this for HCM commands whose external-system or bulk-data impact has no safe
+     * legacy authority equivalent.
+     */
+    public void requireExact(
+            String capabilityContractKey,
+            String targetType,
+            String targetId,
+            long currentVersion,
+            String publicPath,
+            Object canonicalPayload,
+            HcmStepUpHeaders headers) {
+        HcmPepContext.Evidence current = HcmPepContext.current();
+        if (current == null) {
+            throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Exact governed HCM authority is required for this high-risk command.");
+        }
+        requireBound(current, capabilityContractKey, targetType, targetId, currentVersion,
+                publicPath, canonicalPayload, headers);
+    }
+
+    private void requireBound(
+            HcmPepContext.Evidence current,
+            String capabilityContractKey,
+            String targetType,
+            String targetId,
+            long currentVersion,
+            String publicPath,
+            Object canonicalPayload,
+            HcmStepUpHeaders headers) {
         HcmV3PepRegistry.RouteAuthority authority = current.authority();
         if (!authority.highRisk()) {
             throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
