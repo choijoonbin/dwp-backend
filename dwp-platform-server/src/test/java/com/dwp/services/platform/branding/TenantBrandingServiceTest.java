@@ -11,7 +11,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.time.OffsetDateTime;
+import java.util.HexFormat;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,6 +22,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyMap;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
@@ -134,6 +138,70 @@ class TenantBrandingServiceTest {
                 eq("corr-rollback"),
                 anyMap(),
                 anyMap());
+    }
+
+    @Test
+    void servesTheBundledSkaxLogoWithoutDependingOnMutableTenantMedia() throws Exception {
+        TenantBranding branding = branding(1L, 0L);
+        branding.setOrganizationName("SKAX");
+        branding.setLogoAssetKey(TenantBrandingService.BUNDLED_SKAX_LOGO_KEY);
+        branding.setLogoOriginalName("skax-tenant-logo.svg");
+        branding.setLogoContentType("image/svg+xml");
+        branding.setLogoSizeBytes(6104L);
+        branding.setLogoSha256("d95624857451f9c16f5993c21e14048b253cc3c809e4640d891f3dd1077642b0");
+        branding.setLogoWidth(106);
+        branding.setLogoHeight(56);
+        when(repository.findById(1L)).thenReturn(Optional.of(branding));
+
+        TenantBrandingService.LogoContent result = service.getLogo(1L);
+        byte[] content = result.resource().getInputStream().readAllBytes();
+
+        assertThat(content).hasSize(6104);
+        assertThat(HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(content)))
+                .isEqualTo("d95624857451f9c16f5993c21e14048b253cc3c809e4640d891f3dd1077642b0");
+        assertThat(new String(content, StandardCharsets.UTF_8))
+                .contains("viewBox=\"0 0 106 56\"");
+        assertThat(result.contentType()).isEqualTo("image/svg+xml");
+        assertThat(result.sizeBytes()).isEqualTo(6104L);
+        verifyNoInteractions(mediaStorage);
+    }
+
+    @Test
+    void restoresABundledLogoRevisionWithoutLookingInMutableTenantMedia() {
+        TenantBranding branding = branding(1L, 2L);
+        ObjectNode snapshot = JsonNodeFactory.instance.objectNode();
+        snapshot.put("organizationName", "SKAX");
+        snapshot.put("accentColor", "#2457D6");
+        snapshot.put("logoAssetKey", TenantBrandingService.BUNDLED_SKAX_LOGO_KEY);
+        snapshot.put("logoOriginalName", "skax-tenant-logo.svg");
+        snapshot.put("logoContentType", "image/svg+xml");
+        snapshot.put("logoSizeBytes", 6104L);
+        snapshot.put("logoSha256", "d95624857451f9c16f5993c21e14048b253cc3c809e4640d891f3dd1077642b0");
+        snapshot.put("logoWidth", 106);
+        snapshot.put("logoHeight", 56);
+        when(revisionStore.require(1L, "BRANDING", 7L)).thenReturn(
+                new ExperienceRevisionStore.ExperienceRevision(
+                        7L,
+                        1L,
+                        "BRANDING",
+                        0L,
+                        "BASELINE",
+                        snapshot,
+                        "seed",
+                        OffsetDateTime.parse("2026-08-10T00:00:00Z"),
+                        1L));
+        when(repository.findById(1L)).thenReturn(Optional.of(branding));
+        when(repository.saveAndFlush(branding)).thenAnswer(invocation -> {
+            branding.setVersion(3L);
+            return branding;
+        });
+
+        TenantBrandingDtos.TenantBrandingResponse result =
+                service.rollback(1L, 11L, "corr-bundled-rollback", 7L, 2L);
+
+        assertThat(result.logoUrl()).isEqualTo("/api/platform/v1/tenant-branding/logo?v=3");
+        assertThat(branding.getLogoAssetKey()).isEqualTo(TenantBrandingService.BUNDLED_SKAX_LOGO_KEY);
+        verifyNoInteractions(mediaStorage);
     }
 
     private TenantBranding branding(Long tenantId, Long version) {

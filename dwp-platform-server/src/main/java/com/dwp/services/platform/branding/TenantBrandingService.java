@@ -9,6 +9,7 @@ import com.dwp.services.platform.support.CappedList;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,6 +28,8 @@ public class TenantBrandingService {
 
     private static final Logger log = LoggerFactory.getLogger(TenantBrandingService.class);
     private static final String LOGO_URL = "/api/platform/v1/tenant-branding/logo";
+    static final String BUNDLED_SKAX_LOGO_KEY = "builtin/branding/skax-tenant-logo.svg";
+    private static final String BUNDLED_SKAX_LOGO_RESOURCE = "branding/skax-tenant-logo.svg";
 
     private final TenantBrandingRepository repository;
     private final TenantMediaStorage mediaStorage;
@@ -58,7 +61,7 @@ public class TenantBrandingService {
                 .filter(value -> value.getLogoAssetKey() != null)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         return new LogoContent(
-                mediaStorage.load(tenantId, branding.getLogoAssetKey()),
+                loadLogo(tenantId, branding.getLogoAssetKey()),
                 branding.getLogoContentType(),
                 branding.getLogoSizeBytes(),
                 branding.getLogoSha256());
@@ -329,7 +332,7 @@ public class TenantBrandingService {
     private void applyRevision(Long tenantId, TenantBranding branding, JsonNode value) {
         String assetKey = text(value, "logoAssetKey");
         if (assetKey != null) {
-            mediaStorage.load(tenantId, assetKey);
+            loadLogo(tenantId, assetKey);
         }
         branding.setOrganizationName(text(value, "organizationName"));
         branding.setAccentColor(text(value, "accentColor") == null ? "#2457D6" : text(value, "accentColor"));
@@ -340,6 +343,19 @@ public class TenantBrandingService {
         branding.setLogoSha256(text(value, "logoSha256"));
         branding.setLogoWidth(integer(value, "logoWidth"));
         branding.setLogoHeight(integer(value, "logoHeight"));
+    }
+
+    private Resource loadLogo(Long tenantId, String storageKey) {
+        if (!BUNDLED_SKAX_LOGO_KEY.equals(storageKey)) {
+            return mediaStorage.load(tenantId, storageKey);
+        }
+        Resource resource = new ClassPathResource(BUNDLED_SKAX_LOGO_RESOURCE);
+        if (!resource.exists() || !resource.isReadable()) {
+            throw new BaseException(
+                    ErrorCode.INTERNAL_SERVER_ERROR,
+                    "Bundled SKAX tenant logo is unavailable.");
+        }
+        return resource;
     }
 
     private long versionOf(TenantBranding branding) {
