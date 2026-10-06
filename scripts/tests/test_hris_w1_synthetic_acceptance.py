@@ -144,6 +144,32 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
         )
         return observation
 
+    def global_home_identity_observation(
+        self,
+        state,
+        *,
+        screenshot_path="test-results/tenant-a-global-home.png",
+        screenshot_sha256,
+    ):
+        observation = {
+            "source": "BROWSER_GLOBAL_HOME_IDENTITY",
+            "tenantId": state.synthetic_tenants["A"]["tenantId"],
+            "requestedPath": "/",
+            "finalPath": "/",
+            "appId": "ref-app-people",
+            "visibleLabel": "HRIS",
+            "shortLabel": "HRIS",
+            "fullLabel": "HRIS",
+            "screenshot": {
+                "path": screenshot_path,
+                "sha256": screenshot_sha256,
+            },
+        }
+        observation["observationSha256"] = gate.canonical_json_sha256(
+            observation
+        )
+        return observation
+
     def control_receipt(
         self,
         *,
@@ -1321,6 +1347,15 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                 "createCommandId": "80000000-0000-0000-0000-000000000002",
                 "simulateCommandId": "80000000-0000-0000-0000-000000000003",
             }
+            browser_artifact = (
+                checkpoint
+                / "browser"
+                / f"hris-w1-live-browser-{state.run_id}"
+            )
+            screenshot = browser_artifact / "test-results" / "tenant-a-global-home.png"
+            screenshot.parent.mkdir(parents=True)
+            screenshot.write_bytes(b"exact tenant-A Global Home HRIS screenshot")
+            screenshot_sha256 = hashlib.sha256(screenshot.read_bytes()).hexdigest()
             provenance = {
                 "frontend": {},
                 "runtimeManifest": {
@@ -1330,7 +1365,9 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                     "negativeObservationAggregateSha256": "8" * 64,
                     "payrollFoundationDatabaseObservationSha256": "a" * 64,
                 },
-                "browser": {},
+                "browser": {
+                    "artifactPath": str(browser_artifact.relative_to(output)),
+                },
             }
             endpoints = self.expected_endpoints(state)
             assertions = []
@@ -1363,7 +1400,13 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                     observation["observationSha256"] = (
                         gate.canonical_json_sha256(observation)
                     )
-                    observations = [observation]
+                    observations = [
+                        observation,
+                        self.global_home_identity_observation(
+                            state,
+                            screenshot_sha256=screenshot_sha256,
+                        ),
+                    ]
                 evidence.write_text(
                     json.dumps(
                         {
@@ -1421,6 +1464,39 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
                 hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
                 provenance["manifest"]["sha256"],
             )
+            self.assertEqual(
+                "BROWSER_GLOBAL_HOME_IDENTITY",
+                provenance["globalHomeIdentityObservation"]["source"],
+            )
+
+            path_index = gate.REQUIRED_CHECKPOINT_ASSERTIONS.index(
+                "path.browser-gateway-owner-db"
+            )
+            path_assertion = assertions[path_index]
+            path_evidence = output / path_assertion["evidencePath"]
+            path_document = json.loads(path_evidence.read_text(encoding="utf-8"))
+            valid_path_observations = copy.deepcopy(path_document["observations"])
+
+            def write_path_observations(observations):
+                candidate = copy.deepcopy(path_document)
+                candidate["observations"] = observations
+                path_evidence.write_text(json.dumps(candidate), encoding="utf-8")
+                path_assertion["evidenceSha256"] = hashlib.sha256(
+                    path_evidence.read_bytes()
+                ).hexdigest()
+                manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+
+            invalid_ordered_observations = (
+                valid_path_observations[:1],
+                valid_path_observations + [{"unexpected": True}],
+                list(reversed(valid_path_observations)),
+            )
+            for candidate in invalid_ordered_observations:
+                with self.subTest(path_observations=candidate):
+                    write_path_observations(candidate)
+                    with self.assertRaises(gate.GateFailure):
+                        gate.validate_checkpoint_manifest(state, manifest_path)
+            write_path_observations(valid_path_observations)
 
             manifest["assertions"][0]["evidenceSha256"] = "0" * 64
             manifest_path.write_text(
@@ -1461,6 +1537,105 @@ class HrisW1SyntheticAcceptanceTest(unittest.TestCase):
             )
             with self.assertRaises(gate.GateFailure):
                 gate.validate_checkpoint_manifest(state, manifest_path)
+
+    def test_global_home_identity_observation_is_exact_and_file_bound(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            output = Path(temporary)
+            state = self.checkpoint_state(output)
+            artifact = (
+                output
+                / "checkpoint"
+                / "browser"
+                / f"hris-w1-live-browser-{state.run_id}"
+            )
+            screenshot = artifact / "test-results" / "tenant-a-global-home.png"
+            screenshot.parent.mkdir(parents=True)
+            screenshot.write_bytes(b"tenant-A Global Home HRIS screenshot")
+            browser_provenance = {
+                "artifactPath": str(artifact.relative_to(output)),
+            }
+            valid = self.global_home_identity_observation(
+                state,
+                screenshot_sha256=hashlib.sha256(screenshot.read_bytes()).hexdigest(),
+            )
+
+            self.assertEqual(
+                valid,
+                gate.validate_global_home_identity_observation(
+                    valid,
+                    state=state,
+                    browser_provenance=browser_provenance,
+                ),
+            )
+
+            def resigned(candidate):
+                candidate = copy.deepcopy(candidate)
+                candidate.pop("observationSha256", None)
+                candidate["observationSha256"] = gate.canonical_json_sha256(
+                    candidate
+                )
+                return candidate
+
+            mutations = []
+            missing_field = copy.deepcopy(valid)
+            missing_field.pop("appId")
+            mutations.append(missing_field)
+            extra_field = copy.deepcopy(valid)
+            extra_field["unexpected"] = True
+            mutations.append(resigned(extra_field))
+            missing_screenshot_field = copy.deepcopy(valid)
+            missing_screenshot_field["screenshot"].pop("sha256")
+            mutations.append(resigned(missing_screenshot_field))
+            extra_screenshot_field = copy.deepcopy(valid)
+            extra_screenshot_field["screenshot"]["byteCount"] = 42
+            mutations.append(resigned(extra_screenshot_field))
+            for field, drifted_value in (
+                ("tenantId", 102),
+                ("requestedPath", "/hr/home"),
+                ("finalPath", "/hr/home"),
+                ("appId", "ref-app-payroll"),
+                ("visibleLabel", "인사"),
+                ("shortLabel", "인사"),
+                ("fullLabel", "인사"),
+            ):
+                candidate = copy.deepcopy(valid)
+                candidate[field] = drifted_value
+                mutations.append(resigned(candidate))
+            for unsafe_path in (
+                "../tenant-a-global-home.png",
+                "/tmp/tenant-a-global-home.png",
+                "test-results/../tenant-a-global-home.png",
+            ):
+                candidate = copy.deepcopy(valid)
+                candidate["screenshot"]["path"] = unsafe_path
+                mutations.append(resigned(candidate))
+            missing_file = copy.deepcopy(valid)
+            missing_file["screenshot"]["path"] = "test-results/missing.png"
+            mutations.append(resigned(missing_file))
+            wrong_file_digest = copy.deepcopy(valid)
+            wrong_file_digest["screenshot"]["sha256"] = "0" * 64
+            mutations.append(resigned(wrong_file_digest))
+            wrong_observation_digest = copy.deepcopy(valid)
+            wrong_observation_digest["observationSha256"] = "0" * 64
+            mutations.append(wrong_observation_digest)
+
+            for candidate in mutations:
+                with self.subTest(candidate=candidate):
+                    with self.assertRaises(gate.GateFailure):
+                        gate.validate_global_home_identity_observation(
+                            candidate,
+                            state=state,
+                            browser_provenance=browser_provenance,
+                        )
+
+            with self.assertRaises(gate.GateFailure):
+                gate.validate_global_home_identity_observation(
+                    valid,
+                    state=state,
+                    browser_provenance={
+                        "artifactPath": "checkpoint/browser/../browser-escape"
+                    },
+                )
 
     def test_negative_observation_rejects_generic_failure_and_projection_drift(self):
         state = self.checkpoint_state(Path("/tmp/w1-negative-observation"))

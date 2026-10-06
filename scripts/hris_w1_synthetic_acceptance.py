@@ -56,6 +56,7 @@ ACTIVATION_IDENTITY = "dwp-platform-server"
 MAX_PERSISTED_HTTP_BODY_BYTES = 256 * 1024
 MAX_CHECKPOINT_MANIFEST_BYTES = 1024 * 1024
 MAX_CHECKPOINT_EVIDENCE_BYTES = 4 * 1024 * 1024
+MAX_CHECKPOINT_SCREENSHOT_BYTES = 32 * 1024 * 1024
 RUNTIME_ENVIRONMENT_ALLOWLIST = (
     "JAVA_HOME",
     "LANG",
@@ -1609,6 +1610,96 @@ def validate_payroll_browser_database_observation(
         raise GateFailure(
             "Browser-to-PAY database checkpoint observation binding is invalid"
         )
+    return value
+
+
+def _canonical_checkpoint_relative_path(value: Any, *, label: str) -> Path:
+    if (
+        not isinstance(value, str)
+        or not value
+        or value != value.strip()
+        or "\\" in value
+        or any(ord(character) < 32 for character in value)
+    ):
+        raise GateFailure(f"{label} is not a canonical relative path")
+    relative = Path(value)
+    if (
+        relative.is_absolute()
+        or not relative.parts
+        or any(part in {".", ".."} for part in relative.parts)
+        or relative.as_posix() != value
+        or re.match(r"^[A-Za-z]:/", value)
+    ):
+        raise GateFailure(f"{label} is not a canonical relative path")
+    return relative
+
+
+def validate_global_home_identity_observation(
+    value: Any,
+    *,
+    state: GateState,
+    browser_provenance: Any,
+) -> dict[str, Any]:
+    expected_fields = {
+        "source",
+        "tenantId",
+        "requestedPath",
+        "finalPath",
+        "appId",
+        "visibleLabel",
+        "shortLabel",
+        "fullLabel",
+        "screenshot",
+        "observationSha256",
+    }
+    if not isinstance(value, dict) or set(value) != expected_fields:
+        raise GateFailure("Global Home identity checkpoint observation shape is not exact")
+    screenshot = value.get("screenshot")
+    if not isinstance(screenshot, dict) or set(screenshot) != {"path", "sha256"}:
+        raise GateFailure("Global Home identity screenshot shape is not exact")
+    tenant = state.synthetic_tenants.get("A")
+    if not isinstance(tenant, dict):
+        raise GateFailure("Global Home identity checkpoint requires tenant A lineage")
+    screenshot_relative = _canonical_checkpoint_relative_path(
+        screenshot.get("path"),
+        label="Global Home identity screenshot path",
+    )
+    screenshot_sha256 = screenshot.get("sha256")
+    unsigned = {key: item for key, item in value.items() if key != "observationSha256"}
+    if (
+        value.get("source") != "BROWSER_GLOBAL_HOME_IDENTITY"
+        or value.get("tenantId") != tenant.get("tenantId")
+        or value.get("requestedPath") != "/"
+        or value.get("finalPath") != "/"
+        or value.get("appId") != "ref-app-people"
+        or value.get("visibleLabel") != "HRIS"
+        or value.get("shortLabel") != "HRIS"
+        or value.get("fullLabel") != "HRIS"
+        or not isinstance(screenshot_sha256, str)
+        or not re.fullmatch(r"[0-9a-f]{64}", screenshot_sha256)
+        or value.get("observationSha256") != canonical_json_sha256(unsigned)
+    ):
+        raise GateFailure("Global Home identity checkpoint observation binding is invalid")
+    expected_artifact_relative = Path(
+        "checkpoint",
+        "browser",
+        f"hris-w1-live-browser-{state.run_id}",
+    )
+    if not isinstance(browser_provenance, dict):
+        raise GateFailure("Global Home identity checkpoint requires browser provenance")
+    artifact_relative = _canonical_checkpoint_relative_path(
+        browser_provenance.get("artifactPath"),
+        label="Browser artifact path",
+    )
+    if artifact_relative != expected_artifact_relative:
+        raise GateFailure("Global Home identity browser artifact path is not run-bound")
+    screenshot_bytes = _attested_output_regular_bytes(
+        state.output_dir,
+        artifact_relative / screenshot_relative,
+        max_bytes=MAX_CHECKPOINT_SCREENSHOT_BYTES,
+    )
+    if hashlib.sha256(screenshot_bytes).hexdigest() != screenshot_sha256:
+        raise GateFailure("Global Home identity screenshot digest mismatch")
     return value
 
 
@@ -5033,6 +5124,7 @@ def validate_checkpoint_manifest(
     evidence_bindings: dict[str, dict[str, Any]] = {}
     checkpoint_negative_observations: dict[str, dict[str, Any]] = {}
     payroll_browser_database_observation: dict[str, Any] | None = None
+    global_home_identity_observation: dict[str, Any] | None = None
     for index, assertion in enumerate(assertions):
         if not isinstance(assertion, dict):
             raise GateFailure(f"Checkpoint assertion {index} must be a JSON object.")
@@ -5129,13 +5221,21 @@ def validate_checkpoint_manifest(
                 observations[0], assertion_name=name, state=state
             )
         if name == "path.browser-gateway-owner-db":
-            if len(observations) != 1:
+            if len(observations) != 2:
                 raise GateFailure(
-                    "Browser-to-PAY database checkpoint requires one observation"
+                    "Browser-to-PAY database checkpoint requires exactly two ordered "
+                    "observations"
                 )
             payroll_browser_database_observation = (
                 validate_payroll_browser_database_observation(
                     observations[0], state=state
+                )
+            )
+            global_home_identity_observation = (
+                validate_global_home_identity_observation(
+                    observations[1],
+                    state=state,
+                    browser_provenance=provenance.get("browser"),
                 )
             )
         evidence_bindings[name] = {
@@ -5174,6 +5274,8 @@ def validate_checkpoint_manifest(
         raise GateFailure(
             "Checkpoint omitted browser-to-PAY database lineage observation"
         )
+    if global_home_identity_observation is None:
+        raise GateFailure("Checkpoint omitted Global Home HRIS identity observation")
     return {
         "manifest": {
             "path": str(manifest_path.relative_to(state.output_dir)),
@@ -5182,6 +5284,7 @@ def validate_checkpoint_manifest(
         },
         "assertionEvidence": evidence_bindings,
         "payrollFoundationBrowserObservation": payroll_browser_database_observation,
+        "globalHomeIdentityObservation": global_home_identity_observation,
     }
 
 

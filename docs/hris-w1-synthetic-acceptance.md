@@ -199,6 +199,20 @@ does not accept opaque files based on hash alone. The manifest SHA-256 and the
 complete assertion-to-path-and-digest map are preserved in both the checkpoint
 phase and result provenance.
 
+`path.browser-gateway-owner-db` has one stricter, ordered contract: it contains
+exactly two observations. Index 0 is the exact `BROWSER_GATEWAY_OWNER_DB` PAY
+lineage record, and index 1 is the exact `BROWSER_GLOBAL_HOME_IDENTITY` record
+for synthetic tenant A. The latter must bind `/` to `ref-app-people`, with its
+visible, short, and full labels all exactly `HRIS`, and carry only a canonical
+browser-artifact-root-relative screenshot path plus a lowercase SHA-256. The
+runner reconstructs
+`checkpoint/browser/hris-w1-live-browser-<run-id>/<screenshot path>`, reads the
+non-symlink regular file with a bounded attested read, compares its SHA-256,
+and recomputes the observation digest. Missing, extra, reordered, malformed,
+path-traversing, label-drifted, or digest-drifted observations fail closed. The
+validated Global Home observation is preserved in final checkpoint provenance
+alongside the manifest-bound assertion evidence.
+
 The checkpoint runs in a new process group. Success, non-zero exit, and timeout
 paths all inspect the group, terminate descendants, and verify that no member
 remains. A command that leaves a child behind results in `HOLD` even if cleanup
