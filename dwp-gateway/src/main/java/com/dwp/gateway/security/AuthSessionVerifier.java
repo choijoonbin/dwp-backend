@@ -182,6 +182,14 @@ public class AuthSessionVerifier implements SessionVerifier {
         if (path.startsWith("/api/people/v1/hr")) {
             return "APP.HCM,APP.HRIS,DATA.HR_";
         }
+        if (pathAtOrUnder(
+                path, "/api/payroll/v1/hris/payroll/foundation")) {
+            return "APP.HCM,DATA.HR_PAY";
+        }
+        if (pathAtOrUnder(path, "/api/time/v1/hris/work-plans")
+                || pathAtOrUnder(path, "/api/time/v1/hris/work-plan-receipts")) {
+            return "APP.HCM,DATA.HR_TIME";
+        }
         if (path.equals("/api/people/v1/people")
                 || path.startsWith("/api/people/v1/people/")
                 || path.equals("/api/people/v1/org-chart")
@@ -329,6 +337,10 @@ public class AuthSessionVerifier implements SessionVerifier {
             return "APP.,ACTION.";
         }
         return null;
+    }
+
+    private boolean pathAtOrUnder(String path, String prefix) {
+        return path.equals(prefix) || path.startsWith(prefix + "/");
     }
 
     private boolean hasSingleQueryValue(
