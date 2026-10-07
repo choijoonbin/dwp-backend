@@ -249,6 +249,18 @@ It contains no active version field or pointer. Activation is an explicit CAS
 pointer transition after independent approval; loading a seed does not approve
 or activate it.
 
+`dwp.product-authorization.seed.only-version` (environment override
+`DWP_PRODUCT_AUTHORIZATION_SEED_ONLY_VERSION`) may select one version that is
+already present in that immutable index; `0` keeps the default all-version
+import. Selection never bypasses checksum, lineage, approval, or activation
+validation.
+
+Auth migration V242 carries only the exact Payroll foundation operation grants
+(`SIMULATE`, `PUBLISH`, `REVERSE`, and `RECONCILE`) recovered from the HRIS
+integration branch. It does not declare a new authorization bundle. The
+reconciled v33 contract is a semantic subset of canonical v34, so no v35 or
+successor-seed migration is created for that integration.
+
 ## Production/shared approval, activation and rollback runbook
 
 Feature rollout deployment is separately fenced from bundle activation. Deploy

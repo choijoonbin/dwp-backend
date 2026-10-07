@@ -30,32 +30,49 @@ class HcmWorkspaceOpenApiContractTest {
             Map.entry("/v1/workforce/data-operations/hris/connectors/{connectorId}/configuration-check", "post"),
             Map.entry("/v1/workforce/data-operations/hris/connectors/{connectorId}/executions", "post"),
             Map.entry("/v1/workforce/data-operations/hris/sync-runs/{syncRunId}/retry", "post"),
-            Map.entry("/v1/workforce/data-operations/hris/connectors/{connectorId}/reconciliations", "post"));
+            Map.entry("/v1/workforce/data-operations/hris/connectors/{connectorId}/reconciliations", "post"),
+            Map.entry("/v1/hris/performance/cycles/{cycleId}/publish", "post"));
     private static final Set<String> STEP_UP_HEADERS = Set.of(
             "X-DWP-Step-Up-Challenge", "Idempotency-Key",
             "X-DWP-Expected-Decision-Revision", "X-DWP-Expected-Object-Version");
+    private static final Set<String> G3_PENDING_ASSIGNMENT_OPERATIONS = Set.of(
+            "GET /v1/workforce/assignments/{assignmentId}",
+            "GET /v1/workforce/assignments/{assignmentId}/timeline",
+            "GET /v1/workforce/assignment-proposals/{proposalId}",
+            "POST /v1/workforce/assignment-proposals",
+            "POST /v1/workforce/assignment-proposals/{proposalId}/cancel",
+            "POST /v1/workforce/assignment-proposals/{proposalId}/submit",
+            "POST /v1/workforce/assignment-proposals/{proposalId}/validate");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void everyGeneratedPeoplePepBindingHasAServiceAndPublicOpenApiOperation()
+    void everyStablePeoplePepBindingIsPublishedAndOnlyAssignmentAwaitsG3Projection()
             throws Exception {
         JsonNode service = openApi("people.json");
         JsonNode gateway = openApi("gateway-public.json");
         HcmV3PepRegistry registry = new HcmV3PepRegistry(
                 new ObjectMapper().findAndRegisterModules());
-        assertThat(registry.bindingContracts()).hasSize(75);
+        assertThat(registry.bindingContracts()).hasSize(94);
         assertThat(registry.bindingContracts().stream()
                 .map(value -> value.method() + " " + value.servicePath())
-                .distinct()).hasSize(67);
-        registry.bindingContracts().forEach(binding -> {
-            String method = binding.method().toLowerCase();
-            assertThat(service.path("paths").path(binding.servicePath()).has(method))
-                    .as(binding.method() + " " + binding.servicePath()).isTrue();
-            assertThat(gateway.path("paths")
-                    .path("/api/people" + binding.servicePath()).has(method))
-                    .as(binding.method() + " /api/people" + binding.servicePath()).isTrue();
-        });
+                .distinct()).hasSize(82);
+        Set<String> missingServiceOperations = registry.bindingContracts().stream()
+                .filter(binding -> !service.path("paths").path(binding.servicePath())
+                        .has(binding.method().toLowerCase()))
+                .map(binding -> binding.method() + " " + binding.servicePath())
+                .collect(Collectors.toSet());
+        Set<String> missingGatewayOperations = registry.bindingContracts().stream()
+                .filter(binding -> !gateway.path("paths")
+                        .path("/api/people" + binding.servicePath())
+                        .has(binding.method().toLowerCase()))
+                .map(binding -> binding.method() + " " + binding.servicePath())
+                .collect(Collectors.toSet());
+
+        assertThat(missingServiceOperations)
+                .containsExactlyInAnyOrderElementsOf(G3_PENDING_ASSIGNMENT_OPERATIONS);
+        assertThat(missingGatewayOperations)
+                .containsExactlyInAnyOrderElementsOf(G3_PENDING_ASSIGNMENT_OPERATIONS);
     }
 
     @Test
@@ -87,7 +104,7 @@ class HcmWorkspaceOpenApiContractTest {
     }
 
     @Test
-    void allSevenPeopleOwnedHighRiskBindingsPublishTheCommandProofHeaders() throws Exception {
+    void allEightPeopleOwnedHighRiskBindingsPublishTheCommandProofHeaders() throws Exception {
         JsonNode service = openApi("people.json");
         JsonNode gateway = openApi("gateway-public.json");
         HIGH_RISK_OPERATIONS.forEach((path, method) -> {

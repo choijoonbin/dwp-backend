@@ -1,6 +1,7 @@
 package com.dwp.services.provider.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.dwp.services.provider.rollout.LocalSyntheticProductSurfaceBootstrapFilter;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;
@@ -179,6 +180,28 @@ class ProviderSecurityFilterTest {
 
         assertThat(forwarded.get()).isEqualTo(actor);
         assertThat(ProviderRequestContext.currentUserId()).isEmpty();
+    }
+
+    @Test
+    void syntheticPathBypassesProviderIdentityOnlyAfterExactLocalBoundaryAuthorization() {
+        ProviderSecurityFilter filter = new ProviderSecurityFilter(
+                "trusted-provider", operatorService, objectMapper);
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "POST", "/internal/synthetic/v1/product-surface/bootstrap");
+
+        assertThat(filter.shouldNotFilter(request)).isFalse();
+
+        request.setAttribute(
+                LocalSyntheticProductSurfaceBootstrapFilter.AUTHORIZED_REQUEST_ATTRIBUTE,
+                Boolean.TRUE);
+        assertThat(filter.shouldNotFilter(request)).isTrue();
+
+        MockHttpServletRequest wrongMethod = new MockHttpServletRequest(
+                "GET", "/internal/synthetic/v1/product-surface/bootstrap");
+        wrongMethod.setAttribute(
+                LocalSyntheticProductSurfaceBootstrapFilter.AUTHORIZED_REQUEST_ATTRIBUTE,
+                Boolean.TRUE);
+        assertThat(filter.shouldNotFilter(wrongMethod)).isFalse();
     }
 
     private MockHttpServletRequest request(String serviceToken, String roles) {

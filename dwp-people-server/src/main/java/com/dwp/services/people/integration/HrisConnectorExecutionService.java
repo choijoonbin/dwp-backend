@@ -57,7 +57,7 @@ public class HrisConnectorExecutionService {
             HcmStepUpHeaders headers) {
         PeopleRequestContext.Actor actor = administrator();
         HrisDtos.ConnectorInstance connector = lockedConnector(actor.tenantId(), connectorId);
-        highRisk.require(
+        highRisk.requireExact(
                 "hcm.integration.execute", "HCM_CONNECTOR", connectorId.toString(),
                 connector.version(),
                 "/api/people/v1/workforce/data-operations/hris/connectors/"
@@ -129,7 +129,7 @@ public class HrisConnectorExecutionService {
                     ErrorCode.INVALID_STATE,
                     "Only a failed connector synchronization can be retried.");
         }
-        highRisk.require(
+        highRisk.requireExact(
                 "hcm.integration.execute", "HCM_SYNC_RUN", syncRunId.toString(),
                 previous.version(),
                 "/api/people/v1/workforce/data-operations/hris/sync-runs/"
@@ -146,18 +146,12 @@ public class HrisConnectorExecutionService {
         return performExecute(actor, connector, replayMode, syncRunId, correlationId);
     }
 
-    public HrisDtos.ConfigurationCheck probe(UUID connectorId, String correlationId) {
-        PeopleRequestContext.Actor actor = administrator();
-        HrisDtos.ConnectorInstance connector = connector(actor.tenantId(), connectorId);
-        return probe(actor, connector, correlationId);
-    }
-
     @Transactional
     public HrisDtos.ConfigurationCheck checkConnector(
             UUID connectorId, String correlationId, HcmStepUpHeaders headers) {
         PeopleRequestContext.Actor actor = administrator();
         HrisDtos.ConnectorInstance connector = lockedConnector(actor.tenantId(), connectorId);
-        highRisk.require(
+        highRisk.requireExact(
                 "hcm.integration.execute", "HCM_CONNECTOR", connectorId.toString(),
                 connector.version(),
                 "/api/people/v1/workforce/data-operations/hris/connectors/"
@@ -234,7 +228,7 @@ public class HrisConnectorExecutionService {
             UUID connectorId, UUID syncRunId, HcmStepUpHeaders headers) {
         PeopleRequestContext.Actor actor = administrator();
         HrisDtos.ConnectorInstance connector = lockedConnector(actor.tenantId(), connectorId);
-        highRisk.require(
+        highRisk.requireExact(
                 "hcm.integration.execute", "HCM_CONNECTOR", connectorId.toString(),
                 connector.version(),
                 "/api/people/v1/workforce/data-operations/hris/connectors/"

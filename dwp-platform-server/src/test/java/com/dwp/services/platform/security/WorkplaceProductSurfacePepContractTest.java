@@ -591,15 +591,15 @@ class WorkplaceProductSurfacePepContractTest {
     }
 
     @Test
-    void v21ClosesEveryCurrentHumanRouteAndExactRoomSupportWithoutDeviceRoutes()
+    void v23ClosesEveryCurrentHumanRouteAndExactRoomSupportWithoutDeviceRoutes()
             throws Exception {
-        JsonNode versionTwentyOne = contract("product-surfaces-v1.bundle-v21.json");
-        Set<String> registryBindings = workplacePlatformBindings(versionTwentyOne);
+        JsonNode versionTwentyThree = contract("product-surfaces-v1.bundle-v23.json");
+        Set<String> registryBindings = workplacePlatformBindings(versionTwentyThree);
         Set<String> openApiWorkplace = platformOpenApiWorkplaceBindings();
-        assertThat(openApiWorkplace).hasSize(299).containsAll(DEVICE_BINDINGS);
+        assertThat(openApiWorkplace).hasSize(321).containsAll(DEVICE_BINDINGS);
         Set<String> human = new java.util.LinkedHashSet<>(openApiWorkplace);
         human.removeAll(DEVICE_BINDINGS);
-        assertThat(human).hasSize(289).contains(
+        assertThat(human).hasSize(311).contains(
                 "POST /v1/workplace/bookings/{bookingId}/check-in",
                 "POST /v1/workplace/bookings/{bookingId}/cancel",
                 "POST /v1/workplace/bookings/{bookingId}/release",
@@ -616,7 +616,7 @@ class WorkplaceProductSurfacePepContractTest {
                         || binding.contains(" /v1/admin/rooms/"))
                 .collect(java.util.stream.Collectors.toSet()))
                 .isEqualTo(ROOM_BINDINGS);
-        assertThat(registryBindings).hasSize(303).doesNotContainAnyElementsOf(DEVICE_BINDINGS);
+        assertThat(registryBindings).hasSize(325).doesNotContainAnyElementsOf(DEVICE_BINDINGS);
         assertThat(registry.ownsOwner("GET", "/v1/admin/rooms/policy")).isTrue();
         assertThat(registry.ownsOwner("GET", "/v1/admin/rooms/not-owned")).isFalse();
     }

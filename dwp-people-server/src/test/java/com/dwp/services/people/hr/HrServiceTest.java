@@ -32,6 +32,13 @@ class HrServiceTest {
     private static final long WORKER_ID = 41L;
     private static final UUID PERSON_ID = UUID.randomUUID();
     private static final UUID REQUEST_ID = UUID.randomUUID();
+    private static final Set<String> HOME_GRANTS = Set.of(
+            "DATA.WORKFORCE:VIEW",
+            "DATA.HR_TIME:VIEW",
+            "DATA.HR_ABSENCE:VIEW",
+            "DATA.HR_BENEFITS:VIEW",
+            "DATA.HR_PAY:VIEW",
+            "DATA.HR_TALENT:VIEW");
 
     private final HrRepository repository = mock(HrRepository.class);
     private final HcmPopulationRepository populationRepository =
@@ -87,7 +94,7 @@ class HrServiceTest {
 
     @Test
     void homeProvidesFreshRoleAwareWorkflowSignalsWithoutAdditionalClientFanOut() {
-        PeopleRequestContext.set(USER_ID, TENANT_ID, PERSON_ID, Set.of("USER"), Set.of());
+        PeopleRequestContext.set(USER_ID, TENANT_ID, PERSON_ID, Set.of("USER"), HOME_GRANTS);
         when(repository.worker(TENANT_ID, PERSON_ID)).thenReturn(Optional.of(
                 new HrRepository.WorkerIdentity(
                         WORKER_ID, PERSON_ID, "Minseo Kim", "ASSIGN-1",
@@ -129,6 +136,10 @@ class HrServiceTest {
         assertThat(home.teamPendingCount()).isZero();
         assertThat(home.domainStates().get("TEAM").dataOrigin())
                 .isEqualTo(HrDtos.HomeDataOrigin.NONE);
+        assertThat(home.domainStates().get("TEAM").availability())
+                .isEqualTo(HrDtos.HomeAvailability.UNAVAILABLE);
+        assertThat(home.domainStates().get("TEAM").reasonCode())
+                .isEqualTo("TEAM_OWNER_API_REQUIRED");
         assertThat(home.domainStates().get("TIME").availability())
                 .isEqualTo(HrDtos.HomeAvailability.AVAILABLE);
         assertThat(home.domainStates().get("PAY").dataOrigin())
@@ -138,7 +149,7 @@ class HrServiceTest {
 
     @Test
     void homeKeepsAvailableDomainsWhenOneDomainQueryFails() {
-        PeopleRequestContext.set(USER_ID, TENANT_ID, PERSON_ID, Set.of("USER"), Set.of());
+        PeopleRequestContext.set(USER_ID, TENANT_ID, PERSON_ID, Set.of("USER"), HOME_GRANTS);
         stubWorker(WORKER_ID);
         when(repository.leaveBalances(eq(TENANT_ID), eq(WORKER_ID), any(LocalDate.class)))
                 .thenThrow(new DataAccessResourceFailureException("absence unavailable"));
@@ -156,7 +167,7 @@ class HrServiceTest {
 
     @Test
     void homeDoesNotQueryTeamQueuesForIndividualContributors() {
-        PeopleRequestContext.set(USER_ID, TENANT_ID, PERSON_ID, Set.of("USER"), Set.of());
+        PeopleRequestContext.set(USER_ID, TENANT_ID, PERSON_ID, Set.of("USER"), HOME_GRANTS);
         stubWorker(WORKER_ID);
         when(repository.leaveBalances(eq(TENANT_ID), eq(WORKER_ID), any(LocalDate.class)))
                 .thenReturn(List.of());
@@ -168,6 +179,68 @@ class HrServiceTest {
         assertThat(home.teamPendingCount()).isZero();
         assertThat(home.domainStates().get("TEAM").dataOrigin())
                 .isEqualTo(HrDtos.HomeDataOrigin.NONE);
+        assertThat(home.domainStates().get("TEAM").availability())
+                .isEqualTo(HrDtos.HomeAvailability.UNAVAILABLE);
+        assertThat(home.domainStates().get("TEAM").reasonCode())
+                .isEqualTo("TEAM_OWNER_API_REQUIRED");
+    }
+
+    @Test
+    void homeSkipsUnauthorizedDomainQueriesAndMinimizesEmployeeProjection() {
+        PeopleRequestContext.set(
+                USER_ID, TENANT_ID, PERSON_ID, Set.of("USER"), Set.of("APP.HRIS:VIEW"));
+        when(repository.worker(TENANT_ID, PERSON_ID)).thenReturn(Optional.of(
+                new HrRepository.WorkerIdentity(
+                        WORKER_ID, PERSON_ID, "Minseo Kim", "ASSIGN-1",
+                        "Network Operations Lead", "Network Operations",
+                        UUID.randomUUID(), "Manager Name", 4)));
+
+        HrDtos.HomeOverview home = service.home();
+
+        assertThat(home.employee()).isEqualTo(new HrDtos.EmployeeContext(
+                PERSON_ID, "Minseo Kim", null, null, null, 0));
+        assertThat(home.standardDayMinutes()).isNull();
+        assertThat(home.time()).isNull();
+        assertThat(home.leaveBalances()).isEmpty();
+        assertThat(home.pay()).isNull();
+        assertThat(home.enrollmentWindows()).isEmpty();
+        assertThat(home.journeys()).isEmpty();
+        assertThat(home.domainStates())
+                .extractingByKeys("TIME", "ABSENCE", "BENEFITS", "PAY", "TALENT")
+                .allSatisfy(state -> {
+                    assertThat(state.availability()).isEqualTo(HrDtos.HomeAvailability.UNAVAILABLE);
+                    assertThat(state.reasonCode()).endsWith("_ENTITLEMENT_REQUIRED");
+                });
+        verify(repository, never()).workerSchedule(eq(TENANT_ID), eq(WORKER_ID), any());
+        verify(repository, never()).currentTimeCard(eq(TENANT_ID), eq(WORKER_ID), any());
+        verify(repository, never()).leaveBalances(eq(TENANT_ID), eq(WORKER_ID), any());
+        verify(repository, never()).enrollmentWindows(TENANT_ID, WORKER_ID);
+        verify(repository, never()).activeBenefits(TENANT_ID, WORKER_ID);
+        verify(repository, never()).nextPayCycle(TENANT_ID, WORKER_ID);
+        verify(repository, never()).activeJourneys(TENANT_ID, WORKER_ID);
+        verify(repository, never()).activeGoals(TENANT_ID, WORKER_ID);
+        verify(repository, never()).requiredLearning(TENANT_ID, WORKER_ID);
+    }
+
+    @Test
+    void homeQueriesOnlyTheExplicitlyGrantedDomain() {
+        PeopleRequestContext.set(
+                USER_ID, TENANT_ID, PERSON_ID, Set.of("USER"),
+                Set.of("DATA.HR_TIME:VIEW"));
+        stubWorker(WORKER_ID);
+        when(repository.workerSchedule(eq(TENANT_ID), eq(WORKER_ID), any(LocalDate.class)))
+                .thenReturn(Optional.empty());
+
+        HrDtos.HomeOverview home = service.home();
+
+        assertThat(home.domainStates().get("TIME").availability())
+                .isEqualTo(HrDtos.HomeAvailability.AVAILABLE);
+        assertThat(home.domainStates().get("ABSENCE").reasonCode())
+                .isEqualTo("ABSENCE_ENTITLEMENT_REQUIRED");
+        verify(repository).currentTimeCard(eq(TENANT_ID), eq(WORKER_ID), any(LocalDate.class));
+        verify(repository, never()).leaveBalances(eq(TENANT_ID), eq(WORKER_ID), any());
+        verify(repository, never()).nextPayCycle(TENANT_ID, WORKER_ID);
+        verify(repository, never()).activeJourneys(TENANT_ID, WORKER_ID);
     }
 
     @Test
@@ -239,6 +312,38 @@ class HrServiceTest {
 
         verify(repository, never()).decideTimeCard(
                 anyLong(), any(), any(), any(), anyLong(), anyLong());
+        verify(audit, never()).record(any(AuditEvent.class));
+    }
+
+    @Test
+    void goalProgressEndpointRejectsLifecycleCompletionBeforeRepositoryMutation() {
+        PeopleRequestContext.set(USER_ID, TENANT_ID, PERSON_ID, Set.of("USER"), Set.of());
+        stubWorker(WORKER_ID);
+        UUID goalId = UUID.randomUUID();
+
+        assertThatThrownBy(() -> service.updateGoal(
+                goalId, new HrDtos.UpdateGoalRequest(100, "COMPLETED", 4L), "corr-goal"))
+                .isInstanceOf(BaseException.class);
+
+        verify(repository, never()).updateGoal(
+                anyLong(), anyLong(), any(), any(HrDtos.UpdateGoalRequest.class), anyLong());
+        verify(audit, never()).record(any(AuditEvent.class));
+    }
+
+    @Test
+    void goalProgressEndpointSurfacesConflictWhenStoredStatusDoesNotExactlyMatch() {
+        PeopleRequestContext.set(USER_ID, TENANT_ID, PERSON_ID, Set.of("USER"), Set.of());
+        stubWorker(WORKER_ID);
+        UUID goalId = UUID.randomUUID();
+        HrDtos.UpdateGoalRequest transitionAttempt =
+                new HrDtos.UpdateGoalRequest(70, "AT_RISK", 4L);
+        when(repository.updateGoal(
+                TENANT_ID, WORKER_ID, goalId, transitionAttempt, USER_ID)).thenReturn(false);
+
+        assertThatThrownBy(() -> service.updateGoal(
+                goalId, transitionAttempt, "corr-transition"))
+                .isInstanceOf(BaseException.class);
+
         verify(audit, never()).record(any(AuditEvent.class));
     }
 

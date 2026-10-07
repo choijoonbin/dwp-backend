@@ -8,7 +8,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.core.io.ByteArrayResource;
 import org.springframework.core.io.FileSystemResource;
 
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -199,6 +202,83 @@ class GeneratedProductRouteCatalogTest {
                 .isEqualTo("route.approvals.admin.forms-workflow-reference.data");
         assertThat(duplicate.status()).isEqualTo(
                 GeneratedProductRouteCatalog.MatchStatus.INVALID);
+    }
+
+    @Test
+    void v33SeparatesLegacyPersonalAndSystemManagementViewsForBothOwnerApis() {
+        GeneratedProductRouteCatalog latest = catalog(33);
+        for (List<String> binding : List.of(
+                List.of(
+                        "/api/auth/hris/product-access/snapshot",
+                        "route.hcm.personal.product-access-snapshot.data"),
+                List.of(
+                        "/api/platform/v1/hris/configuration/projection",
+                        "route.hcm.personal.configuration-projection.data"))) {
+            String path = binding.get(0);
+            var legacy = latest.match("GET", path, null);
+            var system = latest.match("GET", path, "view=system");
+
+            assertThat(legacy.status()).as(path)
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(legacy.uniqueRoute().routeContractKey()).as(path).isEqualTo(binding.get(1));
+            assertThat(system.status()).as(path)
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+            assertThat(system.uniqueRoute().routeContractKey()).as(path)
+                    .isEqualTo("route.hcm.management.system.page");
+            assertThat(system.uniqueRoute().surfaceKey()).as(path).isEqualTo("hcm.management");
+            assertThat(latest.match("GET", path, "view=unknown").status()).as(path)
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+            assertThat(latest.match("GET", path, "view=system&view=system").status()).as(path)
+                    .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        }
+    }
+
+    @Test
+    void v33ClaimsOnlyTheHrisFamilyWithinTheSharedAuthService() {
+        GeneratedProductRouteCatalog latest = catalog(33);
+
+        assertThat(latest.match("GET", "/api/auth/me").status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.UNGOVERNED);
+        assertThat(latest.match("GET", "/api/auth/hris/not-registered").status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+    }
+
+    @Test
+    void requiredQueryConstraintAcceptsExactlyOneNonBlankDynamicValue() throws Exception {
+        ObjectNode document = bundle(3);
+        ObjectNode route = null;
+        ObjectNode binding = null;
+        for (JsonNode candidate : document.withArray("routes")) {
+            for (JsonNode candidateBinding : candidate.path("gatewayApiBindings")) {
+                if ("POST".equals(candidateBinding.path("method").asText())
+                        && "/api/approvals/v1/admin/form-categories".equals(
+                        candidateBinding.path("path").asText())) {
+                    route = (ObjectNode) candidate;
+                    binding = (ObjectNode) candidateBinding;
+                }
+            }
+        }
+        assertThat(route).isNotNull();
+        assertThat(binding).isNotNull();
+        binding.putObject("queryParameterConstraints")
+                .putObject("effectiveOn")
+                .put("kind", "REQUIRED");
+
+        GeneratedProductRouteCatalog required = new GeneratedProductRouteCatalog(
+                objectMapper,
+                new ByteArrayResource(objectMapper.writeValueAsBytes(document)));
+
+        assertThat(required.match("POST", "/api/approvals/v1/admin/form-categories",
+                "effectiveOn=2026-09-29").status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.GOVERNED);
+        assertThat(required.match("POST", "/api/approvals/v1/admin/form-categories", null)
+                .status()).isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(required.match("POST", "/api/approvals/v1/admin/form-categories",
+                "effectiveOn=").status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
+        assertThat(required.match("POST", "/api/approvals/v1/admin/form-categories",
+                "effectiveOn=2026-09-29&effectiveOn=2026-09-30").status())
+                .isEqualTo(GeneratedProductRouteCatalog.MatchStatus.INVALID);
     }
 
     @Test
@@ -713,6 +793,97 @@ class GeneratedProductRouteCatalogTest {
     }
 
     @Test
+    void v21ClosesTheFrozenHumanAndExactRoomInventoryAndPublishesEveryPage()
+            throws IOException {
+        GeneratedProductRouteCatalog latest = catalog(21);
+        Set<String> generated = latest.routesForTesting().stream()
+                .filter(route -> "workplace".equals(route.productKey()))
+                .filter(route -> route.publicPath().startsWith("/api/platform/"))
+                .map(route -> route.method() + " " + route.publicPath())
+                .collect(java.util.stream.Collectors.toSet());
+        Set<String> device = Set.of(
+                "POST /api/platform/v1/device/workplace/devices/{deviceId}/heartbeat",
+                "GET /api/platform/v1/device/workplace/devices/{deviceId}/projection",
+                "POST /api/platform/v1/device/workplace/devices:register",
+                "POST /api/platform/v1/device/workplace/devices/{deviceId}/access-pass:pair",
+                "POST /api/platform/v1/workplace/kiosk/devices/{deviceId}:heartbeat",
+                "POST /api/platform/v1/workplace/kiosk/devices/{deviceId}:help",
+                "GET /api/platform/v1/workplace/kiosk/session",
+                "GET /api/platform/v1/workplace/kiosk/visits/{visitId}",
+                "POST /api/platform/v1/workplace/kiosk/visits/{visitId}:arrive",
+                "POST /api/platform/v1/workplace/kiosk/visits/{visitId}:checkout");
+        Set<String> openApi = platformV21OpenApiWorkplaceBindings();
+        assertThat(openApi).hasSize(299).containsAll(device);
+        Set<String> human = new HashSet<>(openApi);
+        human.removeAll(device);
+        assertThat(human).hasSize(289);
+        assertThat(generated.stream()
+                .filter(binding -> binding.contains(" /api/platform/v1/workplace/")
+                        || binding.contains(" /api/platform/v1/admin/workplace/"))
+                .collect(java.util.stream.Collectors.toSet()))
+                .isEqualTo(human);
+        assertThat(generated).hasSize(303).doesNotContainAnyElementsOf(device);
+        assertThat(generated.stream()
+                .filter(binding -> binding.contains(" /api/platform/v1/rooms/")
+                        || binding.contains(" /api/platform/v1/admin/rooms/"))
+                .collect(java.util.stream.Collectors.toSet()))
+                .hasSize(14)
+                .contains(
+                        "GET /api/platform/v1/admin/rooms/policy",
+                        "GET /api/platform/v1/rooms/bookings",
+                        "PUT /api/platform/v1/admin/rooms/resources/{resourceId}");
+
+        assertThat(latest.routesForTesting().stream()
+                .filter(route -> "workplace".equals(route.productKey()))
+                .filter(route -> "PAGE".equals(route.routeKind()))
+                .map(GeneratedProductRouteCatalog.Route::routeContractKey)
+                .collect(java.util.stream.Collectors.toSet()))
+                .containsExactlyInAnyOrder(
+                        "route.workplace.work.home.page",
+                        "route.workplace.work.explore.page",
+                        "route.workplace.work.find.page",
+                        "route.workplace.work.planner.page",
+                        "route.workplace.work.reservations.page",
+                        "route.workplace.work.service-orders.page",
+                        "route.workplace.work.wayfinding.page",
+                        "route.workplace.work.assistant.page",
+                        "route.workplace.work.safety.page",
+                        "route.workplace.management.service-catalog.page",
+                        "route.workplace.management.service-fulfillment.page",
+                        "route.workplace.management.devices.page",
+                        "route.workplace.management.exceptions.page",
+                        "route.workplace.management.service-providers.page",
+                        "route.workplace.management.space-planning.page",
+                        "route.workplace.management.assistant-governance.page",
+                        "route.workplace.management.governance.page",
+                        "route.workplace.management.safety.page",
+                        "route.workplace.management.visits.page",
+                        "route.workplace.management.visit-policies.page",
+                        "route.workplace.management.access-zones.page",
+                        "route.workplace.management.visit-providers.page",
+                        "route.workplace.management.kiosk-devices.page",
+                        "route.workplace.management.overview.page",
+                        "route.workplace.management.operations.page",
+                        "route.workplace.management.locations.page",
+                        "route.workplace.management.policy.page",
+                        "route.workplace.management.room-operations.page",
+                        "route.workplace.management.room-policy.page");
+
+        assertRoute(latest, "GET", "/api/platform/v1/admin/workplace/safety/incidents",
+                "route.workplace.management.safety.page", false);
+        assertRoute(latest, "GET", "/api/platform/v1/admin/workplace/visits/exceptions",
+                "route.workplace.management.visits.page", false);
+        assertRoute(latest, "GET", "/api/platform/v1/admin/workplace/visit-policies",
+                "route.workplace.management.visit-policies.page", false);
+        assertRoute(latest, "GET", "/api/platform/v1/admin/workplace/access-zones",
+                "route.workplace.management.access-zones.page", false);
+        assertRoute(latest, "GET", "/api/platform/v1/admin/workplace/provider-bindings",
+                "route.workplace.management.visit-providers.page", false);
+        assertRoute(latest, "GET", "/api/platform/v1/admin/workplace/kiosk-devices",
+                "route.workplace.management.kiosk-devices.page", false);
+    }
+
+    @Test
     void latestClosesTheCurrentHumanAndExactRoomInventoryAndPublishesEveryPage()
             throws IOException {
         GeneratedProductRouteCatalog latest = catalog(31);
@@ -847,6 +1018,21 @@ class GeneratedProductRouteCatalogTest {
                 "../contracts/product-authorization/product-surfaces-v1.bundle-v"
                         + version + ".json").getInputStream()) {
             return (ObjectNode) objectMapper.readTree(input);
+        }
+    }
+
+    private Set<String> platformV21OpenApiWorkplaceBindings() throws IOException {
+        // v21 closed against this exact OpenAPI inventory. Later platform additions must not
+        // rewrite the historical registry assertion.
+        var resource = getClass().getResourceAsStream(
+                "/product-authorization/platform-workplace-openapi-v21.bindings.txt");
+        if (resource == null) {
+            throw new IOException("Frozen v21 Workplace OpenAPI inventory is absent.");
+        }
+        try (var lines = new BufferedReader(new InputStreamReader(
+                resource, StandardCharsets.UTF_8)).lines()) {
+            return lines.filter(line -> !line.isBlank())
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
         }
     }
 

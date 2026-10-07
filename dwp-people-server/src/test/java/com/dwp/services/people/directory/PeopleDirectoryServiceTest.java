@@ -112,6 +112,32 @@ class PeopleDirectoryServiceTest {
     }
 
     @Test
+    void preResolvedWorkforceSearchDoesNotSendMaskedFieldPredicatesToTheRepository() {
+        HcmPopulationRepository.PopulationScope restrictedScope =
+                new HcmPopulationRepository.PopulationScope(
+                        91L, null, true, Set.of(),
+                        Set.of("DIRECTORY", "EMPLOYMENT"), "restricted-policy-v1");
+        HcmPopulationScopeService.ResolvedPopulation restrictedPopulation =
+                new HcmPopulationScopeService.ResolvedPopulation(
+                        null, restrictedScope,
+                        new HcmPopulationRepository.PopulationEvidence(
+                                2L, "restricted-population-v1"));
+        when(repository.searchWithinPopulation(
+                TENANT_ID, 0L, "SK000042", null, AS_OF, 21,
+                false, false, restrictedScope))
+                .thenReturn(List.of());
+
+        service.searchWorkforce(
+                "SK000042", null, null, 20, AS_OF, restrictedPopulation);
+
+        verify(repository).searchWithinPopulation(
+                TENANT_ID, 0L, "SK000042", null, AS_OF, 21,
+                false, false, restrictedScope);
+        verify(populationScopes, never()).requireOperations("READ");
+        verify(accessPolicyService, never()).require("READ");
+    }
+
+    @Test
     void workforceDetailSeparatesPersonWorkerRelationshipAndAssignment() {
         UUID personId = UUID.randomUUID();
         UUID workerId = UUID.randomUUID();
@@ -241,6 +267,55 @@ class PeopleDirectoryServiceTest {
         verify(repository).searchWithinPopulation(
                 TENANT_ID, 100L, null, null, AS_OF, 3,
                 true, true, workforceScope);
+        verify(accessPolicyService, never()).require("READ");
+    }
+
+    @Test
+    void preResolvedPopulationRevisionBindsCursorWithoutResolvingAuthorityAgain() {
+        HcmPopulationRepository.PopulationScope scope =
+                new HcmPopulationRepository.PopulationScope(
+                        91L, null, true, Set.of(),
+                        Set.of("DIRECTORY", "WORKER_IDENTIFIERS", "EMPLOYMENT", "JOB_GRADE"),
+                        "synthetic-policy-v3");
+        HcmPopulationScopeService.ResolvedPopulation population =
+                new HcmPopulationScopeService.ResolvedPopulation(
+                        null, scope,
+                        new HcmPopulationRepository.PopulationEvidence(
+                                3L, "synthetic-population-v9"));
+        UUID firstId = UUID.randomUUID();
+        UUID secondId = UUID.randomUUID();
+        String populationFingerprint =
+                AS_OF + "|target-population|operator|"
+                        + "synthetic-population-v9:synthetic-policy-v3";
+        when(cursorCodec.fingerprint(null, null, populationFingerprint))
+                .thenReturn("pre-resolved-population-fingerprint");
+        when(cursorCodec.decode(
+                "cursor-before-page", TENANT_ID, "pre-resolved-population-fingerprint"))
+                .thenReturn(100L);
+        when(repository.searchWithinPopulation(
+                TENANT_ID, 100L, null, null, AS_OF, 3,
+                true, true, scope))
+                .thenReturn(List.of(
+                        directoryRow(101L, firstId),
+                        directoryRow(103L, secondId),
+                        directoryRow(104L, UUID.randomUUID())));
+        when(cursorCodec.encode(
+                TENANT_ID, 103L, "pre-resolved-population-fingerprint"))
+                .thenReturn("cursor-after-second-allowed");
+
+        PeopleDtos.CursorPage<PeopleDtos.PersonSummary> result = service.searchWorkforce(
+                null, null, "cursor-before-page", 2, AS_OF, population);
+
+        assertThat(result.items())
+                .extracting(PeopleDtos.PersonSummary::personId)
+                .containsExactly(firstId, secondId);
+        assertThat(result.size()).isEqualTo(2);
+        assertThat(result.hasMore()).isTrue();
+        assertThat(result.nextCursor()).isEqualTo("cursor-after-second-allowed");
+        verify(repository).searchWithinPopulation(
+                TENANT_ID, 100L, null, null, AS_OF, 3,
+                true, true, scope);
+        verify(populationScopes, never()).requireOperations("READ");
         verify(accessPolicyService, never()).require("READ");
     }
 

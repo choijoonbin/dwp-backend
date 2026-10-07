@@ -153,6 +153,14 @@ tasks.register('productAuthorizationRegistryCheck', Exec) {
     commandLine 'python3', 'scripts/generate-product-authorization-contracts.py', '--check'
 }
 
+tasks.register('productAuthorizationRegistryTest', Exec) {
+    group = 'verification'
+    description = 'Runs the complete CORE-006 authorization release regression suite.'
+    workingDir rootDir
+    commandLine 'python3', '-m', 'unittest', 'discover',
+            '-s', 'scripts/tests', '-p', 'test_product_authorization*.py', '-v'
+}
+
 tasks.register('approvalProjectionSchemaCheck', Exec) {
     group = 'verification'
     description = 'Verifies v2 Approval-gate field-mask schema hashes against raw OpenAPI components.'
@@ -202,6 +210,7 @@ tasks.named('check') {
     dependsOn tasks.named('checkJavaDependencyCycles')
     dependsOn tasks.named('checkUnusedPrivateMethods')
     dependsOn tasks.named('productAuthorizationRegistryCheck')
+    dependsOn tasks.named('productAuthorizationRegistryTest')
     dependsOn tasks.named('approvalProjectionSchemaCheck')
     dependsOn tasks.named('pilotFixturesCheck')
     dependsOn tasks.named('authorizationNegativeMatrixCheck')

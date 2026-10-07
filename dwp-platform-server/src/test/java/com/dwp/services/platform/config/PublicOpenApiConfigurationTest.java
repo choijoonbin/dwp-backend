@@ -105,8 +105,9 @@ class PublicOpenApiConfigurationTest {
 
         assertThat(itemLimit.getMaximum()).isEqualByComparingTo("20");
         assertThat(widgetSizes.getMaxProperties()).isEqualTo(30);
+        assertThat(widgetSizes.getPropertyNames().getMaxLength()).isEqualTo(160);
         assertThat(widgetSizes.getPropertyNames().getPattern())
-                .isEqualTo("[a-z][a-z0-9-]{0,39}");
+                .isEqualTo("[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*");
         assertThat(widgetSizes.getAdditionalProperties()).isInstanceOf(Schema.class);
         Schema<?> values = (Schema<?>) widgetSizes.getAdditionalProperties();
         assertThat(values.getEnum()).isEqualTo(List.of(

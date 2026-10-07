@@ -22,9 +22,10 @@ CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 AGENT_PUBLIC_SNAPSHOT = CONTRACT_ROOT / "agent-public.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v32.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v34.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 32
+PRODUCT_AUTHORIZATION_VERSION = 34
+HRIS_DESIGN_TIME_OVERLAY = CONTRACT_ROOT / "hris-wave1-design-time.json"
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 PATH_PARAMETER_PATTERN = re.compile(r"\{[^{}]+}")
 TELEMETRY_PUBLIC_PATH = "/api/platform/v1/observability/product-surface-events"
@@ -156,6 +157,7 @@ class ServiceContract:
     name: str
     port: int
     public_path: Callable[[str], str | None]
+    default_live: bool = True
 
 
 def auth_path(path: str) -> str | None:
@@ -211,6 +213,11 @@ SERVICES = (
     ServiceContract("messaging", 8007, prefixed("/api/messaging")),
     ServiceContract("notification", 8008, prefixed("/api/notifications")),
     ServiceContract("meeting", 8009, prefixed("/api/meetings")),
+    # These Wave 1 owners remain default-off until their trusted authority adapters are
+    # provisioned. Their reviewed design-time contracts are still part of the public API
+    # inventory, while an explicit --service selects their live springdoc endpoint.
+    ServiceContract("time", 8011, prefixed("/api/time"), default_live=False),
+    ServiceContract("payroll", 8012, prefixed("/api/payroll"), default_live=False),
 )
 AGENT_PUBLIC_SERVICE = ServiceContract("agent", 8010, prefixed("/api/agent"))
 GATEWAY_SERVICES = (*SERVICES, AGENT_PUBLIC_SERVICE)
@@ -257,6 +264,7 @@ def fetch_contract(service: ServiceContract) -> dict[str, Any]:
     if not document.get("paths"):
         raise RuntimeError(f"{service.name} published an empty OpenAPI path registry")
     document.pop("servers", None)
+    document = apply_design_time_overlay(service, document)
     validate_unique_operation_ids(document, service.name)
     if service.name == "approval":
         validate_approval_signature_operations(document)
@@ -267,16 +275,173 @@ def load_snapshot(service: ServiceContract) -> dict[str, Any]:
     target = CONTRACT_ROOT / f"{service.name}.json"
     try:
         document = json.loads(target.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        document = {
+            "openapi": "3.1.0",
+            "info": {
+                "title": f"DWP {service.name.title()} Service API",
+                "version": "1.0.0",
+            },
+            "paths": {},
+        }
     except (OSError, json.JSONDecodeError) as error:
         raise RuntimeError(
             f"Unable to read approved {service.name} OpenAPI snapshot at {target}: {error}"
         ) from error
+    document = apply_design_time_overlay(service, document)
     if not str(document.get("openapi", "")).startswith("3.") or not document.get("paths"):
         raise RuntimeError(f"{service.name} approved OpenAPI snapshot is invalid")
     validate_unique_operation_ids(document, service.name)
     if service.name == "approval":
         validate_approval_signature_operations(document)
     return document
+
+
+def load_design_time_overlays() -> dict[str, dict[str, Any]]:
+    try:
+        envelope = json.loads(HRIS_DESIGN_TIME_OVERLAY.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise RuntimeError(
+            f"Unable to read HRIS design-time OpenAPI overlay at "
+            f"{HRIS_DESIGN_TIME_OVERLAY}: {error}"
+        ) from error
+    if (
+        envelope.get("version") != 1
+        or set(envelope) != {"version", "services"}
+        or not isinstance(envelope.get("services"), dict)
+    ):
+        raise RuntimeError("HRIS design-time OpenAPI overlay envelope is invalid")
+    return envelope["services"]
+
+
+def parameter_identity(parameter: dict[str, Any]) -> tuple[str, str]:
+    return str(parameter.get("in", "")).lower(), str(parameter.get("name", "")).lower()
+
+
+def merge_reviewed_parameters(
+        existing: dict[str, Any], reviewed: dict[str, Any]) -> None:
+    """Add reviewed parameters that springdoc does not yet expose.
+
+    The live operation remains authoritative for schemas it already publishes.  Design-time
+    overlays can still introduce reviewed parameters (for example a query-dispatched view)
+    without replacing those live schemas.
+    """
+    reviewed_parameters = reviewed.get("parameters", [])
+    if not isinstance(reviewed_parameters, list):
+        raise RuntimeError("HRIS design-time operation parameters must be an array")
+    if not reviewed_parameters:
+        return
+
+    parameters = existing.setdefault("parameters", [])
+    if not isinstance(parameters, list):
+        raise RuntimeError("HRIS live operation parameters must be an array")
+    identities = {
+        parameter_identity(parameter)
+        for parameter in parameters
+        if isinstance(parameter, dict)
+    }
+    for parameter in reviewed_parameters:
+        if not isinstance(parameter, dict):
+            raise RuntimeError("HRIS design-time operation parameter must be an object")
+        identity = parameter_identity(parameter)
+        if not all(identity):
+            raise RuntimeError("HRIS design-time operation parameter identity is invalid")
+        if identity not in identities:
+            parameters.append(copy.deepcopy(parameter))
+            identities.add(identity)
+
+
+def apply_design_time_overlay(
+        service: ServiceContract, document: dict[str, Any]) -> dict[str, Any]:
+    """Merge reviewed default-off HRIS operations into a runtime/approved service contract.
+
+    ADD operations become the canonical representation when the runtime controller is disabled.
+    If springdoc does expose the controller, its method-derived operationId is checked before the
+    reviewed stable operationId is applied. PATCH operations describe query-dispatched controller
+    variants that OpenAPI cannot represent as a second operation for the same method and path.
+    """
+    overlay = load_design_time_overlays().get(service.name)
+    if overlay is None:
+        return document
+    if set(overlay) != {"paths"} or not isinstance(overlay["paths"], dict):
+        raise RuntimeError(f"HRIS design-time overlay is invalid for {service.name}")
+
+    merged = copy.deepcopy(document)
+    paths = merged.setdefault("paths", {})
+    for path, path_item in overlay["paths"].items():
+        if not isinstance(path, str) or not path.startswith("/") or not isinstance(path_item, dict):
+            raise RuntimeError(f"HRIS design-time path is invalid for {service.name}: {path}")
+        target_path_item = paths.setdefault(path, {})
+        for method, reviewed in path_item.items():
+            if method not in HTTP_METHODS or not isinstance(reviewed, dict):
+                raise RuntimeError(
+                    f"HRIS design-time operation is invalid for {service.name}: {method} {path}"
+                )
+            mode = reviewed.get("x-dwp-overlay-mode")
+            controller_method = reviewed.get("x-dwp-controller-method")
+            stable_operation_id = reviewed.get("operationId")
+            if (
+                mode not in {"ADD", "PATCH"}
+                or not isinstance(controller_method, str)
+                or not controller_method
+                or not isinstance(stable_operation_id, str)
+                or not stable_operation_id
+            ):
+                raise RuntimeError(
+                    f"HRIS design-time operation metadata is invalid for "
+                    f"{service.name}: {method.upper()} {path}"
+                )
+
+            existing = target_path_item.get(method)
+            if mode == "PATCH":
+                if not isinstance(existing, dict):
+                    raise RuntimeError(
+                        f"HRIS PATCH overlay has no base operation for "
+                        f"{service.name}: {method.upper()} {path}"
+                    )
+                variants = existing.setdefault("x-dwp-controller-variants", [])
+                variant = {
+                    "controllerMethod": controller_method,
+                    "operationId": stable_operation_id,
+                    "requiredParameters": reviewed.get("x-dwp-required-parameters", []),
+                }
+                variants = [
+                    item for item in variants
+                    if item.get("controllerMethod") != controller_method
+                ]
+                variants.append(variant)
+                existing["x-dwp-controller-variants"] = sorted(
+                    variants, key=lambda item: item["controllerMethod"]
+                )
+                merge_reviewed_parameters(existing, reviewed)
+                continue
+
+            canonical = copy.deepcopy(reviewed)
+            canonical.pop("x-dwp-overlay-mode", None)
+            if existing is not None:
+                if not isinstance(existing, dict):
+                    raise RuntimeError(
+                        f"HRIS live operation is invalid for "
+                        f"{service.name}: {method.upper()} {path}"
+                    )
+                actual_operation_id = existing.get("operationId")
+                if actual_operation_id not in {controller_method, stable_operation_id}:
+                    raise RuntimeError(
+                        f"HRIS live controller method drift for {service.name}: "
+                        f"{method.upper()} {path}; expected {controller_method}, "
+                        f"found {actual_operation_id}"
+                    )
+                # Preserve springdoc's exact schemas while canonicalizing the public identifier.
+                live = copy.deepcopy(existing)
+                live["operationId"] = stable_operation_id
+                live["x-dwp-controller-method"] = controller_method
+                merge_reviewed_parameters(live, canonical)
+                for key, value in canonical.items():
+                    if key.startswith("x-dwp-"):
+                        live[key] = value
+                canonical = live
+            target_path_item[method] = canonical
+    return merged
 
 
 def validate_approval_signature_operations(
@@ -784,7 +949,9 @@ def main() -> int:
     selected = (
         set()
         if args.approved_snapshots
-        else set(args.service or (service.name for service in SERVICES))
+        else set(args.service or (
+            service.name for service in SERVICES if service.default_live
+        ))
     )
     documents = {
         service.name: fetch_contract(service) if service.name in selected else load_snapshot(service)

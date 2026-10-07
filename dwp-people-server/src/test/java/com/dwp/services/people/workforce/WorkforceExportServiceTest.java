@@ -83,14 +83,15 @@ class WorkforceExportServiceTest {
         HcmStepUpHeaders headers = new HcmStepUpHeaders(
                 "signed", "idem-1", "psr-" + "a".repeat(64), 3L);
         doThrow(new BaseException(ErrorCode.STEP_UP_REQUIRED))
-                .when(highRisk).require(any(), any(), any(), eq(3L), any(), any(), eq(headers));
+                .when(highRisk).requireExact(
+                        any(), any(), any(), eq(3L), any(), any(), eq(headers));
 
         assertThatThrownBy(() -> exactService.create(command, "correlation-1", headers))
                 .isInstanceOfSatisfying(BaseException.class, exception ->
                         assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.STEP_UP_REQUIRED));
 
         ArgumentCaptor<Object> envelope = ArgumentCaptor.forClass(Object.class);
-        verify(highRisk).require(
+        verify(highRisk).requireExact(
                 eq("hcm.controlled-export.create"), eq("EXPORT_DATASET"),
                 eq("WORKFORCE_DIRECTORY@v3:hcm-scope-1234"), eq(3L),
                 eq("/api/people/v1/workforce/exports"), envelope.capture(), eq(headers));

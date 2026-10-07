@@ -34,7 +34,7 @@ class ProductAuthorizationSeedLoaderTest {
         String indexLocation =
                 "classpath:product-authorization/product-surfaces-v1.index.generated.json";
         ProductAuthorizationSeedLoader loader = new ProductAuthorizationSeedLoader(
-                false, indexLocation, resources, validator, service);
+                false, indexLocation, 0, resources, validator, service);
 
         ProductAuthorizationContractDtos.SeedIndex index =
                 loader.readIndex(resources.getResource(indexLocation));
@@ -63,7 +63,7 @@ class ProductAuthorizationSeedLoaderTest {
         String indexLocation =
                 "classpath:product-authorization/product-surfaces-v1.index.generated.json";
         ProductAuthorizationSeedLoader loader = new ProductAuthorizationSeedLoader(
-                true, indexLocation, resources, validator, service);
+                true, indexLocation, 0, resources, validator, service);
         when(service.importDraft(any())).thenAnswer(invocation -> {
             ProductAuthorizationContractDtos.BundleContract contract = invocation.getArgument(0);
             return new ProductAuthorizationContractDtos.BundleView(
@@ -88,5 +88,34 @@ class ProductAuthorizationSeedLoaderTest {
         verify(service, never()).approve(any(), anyLong(), any());
         verify(service, never()).activate(any(), anyLong(), any(), anyLong());
         verify(service, never()).rollback(any(), anyLong(), any(), anyLong());
+    }
+
+    @Test
+    void importsOnlyTheExplicitImmutableVersionWhenRequested() {
+        ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
+        DefaultResourceLoader resources = new DefaultResourceLoader();
+        ProductAuthorizationContractValidator validator =
+                new ProductAuthorizationContractValidator(objectMapper);
+        String indexLocation =
+                "classpath:product-authorization/product-surfaces-v1.index.generated.json";
+        ProductAuthorizationSeedLoader loader = new ProductAuthorizationSeedLoader(
+                true, indexLocation, 32, resources, validator, service);
+        when(service.importDraft(any())).thenAnswer(invocation -> {
+            ProductAuthorizationContractDtos.BundleContract contract = invocation.getArgument(0);
+            return new ProductAuthorizationContractDtos.BundleView(
+                    null, contract.bundleKey(), contract.version(), contract.bundleStatus(),
+                    0, contract.checksum(), contract.owner(), null, null, null, contract);
+        });
+
+        loader.run(null);
+
+        @SuppressWarnings("unchecked")
+        org.mockito.ArgumentCaptor<ProductAuthorizationContractDtos.BundleContract> captor =
+                org.mockito.ArgumentCaptor.forClass(
+                        ProductAuthorizationContractDtos.BundleContract.class);
+        verify(service).importDraft(captor.capture());
+        assertThat(captor.getValue().version()).isEqualTo(32);
+        verify(service, never()).approve(any(), anyLong(), any());
+        verify(service, never()).activate(any(), anyLong(), any(), anyLong());
     }
 }

@@ -138,15 +138,119 @@ class HcmProductSurfaceEligibilityAdapterTest {
         assertThat(result.scopes()).isEmpty();
     }
 
+    @Test
+    void payrollFoundationAliasUsesTheCanonicalPayDerivedScopeOnlyForOperations() {
+        PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("TENANT_ADMIN"), Set.of());
+        when(populations.findOperations("READ")).thenReturn(Optional.of(teamPopulation()));
+        String canonicalSource = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.operations", "PAY_TARGET_POPULATION",
+                "TARGET_POPULATION");
+        String actionSource = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.operations", "PAYROLL_LEGAL_ENTITY_SCOPE",
+                "TARGET_POPULATION");
+
+        ProductSurfaceEligibilityDtos.EligibilityResult page = adapter.evaluate(
+                request("hcm.operations", canonicalSource, "TARGET_POPULATION", null));
+        String selectedPageScope = page.scopes().getFirst().key();
+        ProductSurfaceEligibilityDtos.EligibilityResult action = adapter.evaluate(
+                request("hcm.operations", actionSource, "TARGET_POPULATION", selectedPageScope));
+
+        assertThat(page.decision()).isEqualTo(ProductSurfaceEligibilityDtos.Decision.ALLOWED);
+        assertThat(action.decision()).isEqualTo(ProductSurfaceEligibilityDtos.Decision.ALLOWED);
+        assertThat(action.scopes()).singleElement().satisfies(scope -> {
+            assertThat(scope.sourceScopeKey()).isEqualTo(actionSource);
+            assertThat(scope.key()).isEqualTo(selectedPageScope);
+            assertThat(scope.isDefault()).isTrue();
+        });
+
+        String nonOperationsAlias = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.team", "PAYROLL_LEGAL_ENTITY_SCOPE",
+                "TARGET_POPULATION");
+        ProductSurfaceEligibilityDtos.EligibilityResult rejected = adapter.evaluate(
+                request("hcm.team", nonOperationsAlias, "TARGET_POPULATION", null));
+        assertThat(rejected.decision())
+                .isEqualTo(ProductSurfaceEligibilityDtos.Decision.SCOPE_INVALID);
+    }
+
+    @Test
+    void preservesBothPayAliasesWithIdenticalCanonicalDerivedMaterial() {
+        PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("TENANT_ADMIN"), Set.of());
+        when(populations.findOperations("READ")).thenReturn(Optional.of(teamPopulation()));
+        String canonicalSource = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.operations", "PAY_TARGET_POPULATION",
+                "TARGET_POPULATION");
+        String requestedActionSource = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.operations", "PAYROLL_LEGAL_ENTITY_SCOPE",
+                "TARGET_POPULATION");
+
+        ProductSurfaceEligibilityDtos.EligibilityResult result = adapter.evaluate(
+                request("hcm.operations", List.of(
+                        new ProductSurfaceEligibilityDtos.CandidateScope(
+                                requestedActionSource, "TARGET_POPULATION"),
+                        new ProductSurfaceEligibilityDtos.CandidateScope(
+                                canonicalSource, "TARGET_POPULATION")), null));
+
+        assertThat(result.decision()).isEqualTo(ProductSurfaceEligibilityDtos.Decision.ALLOWED);
+        assertThat(result.scopes()).hasSize(2);
+        assertThat(result.scopes())
+                .extracting(ProductSurfaceEligibilityDtos.EligibleScope::sourceScopeKey)
+                .containsExactly(requestedActionSource, canonicalSource);
+        assertThat(result.scopes())
+                .extracting(ProductSurfaceEligibilityDtos.EligibleScope::key)
+                .containsOnly(result.scopes().getFirst().key());
+        assertThat(result.scopes())
+                .allSatisfy(scope -> {
+                    assertThat(scope.key()).startsWith("hcm-scope-");
+                    assertThat(scope.isDefault()).isTrue();
+                });
+    }
+
+    @Test
+    void failsClosedWhenCanonicalPayAliasesResolveAgainstDifferentOwnerSnapshots() {
+        PeopleRequestContext.set(ACTOR, TENANT, PERSON, Set.of("TENANT_ADMIN"), Set.of());
+        HcmPopulationScopeService.ResolvedPopulation first = teamPopulation();
+        HcmPopulationScopeService.ResolvedPopulation changed = new HcmPopulationScopeService
+                .ResolvedPopulation(first.actor(), first.scope(),
+                        new HcmPopulationRepository.PopulationEvidence(
+                                first.evidence().count(), "changed-population-revision"));
+        when(populations.findOperations("READ"))
+                .thenReturn(Optional.of(first), Optional.of(changed));
+        String canonicalSource = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.operations", "PAY_TARGET_POPULATION",
+                "TARGET_POPULATION");
+        String actionSource = ProductSurfaceScopeKey.key(
+                TENANT, ACTOR, "hcm", "hcm.operations", "PAYROLL_LEGAL_ENTITY_SCOPE",
+                "TARGET_POPULATION");
+
+        ProductSurfaceEligibilityDtos.EligibilityResult result = adapter.evaluate(
+                request("hcm.operations", List.of(
+                        new ProductSurfaceEligibilityDtos.CandidateScope(
+                                canonicalSource, "TARGET_POPULATION"),
+                        new ProductSurfaceEligibilityDtos.CandidateScope(
+                                actionSource, "TARGET_POPULATION")), null));
+
+        assertThat(result.decision())
+                .isEqualTo(ProductSurfaceEligibilityDtos.Decision.AUTHORITY_UNAVAILABLE);
+        assertThat(result.scopes()).isEmpty();
+    }
+
     private ProductSurfaceEligibilityDtos.EvaluateRequest request(
             String surface,
             String key,
             String kind,
             String selected) {
+        return request(surface, List.of(
+                new ProductSurfaceEligibilityDtos.CandidateScope(key, kind)), selected);
+    }
+
+    private ProductSurfaceEligibilityDtos.EvaluateRequest request(
+            String surface,
+            List<ProductSurfaceEligibilityDtos.CandidateScope> candidates,
+            String selected) {
         return new ProductSurfaceEligibilityDtos.EvaluateRequest(
                 TENANT, ACTOR, "hcm", surface,
                 ProductSurfaceEligibilityDtos.AccessMode.NORMAL, NOW,
-                List.of(new ProductSurfaceEligibilityDtos.CandidateScope(key, kind)), selected);
+                candidates, selected);
     }
 
     private HcmPopulationScopeService.ResolvedPopulation teamPopulation() {

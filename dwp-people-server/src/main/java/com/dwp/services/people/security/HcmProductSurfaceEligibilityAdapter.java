@@ -35,12 +35,14 @@ public class HcmProductSurfaceEligibilityAdapter
     private static final String OPERATIONS = "ORG_UNIT/LEGAL_ENTITY";
     private static final String EXPORT = "APPROVED_EXPORT_POPULATION";
     private static final String CONFIG = "RS_HCM_CONFIG";
+    private static final String PAY_TARGET_POPULATION = "PAY_TARGET_POPULATION";
+    private static final String PAYROLL_LEGAL_ENTITY_SCOPE = "PAYROLL_LEGAL_ENTITY_SCOPE";
     private static final Set<String> DOMAIN_POPULATIONS = Set.of(
             "WORKFORCE_TARGET_POPULATION",
             "TIME_TARGET_POPULATION",
             "ABSENCE_TARGET_POPULATION",
             "BENEFITS_TARGET_POPULATION",
-            "PAY_TARGET_POPULATION",
+            PAY_TARGET_POPULATION,
             "TALENT_TARGET_POPULATION");
 
     private final HcmPopulationRepository repository;
@@ -84,9 +86,14 @@ public class HcmProductSurfaceEligibilityAdapter
                     tenantRevision(actor.tenantId()));
         }
 
-        List<MaterializedScope> materialized = resolved.entrySet().stream()
+        List<MaterializedScope> candidates = resolved.entrySet().stream()
                 .map(entry -> materialize(request, actor, entry.getKey(), entry.getValue()))
                 .toList();
+        Optional<List<MaterializedScope>> merged = mergeCanonicalMaterials(candidates);
+        if (merged.isEmpty()) {
+            return ProductSurfaceEligibilityDtos.EligibilityResult.unavailable();
+        }
+        List<MaterializedScope> materialized = merged.get();
         if (request.contextScopeKey() != null && materialized.stream()
                 .noneMatch(value -> value.key().equals(request.contextScopeKey()))) {
             return denied(ProductSurfaceEligibilityDtos.Decision.SCOPE_INVALID,
@@ -135,7 +142,8 @@ public class HcmProductSurfaceEligibilityAdapter
             case "hcm.operations" -> matchOperations(request, candidate)
                     ? populations.findOperations("READ").map(value -> new ResolvedScope(
                             value.relationshipRevision(), value.targetPopulationRevision(),
-                            "TARGET_POPULATION", value.scope().dataBoundary().name(), false))
+                            "TARGET_POPULATION", value.scope().dataBoundary().name(), false,
+                            canonicalOperationsSourceKey(request, candidate)))
                     : Optional.empty();
             case "hcm.management" -> resolveManagement(request, actor, candidate);
             default -> Optional.empty();
@@ -164,8 +172,26 @@ public class HcmProductSurfaceEligibilityAdapter
             ProductSurfaceEligibilityDtos.CandidateScope candidate) {
         if (!"TARGET_POPULATION".equals(candidate.kind())) return false;
         if (match(request, candidate, OPERATIONS, candidate.kind())) return true;
+        if (match(request, candidate, PAYROLL_LEGAL_ENTITY_SCOPE, candidate.kind())) return true;
         return DOMAIN_POPULATIONS.stream()
                 .anyMatch(source -> match(request, candidate, source, candidate.kind()));
+    }
+
+    /**
+     * Payroll foundation commands and their PAY page read share one People-owned
+     * population. Preserve the requested source for grant intersection, but bind
+     * both contracts to the canonical PAY derivation input.
+     */
+    private String canonicalOperationsSourceKey(
+            ProductSurfaceEligibilityDtos.EvaluateRequest request,
+            ProductSurfaceEligibilityDtos.CandidateScope candidate) {
+        if (!match(request, candidate, PAYROLL_LEGAL_ENTITY_SCOPE, candidate.kind())
+                && !match(request, candidate, PAY_TARGET_POPULATION, candidate.kind())) {
+            return null;
+        }
+        return ProductSurfaceScopeKey.key(
+                request.tenantId(), request.actorId(), request.productKey(),
+                request.surfaceKey(), PAY_TARGET_POPULATION, candidate.kind());
     }
 
     private boolean matchAny(
@@ -195,13 +221,38 @@ public class HcmProductSurfaceEligibilityAdapter
             PeopleRequestContext.Actor actor,
             String sourceScopeKey,
             ResolvedScope value) {
+        String canonicalSourceScopeKey = value.canonicalSourceScopeKey() == null
+                ? sourceScopeKey : value.canonicalSourceScopeKey();
         return new MaterializedScope(
                 sourceScopeKey,
                 HcmEligibilityScopeKeys.derived(
-                        actor.tenantId(), actor.userId(), request.surfaceKey(), sourceScopeKey,
+                        actor.tenantId(), actor.userId(), request.surfaceKey(),
+                        canonicalSourceScopeKey,
                         value.relationshipRevision(), value.populationRevision()),
                 value.kind(), value.displayName(), value.readOnly(),
-                value.relationshipRevision(), value.populationRevision());
+                value.relationshipRevision(), value.populationRevision(),
+                canonicalSourceScopeKey);
+    }
+
+    /**
+     * A single request may carry both the PAY page resolver and the foundation
+     * action alias. They are two Auth lineages for the same owner material and
+     * must both survive so Gateway can rebind each grant to its requested alias.
+     * A split owner snapshot for the same canonical resolver fails closed; the
+     * Gateway is responsible for collapsing compatible derived material.
+     */
+    private Optional<List<MaterializedScope>> mergeCanonicalMaterials(
+            List<MaterializedScope> candidates) {
+        Map<String, CanonicalDerivedTuple> tupleByCanonicalSource = new LinkedHashMap<>();
+        for (MaterializedScope candidate : candidates) {
+            CanonicalDerivedTuple tuple = candidate.canonicalDerivedTuple();
+            CanonicalDerivedTuple existing = tupleByCanonicalSource.putIfAbsent(
+                    candidate.canonicalSourceScopeKey(), tuple);
+            if (existing != null && !existing.equals(tuple)) {
+                return Optional.empty();
+            }
+        }
+        return Optional.of(List.copyOf(candidates));
     }
 
     private ProductSurfaceEligibilityDtos.EligibilityResult denied(
@@ -242,11 +293,37 @@ public class HcmProductSurfaceEligibilityAdapter
             String populationRevision,
             String kind,
             String displayName,
-            boolean readOnly) {
+            boolean readOnly,
+            String canonicalSourceScopeKey) {
+
+        private ResolvedScope(
+                String relationshipRevision,
+                String populationRevision,
+                String kind,
+                String displayName,
+                boolean readOnly) {
+            this(relationshipRevision, populationRevision, kind, displayName, readOnly, null);
+        }
     }
 
     private record MaterializedScope(
             String sourceScopeKey,
+            String key,
+            String kind,
+            String displayName,
+            boolean readOnly,
+            String relationshipRevision,
+            String populationRevision,
+            String canonicalSourceScopeKey) {
+
+        private CanonicalDerivedTuple canonicalDerivedTuple() {
+            return new CanonicalDerivedTuple(
+                    key, kind, displayName, readOnly,
+                    relationshipRevision, populationRevision);
+        }
+    }
+
+    private record CanonicalDerivedTuple(
             String key,
             String kind,
             String displayName,

@@ -21,3 +21,10 @@ dependencies {
     testImplementation 'org.testcontainers:postgresql'
     testImplementation 'org.postgresql:postgresql'
 }
+
+tasks.named('test') {
+    inputs.file(rootProject.file(
+            'contracts/in-process/hris/workforce-snapshot-query-port.v1.schema.json'))
+            .withPropertyName('workforceSnapshotQueryPortSchema')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+}

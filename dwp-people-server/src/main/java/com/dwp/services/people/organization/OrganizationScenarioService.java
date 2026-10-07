@@ -34,6 +34,7 @@ public class OrganizationScenarioService {
     private final AuditOutboxRecorder audit;
     private final HcmHighRiskCommandGuard highRisk;
     private final OrganizationScenarioPublishTargetRepository publishTargets;
+    private final OrganizationPublishRolloutGate publishRollout;
 
     @org.springframework.beans.factory.annotation.Autowired
     public OrganizationScenarioService(
@@ -42,13 +43,15 @@ public class OrganizationScenarioService {
             OrganizationScenarioDecisionService decisionService,
             AuditOutboxRecorder audit,
             HcmHighRiskCommandGuard highRisk,
-            OrganizationScenarioPublishTargetRepository publishTargets) {
+            OrganizationScenarioPublishTargetRepository publishTargets,
+            OrganizationPublishRolloutGate publishRollout) {
         this.repository = repository;
         this.chartService = chartService;
         this.decisionService = decisionService;
         this.audit = audit;
         this.highRisk = highRisk;
         this.publishTargets = publishTargets;
+        this.publishRollout = publishRollout;
     }
 
     OrganizationScenarioService(
@@ -56,7 +59,7 @@ public class OrganizationScenarioService {
             OrganizationChartService chartService,
             OrganizationScenarioDecisionService decisionService,
             AuditOutboxRecorder audit) {
-        this(repository, chartService, decisionService, audit, null, null);
+        this(repository, chartService, decisionService, audit, null, null, null);
     }
 
     @Transactional(readOnly = true)
@@ -517,6 +520,7 @@ public class OrganizationScenarioService {
             HcmStepUpHeaders headers) {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
         requirePlanner(actor);
+        if (publishRollout != null) publishRollout.requireEnabled();
         OrganizationScenarioRepository.ScenarioRecord scenario = (publishTargets == null
                 ? repository.scenario(actor.tenantId(), scenarioId)
                 : publishTargets.lock(actor.tenantId(), scenarioId))
@@ -531,7 +535,7 @@ public class OrganizationScenarioService {
             throw new BaseException(ErrorCode.INVALID_STATE, "Only an approved scenario can be published.");
         }
         if (highRisk != null) {
-            highRisk.require(
+            highRisk.requireExact(
                     "hcm.org-design.publish", "ORG_SCENARIO", scenarioId.toString(),
                     scenario.version(),
                     "/api/people/v1/workforce/organization/scenarios/"

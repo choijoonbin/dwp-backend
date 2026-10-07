@@ -46,6 +46,7 @@ application-local.yml
 *.log
 
 .dev-runtime/
+output/hris-w1-synthetic-*/
 
 # Local database exports
 backup_*.sql

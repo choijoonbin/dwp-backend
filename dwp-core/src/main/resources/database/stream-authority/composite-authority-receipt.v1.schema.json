@@ -1,0 +1,39 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dwp:migration-control-composite-receipt:1.0",
+  "title": "Unwired Native Preapplied Composite Authority Receipt v1",
+  "description": "No current Control producer exists. This successor does not extend or replace scalar v2. Parser enforces external expected digests/reference/previous chain, exact enabled manifest stream set and authority digest bindings. External Control authority inspection checks selected service native seals and runtime pools; it requires migration credentials and is NOT an app startup API. App runtime-only proof/guard, freshness and deployment fence remain OPEN. Synthetic unit documents are not Control evidence. Adoption is fail-closed until a separately versioned proven implementation exists.",
+  "type": "object", "additionalProperties": false,
+  "required": ["schemaVersion", "topologyVersion", "manifestSha256", "controlReference", "previousCompositeReceiptSha256", "mode", "streams", "receiptSha256"],
+  "properties": {
+    "schemaVersion": {"const": "1.0"}, "topologyVersion": {"const": "hris-stream-topology-v1"},
+    "manifestSha256": {"$ref": "#/$defs/digest"},
+    "controlReference": {"type": "string", "pattern": "^dwp-migration-control-v2:[0-9a-f]{64}$"},
+    "previousCompositeReceiptSha256": {"type": "string", "pattern": "^(?:[0-9a-f]{64})?$"},
+    "mode": {"const": "NATIVE_PREAPPLIED"},
+    "streams": {"type": "array", "minItems": 9, "maxItems": 13, "uniqueItems": true, "items": {"$ref": "#/$defs/seal"}},
+    "receiptSha256": {"$ref": "#/$defs/digest"}
+  },
+  "$defs": {
+    "digest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "identifier": {"type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$"},
+    "seal": {
+      "type": "object", "additionalProperties": false,
+      "required": ["service", "streamKey", "database", "authoritySha256", "migrationPrincipal", "postgresVersion", "historyMaxInstalledRank", "historyRowCount", "historySha256", "inventoryObjectCount", "definitionAclOwnershipInventorySha256", "adoptionReceiptSha256", "temporaryPrivilegeRevoked", "bootstrapOrder"],
+      "properties": {
+        "service": {"enum": ["approval", "auth", "notification", "payroll", "people", "platform", "provider", "time"]},
+        "streamKey": {"enum": ["approval-main", "auth-hris-participation-issuer", "auth-main", "notification-main", "payroll-main", "people-main", "people-performance", "platform-hris-configuration", "platform-hris-insights", "platform-hris-protected", "platform-main", "provider-main", "time-main"]},
+        "database": {"$ref": "#/$defs/identifier"}, "authoritySha256": {"$ref": "#/$defs/digest"},
+        "migrationPrincipal": {"$ref": "#/$defs/identifier"},
+        "postgresVersion": {"type": "string", "pattern": "^[1-9][0-9]*(?:\\.[0-9]+){0,2}$"},
+        "historyMaxInstalledRank": {"type": "integer", "minimum": 1},
+        "historyRowCount": {"type": "integer", "minimum": 1},
+        "historySha256": {"$ref": "#/$defs/digest"},
+        "inventoryObjectCount": {"type": "integer", "minimum": 2},
+        "definitionAclOwnershipInventorySha256": {"$ref": "#/$defs/digest"},
+        "adoptionReceiptSha256": {"const": ""}, "temporaryPrivilegeRevoked": {"const": true},
+        "bootstrapOrder": {"type": "integer", "minimum": 1, "maximum": 13}
+      }
+    }
+  }
+}

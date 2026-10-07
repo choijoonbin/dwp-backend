@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:dwp:in-process:hris:workforce-snapshot-query-port:v1",
+  "title": "WorkforceSnapshotQueryPort v1",
+  "description": "Control-owned in-process Java ABI. This is not an HTTP or browser transport contract.",
+  "x-java-package": "com.dwp.services.people.hris.contracts.workforce.v1",
+  "x-port": {
+    "facade": "WorkforceSnapshotQueryPort",
+    "facadeKind": "FINAL_NON_IMPLEMENTABLE",
+    "method": "query",
+    "request": "WorkforceSnapshotQuery",
+    "verifiedRequest": "VerifiedWorkforceSnapshotRequest",
+    "result": "WorkforceSnapshotPage",
+    "version": "v1",
+    "authorityBoundary": "WorkforceSnapshotRequestVerifier",
+    "issuedCursorClaims": "VerifiedWorkforceSnapshotCursor",
+    "provider": "WorkforceSnapshotProvider",
+    "enforcement": "GuardedWorkforceSnapshotQueryPort",
+    "consumerVisibleTypes": ["WorkforceSnapshotQueryPort", "WorkforceSnapshotQuery", "WorkforceSnapshotPage", "WorkforceSnapshotV1", "WorkforceSnapshotProjection", "WorkforceSnapshotContract"],
+    "ownerExtensionTypes": ["WorkforceSnapshotRequestVerifier", "WorkforceSnapshotProvider", "VerifiedWorkforceSnapshotRequest", "VerifiedWorkforceSnapshotCursor", "WorkforceSnapshotQueryPorts"],
+    "controlInternalTypes": ["GuardedWorkforceSnapshotQueryPort"],
+    "tenantContext": "OWNER_RESOLVED_NOT_CALLER_SUPPLIED",
+    "purposeCode": "HRIS_WORKFORCE_SNAPSHOT_BOOTSTRAP",
+    "cursor": "OPAQUE_AUTHENTICATED_OWNER_CODEC",
+    "cursorBinding": ["tenantId", "callerModule", "purposeCode", "projection", "asOf", "ownerRevision", "lastEmittedCanonicalPosition"],
+    "pageOrdering": ["assignmentPublicId:ASC", "workerPublicId:ASC"],
+    "orderingVersion": "assignmentPublicId-asc-workerPublicId-asc.v1",
+    "pageInvariants": ["snapshots.size <= request.limit", "assignmentPublicId unique", "workerPublicId+assignmentPublicId unique", "next page first position > authenticated cursor position", "non-null nextCursor authenticates ownerRevision+lastEmittedCanonicalPosition"],
+    "pageDigest": "SHA_256_CANONICAL_BINARY_V1_WITH_ORDERING_VERSION"
+  },
+  "$defs": {
+    "WorkforceSnapshotQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["purposeCode", "asOf", "projection", "limit", "cursorToken"],
+      "properties": {
+        "purposeCode": {"const": "HRIS_WORKFORCE_SNAPSHOT_BOOTSTRAP"},
+        "asOf": {"type": "string", "format": "date-time"},
+        "projection": {"const": "PERFORMANCE_V1"},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 500},
+        "cursorToken": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": ".*\\S.*", "x-maxUtf8Bytes": 2048}]}
+      }
+    },
+    "VerifiedWorkforceSnapshotRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Owner-internal DTO produced only after trusted tenant resolution and opaque cursor authentication.",
+      "x-invariant": "cursorOwnerRevision, verifiedCursorPosition, and cursorTokenDigest are either all null or all valid",
+      "required": ["tenantId", "tenantGrantRevision", "policyRevision", "callerModule", "correlationId", "purposeCode", "projection", "asOf", "limit", "cursorOwnerRevision", "verifiedCursorPosition", "cursorTokenDigest"],
+      "properties": {
+        "tenantId": {"type": "integer", "format": "int64", "minimum": 1},
+        "tenantGrantRevision": {"type": "integer", "format": "int64", "minimum": 1},
+        "policyRevision": {"type": "integer", "format": "int64", "minimum": 1},
+        "callerModule": {"const": "HRIS-PER"},
+        "correlationId": {"type": "string", "format": "uuid"},
+        "purposeCode": {"const": "HRIS_WORKFORCE_SNAPSHOT_BOOTSTRAP"},
+        "projection": {"const": "PERFORMANCE_V1"},
+        "asOf": {"type": "string", "format": "date-time"},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 500},
+        "cursorOwnerRevision": {"oneOf": [{"type": "null"}, {"type": "integer", "format": "int64", "minimum": 1}]},
+        "verifiedCursorPosition": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"}]},
+        "cursorTokenDigest": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9a-f]{64}$"}]}
+      }
+    },
+    "VerifiedWorkforceSnapshotCursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Owner-authenticated claims for a non-null issued continuation cursor; the guarded facade verifies them against the request and page.",
+      "required": ["tenantId", "callerModule", "purposeCode", "projection", "asOf", "ownerRevision", "position", "cursorTokenDigest"],
+      "properties": {
+        "tenantId": {"type": "integer", "format": "int64", "minimum": 1},
+        "callerModule": {"const": "HRIS-PER"},
+        "purposeCode": {"const": "HRIS_WORKFORCE_SNAPSHOT_BOOTSTRAP"},
+        "projection": {"const": "PERFORMANCE_V1"},
+        "asOf": {"type": "string", "format": "date-time"},
+        "ownerRevision": {"type": "integer", "format": "int64", "minimum": 1},
+        "position": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+        "cursorTokenDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "WorkforceSnapshotPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tenantId", "callerModule", "purposeCode", "projection", "asOf", "ownerRevision", "payloadDigest", "snapshots", "nextCursor"],
+      "properties": {
+        "tenantId": {"type": "integer", "format": "int64", "minimum": 1},
+        "callerModule": {"const": "HRIS-PER"},
+        "purposeCode": {"const": "HRIS_WORKFORCE_SNAPSHOT_BOOTSTRAP"},
+        "projection": {"const": "PERFORMANCE_V1"},
+        "asOf": {"type": "string", "format": "date-time"},
+        "ownerRevision": {"type": "integer", "format": "int64", "minimum": 1},
+        "payloadDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "snapshots": {"type": "array", "maxItems": 500, "x-uniqueBy": ["assignmentPublicId", "workerPublicId+assignmentPublicId"], "x-orderBy": ["assignmentPublicId:ASC", "workerPublicId:ASC"], "items": {"$ref": "#/$defs/WorkforceSnapshotV1"}},
+        "nextCursor": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": ".*\\S.*", "x-maxUtf8Bytes": 2048}]}
+      }
+    },
+    "WorkforceSnapshotV1": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workerPublicId", "assignmentPublicId", "status", "organizationPublicId", "managerAssignmentPublicId", "jobProfilePublicId", "gradePublicId"],
+      "properties": {
+        "workerPublicId": {"type": "string", "format": "uuid"},
+        "assignmentPublicId": {"type": "string", "format": "uuid"},
+        "status": {"type": "string", "enum": ["PENDING", "ACTIVE", "INACTIVE", "TERMINATED"], "x-authoritativePointer": "contracts/hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_001/properties/workerStatus"},
+        "organizationPublicId": {"type": "string", "format": "uuid"},
+        "managerAssignmentPublicId": {"type": ["string", "null"], "format": "uuid"},
+        "jobProfilePublicId": {"type": ["string", "null"], "format": "uuid"},
+        "gradePublicId": {"type": ["string", "null"], "format": "uuid"}
+      }
+    }
+  }
+}

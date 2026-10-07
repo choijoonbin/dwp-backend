@@ -26,26 +26,17 @@ class ProductAuthorizationRelease10ProjectionSchemaTest {
     private ProductAuthorizationContractDtos.BundleContract typed(JsonNode bundle) throws Exception {
         return json.treeToValue(bundle, ProductAuthorizationContractDtos.BundleContract.class);
     }
-    @Test void exactFullImmutableBundleAndIndexKeepTenWhileLatestAdvancesToTwentyOne() throws Exception {
+    @Test void exactFullImmutableBundleAndIndexKeepTenWhileLatestAdvancesToThirtyThree() throws Exception {
         var actual = bundle();
         assertEquals(10, validator.validateDocument(actual).version());
         assertEquals(318, actual.path("routes").size());
         try (var stream = new ClassPathResource("product-authorization/product-surfaces-v1.index.generated.json").getInputStream()) {
-            assertEquals(21, validator.validateSeedIndexDocument(json.readTree(stream)).latestVersion());
+            assertEquals(33, validator.validateSeedIndexDocument(json.readTree(stream)).latestVersion());
         }
-        assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(11));
-        assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(12));
-        assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(13));
-        assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(14));
-        assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(15));
-        assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(16));
-        assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(17));
-        assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(18));
-        assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(19));
-        assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(20));
-        assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(21));
-        assertFalse(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(22));
-        actual.put("version", 22); actual.put("checksum", validator.checksum(actual));
+        for (long version = 11; version <= 33; version++)
+            assertTrue(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(version));
+        assertFalse(ProductAuthorizationReleaseLineage.supportsDescriptorStructure(34));
+        actual.put("version", 34); actual.put("checksum", validator.checksum(actual));
         assertThrows(IllegalArgumentException.class, () -> validator.validateDocument(actual));
     }
     @Test void allEightActualDataDescriptorsMatchAndInheritedBinaryRemainsNullableBase() throws Exception {

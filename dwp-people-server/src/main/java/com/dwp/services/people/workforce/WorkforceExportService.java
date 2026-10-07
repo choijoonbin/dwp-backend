@@ -171,7 +171,7 @@ public class WorkforceExportService {
         }
         if (highRisk != null) {
             String datasetTarget = datasetTarget(dataset.dataset());
-            highRisk.require(
+            highRisk.requireExact(
                     "hcm.controlled-export.create", "EXPORT_DATASET",
                     datasetTarget + ':' + populationTarget,
                     dataset.dataset().version(),
@@ -307,7 +307,7 @@ public class WorkforceExportService {
                 before.lifecycleState(), before.executionEnabled(), !before.blockers().isEmpty(),
                 before.manualRetryCount(), policy.maximumManualRetries());
         if (highRisk != null) {
-            highRisk.require(
+            highRisk.requireExact(
                     "hcm.controlled-export.retry", "EXPORT_REQUEST", requestId.toString(),
                     before.version(),
                     "/api/people/v1/workforce/exports/" + requestId + "/retry",

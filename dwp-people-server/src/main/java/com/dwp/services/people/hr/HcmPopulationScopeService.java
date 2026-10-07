@@ -94,6 +94,13 @@ public class HcmPopulationScopeService {
                 "No locked HCM target-population policy permits this mutation."));
     }
 
+    /** Reuses the production population predicate for bootstrap lineage checks. */
+    public boolean containsWorker(ResolvedPopulation population, long workerId) {
+        if (population == null || workerId <= 0) return false;
+        PeopleRequestContext.Actor actor = PeopleRequestContext.require();
+        return repository.containsWorker(actor.tenantId(), population.scope(), workerId);
+    }
+
     /**
      * Recomputes the selected derived scope at the owner service. This catches
      * population or relationship changes even inside the gateway revalidation

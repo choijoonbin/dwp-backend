@@ -33,6 +33,7 @@ dependencies {
     
     // dwp-core 의존성
     implementation project(':dwp-core')
+    implementation project(':dwp-platform-contracts')
     implementation project(':dwp-observability')
     
     // Lombok

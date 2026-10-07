@@ -656,6 +656,29 @@ class ProductSurfaceContextAggregationServiceTest {
     }
 
     @Test
+    void productEvaluationRevisionIsStableForOneRouteAndDistinctAcrossRoutes() {
+        when(authority.evaluate(any(), any(), any(), any(), any(), any()))
+                .thenReturn(Mono.just(allowed(false)));
+        var firstRoute = evaluationRequest();
+        var secondRoute = new ProductSurfaceContextDtos.ProductEvaluationRequest(
+                firstRoute.subject(),
+                "route.approvals.admin.forms-detail.data",
+                firstRoute.contextKey(),
+                firstRoute.contextScopeKey());
+
+        var first = service.evaluateProduct(requestContext(), firstRoute).block();
+        var repeated = service.evaluateProduct(requestContext(), firstRoute).block();
+        var second = service.evaluateProduct(requestContext(), secondRoute).block();
+
+        assertThat(first).isNotNull();
+        assertThat(repeated).isNotNull();
+        assertThat(second).isNotNull();
+        assertThat(first.decisionRevision()).matches("psr-[0-9a-f]{64}");
+        assertThat(repeated.decisionRevision()).isEqualTo(first.decisionRevision());
+        assertThat(second.decisionRevision()).isNotEqualTo(first.decisionRevision());
+    }
+
+    @Test
     void failsClosedWhenAllowedAuthorityOmitsTheCanonicalAppResourceKey() {
         when(authority.evaluate(any(), any(), any(), any(), any(), any()))
                 .thenReturn(Mono.just(allowedWithAppResourceKey(null)));

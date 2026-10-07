@@ -580,10 +580,10 @@ class HomeWaveOneMigrationPostgresIntegrationTest {
                 "SELECT version FROM adm_home_experiences WHERE tenant_id = 1", Long.class);
         Long catalogVersions = jdbc.queryForObject(
                 "SELECT sum(version) FROM adm_workspace_apps", Long.class);
-        new ResourceDatabasePopulator(
-                new ClassPathResource("db/migration/V293__scope_home_views_by_mode_and_device.sql"),
-                new ClassPathResource("db/migration/V321__rename_visible_hcm_product_to_hris.sql"))
-                .execute(dataSource);
+         new ResourceDatabasePopulator(
+                 new ClassPathResource("db/migration/V293__scope_home_views_by_mode_and_device.sql"),
+                 new ClassPathResource("db/migration/V321__rename_visible_hcm_product_to_hris.sql"))
+                 .execute(dataSource);
         assertThat(jdbc.queryForObject(
                 "SELECT version FROM adm_home_experiences WHERE tenant_id = 1", Long.class))
                 .isEqualTo(experienceVersion);

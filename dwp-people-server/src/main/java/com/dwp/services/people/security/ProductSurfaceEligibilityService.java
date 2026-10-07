@@ -65,18 +65,26 @@ public class ProductSurfaceEligibilityService {
         java.util.Set<String> candidates = request.candidateScopes().stream()
                 .map(ProductSurfaceEligibilityDtos.CandidateScope::key)
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        java.util.Set<String> derived = new java.util.HashSet<>();
+        java.util.Set<String> sourceKeys = new java.util.HashSet<>();
         if (result.scopes().stream().anyMatch(scope -> scope == null
                 || blank(scope.sourceScopeKey())
                 || !candidates.contains(scope.sourceScopeKey())
                 || blank(scope.key())
-                || !derived.add(scope.key()))) {
+                || blank(scope.kind())
+                || blank(scope.displayName())
+                || !sourceKeys.add(scope.sourceScopeKey()))) {
             return false;
         }
+        long distinctScopes = result.scopes().stream()
+                .map(ProductSurfaceEligibilityDtos.EligibleScope::key)
+                .distinct()
+                .count();
         long defaults = result.scopes().stream()
                 .filter(ProductSurfaceEligibilityDtos.EligibleScope::isDefault)
+                .map(ProductSurfaceEligibilityDtos.EligibleScope::key)
+                .distinct()
                 .count();
-        return defaults <= 1 && (result.scopes().size() != 1 || defaults == 1);
+        return defaults <= 1 && (distinctScopes != 1 || defaults == 1);
     }
 
     private boolean blank(String value) {

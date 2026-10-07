@@ -11,6 +11,7 @@ bootJar {
 dependencies {
     implementation project(':dwp-audit')
     implementation project(':dwp-observability')
+    implementation project(':dwp-platform-contracts')
     implementation 'org.springframework.boot:spring-boot-autoconfigure'
     annotationProcessor 'org.springframework.boot:spring-boot-autoconfigure-processor'
 
@@ -23,9 +24,14 @@ dependencies {
     implementation 'org.springframework.kafka:spring-kafka'
     implementation 'com.fasterxml.jackson.core:jackson-databind'
 
+    compileOnly 'org.flywaydb:flyway-core'
+    compileOnly 'org.flywaydb:flyway-database-postgresql'
+
     compileOnly 'org.projectlombok:lombok'
     annotationProcessor 'org.projectlombok:lombok'
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testImplementation 'org.springframework.boot:spring-boot-starter-web'
+    testImplementation 'org.flywaydb:flyway-core'
+    testImplementation 'org.flywaydb:flyway-database-postgresql'
 }

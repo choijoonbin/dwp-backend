@@ -131,7 +131,7 @@
             "Status": "ACTIVE",
             "Primary": true,
             "Effective_Date": "2026-02-02",
-            "Effective_End_Date": "2026-12-31",
+            "Effective_End_Date": "2099-12-31",
             "Business_Title": "Yield Data Specialist",
             "Manager_Assignment_ID": "ASG-E100001-1",
             "Cost_Center_ID": "CC-SEMI-300",

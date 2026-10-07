@@ -25,7 +25,7 @@ public class WorkforceExportPolicy {
             @Value("${dwp.people.exports.artifact-ttl-hours:24}") int artifactTtlHours,
             @Value("${dwp.people.exports.maximum-attempts:5}") int maximumAttempts,
             @Value("${dwp.people.exports.maximum-manual-retries:1}") int maximumManualRetries,
-            @Value("${dwp.people.exports.blockers:D-09,D-12}") String blockers) {
+            @Value("${dwp.people.exports.blockers:D-09,D-12,G-05,PS-03}") String blockers) {
         this.executionEnabled = executionEnabled;
         this.maskingProfile = required(maskingProfile, "masking profile");
         this.watermarkTemplate = required(watermarkTemplate, "watermark template");

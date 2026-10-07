@@ -424,6 +424,35 @@ class AuthSessionVerifierTest {
     }
 
     @Test
+    void requestsExactPayrollOwnerAuthoritiesWithoutCrossingThePathBoundary() {
+        assertOwnerAuthorityPrefixes(
+                java.util.List.of(
+                        "/api/payroll/v1/hris/payroll/foundation",
+                        "/api/payroll/v1/hris/payroll/foundation/configurations",
+                        "/api/payroll/v1/hris/payroll/foundation/receipts/"
+                                + "10000000-0000-0000-0000-000000000001"),
+                "APP.HCM,DATA.HR_PAY",
+                "DATA.HR_PAY");
+        assertNoAuthorityPrefix(
+                "/api/payroll/v1/hris/payroll/foundation-shadow/configurations");
+    }
+
+    @Test
+    void requestsExactTimeOwnerAuthoritiesForPlansAndReceiptsOnly() {
+        assertOwnerAuthorityPrefixes(
+                java.util.List.of(
+                        "/api/time/v1/hris/work-plans",
+                        "/api/time/v1/hris/work-plans/"
+                                + "10000000-0000-0000-0000-000000000001/simulations",
+                        "/api/time/v1/hris/work-plan-receipts/"
+                                + "10000000-0000-0000-0000-000000000001"),
+                "APP.HCM,DATA.HR_TIME",
+                "DATA.HR_TIME");
+        assertNoAuthorityPrefix("/api/time/v1/hris/work-plans-shadow");
+        assertNoAuthorityPrefix("/api/time/v1/hris/work-plan-receipts-shadow/receipt");
+    }
+
+    @Test
     void requestsAppAuthoritiesForAskRuntimeRoutes() {
         AtomicReference<ClientRequest> captured = new AtomicReference<>();
         WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
@@ -1043,6 +1072,69 @@ class AuthSessionVerifierTest {
                 .isEqualTo("permissionPrefix=DATA.WORKFORCE,DATA.HR_,ACTION.WORKFORCE_");
         assertThat(identity).isNotNull();
         assertThat(identity.permissions()).containsExactly("DATA.WORKFORCE:MANAGE");
+    }
+
+    private void assertOwnerAuthorityPrefixes(
+            java.util.List<String> paths,
+            String expectedPrefix,
+            String ownerResource) {
+        for (String path : paths) {
+            AtomicReference<ClientRequest> captured = new AtomicReference<>();
+            WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+                captured.set(request);
+                return Mono.just(ClientResponse.create(HttpStatus.OK)
+                        .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                        .body("""
+                                {"success":true,"data":{"userId":7,"tenantId":1,
+                                "identityPlane":"TENANT","roles":["HR_ADMIN"],
+                                "permissions":[
+                                  {"resourceKey":"APP.HCM","permissionCode":"VIEW","effect":"ALLOW"},
+                                  {"resourceKey":"%s","permissionCode":"VIEW","effect":"ALLOW"}
+                                ]}}
+                                """.formatted(ownerResource))
+                        .build());
+            });
+            AuthSessionVerifier verifier = new AuthSessionVerifier(
+                    builder, "http://auth.test", Duration.ofSeconds(1));
+            VerifiedIdentityFilter filter = new VerifiedIdentityFilter(verifier);
+            AtomicReference<org.springframework.http.server.reactive.ServerHttpRequest> forwarded =
+                    new AtomicReference<>();
+
+            filter.filter(
+                    MockServerWebExchange.from(MockServerHttpRequest.get(path).build()),
+                    exchange -> {
+                        forwarded.set(exchange.getRequest());
+                        return Mono.empty();
+                    }).block();
+
+            assertThat(captured.get().url().getQuery())
+                    .isEqualTo("permissionPrefix=" + expectedPrefix);
+            assertThat(forwarded.get()).isNotNull();
+            assertThat(forwarded.get().getHeaders().getFirst(
+                    VerifiedIdentityFilter.PERMISSIONS_HEADER))
+                    .isEqualTo("APP.HCM:VIEW," + ownerResource + ":VIEW");
+        }
+    }
+
+    private void assertNoAuthorityPrefix(String path) {
+        AtomicReference<ClientRequest> captured = new AtomicReference<>();
+        WebClient.Builder builder = WebClient.builder().exchangeFunction(request -> {
+            captured.set(request);
+            return Mono.just(ClientResponse.create(HttpStatus.OK)
+                    .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE)
+                    .body("""
+                            {"success":true,"data":{"userId":7,"tenantId":1,
+                            "identityPlane":"TENANT","roles":["HR_ADMIN"],
+                            "permissions":[]}}
+                            """)
+                    .build());
+        });
+        AuthSessionVerifier verifier = new AuthSessionVerifier(
+                builder, "http://auth.test", Duration.ofSeconds(1));
+
+        assertThat(verifier.verify(MockServerHttpRequest.get(path).build()).block())
+                .isNotNull();
+        assertThat(captured.get().url().getQuery()).isNull();
     }
 
     private AuthSessionVerifier verifierReturningTenant(String tenantId) {

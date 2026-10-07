@@ -1,0 +1,710 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "manifestVersion": 1,
+  "module": "dwp-platform-contracts",
+  "outputRoot": "dwp-platform-contracts/src/main/java",
+  "sources": [
+    {
+      "sourceId": "xcon-v1",
+      "schemaPath": "contracts/hris/canonical/schemas/cross-module-canonical-schemas.v1.json",
+      "schemaId": "urn:dwp:hris:cross-module-canonical-schemas:v1",
+      "schemaSha256": "f6fb63f52e2b6043b62f8afdd87b7acdbd89fe9db3330d8a2818be9e5c8326c4",
+      "bindingRegisterProvenance": {
+        "path": "coding-readiness/cross-module-schema-binding-register.csv",
+        "sha256": "b78fbae31c9cd48c4eadc37ea689d4f6987642ee8562700205f3c14bad0c6334"
+      },
+      "definitionPrefix": "XCON_",
+      "normalizedDigestMode": "materialized",
+      "expectedContractCount": 21,
+      "javaPackage": "com.dwp.contracts.hris.xcon.v1"
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPath": "contracts/hris/canonical/schemas/platform-dependency-canonical-schemas.v1.json",
+      "schemaId": "urn:dwp:hris:platform-dependency-canonical-schemas:v1",
+      "schemaSha256": "5778f82aa3b76511a19dc3df47f4fb1d2f51502d96906197abbe143359eddfd4",
+      "bindingRegisterProvenance": {
+        "path": "coding-readiness/platform-dependency-schema-binding-register.csv",
+        "sha256": "de29f3968c16eb2afe118af71c9e1e3bd3efb66533f4661ee441c75a4669fd7c"
+      },
+      "definitionPrefix": "PDX_",
+      "normalizedDigestMode": "definition",
+      "expectedContractCount": 14,
+      "javaPackage": "com.dwp.platform.contracts.hris.generated"
+    }
+  ],
+  "extensionBindings": [
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/InputAmount/x-valueType",
+      "valueSha256": "40cc30d07932a252109185a7ec64c9935dd01f50b06e23141a9a41b8ab9f0d37",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["CODEGEN_TYPE"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/InputAmount/x-sqlType",
+      "valueSha256": "61f7c7dc778c9a083dff69d90dda9efe1a8941112df382c1a8936e26e83e17ea",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/InputAmount/x-authoritativePointer",
+      "valueSha256": "22ead6c91cc22774a86796175aea891f61efc3f6f47676cc3661fec3f8e0c70d",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/InputAmount/x-exponentNotation",
+      "valueSha256": "687167138b08f41e7f8ffa02e3032fd8247b33fb07d7bb732956df0223d74c48",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/InputAmount/x-negativeZero",
+      "valueSha256": "482a1f89991b3a14edc561666f4df75d57ebde950cfc1a9d375ad93ee7fc147d",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/QuantityDecimal/x-valueType",
+      "valueSha256": "0d6752fdf86615e12e0ed9f95621e99364fb1757455106b6545ce67d29ceac90",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["CODEGEN_TYPE"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/QuantityDecimal/x-sqlType",
+      "valueSha256": "61f7c7dc778c9a083dff69d90dda9efe1a8941112df382c1a8936e26e83e17ea",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/QuantityDecimal/x-authoritativePointer",
+      "valueSha256": "a91773b3fb36087427ac7a8267f7996441f379d7c4fd6f28d2ee38bceae163e2",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/QuantityDecimal/x-exponentNotation",
+      "valueSha256": "687167138b08f41e7f8ffa02e3032fd8247b33fb07d7bb732956df0223d74c48",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/QuantityDecimal/x-negativeZero",
+      "valueSha256": "482a1f89991b3a14edc561666f4df75d57ebde950cfc1a9d375ad93ee7fc147d",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/PostedMoneyAmount/x-valueType",
+      "valueSha256": "35dffee1ed412c2760bfd76285fb9a35eb5bce551f5c5914f13f20bf758870d1",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["CODEGEN_TYPE"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/PostedMoneyAmount/x-sqlType",
+      "valueSha256": "05a08acf33690714c64b9ff39c6159a7b09518b45333edd61d5d425553ad6ee3",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/PostedMoneyAmount/x-authoritativePointer",
+      "valueSha256": "3696397d9471043ff90b235d6cffaee0d9358fc9b06550f414cb056922115325",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/PostedMoneyAmount/x-exponentNotation",
+      "valueSha256": "687167138b08f41e7f8ffa02e3032fd8247b33fb07d7bb732956df0223d74c48",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/PostedMoneyAmount/x-negativeZero",
+      "valueSha256": "482a1f89991b3a14edc561666f4df75d57ebde950cfc1a9d375ad93ee7fc147d",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/ClosedTimeLine/x-unitCurrencyBinding",
+      "valueSha256": "b36beaef60141c3e05d8137e1f65c71803826b4fd98fce68382637e1a3bb768c",
+      "owner": "HRIS-TIM|HRIS-PAY",
+      "memberClassifications": {
+        "MINUTE": ["GENERATED_CONSTRUCTOR"],
+        "HOUR": ["GENERATED_CONSTRUCTOR"],
+        "DAY": ["GENERATED_CONSTRUCTOR"],
+        "COUNT": ["GENERATED_CONSTRUCTOR"],
+        "AMOUNT": ["GENERATED_CONSTRUCTOR"]
+      }
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/XCON_008/x-streamingTransport",
+      "valueSha256": "7035ae07ba01fd2b72d11475771c47c6a66d2b0e099e1204552b0f37a97c6e8e",
+      "owner": "HRIS-TIM|HRIS-PAY",
+      "memberClassifications": {
+        "wireVersion": ["DOMAIN_RUNTIME"],
+        "gatewayBuffering": ["DOMAIN_RUNTIME"],
+        "backpressure": ["DOMAIN_RUNTIME"],
+        "lineCeiling": ["GENERATED_CONSTRUCTOR"],
+        "maxHeaderBytes": ["DOMAIN_RUNTIME"],
+        "maxLineBytes": ["DOMAIN_RUNTIME"],
+        "maxPayloadBytes": ["DOMAIN_RUNTIME"],
+        "maxCompressedPayloadBytes": ["DOMAIN_RUNTIME"],
+        "maxUncompressedPayloadBytes": ["DOMAIN_RUNTIME"],
+        "maxCompressionRatio": ["DOMAIN_RUNTIME"],
+        "byteAccounting": ["DOMAIN_RUNTIME"],
+        "sequenceValidation": ["GENERATED_CONSTRUCTOR", "DOMAIN_RUNTIME"],
+        "digest": ["DOMAIN_RUNTIME"],
+        "consumerIngest": ["DOMAIN_RUNTIME"],
+        "finalize": ["DOMAIN_RUNTIME"],
+        "failure": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/XCON_012/x-profile",
+      "valueSha256": "a9ad474b86a54538f6e19e9622a30618cbc209755166293a913b8ca286dd5a76",
+      "owner": "HRIS-PER|HRIS-SYS",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/XCON_013/x-profile",
+      "valueSha256": "e6387b06c6342a63cfd28807d67f26e441d3dbfe40895f2834f1e3b076d9e09f",
+      "owner": "HRIS-HRM|HRIS-SYS",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/XCON_014/x-profile",
+      "valueSha256": "73e214aacb713f4f9230cb99c36a66ec8c459fa274a9c5d9964e2da101f7c704",
+      "owner": "HRIS-TIM|HRIS-SYS",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/XCON_015/x-profile",
+      "valueSha256": "d73160a830fbeeddf3aa51d1cb902177220bbbc646115142ff79aea79858238b",
+      "owner": "HRIS-PAY|HRIS-SYS",
+      "memberClassifications": {"$value": ["DOMAIN_RUNTIME"]}
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/XCON_020/x-invariants",
+      "valueSha256": "9414e4947508b4debe9f857db2f69bbf92a530eb40b7c80462e9da82a6a82c4b",
+      "owner": "HRIS-PER|HRIS-PAY",
+      "memberClassifications": {
+        "lineCountEquals": ["GENERATED_CONSTRUCTOR"],
+        "lineSequence": ["GENERATED_CONSTRUCTOR"],
+        "lineId": ["GENERATED_CONSTRUCTOR"],
+        "payMaterialization": ["DOMAIN_RUNTIME"],
+        "payloadDigest": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/XCON_020/x-streamingTransport",
+      "valueSha256": "c5defee4ae538caf59e7b75f9e860bce65e08e2929d5b94756e8e96dc6a604d1",
+      "owner": "HRIS-PER|HRIS-PAY",
+      "memberClassifications": {
+        "wireVersion": ["DOMAIN_RUNTIME"],
+        "gatewayBuffering": ["DOMAIN_RUNTIME"],
+        "backpressure": ["DOMAIN_RUNTIME"],
+        "lineCeiling": ["GENERATED_CONSTRUCTOR"],
+        "maxHeaderBytes": ["DOMAIN_RUNTIME"],
+        "maxLineBytes": ["DOMAIN_RUNTIME"],
+        "maxPayloadBytes": ["DOMAIN_RUNTIME"],
+        "maxCompressedPayloadBytes": ["DOMAIN_RUNTIME"],
+        "maxUncompressedPayloadBytes": ["DOMAIN_RUNTIME"],
+        "maxCompressionRatio": ["DOMAIN_RUNTIME"],
+        "byteAccounting": ["DOMAIN_RUNTIME"],
+        "sequenceValidation": ["GENERATED_CONSTRUCTOR", "DOMAIN_RUNTIME"],
+        "digest": ["DOMAIN_RUNTIME"],
+        "consumerIngest": ["DOMAIN_RUNTIME"],
+        "finalize": ["DOMAIN_RUNTIME"],
+        "failure": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaPointer": "#/$defs/XCON_021/x-causal-contract",
+      "valueSha256": "2627ffa259d5daf1fecf91b6f8349abdbd4266da0829072cc1b783968b426f1f",
+      "owner": "HRIS-PER|HRIS-PAY",
+      "memberClassifications": {
+        "emission": ["DOMAIN_RUNTIME"],
+        "runtimeVersion": ["DOMAIN_RUNTIME"],
+        "dualPublish": ["DOMAIN_RUNTIME"],
+        "payTrigger": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/x-scope",
+      "valueSha256": "23ee7ff107643410b5a84d6e11e77c3e2b5d6eb826e3c180d690d7d1e5b99861",
+      "owner": "HRIS-CONTROL",
+      "memberClassifications": {
+        "g3": ["SCHEMA_METADATA"],
+        "g6": ["SCHEMA_METADATA"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_001/x-invariants",
+      "valueSha256": "41ec265f642365205e86e2455daf6e4f902ef4290f03649e49fb6daf8e768053",
+      "owner": "SYS_PLATFORM",
+      "memberClassifications": {
+        "effectiveRange": ["GENERATED_CONSTRUCTOR", "DOMAIN_RUNTIME"],
+        "publishedApproval": ["GENERATED_CONSTRUCTOR", "DOMAIN_RUNTIME"],
+        "globalScope": ["GENERATED_CONSTRUCTOR"],
+        "resolution": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_002/x-invariants",
+      "valueSha256": "879cddcef683c2c77821cac350492dcd610d31fb495e78a916396ab3f10c3534",
+      "owner": "SYS_PLATFORM",
+      "memberClassifications": {
+        "source": ["DOMAIN_RUNTIME"],
+        "ordering": ["DOMAIN_RUNTIME"],
+        "consumer": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_003/x-invariants",
+      "valueSha256": "b59aeaf96853f22ec67a9c07497ba6a509d081ddbebb10b9a64b7dbf45ba49e8",
+      "owner": "SYS_PLATFORM",
+      "memberClassifications": {
+        "ordering": ["DOMAIN_RUNTIME"],
+        "consumer": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_004/x-invariants",
+      "valueSha256": "3200d04cf01f0bb9c1859e9d9c4b8c3cf6aef623a9b5ef110c96d32fd77ca7c2",
+      "owner": "SYS_PLATFORM",
+      "memberClassifications": {
+        "execution": ["DOMAIN_RUNTIME"],
+        "compatibility": ["DOMAIN_RUNTIME"],
+        "activation": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_005/x-invariants",
+      "valueSha256": "e3e0a1412bbee4ce495d2cab3e4f0eebf1406c38e7568092e1b225b8a21e3bac",
+      "owner": "SYS_PLATFORM",
+      "memberClassifications": {
+        "idempotency": ["DOMAIN_RUNTIME"],
+        "dispatch": ["DOMAIN_RUNTIME"],
+        "retry": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_006/x-invariants",
+      "valueSha256": "8499bfb92dc326bb9315e9c96f0d3a6303ec90bb0b609a3a524aa673a8eb755d",
+      "owner": "SYS_PLATFORM",
+      "memberClassifications": {
+        "identity": ["DOMAIN_RUNTIME"],
+        "terminal": ["DOMAIN_RUNTIME"],
+        "retry": ["DOMAIN_RUNTIME"],
+        "counts": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_007/x-invariants",
+      "valueSha256": "68b058ea82cfe2f952e2009e360feaeb4d5ab2dc13b5cd62181d8964cc149197",
+      "owner": "SYS_PLATFORM",
+      "memberClassifications": {
+        "fourEyes": ["GENERATED_CONSTRUCTOR"],
+        "activation": ["GENERATED_CONSTRUCTOR", "DOMAIN_RUNTIME"],
+        "effectiveRange": ["GENERATED_CONSTRUCTOR", "DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_008/x-invariants",
+      "valueSha256": "8c1edfe330ea6165f67a9fb4e9d727fad1965d962a3950e59622f053cf6f830a",
+      "owner": "SYS_PLATFORM",
+      "memberClassifications": {
+        "idempotency": ["DOMAIN_RUNTIME"],
+        "execution": ["DOMAIN_RUNTIME"],
+        "secrets": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_009/x-invariants",
+      "valueSha256": "5796f97ff07b1ac6fc1ce3e7287940d382f3e21cfbae70d062fd02390e6ba751",
+      "owner": "SYS_PLATFORM",
+      "memberClassifications": {
+        "counts": ["GENERATED_CONSTRUCTOR"],
+        "terminal": ["DOMAIN_RUNTIME"],
+        "partial": ["GENERATED_CONSTRUCTOR"],
+        "reconciliation": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_010/x-invariants",
+      "valueSha256": "78d5aa522550c44335d7117408197edf868525450bd52288326c6c9186c422d6",
+      "owner": "DWP_APPROVAL",
+      "memberClassifications": {
+        "authority": ["DOMAIN_RUNTIME"],
+        "idempotency": ["DOMAIN_RUNTIME"],
+        "version": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_011/x-invariants",
+      "valueSha256": "153cef338cc64cef9645d9a7f7f1ab158244d44212e89fc7627686da56f70fdc",
+      "owner": "DWP_APPROVAL",
+      "memberClassifications": {
+        "ordering": ["DOMAIN_RUNTIME"],
+        "idempotency": ["DOMAIN_RUNTIME"],
+        "domainGuard": ["DOMAIN_RUNTIME"],
+        "separation": ["DOMAIN_RUNTIME"],
+        "authority": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_012/x-invariants",
+      "valueSha256": "9eaa1e6447620fe4755b73819f8d1b18c2049b16bec5e008273ff7195956a2be",
+      "owner": "DWP_NOTIFICATION",
+      "memberClassifications": {
+        "recipients": ["GENERATED_CONSTRUCTOR"],
+        "idempotency": ["DOMAIN_RUNTIME"],
+        "policy": ["DOMAIN_RUNTIME"],
+        "privacy": ["DOMAIN_RUNTIME"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_013/x-invariants",
+      "valueSha256": "b4e3554a8360b4245abaa0be2bc951f924bb11814806356595eeaafacaf9e8e9",
+      "owner": "DWP_NOTIFICATION",
+      "memberClassifications": {
+        "state": ["GENERATED_CONSTRUCTOR"],
+        "ordering": ["DOMAIN_RUNTIME"],
+        "privacy": ["DOMAIN_RUNTIME"],
+        "retry": ["GENERATED_CONSTRUCTOR"]
+      }
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaPointer": "#/$defs/PDX_014/x-invariants",
+      "valueSha256": "5ebc33304f67c39aecdc8c30378ad7284e1a3baa8a2d46d0183e127fb1c98bcb",
+      "owner": "DWP_AUDIT",
+      "memberClassifications": {
+        "policy": ["DOMAIN_RUNTIME"],
+        "failure": ["GENERATED_CONSTRUCTOR"],
+        "evidenceOnly": ["DOMAIN_RUNTIME"],
+        "privacy": ["DOMAIN_RUNTIME"]
+      }
+    }
+  ],
+  "contracts": [
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_001",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon001WorkerAssignmentSnapshotV1",
+      "normalizedSchemaSha256": "401469d7a1922ec548d7328873fc57709fd6bd3238ab60ac012ad92b266fe49e",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PER", "HRIS-TIM", "HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_002",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon002CompensationBasisSnapshotV1",
+      "normalizedSchemaSha256": "00f999cf182c5611afc56290b84a8ada5740222183f3cb1e9022b6f77909837a",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_003",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon003WorkerChangedV1",
+      "normalizedSchemaSha256": "ff76eab3a75464f3f7263ac3387b25015971f9e6117ee2f5359c8c86c8c810ca",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PER", "HRIS-TIM", "HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_004",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon004EmploymentChangedV1",
+      "normalizedSchemaSha256": "42a913558210550a24550e55a2719d0f6002193a54a701feb135f6a0da3979c7",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PER", "HRIS-TIM", "HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_005",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon005AssignmentChangedV1",
+      "normalizedSchemaSha256": "3e32aa3bdd673d523468e1b6975a1af73bc3fafa98d9ce8f57dd9dfcf921bef4",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PER", "HRIS-TIM", "HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_006",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon006OrganizationChangedV1",
+      "normalizedSchemaSha256": "187be73247a9eccb0e8af10afbbe32be8bb515c9f842b9443795d55e3be0d6ad",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PER", "HRIS-TIM", "HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_007",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon007CompensationBasisChangedV1",
+      "normalizedSchemaSha256": "a77a43424969a8688962f46c873e9bb134142d67dfd1048898fda257ab15f0e3",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_008",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon008ClosedTimeResultV1",
+      "normalizedSchemaSha256": "bb481b337dfdc237258f67bd2034471be5b0e6a5f22df456820eab5b4b5acab8",
+      "producer": "HRIS-TIM",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_009",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon009TimePeriodClosedV1",
+      "normalizedSchemaSha256": "76e4414b72687a61e9168f79427a575ec2ec13af2f6cdc8c197e30698a249e80",
+      "producer": "HRIS-TIM",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_010",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon010TimePeriodReopenedV1",
+      "normalizedSchemaSha256": "8e1c693f373482b60653b8d21d851125db682b142814f24067de94e90f404c93",
+      "producer": "HRIS-TIM",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_011",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon011PayrollTimeHandoffReadyV1",
+      "normalizedSchemaSha256": "e7dfa8e9ad200f4934d6d75169e72557e310d616fe28ccc30cb02c24659aa2e3",
+      "producer": "HRIS-TIM",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_012",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon012PerformanceHomeContributionChangedV1",
+      "normalizedSchemaSha256": "22a7a7657d0de6cbde3ef599cd97749357afe54d8a75bc1de58809eabc5a66c2",
+      "producer": "HRIS-PER",
+      "consumers": ["HRIS-SYS"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_013",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon013PeopleHomeContributionChangedV1",
+      "normalizedSchemaSha256": "38776a227486baa05aeb1cb895737db6bcf29db267c84cb31d7603a7f5752a5c",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-SYS"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_014",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon014TimeLeaveHomeContributionChangedV1",
+      "normalizedSchemaSha256": "ea202801655864e52f89f27eb6bb6a2bc53e7d600213f26913d0e74b9a9f5370",
+      "producer": "HRIS-TIM",
+      "consumers": ["HRIS-SYS"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_015",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon015PayrollHomeContributionChangedV1",
+      "normalizedSchemaSha256": "efa827116fcaedddfd5b52b4937464cf31ba40d1a6f7d4fe770c8553756f31f5",
+      "producer": "HRIS-PAY",
+      "consumers": ["HRIS-SYS"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_016",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon016WorkplaceAssignmentSnapshotV1",
+      "normalizedSchemaSha256": "bf2a2537ab4b2d9c1c1d9482508a62e510a1e3c1efabb8474822f59e2d99d1a4",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-TIM"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_017",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon017WorkerDependentEligibilitySnapshotV1",
+      "normalizedSchemaSha256": "e4355a2f03f396cb082e7f43ede9938be78a48e49351117cf06809983c8dee97",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_018",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon018WorkerTaxIdentitySnapshotV1",
+      "normalizedSchemaSha256": "1110fc408227d41696687df8fce2d80e4ee98ccb6cdba830bc9279f0fe69355e",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_019",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon019WorkerBankAccountTokenSnapshotV1",
+      "normalizedSchemaSha256": "8e202d9657e4e85c2891457b9eb42e567fc8d63d12e7e0f0cdff6f2a99042623",
+      "producer": "HRIS-HRM",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_020",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon020ApprovedCompensationPlanSnapshotV1",
+      "normalizedSchemaSha256": "d7b73b84c93e60fa8ff114f16625eab31bd2aa9095423120585039066e02ca20",
+      "producer": "HRIS-PER",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "xcon-v1",
+      "schemaDefinition": "XCON_021",
+      "javaType": "com.dwp.contracts.hris.xcon.v1.Xcon021ApprovedCompensationPlanSnapshotPublishedV2",
+      "normalizedSchemaSha256": "a1189eeda37bd3874e1dc20b2e2d291c9bfb897cc1d7ddbb793923cdbc59d1cb",
+      "producer": "HRIS-PER",
+      "consumers": ["HRIS-PAY"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_001",
+      "javaType": "com.dwp.platform.contracts.hris.generated.HrisConfigurationVersionV1",
+      "normalizedSchemaSha256": "ad706f69a64818ef57b0bedb4df32052509df277d1388e09dee59201f5e1abfe",
+      "producer": "SYS_PLATFORM",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY", "HRIS-SYS"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_002",
+      "javaType": "com.dwp.platform.contracts.hris.generated.HrisConfigurationPublishedV1",
+      "normalizedSchemaSha256": "1fc3469edf1230e306da1c5c8e63cfa615b26a3d01c94b56309843872374fc4f",
+      "producer": "SYS_PLATFORM",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY", "HRIS-SYS"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_003",
+      "javaType": "com.dwp.platform.contracts.hris.generated.HrisConfigurationInvalidatedV1",
+      "normalizedSchemaSha256": "76ebe7377b832388365add3964b878ceecb03df4539190fc234639e1b74522d7",
+      "producer": "SYS_PLATFORM",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY", "HRIS-SYS"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_004",
+      "javaType": "com.dwp.platform.contracts.hris.generated.AutomationHandlerManifestV1",
+      "normalizedSchemaSha256": "1ac3b53fb7df2e66f4dc3fa0967e960cb477146cdca90c412f666ecf032a010d",
+      "producer": "SYS_PLATFORM",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_005",
+      "javaType": "com.dwp.platform.contracts.hris.generated.AutomationInvocationV1",
+      "normalizedSchemaSha256": "5432bf46781c85f5f1d099f5d7b26e1769bf065f951b14ee66a42e5023d4a3e6",
+      "producer": "SYS_PLATFORM",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_006",
+      "javaType": "com.dwp.platform.contracts.hris.generated.AutomationRunItemReceiptV1",
+      "normalizedSchemaSha256": "06bf0a7295ed0339b8f3ef463d14c65e436328c55f212a3f6ea46ae45d9fba34",
+      "producer": "SYS_PLATFORM",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_007",
+      "javaType": "com.dwp.platform.contracts.hris.generated.ConnectorMappingVersionV1",
+      "normalizedSchemaSha256": "216a9a290840175afaa0def23527a61086aee0d1d54dbd059c7940bdf78235bf",
+      "producer": "SYS_PLATFORM",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_008",
+      "javaType": "com.dwp.platform.contracts.hris.generated.ConnectorExecutionRequestV1",
+      "normalizedSchemaSha256": "851dcf0693edddbebff1023cf458dbb5d237fbbeedc466934b0499555f2a327d",
+      "producer": "SYS_PLATFORM",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_009",
+      "javaType": "com.dwp.platform.contracts.hris.generated.ConnectorReconciliationReceiptV1",
+      "normalizedSchemaSha256": "23a06397d889d9bf62bab6e22ab453124ccef1473640c9bf50fedbfd12b1f5a4",
+      "producer": "SYS_PLATFORM",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_010",
+      "javaType": "com.dwp.platform.contracts.hris.generated.ApprovalRequestV1",
+      "normalizedSchemaSha256": "0fdac921a2f90212772d426304054fe5f6be9b8bcecbe8be98d473386d1438a1",
+      "producer": "DWP_APPROVAL",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY", "HRIS-SYS"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_011",
+      "javaType": "com.dwp.platform.contracts.hris.generated.ApprovalDecisionRecordedV1",
+      "normalizedSchemaSha256": "2275efe9390d5d60a2fd0d96d32531c73c478a5179a3c8197bf63a3a4cd5d128",
+      "producer": "DWP_APPROVAL",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY", "HRIS-SYS"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_012",
+      "javaType": "com.dwp.platform.contracts.hris.generated.HrisNotificationIntentV1",
+      "normalizedSchemaSha256": "3012c1333bc1a36863c705e6427ade61cec3be5fe4e9239b0bce7ebbbcc36b8b",
+      "producer": "DWP_NOTIFICATION",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY", "HRIS-SYS"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_013",
+      "javaType": "com.dwp.platform.contracts.hris.generated.HrisNotificationReceiptV1",
+      "normalizedSchemaSha256": "188a10bb8989ccb137503a9f2f7b5f2f784f23c07c6db0fcbe2a34d84ce66631",
+      "producer": "DWP_NOTIFICATION",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY", "HRIS-SYS"]
+    },
+    {
+      "sourceId": "platform-dependency-v1",
+      "schemaDefinition": "PDX_014",
+      "javaType": "com.dwp.platform.contracts.hris.generated.HrisAuditOutboxEventV1",
+      "normalizedSchemaSha256": "bf8e0fed69557ec8656ac0a6d5f5d5bbe5f18a6cfc463ec6fcf79e44b2909fd3",
+      "producer": "DWP_AUDIT",
+      "consumers": ["HRIS-HRM", "HRIS-PER", "HRIS-TIM", "HRIS-PAY", "HRIS-SYS"]
+    }
+  ]
+}

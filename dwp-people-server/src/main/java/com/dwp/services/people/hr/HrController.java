@@ -1,8 +1,11 @@
 package com.dwp.services.people.hr;
 
 import com.dwp.core.common.ApiResponse;
+import com.dwp.services.people.workforce.People360Dtos;
+import com.dwp.services.people.workforce.People360Service;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -22,14 +25,31 @@ import java.util.UUID;
 public class HrController {
 
     private final HrService service;
+    private final People360Service people360;
 
     public HrController(HrService service) {
-        this.service = service;
+        this(service, null);
     }
 
-    @GetMapping("/home")
+    @Autowired
+    public HrController(HrService service, People360Service people360) {
+        this.service = service;
+        this.people360 = people360;
+    }
+
+    @GetMapping(value = "/home", params = "!projection")
     public ApiResponse<HrDtos.HomeOverview> home() {
         return ApiResponse.success(service.home());
+    }
+
+    @GetMapping(value = "/home", params = "projection=people360")
+    public ApiResponse<People360Dtos.Snapshot> people360(
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf) {
+        if (people360 == null) {
+            throw new IllegalStateException("People 360 owner projection is unavailable.");
+        }
+        return ApiResponse.success(people360.getSelf(asOf));
     }
 
     @GetMapping("/time")
@@ -37,9 +57,20 @@ public class HrController {
         return ApiResponse.success(service.time());
     }
 
-    @GetMapping("/team")
+    @GetMapping(value = "/team", params = "!projection")
     public ApiResponse<HrDtos.TeamWorkspace> team() {
         return ApiResponse.success(service.team());
+    }
+
+    @GetMapping(value = "/team", params = "projection=people360")
+    public ApiResponse<People360Dtos.Snapshot> teamPeople360(
+            @RequestParam UUID personId,
+            @RequestParam
+            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate asOf) {
+        if (people360 == null) {
+            throw new IllegalStateException("People 360 owner projection is unavailable.");
+        }
+        return ApiResponse.success(people360.getTeam(personId, asOf));
     }
 
     @GetMapping("/team/time")

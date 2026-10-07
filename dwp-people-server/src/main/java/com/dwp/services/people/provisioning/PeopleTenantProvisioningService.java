@@ -17,6 +17,110 @@ import java.util.UUID;
 @Service
 public class PeopleTenantProvisioningService {
 
+    static final List<AssignmentChangeReasonSeed> STANDARD_ASSIGNMENT_CHANGE_REASONS = List.of(
+            new AssignmentChangeReasonSeed(
+                    "SEED_IMPORT", "Initial import",
+                    "Initial workforce projection import.",
+                    "{\"ko\":\"최초 가져오기\",\"en\":\"Initial import\"}", 10),
+            new AssignmentChangeReasonSeed(
+                    "REFERENCE_PROFILE", "Reference profile",
+                    "Synthetic enterprise reference profile seed.",
+                    "{\"ko\":\"참조 프로필\",\"en\":\"Reference profile\"}", 20),
+            new AssignmentChangeReasonSeed(
+                    "INTERNAL_TRANSFER", "Internal transfer",
+                    "Assignment moved within the tenant.",
+                    "{\"ko\":\"사내 이동\",\"en\":\"Internal transfer\"}", 30),
+            new AssignmentChangeReasonSeed(
+                    "PROMOTION", "Promotion",
+                    "Assignment changed due to promotion.",
+                    "{\"ko\":\"승진\",\"en\":\"Promotion\"}", 40),
+            new AssignmentChangeReasonSeed(
+                    "HIRE", "Hire",
+                    "Initial employment or contingent worker engagement.",
+                    "{\"ko\":\"입사\",\"en\":\"Hire\"}", 100),
+            new AssignmentChangeReasonSeed(
+                    "REHIRE", "Rehire",
+                    "Employment resumed after a prior termination.",
+                    "{\"ko\":\"재입사\",\"en\":\"Rehire\"}", 110),
+            new AssignmentChangeReasonSeed(
+                    "TERMINATION", "Termination",
+                    "Employment or engagement ended.",
+                    "{\"ko\":\"퇴직\",\"en\":\"Termination\"}", 120),
+            new AssignmentChangeReasonSeed(
+                    "LEAVE_START", "Leave start",
+                    "Worker entered an approved leave period.",
+                    "{\"ko\":\"휴직\",\"en\":\"Leave start\"}", 130),
+            new AssignmentChangeReasonSeed(
+                    "RETURN_FROM_LEAVE", "Return from leave",
+                    "Worker returned from an approved leave period.",
+                    "{\"ko\":\"복직\",\"en\":\"Return from leave\"}", 140),
+            new AssignmentChangeReasonSeed(
+                    "DEMOTION", "Demotion",
+                    "Worker moved to a lower job or grade.",
+                    "{\"ko\":\"강등\",\"en\":\"Demotion\"}", 150),
+            new AssignmentChangeReasonSeed(
+                    "MANAGER_CHANGE", "Manager change",
+                    "The assignment reporting manager changed.",
+                    "{\"ko\":\"관리자 변경\",\"en\":\"Manager change\"}", 160),
+            new AssignmentChangeReasonSeed(
+                    "LOCATION_CHANGE", "Location change",
+                    "The assignment work location changed.",
+                    "{\"ko\":\"근무지 변경\",\"en\":\"Location change\"}", 170),
+            new AssignmentChangeReasonSeed(
+                    "COMPENSATION_CHANGE", "Compensation change",
+                    "Compensation attributes changed without another staffing event.",
+                    "{\"ko\":\"보상 변경\",\"en\":\"Compensation change\"}", 180),
+            new AssignmentChangeReasonSeed(
+                    "CONTRACT_CHANGE", "Contract change",
+                    "Employment or engagement contract terms changed.",
+                    "{\"ko\":\"계약 변경\",\"en\":\"Contract change\"}", 190),
+            new AssignmentChangeReasonSeed(
+                    "CORRECTION", "Correction",
+                    "Source data was corrected without a new business event.",
+                    "{\"ko\":\"정보 정정\",\"en\":\"Correction\"}", 200),
+            new AssignmentChangeReasonSeed(
+                    "CONTRACT_START", "Contract start",
+                    "A contingent or fixed-term engagement started.",
+                    "{\"ko\":\"계약 시작\",\"en\":\"Contract start\"}", 210),
+            new AssignmentChangeReasonSeed(
+                    "CONTRACT_END", "Contract end",
+                    "A contingent or fixed-term engagement ended.",
+                    "{\"ko\":\"계약 종료\",\"en\":\"Contract end\"}", 220),
+            new AssignmentChangeReasonSeed(
+                    "SOURCE_OTHER", "Other source event",
+                    "A provider event was preserved after mapping to the governed fallback reason.",
+                    "{\"ko\":\"기타 원천 이벤트\",\"en\":\"Other source event\"}", 900));
+
+    static final String ASSIGNMENT_CHANGE_REASON_UPSERT_SQL = """
+            INSERT INTO ppl_assignment_change_reason_catalog (
+                tenant_id, reason_code, display_name, description,
+                label_i18n, sort_order, predefined, lifecycle_state,
+                created_by, updated_by)
+            VALUES (?, ?, ?, ?, CAST(? AS jsonb), ?, TRUE, 'ACTIVE', 1, 1)
+            ON CONFLICT (tenant_id, reason_code) DO UPDATE SET
+                display_name = EXCLUDED.display_name,
+                description = EXCLUDED.description,
+                label_i18n = EXCLUDED.label_i18n,
+                sort_order = EXCLUDED.sort_order,
+                predefined = EXCLUDED.predefined,
+                lifecycle_state = EXCLUDED.lifecycle_state,
+                version = ppl_assignment_change_reason_catalog.version + 1,
+                updated_at = CURRENT_TIMESTAMP,
+                updated_by = EXCLUDED.updated_by
+            WHERE ppl_assignment_change_reason_catalog.display_name
+                        IS DISTINCT FROM EXCLUDED.display_name
+               OR ppl_assignment_change_reason_catalog.description
+                        IS DISTINCT FROM EXCLUDED.description
+               OR ppl_assignment_change_reason_catalog.label_i18n
+                        IS DISTINCT FROM EXCLUDED.label_i18n
+               OR ppl_assignment_change_reason_catalog.sort_order
+                        IS DISTINCT FROM EXCLUDED.sort_order
+               OR ppl_assignment_change_reason_catalog.predefined
+                        IS DISTINCT FROM EXCLUDED.predefined
+               OR ppl_assignment_change_reason_catalog.lifecycle_state
+                        IS DISTINCT FROM EXCLUDED.lifecycle_state
+            """;
+
     private final JdbcTemplate jdbc;
     private final HrDomainFoundationService hrDomainFoundation;
     private final ObjectMapper objectMapper;
@@ -111,31 +215,16 @@ public class PeopleTenantProvisioningService {
     }
 
     private void seedAssignmentChangeReasons(Long tenantId) {
-        jdbc.update("""
-                INSERT INTO ppl_assignment_change_reason_catalog (
-                    tenant_id, reason_code, display_name, description,
-                    label_i18n, sort_order, predefined, created_by, updated_by)
-                SELECT ?, seed.reason_code, seed.display_name, seed.description,
-                       seed.label_i18n::jsonb, seed.sort_order, TRUE, 1, 1
-                  FROM (VALUES
-                        ('SEED_IMPORT', 'Initial import', 'Initial workforce projection import.',
-                         '{"ko":"최초 가져오기","en":"Initial import"}', 10),
-                        ('REFERENCE_PROFILE', 'Reference profile', 'Synthetic enterprise reference profile seed.',
-                         '{"ko":"참조 프로필","en":"Reference profile"}', 20),
-                        ('INTERNAL_TRANSFER', 'Internal transfer', 'Assignment moved within the tenant.',
-                         '{"ko":"사내 이동","en":"Internal transfer"}', 30),
-                        ('PROMOTION', 'Promotion', 'Assignment changed due to promotion.',
-                         '{"ko":"승진","en":"Promotion"}', 40))
-                       seed(reason_code, display_name, description, label_i18n, sort_order)
-                ON CONFLICT (tenant_id, reason_code) DO UPDATE SET
-                    display_name = EXCLUDED.display_name,
-                    description = EXCLUDED.description,
-                    label_i18n = EXCLUDED.label_i18n,
-                    lifecycle_state = 'ACTIVE',
-                    version = ppl_assignment_change_reason_catalog.version + 1,
-                    updated_at = CURRENT_TIMESTAMP,
-                    updated_by = EXCLUDED.updated_by
-                """, tenantId);
+        jdbc.batchUpdate(ASSIGNMENT_CHANGE_REASON_UPSERT_SQL,
+                STANDARD_ASSIGNMENT_CHANGE_REASONS.stream()
+                .map(seed -> new Object[] {
+                        tenantId,
+                        seed.reasonCode(),
+                        seed.displayName(),
+                        seed.description(),
+                        seed.labelI18n(),
+                        seed.sortOrder()})
+                .toList());
     }
 
     private void seedOrganizationRoles(Long tenantId) {
@@ -250,5 +339,13 @@ public class PeopleTenantProvisioningService {
             Long tenantId,
             String tenantKey,
             String lifecycleState) {
+    }
+
+    record AssignmentChangeReasonSeed(
+            String reasonCode,
+            String displayName,
+            String description,
+            String labelI18n,
+            int sortOrder) {
     }
 }

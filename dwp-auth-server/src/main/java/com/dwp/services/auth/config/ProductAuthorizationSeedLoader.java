@@ -25,6 +25,7 @@ public class ProductAuthorizationSeedLoader implements ApplicationRunner {
             LoggerFactory.getLogger(ProductAuthorizationSeedLoader.class);
 
     private final boolean enabled;
+    private final long onlyVersion;
     private final Resource seedIndexResource;
     private final ProductAuthorizationContractValidator validator;
     private final ProductAuthorizationContractService service;
@@ -33,10 +34,16 @@ public class ProductAuthorizationSeedLoader implements ApplicationRunner {
             @Value("${dwp.product-authorization.seed.enabled:false}") boolean enabled,
             @Value("${dwp.product-authorization.seed.index-location:classpath:product-authorization/product-surfaces-v1.index.generated.json}")
             String seedIndexLocation,
+            @Value("${dwp.product-authorization.seed.only-version:0}") long onlyVersion,
             ResourceLoader resourceLoader,
             ProductAuthorizationContractValidator validator,
             ProductAuthorizationContractService service) {
         this.enabled = enabled;
+        if (onlyVersion < 0) {
+            throw new IllegalArgumentException(
+                    "Product authorization seed only-version cannot be negative.");
+        }
+        this.onlyVersion = onlyVersion;
         this.seedIndexResource = resourceLoader.getResource(seedIndexLocation);
         this.validator = validator;
         this.service = service;
@@ -49,7 +56,16 @@ public class ProductAuthorizationSeedLoader implements ApplicationRunner {
             return;
         }
         ProductAuthorizationContractDtos.SeedIndex index = readIndex(seedIndexResource);
-        List<ProductAuthorizationContractDtos.SeedIndexEntry> versions = index.versions();
+        List<ProductAuthorizationContractDtos.SeedIndexEntry> versions = onlyVersion == 0
+                ? index.versions()
+                : index.versions().stream()
+                        .filter(entry -> entry.version() == onlyVersion)
+                        .toList();
+        if (versions.isEmpty()) {
+            throw new IllegalStateException(
+                    "Requested product authorization seed version is not in the immutable index: "
+                            + onlyVersion);
+        }
         for (ProductAuthorizationContractDtos.SeedIndexEntry entry : versions) {
             Resource seedResource;
             try {

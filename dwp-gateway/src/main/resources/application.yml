@@ -157,6 +157,36 @@ spring:
                   args:
                     name: peopleServer
                     fallbackUri: forward:/_gateway/fallback
+            - id: payroll-server
+              uri: ${SERVICE_PAYROLL_URL:http://localhost:8012}
+              predicates:
+                - Path=/api/payroll/**
+              filters:
+                - StripPrefix=2
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 60
+                    redis-rate-limiter.burstCapacity: 120
+                    key-resolver: "#{@enterpriseKeyResolver}"
+                - name: CircuitBreaker
+                  args:
+                    name: payrollServer
+                    fallbackUri: forward:/_gateway/fallback
+            - id: time-server
+              uri: ${SERVICE_TIME_URL:http://localhost:8011}
+              predicates:
+                - Path=/api/time/**
+              filters:
+                - StripPrefix=2
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 80
+                    redis-rate-limiter.burstCapacity: 160
+                    key-resolver: "#{@enterpriseKeyResolver}"
+                - name: CircuitBreaker
+                  args:
+                    name: timeServer
+                    fallbackUri: forward:/_gateway/fallback
             - id: provider-server
               uri: ${SERVICE_PROVIDER_URL:http://localhost:8004}
               predicates:
@@ -390,6 +420,10 @@ dwp:
     service-token: ${DWP_PLATFORM_SERVICE_TOKEN:}
   people:
     service-token: ${DWP_PEOPLE_SERVICE_TOKEN:}
+  payroll:
+    service-token: ${DWP_PAYROLL_SERVICE_TOKEN:}
+  time:
+    service-token: ${DWP_TIME_SERVICE_TOKEN:}
   provider:
     service-token: ${DWP_PROVIDER_SERVICE_TOKEN:}
     support-validation-token: ${DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN:}

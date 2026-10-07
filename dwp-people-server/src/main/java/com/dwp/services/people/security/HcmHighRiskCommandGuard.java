@@ -39,7 +39,11 @@ public class HcmHighRiskCommandGuard {
                 publicPath, canonicalPayload, headers);
     }
 
-    /** Fails closed when a command has no exact governed route evidence. */
+    /**
+     * Requires an exact governed route even while the wider product remains in compatibility
+     * rollout. Use this for HCM commands whose external-system or bulk-data impact has no safe
+     * legacy authority equivalent.
+     */
     public void requireExact(
             String capabilityContractKey,
             String targetType,
@@ -77,8 +81,7 @@ public class HcmHighRiskCommandGuard {
                 || !targetType.equals(stepUp.targetType())
                 || !"people".equals(stepUp.ownerServiceKey())
                 || !"dwp-people-server".equals(stepUp.audience())
-                || !matchesCommandPath(
-                        authority.publicPath(), stepUp, targetId, publicPath)) {
+                || !matchesCommandPath(authority.publicPath(), stepUp, targetId, publicPath)) {
             throw new BaseException(ErrorCode.FORBIDDEN,
                     "The exact HCM route does not authorize this high-risk command.");
         }
@@ -130,7 +133,6 @@ public class HcmHighRiskCommandGuard {
             String targetId,
             String commandPath) {
         if (blank(publicPathTemplate) || blank(commandPath)) return false;
-        if (publicPathTemplate.equals(commandPath)) return true;
         String pathParameter = stepUp.targetIdPathParameter();
         if (blank(pathParameter)) return publicPathTemplate.equals(commandPath);
         if (blank(targetId)) return false;

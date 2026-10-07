@@ -6012,6 +6012,28 @@
     "/v1/hr/home": {
       "get": {
         "operationId": "home",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "projection",
+            "required": false,
+            "schema": {
+              "enum": [
+                "people360"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -6026,6 +6048,16 @@
         },
         "tags": [
           "hr-controller"
+        ],
+        "x-dwp-controller-variants": [
+          {
+            "controllerMethod": "people360",
+            "operationId": "people360Self",
+            "requiredParameters": [
+              "projection=people360",
+              "asOf"
+            ]
+          }
         ]
       }
     },
@@ -6151,6 +6183,37 @@
     "/v1/hr/team": {
       "get": {
         "operationId": "team",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "projection",
+            "required": false,
+            "schema": {
+              "enum": [
+                "people360"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "personId",
+            "required": false,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "content": {
@@ -6165,6 +6228,17 @@
         },
         "tags": [
           "hr-controller"
+        ],
+        "x-dwp-controller-variants": [
+          {
+            "controllerMethod": "teamPeople360",
+            "operationId": "people360TeamDetail",
+            "requiredParameters": [
+              "projection=people360",
+              "personId",
+              "asOf"
+            ]
+          }
         ]
       }
     },
@@ -6480,6 +6554,345 @@
         "tags": [
           "hr-controller"
         ]
+      }
+    },
+    "/v1/hris/performance/command-receipts/{receiptId}": {
+      "get": {
+        "operationId": "hrisPerformanceCommandReceipt",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "receiptId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "performance-cycle-controller"
+        ],
+        "x-dwp-controller-method": "receipt",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/performance/cycles": {
+      "get": {
+        "operationId": "hrisPerformanceCycles",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "performance-cycle-controller"
+        ],
+        "x-dwp-controller-method": "cycles",
+        "x-dwp-runtime-default": "OFF"
+      },
+      "post": {
+        "operationId": "hrisPerformanceCreateCycle",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "performance-cycle-controller"
+        ],
+        "x-dwp-controller-method": "create",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/performance/cycles/{cycleId}": {
+      "get": {
+        "operationId": "hrisPerformanceCycle",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "performance-cycle-controller"
+        ],
+        "x-dwp-controller-method": "cycle",
+        "x-dwp-runtime-default": "OFF"
+      },
+      "patch": {
+        "operationId": "hrisPerformanceUpdateCycle",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "performance-cycle-controller"
+        ],
+        "x-dwp-controller-method": "update",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/performance/cycles/{cycleId}/population-previews": {
+      "post": {
+        "operationId": "hrisPerformancePreviewPopulation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "performance-cycle-controller"
+        ],
+        "x-dwp-controller-method": "preview",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/performance/cycles/{cycleId}/publish": {
+      "post": {
+        "operationId": "hrisPerformancePublishCycle",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "performance-cycle-controller"
+        ],
+        "x-dwp-controller-method": "publish",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/performance/cycles/{cycleId}/validate": {
+      "post": {
+        "operationId": "hrisPerformanceValidateCycle",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "performance-cycle-controller"
+        ],
+        "x-dwp-controller-method": "validate",
+        "x-dwp-runtime-default": "OFF"
       }
     },
     "/v1/org-chart": {
@@ -8560,6 +8973,17 @@
               "format": "date",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "projection",
+            "required": false,
+            "schema": {
+              "enum": [
+                "people360"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8576,6 +9000,16 @@
         },
         "tags": [
           "workforce-people-controller"
+        ],
+        "x-dwp-controller-variants": [
+          {
+            "controllerMethod": "searchPeople360",
+            "operationId": "people360Search",
+            "requiredParameters": [
+              "projection=people360",
+              "asOf"
+            ]
+          }
         ]
       }
     },
@@ -8600,6 +9034,17 @@
               "format": "date",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "projection",
+            "required": false,
+            "schema": {
+              "enum": [
+                "people360"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -8616,6 +9061,16 @@
         },
         "tags": [
           "workforce-people-controller"
+        ],
+        "x-dwp-controller-variants": [
+          {
+            "controllerMethod": "getPeople360",
+            "operationId": "people360Detail",
+            "requiredParameters": [
+              "projection=people360",
+              "asOf"
+            ]
+          }
         ]
       }
     },

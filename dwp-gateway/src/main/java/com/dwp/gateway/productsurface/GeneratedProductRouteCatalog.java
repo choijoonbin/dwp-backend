@@ -37,6 +37,14 @@ public final class GeneratedProductRouteCatalog {
             "spaces",
             "workplace");
 
+    /**
+     * Public service roots that host unrelated APIs as well as PRODUCT-owned route families.
+     * Claiming one of these roots wholesale would turn an isolated binding such as
+     * {@code /api/auth/hris/...} into a fail-closed takeover of every {@code /api/auth/...}
+     * endpoint. Keep the ownership boundary at the first route-family segment instead.
+     */
+    private static final Set<String> SHARED_SERVICE_ROOTS = Set.of("auth", "platform");
+
     private static final Set<String> AUTHORITY_ENDPOINT_FIELDS = Set.of(
             "endpointKey", "method", "publicPath", "serviceKey", "servicePath",
             "requiresAuthentication", "requiresCsrf",
@@ -351,6 +359,13 @@ public final class GeneratedProductRouteCatalog {
         if (parts.length < 3 || !"api".equals(parts[1]) || parts[2].isBlank()) {
             throw new IllegalStateException("Invalid PRODUCT public binding path.");
         }
+        if (SHARED_SERVICE_ROOTS.contains(parts[2])) {
+            if (parts.length < 4 || parts[3].isBlank()) {
+                throw new IllegalStateException(
+                        "A shared-service PRODUCT binding must declare a route family.");
+            }
+            return "/api/" + parts[2] + "/" + parts[3] + "/";
+        }
         return "/api/" + parts[2] + "/";
     }
 
@@ -366,6 +381,7 @@ public final class GeneratedProductRouteCatalog {
             JsonNode value = entry.getValue();
             QueryConstraint constraint = switch (value.path("kind").asText()) {
                 case "ABSENT" -> new QueryConstraint("ABSENT", Set.of());
+                case "REQUIRED" -> new QueryConstraint("REQUIRED", Set.of());
                 case "FIXED" -> new QueryConstraint(
                         "FIXED", Set.of(value.path("value").asText()));
                 case "ALLOWLIST" -> new QueryConstraint(
@@ -401,6 +417,8 @@ public final class GeneratedProductRouteCatalog {
             QueryConstraint constraint = entry.getValue();
             if ("ABSENT".equals(constraint.kind())) {
                 if (!values.isEmpty()) return false;
+            } else if ("REQUIRED".equals(constraint.kind())) {
+                if (values.size() != 1 || values.getFirst().isBlank()) return false;
             } else if (values.size() != 1 || !constraint.values().contains(values.getFirst())) {
                 return false;
             }

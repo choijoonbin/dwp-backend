@@ -1,0 +1,261 @@
+{
+  "services": {
+    "auth": {
+      "paths": {
+        "/auth/hris/product-access/snapshot": {
+          "get": {
+            "operationId": "hrisProductAccessSnapshot",
+            "parameters": [
+              {
+                "in": "header",
+                "name": "X-Tenant-ID",
+                "required": false,
+                "schema": {"format": "int64", "type": "integer"}
+              },
+              {
+                "in": "query",
+                "name": "view",
+                "required": false,
+                "schema": {"enum": ["system"], "type": "string"}
+              }
+            ],
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["hris-product-access-controller"],
+            "x-dwp-controller-method": "snapshot",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        }
+      }
+    },
+    "platform": {
+      "paths": {
+        "/v1/hris/configuration/projection": {
+          "get": {
+            "operationId": "hrisConfigurationProjection",
+            "parameters": [
+              {"in": "header", "name": "X-DWP-Tenant-ID", "required": true, "schema": {"format": "int64", "type": "integer"}},
+              {"in": "header", "name": "X-DWP-User-ID", "required": true, "schema": {"format": "int64", "type": "integer"}},
+              {"in": "header", "name": "X-DWP-Permissions", "required": true, "schema": {"type": "string"}},
+              {"in": "header", "name": "X-DWP-Roles", "required": true, "schema": {"type": "string"}},
+              {"in": "query", "name": "locale", "required": false, "schema": {"default": "en", "type": "string"}},
+              {"in": "query", "name": "view", "required": false, "schema": {"enum": ["system"], "type": "string"}}
+            ],
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["hris-configuration-projection-controller"],
+            "x-dwp-controller-method": "projection",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        }
+      }
+    },
+    "people": {
+      "paths": {
+        "/v1/hr/home": {
+          "get": {
+            "operationId": "people360Self",
+            "parameters": [
+              {"in": "query", "name": "projection", "required": false, "schema": {"enum": ["people360"], "type": "string"}},
+              {"in": "query", "name": "asOf", "required": false, "schema": {"format": "date", "type": "string"}}
+            ],
+            "x-dwp-controller-method": "people360",
+            "x-dwp-overlay-mode": "PATCH",
+            "x-dwp-required-parameters": ["projection=people360", "asOf"]
+          }
+        },
+        "/v1/hr/team": {
+          "get": {
+            "operationId": "people360TeamDetail",
+            "parameters": [
+              {"in": "query", "name": "projection", "required": false, "schema": {"enum": ["people360"], "type": "string"}},
+              {"in": "query", "name": "personId", "required": false, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "query", "name": "asOf", "required": false, "schema": {"format": "date", "type": "string"}}
+            ],
+            "x-dwp-controller-method": "teamPeople360",
+            "x-dwp-overlay-mode": "PATCH",
+            "x-dwp-required-parameters": ["projection=people360", "personId", "asOf"]
+          }
+        },
+        "/v1/hris/performance/command-receipts/{receiptId}": {
+          "get": {
+            "operationId": "hrisPerformanceCommandReceipt",
+            "parameters": [{"in": "path", "name": "receiptId", "required": true, "schema": {"format": "uuid", "type": "string"}}],
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["performance-cycle-controller"],
+            "x-dwp-controller-method": "receipt",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/hris/performance/cycles": {
+          "get": {
+            "operationId": "hrisPerformanceCycles",
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["performance-cycle-controller"],
+            "x-dwp-controller-method": "cycles",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          },
+          "post": {
+            "operationId": "hrisPerformanceCreateCycle",
+            "parameters": [
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["performance-cycle-controller"],
+            "x-dwp-controller-method": "create",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/hris/performance/cycles/{cycleId}": {
+          "get": {
+            "operationId": "hrisPerformanceCycle",
+            "parameters": [{"in": "path", "name": "cycleId", "required": true, "schema": {"format": "uuid", "type": "string"}}],
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["performance-cycle-controller"],
+            "x-dwp-controller-method": "cycle",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          },
+          "patch": {
+            "operationId": "hrisPerformanceUpdateCycle",
+            "parameters": [
+              {"in": "path", "name": "cycleId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["performance-cycle-controller"],
+            "x-dwp-controller-method": "update",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/hris/performance/cycles/{cycleId}/population-previews": {
+          "post": {
+            "operationId": "hrisPerformancePreviewPopulation",
+            "parameters": [
+              {"in": "path", "name": "cycleId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["performance-cycle-controller"],
+            "x-dwp-controller-method": "preview",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/hris/performance/cycles/{cycleId}/publish": {
+          "post": {
+            "operationId": "hrisPerformancePublishCycle",
+            "parameters": [
+              {"in": "path", "name": "cycleId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}},
+              {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Decision-Revision", "required": true, "schema": {"type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Object-Version", "required": true, "schema": {"format": "int64", "type": "integer"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["performance-cycle-controller"],
+            "x-dwp-controller-method": "publish",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/hris/performance/cycles/{cycleId}/validate": {
+          "post": {
+            "operationId": "hrisPerformanceValidateCycle",
+            "parameters": [
+              {"in": "path", "name": "cycleId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["performance-cycle-controller"],
+            "x-dwp-controller-method": "validate",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/workforce/people": {
+          "get": {
+            "operationId": "people360Search",
+            "parameters": [{"in": "query", "name": "projection", "required": false, "schema": {"enum": ["people360"], "type": "string"}}],
+            "x-dwp-controller-method": "searchPeople360",
+            "x-dwp-overlay-mode": "PATCH",
+            "x-dwp-required-parameters": ["projection=people360", "asOf"]
+          }
+        },
+        "/v1/workforce/people/{publicId}": {
+          "get": {
+            "operationId": "people360Detail",
+            "parameters": [{"in": "query", "name": "projection", "required": false, "schema": {"enum": ["people360"], "type": "string"}}],
+            "x-dwp-controller-method": "getPeople360",
+            "x-dwp-overlay-mode": "PATCH",
+            "x-dwp-required-parameters": ["projection=people360", "asOf"]
+          }
+        }
+      }
+    },
+    "payroll": {
+      "paths": {
+        "/v1/hris/payroll/foundation/configurations": {
+          "get": {"operationId": "hrisPayrollConfigurations", "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "configurations", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"},
+          "post": {"operationId": "hrisPayrollCreateConfiguration", "parameters": [{"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "create", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        },
+        "/v1/hris/payroll/foundation/configurations/{configurationId}": {
+          "get": {"operationId": "hrisPayrollConfiguration", "parameters": [{"in": "path", "name": "configurationId", "required": true, "schema": {"format": "uuid", "type": "string"}}], "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "configuration", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"},
+          "put": {"operationId": "hrisPayrollUpdateConfiguration", "parameters": [{"in": "path", "name": "configurationId", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "update", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        },
+        "/v1/hris/payroll/foundation/configurations/{configurationId}/publish": {
+          "post": {"operationId": "hrisPayrollPublishConfiguration", "parameters": [{"in": "path", "name": "configurationId", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}, {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "publish", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        },
+        "/v1/hris/payroll/foundation/configurations/{configurationId}/reversals": {
+          "post": {"operationId": "hrisPayrollReverseConfiguration", "parameters": [{"in": "path", "name": "configurationId", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}, {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "reverse", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        },
+        "/v1/hris/payroll/foundation/configurations/{configurationId}/simulations": {
+          "post": {"operationId": "hrisPayrollSimulateConfiguration", "parameters": [{"in": "path", "name": "configurationId", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "simulate", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        },
+        "/v1/hris/payroll/foundation/configurations/{configurationId}/versions": {
+          "get": {"operationId": "hrisPayrollConfigurationVersions", "parameters": [{"in": "path", "name": "configurationId", "required": true, "schema": {"format": "uuid", "type": "string"}}], "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "versions", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        },
+        "/v1/hris/payroll/foundation/receipts/{commandId}": {
+          "get": {"operationId": "hrisPayrollCommandReceipt", "parameters": [{"in": "path", "name": "commandId", "required": true, "schema": {"format": "uuid", "type": "string"}}], "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "receipt", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        },
+        "/v1/hris/payroll/foundation/receipts/{commandId}/reconcile": {
+          "post": {"operationId": "hrisPayrollReconcileCommand", "parameters": [{"in": "path", "name": "commandId", "required": true, "schema": {"format": "uuid", "type": "string"}}], "responses": {"200": {"description": "OK"}}, "tags": ["payroll-foundation-controller"], "x-dwp-controller-method": "reconcile", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        }
+      }
+    },
+    "time": {
+      "paths": {
+        "/v1/hris/work-plan-receipts/{receiptId}": {
+          "get": {"operationId": "hrisTimeWorkPlanReceipt", "parameters": [{"in": "path", "name": "receiptId", "required": true, "schema": {"format": "uuid", "type": "string"}}], "responses": {"200": {"description": "OK"}}, "tags": ["work-regime-owner-controller"], "x-dwp-controller-method": "receipt", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        },
+        "/v1/hris/work-plans": {
+          "get": {"operationId": "hrisTimeWorkPlans", "parameters": [{"in": "query", "name": "effectiveOn", "required": true, "schema": {"format": "date", "type": "string"}}], "responses": {"200": {"description": "OK"}}, "tags": ["work-regime-owner-controller"], "x-dwp-controller-method": "list", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        },
+        "/v1/hris/work-plans/drafts": {
+          "post": {"operationId": "hrisTimeCreateWorkPlanDraft", "parameters": [{"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["work-regime-owner-controller"], "x-dwp-controller-method": "createDraft", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        },
+        "/v1/hris/work-plans/{workPlanId}/actions/{action}": {
+          "post": {"operationId": "hrisTimeTransitionWorkPlan", "parameters": [{"in": "path", "name": "workPlanId", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "path", "name": "action", "required": true, "schema": {"enum": ["apply-approval", "publish", "submit-review", "validate"], "type": "string"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["work-regime-owner-controller"], "x-dwp-controller-method": "transition", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        },
+        "/v1/hris/work-plans/{workPlanId}/simulations": {
+          "post": {"operationId": "hrisTimeSimulateWorkPlan", "parameters": [{"in": "path", "name": "workPlanId", "required": true, "schema": {"format": "uuid", "type": "string"}}, {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"format": "uuid", "type": "string"}}], "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true}, "responses": {"200": {"description": "OK"}}, "tags": ["work-regime-owner-controller"], "x-dwp-controller-method": "simulate", "x-dwp-overlay-mode": "ADD", "x-dwp-runtime-default": "OFF"}
+        }
+      }
+    }
+  },
+  "version": 1
+}

@@ -62,6 +62,25 @@ public class PeopleDirectoryService {
                 query, status, cursor, requestedSize, requestedAsOf, true, population);
     }
 
+    /**
+     * Reuses a population that the calling owner service already resolved and verified.
+     * This keeps People 360 search and projection on the same authority revision.
+     */
+    @Transactional(readOnly = true)
+    public PeopleDtos.CursorPage<PeopleDtos.PersonSummary> searchWorkforce(
+            String query,
+            String status,
+            String cursor,
+            int requestedSize,
+            LocalDate requestedAsOf,
+            HcmPopulationScopeService.ResolvedPopulation population) {
+        if (population == null || population.scope() == null) {
+            throw new IllegalArgumentException("A resolved target population is required.");
+        }
+        return search(
+                query, status, cursor, requestedSize, requestedAsOf, true, population);
+    }
+
     private PeopleDtos.CursorPage<PeopleDtos.PersonSummary> search(
             String query,
             String status,

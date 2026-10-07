@@ -28,20 +28,51 @@ spring:
         compression.type: zstd
   datasource:
     url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${PEOPLE_DB_NAME:dwp_people}
-    username: ${DB_USERNAME:dwp_user}
-    password: ${DB_PASSWORD:dwp_password}
+    username: ${PEOPLE_DB_USERNAME:dwp_people_runtime}
+    password: ${PEOPLE_DB_PASSWORD:dwp_password}
+    hikari:
+      connection-init-sql: SET search_path TO pg_catalog, public
   jpa:
     hibernate:
       ddl-auto: validate
     open-in-view: false
   flyway:
     enabled: true
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${PEOPLE_DB_NAME:dwp_people}
+    user: ${PEOPLE_MIGRATION_DB_USERNAME:${DB_USERNAME:dwp_user}}
+    password: ${PEOPLE_MIGRATION_DB_PASSWORD:${DB_PASSWORD:dwp_password}}
     locations: ${DWP_PEOPLE_FLYWAY_LOCATIONS:classpath:db/migration}
+    default-schema: public
+    schemas:
+      - public
+    table: flyway_schema_history
     baseline-on-migrate: true
     baseline-version: 0
     validate-on-migrate: true
+    out-of-order: false
+    fail-on-missing-locations: true
+    clean-disabled: true
+    create-schemas: false
+    placeholder-replacement: true
+    clean-on-validation-error: false
+    group: false
+    mixed: false
+    skip-default-callbacks: false
+    skip-default-resolvers: false
+    validate-migration-naming: true
+    execute-in-transaction: true
+    output-query-results: false
+    community-db-support-enabled: false
+    skip-executing-migrations: false
+    ignore-migration-patterns: []
 
 dwp:
+  hris:
+    people-workforce:
+      synthetic-bootstrap:
+        enabled: ${DWP_HRIS_PEOPLE_WORKFORCE_SYNTHETIC_BOOTSTRAP_ENABLED:false}
+        token: ${DWP_HRIS_PEOPLE_WORKFORCE_SYNTHETIC_BOOTSTRAP_TOKEN:}
+        run-id: ${DWP_HRIS_PEOPLE_WORKFORCE_SYNTHETIC_BOOTSTRAP_RUN_ID:}
   http:
     client:
       connect-timeout: ${DWP_HTTP_CONNECT_TIMEOUT:2s}
@@ -99,9 +130,29 @@ dwp:
     hris:
       allowed-hosts: ${DWP_HRIS_ALLOWED_HOSTS:}
       allow-unlisted-hosts: ${DWP_HRIS_ALLOW_UNLISTED_HOSTS:false}
+      local-seed-enabled: ${DWP_PEOPLE_LOCAL_SEED_ENABLED:false}
+      database:
+        migration-principal-policy: ${DWP_PEOPLE_MIGRATION_PRINCIPAL_POLICY:STRICT}
+        runtime-environment: ${DWP_ENVIRONMENT:local}
+        service-instance: ${DWP_SERVICE_INSTANCE:${HOSTNAME:local}}
+        adoption-receipt-sha256: ${DWP_PEOPLE_ADOPTION_RECEIPT_SHA256:}
+        adoption-control-reference: ${DWP_PEOPLE_ADOPTION_CONTROL_REFERENCE:}
+        performance-adoption-receipt-sha256: ${DWP_PEOPLE_PERFORMANCE_ADOPTION_RECEIPT_SHA256:}
+        performance-adoption-control-reference: ${DWP_PEOPLE_PERFORMANCE_ADOPTION_CONTROL_REFERENCE:}
+        control-run-receipt-json: ${DWP_PEOPLE_MIGRATION_CONTROL_RUN_RECEIPT_JSON:}
+        control-run-receipt-sha256: ${DWP_PEOPLE_MIGRATION_CONTROL_RUN_RECEIPT_SHA256:}
+        migration-control-reference: ${DWP_PEOPLE_MIGRATION_CONTROL_REFERENCE:}
+      performance-migration:
+        location: classpath:db/performance-migration
+        schema: hris_performance
+        history-table: flyway_performance_schema_history
+        baseline-version: "0"
+        baseline-on-migrate: false
+        validate-on-migrate: true
+        out-of-order: false
     exports:
       execution-enabled: ${DWP_WORKFORCE_EXPORT_EXECUTION_ENABLED:false}
-      blockers: ${DWP_WORKFORCE_EXPORT_BLOCKERS:D-09,D-12}
+      blockers: ${DWP_WORKFORCE_EXPORT_BLOCKERS:D-09,D-12,G-05,PS-03}
       masking-profile: ${DWP_WORKFORCE_EXPORT_MASKING_PROFILE:WORKFORCE_MINIMUM}
       watermark-template: ${DWP_WORKFORCE_EXPORT_WATERMARK_TEMPLATE:DWP confidential | tenant={{tenantId}} | requester={{userId}} | recipient={{recipient}} | request={{requestId}}}
       artifact-ttl-hours: ${DWP_WORKFORCE_EXPORT_ARTIFACT_TTL_HOURS:24}

@@ -90,10 +90,15 @@ dwp:
     token: ${DWP_IDENTITY_SYNC_TOKEN:}
   provider:
     provisioning-token: ${DWP_PROVIDER_PROVISIONING_TOKEN:}
+  synthetic-identity-bootstrap:
+    enabled: ${DWP_LOCAL_SYNTHETIC_IDENTITY_BOOTSTRAP_ENABLED:false}
+    token: ${DWP_LOCAL_SYNTHETIC_IDENTITY_BOOTSTRAP_TOKEN:}
+    run-id: ${DWP_LOCAL_SYNTHETIC_IDENTITY_BOOTSTRAP_RUN_ID:}
   product-authorization:
     seed:
       enabled: ${DWP_PRODUCT_AUTHORIZATION_SEED_ENABLED:false}
       index-location: ${DWP_PRODUCT_AUTHORIZATION_SEED_INDEX_LOCATION:classpath:product-authorization/product-surfaces-v1.index.generated.json}
+      only-version: ${DWP_PRODUCT_AUTHORIZATION_SEED_ONLY_VERSION:0}
     operations:
       provider-approval-token: ${DWP_PRODUCT_AUTHORIZATION_PROVIDER_APPROVAL_TOKEN:}
       platform-activation-token: ${DWP_PRODUCT_AUTHORIZATION_PLATFORM_ACTIVATION_TOKEN:}
