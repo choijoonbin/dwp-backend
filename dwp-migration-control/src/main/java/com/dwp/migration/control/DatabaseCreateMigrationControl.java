@@ -14,7 +14,7 @@ import java.util.Map;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.MigrationInfo;
 
-/** Executes each source-pinned managed-role migration in an exact privilege window. */
+/** Executes each source-pinned privileged migration in an exact privilege window. */
 final class DatabaseCreateMigrationControl {
     private DatabaseCreateMigrationControl() {
     }
@@ -22,7 +22,7 @@ final class DatabaseCreateMigrationControl {
     static void applyPending(
             ControlEnvironment environment, StreamPlan stream) throws Exception {
         for (DatabaseCreateMigration capability
-                : environment.plan().managedRoleMigrations()) {
+                : environment.plan().privilegedMigrations()) {
             DatabaseCreateMigrationSourceControl.requireExact(environment, capability);
             try (Connection bootstrap = bootstrapConnection(environment)) {
                 requireSteadyBootstrapState(bootstrap, environment);
@@ -62,13 +62,18 @@ final class DatabaseCreateMigrationControl {
 
                 try (Connection migration = migrationConnection(environment)) {
                     requireMigrationIdentity(migration, environment);
-                    boolean steadyOwnerUsage = requireClosedOwnerSchemaAuthority(
-                            bootstrap, environment, capability);
+                    boolean managedOwnerAuthority =
+                            !capability.ownerCapabilitySchema().isEmpty();
+                    boolean steadyOwnerUsage = managedOwnerAuthority
+                            && requireClosedOwnerSchemaAuthority(
+                                    bootstrap, environment, capability);
                     Exception migrationFailure = null;
                     try {
-                        grantOwnerSchemaAuthority(migration, capability);
-                        requireActiveOwnerSchemaAuthority(
-                                bootstrap, environment, capability, steadyOwnerUsage);
+                        if (managedOwnerAuthority) {
+                            grantOwnerSchemaAuthority(migration, capability);
+                            requireActiveOwnerSchemaAuthority(
+                                    bootstrap, environment, capability, steadyOwnerUsage);
+                        }
                         if (capability.databaseCreate()) {
                             DatabaseControl.grantDatabaseCreate(bootstrap, environment);
                             requireExactActiveDatabaseCreate(bootstrap, environment);
@@ -76,11 +81,21 @@ final class DatabaseCreateMigrationControl {
                             DatabaseControl.requireDatabaseCreateDenied(
                                     bootstrap, environment);
                         }
-                        ManagedDatabaseRoleControl.grantMigrationAuthority(
-                                bootstrap, environment);
-                        ManagedDatabaseRoleControl.requireActivePostMigration(
-                                bootstrap, environment);
+                        if (managedOwnerAuthority) {
+                            ManagedDatabaseRoleControl.grantMigrationAuthority(
+                                    bootstrap, environment);
+                            ManagedDatabaseRoleControl.requireActivePostMigration(
+                                    bootstrap, environment);
+                        }
+                        if (capability.requiresRoleDdlAuthority()) {
+                            TemporaryRoleDdlAuthorityControl.activate(
+                                    bootstrap, environment, capability);
+                        }
                         FlywayControl.migrateAndValidate(exactCapability, false);
+                        if (capability.requiresRoleDdlAuthority()) {
+                            TemporaryRoleDdlAuthorityControl.requireMigrationGrant(
+                                    bootstrap, environment, capability);
+                        }
                     } catch (Exception failure) {
                         migrationFailure = failure;
                         throw failure;
@@ -90,6 +105,7 @@ final class DatabaseCreateMigrationControl {
                                 migration,
                                 environment,
                                 capability,
+                                managedOwnerAuthority,
                                 steadyOwnerUsage);
                         if (migrationFailure != null) {
                             try {
@@ -119,7 +135,8 @@ final class DatabaseCreateMigrationControl {
                         capability,
                         beforeCount,
                         beforeMaximum);
-                requireExactSchemaDelta(bootstrap, capability, beforeSchemas);
+                requireExactSchemaDelta(
+                        bootstrap, environment, capability, beforeSchemas);
                 requireSteadyBootstrapState(bootstrap, environment);
                 ProtectedSchemaAclControl.verify(bootstrap, environment);
                 ServiceRoleDdlBoundaryControl.requireExact(bootstrap, environment);
@@ -139,18 +156,35 @@ final class DatabaseCreateMigrationControl {
             Connection migration,
             ControlEnvironment environment,
             DatabaseCreateMigration capability,
+            boolean managedOwnerAuthority,
             boolean steadyOwnerUsage) {
         Exception failure = null;
-        try {
-            ManagedDatabaseRoleControl.revokeMigrationAuthority(
-                    bootstrap, environment);
-        } catch (Exception exception) {
-            failure = append(failure, exception);
+        if (capability.requiresRoleDdlAuthority()) {
+            try {
+                TemporaryRoleDdlAuthorityControl.deactivateRoleAttributes(
+                        bootstrap, environment, capability);
+            } catch (Exception exception) {
+                failure = append(failure, exception);
+            }
+            try {
+                TemporaryRoleDdlAuthorityControl.revokeMigrationMembership(
+                        bootstrap, environment, capability);
+            } catch (Exception exception) {
+                failure = append(failure, exception);
+            }
         }
-        try {
-            revokeOwnerSchemaAuthority(migration, capability);
-        } catch (Exception exception) {
-            failure = append(failure, exception);
+        if (managedOwnerAuthority) {
+            try {
+                ManagedDatabaseRoleControl.revokeMigrationAuthority(
+                        bootstrap, environment);
+            } catch (Exception exception) {
+                failure = append(failure, exception);
+            }
+            try {
+                revokeOwnerSchemaAuthority(migration, capability);
+            } catch (Exception exception) {
+                failure = append(failure, exception);
+            }
         }
         if (capability.databaseCreate()) {
             try {
@@ -163,11 +197,13 @@ final class DatabaseCreateMigrationControl {
             ManagedDatabaseRoleControl.requireSteadyPostMigration(
                     bootstrap, environment);
             DatabaseControl.requireDatabaseCreateDenied(bootstrap, environment);
-            boolean actualSteadyOwnerUsage = requireClosedOwnerSchemaAuthority(
-                    bootstrap, environment, capability);
-            if (actualSteadyOwnerUsage != steadyOwnerUsage) {
-                throw new IllegalStateException(
-                        "Managed owner steady schema USAGE changed inside a capability window");
+            if (managedOwnerAuthority) {
+                boolean actualSteadyOwnerUsage = requireClosedOwnerSchemaAuthority(
+                        bootstrap, environment, capability);
+                if (actualSteadyOwnerUsage != steadyOwnerUsage) {
+                    throw new IllegalStateException(
+                            "Managed owner steady schema USAGE changed inside a capability window");
+                }
             }
             DatabaseConnectionFence.requireDatabaseAcl(
                     bootstrap, environment, DatabaseConnectionFence.State.ACTIVE);
@@ -191,7 +227,13 @@ final class DatabaseCreateMigrationControl {
             ControlEnvironment environment,
             DatabaseCreateMigration capability) throws SQLException {
         requireSteadyBootstrapState(connection, environment);
-        requireClosedOwnerSchemaAuthority(connection, environment, capability);
+        if (capability.requiresRoleDdlAuthority()) {
+            TemporaryRoleDdlAuthorityControl.requireClosed(
+                    connection, environment, capability);
+        }
+        if (!capability.ownerCapabilitySchema().isEmpty()) {
+            requireClosedOwnerSchemaAuthority(connection, environment, capability);
+        }
         try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT description, script, checksum, success
                   FROM %s.%s
@@ -214,7 +256,7 @@ final class DatabaseCreateMigrationControl {
             }
         }
         if (capability.introducesSchema()) {
-            requireIntroducedSchemaOwner(connection, capability);
+            requireIntroducedSchemaOwner(connection, environment, capability);
         }
         ProtectedSchemaAclControl.verify(connection, environment);
         ServiceRoleDdlBoundaryControl.requireExact(connection, environment);
@@ -451,7 +493,9 @@ final class DatabaseCreateMigrationControl {
     }
 
     private static void requireIntroducedSchemaOwner(
-            Connection connection, DatabaseCreateMigration capability) throws SQLException {
+            Connection connection,
+            ControlEnvironment environment,
+            DatabaseCreateMigration capability) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT owner.rolname
                   FROM pg_catalog.pg_namespace namespace
@@ -461,7 +505,9 @@ final class DatabaseCreateMigrationControl {
             statement.setString(1, capability.introducedSchema());
             try (ResultSet result = statement.executeQuery()) {
                 if (!result.next()
-                        || !capability.schemaOwner().equals(result.getString(1))
+                        || !capability.expectedSchemaOwner(
+                                environment.migrationPrincipal()).equals(
+                                result.getString(1))
                         || result.next()) {
                     throw new IllegalStateException(
                             "Applied privileged migration schema owner is invalid");
@@ -472,18 +518,32 @@ final class DatabaseCreateMigrationControl {
 
     private static void requireExactSchemaDelta(
             Connection connection,
+            ControlEnvironment environment,
             DatabaseCreateMigration capability,
             Map<String, String> beforeSchemas) throws SQLException {
-        requireExactSchemaDelta(capability, beforeSchemas, schemaOwners(connection));
+        requireExactSchemaDelta(
+                capability,
+                capability.expectedSchemaOwner(environment.migrationPrincipal()),
+                beforeSchemas,
+                schemaOwners(connection));
     }
 
     static void requireExactSchemaDelta(
             DatabaseCreateMigration capability,
             Map<String, String> beforeSchemas,
             Map<String, String> actual) {
+        requireExactSchemaDelta(
+                capability, capability.schemaOwner(), beforeSchemas, actual);
+    }
+
+    private static void requireExactSchemaDelta(
+            DatabaseCreateMigration capability,
+            String expectedSchemaOwner,
+            Map<String, String> beforeSchemas,
+            Map<String, String> actual) {
         Map<String, String> expected = new LinkedHashMap<>(beforeSchemas);
         if (capability.introducesSchema()) {
-            expected.put(capability.introducedSchema(), capability.schemaOwner());
+            expected.put(capability.introducedSchema(), expectedSchemaOwner);
         }
         if (!expected.equals(actual)) {
             throw new IllegalStateException(

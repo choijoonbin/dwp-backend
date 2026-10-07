@@ -214,7 +214,7 @@ class AdminMailPurgeWorker {
     }
 
     private String sanitize(RuntimeException failure) {
-        if (failure instanceof AdminMailPurgeGuard.PurgeBlockedException
+        if (failure instanceof AdminMailPurgeBlockedException
                 && failure.getMessage() != null && !failure.getMessage().isBlank()) {
             return failure.getMessage();
         }

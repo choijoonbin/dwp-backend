@@ -86,6 +86,12 @@ jobs:
         shell: bash
         env:
           DWP_DEVCTL_STARTUP_TIMEOUT_SECONDS: '300'
+          DWP_GATEWAY_URL: http://127.0.0.1:8080
+          DWP_SMOKE_TENANT_ID: '1'
+          DWP_SMOKE_EMAIL: hyunwoo.park@sk.com
+          DWP_SMOKE_PASSWORD: admin1234!
+          DWP_SMOKE_CORRELATION_ID: backend-quality-runtime-smoke
+          DWP_SMOKE_EXPECTED_ROLES: TENANT_ADMIN
         run: |
           set -Eeuo pipefail
 

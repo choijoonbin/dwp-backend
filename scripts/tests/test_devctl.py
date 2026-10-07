@@ -152,6 +152,70 @@ class AgentLocalEnvironmentTest(unittest.TestCase):
             "DWP_PLATFORM_RUNTIME_SERVICE_TOKEN", environments["people"]
         )
 
+    def test_people_local_seed_profile_is_explicit_and_owner_scoped(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            environments = {
+                name: devctl.service_environment(name) for name in devctl.SERVICES
+            }
+
+        people = environments["people"]
+        self.assertEqual(
+            people["DWP_PEOPLE_FLYWAY_LOCATIONS"],
+            "classpath:db/migration,classpath:db/local-seed",
+        )
+        self.assertEqual(people["DWP_PEOPLE_LOCAL_SEED_ENABLED"], "true")
+        self.assertEqual(
+            people["DWP_PEOPLE_MIGRATION_PRINCIPAL_POLICY"], "LOCAL_LEGACY"
+        )
+        self.assertEqual(people["DWP_SERVICE_INSTANCE"], "local")
+        self.assertEqual(people["PEOPLE_DB_USERNAME"], "dwp_people_runtime")
+        self.assertEqual(people["PEOPLE_DB_PASSWORD"], "dwp_password")
+        self.assertEqual(people["DWP_HRIS_PERFORMANCE_WAVE1_ENABLED"], "true")
+        self.assertEqual(people["DWP_PEOPLE_PEOPLE360_RUNTIME_ENABLED"], "true")
+        self.assertTrue(
+            all(
+                "DWP_PEOPLE_LOCAL_SEED_ENABLED" not in environment
+                for name, environment in environments.items()
+                if name != "people"
+            )
+        )
+        for key in (
+            "DWP_PEOPLE_MIGRATION_PRINCIPAL_POLICY",
+            "PEOPLE_DB_USERNAME",
+            "PEOPLE_DB_PASSWORD",
+            "DWP_HRIS_PERFORMANCE_WAVE1_ENABLED",
+            "DWP_PEOPLE_PEOPLE360_RUNTIME_ENABLED",
+        ):
+            self.assertTrue(
+                all(
+                    key not in environment
+                    for name, environment in environments.items()
+                    if name != "people"
+                )
+            )
+
+    def test_people_local_boundary_uses_isolated_runtime_role_and_minimum_ddl(self) -> None:
+        with patch.object(devctl, "docker_compose") as compose:
+            devctl.ensure_people_local_legacy_boundary()
+
+        self.assertEqual(compose.call_count, 2)
+        role_sql = compose.call_args_list[0].args[-1]
+        schema_sql = compose.call_args_list[1].args[-1]
+        self.assertIn("CREATE ROLE dwp_people_runtime", role_sql)
+        self.assertIn("NOINHERIT", role_sql)
+        self.assertIn(
+            "REVOKE TEMPORARY, CREATE ON DATABASE dwp_people FROM PUBLIC",
+            role_sql,
+        )
+        self.assertIn("REVOKE TEMPORARY, CREATE", role_sql)
+        self.assertIn("GRANT CONNECT ON DATABASE dwp_people", role_sql)
+        self.assertIn("CREATE SCHEMA IF NOT EXISTS hris_performance", schema_sql)
+        self.assertIn("REVOKE ALL ON SCHEMA public, hris_performance", schema_sql)
+        self.assertIn(
+            "GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES", schema_sql
+        )
+        self.assertIn("ALTER DEFAULT PRIVILEGES FOR ROLE dwp_user", schema_sql)
+
     def test_core006_bootstrap_settings_are_injected_only_into_exact_services(
         self,
     ) -> None:

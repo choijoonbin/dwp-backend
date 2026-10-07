@@ -26,6 +26,7 @@ class ManagedDatabaseRoleControlPostgresTest {
     private static final String RUNTIME_PASSWORD = "managed_role_runtime_password";
     private static final String OWNER = "dwp_approval_retention_owner";
     private static final String EXECUTOR = "dwp_approval_retention_executor";
+    private static final String AUDIT_RELAY = "dwp_approval_audit_relay";
 
     @Container
     private static final PostgreSQLContainer<?> POSTGRES = new PostgreSQLContainer<>(
@@ -104,6 +105,7 @@ class ManagedDatabaseRoleControlPostgresTest {
                     assertTrue(hasRole(bootstrap, MIGRATION, OWNER, "USAGE"));
                     assertTrue(hasRole(bootstrap, MIGRATION, OWNER, "SET"));
                     assertFalse(hasRole(bootstrap, MIGRATION, EXECUTOR, "MEMBER"));
+                    assertFalse(hasRole(bootstrap, MIGRATION, AUDIT_RELAY, "MEMBER"));
                     DatabaseControl.execute(migration,
                             "CREATE TABLE public.managed_role_authority_probe(id bigint)");
                     DatabaseControl.execute(migration,
@@ -127,6 +129,7 @@ class ManagedDatabaseRoleControlPostgresTest {
             assertFalse(hasSchemaPrivilege(bootstrap, OWNER, "public", "CREATE"));
             assertStrictNoLogin(bootstrap, OWNER);
             assertStrictNoLogin(bootstrap, EXECUTOR);
+            assertStrictNoLogin(bootstrap, AUDIT_RELAY);
         }
     }
 
@@ -200,8 +203,12 @@ class ManagedDatabaseRoleControlPostgresTest {
                 }
                 assertTrue(hasSchemaPrivilege(bootstrap, OWNER, "public", "USAGE"));
                 assertTrue(hasSchemaPrivilege(bootstrap, EXECUTOR, "public", "USAGE"));
+                assertTrue(hasSchemaPrivilege(
+                        bootstrap, AUDIT_RELAY, "public", "USAGE"));
                 assertFalse(hasSchemaPrivilege(bootstrap, OWNER, "public", "CREATE"));
                 assertFalse(hasSchemaPrivilege(bootstrap, EXECUTOR, "public", "CREATE"));
+                assertFalse(hasSchemaPrivilege(
+                        bootstrap, AUDIT_RELAY, "public", "CREATE"));
                 assertDoesNotThrow(() -> ManagedDatabaseRoleControl.requireFinalSchemaUsage(
                         bootstrap, environment));
                 IllegalStateException missingMigrationOwnedRoutine = assertThrows(
@@ -211,7 +218,8 @@ class ManagedDatabaseRoleControlPostgresTest {
                         "system_sla_witness_canonical_json"));
             } finally {
                 DatabaseControl.execute(bootstrap,
-                        "REVOKE ALL ON SCHEMA public FROM " + OWNER + "," + EXECUTOR);
+                        "REVOKE ALL ON SCHEMA public FROM " + OWNER + "," + EXECUTOR
+                                + "," + AUDIT_RELAY);
             }
         }
     }
@@ -277,7 +285,8 @@ class ManagedDatabaseRoleControlPostgresTest {
                 assertCapabilityClosed(bootstrap, true);
             } finally {
                 DatabaseControl.execute(bootstrap,
-                        "REVOKE ALL ON SCHEMA public FROM " + OWNER + "," + EXECUTOR);
+                        "REVOKE ALL ON SCHEMA public FROM " + OWNER + "," + EXECUTOR
+                                + "," + AUDIT_RELAY);
                 DatabaseControl.execute(bootstrap,
                         "DROP SCHEMA IF EXISTS apr_retention_internal CASCADE");
                 DatabaseControl.execute(bootstrap,

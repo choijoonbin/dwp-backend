@@ -36,13 +36,12 @@ public class CalendarRepository {
         this.rows = new CalendarRowMapper(objectMapper);
         this.invitationResponses = new CalendarInvitationResponseRepository(jdbc);
     }
-
     PolicyRow policy(Long tenantId) {
-        return jdbc.query(CalendarSql01.POLICY_SELECT_CAL_TENANT_POLICIES, (result, ignored) -> rows.policy(result), tenantId).stream()
+        return jdbc.query(CalendarSql01.POLICY_SELECT_CAL_TENANT_POLICIES, (result, ignored) ->
+                        rows.policy(result, PolicyRow::new), tenantId).stream()
                 .findFirst()
-                .orElseGet(CalendarRowMapper::defaultPolicy);
+                .orElseGet(() -> CalendarRowMapper.defaultPolicy(PolicyRow::new));
     }
-
     int updatePolicy(Long tenantId, Long actorId, CalendarDtos.PolicyRequest value) {
         return jdbc.update(CalendarSql01.UPDATE_POLICY_UPDATE_CAL_TENANT_POLICIES, value.weekStart(), value.workingDayStart(), value.workingDayEnd(),
                 value.defaultEventMinutes(), value.minimumEventMinutes(),
@@ -51,7 +50,6 @@ public class CalendarRepository {
                 value.dailyMeetingLimitMinutes(), value.enforceMeetingAgenda(),
                 value.allowExternalAttendees(), actorId, tenantId, value.version());
     }
-
     List<CalendarRow> calendars(
             Long tenantId, Long userId, UUID personPublicId, boolean korean) {
         return calendars(tenantId, userId, personPublicId, null, korean);
@@ -113,7 +111,7 @@ public class CalendarRepository {
             boolean korean) {
         return jdbc.query(
                 CalendarSql01.VISIBLE_EVENTS_SELECT_CAL_EVENTS,
-                (result, ignored) -> rows.event(result),
+                (result, ignored) -> rows.event(result, ResourceRow::new, EventRow::new),
                 userId, personPublicId, CalendarVerifiedGroups.databaseArray(verifiedGroupRefs),
                 korean, korean, tenantId, to, from, to, from);
     }
@@ -333,9 +331,11 @@ public class CalendarRepository {
             boolean korean,
             boolean includeRetired) {
         Set<UUID> closed = WorkplaceExperienceCalendarClosureBridge.closedResources(jdbc, tenantId, from, to);
-        return jdbc.query(CalendarSql01.RESOURCES_SELECT_CAL_RESOURCE_BOOKINGS, (result, ignored) -> rows.closureAvailability(rows.resource(result), closed), korean, to, to, to, from, tenantId, includeRetired);
+        return jdbc.query(CalendarSql01.RESOURCES_SELECT_CAL_RESOURCE_BOOKINGS, (result, ignored) ->
+                rows.closureAvailability(rows.resource(result, ResourceRow::new), closed,
+                        ResourceRow::new),
+                korean, to, to, to, from, tenantId, includeRetired);
     }
-
     Optional<ResourceRow> resource(Long tenantId, UUID resourceId, boolean korean) {
         OffsetDateTime now = OffsetDateTime.now();
         return resources(tenantId, now, now.plusMinutes(1), korean, true).stream()
@@ -649,7 +649,7 @@ public class CalendarRepository {
             boolean approvalRequired,
             ResourceState state,
             boolean available,
-            long version) {
+            long version) implements CalendarResourceView {
     }
 
     record BookingRow(

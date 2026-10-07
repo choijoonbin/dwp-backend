@@ -1465,7 +1465,6 @@ class AppAdminPresetPostgresIntegrationTest {
     private void grantTenantAdmin(Long tenantId, Long userId) {
         grantRole(tenantId, userId, "TENANT_ADMIN");
     }
-
     private void grantRole(Long tenantId, Long userId, String roleCode) {
         Long roleId = jdbc.queryForObject("""
                 INSERT INTO com_roles (
@@ -1477,6 +1476,7 @@ class AppAdminPresetPostgresIntegrationTest {
                 ON CONFLICT (tenant_id, code) DO UPDATE SET status = 'ACTIVE'
                 RETURNING role_id
                 """, Long.class, tenantId, roleCode);
+        AppAdminPresetCatalogAuthorityFixture.materialize(jdbc, tenantId, roleId, roleCode);
         jdbc.update("""
                 INSERT INTO com_role_members (tenant_id, role_id, user_id)
                 VALUES (?, ?, ?) ON CONFLICT DO NOTHING

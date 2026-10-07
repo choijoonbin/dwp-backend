@@ -16,15 +16,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** Product contracts for the complete Mail user and administrator workspaces. */
+/** Product contracts for the complete Mail user and administrator workspaces.
+ *
+ * <p>Nested contracts remain declared by this class to preserve their published JVM names.
+ * Record headers use a compact layout so this API catalog stays within the source-size budget.
+ */
 public final class MailWorkspaceDtos {
 
     private MailWorkspaceDtos() {
     }
 
     public record Recipient(
-            @NotNull RecipientType type,
-            @Size(max = 160) String name,
+            @NotNull RecipientType type, @Size(max = 160) String name,
             @NotBlank @Email @Size(max = 255) String email) {
     }
 
@@ -33,63 +36,38 @@ public final class MailWorkspaceDtos {
     public enum AssetScope { PERSONAL, ACCOUNT, ORGANIZATION }
 
     public record Attachment(
-            UUID attachmentId,
-            String fileName,
-            String contentType,
-            long sizeBytes,
-            String scanState,
-            long version,
-            OffsetDateTime createdAt) {
+            UUID attachmentId, String fileName, String contentType, long sizeBytes,
+            String scanState, long version, OffsetDateTime createdAt) {
     }
 
     public record ComposeCapabilities(
-            boolean multipleRecipients,
-            boolean cc,
-            boolean bcc,
-            boolean html,
-            boolean attachments,
-            boolean scheduling,
-            long maximumAttachmentBytes,
+            boolean multipleRecipients, boolean cc, boolean bcc, boolean html, boolean attachments,
+            boolean scheduling, long maximumAttachmentBytes,
             MailConnectorPort.SenderMode senderMode) {
     }
 
     public record ComposeContext(
-            List<MailDtos.AccountSummary> accounts,
-            ComposeCapabilities capabilities,
+            List<MailDtos.AccountSummary> accounts, ComposeCapabilities capabilities,
             Map<UUID, ComposeCapabilities> accountCapabilities,
-            Map<UUID, MailDtos.AccountReadiness> accountReadiness,
-            List<Template> templates,
-            List<Signature> signatures,
-            Preferences preferences,
-            Map<String, String> variables,
+            Map<UUID, MailDtos.AccountReadiness> accountReadiness, List<Template> templates,
+            List<Signature> signatures, Preferences preferences, Map<String, String> variables,
             OffsetDateTime generatedAt) {
     }
 
     public record ComposeOptions(
-            UUID accountId,
-            @NotNull @Size(max = 500) List<@Valid Recipient> recipients,
-            @NotNull BodyFormat bodyFormat,
-            @NotNull @Size(max = 100) List<UUID> attachmentIds,
-            OffsetDateTime scheduledAt,
-            @Size(max = 80) String timeZone,
-            UUID templateId,
+            UUID accountId, @NotNull @Size(max = 500) List<@Valid Recipient> recipients,
+            @NotNull BodyFormat bodyFormat, @NotNull @Size(max = 100) List<UUID> attachmentIds,
+            OffsetDateTime scheduledAt, @Size(max = 80) String timeZone, UUID templateId,
             UUID signatureId) {
     }
 
     public record AdvancedComposeRequest(
-            UUID accountId,
-            @NotEmpty @Size(max = 500) List<@Valid Recipient> recipients,
-            @NotBlank @Size(max = 500) String subject,
-            @NotBlank @Size(max = 100_000) String body,
-            @NotNull BodyFormat bodyFormat,
-            @NotNull @Size(max = 100) List<UUID> attachmentIds,
-            OffsetDateTime scheduleAt,
-            @Size(max = 80) String timeZone,
-            UUID templateId,
-            UUID signatureId,
-            @NotNull MailTypes.Classification classification,
-            @NotNull Boolean externalRecipientConfirmed,
-            @NotNull UUID idempotencyKey) {
+            UUID accountId, @NotEmpty @Size(max = 500) List<@Valid Recipient> recipients,
+            @NotBlank @Size(max = 500) String subject, @NotBlank @Size(max = 100_000) String body,
+            @NotNull BodyFormat bodyFormat, @NotNull @Size(max = 100) List<UUID> attachmentIds,
+            OffsetDateTime scheduleAt, @Size(max = 80) String timeZone, UUID templateId,
+            UUID signatureId, @NotNull MailTypes.Classification classification,
+            @NotNull Boolean externalRecipientConfirmed, @NotNull UUID idempotencyKey) {
 
         public AdvancedComposeRequest(
                 UUID accountId,
@@ -110,211 +88,107 @@ public final class MailWorkspaceDtos {
     }
 
     public record AdvancedComposeResult(
-            MailDtos.ThreadDetail thread,
-            DeliveryReceipt receipt) {
+            MailDtos.ThreadDetail thread, DeliveryReceipt receipt) {
     }
 
     public record SearchCriteria(
-            String query,
-            UUID accountId,
-            String scope,
-            String from,
-            String to,
-            LocalDate dateFrom,
-            LocalDate dateTo,
-            Boolean unread,
-            Boolean needsReply,
-            Boolean hasAttachment,
-            UUID folderId,
-            String state,
-            String lane) {
+            String query, UUID accountId, String scope, String from, String to, LocalDate dateFrom,
+            LocalDate dateTo, Boolean unread, Boolean needsReply, Boolean hasAttachment,
+            UUID folderId, String state, String lane) {
     }
 
     public record SavedView(
-            UUID savedViewId,
-            String name,
-            SearchCriteria criteria,
-            int sortOrder,
-            boolean defaultView,
-            long version,
-            OffsetDateTime createdAt,
-            OffsetDateTime updatedAt) {
+            UUID savedViewId, String name, SearchCriteria criteria, int sortOrder,
+            boolean defaultView, long version, OffsetDateTime createdAt, OffsetDateTime updatedAt) {
     }
 
     public record SavedViewRequest(
-            @NotBlank @Size(max = 160) String name,
-            @NotNull @Valid SearchCriteria criteria,
-            @Min(0) @Max(1000) Integer sortOrder,
-            Boolean defaultView,
-            @Min(0) Long version) {
+            @NotBlank @Size(max = 160) String name, @NotNull @Valid SearchCriteria criteria,
+            @Min(0) @Max(1000) Integer sortOrder, Boolean defaultView, @Min(0) Long version) {
     }
 
     public record FollowUp(
-            UUID followUpId,
-            UUID threadId,
-            String subject,
-            String participantName,
-            String participantEmail,
-            OffsetDateTime expectedReplyAt,
-            String timeZone,
-            String note,
-            String status,
-            OffsetDateTime lastCheckedAt,
-            long version) {
+            UUID followUpId, UUID threadId, String subject, String participantName,
+            String participantEmail, OffsetDateTime expectedReplyAt, String timeZone, String note,
+            String status, OffsetDateTime lastCheckedAt, long version) {
     }
 
     public record FollowUpRequest(
-            @NotNull OffsetDateTime expectedReplyAt,
-            @NotBlank @Size(max = 80) String timeZone,
-            @Size(max = 1000) String note,
-            @Min(0) Long version) {
+            @NotNull OffsetDateTime expectedReplyAt, @NotBlank @Size(max = 80) String timeZone,
+            @Size(max = 1000) String note, @Min(0) Long version) {
     }
 
     public record Template(
-            UUID templateId,
-            String name,
-            String subject,
-            String body,
-            BodyFormat bodyFormat,
-            AssetScope scope,
-            UUID accountId,
-            boolean editable,
-            String mandatoryContent,
-            String publicationState,
-            int publicationVersion,
-            boolean active,
-            long version,
+            UUID templateId, String name, String subject, String body, BodyFormat bodyFormat,
+            AssetScope scope, UUID accountId, boolean editable, String mandatoryContent,
+            String publicationState, int publicationVersion, boolean active, long version,
             OffsetDateTime updatedAt) {
     }
 
     public record TemplateRequest(
-            @NotBlank @Size(max = 160) String name,
-            @Size(max = 500) String subject,
-            @NotBlank @Size(max = 100_000) String body,
-            @NotNull BodyFormat bodyFormat,
-            @NotNull AssetScope scope,
-            UUID accountId,
-            @Min(0) Long version) {
+            @NotBlank @Size(max = 160) String name, @Size(max = 500) String subject,
+            @NotBlank @Size(max = 100_000) String body, @NotNull BodyFormat bodyFormat,
+            @NotNull AssetScope scope, UUID accountId, @Min(0) Long version) {
     }
 
     public record Signature(
-            UUID signatureId,
-            String name,
-            String body,
-            BodyFormat bodyFormat,
-            AssetScope scope,
-            UUID accountId,
-            boolean defaultForNew,
-            boolean defaultForReply,
-            boolean editable,
-            String mandatoryContent,
-            String publicationState,
-            int publicationVersion,
-            boolean active,
-            long version,
-            OffsetDateTime updatedAt) {
+            UUID signatureId, String name, String body, BodyFormat bodyFormat, AssetScope scope,
+            UUID accountId, boolean defaultForNew, boolean defaultForReply, boolean editable,
+            String mandatoryContent, String publicationState, int publicationVersion,
+            boolean active, long version, OffsetDateTime updatedAt) {
     }
 
     public record SignatureRequest(
-            @NotBlank @Size(max = 160) String name,
-            @NotBlank @Size(max = 50_000) String body,
-            @NotNull BodyFormat bodyFormat,
-            @NotNull AssetScope scope,
-            UUID accountId,
-            boolean defaultForNew,
-            boolean defaultForReply,
-            @Min(0) Long version) {
+            @NotBlank @Size(max = 160) String name, @NotBlank @Size(max = 50_000) String body,
+            @NotNull BodyFormat bodyFormat, @NotNull AssetScope scope, UUID accountId,
+            boolean defaultForNew, boolean defaultForReply, @Min(0) Long version) {
     }
 
     public record WritingAssets(List<Template> templates, List<Signature> signatures) {
     }
 
     public record Preferences(
-            String density,
-            String remoteImages,
-            int sendDelaySeconds,
-            boolean keyboardShortcuts,
-            boolean notifyNewMail,
-            boolean notifySharedAssignment,
-            boolean notifyFollowUpDue,
-            UUID defaultAccountId,
-            UUID defaultSignatureId,
-            Map<String, String> orgLocks,
+            String density, String remoteImages, int sendDelaySeconds, boolean keyboardShortcuts,
+            boolean notifyNewMail, boolean notifySharedAssignment, boolean notifyFollowUpDue,
+            UUID defaultAccountId, UUID defaultSignatureId, Map<String, String> orgLocks,
             long version) {
     }
 
     public record PreferencesRequest(
-            @NotBlank String density,
-            @NotBlank String remoteImages,
-            @Min(0) @Max(120) int sendDelaySeconds,
-            boolean keyboardShortcuts,
-            boolean notifyNewMail,
-            boolean notifySharedAssignment,
-            boolean notifyFollowUpDue,
-            UUID defaultAccountId,
-            UUID defaultSignatureId,
-            @NotNull @Min(0) Long version) {
+            @NotBlank String density, @NotBlank String remoteImages,
+            @Min(0) @Max(120) int sendDelaySeconds, boolean keyboardShortcuts,
+            boolean notifyNewMail, boolean notifySharedAssignment, boolean notifyFollowUpDue,
+            UUID defaultAccountId, UUID defaultSignatureId, @NotNull @Min(0) Long version) {
     }
 
     public record DeliverySummary(
-            UUID deliveryId,
-            UUID receiptId,
-            UUID threadId,
-            String subject,
-            String recipientSummary,
-            String accountName,
-            String kind,
-            OffsetDateTime requestedAt,
-            OffsetDateTime scheduledAt,
-            String state,
-            boolean canReschedule,
-            boolean canCancel,
-            boolean canReconcile,
+            UUID deliveryId, UUID receiptId, UUID threadId, String subject, String recipientSummary,
+            String accountName, String kind, OffsetDateTime requestedAt, OffsetDateTime scheduledAt,
+            String state, boolean canReschedule, boolean canCancel, boolean canReconcile,
             long version) {
     }
 
     public record DeliveryPage(
-            List<DeliverySummary> items,
-            long total,
-            int page,
-            int pageSize,
+            List<DeliverySummary> items, long total, int page, int pageSize,
             OffsetDateTime generatedAt) {
     }
 
     public record DeliveryTimeline(
-            String state,
-            OffsetDateTime occurredAt,
-            String description,
-            String source,
-            String evidenceState,
-            String code) {
+            String state, OffsetDateTime occurredAt, String description, String source,
+            String evidenceState, String code) {
     }
 
     public record DeliveryReceipt(
-            UUID deliveryId,
-            UUID receiptId,
-            UUID threadId,
-            String subject,
-            String recipientSummary,
-            String accountName,
-            String kind,
-            OffsetDateTime requestedAt,
-            OffsetDateTime scheduledAt,
-            String state,
-            boolean canReschedule,
-            boolean canCancel,
-            boolean canReconcile,
-            long version,
-            List<Recipient> recipients,
-            List<DeliveryTimeline> timeline,
-            OffsetDateTime lastCheckedAt,
-            List<Map<String, Object>> evidence,
+            UUID deliveryId, UUID receiptId, UUID threadId, String subject, String recipientSummary,
+            String accountName, String kind, OffsetDateTime requestedAt, OffsetDateTime scheduledAt,
+            String state, boolean canReschedule, boolean canCancel, boolean canReconcile,
+            long version, List<Recipient> recipients, List<DeliveryTimeline> timeline,
+            OffsetDateTime lastCheckedAt, List<Map<String, Object>> evidence,
             String retryEligibility) {
     }
 
     public record RescheduleRequest(
-            @NotNull OffsetDateTime scheduledAt,
-            @NotBlank @Size(max = 80) String timeZone,
+            @NotNull OffsetDateTime scheduledAt, @NotBlank @Size(max = 80) String timeZone,
             @NotNull @Min(0) Long version) {
     }
 
@@ -328,124 +202,70 @@ public final class MailWorkspaceDtos {
     }
 
     public record LifecyclePreview(
-            UUID threadId,
-            String action,
-            boolean allowed,
-            List<String> blockers,
-            UUID targetFolderId,
-            String targetFolderName,
-            int affectedCount,
-            long version) {
+            UUID threadId, String action, boolean allowed, List<String> blockers,
+            UUID targetFolderId, String targetFolderName, int affectedCount, long version) {
     }
 
     public record ProposalUpdateRequest(
-            @NotNull Map<String, Object> proposedPayload,
-            @NotNull @Min(0) Long version) {
+            @NotNull Map<String, Object> proposedPayload, @NotNull @Min(0) Long version) {
     }
 
     public record GroupSendReceipt(
-            UUID receiptId,
-            UUID groupId,
-            long groupVersion,
-            String recipientMode,
-            int recipientCount,
-            UUID threadId,
-            OffsetDateTime acceptedAt,
-            String state) {
+            UUID receiptId, UUID groupId, long groupVersion, String recipientMode,
+            int recipientCount, UUID threadId, OffsetDateTime acceptedAt, String state) {
     }
 
     /* Administrator operations */
 
     public record AdminSourceEvidence(
-            String sourceId,
-            String state,
-            OffsetDateTime observedAt,
-            String errorCode) {
+            String sourceId, String state, OffsetDateTime observedAt, String errorCode) {
     }
 
     public record AdminException(
-            String exceptionId,
-            String kind,
-            String severity,
-            String safeResourceRef,
-            Integer impactCount,
-            OffsetDateTime lastObservedAt,
-            String correlationId,
+            String exceptionId, String kind, String severity, String safeResourceRef,
+            Integer impactCount, OffsetDateTime lastObservedAt, String correlationId,
             String nextAction) {
     }
 
     public record AdminCommandAudit(
-            UUID auditId,
-            String commandType,
-            String safeResourceRef,
-            String actorName,
-            String result,
-            OffsetDateTime occurredAt,
-            String correlationId) {
+            UUID auditId, String commandType, String safeResourceRef, String actorName,
+            String result, OffsetDateTime occurredAt, String correlationId) {
     }
 
     public record AdminOperationsSnapshot(
-            OffsetDateTime generatedAt,
-            List<AdminSourceEvidence> sources,
-            List<AdminException> exceptions,
-            List<AdminCommandAudit> commands) {
+            OffsetDateTime generatedAt, List<AdminSourceEvidence> sources,
+            List<AdminException> exceptions, List<AdminCommandAudit> commands) {
     }
 
     public record ConnectionOperationRequest(
-            String capability,
-            String scope,
-            @Email String recipient,
-            Boolean confirmedExternalImpact,
-            @NotNull UUID idempotencyKey,
+            String capability, String scope, @Email String recipient,
+            Boolean confirmedExternalImpact, @NotNull UUID idempotencyKey,
             @NotNull @Min(0) Long version) {
     }
 
     public record ConnectionOperation(
-            UUID operationId,
-            UUID connectionId,
-            String kind,
-            String state,
-            OffsetDateTime acceptedAt,
-            OffsetDateTime completedAt,
-            String correlationId,
-            OffsetDateTime evidenceGeneratedAt,
-            String errorCode,
-            boolean replayed) {
+            UUID operationId, UUID connectionId, String kind, String state,
+            OffsetDateTime acceptedAt, OffsetDateTime completedAt, String correlationId,
+            OffsetDateTime evidenceGeneratedAt, String errorCode, boolean replayed) {
     }
 
     public record AccessPermissions(
-            boolean read,
-            boolean sendAs,
-            boolean sendOnBehalf,
-            boolean assign,
-            boolean manage) {
+            boolean read, boolean sendAs, boolean sendOnBehalf, boolean assign, boolean manage) {
     }
 
     public record SharedInboxAccessMember(
-            UUID memberId,
-            Long userId,
-            String displayName,
-            String department,
-            String state,
-            OffsetDateTime expiresAt,
-            AccessPermissions permissions,
-            String providerState,
+            UUID memberId, Long userId, String displayName, String department, String state,
+            OffsetDateTime expiresAt, AccessPermissions permissions, String providerState,
             long version) {
     }
 
     public record SharedInboxAccess(
-            UUID sharedInboxId,
-            long version,
-            String providerState,
-            List<SharedInboxAccessMember> members,
-            AccessImpact impact) {
+            UUID sharedInboxId, long version, String providerState,
+            List<SharedInboxAccessMember> members, AccessImpact impact) {
     }
 
     public record SharedInboxMemberCandidate(
-            Long userId,
-            String displayName,
-            String department,
-            String email) {
+            Long userId, String displayName, String department, String email) {
     }
 
     public record AccessImpact(int activeAssignments, int openDrafts,
@@ -453,21 +273,15 @@ public final class MailWorkspaceDtos {
     }
 
     public record SharedInboxMemberRequest(
-            @NotNull Long userId,
-            @Size(max = 160) String displayName,
-            @Size(max = 160) String department,
-            @NotNull @Valid AccessPermissions permissions,
-            OffsetDateTime expiresAt,
-            boolean impactAcknowledged,
-            @NotNull UUID idempotencyKey,
+            @NotNull Long userId, @Size(max = 160) String displayName,
+            @Size(max = 160) String department, @NotNull @Valid AccessPermissions permissions,
+            OffsetDateTime expiresAt, boolean impactAcknowledged, @NotNull UUID idempotencyKey,
             @NotNull @Min(0) Long version) {
     }
 
     public record SharedInboxMemberRevokeRequest(
-            @NotNull UUID previewId,
-            @NotBlank @Size(min = 64, max = 64) String fingerprint,
-            boolean impactAcknowledged,
-            @NotNull UUID idempotencyKey,
+            @NotNull UUID previewId, @NotBlank @Size(min = 64, max = 64) String fingerprint,
+            boolean impactAcknowledged, @NotNull UUID idempotencyKey,
             @NotNull @Min(0) Long version) {
     }
 
@@ -476,36 +290,17 @@ public final class MailWorkspaceDtos {
     }
 
     public record SharedInboxMemberRevokePreview(
-            UUID previewId,
-            String fingerprint,
-            int activeAssignments,
-            int openDrafts,
-            int pendingCommands,
-            boolean providerRevocationRequired,
-            long memberVersion,
-            OffsetDateTime generatedAt,
-            OffsetDateTime expiresAt) {
+            UUID previewId, String fingerprint, int activeAssignments, int openDrafts,
+            int pendingCommands, boolean providerRevocationRequired, long memberVersion,
+            OffsetDateTime generatedAt, OffsetDateTime expiresAt) {
     }
 
     public record PolicyEvidenceRow(
-            String policyKey,
-            String configuredValue,
-            String effectiveValue,
-            String effectiveState,
-            String scope,
-            String evidenceSource,
-            OffsetDateTime evidenceAt,
-            String errorCode,
-            String domain,
-            String contentKind,
-            String inheritanceState,
-            Boolean locked,
-            String lockSource,
-            Integer exceptionCount,
-            String exceptionState,
-            List<String> targetApps,
-            List<String> dataScopes,
-            String externalTransferState,
+            String policyKey, String configuredValue, String effectiveValue, String effectiveState,
+            String scope, String evidenceSource, OffsetDateTime evidenceAt, String errorCode,
+            String domain, String contentKind, String inheritanceState, Boolean locked,
+            String lockSource, Integer exceptionCount, String exceptionState,
+            List<String> targetApps, List<String> dataScopes, String externalTransferState,
             String reviewRequirement) {
         public PolicyEvidenceRow(
                 String policyKey, String configuredValue, String effectiveValue,
@@ -519,18 +314,9 @@ public final class MailWorkspaceDtos {
     }
 
     public record PolicyHistory(
-            UUID historyId,
-            long version,
-            String changedBy,
-            OffsetDateTime changedAt,
-            String diffSummary,
-            String result,
-            String correlationId,
-            String requestedBy,
-            String approvedBy,
-            OffsetDateTime appliedAt,
-            String failureCode,
-            String recoveryState,
+            UUID historyId, long version, String changedBy, OffsetDateTime changedAt,
+            String diffSummary, String result, String correlationId, String requestedBy,
+            String approvedBy, OffsetDateTime appliedAt, String failureCode, String recoveryState,
             String recoveryRef) {
         public PolicyHistory(
                 UUID historyId, long version, String changedBy,
@@ -545,30 +331,18 @@ public final class MailWorkspaceDtos {
     }
 
     public record PolicyApprovalEvidence(
-            UUID evidenceId,
-            long policyVersion,
-            String state,
-            String requestedBy,
-            String approvedBy,
-            OffsetDateTime decidedAt,
-            String evidenceSource) {
+            UUID evidenceId, long policyVersion, String state, String requestedBy,
+            String approvedBy, OffsetDateTime decidedAt, String evidenceSource) {
     }
 
     public record PolicyRecoveryEvidence(
-            UUID historyId,
-            long policyVersion,
-            String state,
-            String failureCode,
-            String recoveryRef,
-            OffsetDateTime observedAt) {
+            UUID historyId, long policyVersion, String state, String failureCode,
+            String recoveryRef, OffsetDateTime observedAt) {
     }
 
     public record PolicyGovernance(
-            OffsetDateTime generatedAt,
-            long policyVersion,
-            List<PolicyEvidenceRow> rows,
-            List<PolicyHistory> history,
-            Map<String, List<PolicyEvidenceRow>> domains,
+            OffsetDateTime generatedAt, long policyVersion, List<PolicyEvidenceRow> rows,
+            List<PolicyHistory> history, Map<String, List<PolicyEvidenceRow>> domains,
             List<PolicyApprovalEvidence> approvalEvidence,
             List<PolicyRecoveryEvidence> recoveryHistory) {
         public PolicyGovernance(
@@ -579,269 +353,158 @@ public final class MailWorkspaceDtos {
     }
 
     public record ResourceRetentionPolicy(
-            String resourceType,
-            int configuredDays,
-            Integer effectiveDays,
-            String source,
+            String resourceType, int configuredDays, Integer effectiveDays, String source,
             String evidenceState) {
     }
 
     public record LegalHold(
-            UUID holdId,
-            String name,
-            String safeCaseRef,
-            Map<String, Object> scope,
-            String status,
-            OffsetDateTime startsAt,
-            OffsetDateTime expiresAt,
-            long version) {
+            UUID holdId, String name, String safeCaseRef, Map<String, Object> scope, String status,
+            OffsetDateTime startsAt, OffsetDateTime expiresAt, long version) {
     }
 
     public record LegalHoldRequest(
-            @NotBlank @Size(max = 200) String name,
-            @NotBlank @Size(max = 240) String safeCaseRef,
-            @NotNull Map<String, Object> scope,
-            @NotNull OffsetDateTime startsAt,
-            OffsetDateTime expiresAt,
-            @NotNull UUID idempotencyKey,
-            @Min(0) Long version) {
+            @NotBlank @Size(max = 200) String name, @NotBlank @Size(max = 240) String safeCaseRef,
+            @NotNull Map<String, Object> scope, @NotNull OffsetDateTime startsAt,
+            OffsetDateTime expiresAt, @NotNull UUID idempotencyKey, @Min(0) Long version) {
     }
 
     public record LegalHoldReleasePreviewRequest(
-            @NotNull UUID idempotencyKey,
-            @NotNull @Min(0) Long holdVersion,
+            @NotNull UUID idempotencyKey, @NotNull @Min(0) Long holdVersion,
             @NotNull @Min(0) Long policyVersion) {
     }
 
     public record LegalHoldReleaseImpact(
-            Map<String, Long> affectedResourceCounts,
-            Map<String, Long> currentlyHeldResourceCounts,
+            Map<String, Long> affectedResourceCounts, Map<String, Long> currentlyHeldResourceCounts,
             Map<String, Long> purgeSafeAfterReleaseResourceCounts,
             Map<String, Long> stillProtectedAfterReleaseResourceCounts,
             Map<String, Long> providerCapabilityRequiredResourceCounts) {
     }
 
     public record LegalHoldReleaseApproval(
-            UUID approvalId,
-            UUID releasePreviewId,
-            long approverUserId,
-            String decision,
-            long holdVersion,
-            long policyVersion,
-            OffsetDateTime decidedAt) {
+            UUID approvalId, UUID releasePreviewId, long approverUserId, String decision,
+            long holdVersion, long policyVersion, OffsetDateTime decidedAt) {
     }
 
     public record LegalHoldReleasePreview(
-            UUID releasePreviewId,
-            UUID holdId,
-            long requesterUserId,
-            long holdVersion,
-            long policyVersion,
-            Map<String, Object> holdScope,
-            OffsetDateTime retentionBoundary,
-            String fingerprint,
-            LegalHoldReleaseImpact impact,
-            String state,
-            int distinctApproverCount,
-            List<LegalHoldReleaseApproval> approvals,
-            OffsetDateTime generatedAt,
-            OffsetDateTime expiresAt) {
+            UUID releasePreviewId, UUID holdId, long requesterUserId, long holdVersion,
+            long policyVersion, Map<String, Object> holdScope, OffsetDateTime retentionBoundary,
+            String fingerprint, LegalHoldReleaseImpact impact, String state,
+            int distinctApproverCount, List<LegalHoldReleaseApproval> approvals,
+            OffsetDateTime generatedAt, OffsetDateTime expiresAt) {
     }
 
     public record LegalHoldReleaseApprovalRequest(
-            @NotBlank String decision,
-            @NotNull UUID idempotencyKey,
+            @NotBlank String decision, @NotNull UUID idempotencyKey,
             @NotBlank @Size(min = 64, max = 64) String fingerprint,
-            @NotNull @Min(0) Long holdVersion,
-            @NotNull @Min(0) Long policyVersion) {
+            @NotNull @Min(0) Long holdVersion, @NotNull @Min(0) Long policyVersion) {
     }
 
     public record LegalHoldReleaseExecuteRequest(
-            @NotNull UUID idempotencyKey,
-            @NotBlank @Size(min = 64, max = 64) String fingerprint,
-            @NotNull @Min(0) Long holdVersion,
-            @NotNull @Min(0) Long policyVersion) {
+            @NotNull UUID idempotencyKey, @NotBlank @Size(min = 64, max = 64) String fingerprint,
+            @NotNull @Min(0) Long holdVersion, @NotNull @Min(0) Long policyVersion) {
     }
 
     public record LegalHoldReleaseExecution(
-            UUID executionId,
-            UUID releasePreviewId,
-            UUID holdId,
-            long requesterUserId,
-            long approvedByUserId,
-            long executedByUserId,
-            long policyVersion,
-            String fingerprint,
-            LegalHold hold,
-            OffsetDateTime executedAt,
-            boolean replayed) {
+            UUID executionId, UUID releasePreviewId, UUID holdId, long requesterUserId,
+            long approvedByUserId, long executedByUserId, long policyVersion, String fingerprint,
+            LegalHold hold, OffsetDateTime executedAt, boolean replayed) {
     }
 
     public record PurgeJob(
-            UUID jobId,
-            UUID candidateSnapshotId,
-            String state,
-            int deletedThreads,
-            int deletedMessages,
-            List<Map<String, Object>> stepResults,
-            String verificationState,
-            String errorCode,
-            OffsetDateTime startedAt,
-            OffsetDateTime completedAt) {
+            UUID jobId, UUID candidateSnapshotId, String state, int deletedThreads,
+            int deletedMessages, List<Map<String, Object>> stepResults, String verificationState,
+            String errorCode, OffsetDateTime startedAt, OffsetDateTime completedAt) {
     }
 
     public record RetentionSnapshot(
-            OffsetDateTime generatedAt,
-            long policyVersion,
-            List<ResourceRetentionPolicy> resourcePolicies,
-            List<LegalHold> holds,
+            OffsetDateTime generatedAt, long policyVersion,
+            List<ResourceRetentionPolicy> resourcePolicies, List<LegalHold> holds,
             List<PurgeJob> purgeJobs) {
     }
 
     public record PurgePreviewRequest(
-            @NotNull Map<String, Object> scope,
-            @NotEmpty List<String> resourceTypes,
-            @NotNull OffsetDateTime before,
-            @NotNull UUID idempotencyKey,
+            @NotNull Map<String, Object> scope, @NotEmpty List<String> resourceTypes,
+            @NotNull OffsetDateTime before, @NotNull UUID idempotencyKey,
             @NotNull @Min(0) Long policyVersion) {
     }
 
     public record PurgePreview(
-            UUID candidateSnapshotId,
-            String fingerprint,
-            int totalCandidates,
-            int heldCount,
-            int eligibleCount,
-            List<String> partialSources,
-            OffsetDateTime generatedAt,
-            OffsetDateTime expiresAt,
-            long policyVersion,
-            int distinctApproverCount,
-            Map<String, Long> resourceCounts,
-            List<String> resourceTypes,
-            Map<String, Object> scope,
-            OffsetDateTime before,
-            Map<String, Long> heldResourceCounts,
+            UUID candidateSnapshotId, String fingerprint, int totalCandidates, int heldCount,
+            int eligibleCount, List<String> partialSources, OffsetDateTime generatedAt,
+            OffsetDateTime expiresAt, long policyVersion, int distinctApproverCount,
+            Map<String, Long> resourceCounts, List<String> resourceTypes, Map<String, Object> scope,
+            OffsetDateTime before, Map<String, Long> heldResourceCounts,
             Map<String, Long> exclusionReasonCounts) {
     }
 
     public record PurgeApprovalRequest(
-            @NotBlank String decision,
-            @NotNull UUID idempotencyKey,
+            @NotBlank String decision, @NotNull UUID idempotencyKey,
             @NotNull @Min(0) Long policyVersion) {
     }
 
     public record PurgeApproval(
-            UUID approvalId,
-            UUID candidateSnapshotId,
-            int distinctApproverCount,
-            long policyVersion,
-            OffsetDateTime approvedAt) {
+            UUID approvalId, UUID candidateSnapshotId, int distinctApproverCount,
+            long policyVersion, OffsetDateTime approvedAt) {
     }
 
     public record PurgeExecuteRequest(
-            @NotNull UUID idempotencyKey,
-            @NotNull @Min(0) Long policyVersion,
+            @NotNull UUID idempotencyKey, @NotNull @Min(0) Long policyVersion,
             @NotBlank @Size(min = 64, max = 64) String fingerprint) {
     }
 
     public record DeliveryAuditTimeline(
-            String stage,
-            String state,
-            OffsetDateTime at,
-            String source,
-            String evidenceState,
+            String stage, String state, OffsetDateTime at, String source, String evidenceState,
             String code) {
     }
 
     public record DeliveryAuditItem(
-            UUID deliveryId,
-            String safeResourceRef,
-            String commandType,
-            String actorName,
-            String accountName,
-            String providerType,
-            String stage,
-            String state,
-            String retryEligibility,
-            String providerDisposition,
-            String idempotencyState,
-            boolean reconcileCapability,
-            boolean cancelCapability,
-            OffsetDateTime lastEvidenceAt,
-            String correlationId,
-            List<DeliveryAuditTimeline> timeline,
-            long version) {
+            UUID deliveryId, String safeResourceRef, String commandType, String actorName,
+            String accountName, String providerType, String stage, String state,
+            String retryEligibility, String providerDisposition, String idempotencyState,
+            boolean reconcileCapability, boolean cancelCapability, OffsetDateTime lastEvidenceAt,
+            String correlationId, List<DeliveryAuditTimeline> timeline, long version) {
     }
 
     public record DeliveryAuditPage(
-            List<DeliveryAuditItem> items,
-            long total,
-            int page,
-            int pageSize,
+            List<DeliveryAuditItem> items, long total, int page, int pageSize,
             OffsetDateTime generatedAt) {
     }
 
     public record DeliveryRecoveryRequest(
-            @NotNull UUID idempotencyKey,
-            @NotNull @Min(0) Long version) {
+            @NotNull UUID idempotencyKey, @NotNull @Min(0) Long version) {
     }
 
     public record DeliveryExportRequest(
-            @NotNull Map<String, Object> filters,
-            @NotBlank @Size(max = 500) String purpose,
+            @NotNull Map<String, Object> filters, @NotBlank @Size(max = 500) String purpose,
             @NotNull UUID idempotencyKey) {
     }
 
     public record EvidenceExportApprovalRequest(
-            @NotBlank String decision,
-            @NotNull UUID idempotencyKey) {
+            @NotBlank String decision, @NotNull UUID idempotencyKey) {
     }
 
     public record EvidenceExportApproval(
-            UUID approvalId,
-            long approverUserId,
-            String decision,
-            OffsetDateTime decidedAt) {
+            UUID approvalId, long approverUserId, String decision, OffsetDateTime decidedAt) {
     }
 
     public record DeliveryExport(
-            UUID exportId,
-            String state,
-            Map<String, Object> filters,
-            OffsetDateTime expiresAt,
-            String watermark,
-            Integer itemCount,
-            Boolean truncated,
-            String payloadSha256,
-            OffsetDateTime snapshotCutoff,
-            String downloadUrl,
-            String approvalState,
-            int requiredApprovals,
-            int distinctApproverCount,
+            UUID exportId, String state, Map<String, Object> filters, OffsetDateTime expiresAt,
+            String watermark, Integer itemCount, Boolean truncated, String payloadSha256,
+            OffsetDateTime snapshotCutoff, String downloadUrl, String approvalState,
+            int requiredApprovals, int distinctApproverCount,
             List<EvidenceExportApproval> approvals) {
     }
 
     public record RetentionEvidenceExportRequest(
-            @NotNull Map<String, Object> scope,
-            @NotBlank @Size(max = 500) String purpose,
-            @NotNull @Min(0) Long policyVersion,
-            @NotNull UUID idempotencyKey) {
+            @NotNull Map<String, Object> scope, @NotBlank @Size(max = 500) String purpose,
+            @NotNull @Min(0) Long policyVersion, @NotNull UUID idempotencyKey) {
     }
 
     public record RetentionEvidenceExport(
-            UUID exportId,
-            String state,
-            Map<String, Object> scope,
-            long policyVersion,
-            OffsetDateTime expiresAt,
-            String watermark,
-            String payloadSha256,
-            OffsetDateTime snapshotCutoff,
-            String downloadUrl,
-            String approvalState,
-            int requiredApprovals,
-            int distinctApproverCount,
+            UUID exportId, String state, Map<String, Object> scope, long policyVersion,
+            OffsetDateTime expiresAt, String watermark, String payloadSha256,
+            OffsetDateTime snapshotCutoff, String downloadUrl, String approvalState,
+            int requiredApprovals, int distinctApproverCount,
             List<EvidenceExportApproval> approvals) {
     }
 }

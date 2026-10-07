@@ -362,10 +362,6 @@ final class ProviderOperationsHealthRepository {
         return value == null ? null : value.toInstant();
     }
 
-    private boolean isResolved(String state) {
-        return "RESOLVED".equals(state) || "CLOSED".equals(state);
-    }
-
     private int severityOrder(String severity) {
         return switch (severity) {
             case "CRITICAL" -> 0;

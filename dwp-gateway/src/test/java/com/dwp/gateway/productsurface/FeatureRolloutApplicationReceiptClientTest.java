@@ -75,7 +75,7 @@ class FeatureRolloutApplicationReceiptClientTest {
                         Instant.parse("2026-09-17T06:00:00Z"),
                         true);
 
-        client.applied(41, decision, null).block();
+        client.applied(41, decision, (FeatureRolloutRequestMetadata) null).block();
     }
 
     @Test
@@ -92,6 +92,16 @@ class FeatureRolloutApplicationReceiptClientTest {
         assertThat(repeated).isEqualTo(first);
         assertThat(anotherTenant).isNotEqualTo(first);
         assertThat(anotherRevision).isNotEqualTo(first);
+    }
+
+    @Test
+    void preservesPublishedAppliedMethodDescriptor() throws Exception {
+        assertThat(FeatureRolloutApplicationReceiptClient.class.getDeclaredMethod(
+                "applied",
+                long.class,
+                FeatureRolloutDecisionCache.FlagDecision.class,
+                FeatureRolloutEvaluationClient.RequestMetadata.class).getReturnType())
+                .isEqualTo(Mono.class);
     }
 
     private FeatureRolloutDecisionCache.FlagDecision decision(String revision) {

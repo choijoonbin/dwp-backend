@@ -694,16 +694,4 @@ public class HomeViewService extends HomeViewServiceSupport {
         }
     }
 
-    private HomeViewConflictException deviceVersionConflict(
-            HomeView view, HomeViewDtos.UpdateDeviceLayoutRequest request,
-            HomeDeviceLayout latestLayout, List<String> changedFields) {
-        Long actualDeviceVersion = latestLayout == null ? null
-                : (latestLayout.getVersion() == null ? 0L : latestLayout.getVersion());
-        HomeViewDtos.DeviceLayoutResponse latestDeviceLayout = latestLayout == null ? null
-                : deviceResponse(latestLayout, version(view));
-        return HomeViewConflictFactory.device(
-                version(view), request, actualDeviceVersion, response(view),
-                latestDeviceLayout, changedFields);
-    }
-
 }

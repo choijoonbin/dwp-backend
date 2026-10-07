@@ -51,7 +51,7 @@ final class TenantLifecycleGovernance {
     }
 
     public TenantLifecycleRequestPage lifecycleRequests(UUID tenantId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.RESOURCE_READ);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.RESOURCE_READ);
         ProviderRequestContext.requirePermission("ESTATE_READ");
         List<TenantLifecycleRequestRow> rows = repository.lifecycleRequests(
                 tenantId, LIST_LIMIT + 1);
@@ -190,7 +190,8 @@ final class TenantLifecycleGovernance {
             UUID requestId,
             TenantLifecycleDecisionRequest request,
             String correlationId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.TENANT_LIFECYCLE_APPROVE);
+        ProviderRequestContext.requirePermission(
+                ResourceGovernancePermissions.TENANT_LIFECYCLE_APPROVE);
         ProviderRequestContext.requirePermission("ESTATE_READ");
         TenantLifecycleRequestRow before = repository.lockLifecycleRequest(requestId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
@@ -252,7 +253,7 @@ final class TenantLifecycleGovernance {
     }
     /** A write grant alone must not become a way to select an otherwise undisclosed tenant. */
     private void requireTenantSelectionWrite() {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.RESOURCE_WRITE);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.RESOURCE_WRITE);
         ProviderRequestContext.requirePermission("ESTATE_READ");
     }
     private BaseException conflict(String message) {

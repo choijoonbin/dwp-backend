@@ -43,7 +43,7 @@ final class ResourceCommitmentChangeGovernance {
     }
 
     public ResourceCommitmentChangePage resourceChanges(UUID tenantId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.RESOURCE_READ);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.RESOURCE_READ);
         ProviderRequestContext.requirePermission("ESTATE_READ");
         List<ResourceCommitmentChangeRow> rows = repository.resourceChanges(
                 tenantId, LIST_LIMIT + 1);
@@ -122,7 +122,7 @@ final class ResourceCommitmentChangeGovernance {
             UUID changeRequestId,
             ResourceCommitmentChangeDecisionRequest request,
             String correlationId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.RESOURCE_APPROVE);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.RESOURCE_APPROVE);
         ProviderRequestContext.requirePermission("ESTATE_READ");
         ResourceCommitmentChangeRow before = repository.lockResourceChange(changeRequestId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
@@ -423,7 +423,7 @@ final class ResourceCommitmentChangeGovernance {
     }
     /** A write grant alone must not become a way to select an otherwise undisclosed tenant. */
     private void requireTenantSelectionWrite() {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.RESOURCE_WRITE);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.RESOURCE_WRITE);
         ProviderRequestContext.requirePermission("ESTATE_READ");
     }
     private BigDecimal remaining(BigDecimal limit, BigDecimal committed) {

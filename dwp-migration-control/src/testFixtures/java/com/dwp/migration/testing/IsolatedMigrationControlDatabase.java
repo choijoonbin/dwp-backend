@@ -29,6 +29,7 @@ public final class IsolatedMigrationControlDatabase implements AutoCloseable {
     private static final String RUNTIME = "fixture_runtime";
     private static final String RETENTION_OWNER = "dwp_approval_retention_owner";
     private static final String RETENTION_SCHEMA = "apr_retention_internal";
+    private static final String SIGNATURE_SCHEMA = "apr_signature_native";
     private static final String RECEIPT_PREFIX = "DWP_MIGRATION_CONTROL_RECEIPT=";
     private final String bootstrapPassword = password();
     private final String migrationPassword = password();
@@ -211,7 +212,7 @@ public final class IsolatedMigrationControlDatabase implements AutoCloseable {
                 "approval-main",
                 "public",
                 "flyway_schema_history",
-                List.of("public", RETENTION_SCHEMA));
+                List.of("public", RETENTION_SCHEMA, SIGNATURE_SCHEMA));
     }
 
     private static String password() {

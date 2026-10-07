@@ -4,7 +4,7 @@
 표준 절차를 정의합니다. 전체 스택을 한 번에 실행할 때는 `./dev up full`을 사용합니다.
 
 - 상태: Active
-- 최종 검증일: 2026-08-12
+- 최종 검증일: 2026-10-07
 - 기준 소스: `settings.gradle`, `build.gradle`, `scripts/devctl.py`, 각 서비스의
   `application.yml`
 
@@ -77,12 +77,35 @@ DB_HOST=localhost;DB_PORT=5432;DB_USERNAME=dwp_user;DB_PASSWORD=dwp_password;RED
 | --- | --- |
 | Gateway | `SERVICE_AUTH_URL`, `SERVICE_PLATFORM_URL`, `SERVICE_PEOPLE_URL`, `SERVICE_PROVIDER_URL`, 각 서비스 Token |
 | Platform | `DWP_PLATFORM_SERVICE_TOKEN`, `DWP_PLATFORM_RUNTIME_SERVICE_TOKEN`, `DWP_WIDGET_REGISTRY_PROVIDER_TOKEN`, 감사·API 이력 수집 설정 |
-| People | `DWP_PEOPLE_SERVICE_TOKEN`, `DWP_PEOPLE_CURSOR_SECRET`, Identity Sync 설정 |
+| People | `DWP_PEOPLE_SERVICE_TOKEN`, `DWP_PEOPLE_CURSOR_SECRET`, Identity Sync 설정, 아래의 로컬 DB 경계 설정 |
 | Provider | `DWP_PROVIDER_SERVICE_TOKEN`, `DWP_WIDGET_REGISTRY_PROVIDER_TOKEN`, `DWP_PROVIDER_PROVISIONING_TOKEN`, `DWP_PROVIDER_SUPPORT_VALIDATION_TOKEN`, `DWP_PROVIDER_SUPPORT_COOKIE_SECURE=false` |
 | Auth | Redis 설정, `DWP_PROVIDER_PROVISIONING_TOKEN`, Identity Sync 설정 |
 
 로컬 비밀값은 개발 전용입니다. 운영 환경에서는 문서의 값을 재사용하지 않고 Secret
 Store에서 서비스별 독립 값을 주입합니다.
+
+### People 수동 실행의 로컬 DB 경계
+
+IntelliJ에서 `PeopleServerApplication`을 직접 실행할 때는 먼저 Supervisor가 로컬 전용
+runtime 역할과 ACL을 준비하도록 다음 순서를 한 번 실행합니다. `stop`은 애플리케이션만
+종료하고 PostgreSQL 볼륨과 준비된 역할·ACL은 유지합니다.
+
+```bash
+./dev up people
+./dev stop
+```
+
+그런 다음 People Run Configuration에 공통 설정과 함께 다음 값을 추가합니다.
+
+```text
+PEOPLE_DB_USERNAME=dwp_people_runtime;PEOPLE_DB_PASSWORD=dwp_password;DWP_PEOPLE_MIGRATION_PRINCIPAL_POLICY=LOCAL_LEGACY;DWP_SERVICE_INSTANCE=local;DWP_PEOPLE_FLYWAY_LOCATIONS=classpath:db/migration,classpath:db/local-seed;DWP_PEOPLE_LOCAL_SEED_ENABLED=true
+```
+
+`LOCAL_LEGACY`는 `dwp_user@dwp_people` migration principal과 분리된
+`dwp_people_runtime`을 사용하는 정확한 로컬 개발 환경에만 허용됩니다. 이 설정은
+strict 기동이나 검증·acceptance 환경의 Migration Control을 대체하지 않습니다. 해당
+환경에서는 `LOCAL_LEGACY`를 사용하거나 receipt를 수동으로 만들지 말고, 공식 Migration
+Control이 발급한 receipt, digest와 Control reference를 주입해야 합니다.
 
 ## 5. 실행 순서
 

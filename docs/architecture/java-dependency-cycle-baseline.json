@@ -17,6 +17,17 @@
       ]
     },
     {
+      "id": "gateway-feature-rollout-receipt-abi",
+      "owner": "gateway-product-surface",
+      "reason": "The receipt client retains its published RequestMetadata overload while the evaluation client invokes it after resolving an authoritative rollout decision.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.gateway.productsurface.FeatureRolloutApplicationReceiptClient",
+        "com.dwp.gateway.productsurface.FeatureRolloutEvaluationClient"
+      ]
+    },
+    {
       "id": "people-hr-repository-split",
       "owner": "people-hr",
       "reason": "Manually constructed HR persistence helpers use records owned by the public repository facade.",
@@ -57,17 +68,6 @@
       ]
     },
     {
-      "id": "platform-calendar-row-mapper",
-      "owner": "platform-calendar",
-      "reason": "The manually constructed row mapper creates records nested on the public calendar repository.",
-      "reviewBy": "2026-12-15",
-      "runtimeComponentCycle": false,
-      "members": [
-        "com.dwp.services.platform.calendar.CalendarRepository",
-        "com.dwp.services.platform.calendar.CalendarRowMapper"
-      ]
-    },
-    {
       "id": "platform-home-layout-deserializer",
       "owner": "platform-home",
       "reason": "Jackson's DTO annotation selects the deserializer and the deserializer necessarily constructs the annotated nested DTO contract.",
@@ -76,6 +76,17 @@
       "members": [
         "com.dwp.services.platform.home.preference.HomeLayoutPayloadDeserializer",
         "com.dwp.services.platform.home.preference.HomePreferenceDtos"
+      ]
+    },
+    {
+      "id": "platform-mail-workspace-dto-abi",
+      "owner": "platform-mail",
+      "reason": "Published workspace records retain MailDtos component descriptors while MailDtos retains workspace compose and attachment components.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.services.platform.mail.MailDtos",
+        "com.dwp.services.platform.mail.MailWorkspaceDtos"
       ]
     },
     {
@@ -90,6 +101,17 @@
       ]
     },
     {
+      "id": "platform-workplace-service-dto-abi",
+      "owner": "platform-workplace",
+      "reason": "Published operations records retain WorkplaceServicesDtos enum descriptors while service catalog records retain operations capacity contracts.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.services.platform.workplace.workplaceservices.WorkplaceServiceOperationsDtos",
+        "com.dwp.services.platform.workplace.workplaceservices.WorkplaceServicesDtos"
+      ]
+    },
+    {
       "id": "provider-operations-repository-split",
       "owner": "provider-operations",
       "reason": "The public repository manually owns package-private approval, health, incident and support helpers that return owner-nested records.",
@@ -101,6 +123,19 @@
         "com.dwp.services.provider.ProviderOperationsIncidentRepository",
         "com.dwp.services.provider.ProviderOperationsRepository",
         "com.dwp.services.provider.ProviderOperationsSupportRepository"
+      ]
+    },
+    {
+      "id": "provider-resource-governance-constructor-abi",
+      "owner": "provider-resource-governance",
+      "reason": "The public facade retains its published concrete JDBC constructor descriptor while the split repositories continue to use facade-owned immutable row contracts.",
+      "reviewBy": "2026-12-15",
+      "runtimeComponentCycle": false,
+      "members": [
+        "com.dwp.services.provider.resourcegovernance.ArtifactGovernanceJdbcRepository",
+        "com.dwp.services.provider.resourcegovernance.ResourceCommitmentJdbcRepository",
+        "com.dwp.services.provider.resourcegovernance.ResourceGovernanceRepository",
+        "com.dwp.services.provider.resourcegovernance.TenantLifecycleGovernanceJdbcRepository"
       ]
     },
     {

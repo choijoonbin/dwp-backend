@@ -18,12 +18,9 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.function.Function;
-import java.util.function.Supplier;
 
 @Service
 public class HrService {
@@ -36,6 +33,7 @@ public class HrService {
     private final AuditOutboxRecorder audit;
     private final HcmWorkspaceService workspaces;
     private final HrMailProposalOutcomeOperations mailProposalOutcomes;
+    private final HrHomeOverviewAssembler homeAssembler;
 
     @org.springframework.beans.factory.annotation.Autowired
     public HrService(
@@ -51,6 +49,7 @@ public class HrService {
         this.audit = audit;
         this.workspaces = workspaces;
         this.mailProposalOutcomes = mailProposalOutcomes;
+        this.homeAssembler = new HrHomeOverviewAssembler(repository);
     }
 
     HrService(
@@ -76,89 +75,9 @@ public class HrService {
 
     public HrDtos.HomeOverview home() {
         Context context = homeContext();
-        Long tenantId = context.actor().tenantId();
-        long workerId = context.worker().workerId();
-        HomeLoad<HrDtos.TimeCard> time = loadAuthorizedHomeDomain(
-                context.actor(),
-                "TIME", null,
-                () -> repository.currentTimeCard(tenantId, workerId, context.asOf()),
-                card -> card == null
-                        ? HrDtos.HomeDataOrigin.NONE
-                        : origin(card.dataOrigin()));
-        HomeLoad<List<HrDtos.LeaveBalance>> absence = loadAuthorizedHomeDomain(
-                context.actor(),
-                "ABSENCE", List.of(),
-                () -> repository.leaveBalances(tenantId, workerId, context.asOf()),
-                balances -> origins(balances.stream().map(HrDtos.LeaveBalance::dataOrigin).toList()));
-        HomeLoad<BenefitsHome> benefits = loadAuthorizedHomeDomain(
-                context.actor(),
-                "BENEFITS", new BenefitsHome(List.of(), 0),
-                () -> new BenefitsHome(
-                        repository.enrollmentWindows(tenantId, workerId),
-                        Math.toIntExact(repository.activeBenefits(tenantId, workerId))),
-                value -> value.windows().isEmpty() && value.activeCount() == 0
-                        ? HrDtos.HomeDataOrigin.NONE
-                        : HrDtos.HomeDataOrigin.UNKNOWN);
-        HomeLoad<HrDtos.PayCycle> pay = loadAuthorizedHomeDomain(
-                context.actor(),
-                "PAY", null,
-                () -> repository.nextPayCycle(tenantId, workerId),
-                cycle -> cycle == null
-                        ? HrDtos.HomeDataOrigin.NONE
-                        : origin(cycle.dataOrigin()));
-        HomeLoad<TalentHome> talent = loadAuthorizedHomeDomain(
-                context.actor(),
-                "TALENT", new TalentHome(List.of(), 0, 0),
-                () -> new TalentHome(
-                        repository.activeJourneys(tenantId, workerId),
-                        Math.toIntExact(repository.activeGoals(tenantId, workerId)),
-                        Math.toIntExact(repository.requiredLearning(tenantId, workerId))),
-                value -> value.journeys().isEmpty()
-                                && value.activeGoalCount() == 0
-                                && value.requiredLearningCount() == 0
-                        ? HrDtos.HomeDataOrigin.NONE
-                        : HrDtos.HomeDataOrigin.UNKNOWN);
-        // The legacy home aggregate has no authoritative TEAM owner query.
-        // Keep its neutral payload for wire compatibility, but never advertise
-        // synthetic zeroes as a successful empty team/approval queue.
-        HomeLoad<TeamHome> team = new HomeLoad<>(
-                new TeamHome(0, 0),
-                new HrDtos.HomeDomainState(
-                        HrDtos.HomeAvailability.UNAVAILABLE,
-                        HrDtos.HomeDataOrigin.NONE,
-                        "TEAM_OWNER_API_REQUIRED"));
-
-        Map<String, HrDtos.HomeDomainState> domainStates = new LinkedHashMap<>();
-        domainStates.put("TIME", time.state());
-        domainStates.put("ABSENCE", absence.state());
-        domainStates.put("BENEFITS", benefits.state());
-        domainStates.put("PAY", pay.state());
-        domainStates.put("TALENT", talent.state());
-        domainStates.put("TEAM", team.state());
-        boolean reference = domainStates.values().stream()
-                .anyMatch(state -> state.dataOrigin() == HrDtos.HomeDataOrigin.REFERENCE
-                        || state.dataOrigin() == HrDtos.HomeDataOrigin.MIXED)
-                || context.schedule() != null
-                        && "REFERENCE".equals(context.schedule().dataOrigin());
-        List<HrDtos.EnrollmentWindow> enrollmentWindows = benefits.value().windows();
-        int teamTimePending = team.value().timePendingCount();
-        int teamAbsencePending = team.value().absencePendingCount();
-        return new HrDtos.HomeOverview(
-                context.asOf(), Instant.now(), context.timeZone(),
-                context.schedule() == null ? null : context.schedule().standardDayMinutes(),
-                homeEmployee(context.actor(), context.worker()),
-                time.value(), absence.value(), pay.value(),
-                enrollmentWindows,
-                talent.value().journeys(),
-                benefits.value().activeCount(),
-                Math.toIntExact(enrollmentWindows.stream()
-                        .filter(window -> "OPEN".equals(window.lifecycleState()))
-                        .count()),
-                talent.value().activeGoalCount(),
-                talent.value().requiredLearningCount(),
-                teamTimePending + teamAbsencePending,
-                teamTimePending, teamAbsencePending,
-                Map.copyOf(domainStates), reference);
+        return homeAssembler.assemble(
+                context.actor(), context.worker(), context.schedule(),
+                context.timeZone(), context.asOf());
     }
 
     @Transactional(readOnly = true)
@@ -562,7 +481,7 @@ public class HrService {
 
     private Context homeContext() {
         PeopleRequestContext.Actor actor = PeopleRequestContext.require();
-        return context(actor, hasHomeDomainPermission(actor, "TIME"));
+        return context(actor, homeAssembler.canLoad(actor, "TIME"));
     }
 
     private Context context() {
@@ -620,76 +539,6 @@ public class HrService {
         } catch (RuntimeException exception) {
             log.warn("Ignoring invalid HR work schedule time zone {}", value);
             return ZoneOffset.UTC;
-        }
-    }
-
-    private <T> HomeLoad<T> loadHomeDomain(
-            String domain,
-            T fallback,
-            Supplier<T> supplier,
-            Function<T, HrDtos.HomeDataOrigin> originResolver) {
-        try {
-            T value = supplier.get();
-            return new HomeLoad<>(value, new HrDtos.HomeDomainState(
-                    HrDtos.HomeAvailability.AVAILABLE,
-                    originResolver.apply(value), null));
-        } catch (DataAccessException exception) {
-            log.warn("Unable to assemble {} data for the HCM home", domain, exception);
-            return new HomeLoad<>(fallback, new HrDtos.HomeDomainState(
-                    HrDtos.HomeAvailability.UNAVAILABLE,
-                    HrDtos.HomeDataOrigin.UNKNOWN,
-                    domain + "_QUERY_FAILED"));
-        }
-    }
-
-    private <T> HomeLoad<T> loadAuthorizedHomeDomain(
-            PeopleRequestContext.Actor actor,
-            String domain,
-            T fallback,
-            Supplier<T> supplier,
-            Function<T, HrDtos.HomeDataOrigin> originResolver) {
-        if (!hasHomeDomainPermission(actor, domain)) {
-            return new HomeLoad<>(fallback, new HrDtos.HomeDomainState(
-                    HrDtos.HomeAvailability.UNAVAILABLE,
-                    HrDtos.HomeDataOrigin.NONE,
-                    domain + "_ENTITLEMENT_REQUIRED"));
-        }
-        return loadHomeDomain(domain, fallback, supplier, originResolver);
-    }
-
-    private boolean hasHomeDomainPermission(
-            PeopleRequestContext.Actor actor,
-            String domain) {
-        String resource = HrAuthorization.DOMAIN_RESOURCES.get(domain);
-        return resource != null && actor.hasPermission(resource, "VIEW", "MANAGE");
-    }
-
-    private HrDtos.EmployeeContext homeEmployee(
-            PeopleRequestContext.Actor actor,
-            HrRepository.WorkerIdentity worker) {
-        if (actor.hasPermission("DATA.WORKFORCE", "VIEW", "MANAGE")) {
-            return employee(worker);
-        }
-        return new HrDtos.EmployeeContext(
-                worker.personId(), worker.displayName(), null, null, null, 0);
-    }
-
-    private HrDtos.HomeDataOrigin origins(List<String> values) {
-        List<HrDtos.HomeDataOrigin> origins = values.stream()
-                .map(this::origin)
-                .distinct()
-                .toList();
-        if (origins.isEmpty()) return HrDtos.HomeDataOrigin.NONE;
-        return origins.size() == 1 ? origins.getFirst() : HrDtos.HomeDataOrigin.MIXED;
-    }
-
-    private HrDtos.HomeDataOrigin origin(String value) {
-        if (value == null || value.isBlank()) return HrDtos.HomeDataOrigin.UNKNOWN;
-        if ("LOCAL_SEED".equalsIgnoreCase(value)) return HrDtos.HomeDataOrigin.REFERENCE;
-        try {
-            return HrDtos.HomeDataOrigin.valueOf(value.toUpperCase());
-        } catch (IllegalArgumentException exception) {
-            return HrDtos.HomeDataOrigin.UNKNOWN;
         }
     }
 
@@ -774,24 +623,4 @@ public class HrService {
             LocalDate asOf) {
     }
 
-    private record HomeLoad<T>(
-            T value,
-            HrDtos.HomeDomainState state) {
-    }
-
-    private record BenefitsHome(
-            List<HrDtos.EnrollmentWindow> windows,
-            int activeCount) {
-    }
-
-    private record TalentHome(
-            List<HrDtos.Journey> journeys,
-            int activeGoalCount,
-            int requiredLearningCount) {
-    }
-
-    private record TeamHome(
-            int timePendingCount,
-            int absencePendingCount) {
-    }
 }

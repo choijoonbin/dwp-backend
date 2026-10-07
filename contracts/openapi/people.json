@@ -333,6 +333,33 @@
         },
         "type": "object"
       },
+      "ApiResponseCommandReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CommandReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseConfigurationCheck": {
         "properties": {
           "correlationId": {
@@ -394,6 +421,87 @@
           },
           "data": {
             "$ref": "#/components/schemas/CursorPagePersonSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCycleCollection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CycleCollection"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCycleCommandResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CycleCommandResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseCycleDetail": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CycleDetail"
           },
           "errorCode": {
             "type": "string"
@@ -1137,6 +1245,60 @@
         },
         "type": "object"
       },
+      "ApiResponsePeople360PageV1": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/People360PageV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePeople360SnapshotV1": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/People360SnapshotV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponsePersonDetail": {
         "properties": {
           "correlationId": {
@@ -1198,6 +1360,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/Preview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponsePreviewCommandResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/PreviewCommandResult"
           },
           "errorCode": {
             "type": "string"
@@ -2261,6 +2450,51 @@
         ],
         "type": "object"
       },
+      "CommandReceipt": {
+        "properties": {
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "aggregateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "appliedAggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "commandType": {
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "expectedAggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "originatingAction": {
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resultRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Company": {
         "properties": {
           "description": {
@@ -2487,6 +2721,67 @@
           "sourceKey",
           "sourceName",
           "sourceType"
+        ],
+        "type": "object"
+      },
+      "CreateCycleRequest": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cycleKey": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "policyVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationRuleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "retentionPolicyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/StageInput"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "timezoneId": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "commandId",
+          "cycleKey",
+          "displayName",
+          "effectiveFrom",
+          "policyVersionId",
+          "retentionPolicyId",
+          "stages",
+          "timezoneId"
         ],
         "type": "object"
       },
@@ -2795,6 +3090,223 @@
           "size": {
             "format": "int32",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "CycleCollection": {
+        "properties": {
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cycles": {
+            "items": {
+              "$ref": "#/components/schemas/CycleSummary"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CycleCommandResult": {
+        "properties": {
+          "cycle": {
+            "$ref": "#/components/schemas/CycleDetail"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/CommandReceipt"
+          }
+        },
+        "type": "object"
+      },
+      "CycleDetail": {
+        "properties": {
+          "activeVersionNo": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cycleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cycleKey": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "retentionPolicyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "$ref": "#/components/schemas/CycleVersion"
+          }
+        },
+        "type": "object"
+      },
+      "CycleStage": {
+        "properties": {
+          "closesAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "opensAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "sequenceNo": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "stageConfig": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "stageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stageKey": {
+            "type": "string"
+          },
+          "stageType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CycleSummary": {
+        "properties": {
+          "activeVersionNo": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cycleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cycleKey": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CycleVersion": {
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "authoredBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "cycleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "policyVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationRuleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/CycleStage"
+            },
+            "type": "array"
+          },
+          "timezoneId": {
+            "type": "string"
+          },
+          "versionNo": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "versionState": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -4102,6 +4614,198 @@
         },
         "type": "object"
       },
+      "People360AccessV1": {
+        "properties": {
+          "archetype": {
+            "enum": [
+              "SELF",
+              "MANAGER",
+              "HR_OPERATOR",
+              "AUDITOR"
+            ],
+            "type": "string"
+          },
+          "fieldDecisions": {
+            "items": {
+              "$ref": "#/components/schemas/People360FieldDecisionV1"
+            },
+            "type": "array"
+          },
+          "policyRevision": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "People360EmploymentV1": {
+        "properties": {
+          "legalEmployerName": {
+            "type": "string"
+          },
+          "originalHireDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "relationshipEndDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "relationshipStartDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "relationshipType": {
+            "type": "string"
+          },
+          "workerNumber": {
+            "type": "string"
+          },
+          "workerStatus": {
+            "type": "string"
+          },
+          "workerType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "People360FieldDecisionV1": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "VIEW",
+              "MASK",
+              "OMIT"
+            ],
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "People360PageV1": {
+        "properties": {
+          "asOf": {
+            "format": "date",
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/People360SnapshotV1"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "People360PersonV1": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "personId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "preferredLocale": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "People360PrimaryAssignmentV1": {
+        "properties": {
+          "assignmentKey": {
+            "type": "string"
+          },
+          "assignmentStatus": {
+            "type": "string"
+          },
+          "businessTitle": {
+            "type": "string"
+          },
+          "effectiveEndDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveStartDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "jobGradeName": {
+            "type": "string"
+          },
+          "jobProfileName": {
+            "type": "string"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "managerDisplayName": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "People360SnapshotV1": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/People360AccessV1"
+          },
+          "asOf": {
+            "format": "date",
+            "type": "string"
+          },
+          "employment": {
+            "$ref": "#/components/schemas/People360EmploymentV1"
+          },
+          "person": {
+            "$ref": "#/components/schemas/People360PersonV1"
+          },
+          "primaryAssignment": {
+            "$ref": "#/components/schemas/People360PrimaryAssignmentV1"
+          },
+          "projectionRevision": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "READY",
+              "PARTIAL"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "Person": {
         "properties": {
           "assignmentKey": {
@@ -4352,6 +5056,67 @@
         },
         "type": "object"
       },
+      "PopulationPreview": {
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cycleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/PreviewMember"
+            },
+            "type": "array"
+          },
+          "participantCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "populationPreviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationRuleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewerAssignmentCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sourceCycleAggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "workforceSnapshotId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workforceSnapshotRevision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "Position": {
         "properties": {
           "annualCostAmount": {
@@ -4482,6 +5247,74 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "PreviewCommandResult": {
+        "properties": {
+          "preview": {
+            "$ref": "#/components/schemas/PopulationPreview"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/CommandReceipt"
+          }
+        },
+        "type": "object"
+      },
+      "PreviewMember": {
+        "properties": {
+          "eligibilityCode": {
+            "type": "string"
+          },
+          "gradeRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "jobProfileRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "participantRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "primaryAssignmentRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewerAssignmentRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workforceStatus": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PreviewPopulationRequest": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedRevision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asOf",
+          "commandId"
+        ],
         "type": "object"
       },
       "PreviewRequest": {
@@ -4710,6 +5543,43 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "PublishCycleRequest": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedRevision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expectedWorkforceOwnerRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "populationPreviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publicationApprovalRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "type": "string"
+          }
+        },
+        "required": [
+          "commandId",
+          "populationPreviewId",
+          "publicationApprovalRef",
+          "reason"
+        ],
         "type": "object"
       },
       "PublishScenarioRequest": {
@@ -5224,6 +6094,48 @@
         },
         "type": "object"
       },
+      "StageInput": {
+        "properties": {
+          "closesAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "opensAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "sequenceNo": {
+            "format": "int32",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "stageConfig": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "stageKey": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "stageType": {
+            "maxLength": 32,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "closesAt",
+          "opensAt",
+          "stageConfig",
+          "stageKey",
+          "stageType"
+        ],
+        "type": "object"
+      },
       "SubmitScenarioRequest": {
         "properties": {
           "reason": {
@@ -5644,6 +6556,66 @@
         ],
         "type": "object"
       },
+      "UpdateCycleRequest": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expectedRevision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "policyVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationRuleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "retentionPolicyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/StageInput"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "timezoneId": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "commandId",
+          "displayName",
+          "effectiveFrom",
+          "policyVersionId",
+          "retentionPolicyId",
+          "stages",
+          "timezoneId"
+        ],
+        "type": "object"
+      },
       "UpdateGoalRequest": {
         "properties": {
           "progressPercent": {
@@ -5743,6 +6715,23 @@
         },
         "required": [
           "workMode"
+        ],
+        "type": "object"
+      },
+      "ValidateCycleRequest": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedRevision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "commandId"
         ],
         "type": "object"
       },
@@ -6473,21 +7462,21 @@
         "parameters": [
           {
             "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "projection",
             "required": false,
             "schema": {
               "enum": [
                 "people360"
               ],
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "asOf",
-            "required": false,
-            "schema": {
-              "format": "date",
               "type": "string"
             }
           }
@@ -6497,7 +7486,14 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseHomeOverview"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponseHomeOverview"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApiResponsePeople360SnapshotV1"
+                    }
+                  ]
                 }
               }
             },
@@ -6644,17 +7640,6 @@
         "parameters": [
           {
             "in": "query",
-            "name": "projection",
-            "required": false,
-            "schema": {
-              "enum": [
-                "people360"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
             "name": "personId",
             "required": false,
             "schema": {
@@ -6670,6 +7655,17 @@
               "format": "date",
               "type": "string"
             }
+          },
+          {
+            "in": "query",
+            "name": "projection",
+            "required": false,
+            "schema": {
+              "enum": [
+                "people360"
+              ],
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -6677,7 +7673,14 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseTeamWorkspace"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponseTeamWorkspace"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApiResponsePeople360SnapshotV1"
+                    }
+                  ]
                 }
               }
             },
@@ -7030,6 +8033,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCommandReceipt"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -7045,6 +8055,13 @@
         "operationId": "hrisPerformanceCycles",
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCycleCollection"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -7078,7 +8095,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/CreateCycleRequest"
               }
             }
           },
@@ -7086,6 +8103,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCycleCommandResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -7112,6 +8136,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCycleDetail"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -7154,7 +8185,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/UpdateCycleRequest"
               }
             }
           },
@@ -7162,6 +8193,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCycleCommandResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -7206,7 +8244,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/PreviewPopulationRequest"
               }
             }
           },
@@ -7214,6 +8252,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponsePreviewCommandResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -7283,7 +8328,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/PublishCycleRequest"
               }
             }
           },
@@ -7291,6 +8336,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCycleCommandResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -7335,7 +8387,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/ValidateCycleRequest"
               }
             }
           },
@@ -7343,6 +8395,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCycleCommandResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -9820,7 +10879,14 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponseCursorPagePersonSummary"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponseCursorPagePersonSummary"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApiResponsePeople360PageV1"
+                    }
+                  ]
                 }
               }
             },
@@ -9881,7 +10947,14 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/ApiResponsePersonDetail"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/ApiResponsePersonDetail"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ApiResponsePeople360SnapshotV1"
+                    }
+                  ]
                 }
               }
             },

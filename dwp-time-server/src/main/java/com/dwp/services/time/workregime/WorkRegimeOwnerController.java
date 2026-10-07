@@ -12,6 +12,9 @@ import com.dwp.services.time.workregime.WorkRegimeApiModels.SimulationRequest;
 import com.dwp.services.time.workregime.WorkRegimeApiModels.StudioView;
 import com.dwp.services.time.workregime.WorkRegimeModels.LifecycleAction;
 import com.dwp.services.time.workregime.WorkRegimeOwnerAuthoritySource.VerifiedRequest;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.media.Schema;
 import java.time.LocalDate;
 import java.util.Locale;
 import java.util.UUID;
@@ -40,6 +43,7 @@ public final class WorkRegimeOwnerController {
         this.service = service;
     }
 
+    @Operation(operationId = "hrisTimeWorkPlans")
     @GetMapping("/work-plans")
     public ApiResponse<StudioView> list(
             @RequestAttribute(VERIFIED_REQUEST_ATTRIBUTE) VerifiedRequest verified,
@@ -47,6 +51,7 @@ public final class WorkRegimeOwnerController {
         return ApiResponse.success(service.list(verified, effectiveOn));
     }
 
+    @Operation(operationId = "hrisTimeCreateWorkPlanDraft")
     @PostMapping("/work-plans/drafts")
     public ApiResponse<CreateDraftView> createDraft(
             @RequestAttribute(VERIFIED_REQUEST_ATTRIBUTE) VerifiedRequest verified,
@@ -55,6 +60,7 @@ public final class WorkRegimeOwnerController {
         return ApiResponse.success(service.createDraft(verified, idempotencyKey, request));
     }
 
+    @Operation(operationId = "hrisTimeSimulateWorkPlan")
     @PostMapping("/work-plans/{workPlanId}/simulations")
     public ApiResponse<SimulationCommandView> simulate(
             @RequestAttribute(VERIFIED_REQUEST_ATTRIBUTE) VerifiedRequest verified,
@@ -65,11 +71,15 @@ public final class WorkRegimeOwnerController {
                 service.simulate(verified, workPlanId, idempotencyKey, request));
     }
 
+    @Operation(operationId = "hrisTimeTransitionWorkPlan")
     @PostMapping("/work-plans/{workPlanId}/actions/{action}")
     public ApiResponse<ReceiptView> transition(
             @RequestAttribute(VERIFIED_REQUEST_ATTRIBUTE) VerifiedRequest verified,
             @RequestHeader(IDEMPOTENCY_KEY) UUID idempotencyKey,
             @PathVariable UUID workPlanId,
+            @Parameter(schema = @Schema(allowableValues = {
+                    "apply-approval", "publish", "submit-review", "validate"
+            }))
             @PathVariable String action,
             @RequestBody LifecycleRequest request) {
         return ApiResponse.success(service.transition(
@@ -80,6 +90,7 @@ public final class WorkRegimeOwnerController {
                 request.expectedVersion()));
     }
 
+    @Operation(operationId = "hrisTimeWorkPlanReceipt")
     @GetMapping("/work-plan-receipts/{receiptId}")
     public ApiResponse<SimulationCommandView> receipt(
             @RequestAttribute(VERIFIED_REQUEST_ATTRIBUTE) VerifiedRequest verified,

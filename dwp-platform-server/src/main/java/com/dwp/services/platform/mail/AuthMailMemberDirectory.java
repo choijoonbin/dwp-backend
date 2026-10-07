@@ -41,7 +41,7 @@ class AuthMailMemberDirectory implements MailMemberDirectory {
             IdentityResponse response = auth.get()
                     .uri("/internal/identity/v1/tenants/{tenantId}/users/{userId}",
                             tenantId, userId)
-                    .headers(OutboundHttpHeaders::propagateObservability)
+                    .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                     .header(TOKEN_HEADER, token)
                     .retrieve()
                     .body(IdentityResponse.class);
@@ -75,7 +75,7 @@ class AuthMailMemberDirectory implements MailMemberDirectory {
                             .queryParam("activeOnly", true)
                             .queryParam("limit", bounded)
                             .build(tenantId))
-                    .headers(OutboundHttpHeaders::propagateObservability)
+                    .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                     .header(TOKEN_HEADER, token)
                     .retrieve()
                     .body(IdentityResponse[].class);

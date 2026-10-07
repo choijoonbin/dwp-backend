@@ -1,4 +1,702 @@
 {
+  "components": {
+    "schemas": {
+      "ApiResponseCreateDraftView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/CreateDraftView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseReceiptView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ReceiptView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseSimulationCommandView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/SimulationCommandView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseStudioView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/StudioView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ArrangementView": {
+        "properties": {
+          "extensionCode": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AssignmentView": {
+        "properties": {
+          "assignmentId": {
+            "type": "string"
+          },
+          "freshness": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "snapshotRevision": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateDraftRequest": {
+        "properties": {
+          "arrangementKind": {
+            "enum": [
+              "FIXED",
+              "FLEX",
+              "AVERAGED",
+              "SELECTIVE",
+              "COMPRESSED",
+              "PART_TIME",
+              "REDUCED",
+              "SPLIT_SHIFT",
+              "SHIFT",
+              "ON_CALL",
+              "DEEMED",
+              "DISCRETIONARY",
+              "TENANT_EXTENSION"
+            ],
+            "type": "string"
+          },
+          "assignmentSnapshotRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "effectiveEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "jurisdictionSubdivision": {
+            "type": "string"
+          },
+          "peopleAssignmentPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "priority": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "regimeKey": {
+            "type": "string"
+          },
+          "rulePackPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scopeRef": {
+            "type": "string"
+          },
+          "scopeType": {
+            "enum": [
+              "GLOBAL",
+              "COUNTRY",
+              "SUBDIVISION",
+              "TENANT",
+              "LEGAL_ENTITY",
+              "BUSINESS_UNIT",
+              "WORKPLACE",
+              "POPULATION",
+              "PERSON",
+              "ASSIGNMENT"
+            ],
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentInput"
+            },
+            "type": "array"
+          },
+          "templateSchemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "tenantExtension": {
+            "$ref": "#/components/schemas/TenantExtensionInput"
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyTermInput"
+            },
+            "type": "array"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "workerPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CreateDraftView": {
+        "properties": {
+          "receipt": {
+            "$ref": "#/components/schemas/ReceiptView"
+          },
+          "workPlanId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "LifecycleRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyPackView": {
+        "properties": {
+          "effectiveOn": {
+            "format": "date",
+            "type": "string"
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyTermInput": {
+        "properties": {
+          "booleanValue": {
+            "type": "boolean"
+          },
+          "dateValue": {
+            "format": "date",
+            "type": "string"
+          },
+          "decimalValue": {
+            "type": "number"
+          },
+          "extensionKind": {
+            "enum": [
+              "FLEXIBLE",
+              "ELASTIC",
+              "AVERAGED",
+              "SELECTIVE",
+              "DISCRETIONARY",
+              "DEEMED",
+              "REDUCED",
+              "SHIFT",
+              "SPLIT_SHIFT",
+              "ON_CALL",
+              "OVERTIME",
+              "BREAK",
+              "WEEKLY_LIMIT"
+            ],
+            "type": "string"
+          },
+          "integerValue": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "parameterName": {
+            "type": "string"
+          },
+          "stringValue": {
+            "type": "string"
+          },
+          "valueType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "PolicyTraceView": {
+        "properties": {
+          "disposition": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "policyCode": {
+            "type": "string"
+          },
+          "policyRevision": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ReceiptView": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "receiptId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "workPlanId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ResolutionView": {
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "trace": {
+            "items": {
+              "$ref": "#/components/schemas/PolicyTraceView"
+            },
+            "type": "array"
+          },
+          "winningLevel": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SegmentInput": {
+        "properties": {
+          "dayOfWeek": {
+            "enum": [
+              "MONDAY",
+              "TUESDAY",
+              "WEDNESDAY",
+              "THURSDAY",
+              "FRIDAY",
+              "SATURDAY",
+              "SUNDAY"
+            ],
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          },
+          "endDayOffset": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "WORK",
+              "BREAK",
+              "ON_CALL",
+              "TRAINING"
+            ],
+            "type": "string"
+          },
+          "overlapPolicy": {
+            "enum": [
+              "REJECT",
+              "EARLIER",
+              "LATER"
+            ],
+            "type": "string"
+          },
+          "start": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SegmentView": {
+        "properties": {
+          "dstResolution": {
+            "type": "string"
+          },
+          "endInstant": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endOffset": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "localEnd": {
+            "type": "string"
+          },
+          "localStart": {
+            "type": "string"
+          },
+          "overnight": {
+            "type": "boolean"
+          },
+          "segmentId": {
+            "type": "string"
+          },
+          "startInstant": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startOffset": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SimulationCommandView": {
+        "properties": {
+          "receipt": {
+            "$ref": "#/components/schemas/ReceiptView"
+          },
+          "simulation": {
+            "$ref": "#/components/schemas/SimulationView"
+          }
+        },
+        "type": "object"
+      },
+      "SimulationRequest": {
+        "properties": {
+          "assignmentSnapshotRevision": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "policyRevision": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SimulationRowView": {
+        "properties": {
+          "currentValue": {
+            "type": "string"
+          },
+          "draftValue": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "SimulationView": {
+        "properties": {
+          "baseVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "findings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "partialFailures": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "policyRevision": {
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/SimulationRowView"
+            },
+            "type": "array"
+          },
+          "status": {
+            "type": "string"
+          },
+          "workPlanId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "StudioView": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "freshness": {
+            "type": "string"
+          },
+          "partialFailures": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "queryState": {
+            "type": "string"
+          },
+          "workPlans": {
+            "items": {
+              "$ref": "#/components/schemas/WorkPlanView"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "TenantExtensionFieldInput": {
+        "properties": {
+          "booleanValue": {
+            "type": "boolean"
+          },
+          "dateValue": {
+            "format": "date",
+            "type": "string"
+          },
+          "decimalValue": {
+            "type": "number"
+          },
+          "fieldName": {
+            "type": "string"
+          },
+          "integerValue": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stringValue": {
+            "type": "string"
+          },
+          "valueType": {
+            "enum": [
+              "STRING",
+              "INTEGER",
+              "DECIMAL",
+              "BOOLEAN",
+              "DATE"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "TenantExtensionInput": {
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/TenantExtensionFieldInput"
+            },
+            "type": "array"
+          },
+          "schemaRef": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "WorkPlanView": {
+        "properties": {
+          "arrangement": {
+            "$ref": "#/components/schemas/ArrangementView"
+          },
+          "assignment": {
+            "$ref": "#/components/schemas/AssignmentView"
+          },
+          "availableActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "effectiveEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "policyPack": {
+            "$ref": "#/components/schemas/PolicyPackView"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/ResolutionView"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/SegmentView"
+            },
+            "type": "array"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workPlanId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      }
+    }
+  },
   "info": {
     "title": "DWP Time Service API",
     "version": "1.0.0"
@@ -21,6 +719,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSimulationCommandView"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -47,6 +752,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseStudioView"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -75,7 +787,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/CreateDraftRequest"
               }
             }
           },
@@ -83,6 +795,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseCreateDraftView"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -97,6 +816,15 @@
       "post": {
         "operationId": "hrisTimeTransitionWorkPlan",
         "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
           {
             "in": "path",
             "name": "workPlanId",
@@ -119,22 +847,13 @@
               ],
               "type": "string"
             }
-          },
-          {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
           }
         ],
         "requestBody": {
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/LifecycleRequest"
               }
             }
           },
@@ -142,6 +861,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseReceiptView"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -157,8 +883,8 @@
         "operationId": "hrisTimeSimulateWorkPlan",
         "parameters": [
           {
-            "in": "path",
-            "name": "workPlanId",
+            "in": "header",
+            "name": "Idempotency-Key",
             "required": true,
             "schema": {
               "format": "uuid",
@@ -166,8 +892,8 @@
             }
           },
           {
-            "in": "header",
-            "name": "Idempotency-Key",
+            "in": "path",
+            "name": "workPlanId",
             "required": true,
             "schema": {
               "format": "uuid",
@@ -179,7 +905,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/SimulationRequest"
               }
             }
           },
@@ -187,6 +913,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseSimulationCommandView"
+                }
+              }
+            },
             "description": "OK"
           }
         },

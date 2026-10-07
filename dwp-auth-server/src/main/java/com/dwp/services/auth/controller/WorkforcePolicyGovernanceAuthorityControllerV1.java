@@ -3,6 +3,9 @@ package com.dwp.services.auth.controller;
 import static com.dwp.platform.contracts.hris.workforce.v1.WorkforcePolicyGovernanceV1.*;
 import com.dwp.platform.contracts.hris.workforce.v1.WorkforcePolicyGovernanceV1;
 import com.dwp.services.auth.service.WorkforcePolicyGovernanceAuthorityAdapterV1;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.servlet.http.HttpServletRequest;
 import java.io.ByteArrayOutputStream;
 import org.springframework.http.HttpHeaders;
@@ -18,6 +21,12 @@ public final class WorkforcePolicyGovernanceAuthorityControllerV1 {
         this.adapter=adapter;
     }
     @PostMapping(PATH)
+    @Operation(
+            operationId = "evaluateWorkforcePolicyGovernanceAuthorityV1",
+            responses = @io.swagger.v3.oas.annotations.responses.ApiResponse(
+                    responseCode = "200",
+                    content = @Content(schema = @Schema(
+                            implementation = WorkforcePolicyGovernanceOpenApi.Response.class))))
     public ResponseEntity<Response> evaluate(HttpServletRequest request) {
         Response result;
         try {

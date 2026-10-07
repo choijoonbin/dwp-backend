@@ -55,10 +55,12 @@ class AssignmentProposalPostgresTest {
 
     @BeforeEach
     void clearProposalEvidence() {
-        jdbc.update("TRUNCATE TABLE ppl_assignment_proposal_outbox");
-        jdbc.update("TRUNCATE TABLE ppl_assignment_change_proposal_events");
-        jdbc.update("TRUNCATE TABLE ppl_assignment_command_receipts");
-        jdbc.update("TRUNCATE TABLE ppl_assignment_change_proposals");
+        jdbc.update("""
+                TRUNCATE TABLE ppl_assignment_proposal_outbox,
+                               ppl_assignment_change_proposal_events,
+                               ppl_assignment_command_receipts,
+                               ppl_assignment_change_proposals
+                """);
     }
 
     @Test

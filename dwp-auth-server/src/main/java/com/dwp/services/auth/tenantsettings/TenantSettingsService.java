@@ -14,13 +14,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Isolation;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
-import java.util.HexFormat;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -46,6 +42,7 @@ public class TenantSettingsService {
     private final TenantSettingsRepository repository;
     private final IdentityAuditService audit;
     private final ObjectMapper objectMapper;
+    private final TenantSettingsJsonSupport json;
     private final TenantSettingsAuthorization authorization;
     private final InternalEntitlementAdapterRegistry entitlementAdapters;
     private final BiFunction<Long, String, OidcProviderConfigurationInspector.Assessment>
@@ -98,6 +95,7 @@ public class TenantSettingsService {
         this.repository = repository;
         this.audit = audit;
         this.objectMapper = objectMapper;
+        this.json = new TenantSettingsJsonSupport(objectMapper);
         this.authorization = authorization;
         this.entitlementAdapters = entitlementAdapters;
         this.providerReadiness = providerReadiness;
@@ -142,8 +140,8 @@ public class TenantSettingsService {
         validate(tenantId, proposed);
         JsonNode beforeState = objectMapper.valueToTree(before);
         JsonNode proposedState = objectMapper.valueToTree(proposed);
-        String beforeHash = digest(beforeState);
-        String proposedHash = digest(proposedState);
+        String beforeHash = json.digest(beforeState);
+        String proposedHash = json.digest(proposedState);
         if (beforeHash.equals(proposedHash)) {
             throw new BaseException(
                     ErrorCode.INVALID_INPUT_VALUE,
@@ -172,7 +170,7 @@ public class TenantSettingsService {
         audit.success(
                 tenantId, actorId, "tenant-settings.auth-policy.drafted",
                 "TENANT_SETTING_CHANGE_SET", change.changeSetId().toString(), correlationId,
-                objectMap(beforeState), objectMap(proposedState));
+                json.objectMap(beforeState), json.objectMap(proposedState));
         return withActions(tenantId, actorId, change);
     }
 
@@ -256,7 +254,7 @@ public class TenantSettingsService {
                     "The publisher must be independent from the requester and reviewer.");
         }
         TenantSettingsRepository.PolicyState current = repository.currentPolicy(tenantId);
-        if (!digest(objectMapper.valueToTree(current)).equals(change.beforeHash())) {
+        if (!json.digest(objectMapper.valueToTree(current)).equals(change.beforeHash())) {
             throw new BaseException(
                     ErrorCode.OBJECT_VERSION_CONFLICT,
                     "The active authentication policy changed after this draft was created.");
@@ -270,9 +268,9 @@ public class TenantSettingsService {
         audit.success(
                 tenantId, actorId, "tenant-settings.auth-policy.published",
                 "TENANT_SETTING_CHANGE_SET", changeSetId.toString(), correlationId,
-                objectMap(change.beforeState()),
+                json.objectMap(change.beforeState()),
                 Map.of(
-                        "policy", objectMap(change.proposedState()),
+                        "policy", json.objectMap(change.proposedState()),
                         "publishReceiptId", receiptId.toString(),
                         "proposedHash", change.proposedHash()));
         return withActions(tenantId, actorId, published);
@@ -319,7 +317,7 @@ public class TenantSettingsService {
         projection.owners().forEach(owner -> ownerRevisions.put(
                 owner.ownerKey(),
                 owner.sourceUpdatedAt() == null ? "none" : owner.sourceUpdatedAt().toString()));
-        String snapshotId = digest(objectMapper.valueToTree(Map.of(
+        String snapshotId = json.digest(objectMapper.valueToTree(Map.of(
                 "tenantId", tenantId,
                 "query", normalizedQuery == null ? "" : normalizedQuery,
                 "totalElements", total,
@@ -691,37 +689,6 @@ public class TenantSettingsService {
         if (!OWNER_TYPE.equals(change.ownerType()) || !OWNER_REF.equals(change.ownerRef())) {
             throw new BaseException(ErrorCode.INVALID_STATE, "Unsupported tenant setting owner.");
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> objectMap(JsonNode value) {
-        return objectMapper.convertValue(value, Map.class);
-    }
-
-    private String digest(JsonNode value) {
-        try {
-            JsonNode canonical = canonical(value);
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(
-                    objectMapper.writeValueAsString(canonical).getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException | JsonProcessingException exception) {
-            throw new IllegalStateException("Tenant setting state hashing failed.", exception);
-        }
-    }
-
-    private JsonNode canonical(JsonNode value) {
-        if (value.isObject()) {
-            var result = objectMapper.createObjectNode();
-            List<String> names = new ArrayList<>();
-            value.fieldNames().forEachRemaining(names::add);
-            names.stream().sorted().forEach(name -> result.set(name, canonical(value.get(name))));
-            return result;
-        }
-        if (value.isArray()) {
-            var result = objectMapper.createArrayNode();
-            value.forEach(item -> result.add(canonical(item)));
-            return result;
-        }
-        return value;
     }
 
     private void invalid(String message) {

@@ -53,7 +53,7 @@ public final class CalendarDtos {
             this(calendarId, calendarKey, name, color, type, visibility, null, null,
                     CalendarSourceKind.OWNED, CalendarAccessLevel.OWNER,
                     CalendarSubscriptionPolicy.OPTIONAL, false, selected, false, 0,
-                    0, 0, CalendarAccessPolicy.ownerCalendarCapabilities());
+                    0, 0, new CalendarCapabilities(true, true, true, true, true, true));
         }
     }
 
@@ -383,10 +383,10 @@ public final class CalendarDtos {
         }
 
         public HomeResponse withInsights(CalendarInsightsDtos.Response value) {
-            return CalendarInsightsDtos.attach(this, value);
+            return new HomeResponse(date, timeZone, nextEvent, today, metrics, weekLoad,
+                    attention, generatedAt, value);
         }
     }
-
     public record AvailabilityParticipant(
             UUID personPublicId,
             int busyMinutes,

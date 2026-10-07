@@ -20,7 +20,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public class TenantLifecycleGovernanceJdbcRepository {
+public class TenantLifecycleGovernanceJdbcRepository
+        implements TenantLifecycleGovernancePersistence<TenantLifecycleRequestRow> {
     private static final String LIFECYCLE_REQUEST_SELECT = """
             SELECT request.lifecycle_request_id, request.provider_tenant_id,
                    tenant.tenant_key, tenant.display_name AS tenant_display_name,

@@ -251,12 +251,16 @@ Omitting either checkpoint option is an argument error. A no-op such as
 checkpoint fails, the runner still attempts the governed v34-to-v33 rollback
 before teardown.
 
-## External migration-control evidence
+## Attested migration-control evidence
 
-People currently fails closed before health when no externally issued Migration
-Control run receipt and canonical Control reference are available. Payroll and
-Time have the same class of startup guard and have not been claimed healthy past
-that boundary in the current full run. Relevant application inputs include:
+Before starting People, Payroll, or Time, full mode executes the repository's
+approved `dwp-migration-control` Gradle tasks against each run-owned database.
+The runner uses one source-attested canonical Control reference, validates the
+single emitted receipt for exact service, database, principal, mode, stream,
+PostgreSQL version, and canonical digest, and writes the validated receipt into
+the run evidence directory. It then injects only that exact receipt, digest, and
+Control reference into the corresponding service process. Relevant application
+inputs are:
 
 - People: `DWP_PEOPLE_MIGRATION_CONTROL_RUN_RECEIPT_JSON`,
   `DWP_PEOPLE_MIGRATION_CONTROL_RUN_RECEIPT_SHA256`, and
@@ -268,17 +272,16 @@ that boundary in the current full run. Relevant application inputs include:
   `DWP_TIME_MIGRATION_CONTROL_RUN_RECEIPT_SHA256`, and
   `DWP_TIME_MIGRATION_CONTROL_REFERENCE`.
 
-This runner intentionally does not mint, fixture, or inject those trusted
-artifacts. Ambient copies of the variables are not inherited by service
-processes. Reaching the next full-runtime boundary requires integration with
-the approved Migration Control issuer and verification path.
+Ambient copies of these variables are not inherited by service processes, and
+caller-provided receipt JSON is not accepted as a substitute. A missing,
+duplicate, malformed, source-drifted, or digest-invalid Control receipt stops
+the run before owner-service health.
 
-Do not replace that integration with a self-issued receipt, a fixture claiming
-to be a trusted feed, direct administrator SQL that marks adoption complete, or
-weakened startup validation. Normal creation of the disposable database,
-schemas, and separated migration/runtime roles is permitted; synthesizing
-deployment authority is not. In the absence of an approved issuer, `HOLD` is
-the correct result.
+Do not replace the official Migration Control task with a hand-written receipt,
+a fixture claiming to be a trusted feed, direct administrator SQL that marks
+adoption complete, or weakened startup validation. Normal creation of the
+disposable database, schemas, and separated migration/runtime roles is
+permitted; bypassing the attested issuer or its verification path is not.
 
 ## Evidence and teardown
 

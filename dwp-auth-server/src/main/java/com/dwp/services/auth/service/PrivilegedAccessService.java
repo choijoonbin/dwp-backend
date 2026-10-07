@@ -47,9 +47,7 @@ import static com.dwp.services.auth.service.PrivilegedAccessEvidenceSnapshots.re
 
 @Service
 public class PrivilegedAccessService {
-
     private static final String ACTIVE = "ACTIVE";
-
     private final PrivilegedAccessPolicyRepository policyRepository;
     private final PrivilegedRoleEligibilityRepository eligibilityRepository;
     private final PrivilegedAccessRequestRepository requestRepository;
@@ -64,9 +62,9 @@ public class PrivilegedAccessService {
     private final RoleDelegationPolicyService delegationPolicyService;
     private final IdentityAuditService auditService;
     private final PrivilegedAccessRolloutGate rolloutGate;
+    private final PrivilegedAccessSummaryAssembler summaries;
 
-    public PrivilegedAccessService(
-            PrivilegedAccessPolicyRepository policyRepository,
+    public PrivilegedAccessService(PrivilegedAccessPolicyRepository policyRepository,
             PrivilegedRoleEligibilityRepository eligibilityRepository,
             PrivilegedAccessRequestRepository requestRepository,
             PrivilegedAccessApprovalRepository approvalRepository,
@@ -94,6 +92,7 @@ public class PrivilegedAccessService {
         this.delegationPolicyService = delegationPolicyService;
         this.auditService = auditService;
         this.rolloutGate = rolloutGate;
+        this.summaries = new PrivilegedAccessSummaryAssembler(roleRepository, userRepository, groupRepository, approvalRepository);
     }
 
     @Transactional(readOnly = true)
@@ -148,7 +147,7 @@ public class PrivilegedAccessService {
 
     @Transactional(readOnly = true)
     public List<PrivilegedAccessDtos.EligibilitySummary> eligibilities(Long tenantId) {
-        return eligibilitySummaries(
+        return summaries.eligibilities(
                 tenantId,
                 eligibilityRepository.findByTenantIdOrderByCreatedAtDesc(tenantId));
     }
@@ -157,7 +156,7 @@ public class PrivilegedAccessService {
     public List<PrivilegedAccessDtos.EligibilitySummary> myEligibilities(
             Long tenantId,
             Long userId) {
-        return eligibilitySummaries(
+        return summaries.eligibilities(
                 tenantId,
                 eligibilityRepository.findEffectiveForUser(tenantId, userId, Instant.now()));
     }
@@ -205,7 +204,7 @@ public class PrivilegedAccessService {
                 "PRIVILEGED_ROLE_ELIGIBILITY",
                 eligibility.getPrivilegedRoleEligibilityId().toString(), correlationId,
                 null, eligibilitySnapshot(eligibility));
-        return eligibilitySummaries(tenantId, List.of(eligibility)).get(0);
+        return summaries.eligibilities(tenantId, List.of(eligibility)).get(0);
     }
 
     @Transactional
@@ -241,7 +240,7 @@ public class PrivilegedAccessService {
                 tenantId, actorId, "access.privileged-eligibility.revoked",
                 "PRIVILEGED_ROLE_ELIGIBILITY", eligibilityId.toString(), correlationId,
                 before, eligibilitySnapshot(eligibility));
-        return eligibilitySummaries(tenantId, List.of(eligibility)).get(0);
+        return summaries.eligibilities(tenantId, List.of(eligibility)).get(0);
     }
 
     @Transactional
@@ -342,7 +341,7 @@ public class PrivilegedAccessService {
                 "PRIVILEGED_ACCESS_REQUEST",
                 accessRequest.getPrivilegedAccessRequestId().toString(), correlationId,
                 null, requestSnapshot(accessRequest));
-        return requestSummary(tenantId, accessRequest);
+        return summaries.request(tenantId, accessRequest);
     }
 
     @Transactional
@@ -398,7 +397,7 @@ public class PrivilegedAccessService {
                 tenantId, approverId, "access.privileged-activation.decided",
                 "PRIVILEGED_ACCESS_REQUEST", requestId.toString(), correlationId,
                 before, requestSnapshot(accessRequest));
-        return requestSummary(tenantId, accessRequest);
+        return summaries.request(tenantId, accessRequest);
     }
 
     @Transactional
@@ -432,7 +431,7 @@ public class PrivilegedAccessService {
         } else {
             throw new BaseException(ErrorCode.INVALID_STATE, "The request cannot be revoked in its current state.");
         }
-        return requestSummary(tenantId, accessRequest);
+        return summaries.request(tenantId, accessRequest);
     }
 
     @Transactional
@@ -445,7 +444,7 @@ public class PrivilegedAccessService {
                 ? requestRepository.findByTenantIdOrderByRequestedAtDesc(tenantId)
                 : requestRepository.findByTenantIdAndRequesterUserIdOrderByRequestedAtDesc(
                         tenantId, actorId);
-        return requests.stream().map(request -> requestSummary(tenantId, request)).toList();
+        return requests.stream().map(request -> summaries.request(tenantId, request)).toList();
     }
 
     @Transactional
@@ -830,70 +829,6 @@ public class PrivilegedAccessService {
             session.setUpdatedBy(actorId);
         });
         sessionRepository.saveAll(sessions);
-    }
-
-    private List<PrivilegedAccessDtos.EligibilitySummary> eligibilitySummaries(
-            Long tenantId,
-            List<PrivilegedRoleEligibility> eligibilities) {
-        Map<Long, Role> roles = rolesById(tenantId, eligibilities.stream()
-                .map(PrivilegedRoleEligibility::getRoleId).toList());
-        Map<Long, User> users = usersById(
-                tenantId,
-                eligibilities.stream()
-                        .filter(value -> "USER".equals(value.getPrincipalType()))
-                        .map(PrivilegedRoleEligibility::getPrincipalId)
-                        .toList());
-        Map<Long, DirectoryGroup> groups = groupRepository.findAllById(
-                        eligibilities.stream()
-                                .filter(value -> "GROUP".equals(value.getPrincipalType()))
-                                .map(PrivilegedRoleEligibility::getPrincipalId)
-                                .toList())
-                .stream()
-                .filter(group -> tenantId.equals(group.getTenantId()))
-                .collect(Collectors.toMap(DirectoryGroup::getGroupId, Function.identity()));
-        return eligibilities.stream()
-                .filter(value -> roles.containsKey(value.getRoleId()))
-                .map(value -> {
-                    Role role = roles.get(value.getRoleId());
-                    String principalName = "USER".equals(value.getPrincipalType())
-                            ? displayName(users.get(value.getPrincipalId()))
-                            : displayName(groups.get(value.getPrincipalId()));
-                    return new PrivilegedAccessDtos.EligibilitySummary(
-                            value.getPrivilegedRoleEligibilityId(), value.getPrincipalType(),
-                            value.getPrincipalId(), principalName, role.getRoleId(), role.getCode(),
-                            role.getName(), value.getScopeType(), value.getScopeRef(),
-                            value.getValidFrom(), value.getValidTo(), value.getJustification(),
-                            value.getLifecycleState(), valueOrZero(value.getVersion()));
-                })
-                .toList();
-    }
-
-    private PrivilegedAccessDtos.RequestSummary requestSummary(
-            Long tenantId,
-            PrivilegedAccessRequest request) {
-        Role role = requireAnyRole(tenantId, request.getRoleId());
-        User requester = userRepository
-                .findByUserIdAndTenantId(request.getRequesterUserId(), tenantId)
-                .orElse(null);
-        List<PrivilegedAccessApproval> approvals = approvalRepository
-                .findByPrivilegedAccessRequestIdOrderByDecidedAtAsc(
-                        request.getPrivilegedAccessRequestId());
-        Map<Long, User> approvers = usersById(tenantId, approvals.stream()
-                .map(PrivilegedAccessApproval::getApproverUserId).toList());
-        return new PrivilegedAccessDtos.RequestSummary(
-                request.getPrivilegedAccessRequestId(), request.getRequesterUserId(),
-                displayName(requester), role.getRoleId(), role.getCode(), role.getName(),
-                request.getEligibilityId(), request.getRequestType(), request.getScopeType(),
-                request.getScopeRef(), request.getDurationMinutes(), request.getJustification(),
-                request.getTicketReference(), request.getAssuranceLevel(),
-                request.getApprovalQuorum(), request.getLifecycleState(), request.getRequestedAt(),
-                request.getActivatedAt(), request.getExpiresAt(), request.getRevokedAt(),
-                valueOrZero(request.getVersion()),
-                approvals.stream().map(approval -> new PrivilegedAccessDtos.ApprovalSummary(
-                        approval.getApproverUserId(),
-                        displayName(approvers.get(approval.getApproverUserId())),
-                        approval.getDecision(), approval.getReason(), approval.getDecidedAt()))
-                        .toList());
     }
 
     private PrivilegedAccessDtos.PolicySummary policySummary(

@@ -18,7 +18,7 @@ import com.dwp.core.database.AuxiliaryRoleAclGuard.AllowedPrivilege;
  * Provisions and fences non-login capability roles declared by a service plan.
  *
  * <p>Flyway remains a strict NOCREATEROLE login. The bootstrap principal creates
- * an all-or-none role set only after the offline Control fence is active. The
+ * missing versioned roles only after the offline Control fence is active. The
  * owner membership is opened only inside the exact source-pinned migration
  * window and is removed immediately afterward. A failed migration also takes
  * the revocation path, while the outer connection fence keeps both service
@@ -34,20 +34,13 @@ final class ManagedDatabaseRoleControl {
         if (roles.isEmpty()) {
             return;
         }
-        int existing = existingRoleCount(connection, roles);
-        if (existing != 0 && existing != roles.size()) {
-            throw new IllegalStateException(
-                    "Migration Control managed database roles are only partially provisioned");
-        }
+        List<ManagedDatabaseRole> existing = existingRoles(connection, roles);
+        requireIntroducedRolesPresent(connection, environment, roles, existing);
         boolean introduced = introductionApplied(connection, environment, roles);
-        if (introduced && existing != roles.size()) {
-            throw new IllegalStateException(
-                    "Applied migrations require the complete managed database role set");
-        }
-        if (existing == roles.size()) {
-            requireStrictRoleState(connection, environment, roles, false);
+        if (!existing.isEmpty()) {
+            requireStrictRoleState(connection, environment, existing, false);
             ManagedDatabaseRoleOwnershipControl.requireScope(
-                    connection, environment, roles, introduced);
+                    connection, environment, existing, introduced);
         }
     }
 
@@ -65,17 +58,21 @@ final class ManagedDatabaseRoleControl {
             // pin that unavoidable row to ADMIN-only (no INHERIT and no SET).
             DatabaseControl.execute(
                     connection, "SET LOCAL createrole_self_grant = ''");
-            int existing = existingRoleCount(connection, roles);
-            if (existing == 0) {
-                for (ManagedDatabaseRole role : roles) {
+            List<ManagedDatabaseRole> existing = existingRoles(connection, roles);
+            requireIntroducedRolesPresent(connection, environment, roles, existing);
+            if (!existing.isEmpty()) {
+                requireStrictRoleState(connection, environment, existing, false);
+            }
+            Set<String> existingNames = existing.stream()
+                    .map(ManagedDatabaseRole::name)
+                    .collect(java.util.stream.Collectors.toUnmodifiableSet());
+            for (ManagedDatabaseRole role : roles) {
+                if (!existingNames.contains(role.name())) {
                     DatabaseControl.execute(connection, "CREATE ROLE "
                             + quoteIdentifier(role.name())
                             + " NOLOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE"
                             + " NOINHERIT NOREPLICATION NOBYPASSRLS CONNECTION LIMIT -1");
                 }
-            } else if (existing != roles.size()) {
-                throw new IllegalStateException(
-                        "Migration Control managed database roles changed after preflight");
             }
             requireStrictRoleState(connection, environment, roles, false);
             connection.commit();
@@ -233,26 +230,46 @@ final class ManagedDatabaseRoleControl {
         return false;
     }
 
-    private static int existingRoleCount(
+    private static List<ManagedDatabaseRole> existingRoles(
             Connection connection, List<ManagedDatabaseRole> roles) throws SQLException {
+        Set<String> existing = new LinkedHashSet<>();
         try (PreparedStatement statement = connection.prepareStatement("""
-                SELECT COUNT(*)
+                SELECT rolname
                   FROM pg_catalog.pg_roles
                  WHERE rolname=ANY (?::text[])
+                 ORDER BY rolname
                 """)) {
             Array names = connection.createArrayOf(
                     "text", roles.stream().map(ManagedDatabaseRole::name).toArray(String[]::new));
             try {
                 statement.setArray(1, names);
                 try (ResultSet result = statement.executeQuery()) {
-                    if (!result.next()) {
-                        throw new IllegalStateException(
-                                "Migration Control managed role inventory returned no row");
+                    while (result.next()) {
+                        existing.add(result.getString(1));
                     }
-                    return result.getInt(1);
                 }
             } finally {
                 names.free();
+            }
+        }
+        return roles.stream().filter(role -> existing.contains(role.name())).toList();
+    }
+
+    private static void requireIntroducedRolesPresent(
+            Connection connection,
+            ControlEnvironment environment,
+            List<ManagedDatabaseRole> roles,
+            List<ManagedDatabaseRole> existing) throws SQLException {
+        Set<String> existingNames = existing.stream()
+                .map(ManagedDatabaseRole::name)
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        StreamPlan primary = environment.plan().streams().getFirst();
+        for (ManagedDatabaseRole role : roles) {
+            if (!existingNames.contains(role.name())
+                    && DatabaseControl.versionApplied(
+                            connection, primary, role.introducedInVersion())) {
+                throw new IllegalStateException(
+                        "Applied migration requires managed database role: " + role.name());
             }
         }
     }

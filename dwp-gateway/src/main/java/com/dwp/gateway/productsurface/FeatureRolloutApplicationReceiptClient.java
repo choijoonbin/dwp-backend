@@ -51,6 +51,14 @@ public class FeatureRolloutApplicationReceiptClient {
             long authTenantId,
             FeatureRolloutDecisionCache.FlagDecision decision,
             FeatureRolloutEvaluationClient.RequestMetadata metadata) {
+        return applied(authTenantId, decision, (FeatureRolloutRequestMetadata) metadata);
+    }
+
+    /** Accepts the dependency-inverted metadata view for internal callers. */
+    public Mono<Void> applied(
+            long authTenantId,
+            FeatureRolloutDecisionCache.FlagDecision decision,
+            FeatureRolloutRequestMetadata metadata) {
         if (serviceToken.isBlank() || authTenantId <= 0
                 || decision == null || !decision.authoritative()) {
             return Mono.empty();
@@ -87,7 +95,7 @@ public class FeatureRolloutApplicationReceiptClient {
 
     private void trustedHeaders(
             HttpHeaders headers,
-            FeatureRolloutEvaluationClient.RequestMetadata metadata) {
+            FeatureRolloutRequestMetadata metadata) {
         headers.set(SERVICE_TOKEN_HEADER, serviceToken);
         headers.set(SERVICE_IDENTITY_HEADER, SERVICE_IDENTITY);
         if (metadata != null) {

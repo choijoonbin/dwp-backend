@@ -32,10 +32,6 @@ interface PayrollLegalEntityScopeResolver {
             legalEntityIds = Set.copyOf(new LinkedHashSet<>(legalEntityIds));
         }
 
-        PayrollFoundationAccess.Scope scope() {
-            return new PayrollFoundationAccess.Scope(false, legalEntityIds);
-        }
-
         String evidenceDigest(String contextScopeKey) {
             String canonicalMembers = legalEntityIds.stream()
                     .sorted()

@@ -16,10 +16,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+/** Public contracts intentionally stay nested here to preserve published {@code ApprovalDtos$...} JVM names. */
 public final class ApprovalDtos {
-
-    private ApprovalDtos() {
-    }
+    private ApprovalDtos() { }
 
     public record ApprovalMetrics(
             int pending,
@@ -28,8 +27,7 @@ public final class ApprovalDtos {
             int needsInformation,
             int myRequestsInFlight,
             double averageCycleHours,
-            double slaCompliancePercent) {
-    }
+            double slaCompliancePercent) { }
 
     public record TaskSummary(
             UUID taskId,
@@ -50,8 +48,7 @@ public final class ApprovalDtos {
             int riskScore,
             Instant submittedAt,
             Instant dueAt,
-            long version) {
-    }
+            long version) { }
 
     public record TimelineEvent(
             UUID eventId,
@@ -64,8 +61,7 @@ public final class ApprovalDtos {
             boolean delegated,
             String outcome,
             String message,
-            Instant occurredAt) {
-    }
+            Instant occurredAt) { }
 
     public record TaskDetail(
             TaskSummary task,
@@ -91,8 +87,7 @@ public final class ApprovalDtos {
             @NotBlank @Pattern(regexp = "[0-9a-f]{64}") String workflowDefinitionSha256,
             @NotBlank @Pattern(regexp = "[0-9a-f]{64}") String formSchemaSha256,
             @Min(1) long policyVersion,
-            @NotBlank @Pattern(regexp = "[0-9a-f]{64}") String policySha256) {
-    }
+            @NotBlank @Pattern(regexp = "[0-9a-f]{64}") String policySha256) { }
 
     public record QuorumTaskSnapshot(
             long generation,
@@ -138,8 +133,7 @@ public final class ApprovalDtos {
                     "CURRENT_ROLE_REVOKED"
             })
             String reason,
-            Instant evaluatedAt) {
-    }
+            Instant evaluatedAt) { }
 
     public record RequestSummary(
             UUID requestId,
@@ -159,8 +153,7 @@ public final class ApprovalDtos {
             Instant submittedAt,
             Instant dueAt,
             Instant completedAt,
-            long version) {
-    }
+            long version) { }
 
     public record RequestDetail(
             RequestSummary request,
@@ -186,8 +179,7 @@ public final class ApprovalDtos {
     public record RequestPreflightCheck(
             String code,
             String status,
-            String detail) {
-    }
+            String detail) { }
 
     public record RequestPreflight(
             UUID requestId,
@@ -202,8 +194,7 @@ public final class ApprovalDtos {
         }
     }
 
-    public record StageMetric(String stage, int count, int atRisk) {
-    }
+    public record StageMetric(String stage, int count, int atRisk) { }
 
     public record DecisionInsight(
             String key,
@@ -212,8 +203,7 @@ public final class ApprovalDtos {
             String titleEn,
             String detailKo,
             String detailEn,
-            String route) {
-    }
+            String route) { }
 
     public record HomeResponse(
             Instant generatedAt,
@@ -223,8 +213,7 @@ public final class ApprovalDtos {
             List<StageMetric> flow,
             List<DecisionInsight> insights,
             boolean administrator,
-            AdminPulse adminPulse) {
-    }
+            AdminPulse adminPulse) { }
 
     public record AdminPulse(
             int publishedWorkflows,
@@ -255,8 +244,7 @@ public final class ApprovalDtos {
     public record AssuranceSignal(
             String key,
             String state,
-            int exceptions) {
-    }
+            int exceptions) { }
 
     public record WorkflowSummary(
             UUID workflowId,
@@ -273,14 +261,12 @@ public final class ApprovalDtos {
             boolean allowSelfApproval,
             String ownerGroupRef,
             long version,
-            Instant updatedAt) {
-    }
+            Instant updatedAt) { }
 
     public record WorkflowDetail(
             WorkflowSummary workflow,
             Map<String, Object> definition,
-            String definitionHash) {
-    }
+            String definitionHash) { }
 
     public record FormCategorySummary(
             UUID categoryId,
@@ -294,8 +280,7 @@ public final class ApprovalDtos {
             int sortOrder,
             String lifecycleState,
             int formCount,
-            long version) {
-    }
+            long version) { }
 
     public record FormRouteSummary(
             UUID bindingId,
@@ -307,8 +292,7 @@ public final class ApprovalDtos {
             int workflowVersion,
             int slaMinutes,
             String bindingType,
-            int priority) {
-    }
+            int priority) { }
 
     public record FormSummary(
             UUID formId,
@@ -329,8 +313,7 @@ public final class ApprovalDtos {
             int routeCount,
             long usageCount,
             long version,
-            Instant updatedAt) {
-    }
+            Instant updatedAt) { }
 
     public record FormDetail(
             FormSummary form,
@@ -347,8 +330,7 @@ public final class ApprovalDtos {
     public record RequestTemplate(
             WorkflowSummary workflow,
             Map<String, Object> routeDefinition,
-            FormDetail form) {
-    }
+            FormDetail form) { }
 
     public record PolicySummary(
             UUID policyId,
@@ -368,8 +350,7 @@ public final class ApprovalDtos {
             Map<String, Object> pendingRule,
             String pendingChangeReason,
             Long pendingBy,
-            Instant pendingAt) {
-    }
+            Instant pendingAt) { }
 
     public record PolicyVersionSummary(
             UUID policyVersionId,
@@ -383,8 +364,7 @@ public final class ApprovalDtos {
             Instant submittedAt,
             Long publishedBy,
             Instant publishedAt,
-            String reviewComment) {
-    }
+            String reviewComment) { }
 
     public record OperationSignal(
             String key,
@@ -393,15 +373,13 @@ public final class ApprovalDtos {
             String titleEn,
             String detailKo,
             String detailEn,
-            int count) {
-    }
+            int count) { }
 
     public record OperationsResponse(
             Instant generatedAt,
             List<OperationSignal> signals,
             List<TaskSummary> breachedTasks,
-            List<IntegrationDeliverySummary> integrationDeliveries) {
-    }
+            List<IntegrationDeliverySummary> integrationDeliveries) { }
 
     public record IntegrationDeliverySummary(
             UUID outboxId,
@@ -417,8 +395,7 @@ public final class ApprovalDtos {
             Instant createdAt,
             Instant lastRetriedAt,
             long version,
-            RetryEligibility retryEligibility) {
-    }
+            RetryEligibility retryEligibility) { }
 
     public record RetryEligibility(
             boolean eligible,
@@ -432,8 +409,7 @@ public final class ApprovalDtos {
             })
             String reason,
             long expectedVersion,
-            Instant evaluatedAt) {
-    }
+            Instant evaluatedAt) { }
 
     public record SignatureProviderSummary(
             UUID providerId,
@@ -444,8 +420,7 @@ public final class ApprovalDtos {
             SignatureCapabilities capabilities,
             boolean credentialConfigured,
             Instant lastHealthCheckedAt,
-            long version) {
-    }
+            long version) { }
 
     public record SignatureCapabilities(
             boolean internalAttestation,
@@ -460,8 +435,7 @@ public final class ApprovalDtos {
                     "NOT_VERIFIED",
                     "EXTERNAL_VERIFICATION_REQUIRED"
             })
-            String readiness) {
-    }
+            String readiness) { }
 
     public record DelegationSummary(
             UUID delegationId,
@@ -482,16 +456,14 @@ public final class ApprovalDtos {
             String lifecycleState,
             String reason,
             long version,
-            String direction) {
-    }
+            String direction) { }
 
     public record DelegationCandidate(
             long userId,
             UUID personPublicId,
             String displayName,
             String email,
-            String jobTitle) {
-    }
+            String jobTitle) { }
 
     public record DecisionRequest(
             @NotBlank String decision,
@@ -503,8 +475,7 @@ public final class ApprovalDtos {
         }
     }
 
-    public record VersionedActionRequest(@NotNull Long expectedVersion) {
-    }
+    public record VersionedActionRequest(@NotNull Long expectedVersion) { }
 
     public record InformationResponseRequest(
             @NotBlank @Size(max = 2000) String message,
@@ -543,8 +514,7 @@ public final class ApprovalDtos {
             @NotNull @Size(max = 2000) String summary,
             @NotBlank String priority,
             Map<String, Object> payload,
-            @NotNull Long expectedVersion) {
-    }
+            @NotNull Long expectedVersion) { }
 
     public record CreateDelegationRequest(
             @NotNull Long delegateUserId,
@@ -571,8 +541,7 @@ public final class ApprovalDtos {
         }
     }
 
-    public record PublishWorkflowRequest(@NotNull Long expectedVersion) {
-    }
+    public record PublishWorkflowRequest(@NotNull Long expectedVersion) { }
 
     public record WorkflowStepInput(
             @NotBlank @Pattern(regexp = "[A-Z][A-Z0-9_]{1,79}") String key,

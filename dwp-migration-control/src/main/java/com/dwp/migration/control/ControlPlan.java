@@ -32,6 +32,11 @@ record ControlPlan(
                             "dwp_approval_retention_executor",
                             "24",
                             false,
+                            List.of()),
+                    new ManagedDatabaseRole(
+                            "dwp_approval_audit_relay",
+                            "41",
+                            false,
                             List.of()));
             default -> List.of();
         };
@@ -94,14 +99,24 @@ record ControlPlan(
         for (ManagedDatabaseRole role : managedDatabaseRoles()) {
             schemas.addAll(role.allowedOwnershipSchemas());
         }
+        schemas.addAll(migrationOwnedPrivateSchemas());
         return List.copyOf(schemas);
+    }
+
+    /** Private schemas deliberately owned by the migration principal. */
+    List<String> migrationOwnedPrivateSchemas() {
+        return databaseCreateMigrations().stream()
+                .filter(DatabaseCreateMigration::migrationPrincipalOwnsSchema)
+                .map(DatabaseCreateMigration::introducedSchema)
+                .toList();
     }
 
     /** Immutable versions that create a plan-owned private schema. */
     List<DatabaseCreateMigration> databaseCreateMigrations() {
         return switch (service) {
             case "approval" -> List.of(
-                    DatabaseCreateMigration.APPROVAL_RETENTION_FOUNDATION);
+                    DatabaseCreateMigration.APPROVAL_RETENTION_FOUNDATION,
+                    DatabaseCreateMigration.APPROVAL_NATIVE_SIGNATURE_GOVERNANCE);
             default -> List.of();
         };
     }
@@ -109,9 +124,38 @@ record ControlPlan(
     /** Immutable migrations that require the temporary retention-owner capability. */
     List<DatabaseCreateMigration> managedRoleMigrations() {
         return switch (service) {
-            case "approval" -> List.of(DatabaseCreateMigration.values());
+            case "approval" -> List.of(
+                    DatabaseCreateMigration.APPROVAL_RETENTION_FOUNDATION,
+                    DatabaseCreateMigration.APPROVAL_RETENTION_EXECUTION,
+                    DatabaseCreateMigration.APPROVAL_RETENTION_DISPATCH,
+                    DatabaseCreateMigration.APPROVAL_RETENTION_SLA_WITNESS,
+                    DatabaseCreateMigration.APPROVAL_RETENTION_SLA_INVENTORY,
+                    DatabaseCreateMigration.APPROVAL_RETENTION_COMMAND_WITNESS,
+                    DatabaseCreateMigration.APPROVAL_RETENTION_COMMAND_INVENTORY,
+                    DatabaseCreateMigration.APPROVAL_MANAGED_RETENTION_EXECUTION,
+                    DatabaseCreateMigration.APPROVAL_EXTERNAL_SIGNATURE_RETENTION,
+                    DatabaseCreateMigration.APPROVAL_NATIVE_OPERATIONS_RETENTION);
             default -> List.of();
         };
+    }
+
+    /** Every exact-source migration that needs a bounded privilege window. */
+    List<DatabaseCreateMigration> privilegedMigrations() {
+        if (!"approval".equals(service)) {
+            return List.of();
+        }
+        return List.of(
+                DatabaseCreateMigration.APPROVAL_RETENTION_FOUNDATION,
+                DatabaseCreateMigration.APPROVAL_RETENTION_EXECUTION,
+                DatabaseCreateMigration.APPROVAL_RETENTION_DISPATCH,
+                DatabaseCreateMigration.APPROVAL_RETENTION_SLA_WITNESS,
+                DatabaseCreateMigration.APPROVAL_RETENTION_SLA_INVENTORY,
+                DatabaseCreateMigration.APPROVAL_RETENTION_COMMAND_WITNESS,
+                DatabaseCreateMigration.APPROVAL_RETENTION_COMMAND_INVENTORY,
+                DatabaseCreateMigration.APPROVAL_MANAGED_RETENTION_EXECUTION,
+                DatabaseCreateMigration.APPROVAL_NATIVE_SIGNATURE_GOVERNANCE,
+                DatabaseCreateMigration.APPROVAL_EXTERNAL_SIGNATURE_RETENTION,
+                DatabaseCreateMigration.APPROVAL_NATIVE_OPERATIONS_RETENTION);
     }
 
     /** Role-specific ACL admission floor; exact ACL bytes are sealed in inventory. */
@@ -126,7 +170,7 @@ record ControlPlan(
         String owner = "dwp_approval_retention_owner";
         String executor = "dwp_approval_retention_executor";
         String internal = "apr_retention_internal";
-        return Set.of(
+        LinkedHashSet<AllowedPrivilege> privileges = new LinkedHashSet<>(Set.of(
                 allowed(owner, "RELATION", "public", "SELECT"),
                 allowed(owner, "RELATION", "public", "INSERT"),
                 allowedObject(owner, "RELATION", "public",
@@ -154,7 +198,9 @@ record ControlPlan(
                 allowed(executor, "SCHEMA", "public", "USAGE"),
                 allowed(executor, "SCHEMA", internal, "USAGE"),
                 allowed(executor, "ROUTINE", internal, "EXECUTE"),
-                allowed(executor, "RELATION", "public", "SELECT"));
+                allowed(executor, "RELATION", "public", "SELECT")));
+        privileges.addAll(approvalAuditRelayPrivileges());
+        return Set.copyOf(privileges);
     }
 
     /** Minimum steady ACLs needed to execute/read the reviewed retention surface. */
@@ -165,7 +211,7 @@ record ControlPlan(
         if (!"approval".equals(service)) {
             return Set.of();
         }
-        return Set.of(
+        LinkedHashSet<AllowedPrivilege> privileges = new LinkedHashSet<>(Set.of(
                 allowed(
                         "dwp_approval_retention_owner",
                         "SCHEMA",
@@ -187,14 +233,20 @@ record ControlPlan(
                         "dwp_approval_retention_executor",
                         "SCHEMA",
                         "public",
-                        "USAGE"));
+                        "USAGE")));
+        privileges.addAll(approvalAuditRelayPrivileges());
+        return Set.copyOf(privileges);
     }
 
-    /** Schema reachability that Control itself normalizes after migrations close. */
+    /**
+     * Public-schema reachability that Control itself normalizes after migrations close.
+     * Private-schema grants stay source-pinned because their owner window is already closed.
+     */
     Set<AllowedPrivilege> auxiliaryRequiredSchemaUsagePrivileges() {
         return auxiliaryRequiredAclPrivileges().stream()
                 .filter(privilege -> "SCHEMA".equals(privilege.objectClass())
                         && "USAGE".equals(privilege.privilege())
+                        && "public".equals(privilege.schema())
                         && "*".equals(privilege.objectIdentity()))
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
     }
@@ -505,6 +557,40 @@ record ControlPlan(
             privileges.add(allowedObject(role, "COLUMN", "public",
                     "public." + column, "UPDATE"));
         }
+        return Set.copyOf(privileges);
+    }
+
+    private static Set<AllowedPrivilege> approvalAuditRelayPrivileges() {
+        String relay = "dwp_approval_audit_relay";
+        LinkedHashSet<AllowedPrivilege> privileges = new LinkedHashSet<>();
+        privileges.add(allowed(relay, "SCHEMA", "public", "USAGE"));
+        privileges.add(allowed(relay, "SCHEMA", "apr_retention_internal", "USAGE"));
+        privileges.add(allowedObject(
+                relay, "RELATION", "public", "public.sys_audit_outbox", "SELECT"));
+        privileges.add(allowedObject(
+                relay, "RELATION", "public", "public.sys_audit_outbox", "DELETE"));
+        for (String column : List.of(
+                "status",
+                "attempt_count",
+                "available_at",
+                "locked_by",
+                "locked_until",
+                "last_error",
+                "published_at",
+                "updated_at")) {
+            privileges.add(allowedObject(
+                    relay,
+                    "COLUMN",
+                    "public",
+                    "public.sys_audit_outbox." + column,
+                    "UPDATE"));
+        }
+        privileges.add(allowedObject(
+                relay,
+                "ROUTINE",
+                "apr_retention_internal",
+                "apr_retention_internal.audit_cleanup_eligible(p_row jsonb)",
+                "EXECUTE"));
         return Set.copyOf(privileges);
     }
 

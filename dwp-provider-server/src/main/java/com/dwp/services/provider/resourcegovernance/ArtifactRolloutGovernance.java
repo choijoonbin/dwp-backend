@@ -37,7 +37,7 @@ final class ArtifactRolloutGovernance {
     }
 
     public ResourceGovernanceDtos.ArtifactRolloutPlanPage plans() {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.ARTIFACT_READ);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.ARTIFACT_READ);
         List<PlanRow> rows = repository.plans(LIST_LIMIT + 1);
         return new ResourceGovernanceDtos.ArtifactRolloutPlanPage(
                 rows.stream().limit(LIST_LIMIT).map(this::plan).toList(),
@@ -48,7 +48,7 @@ final class ArtifactRolloutGovernance {
     public ArtifactRolloutPlan createPlan(
             CreateArtifactRolloutPlanRequest request,
             String correlationId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.ARTIFACT_WRITE);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.ARTIFACT_WRITE);
         CreateArtifactRolloutPlanRequest normalized = normalize(request);
         rules.validatePlanDefinition(normalized);
         ArtifactRow artifact = repository.lockArtifact(normalized.artifactId())
@@ -71,7 +71,7 @@ final class ArtifactRolloutGovernance {
             UUID planId,
             ResourceGovernanceDtos.VersionedReasonRequest request,
             String correlationId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.ARTIFACT_WRITE);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.ARTIFACT_WRITE);
         PlanRow before = repository.lockPlan(planId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         rules.requireApprovedCompatibleArtifact(repository.lockArtifact(before.artifactId())
@@ -95,7 +95,7 @@ final class ArtifactRolloutGovernance {
             UUID planId,
             ResourceGovernanceDtos.ArtifactRolloutDecisionRequest request,
             String correlationId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.ARTIFACT_APPROVE);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.ARTIFACT_APPROVE);
         PlanRow before = repository.lockPlan(planId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         Long actorId = ProviderRequestContext.require().operatorId();
@@ -123,7 +123,7 @@ final class ArtifactRolloutGovernance {
             UUID planId,
             ResourceGovernanceDtos.VersionedReasonRequest request,
             String correlationId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.ARTIFACT_WRITE);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.ARTIFACT_WRITE);
         PlanRow before = repository.lockPlan(planId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         rules.requireApprovedCompatibleArtifact(repository.lockArtifact(before.artifactId())
@@ -149,7 +149,7 @@ final class ArtifactRolloutGovernance {
             UUID planId,
             AppendArtifactEvidenceRequest request,
             String correlationId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.ARTIFACT_WRITE);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.ARTIFACT_WRITE);
         AppendArtifactEvidenceRequest normalized = normalize(request);
         rules.validateEvidenceObject(normalized.evidence(), "Rollout evidence");
         rules.rejectInlineSecretMaterial(normalized.evidence());

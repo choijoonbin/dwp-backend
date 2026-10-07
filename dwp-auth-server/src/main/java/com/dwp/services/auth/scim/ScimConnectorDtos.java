@@ -1,5 +1,6 @@
 package com.dwp.services.auth.scim;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -16,6 +17,7 @@ public final class ScimConnectorDtos {
     private ScimConnectorDtos() {
     }
 
+    @Schema(name = "CreateRequest")
     public record CreateRequest(
             @NotBlank
             @Pattern(regexp = "[A-Za-z][A-Za-z0-9_.-]{0,99}") String connectorKey,
@@ -33,6 +35,7 @@ public final class ScimConnectorDtos {
             @NotBlank @Size(max = 500) String reason) {
     }
 
+    @Schema(name = "ScimConnectorLifecycleRequest")
     public record LifecycleRequest(@NotBlank @Pattern(regexp = "ACTIVE|SUSPENDED|RETIRED") String state) {
     }
 

@@ -7,30 +7,21 @@ import com.dwp.gateway.productsurface.FeatureRolloutDecisionCache;
 import com.dwp.gateway.productsurface.FeatureRolloutApplicationReceiptClient;
 import com.dwp.gateway.productsurface.FeatureRolloutEvaluationClient;
 import com.dwp.gateway.productsurface.FeatureRolloutInvalidationConsumer;
-import com.dwp.gateway.productsurface.GeneratedProductRouteCatalog;
 import com.dwp.gateway.productsurface.ProductSurfaceContextDtos;
 import com.dwp.gateway.productsurface.ProductSurfaceRolloutSafetyLatch;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.core.io.buffer.DataBuffer;
-import org.springframework.core.io.buffer.DataBufferUtils;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
 import org.springframework.mock.web.server.MockServerWebExchange;
-import org.springframework.core.env.MapPropertySource;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.ExchangeFunction;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Mono;
 
-import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.time.Instant;
 import java.util.List;
-import java.util.Map;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -45,9 +36,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-class ProductSurfaceFeatureRolloutContractTest {
-
-    private static final Instant T0 = Instant.parse("2026-08-24T00:00:00Z");
+class ProductSurfaceFeatureRolloutContractTest extends ProductSurfaceFeatureRolloutTestSupport {
 
     @Test
     void acceptsOnlyTheFourApprovedRolloutCombinations() {
@@ -387,7 +376,9 @@ class ProductSurfaceFeatureRolloutContractTest {
                 .build());
         FeatureRolloutApplicationReceiptClient receipts =
                 mock(FeatureRolloutApplicationReceiptClient.class);
-        when(receipts.applied(anyLong(), any(), any())).thenReturn(Mono.empty());
+        when(receipts.applied(
+                anyLong(), any(), any(FeatureRolloutEvaluationClient.RequestMetadata.class)))
+                .thenReturn(Mono.empty());
         FeatureRolloutEvaluationClient client = new FeatureRolloutEvaluationClient(
                 WebClient.builder().exchangeFunction(exchange),
                 new FeatureRolloutDecisionCache(Duration.ofSeconds(60), 100),
@@ -427,7 +418,8 @@ class ProductSurfaceFeatureRolloutContractTest {
                 .build());
         FeatureRolloutApplicationReceiptClient receipts =
                 mock(FeatureRolloutApplicationReceiptClient.class);
-        when(receipts.applied(anyLong(), any(), any()))
+        when(receipts.applied(
+                anyLong(), any(), any(FeatureRolloutEvaluationClient.RequestMetadata.class)))
                 .thenReturn(Mono.error(new IllegalStateException("receipt unavailable")));
         FeatureRolloutEvaluationClient client = new FeatureRolloutEvaluationClient(
                 WebClient.builder().exchangeFunction(exchange),
@@ -979,204 +971,4 @@ class ProductSurfaceFeatureRolloutContractTest {
                 .evaluateProducts(anyLong(), any(), any());
     }
 
-    @Test
-    void approvalRequestsFailClosedWithoutVerifiedTenantOrRolloutAuthority() {
-        FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
-        ProductSurfaceRolloutHeaderFilter filter =
-                new ProductSurfaceRolloutHeaderFilter(
-                        client, productRouteCatalog(), new ObjectMapper());
-        MockServerWebExchange missingTenant = MockServerWebExchange.from(
-                MockServerHttpRequest.get("/api/approvals/v1/home")
-                        .header(ProductSurfaceRolloutHeaderFilter.STATE_HEADER, "111")
-                        .build());
-        AtomicBoolean missingTenantForwarded = new AtomicBoolean();
-
-        filter.filter(missingTenant, ignored -> {
-            missingTenantForwarded.set(true);
-            return Mono.empty();
-        }).block();
-
-        when(client.evaluateProducts(eq(7L), eq(List.of("approvals")), any()))
-                .thenReturn(Mono.error(new FeatureRolloutEvaluationClient
-                        .RolloutAuthorityUnavailableException()));
-        MockServerWebExchange unavailable = MockServerWebExchange.from(
-                MockServerHttpRequest.get("/api/approvals/v1/home")
-                        .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
-                        .build());
-        AtomicBoolean unavailableForwarded = new AtomicBoolean();
-
-        filter.filter(unavailable, ignored -> {
-            unavailableForwarded.set(true);
-            return Mono.empty();
-        }).block();
-
-        assertThat(missingTenant.getResponse().getStatusCode())
-                .isEqualTo(HttpStatus.UNAUTHORIZED);
-        assertThat(missingTenantForwarded).isFalse();
-        assertThat(unavailable.getResponse().getStatusCode())
-                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-        assertThat(unavailableForwarded).isFalse();
-    }
-
-    @Test
-    void telemetryRejectsDuplicateProductKeysBeforeRolloutEvaluation() {
-        FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
-        ProductSurfaceRolloutHeaderFilter filter =
-                new ProductSurfaceRolloutHeaderFilter(
-                        client, productRouteCatalog(), new ObjectMapper());
-        MockServerWebExchange exchange = MockServerWebExchange.from(
-                MockServerHttpRequest.post(
-                                "/api/platform/v1/observability/product-surface-events")
-                        .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
-                        .body("{\"schemaVersion\":1,\"productKey\":\"hcm\","
-                                + "\"productKey\":\"approvals\"}"));
-
-        filter.filter(exchange, ignored -> Mono.empty()).block();
-
-        assertThat(exchange.getResponse().getStatusCode())
-                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-        verify(client, org.mockito.Mockito.never())
-                .evaluateProducts(anyLong(), any(), any());
-    }
-
-    @Test
-    void telemetryReturnsServiceUnavailableWhenTheDurableLatchCannotBeRead() {
-        FeatureRolloutEvaluationClient client = mock(FeatureRolloutEvaluationClient.class);
-        when(client.evaluateProducts(eq(7L), eq(List.of("hcm")), any()))
-                .thenReturn(Mono.error(new FeatureRolloutEvaluationClient
-                        .RolloutAuthorityUnavailableException()));
-        ProductSurfaceRolloutHeaderFilter filter =
-                new ProductSurfaceRolloutHeaderFilter(
-                        client, productRouteCatalog(), new ObjectMapper());
-        MockServerWebExchange exchange = MockServerWebExchange.from(
-                MockServerHttpRequest.post(
-                                "/api/platform/v1/observability/product-surface-events")
-                        .header(VerifiedIdentityFilter.TENANT_HEADER, "7")
-                        .body("{\"schemaVersion\":1,\"eventName\":\"surface.exposed\","
-                                + "\"productKey\":\"hcm\"}"));
-        AtomicBoolean forwarded = new AtomicBoolean();
-
-        filter.filter(exchange, ignored -> {
-            forwarded.set(true);
-            return Mono.empty();
-        }).block();
-
-        assertThat(exchange.getResponse().getStatusCode())
-                .isEqualTo(HttpStatus.SERVICE_UNAVAILABLE);
-        assertThat(forwarded).isFalse();
-    }
-
-    private FeatureRolloutEvaluationClient outageClient(
-            ProductSurfaceRolloutSafetyLatch latch) {
-        return client(
-                new FeatureRolloutDecisionCache(Duration.ofSeconds(60), 100),
-                latch,
-                request -> Mono.just(
-                        ClientResponse.create(HttpStatus.SERVICE_UNAVAILABLE).build()));
-    }
-
-    private FeatureRolloutEvaluationClient client(
-            FeatureRolloutDecisionCache cache,
-            ProductSurfaceRolloutSafetyLatch latch,
-            ExchangeFunction exchange) {
-        return new FeatureRolloutEvaluationClient(
-                WebClient.builder().exchangeFunction(exchange),
-                cache,
-                latch,
-                "http://provider.test",
-                "trusted-provider-service-token",
-                Duration.ofSeconds(2));
-    }
-
-    private static ProductSurfaceRolloutSafetyLatch.Snapshot snapshot(
-            boolean shadow,
-            long shadowRevision,
-            boolean enforcement,
-            long enforcementRevision) {
-        return new ProductSurfaceRolloutSafetyLatch.Snapshot(
-                shadow,
-                revision(shadowRevision),
-                enforcement,
-                revision(enforcementRevision));
-    }
-
-    private static FeatureRolloutDecisionCache.FlagDecision decision(
-            String flag,
-            boolean enabled,
-            long revision,
-            String cohort) {
-        return new FeatureRolloutDecisionCache.FlagDecision(
-                flag,
-                enabled,
-                enabled ? "ROLLOUT_MATCH" : "PERCENTAGE_EXCLUDED",
-                revision(revision),
-                cohort,
-                T0,
-                true);
-    }
-
-    private AnnotationConfigApplicationContext invalidationContext(boolean enabled) {
-        AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext();
-        if (enabled) {
-            context.getEnvironment().getPropertySources().addFirst(new MapPropertySource(
-                    "rollout-invalidation-test",
-                    Map.of("dwp.gateway.product-surface-rollout.invalidation-enabled", "true")));
-        }
-        context.registerBean(
-                FeatureRolloutDecisionCache.class,
-                () -> new FeatureRolloutDecisionCache(Duration.ofSeconds(60), 100));
-        context.registerBean(ObjectMapper.class, () -> new ObjectMapper());
-        context.register(FeatureRolloutInvalidationConsumer.class);
-        context.refresh();
-        return context;
-    }
-
-    private static FeatureRolloutDecisionCache.FlagDecision unavailable(String flag) {
-        return new FeatureRolloutDecisionCache.FlagDecision(
-                flag, false, "PROVIDER_UNAVAILABLE", "unavailable",
-                "baseline", null, false);
-    }
-
-    private static FeatureRolloutInvalidationConsumer.DecisionChangedEvent event(
-            String flag,
-            long revision,
-            Instant createdAt) {
-        return new FeatureRolloutInvalidationConsumer.DecisionChangedEvent(
-                UUID.randomUUID(),
-                "ALL",
-                null,
-                flag,
-                revision(revision),
-                "PAUSED",
-                createdAt);
-    }
-
-    private static FeatureRolloutEvaluationClient.RequestMetadata metadata() {
-        return new FeatureRolloutEvaluationClient.RequestMetadata(
-                "corr-1", "00-trace", "vendor=state");
-    }
-
-    private static String revision(long value) {
-        return "rev-" + String.format(java.util.Locale.ROOT, "%020d", value);
-    }
-
-    private GeneratedProductRouteCatalog productRouteCatalog() {
-        return new GeneratedProductRouteCatalog(
-                new ObjectMapper(),
-                new ClassPathResource(
-                        "product-authorization/product-surfaces-v1.generated.json"));
-    }
-
-    private static String readBody(
-            org.springframework.http.server.reactive.ServerHttpRequest request) {
-        DataBuffer buffer = DataBufferUtils.join(request.getBody()).block();
-        if (buffer == null) return "";
-        byte[] bytes = new byte[buffer.readableByteCount()];
-        try {
-            buffer.read(bytes);
-            return new String(bytes, StandardCharsets.UTF_8);
-        } finally {
-            DataBufferUtils.release(buffer);
-        }
-    }
 }

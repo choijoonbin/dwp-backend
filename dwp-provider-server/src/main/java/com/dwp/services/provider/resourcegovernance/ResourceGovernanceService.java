@@ -37,13 +37,14 @@ import java.util.UUID;
 @Service
 public class ResourceGovernanceService {
 
-    static final String RESOURCE_READ = "RESOURCE_GOVERNANCE_READ";
-    static final String RESOURCE_WRITE = "RESOURCE_GOVERNANCE_WRITE";
-    static final String RESOURCE_APPROVE = "RESOURCE_GOVERNANCE_APPROVE";
-    static final String ARTIFACT_READ = "ARTIFACT_GOVERNANCE_READ";
-    static final String ARTIFACT_WRITE = "ARTIFACT_GOVERNANCE_WRITE";
-    static final String ARTIFACT_APPROVE = "ARTIFACT_GOVERNANCE_APPROVE";
-    static final String TENANT_LIFECYCLE_APPROVE = "TENANT_LIFECYCLE_GOVERNANCE_APPROVE";
+    static final String RESOURCE_READ = ResourceGovernancePermissions.RESOURCE_READ;
+    static final String RESOURCE_WRITE = ResourceGovernancePermissions.RESOURCE_WRITE;
+    static final String RESOURCE_APPROVE = ResourceGovernancePermissions.RESOURCE_APPROVE;
+    static final String ARTIFACT_READ = ResourceGovernancePermissions.ARTIFACT_READ;
+    static final String ARTIFACT_WRITE = ResourceGovernancePermissions.ARTIFACT_WRITE;
+    static final String ARTIFACT_APPROVE = ResourceGovernancePermissions.ARTIFACT_APPROVE;
+    static final String TENANT_LIFECYCLE_APPROVE =
+            ResourceGovernancePermissions.TENANT_LIFECYCLE_APPROVE;
 
     private final ResourceCommitmentGovernance commitments;
     private final ResourceCommitmentChangeGovernance commitmentChanges;

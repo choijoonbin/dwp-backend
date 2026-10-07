@@ -41,7 +41,7 @@ final class ResourceCommitmentGovernance {
     }
 
     public CommitmentPage commitments(UUID tenantId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.RESOURCE_READ);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.RESOURCE_READ);
         List<CommitmentRow> rows = repository.commitments(tenantId, LIST_LIMIT + 1);
         return new CommitmentPage(
                 rows.stream().limit(LIST_LIMIT).map(this::commitment).toList(),
@@ -50,7 +50,7 @@ final class ResourceCommitmentGovernance {
     }
 
     public LedgerPage ledger(UUID tenantId, String resourceKey, int requestedLimit) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.RESOURCE_READ);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.RESOURCE_READ);
         requireCommitment(tenantId, resourceKey);
         int limit = boundedLimit(requestedLimit);
         List<LedgerRow> rows = repository.ledger(tenantId, resourceKey, limit + 1);
@@ -392,7 +392,7 @@ final class ResourceCommitmentGovernance {
 
     /** A write grant alone must not become a way to select an otherwise undisclosed tenant. */
     private void requireTenantSelectionWrite() {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.RESOURCE_WRITE);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.RESOURCE_WRITE);
         ProviderRequestContext.requirePermission("ESTATE_READ");
     }
 

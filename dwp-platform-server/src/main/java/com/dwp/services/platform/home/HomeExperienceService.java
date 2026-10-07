@@ -9,8 +9,6 @@ import com.dwp.services.platform.media.TenantMediaStorage;
 import com.dwp.services.platform.support.CappedList;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.core.io.Resource;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -27,15 +25,10 @@ import static com.dwp.services.platform.home.HomeExperienceDtos.revisionSnapshot
 import static com.dwp.services.platform.home.HomeExperienceDtos.snapshot;
 
 @Service
-public class HomeExperienceService implements HomeCompositionPolicyReader {
+public class HomeExperienceService extends HomeExperienceServiceSupport
+        implements HomeCompositionPolicyReader {
 
-    private static final Logger log = LoggerFactory.getLogger(HomeExperienceService.class);
     private static final String BACKGROUND_URL = "/api/platform/v1/home-experience/background";
-    private static final List<String> ROLLBACK_AFFECTED_SCOPES = List.of(
-            "PRESENTATION",
-            "BACKGROUND_ASSET",
-            "LAUNCHPAD",
-            "COMPOSITION");
     private static final List<String> HOME_CONTRACT_CAPABILITIES = List.of(
             "HOME_COMPOSITION_V4",
             "MODE_SCOPED_HOME_VIEWS",
@@ -46,9 +39,6 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
     private final HomeBackgroundValidator validator;
     private final PlatformAuditService auditService;
     private final ExperienceRevisionStore revisionStore;
-    private final ObjectMapper objectMapper;
-    private final HomeLaunchpadPolicy launchpadPolicy;
-    private final HomeCompositionPolicyRegistry compositionPolicyRegistry;
     private final HomeViewCompatibilityBridge compatibilityBridge;
     private final HomeExperiencePresentationPolicy presentationPolicy;
     private final HomeModeV4ActivationGate modeV4ActivationGate;
@@ -87,14 +77,12 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
             HomeViewCompatibilityBridge compatibilityBridge,
             HomeExperiencePresentationPolicy presentationPolicy,
             HomeModeV4ActivationGate modeV4ActivationGate) {
+        super(objectMapper, launchpadPolicy, compositionPolicyRegistry);
         this.repository = repository;
         this.assetStorage = assetStorage;
         this.validator = validator;
         this.auditService = auditService;
         this.revisionStore = revisionStore;
-        this.objectMapper = objectMapper;
-        this.launchpadPolicy = launchpadPolicy;
-        this.compositionPolicyRegistry = compositionPolicyRegistry;
         this.compatibilityBridge = compatibilityBridge;
         this.presentationPolicy = presentationPolicy;
         this.modeV4ActivationGate = modeV4ActivationGate;
@@ -663,26 +651,6 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
                 correlationId);
     }
 
-    private HomeExperienceDtos.HomeExperienceRevisionResponse revisionResponse(
-            ExperienceRevisionStore.ExperienceRevision revision,
-            long currentVersion) {
-        JsonNode value = revision.snapshot();
-        JsonNode localized = value.get("localizedContent");
-        return new HomeExperienceDtos.HomeExperienceRevisionResponse(
-                revision.revisionId(),
-                revision.sourceVersion(),
-                revision.changeType(),
-                text(value, "headline"),
-                text(value, "backgroundOriginalName"),
-                integer(value, "backgroundWidth"),
-                integer(value, "backgroundHeight"),
-                localized != null && localized.isObject() ? localized.size() : 0,
-                ROLLBACK_AFFECTED_SCOPES,
-                revision.sourceVersion() == currentVersion && !"BASELINE".equals(revision.changeType()),
-                revision.createdAt(),
-                revision.createdBy());
-    }
-
     private void applyRevision(Long tenantId, HomeExperience experience, JsonNode value) {
         String assetKey = text(value, "backgroundAssetKey");
         if (assetKey != null) {
@@ -703,60 +671,6 @@ public class HomeExperienceService implements HomeCompositionPolicyReader {
         experience.setBackgroundSha256(text(value, "backgroundSha256"));
         experience.setBackgroundWidth(integer(value, "backgroundWidth"));
         experience.setBackgroundHeight(integer(value, "backgroundHeight"));
-    }
-
-    private long versionOf(HomeExperience experience) {
-        return experience.getVersion() == null ? 0L : experience.getVersion();
-    }
-
-    private String text(JsonNode value, String field) {
-        JsonNode node = value == null ? null : value.get(field);
-        return node == null || node.isNull() ? null : node.asText();
-    }
-
-    private Integer integer(JsonNode value, String field) {
-        JsonNode node = value == null ? null : value.get(field);
-        return node == null || !node.isNumber() ? null : node.intValue();
-    }
-
-    private Long longValue(JsonNode value, String field) {
-        JsonNode node = value == null ? null : value.get(field);
-        return node == null || !node.isNumber() ? null : node.longValue();
-    }
-
-    private HomeExperienceDtos.HomeLaunchpadConfiguration launchpadConfiguration(JsonNode value) {
-        if (value == null || !value.isObject() || value.isEmpty()) {
-            return launchpadPolicy.defaultConfiguration();
-        }
-        try {
-            HomeExperienceDtos.HomeLaunchpadConfiguration configuration =
-                    objectMapper.treeToValue(
-                            value,
-                            HomeExperienceDtos.HomeLaunchpadConfiguration.class);
-            return launchpadPolicy.normalize(configuration);
-        } catch (Exception exception) {
-            log.warn(
-                    "Invalid persisted home launchpad configuration; using the governed default.",
-                    exception);
-            return launchpadPolicy.defaultConfiguration();
-        }
-    }
-
-    private HomeExperienceDtos.HomeCompositionPolicy compositionPolicy(JsonNode value) {
-        if (value == null || !value.isObject() || value.isEmpty()) {
-            return compositionPolicyRegistry.failClosedPolicy();
-        }
-        try {
-            HomeExperienceDtos.HomeCompositionPolicy policy = objectMapper.treeToValue(
-                    value,
-                    HomeExperienceDtos.HomeCompositionPolicy.class);
-            return compositionPolicyRegistry.normalize(policy);
-        } catch (Exception exception) {
-            log.warn(
-                    "Invalid persisted home composition policy; disabling personal customization.",
-                    exception);
-            return compositionPolicyRegistry.failClosedPolicy();
-        }
     }
 
     public record BackgroundContent(

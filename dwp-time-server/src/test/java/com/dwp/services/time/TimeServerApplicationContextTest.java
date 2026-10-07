@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import javax.sql.DataSource;
 
 import com.dwp.core.database.SystemFlywayConfigurationGuard;
+import io.swagger.v3.oas.annotations.OpenAPIDefinition;
 import org.flywaydb.core.Flyway;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.flyway.FlywayMigrationInitializer;
@@ -20,6 +21,15 @@ class TimeServerApplicationContextTest {
                             + "org.springframework.boot.autoconfigure.flyway.FlywayAutoConfiguration")
             .withPropertyValues(canonicalProperties())
             .withUserConfiguration(TimeServerApplication.class);
+
+    @Test
+    void publishesStableOpenApiIdentity() {
+        var definition = TimeServerApplication.class.getAnnotation(OpenAPIDefinition.class);
+
+        assertThat(definition).isNotNull();
+        assertThat(definition.info().title()).isEqualTo("DWP Time Service API");
+        assertThat(definition.info().version()).isEqualTo("1.0.0");
+    }
 
     @Test
     void rejectsServiceContextWithoutRequiredMigrationInfrastructure() {

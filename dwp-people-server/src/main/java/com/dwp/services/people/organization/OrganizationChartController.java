@@ -1,6 +1,7 @@
 package com.dwp.services.people.organization;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -20,6 +21,7 @@ public class OrganizationChartController {
         this.service = service;
     }
 
+    @Operation(operationId = "get_2")
     @GetMapping
     public ApiResponse<OrganizationChartDtos.OrganizationChart> get(
             @RequestParam(required = false)

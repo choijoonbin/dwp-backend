@@ -2,6 +2,7 @@ package com.dwp.services.people.hr.performance;
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.services.people.security.HcmStepUpHeaders;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -32,16 +33,19 @@ public class PerformanceCycleController {
         this.service = service;
     }
 
+    @Operation(operationId = "hrisPerformanceCycles")
     @GetMapping("/cycles")
     public ApiResponse<PerformanceCycleDtos.CycleCollection> cycles() {
         return ApiResponse.success(service.cycles());
     }
 
+    @Operation(operationId = "hrisPerformanceCycle")
     @GetMapping("/cycles/{cycleId}")
     public ApiResponse<PerformanceCycleDtos.CycleDetail> cycle(@PathVariable UUID cycleId) {
         return ApiResponse.success(service.cycle(cycleId));
     }
 
+    @Operation(operationId = "hrisPerformanceCreateCycle")
     @PostMapping("/cycles")
     public ApiResponse<PerformanceCycleDtos.CycleCommandResult> create(
             @RequestHeader(IDEMPOTENCY_HEADER) String idempotencyKey,
@@ -50,6 +54,7 @@ public class PerformanceCycleController {
         return ApiResponse.success(service.create(request, idempotencyKey, correlationId));
     }
 
+    @Operation(operationId = "hrisPerformanceUpdateCycle")
     @PatchMapping("/cycles/{cycleId}")
     public ApiResponse<PerformanceCycleDtos.CycleCommandResult> update(
             @PathVariable UUID cycleId,
@@ -60,6 +65,7 @@ public class PerformanceCycleController {
                 service.update(cycleId, request, idempotencyKey, correlationId));
     }
 
+    @Operation(operationId = "hrisPerformanceValidateCycle")
     @PostMapping("/cycles/{cycleId}/validate")
     public ApiResponse<PerformanceCycleDtos.CycleCommandResult> validate(
             @PathVariable UUID cycleId,
@@ -70,6 +76,7 @@ public class PerformanceCycleController {
                 service.validate(cycleId, request, idempotencyKey, correlationId));
     }
 
+    @Operation(operationId = "hrisPerformancePreviewPopulation")
     @PostMapping("/cycles/{cycleId}/population-previews")
     public ApiResponse<PerformanceCycleDtos.PreviewCommandResult> preview(
             @PathVariable UUID cycleId,
@@ -80,6 +87,7 @@ public class PerformanceCycleController {
                 service.preview(cycleId, request, idempotencyKey, correlationId));
     }
 
+    @Operation(operationId = "hrisPerformancePublishCycle")
     @PostMapping("/cycles/{cycleId}/publish")
     public ApiResponse<PerformanceCycleDtos.CycleCommandResult> publish(
             @PathVariable UUID cycleId,
@@ -96,6 +104,7 @@ public class PerformanceCycleController {
                                 decisionRevision, expectedObjectVersion)));
     }
 
+    @Operation(operationId = "hrisPerformanceCommandReceipt")
     @GetMapping("/command-receipts/{receiptId}")
     public ApiResponse<PerformanceCycleDtos.CommandReceipt> receipt(
             @PathVariable UUID receiptId) {

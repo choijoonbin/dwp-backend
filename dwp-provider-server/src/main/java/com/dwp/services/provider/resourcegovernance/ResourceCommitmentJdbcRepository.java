@@ -25,7 +25,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public class ResourceCommitmentJdbcRepository {
+public class ResourceCommitmentJdbcRepository implements ResourceCommitmentPersistence<
+        CommitmentRow, ResourceCommitmentChangeRow, InternalEvidenceFreshnessRow,
+        LedgerTotalsRow, LedgerRow> {
     private static final String COMMITMENT_SELECT = """
             SELECT commitment.provider_tenant_id, tenant.tenant_key,
                    tenant.display_name AS tenant_display_name,

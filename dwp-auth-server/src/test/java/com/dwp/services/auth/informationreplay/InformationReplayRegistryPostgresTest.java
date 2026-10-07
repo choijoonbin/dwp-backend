@@ -42,7 +42,7 @@ class InformationReplayRegistryPostgresTest {
                     () -> service.evaluate(exchange.body(), exchange.token())).getErrorCode());
             String prefix = "dwp:auth:information-replay:v1:{1:" + InformationReplayProtocol.OWNER_PURPOSE + "}:";
             for (String key : List.of(prefix + "owner:" + proof.sourceJti(), prefix + "transport:" + proof.transportJti())) assertFalse(auth.redis().hasKey(key));
-            for (long version : new long[]{9, 10, 33}) {
+            for (long version : new long[]{9, 10, 35}) {
                 var rejected = assertThrows(DataAccessException.class, () -> auth.jdbc().update(
                         "UPDATE auth_product_authorization_bundle SET version=? WHERE bundle_status='ACTIVE'", version));
                 assertEquals("P0001", ((java.sql.SQLException) rejected.getMostSpecificCause()).getSQLState());

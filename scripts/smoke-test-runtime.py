@@ -175,7 +175,20 @@ custody_actions, _ = request(
     "GET",
     "/api/platform/v1/admin/saved-view-ownership/orphaned/actions?limit=1",
 )
-require(isinstance(custody_actions["data"], list), "Saved-view custody actions must be a list")
+custody_page = custody_actions["data"]
+require(isinstance(custody_page, dict), "Saved-view custody actions must be a page")
+require(
+    isinstance(custody_page.get("items"), list),
+    "Saved-view custody action items must be a list",
+)
+require(
+    custody_page.get("limit") == 1,
+    "Saved-view custody action limit must be preserved",
+)
+require(
+    isinstance(custody_page.get("hasMore"), bool),
+    "Saved-view custody pagination flag must be boolean",
+)
 RESULT.mark_assertion("custody-audit-payload-valid")
 
 MISMATCH_TENANT_ID = different_positive_tenant_id(TENANT_ID)

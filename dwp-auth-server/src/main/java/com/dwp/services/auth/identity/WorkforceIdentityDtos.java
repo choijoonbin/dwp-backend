@@ -1,5 +1,6 @@
 package com.dwp.services.auth.identity;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -29,6 +30,7 @@ public final class WorkforceIdentityDtos {
             @Size(max = 255) String sourceVersion) {
     }
 
+    @Schema(name = "WorkforceIdentitySyncResult")
     public record SyncResult(
             UUID eventId,
             Long tenantId,

@@ -123,7 +123,7 @@ final class PayrollFoundationAccess {
         }
         String normalizedExecutionPurpose = requirePurpose(executionPurpose, policy);
         String normalizedProjectionPurpose = requirePurpose(projectionPurpose, policy);
-        Scope scope = scopeResolution.scope();
+        Scope scope = new Scope(false, scopeResolution.legalEntityIds());
         return new Actor(
                 tenantId,
                 actorId,

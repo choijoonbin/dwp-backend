@@ -18,8 +18,9 @@ final class CalendarRowMapper {
 
     private final ObjectMapper objectMapper;
 
-    CalendarRepository.ResourceRow closureAvailability(CalendarRepository.ResourceRow value, java.util.Set<UUID> closed) {
-        return !closed.contains(value.resourceId()) ? value : new CalendarRepository.ResourceRow(
+    <T extends CalendarResourceView> T closureAvailability(
+            T value, java.util.Set<UUID> closed, ResourceFactory<T> factory) {
+        return !closed.contains(value.resourceId()) ? value : factory.create(
                 value.resourceId(), value.code(), value.name(), value.nameKo(), value.nameEn(), value.type(),
                 value.site(), value.floor(), value.capacity(), value.features(), value.timeZone(),
                 value.approvalRequired(), value.state(), false, value.version());
@@ -29,10 +30,13 @@ final class CalendarRowMapper {
         this.objectMapper = objectMapper;
     }
 
-    CalendarRepository.EventRow event(ResultSet result) throws SQLException {
+    <R, E> E event(
+            ResultSet result,
+            ResourceFactory<R> resourceFactory,
+            EventFactory<R, E> eventFactory) throws SQLException {
         UUID resourceId = result.getObject("resource_id", UUID.class);
-        CalendarRepository.ResourceRow resource = resourceId == null ? null
-                : new CalendarRepository.ResourceRow(
+        R resource = resourceId == null ? null
+                : resourceFactory.create(
                         resourceId,
                         result.getString("resource_code"),
                         result.getString("resource_name"),
@@ -49,7 +53,7 @@ final class CalendarRowMapper {
                         true,
                         0);
         String response = result.getString("my_response");
-        return new CalendarRepository.EventRow(
+        return eventFactory.create(
                 result.getObject("event_id", UUID.class),
                 result.getObject("calendar_id", UUID.class),
                 result.getString("calendar_name"),
@@ -83,8 +87,8 @@ final class CalendarRowMapper {
                 result.getLong("version"));
     }
 
-    CalendarRepository.ResourceRow resource(ResultSet result) throws SQLException {
-        return new CalendarRepository.ResourceRow(
+    <T> T resource(ResultSet result, ResourceFactory<T> factory) throws SQLException {
+        return factory.create(
                 result.getObject("resource_id", UUID.class),
                 result.getString("resource_code"),
                 result.getString("name"),
@@ -102,8 +106,8 @@ final class CalendarRowMapper {
                 result.getLong("version"));
     }
 
-    CalendarRepository.PolicyRow policy(ResultSet result) throws SQLException {
-        return new CalendarRepository.PolicyRow(
+    <T> T policy(ResultSet result, PolicyFactory<T> factory) throws SQLException {
+        return factory.create(
                 result.getInt("week_start"),
                 result.getObject("working_day_start", LocalTime.class),
                 result.getObject("working_day_end", LocalTime.class),
@@ -119,10 +123,44 @@ final class CalendarRowMapper {
                 result.getLong("version"));
     }
 
-    static CalendarRepository.PolicyRow defaultPolicy() {
-        return new CalendarRepository.PolicyRow(
+    static <T> T defaultPolicy(PolicyFactory<T> factory) {
+        return factory.create(
                 1, LocalTime.of(9, 0), LocalTime.of(18, 0), 30, 15, 480,
                 365, 10, 600, 300, false, true, 0);
+    }
+
+    @FunctionalInterface
+    interface ResourceFactory<T> {
+        T create(
+                UUID resourceId, String code, String name, String nameKo, String nameEn,
+                ResourceType type, String site, String floor, int capacity,
+                List<String> features, String timeZone, boolean approvalRequired,
+                ResourceState state, boolean available, long version);
+    }
+
+    @FunctionalInterface
+    interface EventFactory<R, T> {
+        T create(
+                UUID eventId, UUID calendarId, String calendarName, String calendarColor,
+                Long organizerUserId, UUID organizerPersonPublicId, String organizerName,
+                String organizerEmail, String title, String description, EventType type,
+                OffsetDateTime startsAt, OffsetDateTime endsAt, String timeZone,
+                boolean allDay, String location, String conferenceUrl, EventStatus status,
+                EventVisibility visibility, RecurrencePattern recurrence,
+                int recurrenceInterval, LocalDate recurrenceUntil, boolean responseRequired,
+                ResponseStatus myResponse, R resource, EventImportance importance,
+                EventDetailLevel detailLevel, boolean starred, long preferenceVersion,
+                CalendarAccessLevel accessLevel, long version);
+    }
+
+    @FunctionalInterface
+    interface PolicyFactory<T> {
+        T create(
+                int weekStart, LocalTime workingDayStart, LocalTime workingDayEnd,
+                int defaultEventMinutes, int minimumEventMinutes, int maximumEventMinutes,
+                int maximumAdvanceDays, int defaultBufferMinutes,
+                int weeklyFocusTargetMinutes, int dailyMeetingLimitMinutes,
+                boolean enforceMeetingAgenda, boolean allowExternalAttendees, long version);
     }
 
     private List<String> stringList(String value) {

@@ -32,32 +32,19 @@ public final class ApprovalPilotPepRegistry {
         PROVIDER_SUPPORT
     }
 
-    static final String RESOURCE =
-            "product-authorization/approval-pilot-pep-v2.generated.json";
-    static final String V7_RESOURCE =
-            "product-authorization/approval-pilot-pep-v7.generated.json";
-    static final String V8_RESOURCE =
-            "product-authorization/approval-pilot-pep-v8.generated.json";
-    static final String V9_RESOURCE =
-            "product-authorization/approval-pilot-pep-v9.generated.json";
-    static final String V10_RESOURCE =
-            "product-authorization/approval-pilot-pep-v10.generated.json";
-    static final String V11_RESOURCE =
-            "product-authorization/approval-pilot-pep-v11.generated.json";
-    static final String V12_RESOURCE =
-            "product-authorization/approval-pilot-pep-v12.generated.json";
-    static final String V13_RESOURCE =
-            "product-authorization/approval-pilot-pep-v13.generated.json";
-    static final String V14_RESOURCE =
-            "product-authorization/approval-pilot-pep-v14.generated.json";
-    static final String V15_RESOURCE =
-            "product-authorization/approval-pilot-pep-v15.generated.json";
-    static final String V19_RESOURCE =
-            "product-authorization/approval-pilot-pep-v19.generated.json";
-    static final String V31_RESOURCE =
-            "product-authorization/approval-pilot-pep-v31.generated.json";
-    static final String V32_RESOURCE =
-            "product-authorization/approval-pilot-pep-v32.generated.json";
+    static final String RESOURCE = ApprovalPepProjectionLoader.RESOURCE;
+    static final String V7_RESOURCE = ApprovalPepProjectionLoader.V7_RESOURCE;
+    static final String V8_RESOURCE = ApprovalPepProjectionLoader.V8_RESOURCE;
+    static final String V9_RESOURCE = ApprovalPepProjectionLoader.V9_RESOURCE;
+    static final String V10_RESOURCE = ApprovalPepProjectionLoader.V10_RESOURCE;
+    static final String V11_RESOURCE = ApprovalPepProjectionLoader.V11_RESOURCE;
+    static final String V12_RESOURCE = ApprovalPepProjectionLoader.V12_RESOURCE;
+    static final String V13_RESOURCE = ApprovalPepProjectionLoader.V13_RESOURCE;
+    static final String V14_RESOURCE = ApprovalPepProjectionLoader.V14_RESOURCE;
+    static final String V15_RESOURCE = ApprovalPepProjectionLoader.V15_RESOURCE;
+    static final String V19_RESOURCE = ApprovalPepProjectionLoader.V19_RESOURCE;
+    static final String V31_RESOURCE = ApprovalPepProjectionLoader.V31_RESOURCE;
+    static final String V32_RESOURCE = ApprovalPepProjectionLoader.V32_RESOURCE;
 
     private final ObjectMapper objectMapper;
     private final Clock clock;
@@ -84,98 +71,11 @@ public final class ApprovalPilotPepRegistry {
     ApprovalPilotPepRegistry(ObjectMapper objectMapper, Clock clock, int version) {
         this.objectMapper = objectMapper;
         this.clock = clock;
-        require(Set.of(2L, 7L, 8L, 9L, 10L, 11L, 12L, 13L, 14L, 15L, 19L, 31L, 32L)
-                        .contains((long) version),
-                "Unsupported Approval PEP version");
-        if (version != 2) {
-            new ApprovalPilotPepRegistry(objectMapper, clock, 2);
-        }
-        ObjectNode projection = readProjection(switch (version) {
-            case 2 -> RESOURCE;
-            case 7 -> V7_RESOURCE;
-            case 8 -> V8_RESOURCE;
-            case 9 -> V9_RESOURCE;
-            case 10 -> V10_RESOURCE;
-            case 11 -> V11_RESOURCE;
-            case 12 -> V12_RESOURCE;
-            case 13 -> V13_RESOURCE;
-            case 14 -> V14_RESOURCE;
-            case 15 -> V15_RESOURCE;
-            case 19 -> V19_RESOURCE;
-            case 31 -> V31_RESOURCE;
-            case 32 -> V32_RESOURCE;
-            default -> throw new IllegalStateException("Unsupported Approval PEP version");
-        });
-        ApprovalPepProjectionLineage.validateEnvelope(objectMapper, projection, version);
+        ObjectNode projection = ApprovalPepProjectionLoader.load(objectMapper, clock, version);
         JsonNode ref = projection.path("registryRef");
         registryRef = new RegistryRef(
                 ref.path("bundleKey").asText(), ref.path("version").asInt(),
                 ref.path("sha256").asText());
-        if (version != 2) ApprovalPepProjectionLineage.validateSuperset(readProjection(RESOURCE), projection);
-        if (version == 8) {
-            new ApprovalPilotPepRegistry(objectMapper, clock, 7);
-            ApprovalPepProjectionLineage.validateSuperset(readProjection(V7_RESOURCE), projection);
-            ApprovalDocumentProjectionSchemaContract.validateResource(objectMapper);
-        }
-        if (version == 9) {
-            new ApprovalPilotPepRegistry(objectMapper, clock, 8);
-            ApprovalPepProjectionLineage.validateSuperset(readProjection(V8_RESOURCE), projection);
-            ApprovalExtensionProjectionSchemaContract.validateResource(objectMapper);
-        }
-        if (version == 10) {
-            new ApprovalPilotPepRegistry(objectMapper, clock, 9);
-            ApprovalPepProjectionLineage.validateSuperset(readProjection(V9_RESOURCE), projection);
-            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
-        }
-        if (version == 11) {
-            new ApprovalPilotPepRegistry(objectMapper, clock, 10);
-            ApprovalPepProjectionLineage.validateSuperset(readProjection(V10_RESOURCE), projection);
-            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
-            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
-        }
-        if (version == 12) {
-            new ApprovalPilotPepRegistry(objectMapper, clock, 11);
-            ApprovalPepProjectionLineage.validateSuperset(readProjection(V11_RESOURCE), projection);
-            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
-            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
-        }
-        if (version == 13) {
-            new ApprovalPilotPepRegistry(objectMapper, clock, 12);
-            ApprovalPepProjectionLineage.validateSuperset(readProjection(V12_RESOURCE), projection);
-            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
-            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
-        }
-        if (version == 14) {
-            new ApprovalPilotPepRegistry(objectMapper, clock, 13);
-            ApprovalPepProjectionLineage.validateSuperset(readProjection(V13_RESOURCE), projection);
-            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
-            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
-        }
-        if (version == 15) {
-            new ApprovalPilotPepRegistry(objectMapper, clock, 14);
-            ApprovalPepProjectionLineage.validateSuperset(readProjection(V14_RESOURCE), projection);
-            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
-            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
-        }
-        if (version == 19) {
-            new ApprovalPilotPepRegistry(objectMapper, clock, 15);
-            ApprovalPepProjectionLineage.validateSuperset(readProjection(V15_RESOURCE), projection);
-            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
-            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
-        }
-        if (version == 31) {
-            new ApprovalPilotPepRegistry(objectMapper, clock, 19);
-            ApprovalPepProjectionLineage.validateSuperset(readProjection(V19_RESOURCE), projection);
-            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
-            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
-        }
-        if (version == 32) {
-            new ApprovalPilotPepRegistry(objectMapper, clock, 31);
-            ApprovalPepProjectionLineage.validateSuperset(readProjection(V31_RESOURCE), projection);
-            ApprovalRelease10ProjectionSchemaContract.validateResource(objectMapper);
-            ApprovalRecovery11ProjectionSchemaContract.validateResource(objectMapper);
-        }
-        if (version != 2) ApprovalWorkProjectionSchemaContract.validateResource(objectMapper);
         capabilities = index(projection, "capabilities", "contractKey");
         policies = index(projection, "accessPolicies", "accessPolicyKey");
         expressions = index(projection, "entitlementExpressions", "expressionKey");

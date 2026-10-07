@@ -1,6 +1,7 @@
 package com.dwp.services.auth.tenantsettings;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
@@ -274,6 +275,7 @@ public final class TenantSettingsDtos {
         }
     }
 
+    @Schema(name = "TenantSettingsEffectiveSetting")
     public record EffectiveSetting(
             String settingKey,
             JsonNode effectiveValue,

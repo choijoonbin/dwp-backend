@@ -27,7 +27,6 @@ import static com.dwp.services.people.organization.OrganizationScenarioGraphVali
 
 @Service
 public class OrganizationScenarioService {
-
     private final OrganizationScenarioRepository repository;
     private final OrganizationChartService chartService;
     private final OrganizationScenarioDecisionService decisionService;
@@ -35,10 +34,8 @@ public class OrganizationScenarioService {
     private final HcmHighRiskCommandGuard highRisk;
     private final OrganizationScenarioPublishTargetRepository publishTargets;
     private final OrganizationPublishRolloutGate publishRollout;
-
     @org.springframework.beans.factory.annotation.Autowired
-    public OrganizationScenarioService(
-            OrganizationScenarioRepository repository,
+    public OrganizationScenarioService(OrganizationScenarioRepository repository,
             OrganizationChartService chartService,
             OrganizationScenarioDecisionService decisionService,
             AuditOutboxRecorder audit,
@@ -54,8 +51,7 @@ public class OrganizationScenarioService {
         this.publishRollout = publishRollout;
     }
 
-    OrganizationScenarioService(
-            OrganizationScenarioRepository repository,
+    OrganizationScenarioService(OrganizationScenarioRepository repository,
             OrganizationChartService chartService,
             OrganizationScenarioDecisionService decisionService,
             AuditOutboxRecorder audit) {

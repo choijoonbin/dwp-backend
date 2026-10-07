@@ -319,12 +319,13 @@ def parameter_identity(parameter: dict[str, Any]) -> tuple[str, str]:
 
 
 def merge_reviewed_parameters(
-        existing: dict[str, Any], reviewed: dict[str, Any]) -> None:
-    """Add reviewed parameters that springdoc does not yet expose.
+        existing: dict[str, Any], reviewed: dict[str, Any], *,
+        conditional_required: bool = False) -> None:
+    """Add reviewed parameters and retain their fail-closed constraints.
 
-    The live operation remains authoritative for schemas it already publishes.  Design-time
-    overlays can still introduce reviewed parameters (for example a query-dispatched view)
-    without replacing those live schemas.
+    Springdoc remains authoritative for additional schema detail, but it may not silently drop
+    a reviewed requirement or constraint. Missing reviewed schema keys are restored and a
+    conflicting live value fails the export instead of weakening or misrepresenting the contract.
     """
     reviewed_parameters = reviewed.get("parameters", [])
     if not isinstance(reviewed_parameters, list):
@@ -335,10 +336,10 @@ def merge_reviewed_parameters(
     parameters = existing.setdefault("parameters", [])
     if not isinstance(parameters, list):
         raise RuntimeError("HRIS live operation parameters must be an array")
-    identities = {
-        parameter_identity(parameter)
+    by_identity = {
+        parameter_identity(parameter): parameter
         for parameter in parameters
-        if isinstance(parameter, dict)
+        if isinstance(parameter, dict) and all(parameter_identity(parameter))
     }
     for parameter in reviewed_parameters:
         if not isinstance(parameter, dict):
@@ -346,9 +347,62 @@ def merge_reviewed_parameters(
         identity = parameter_identity(parameter)
         if not all(identity):
             raise RuntimeError("HRIS design-time operation parameter identity is invalid")
-        if identity not in identities:
+        existing_parameter = by_identity.get(identity)
+        if existing_parameter is None:
             parameters.append(copy.deepcopy(parameter))
-            identities.add(identity)
+            by_identity[identity] = parameters[-1]
+            continue
+
+        if "required" in parameter:
+            reviewed_required = parameter["required"]
+            live_required = existing_parameter.get("required")
+            if live_required is None:
+                existing_parameter["required"] = reviewed_required
+            elif live_required != reviewed_required and not conditional_required:
+                raise RuntimeError(
+                    f"HRIS reviewed parameter required constraint collision: {identity}"
+                )
+
+        reviewed_schema = parameter.get("schema")
+        if reviewed_schema is None:
+            continue
+        if not isinstance(reviewed_schema, dict):
+            raise RuntimeError("HRIS reviewed parameter schema must be an object")
+        live_schema = existing_parameter.get("schema")
+        if live_schema is None:
+            existing_parameter["schema"] = copy.deepcopy(reviewed_schema)
+            continue
+        if not isinstance(live_schema, dict):
+            raise RuntimeError("HRIS live parameter schema must be an object")
+        for key, value in reviewed_schema.items():
+            if key not in live_schema:
+                live_schema[key] = copy.deepcopy(value)
+            elif live_schema[key] != value:
+                raise RuntimeError(
+                    f"HRIS reviewed parameter schema collision: {identity} {key}"
+                )
+
+
+def make_variant_parameters_conditional(
+        existing: dict[str, Any], reviewed: dict[str, Any]) -> None:
+    """Keep query-variant requirements out of the shared OpenAPI operation.
+
+    A PATCH overlay represents one query-dispatched controller variant. Parameters required
+    only after that variant is selected remain recorded in ``x-dwp-controller-variants``;
+    marking them required on the shared operation would reject valid calls to the base handler.
+    """
+    required_parameters = reviewed.get("x-dwp-required-parameters", [])
+    if not isinstance(required_parameters, list) or not all(
+            isinstance(value, str) and value for value in required_parameters):
+        raise RuntimeError("HRIS design-time required parameters must be a string array")
+    conditional_names = {value.split("=", 1)[0] for value in required_parameters}
+    for parameter in existing.get("parameters", []):
+        if (
+                isinstance(parameter, dict)
+                and parameter.get("in") == "query"
+                and parameter.get("name") in conditional_names
+        ):
+            parameter["required"] = False
 
 
 def merge_reviewed_components(
@@ -465,7 +519,10 @@ def apply_design_time_overlay(
                 existing["x-dwp-controller-variants"] = sorted(
                     variants, key=lambda item: item["controllerMethod"]
                 )
-                merge_reviewed_parameters(existing, reviewed)
+                merge_reviewed_parameters(
+                    existing, reviewed, conditional_required=True
+                )
+                make_variant_parameters_conditional(existing, reviewed)
                 continue
 
             canonical = copy.deepcopy(reviewed)

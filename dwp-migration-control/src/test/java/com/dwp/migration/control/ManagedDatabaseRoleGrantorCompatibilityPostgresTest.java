@@ -26,6 +26,7 @@ class ManagedDatabaseRoleGrantorCompatibilityPostgresTest {
     private static final String RUNTIME_PASSWORD = "managed_role_runtime_password";
     private static final String OWNER = "dwp_approval_retention_owner";
     private static final String EXECUTOR = "dwp_approval_retention_executor";
+    private static final String AUDIT_RELAY = "dwp_approval_audit_relay";
 
     @Test
     void postgres16SupportsExactAdminOnlyGrantorLifecycle() throws Exception {
@@ -99,7 +100,7 @@ class ManagedDatabaseRoleGrantorCompatibilityPostgresTest {
                         """));
 
                 ManagedDatabaseRoleControl.provision(bootstrap, environment);
-                assertEquals("2:1:t:t", DatabaseControl.scalar(bootstrap, """
+                assertEquals("3:1:t:t", DatabaseControl.scalar(bootstrap, """
                         SELECT concat_ws(':',
                                    COUNT(*),
                                    COUNT(DISTINCT membership.grantor),
@@ -114,7 +115,8 @@ class ManagedDatabaseRoleGrantorCompatibilityPostgresTest {
                             ON grantor.oid=membership.grantor
                          WHERE granted.rolname IN (
                                    'dwp_approval_retention_owner',
-                                   'dwp_approval_retention_executor')
+                                   'dwp_approval_retention_executor',
+                                   'dwp_approval_audit_relay')
                            AND member.rolname='managed_role_nonsuper_bootstrap'
                            AND membership.admin_option
                            AND NOT membership.inherit_option
@@ -132,6 +134,8 @@ class ManagedDatabaseRoleGrantorCompatibilityPostgresTest {
                         assertTrue(hasRole(bootstrap, MIGRATION, OWNER, "USAGE"));
                         assertTrue(hasRole(bootstrap, MIGRATION, OWNER, "SET"));
                         assertFalse(hasRole(bootstrap, MIGRATION, EXECUTOR, "MEMBER"));
+                        assertFalse(hasRole(
+                                bootstrap, MIGRATION, AUDIT_RELAY, "MEMBER"));
                         assertFalse(hasSchemaPrivilege(
                                 bootstrap, OWNER, "public", "USAGE"));
                         assertTrue(hasSchemaPrivilege(
@@ -190,10 +194,14 @@ class ManagedDatabaseRoleGrantorCompatibilityPostgresTest {
                 assertFalse(hasRole(bootstrap, MIGRATION, OWNER, "MEMBER"));
                 assertTrue(hasSchemaPrivilege(bootstrap, OWNER, "public", "USAGE"));
                 assertTrue(hasSchemaPrivilege(bootstrap, EXECUTOR, "public", "USAGE"));
+                assertTrue(hasSchemaPrivilege(
+                        bootstrap, AUDIT_RELAY, "public", "USAGE"));
                 assertFalse(hasSchemaPrivilege(bootstrap, OWNER, "public", "CREATE"));
                 assertFalse(hasSchemaPrivilege(bootstrap, EXECUTOR, "public", "CREATE"));
+                assertFalse(hasSchemaPrivilege(
+                        bootstrap, AUDIT_RELAY, "public", "CREATE"));
                 DatabaseControl.requireDatabaseCreateDenied(bootstrap, environment);
-                assertEquals(2L, DatabaseControl.scalarLong(bootstrap, """
+                assertEquals(3L, DatabaseControl.scalarLong(bootstrap, """
                         SELECT COUNT(*)
                           FROM pg_catalog.pg_auth_members membership
                           JOIN pg_catalog.pg_roles granted
@@ -202,7 +210,8 @@ class ManagedDatabaseRoleGrantorCompatibilityPostgresTest {
                             ON member.oid=membership.member
                          WHERE granted.rolname IN (
                                    'dwp_approval_retention_owner',
-                                   'dwp_approval_retention_executor')
+                                   'dwp_approval_retention_executor',
+                                   'dwp_approval_audit_relay')
                            AND member.rolname='managed_role_nonsuper_bootstrap'
                         """));
                 ManagedDatabaseRoleControl.requirePreflight(bootstrap, environment);

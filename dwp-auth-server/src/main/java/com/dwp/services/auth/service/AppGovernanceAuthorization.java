@@ -12,6 +12,7 @@ import java.util.UUID;
 public final class AppGovernanceAuthorization {
 
     static final String GOVERNANCE_RESOURCE = "ADMIN.APP_GOVERNANCE";
+    private static final String CATALOG_ADMIN = "APP_CATALOG_ADMIN";
     private static final Set<String> HUB_RESPONSIBILITIES = Set.of(
             "APP_OWNER", "APP_ACCESS_APPROVER",
             "APP_ACCESS_MANAGER", "APP_ACCESS_REVIEWER");
@@ -31,7 +32,7 @@ public final class AppGovernanceAuthorization {
     }
 
     public Visibility visibility(Long tenantId, Long actorId) {
-        boolean queueReader = canPermission(tenantId, actorId, GOVERNANCE_RESOURCE, "VIEW");
+        boolean queueReader = hasCatalogAuthority(tenantId, actorId, "VIEW");
         Set<UUID> resourceSetIds = new LinkedHashSet<>();
         HUB_RESPONSIBILITIES.forEach(responsibility -> resourceSetIds.addAll(
                 responsibilityScopes(tenantId, actorId, responsibility)));
@@ -56,7 +57,7 @@ public final class AppGovernanceAuthorization {
 
     void requirePresetRequester(
             Long tenantId, Long actorId, UUID resourceSetId, String correlationId) {
-        if (!canPermission(tenantId, actorId, GOVERNANCE_RESOURCE, "MANAGE")
+        if (!hasCatalogAuthority(tenantId, actorId, "MANAGE")
                 && !hasResponsibility(
                         tenantId, actorId, "APP_OWNER", resourceSetId)) {
             denied(tenantId, actorId, correlationId, "APP_ADMIN_PRESET_ASSIGNMENT",
@@ -70,7 +71,7 @@ public final class AppGovernanceAuthorization {
             String correlationId,
             String entityType,
             String targetId) {
-        if (!canPermission(tenantId, actorId, GOVERNANCE_RESOURCE, "MANAGE")) {
+        if (!hasCatalogAuthority(tenantId, actorId, "MANAGE")) {
             denied(tenantId, actorId, correlationId, entityType, targetId,
                     "APP_CATALOG_ADMIN_REQUIRED");
         }
@@ -192,6 +193,66 @@ public final class AppGovernanceAuthorization {
                 tenantId, actorId, tenantId, actorId, tenantId,
                 resourceKey, permissionCode);
         return Boolean.TRUE.equals(allowed);
+    }
+
+    private boolean hasCatalogAuthority(
+            Long tenantId, Long actorId, String permissionCode) {
+        // The catalog role and its ALLOW must be the same effective role. The actor-wide
+        // permission evaluation remains an independent final fence so a DENY on any other
+        // effective role still wins and cannot be hidden by this exact-role intersection.
+        return hasCatalogRolePermission(tenantId, actorId, permissionCode)
+                && canPermission(tenantId, actorId, GOVERNANCE_RESOURCE, permissionCode);
+    }
+
+    private boolean hasCatalogRolePermission(
+            Long tenantId, Long actorId, String permissionCode) {
+        return Boolean.TRUE.equals(jdbc.queryForObject("""
+                WITH catalog_roles AS (
+                    SELECT role.role_id FROM com_roles role
+                      JOIN com_role_members member
+                        ON member.tenant_id = role.tenant_id
+                       AND member.role_id = role.role_id
+                     WHERE role.tenant_id = ? AND member.user_id = ?
+                       AND role.code = ? AND role.status = 'ACTIVE'
+                    UNION
+                    SELECT role.role_id FROM com_roles role
+                      JOIN com_group_role_assignments assignment
+                        ON assignment.tenant_id = role.tenant_id
+                       AND assignment.role_id = role.role_id
+                      JOIN com_group_members member
+                        ON member.tenant_id = assignment.tenant_id
+                       AND member.group_id = assignment.group_id
+                      JOIN com_groups access_group
+                        ON access_group.tenant_id = member.tenant_id
+                       AND access_group.group_id = member.group_id
+                       AND access_group.status = 'ACTIVE'
+                     WHERE role.tenant_id = ? AND member.user_id = ?
+                       AND role.code = ? AND role.status = 'ACTIVE'
+                       AND assignment.lifecycle_state = 'ACTIVE'
+                       AND assignment.assignment_type = 'ACTIVE'
+                       AND assignment.scope_type = 'TENANT'
+                       AND (assignment.valid_from IS NULL
+                            OR assignment.valid_from <= CURRENT_TIMESTAMP)
+                       AND (assignment.valid_to IS NULL
+                            OR assignment.valid_to > CURRENT_TIMESTAMP)
+                )
+                SELECT EXISTS (
+                    SELECT 1 FROM catalog_roles catalog_role
+                      JOIN com_role_permissions role_permission
+                        ON role_permission.tenant_id = ?
+                       AND role_permission.role_id = catalog_role.role_id
+                       AND role_permission.effect = 'ALLOW'
+                      JOIN com_resources resource
+                        ON resource.tenant_id = role_permission.tenant_id
+                       AND resource.resource_id = role_permission.resource_id
+                       AND resource.enabled = TRUE
+                      JOIN com_permissions permission
+                        ON permission.permission_id = role_permission.permission_id
+                     WHERE resource.key = ? AND permission.code = ?)
+                """, Boolean.class,
+                tenantId, actorId, CATALOG_ADMIN,
+                tenantId, actorId, CATALOG_ADMIN,
+                tenantId, GOVERNANCE_RESOURCE, permissionCode));
     }
 
     public Set<String> appResourceKeys(

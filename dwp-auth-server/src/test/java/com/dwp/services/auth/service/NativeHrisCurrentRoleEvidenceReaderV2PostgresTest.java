@@ -38,7 +38,7 @@ class NativeHrisCurrentRoleEvidenceReaderV2PostgresTest {
         var source=source(POSTGRES.getDatabaseName(),POSTGRES.getUsername(),POSTGRES.getPassword());owner=new JdbcTemplate(source);
         var flyway=Flyway.configure().dataSource(source).locations("filesystem:src/main/resources/db/migration")
                 .validateOnMigrate(true).outOfOrder(false).load();flyway.migrate();
-        assertEquals("225",flyway.info().current().getVersion().getVersion());assertEquals(127,flyway.info().applied().length);
+        assertEquals("242",flyway.info().current().getVersion().getVersion());assertEquals(144,flyway.info().applied().length);
         try(var connection=source.getConnection()) {
             try(var statement=connection.prepareStatement("SELECT set_config('dwp.test_password',?,false)")){statement.setString(1,PASSWORD);statement.execute();}
             try(var statement=connection.createStatement()){statement.execute("""

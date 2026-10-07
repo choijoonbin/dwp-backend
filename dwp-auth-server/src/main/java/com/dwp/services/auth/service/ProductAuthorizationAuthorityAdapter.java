@@ -28,8 +28,6 @@ import static com.dwp.services.auth.service.ProductAuthorizationAuthoritySupport
 public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAuthorityPort {
 
     private static final String BUNDLE_KEY = "product-surfaces";
-    private static final Set<String> HCM_PEOPLE_ELIGIBILITY_SCOPE_KINDS = Set.of(
-            "SELF", "TARGET_POPULATION", "RESOURCE_SET");
 
     private final ProductAuthorizationContractRepository repository;
     private final ProductAuthorizationIdentityEvidenceService evidenceService;
@@ -172,7 +170,8 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             Evaluation combined = combine(allowed);
             return combined.withProductEligibility(
                     combined.requiresProductEligibility()
-                            || surfaceRequiresPeopleEligibility(request, registry));
+                            || ProductAuthorizationPeopleEligibility.requiredForSurface(
+                                    request, registry));
         }
         if (typedDeny != null && typedDeny.decision()
                 != ProductSurfaceAuthorityDtos.Decision.ROUTE_DENIED) {
@@ -372,7 +371,8 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
             ProductAuthorizationIdentityEvidenceService.IdentityEvidence identity,
             ProductAuthorizationContractDtos.GovernedRoute route,
             Evaluation result) {
-        boolean peopleEligibility = requiresPeopleEligibility(request, route, result);
+        boolean peopleEligibility = ProductAuthorizationPeopleEligibility.requiredForRoute(
+                request, route, result);
         if (!result.allowed()) {
             Evaluation denial = result.forRoute();
             return denial.decision() == ProductSurfaceAuthorityDtos.Decision.STEP_UP_REQUIRED
@@ -386,52 +386,6 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
                 "grant-" + digest(request.routeContractKey() + '\n'
                         + identity.revision()).substring(0, 32),
                 result.requiresProductEligibility() || peopleEligibility);
-    }
-
-    /**
-     * People is the current owner-service eligibility evaluator. Explicit People PEP routes and
-     * HCM routes that materialize a People-owned scope must intersect Auth's source authority with
-     * People eligibility. Profile predicates, target bindings, and execution-service ownership are
-     * not reliable ownership markers: payroll, time, and platform routes can still carry HCM scope
-     * that is owned by People.
-     */
-    private boolean requiresPeopleEligibility(
-            ProductSurfaceAuthorityDtos.EvaluateRequest request,
-            ProductAuthorizationContractDtos.GovernedRoute route,
-            Evaluation result) {
-        if (request.activeAccessMode()
-                == ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT) {
-            return false;
-        }
-        return hasPeoplePepBinding(route)
-                || ("hcm".equals(request.productKey())
-                        && result.scopes().stream()
-                                .map(ProductSurfaceAuthorityDtos.EffectiveScope::kind)
-                                .anyMatch(HCM_PEOPLE_ELIGIBILITY_SCOPE_KINDS::contains));
-    }
-
-    private boolean hasPeoplePepBinding(
-            ProductAuthorizationContractDtos.GovernedRoute route) {
-        return route.servicePepBindings() != null
-                && route.servicePepBindings().stream()
-                        .anyMatch(value -> "people".equals(value.serviceKey()));
-    }
-
-    private boolean surfaceRequiresPeopleEligibility(
-            ProductSurfaceAuthorityDtos.EvaluateRequest request,
-            Registry registry) {
-        if (request.activeAccessMode()
-                == ProductSurfaceAuthorityDtos.AccessMode.PROVIDER_SUPPORT) {
-            return false;
-        }
-        return registry.routesByKey().values().stream()
-                .filter(route -> "PRODUCT".equals(route.subject().type()))
-                .filter(route -> request.productKey().equals(route.subject().productKey()))
-                .filter(route -> request.surfaceKey().equals(route.subject().surfaceKey()))
-                .anyMatch(route -> route.accessProfiles().stream()
-                        .anyMatch(profile -> profile.activeAccessModes().contains(
-                                request.activeAccessMode().name()))
-                        && hasPeoplePepBinding(route));
     }
 
     private Evaluation evaluatePolicy(
@@ -673,12 +627,15 @@ public class ProductAuthorizationAuthorityAdapter implements ProductSurfaceAutho
         if (scoped) {
             scopes = ScopedAdminDutyPolicy.scopes(request, duties, roles, readOnly);
         } else if (inheritsSelfEntryScope) {
-            scopes = readOnly && request.directRouteEvaluation()
-                    && "DATA".equals(registry.routesByKey().get(request.routeContractKey()).routeKind())
+            // Entry-policy evaluation intentionally exposes its own read-only posture. A direct
+            // route, however, must project the route profile's posture onto the inherited SELF
+            // scope in both directions. Otherwise a writable DATA/ACTION grant can be returned
+            // with a contradictory read-only scope and downstream proof verification fails.
+            scopes = request.directRouteEvaluation()
                     ? entryPolicyScopes.stream().map(scope ->
                             new ProductSurfaceAuthorityDtos.EffectiveScope(
                                     scope.key(), scope.kind(), scope.displayName(), scope.isDefault(),
-                                    true, scope.validUntil())).toList()
+                                    readOnly, scope.validUntil())).toList()
                     : entryPolicyScopes;
         } else if (roles.isEmpty()) {
             scopes = policyScopes(request, capability.scopeResolver(), validUntil, readOnly);

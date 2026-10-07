@@ -1,5 +1,6 @@
 package com.dwp.services.auth.dto;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -51,6 +52,7 @@ public final class IdentityAdminDtos {
             Instant assignedAt) {
     }
 
+    @Schema(name = "IdentityAdminRoleSummary")
     public record RoleSummary(
             String code,
             String name,

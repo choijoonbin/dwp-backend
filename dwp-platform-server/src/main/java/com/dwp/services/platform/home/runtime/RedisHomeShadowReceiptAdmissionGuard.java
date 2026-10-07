@@ -112,7 +112,7 @@ final class RedisHomeShadowReceiptAdmissionGuard
             long tenantId,
             long userId,
             String decisionRevision,
-            HomeShadowReceiptController.ShadowReceiptRequest request) {
+            HomeShadowReceipt request) {
         String recipient = digest(tenantId + "|" + userId);
         String semanticPayload = request.schemaVersion()
                 + "|" + request.outcome().name()

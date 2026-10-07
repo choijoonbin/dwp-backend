@@ -38,7 +38,7 @@ final class ArtifactManifestGovernance {
     }
 
     public ResourceGovernanceDtos.ArtifactManifestPage artifacts() {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.ARTIFACT_READ);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.ARTIFACT_READ);
         List<ArtifactRow> rows = repository.artifacts(LIST_LIMIT + 1);
         return new ResourceGovernanceDtos.ArtifactManifestPage(
                 rows.stream().limit(LIST_LIMIT).map(this::artifact).toList(),
@@ -49,7 +49,7 @@ final class ArtifactManifestGovernance {
     public ArtifactManifest createArtifact(
             CreateArtifactManifestRequest request,
             String correlationId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.ARTIFACT_WRITE);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.ARTIFACT_WRITE);
         CreateArtifactManifestRequest normalized = normalize(request);
         rules.validateArtifactDefinition(normalized);
         UUID artifactId = UUID.randomUUID();
@@ -75,7 +75,7 @@ final class ArtifactManifestGovernance {
             UUID artifactId,
             AssessArtifactCompatibilityRequest request,
             String correlationId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.ARTIFACT_WRITE);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.ARTIFACT_WRITE);
         AssessArtifactCompatibilityRequest normalized = normalize(request);
         rules.validateEvidenceObject(normalized.evidence(), "Compatibility evidence");
         rules.rejectInlineSecretMaterial(normalized.evidence());
@@ -106,7 +106,7 @@ final class ArtifactManifestGovernance {
             UUID artifactId,
             ResourceGovernanceDtos.VersionedReasonRequest request,
             String correlationId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.ARTIFACT_WRITE);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.ARTIFACT_WRITE);
         ArtifactRow before = requireArtifact(artifactId);
         if (!repository.submitArtifact(
                 artifactId, request.version(), ProviderRequestContext.require().operatorId())) {
@@ -127,7 +127,7 @@ final class ArtifactManifestGovernance {
             UUID artifactId,
             ArtifactReviewDecisionRequest request,
             String correlationId) {
-        ProviderRequestContext.requirePermission(ResourceGovernanceService.ARTIFACT_APPROVE);
+        ProviderRequestContext.requirePermission(ResourceGovernancePermissions.ARTIFACT_APPROVE);
         ArtifactReviewDecisionRequest normalized = normalize(request);
         rules.validateEvidenceObject(normalized.evidence(), "Artifact review evidence");
         rules.rejectInlineSecretMaterial(normalized.evidence());

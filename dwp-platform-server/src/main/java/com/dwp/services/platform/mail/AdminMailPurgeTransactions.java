@@ -59,7 +59,7 @@ class AdminMailPurgeTransactions {
             guard.requireSafe(job);
             AdminMailCompletionRepository.PurgePreviewRow preview = repository
                     .purgePreview(job.tenantId(), job.snapshotId())
-                    .orElseThrow(() -> new AdminMailPurgeGuard.PurgeBlockedException(
+                    .orElseThrow(() -> new AdminMailPurgeBlockedException(
                             "PURGE_PREVIEW_MISSING"));
             return repository.deleteEligiblePurgeCandidates(job, preview.before());
         }));

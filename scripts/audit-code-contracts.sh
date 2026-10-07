@@ -155,7 +155,7 @@ PYTHON
 
 assert_java_enum_inventory() {
   local actual="$work_dir/java-enums.actual"
-  local expected="$work_dir/java-enums.expected"
+  local baseline="$BACKEND_ROOT/scripts/java-enum-inventory-baseline.txt"
   python3 - "$BACKEND_ROOT" >"$actual" <<'PYTHON'
 import re
 import sys
@@ -169,202 +169,29 @@ for path in sorted(root.glob("dwp-*/src/main/java/**/*.java")):
     for name in re.findall(r"\benum\s+([A-Za-z][A-Za-z0-9_]*)\s*\{", source):
         print(f"{path.relative_to(root)}|{name}")
 PYTHON
-  cat >"$expected" <<'ENUMS'
-dwp-audit/src/main/java/com/dwp/audit/AuditEventPublisher.java|DeliveryResult
-dwp-core/src/main/java/com/dwp/core/common/ErrorCode.java|ErrorCode
-dwp-core/src/main/java/com/dwp/core/event/DomainEventInboxRepository.java|BeginState
-dwp-core/src/main/java/com/dwp/core/event/DomainEventInboxRepository.java|FailureState
-dwp-core/src/main/java/com/dwp/core/event/DomainEventOrderingPolicy.java|Decision
-dwp-core/src/main/java/com/dwp/core/event/IdempotentDomainEventConsumer.java|DeliveryState
-dwp-people-server/src/main/java/com/dwp/services/people/hr/HrDtos.java|HomeAvailability
-dwp-people-server/src/main/java/com/dwp/services/people/hr/HrDtos.java|HomeDataOrigin
-dwp-platform-contracts/src/main/java/com/dwp/platform/contract/ConnectorPort.java|Capability
-dwp-platform-contracts/src/main/java/com/dwp/platform/contract/ConnectorPort.java|HealthState
-dwp-platform-contracts/src/main/java/com/dwp/platform/contract/DataClassification.java|DataClassification
-dwp-platform-contracts/src/main/java/com/dwp/platform/contract/RiskTier.java|RiskTier
-dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/AnnouncementAudienceType.java|AnnouncementAudienceType
-dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/AnnouncementContentType.java|AnnouncementContentType
-dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/AnnouncementLifecycle.java|AnnouncementLifecycle
-dwp-platform-server/src/main/java/com/dwp/services/platform/announcement/AnnouncementSeverity.java|AnnouncementSeverity
-dwp-platform-server/src/main/java/com/dwp/services/platform/apihistory/ApiHistoryWindow.java|ApiHistoryWindow
-dwp-platform-server/src/main/java/com/dwp/services/platform/auditcontrol/AuditWindow.java|AuditWindow
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarProductSurfaceAccessPolicy.java|Status
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarProductSurfaceContract.java|AccessContractType
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarProductSurfaceContract.java|RouteKind
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|AttendeeType
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|CalendarType
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|EventStatus
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|EventType
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|EventVisibility
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|RecurrencePattern
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|ResourceState
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|ResourceType
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|ResponseStatus
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|RoomBookingEligibilityReason
-dwp-platform-server/src/main/java/com/dwp/services/platform/communication/CommunicationProductSurfacePepFilter.java|Decision
-dwp-platform-server/src/main/java/com/dwp/services/platform/communication/CommunicationProductSurfacePepFilter.java|RouteKind
-dwp-platform-server/src/main/java/com/dwp/services/platform/communication/CommunicationReaction.java|CommunicationReaction
-dwp-platform-server/src/main/java/com/dwp/services/platform/home/overview/HomeOverviewDtos.java|SectionStatus
-dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|AuthMode
-dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ConnectorHealth
-dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ConnectorLifecycle
-dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ConsentState
-dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|PolicyState
-dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ProviderType
-dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|ResourceKind
-dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|StreamState
-dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|SyncMode
-dwp-platform-server/src/main/java/com/dwp/services/platform/productivity/ProductivityTypes.java|SyncRunState
-dwp-platform-server/src/main/java/com/dwp/services/platform/reference/ReferenceLifecycle.java|ReferenceLifecycle
-dwp-platform-server/src/main/java/com/dwp/services/platform/registry/RegistryType.java|RegistryType
-dwp-platform-server/src/main/java/com/dwp/services/platform/registry/RiskTier.java|RiskTier
-dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|CatalogLifecycle
-dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|DataClassification
-dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|RequestPriority
-dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServiceCenterTypes.java|RequestStatus
-dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServicesProductSurfacePepFilter.java|Decision
-dwp-platform-server/src/main/java/com/dwp/services/platform/servicecenter/ServicesProductSurfacePepFilter.java|RouteKind
-dwp-approval-server/src/main/java/com/dwp/services/approval/api/ApprovalController.java|TaskView
-dwp-approval-server/src/main/java/com/dwp/services/approval/security/ApprovalPilotPepRegistry.java|ActiveAccessMode
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/security/MeetingProductAccessPolicy.java|ActiveAccessMode
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/security/MeetingProductAccessPolicy.java|RouteKind
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingCollaborationModels.java|ChatMessageState
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingCollaborationModels.java|HandRequestState
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|BlockerCode
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|NoticeState
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|PlanState
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingContentModels.java|RecordingState
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingRecordingCommandModels.java|CommandState
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingRecordingCommandModels.java|CommandType
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingRecordingDeletionModels.java|CommandState
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/MeetingTranscriptDeletionModels.java|CommandState
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|Audience
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|ContentPermission
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|ReportState
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|ReviewDecision
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingIntelligenceModels.java|RunState
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingLifecycleModels.java|OperationState
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingLifecycleModels.java|OperationType
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/MeetingIntelligenceProvider.java|ClimateLabel
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/MeetingIntelligenceProvider.java|ClimateSignal
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/provider/MeetingMediaWebhook.java|EventType
-dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|ConversationType
-dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|MemberRole
-dwp-messaging-server/src/main/java/com/dwp/services/messaging/collaboration/CollaborationDtos.java|SearchType
-dwp-notification-server/src/main/java/com/dwp/services/notification/common/NotificationErrorCode.java|NotificationErrorCode
-dwp-notification-server/src/main/java/com/dwp/services/notification/domain/NotificationModels.java|InboxView
-dwp-notification-server/src/main/java/com/dwp/services/notification/integration/ApprovalNotificationEventException.java|Classification
-dwp-platform-contracts/src/main/java/com/dwp/platform/contract/MailConnectorPort.java|Capability
-dwp-platform-contracts/src/main/java/com/dwp/platform/contract/MailConnectorPort.java|ProviderFamily
-dwp-platform-contracts/src/main/java/com/dwp/platform/contract/MailConnectorPort.java|ReadinessState
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailDraftCommandReceiptRepository.java|CommandType
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|FolderColor
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|LifecycleAction
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|ProviderSyncState
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|RuleActionType
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|RuleField
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|RuleMatchMode
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailOrganizationTypes.java|RuleOperator
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailProductSurfaceAccessPolicy.java|Status
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailProductSurfaceContract.java|AccessContractType
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailProductSurfaceContract.java|RouteKind
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|AdapterRuntimeState
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|Classification
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ConnectionState
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|DeliveryMode
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|DeliveryState
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|Importance
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ProposalDecision
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ProposalStatus
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ProposalType
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ProviderType
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|ThreadAction
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|TriageLane
-dwp-platform-server/src/main/java/com/dwp/services/platform/mail/MailTypes.java|WorkflowState
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceDelegatedAdminRoutePolicy.java|ScopeMode
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceDelegatedAdminScopeRepository.java|SiteTargetType
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|AccessEffect
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|AccessPermission
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|AccessSubjectType
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|CampusState
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|DelegateType
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|DelegatedPermission
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|DelegatedScopeType
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|DelegationState
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|PolicyScopeType
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|RevisionState
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|RuleState
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|SpatialState
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceSpatialGovernanceDtos.java|ZoneType
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|BookingMode
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|BookingStatus
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|FloorState
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|ResourceState
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|ResourceType
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|SiteState
-dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/WorkplaceTypes.java|SiteType
-dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryIngressFailure.java|WidgetRegistryIngressFailure
-dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryCommandTrustPolicy.java|TargetContract
-dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryInternalRoutes.java|ResolutionStatus
-dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryInternalRoutes.java|Route
-dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryTrustPorts.java|AssertionKind
-dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryTrustPorts.java|ReplayDecision
-dwp-platform-server/src/main/java/com/dwp/services/platform/widgetregistry/internal/security/WidgetRegistryTrustPorts.java|VerificationFailure
-dwp-auth-server/src/main/java/com/dwp/services/auth/config/ProductAuthorizationOperationsSecurityConfig.java|Lane
-dwp-auth-server/src/main/java/com/dwp/services/auth/dto/GovernedRouteAuthorityDtos.java|Decision
-dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|AccessMode
-dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|AccessSource
-dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|ActivationState
-dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|CapabilityAuthorityMode
-dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|Decision
-dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|PolicyAuthorityMode
-dwp-auth-server/src/main/java/com/dwp/services/auth/dto/ProductSurfaceAuthorityDtos.java|ResponsibilityRequirement
-dwp-auth-server/src/main/java/com/dwp/services/auth/service/AccessReviewWorkService.java|PredicateState
-dwp-auth-server/src/main/java/com/dwp/services/auth/service/OidcStateStore.java|Purpose
-dwp-gateway/src/main/java/com/dwp/gateway/productsurface/GeneratedProductRouteCatalog.java|MatchStatus
-dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|AccessMode
-dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|AccessSource
-dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|AuthorityStatus
-dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|CapabilityAuthorityMode
-dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|Decision
-dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|GovernedDecision
-dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceContextDtos.java|PolicyAuthorityMode
-dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceForwardingGuardFilter.java|Endpoint
-dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceRolloutSafetyLatch.java|ApprovalStatus
-dwp-gateway/src/main/java/com/dwp/gateway/productsurface/ProductSurfaceRolloutSafetyLatch.java|LoadStatus
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingModels.java|AccessScope
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingModels.java|AttendanceState
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingModels.java|LifecycleState
-dwp-meeting-server/src/main/java/com/dwp/services/meeting/videomeeting/domain/VideoMeetingModels.java|ParticipantRole
-dwp-notification-server/src/main/java/com/dwp/services/notification/realtime/NotificationChangeCause.java|NotificationChangeCause
-dwp-people-server/src/main/java/com/dwp/services/people/hr/HrDtos.java|DataBoundary
-dwp-people-server/src/main/java/com/dwp/services/people/security/ProductSurfaceEligibilityDtos.java|AccessMode
-dwp-people-server/src/main/java/com/dwp/services/people/security/ProductSurfaceEligibilityDtos.java|Decision
-dwp-people-server/src/main/java/com/dwp/services/people/workforce/WorkforceCandidateDtos.java|Eligibility
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|CalendarAccessLevel
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|CalendarSourceKind
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|CalendarSubscriptionPolicy
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|EventDetailLevel
-dwp-platform-server/src/main/java/com/dwp/services/platform/calendar/CalendarTypes.java|EventImportance
-dwp-platform-server/src/main/java/com/dwp/services/platform/home/preference/HomePreferenceDtos.java|HomePreferenceIntegrityStatus
-dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java|DeviceClass
-dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java|ElapsedBucket
-dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java|PolicyKind
-dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java|ReasonCode
-dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java|ScopeKind
-dwp-platform-server/src/main/java/com/dwp/services/platform/observability/ProductSurfaceTelemetryDtos.java|TaskKind
-dwp-platform-server/src/main/java/com/dwp/services/platform/security/PlatformApprovalsAuthorizationContext.java|Mode
-dwp-provider-server/src/main/java/com/dwp/services/provider/provisioning/TenantMutationRepository.java|Completion
-dwp-provider-server/src/main/java/com/dwp/services/provider/provisioning/TenantMutationRepository.java|FailureDisposition
-ENUMS
+  if [[ ! -f "$baseline" ]]; then
+    printf 'FAIL  Java enum inventory baseline is missing: %s\n' "$baseline" >&2
+    return 1
+  fi
+  if ! LC_ALL=C sort -c "$baseline"; then
+    printf 'FAIL  Java enum inventory baseline is not C-sorted\n' >&2
+    return 1
+  fi
+  local baseline_count
+  local unique_count
+  baseline_count="$(wc -l <"$baseline" | tr -d ' ')"
+  unique_count="$(LC_ALL=C sort -u "$baseline" | wc -l | tr -d ' ')"
+  if [[ "$baseline_count" != "$unique_count" ]]; then
+    printf 'FAIL  Java enum inventory baseline contains duplicate rows\n' >&2
+    return 1
+  fi
   LC_ALL=C sort -o "$actual" "$actual"
-  LC_ALL=C sort -o "$expected" "$expected"
-  if ! diff -u "$expected" "$actual" >"$work_dir/java-enums.diff"; then
-    printf 'FAIL  Java enum inventory changed without a governed code mapping\n' >&2
+  if ! diff -u "$baseline" "$actual" >"$work_dir/java-enums.diff"; then
+    printf 'FAIL  Java enum inventory changed without a reviewed baseline update\n' >&2
     cat "$work_dir/java-enums.diff" >&2
     return 1
   fi
-  printf 'PASS  every Java enum is included in the governed source inventory\n'
+  printf 'PASS  Java enum inventory matches the reviewed source allowlist\n'
 }
 
 assert_revision_bump() {

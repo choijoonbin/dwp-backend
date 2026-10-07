@@ -24,7 +24,8 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-public class ArtifactGovernanceJdbcRepository {
+public class ArtifactGovernanceJdbcRepository implements ArtifactGovernancePersistence<
+        ArtifactRow, ArtifactReviewRow, PlanRow, ArtifactEvidenceRow> {
     private static final String ARTIFACT_SELECT = """
             SELECT artifact.artifact_id, artifact.product_key, artifact.artifact_version,
                    artifact.artifact_type, artifact.manifest_schema_version, artifact.manifest,

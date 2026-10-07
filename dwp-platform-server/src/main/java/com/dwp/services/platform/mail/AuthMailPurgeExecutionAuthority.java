@@ -36,7 +36,7 @@ class AuthMailPurgeExecutionAuthority implements MailPurgeExecutionAuthority {
         }
         try {
             AuthorityResult result = auth.post().uri(PATH)
-                    .headers(OutboundHttpHeaders::propagateObservability)
+                    .headers(headers -> OutboundHttpHeaders.propagateObservability(headers))
                     .header("X-DWP-Service-Identity", "dwp-platform-server")
                     .header(TOKEN_HEADER, token)
                     .body(new EvaluateRequest(

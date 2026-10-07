@@ -1,5 +1,6 @@
 package com.dwp.services.auth.tenantcapabilityoverride;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -16,6 +17,7 @@ public final class TenantCapabilityOverrideDtos {
     private TenantCapabilityOverrideDtos() {
     }
 
+    @Schema(name = "TenantCapabilityOverrideCreateRequest")
     public record CreateRequest(
             @NotBlank @Size(max = 180) String contractKey,
             @NotBlank @Pattern(regexp = "DISABLED|INHERIT") String desiredState,
@@ -62,6 +64,7 @@ public final class TenantCapabilityOverrideDtos {
         }
     }
 
+    @Schema(name = "TenantCapabilityOverrideChange")
     public record Change(
             UUID overrideChangeId,
             String contractKey,

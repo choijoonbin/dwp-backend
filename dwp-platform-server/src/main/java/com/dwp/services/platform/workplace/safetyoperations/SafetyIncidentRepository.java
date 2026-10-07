@@ -2,8 +2,6 @@ package com.dwp.services.platform.workplace.safetyoperations;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Repository;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.time.OffsetDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -11,8 +9,11 @@ import java.util.UUID;
 import static com.dwp.services.platform.workplace.safetyoperations.SafetyOperationsDtos.*;
 @Repository
 public class SafetyIncidentRepository extends SafetyRepositorySupport {
+    private final SafetyIncidentRowMapper rows;
+
     public SafetyIncidentRepository(JdbcTemplate jdbc, ObjectMapper mapper) {
         super(jdbc, mapper);
+        this.rows = new SafetyIncidentRowMapper(jdbc, mapper);
     }
     void insertPreview(long tenantId, long actorId, UUID previewId, UUID commandId,
                        ActivationPreviewRequest request, UUID snapshotId,
@@ -35,19 +36,19 @@ public class SafetyIncidentRepository extends SafetyRepositorySupport {
         return jdbc.query("""
                 SELECT * FROM wp_safety_activation_previews
                  WHERE tenant_id=? AND command_id=?
-                """, this::previewRow, tenantId, commandId).stream().findFirst();
+                """, (rs, row) -> rows.preview(rs, row, PreviewRow::new), tenantId, commandId).stream().findFirst();
     }
     Optional<PreviewRow> preview(long tenantId, long actorId, UUID previewId) {
         return jdbc.query("""
                 SELECT * FROM wp_safety_activation_previews
                  WHERE tenant_id=? AND actor_user_id=? AND activation_preview_id=?
-                """, this::previewRow, tenantId, actorId, previewId).stream().findFirst();
+                """, (rs, row) -> rows.preview(rs, row, PreviewRow::new), tenantId, actorId, previewId).stream().findFirst();
     }
     Optional<PreviewRow> preview(long tenantId, UUID previewId) {
         return jdbc.query("""
                 SELECT * FROM wp_safety_activation_previews
                  WHERE tenant_id=? AND activation_preview_id=?
-                """, this::previewRow, tenantId, previewId).stream().findFirst();
+                """, (rs, row) -> rows.preview(rs, row, PreviewRow::new), tenantId, previewId).stream().findFirst();
     }
     void insertIncident(long tenantId, long actorId, UUID incidentId, String incidentNumber,
                         PreviewRow preview, UUID snapshotId, OffsetDateTime now) {
@@ -66,14 +67,14 @@ public class SafetyIncidentRepository extends SafetyRepositorySupport {
     }
     Optional<IncidentRow> incident(long tenantId, UUID incidentId) {
         return jdbc.query("SELECT * FROM wp_safety_incidents WHERE tenant_id=? AND incident_id=?",
-                this::incidentRow, tenantId, incidentId).stream().findFirst();
+                (rs, row) -> rows.incident(rs, row, IncidentRow::new), tenantId, incidentId).stream().findFirst();
     }
     List<IncidentRow> incidents(long tenantId, IncidentState state) {
         return jdbc.query("""
                 SELECT * FROM wp_safety_incidents
                  WHERE tenant_id=? AND (? IS NULL OR incident_state=?)
                  ORDER BY activated_at DESC,incident_id LIMIT 200
-                """, this::incidentRow, tenantId,
+                """, (rs, row) -> rows.incident(rs, row, IncidentRow::new), tenantId,
                 state == null ? null : state.name(), state == null ? null : state.name());
     }
     List<IncidentRow> activeForUser(long tenantId, long userId) {
@@ -85,7 +86,7 @@ public class SafetyIncidentRepository extends SafetyRepositorySupport {
                        AND m.audience_snapshot_id=i.audience_snapshot_id
                        AND m.subject_user_id=? AND m.included=TRUE)
                  ORDER BY i.severity DESC,i.activated_at DESC
-                """, this::incidentRow, tenantId, userId);
+                """, (rs, row) -> rows.incident(rs, row, IncidentRow::new), tenantId, userId);
     }
     Optional<IncidentRow> incidentForUser(long tenantId, long userId, UUID incidentId) {
         return jdbc.query("""
@@ -95,14 +96,14 @@ public class SafetyIncidentRepository extends SafetyRepositorySupport {
                      WHERE m.tenant_id=i.tenant_id
                        AND m.audience_snapshot_id=i.audience_snapshot_id
                        AND m.subject_user_id=? AND m.included=TRUE)
-                """, this::incidentRow, tenantId, incidentId, userId).stream().findFirst();
+                """, (rs, row) -> rows.incident(rs, row, IncidentRow::new), tenantId, incidentId, userId).stream().findFirst();
     }
     Optional<CommandRow> command(
             long tenantId, long actorId, String type, String idempotencyKey) {
         return jdbc.query("""
                 SELECT * FROM wp_safety_commands
                  WHERE tenant_id=? AND actor_user_id=? AND command_type=? AND idempotency_key=?
-                """, this::commandRow, tenantId, actorId, type, idempotencyKey)
+                """, (rs, row) -> rows.command(rs, row, CommandRow::new), tenantId, actorId, type, idempotencyKey)
                 .stream().findFirst();
     }
     void lockCommandKey(long tenantId, long actorId, String type, String idempotencyKey) {
@@ -115,12 +116,12 @@ public class SafetyIncidentRepository extends SafetyRepositorySupport {
         return jdbc.query("""
                 SELECT * FROM wp_safety_commands
                  WHERE tenant_id=? AND incident_id=? AND command_id=?
-                """, this::commandRow, tenantId, incidentId, commandId).stream().findFirst();
+                """, (rs, row) -> rows.command(rs, row, CommandRow::new), tenantId, incidentId, commandId).stream().findFirst();
     }
     Optional<CommandRow> command(long tenantId, UUID commandId) {
         return jdbc.query("""
                 SELECT * FROM wp_safety_commands WHERE tenant_id=? AND command_id=?
-                """, this::commandRow, tenantId, commandId).stream().findFirst();
+                """, (rs, row) -> rows.command(rs, row, CommandRow::new), tenantId, commandId).stream().findFirst();
     }
     CommandRow insertCommand(
             long tenantId, long actorId, UUID incidentId, String type,
@@ -244,7 +245,8 @@ public class SafetyIncidentRepository extends SafetyRepositorySupport {
                 rs.getString("subject_key_sha256"), nullableLong(rs, "subject_user_id"),
                 rs.getObject("incident_id", UUID.class), rs.getString("message"),
                 rs.getString("safety_action"), Severity.valueOf(rs.getString("severity")),
-                AttemptState.valueOf(rs.getString("attempt_state")), providerContext(rs)),
+                AttemptState.valueOf(rs.getString("attempt_state")),
+                SafetyIncidentRowMapper.providerContext(rs)),
                 limit);
     }
 
@@ -301,7 +303,7 @@ public class SafetyIncidentRepository extends SafetyRepositorySupport {
     boolean recordOutcome(DispatchOutcome outcome) {
         AttemptRow attempt = attempt(outcome.tenantId(), outcome.dispatchAttemptId())
                 .orElse(null);
-        if (attempt == null || terminal(attempt.state())) return false;
+        if (attempt == null || SafetyIncidentRowMapper.terminal(attempt.state())) return false;
         int updated = jdbc.update("""
                 UPDATE wp_safety_dispatch_attempts
                    SET attempt_state=?,provider_operation_reference=?,result_code=?,
@@ -524,28 +526,15 @@ public class SafetyIncidentRepository extends SafetyRepositorySupport {
     Optional<ScopeRow> scopeRevisionByCommand(long tenantId, UUID commandId) {
         return jdbc.query("""
                 SELECT * FROM wp_safety_scope_revisions WHERE tenant_id=? AND command_id=?
-                """, this::scopeRow, tenantId, commandId).stream().findFirst();
+                """, (rs, row) -> rows.scope(rs, row, ScopeRow::new), tenantId, commandId).stream().findFirst();
     }
 
     Optional<ScopeRow> scopeRevision(long tenantId, UUID incidentId, UUID revisionId) {
         return jdbc.query("""
                 SELECT * FROM wp_safety_scope_revisions
                  WHERE tenant_id=? AND incident_id=? AND scope_revision_id=?
-                """, this::scopeRow, tenantId, incidentId, revisionId)
+                """, (rs, row) -> rows.scope(rs, row, ScopeRow::new), tenantId, incidentId, revisionId)
                 .stream().findFirst();
-    }
-
-    private ScopeRow scopeRow(ResultSet rs, int row) throws SQLException {
-        return new ScopeRow(rs.getObject("scope_revision_id", UUID.class),
-                rs.getObject("incident_id", UUID.class), rs.getLong("incident_version"),
-                list(rs.getString("previous_floor_ids"), UUID.class),
-                list(rs.getString("previous_zone_ids"), UUID.class),
-                list(rs.getString("proposed_floor_ids"), UUID.class),
-                list(rs.getString("proposed_zone_ids"), UUID.class),
-                rs.getString("proposed_message"),
-                rs.getObject("audience_snapshot_id", UUID.class),
-                rs.getString("revision_state"), rs.getObject("expires_at", OffsetDateTime.class),
-                rs.getObject("created_at", OffsetDateTime.class));
     }
 
     boolean applyScope(long tenantId, UUID incidentId, ScopeRow revision,
@@ -566,14 +555,14 @@ public class SafetyIncidentRepository extends SafetyRepositorySupport {
 
     List<ConnectorRow> connectors(long tenantId) {
         return jdbc.query("SELECT * FROM wp_safety_connector_truth WHERE tenant_id=?",
-                this::connectorRow, tenantId);
+                (rs, row) -> rows.connector(rs, row, ConnectorRow::new), tenantId);
     }
 
     Optional<ConnectorRow> connector(long tenantId, ConnectorKind kind) {
         return jdbc.query("""
                 SELECT * FROM wp_safety_connector_truth
                  WHERE tenant_id=? AND connector_kind=?
-                """, this::connectorRow, tenantId, kind.name()).stream().findFirst();
+                """, (rs, row) -> rows.connector(rs, row, ConnectorRow::new), tenantId, kind.name()).stream().findFirst();
     }
 
     List<ObservableConnectorRow> observableConnectors(int limit) {
@@ -645,75 +634,6 @@ public class SafetyIncidentRepository extends SafetyRepositorySupport {
                 VALUES(?,?,?,?,?,?,?,?,?::jsonb,?)
                 """, UUID.randomUUID(), tenantId, incidentId, actorId, action,
                 resourceType, resourceId, correlationId, json(snapshot), now);
-    }
-
-    private PreviewRow previewRow(ResultSet rs, int row) throws SQLException {
-        return new PreviewRow(rs.getObject("activation_preview_id", UUID.class),
-                rs.getString("incident_type"), Severity.valueOf(rs.getString("severity")),
-                rs.getObject("site_id", UUID.class), list(rs.getString("floor_ids"), UUID.class),
-                list(rs.getString("zone_ids"), UUID.class), rs.getString("message"),
-                rs.getString("safety_action"), rs.getString("assembly_point"),
-                list(rs.getString("channels"), DeliveryChannel.class),
-                list(rs.getString("excluded_subject_keys"), String.class),
-                rs.getObject("audience_snapshot_id", UUID.class), rs.getBoolean("eligible"),
-                list(rs.getString("limitations"), String.class),
-                rs.getObject("expires_at", OffsetDateTime.class),
-                rs.getObject("created_at", OffsetDateTime.class));
-    }
-
-    private IncidentRow incidentRow(ResultSet rs, int row) throws SQLException {
-        return new IncidentRow(rs.getObject("incident_id", UUID.class),
-                rs.getString("incident_number"), rs.getString("incident_type"),
-                Severity.valueOf(rs.getString("severity")),
-                IncidentState.valueOf(rs.getString("incident_state")),
-                rs.getObject("site_id", UUID.class), list(rs.getString("floor_ids"), UUID.class),
-                list(rs.getString("zone_ids"), UUID.class), rs.getString("message"),
-                rs.getString("safety_action"), rs.getString("assembly_point"),
-                list(rs.getString("channels"), DeliveryChannel.class),
-                rs.getObject("audience_snapshot_id", UUID.class), rs.getLong("version"),
-                rs.getObject("activated_at", OffsetDateTime.class),
-                rs.getObject("closed_at", OffsetDateTime.class),
-                rs.getObject("updated_at", OffsetDateTime.class));
-    }
-
-    private CommandRow commandRow(ResultSet rs, int row) throws SQLException {
-        return new CommandRow(rs.getObject("command_id", UUID.class),
-                rs.getObject("incident_id", UUID.class), rs.getString("command_type"),
-                rs.getString("request_fingerprint"),
-                CommandState.valueOf(rs.getString("command_state")), rs.getString("reason"),
-                rs.getString("correlation_id"), rs.getString("status_href"),
-                rs.getString("result_code"), rs.getString("provider_operation_reference"),
-                rs.getLong("version"), rs.getObject("accepted_at", OffsetDateTime.class),
-                rs.getObject("completed_at", OffsetDateTime.class),
-                rs.getObject("updated_at", OffsetDateTime.class));
-    }
-
-    private ConnectorRow connectorRow(ResultSet rs, int row) throws SQLException {
-        return new ConnectorRow(rs.getObject("connector_id", UUID.class),
-                ConnectorKind.valueOf(rs.getString("connector_kind")),
-                rs.getString("provider_code"), rs.getBoolean("configured"),
-                rs.getLong("configuration_version"),
-                nullableLong(rs, "observed_configuration_version"),
-                rs.getString("reported_state"), rs.getString("evidence_reference"),
-                rs.getObject("source_at", OffsetDateTime.class),
-                rs.getObject("received_at", OffsetDateTime.class),
-                rs.getObject("last_success_at", OffsetDateTime.class),
-                rs.getString("error_code"), rs.getLong("version"));
-    }
-
-    private static SafetyDispatchProvider.ProviderContext providerContext(ResultSet rs)
-            throws SQLException {
-        String provider = rs.getString("provider_code");
-        if (provider == null) return null;
-        return new SafetyDispatchProvider.ProviderContext(
-                DeliveryChannel.valueOf(rs.getString("channel")), provider,
-                rs.getLong("provider_configuration_version"),
-                rs.getString("provider_credential_reference"));
-    }
-
-    private static boolean terminal(AttemptState state) {
-        return state == AttemptState.DELIVERED || state == AttemptState.DELIVERY_FAILED
-                || state == AttemptState.RESULT_UNKNOWN;
     }
 
     record PreviewRow(UUID id, String incidentType, Severity severity, UUID siteId,

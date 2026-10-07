@@ -364,6 +364,18 @@ abstract class HomeViewServiceSupport {
         }
     }
 
+    protected HomeViewConflictException deviceVersionConflict(
+            HomeView view, HomeViewDtos.UpdateDeviceLayoutRequest request,
+            HomeDeviceLayout latestLayout, List<String> changedFields) {
+        Long actualDeviceVersion = latestLayout == null ? null
+                : (latestLayout.getVersion() == null ? 0L : latestLayout.getVersion());
+        HomeViewDtos.DeviceLayoutResponse latestDeviceLayout = latestLayout == null ? null
+                : deviceResponse(latestLayout, version(view));
+        return HomeViewConflictFactory.device(
+                version(view), request, actualDeviceVersion, response(view),
+                latestDeviceLayout, changedFields);
+    }
+
     protected HomeViewDtos.HomeViewRevisionResponse revisionResponse(HomeViewRevision value) {
         return new HomeViewDtos.HomeViewRevisionResponse(
                 value.getRevisionId(), value.getViewId(), value.getRevisionNumber(),

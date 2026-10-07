@@ -718,6 +718,32 @@ class ExportOpenApiContractsTest(unittest.TestCase):
 
         self.assertEqual(len(patch_variants), 4)
 
+    def test_people360_variant_parameters_remain_conditional(self) -> None:
+        services = {service.name: service for service in EXPORTER["SERVICES"]}
+        people = EXPORTER["load_snapshot"](services["people"])
+
+        for path in (
+                "/v1/hr/home",
+                "/v1/hr/team",
+                "/v1/workforce/people",
+                "/v1/workforce/people/{publicId}",
+        ):
+            operation = people["paths"][path]["get"]
+            parameters = {
+                (parameter["in"], parameter["name"]): parameter
+                for parameter in operation["parameters"]
+            }
+            self.assertFalse(parameters[("query", "asOf")]["required"])
+            self.assertFalse(parameters[("query", "projection")]["required"])
+            self.assertIn("asOf", operation["x-dwp-controller-variants"][0]["requiredParameters"])
+
+        detail = people["paths"]["/v1/workforce/people/{publicId}"]["get"]
+        detail_parameters = {
+            (parameter["in"], parameter["name"]): parameter
+            for parameter in detail["parameters"]
+        }
+        self.assertTrue(detail_parameters[("path", "publicId")]["required"])
+
     def test_system_view_parameter_is_published_by_owners_and_gateway(self) -> None:
         expected = {
             "auth": (
@@ -798,6 +824,72 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             },
         }
         with self.assertRaisesRegex(RuntimeError, "controller method drift"):
+            EXPORTER["apply_design_time_overlay"](service, live)
+
+    def test_time_action_overlay_restores_reviewed_allowable_values(self) -> None:
+        service = next(
+            service for service in EXPORTER["SERVICES"] if service.name == "time"
+        )
+        path = "/v1/hris/work-plans/{workPlanId}/actions/{action}"
+        reviewed = copy.deepcopy(
+            EXPORTER["load_design_time_overlays"]()["time"]["paths"][path]["post"]
+        )
+        live_operation = copy.deepcopy(reviewed)
+        live_operation["operationId"] = "transition"
+        for key in (
+                "x-dwp-controller-method",
+                "x-dwp-overlay-mode",
+                "x-dwp-runtime-default",
+        ):
+            live_operation.pop(key)
+        action = next(
+            parameter for parameter in live_operation["parameters"]
+            if parameter["name"] == "action"
+        )
+        action["schema"].pop("enum")
+        live = {
+            "openapi": "3.1.0",
+            "info": {"title": "DWP Time Service API", "version": "1.0.0"},
+            "paths": {path: {"post": live_operation}},
+        }
+
+        merged = EXPORTER["apply_design_time_overlay"](service, live)
+        parameters = {
+            (parameter["in"], parameter["name"]): parameter
+            for parameter in merged["paths"][path]["post"]["parameters"]
+        }
+        self.assertEqual(
+            ["apply-approval", "publish", "submit-review", "validate"],
+            parameters[("path", "action")]["schema"]["enum"],
+        )
+
+    def test_time_action_overlay_rejects_allowable_value_collision(self) -> None:
+        service = next(
+            service for service in EXPORTER["SERVICES"] if service.name == "time"
+        )
+        path = "/v1/hris/work-plans/{workPlanId}/actions/{action}"
+        operation = copy.deepcopy(
+            EXPORTER["load_design_time_overlays"]()["time"]["paths"][path]["post"]
+        )
+        operation["operationId"] = "transition"
+        for key in (
+                "x-dwp-controller-method",
+                "x-dwp-overlay-mode",
+                "x-dwp-runtime-default",
+        ):
+            operation.pop(key)
+        action = next(
+            parameter for parameter in operation["parameters"]
+            if parameter["name"] == "action"
+        )
+        action["schema"]["enum"] = ["publish"]
+        live = {
+            "openapi": "3.1.0",
+            "info": {"title": "DWP Time Service API", "version": "1.0.0"},
+            "paths": {path: {"post": operation}},
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "parameter schema collision"):
             EXPORTER["apply_design_time_overlay"](service, live)
 
     def test_g3_assignment_reviewed_springdoc_capture_is_closed(self) -> None:

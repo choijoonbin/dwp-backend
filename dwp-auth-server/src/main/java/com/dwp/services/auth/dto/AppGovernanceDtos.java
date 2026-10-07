@@ -71,6 +71,7 @@ public final class AppGovernanceDtos {
     public record ResourceMember(String resourceType, String resourceKey, String resourceName) {
     }
 
+    @Schema(name = "Assignment")
     public record Assignment(
             UUID assignmentId,
             String principalType,
@@ -134,6 +135,7 @@ public final class AppGovernanceDtos {
             @NotNull @Min(0) Long version) {
     }
 
+    @Schema(name = "AppGovernanceCreateAssignmentRequest")
     public record CreateAssignmentRequest(
             @NotBlank @Pattern(regexp = "USER|GROUP") String principalType,
             @NotBlank @Size(max = 160) String principalRef,

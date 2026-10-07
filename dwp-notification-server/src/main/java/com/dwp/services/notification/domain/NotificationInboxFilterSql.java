@@ -2,7 +2,6 @@ package com.dwp.services.notification.domain;
 
 import com.dwp.services.notification.common.NotificationErrorCode;
 import com.dwp.services.notification.common.NotificationException;
-import com.dwp.services.notification.domain.NotificationQueryRepository.InboxContextFilter;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -104,14 +103,17 @@ final class NotificationInboxFilterSql {
     static void appendContexts(
             StringBuilder predicates,
             MapSqlParameterSource params,
-            List<InboxContextFilter> contexts) {
+            List<? extends NotificationInboxContext> contexts) {
         if (contexts.isEmpty()) return;
-        Map<String, List<InboxContextFilter>> byKind = contexts.stream()
+        Map<String, List<NotificationInboxContext>> byKind = contexts.stream()
+                .map(context -> (NotificationInboxContext) context)
                 .collect(Collectors.groupingBy(
-                        InboxContextFilter::kind, LinkedHashMap::new, Collectors.toList()));
+                        NotificationInboxContext::kind,
+                        LinkedHashMap::new,
+                        Collectors.toList()));
         int parameterIndex = 0;
         // The stable contract is OR within one kind and AND across distinct kinds.
-        for (List<InboxContextFilter> alternatives : byKind.values()) {
+        for (List<NotificationInboxContext> alternatives : byKind.values()) {
             predicates.append(" AND (\n");
             for (int index = 0; index < alternatives.size(); index++) {
                 if (index > 0) predicates.append(" OR\n");
@@ -125,7 +127,7 @@ final class NotificationInboxFilterSql {
     private static void appendContextCandidate(
             StringBuilder predicates,
             MapSqlParameterSource params,
-            InboxContextFilter contextFilter,
+            NotificationInboxContext contextFilter,
             int index) {
         String key = "contextKey" + index;
         String hash = "contextKeyHash" + index;

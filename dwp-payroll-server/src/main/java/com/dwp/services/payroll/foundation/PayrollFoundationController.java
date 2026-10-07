@@ -1,6 +1,7 @@
 package com.dwp.services.payroll.foundation;
 
 import com.dwp.core.common.ApiResponse;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import jakarta.validation.Valid;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -65,6 +66,7 @@ class PayrollFoundationController {
                 accessPolicyProvider.policyFor(subject.tenantId()));
     }
 
+    @Operation(operationId = "hrisPayrollConfigurations")
     @GetMapping("/configurations")
     ApiResponse<WorkspaceView> configurations(
             @Parameter(hidden = true)
@@ -72,6 +74,7 @@ class PayrollFoundationController {
         return ApiResponse.success(service.list(actor));
     }
 
+    @Operation(operationId = "hrisPayrollCreateConfiguration")
     @PostMapping("/configurations")
     ApiResponse<MutationResult> create(
             @Parameter(hidden = true)
@@ -82,6 +85,7 @@ class PayrollFoundationController {
         return ApiResponse.success(service.create(actor, commandId, correlationId, request));
     }
 
+    @Operation(operationId = "hrisPayrollConfiguration")
     @GetMapping("/configurations/{configurationId}")
     ApiResponse<ConfigurationView> configuration(
             @Parameter(hidden = true)
@@ -90,6 +94,7 @@ class PayrollFoundationController {
         return ApiResponse.success(service.get(actor, configurationId));
     }
 
+    @Operation(operationId = "hrisPayrollConfigurationVersions")
     @GetMapping("/configurations/{configurationId}/versions")
     ApiResponse<List<ConfigurationView>> versions(
             @Parameter(hidden = true)
@@ -98,6 +103,7 @@ class PayrollFoundationController {
         return ApiResponse.success(service.versions(actor, configurationId));
     }
 
+    @Operation(operationId = "hrisPayrollUpdateConfiguration")
     @PutMapping("/configurations/{configurationId}")
     ApiResponse<MutationResult> update(
             @Parameter(hidden = true)
@@ -110,6 +116,7 @@ class PayrollFoundationController {
                 service.update(actor, configurationId, commandId, correlationId, request));
     }
 
+    @Operation(operationId = "hrisPayrollSimulateConfiguration")
     @PostMapping("/configurations/{configurationId}/simulations")
     ApiResponse<MutationResult> simulate(
             @Parameter(hidden = true)
@@ -122,6 +129,7 @@ class PayrollFoundationController {
                 service.simulate(actor, configurationId, commandId, correlationId, command));
     }
 
+    @Operation(operationId = "hrisPayrollPublishConfiguration")
     @PostMapping("/configurations/{configurationId}/publish")
     ApiResponse<MutationResult> publish(
             @Parameter(hidden = true)
@@ -134,6 +142,7 @@ class PayrollFoundationController {
                 service.publish(actor, configurationId, commandId, correlationId, command));
     }
 
+    @Operation(operationId = "hrisPayrollReverseConfiguration")
     @PostMapping("/configurations/{configurationId}/reversals")
     ApiResponse<MutationResult> reverse(
             @Parameter(hidden = true)
@@ -146,6 +155,7 @@ class PayrollFoundationController {
                 service.reverse(actor, configurationId, commandId, correlationId, command));
     }
 
+    @Operation(operationId = "hrisPayrollCommandReceipt")
     @GetMapping("/receipts/{commandId}")
     ApiResponse<MutationResult> receipt(
             @Parameter(hidden = true)
@@ -154,6 +164,7 @@ class PayrollFoundationController {
         return ApiResponse.success(service.receipt(actor, commandId));
     }
 
+    @Operation(operationId = "hrisPayrollReconcileCommand")
     @PostMapping("/receipts/{commandId}/reconcile")
     ApiResponse<MutationResult> reconcile(
             @Parameter(hidden = true)

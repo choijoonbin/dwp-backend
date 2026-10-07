@@ -105,6 +105,239 @@ class ApplicationLayerBoundaryTest(unittest.TestCase):
         self.assertEqual([], CHECKER_MODULE.policy_manifest_violations(policy))
 
 
+class ExternalConnectorRequiredMarkerSourceTest(unittest.TestCase):
+
+    CLIENT = (
+        "dwp-auth-server/src/main/java/com/dwp/services/auth/service/"
+        "OidcClient.java"
+    )
+    CONFIGURATION = (
+        "dwp-auth-server/src/main/java/com/dwp/services/auth/service/"
+        "OidcPolicy.java"
+    )
+
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.original_root = CHECKER_MODULE.ROOT
+        self.original_policy_file = CHECKER_MODULE.POLICY_FILE
+        CHECKER_MODULE.ROOT = self.root
+        CHECKER_MODULE.POLICY_FILE = (
+            self.root / "docs/architecture/service-interface-contracts.json"
+        )
+        self.client_source = '''package com.dwp.services.auth.service;
+import java.net.http.HttpClient;
+final class OidcClient {
+    private final OidcPolicy policy;
+    @CircuitBreaker(name = "oidc")
+    @Bulkhead(name = "oidc")
+    void call() {
+        policy.requireAllowedEndpoint("https://idp.example.test");
+        HttpRequest.newBuilder().timeout(Duration.ofSeconds(15));
+    }
+}'''
+        self.configuration_source = '''package com.dwp.services.auth.service;
+final class OidcPolicy {
+    OidcPolicy(
+        @Value("${dwp.auth.oidc.allowed-hosts:}") String allowedHosts,
+        @Value("${dwp.auth.oidc.allowed-callback-hosts:}") String callbackHosts,
+        @Value("${dwp.auth.oidc.allow-unlisted-hosts:false}") boolean allowUnlistedHosts) {}
+}'''
+        self.write(self.CLIENT, self.client_source)
+        self.write(self.CONFIGURATION, self.configuration_source)
+        self.entry = {
+            "id": "auth-oidc", "classification": "external-identity-provider",
+            "interfaceType": "external-connector", "sourceService": "dwp-auth-server",
+            "targetServices": ["oidc-provider"], "path": self.CLIENT,
+            "requiredMarkerSources": [self.CONFIGURATION],
+            "purpose": "Call an allowlisted identity provider.",
+            "auth": "OIDC client credential.", "retryMode": "none",
+            "failureMode": "fail-closed",
+            "requiredMarkers": [
+                "dwp.auth.oidc.allowed-hosts",
+                "dwp.auth.oidc.allowed-callback-hosts",
+                "dwp.auth.oidc.allow-unlisted-hosts:false",
+                "requireAllowed", ".timeout(Duration.ofSeconds(15))",
+                "@CircuitBreaker", "@Bulkhead",
+            ],
+            "forbiddenMarkers": ["X-DWP-Service-Token"],
+        }
+        self.policy = {
+            "version": 2,
+            "resilienceDefaults": {
+                "connectTimeoutMs": 1_000, "readTimeoutMs": 5_000,
+                "bulkheadMaxConcurrentCalls": 10, "maximumRetryAttempts": 1,
+                "circuitBreaker": True,
+            },
+            "httpClients": [self.entry], "crossDatabaseExceptions": [],
+            "metadataScanners": [],
+        }
+
+    def tearDown(self) -> None:
+        CHECKER_MODULE.ROOT = self.original_root
+        CHECKER_MODULE.POLICY_FILE = self.original_policy_file
+        self.directory.cleanup()
+
+    def write(self, relative: str, source: str) -> None:
+        target = self.root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source, encoding="utf-8")
+
+    def test_accepts_wired_same_owner_configuration_markers(self) -> None:
+        self.assertEqual([], CHECKER_MODULE.policy_manifest_violations(self.policy))
+        self.assertEqual([], CHECKER_MODULE.http_client_policy_violations(self.policy))
+
+    def test_rejects_weakened_default_even_when_a_comment_claims_false(self) -> None:
+        weakened = self.configuration_source.replace(
+            "allow-unlisted-hosts:false", "allow-unlisted-hosts:true"
+        ) + "\n// dwp.auth.oidc.allow-unlisted-hosts:false\n"
+        self.write(self.CONFIGURATION, weakened)
+
+        violations = CHECKER_MODULE.http_client_policy_violations(self.policy)
+
+        self.assertTrue(any("allow-unlisted-hosts:false" in value for value in violations))
+
+    def test_rejects_an_unwired_required_marker_source(self) -> None:
+        self.write(self.CLIENT, self.client_source.replace("OidcPolicy policy", "Object policy"))
+
+        violations = CHECKER_MODULE.http_client_policy_violations(self.policy)
+
+        self.assertTrue(any("does not wire required marker source" in value
+                            for value in violations))
+
+    def test_rejects_a_required_marker_source_owned_by_another_service(self) -> None:
+        other = self.CONFIGURATION.replace("dwp-auth-server", "dwp-platform-server")
+        self.write(other, self.configuration_source)
+        self.entry["requiredMarkerSources"] = [other]
+
+        violations = CHECKER_MODULE.policy_manifest_violations(self.policy)
+
+        self.assertTrue(any("Java files owned by sourceService" in value
+                            for value in violations))
+
+
+class MailProposalOutcomeBoundaryTest(unittest.TestCase):
+
+    PROFILE = CHECKER_MODULE.MAIL_PROPOSAL_OUTCOME_CLIENT
+
+    def setUp(self) -> None:
+        self.directory = tempfile.TemporaryDirectory()
+        self.root = Path(self.directory.name)
+        self.original_root = CHECKER_MODULE.ROOT
+        self.original_policy_file = CHECKER_MODULE.POLICY_FILE
+        repository = CHECKER.parents[1]
+        policy = json.loads(
+            (repository / "docs/architecture/service-interface-contracts.json")
+            .read_text(encoding="utf-8")
+        )
+        self.entry = copy.deepcopy(next(
+            entry for entry in policy["httpClients"]
+            if entry["id"] == self.PROFILE["id"]
+        ))
+        self.sources = {}
+        for key in ("path", "securitySource", "endpointSource"):
+            relative = self.PROFILE[key]
+            source = (repository / relative).read_text(encoding="utf-8")
+            self.sources[relative] = source
+            self.write(relative, source)
+        self.policy = {
+            "version": 2,
+            "resilienceDefaults": {
+                "connectTimeoutMs": 1_000, "readTimeoutMs": 5_000,
+                "bulkheadMaxConcurrentCalls": 10, "maximumRetryAttempts": 1,
+                "circuitBreaker": True,
+            },
+            "httpClients": [self.entry], "crossDatabaseExceptions": [],
+            "metadataScanners": [],
+        }
+        CHECKER_MODULE.ROOT = self.root
+        CHECKER_MODULE.POLICY_FILE = (
+            self.root / "docs/architecture/service-interface-contracts.json"
+        )
+
+    def tearDown(self) -> None:
+        CHECKER_MODULE.ROOT = self.original_root
+        CHECKER_MODULE.POLICY_FILE = self.original_policy_file
+        self.directory.cleanup()
+
+    def write(self, relative: str, source: str) -> None:
+        target = self.root / relative
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(source, encoding="utf-8")
+
+    def assert_source_mutation_rejected(
+            self, relative: str, original: str, replacement: str) -> None:
+        source = self.sources[relative]
+        self.assertIn(original, source)
+        self.write(relative, source.replace(original, replacement, 1))
+        try:
+            self.assertTrue(
+                CHECKER_MODULE.http_client_policy_violations(self.policy)
+            )
+        finally:
+            self.write(relative, source)
+
+    def test_accepts_only_the_exact_registered_owner_boundary(self) -> None:
+        self.assertEqual([], CHECKER_MODULE.policy_manifest_violations(self.policy))
+        self.assertEqual([], CHECKER_MODULE.http_client_policy_violations(self.policy))
+
+    def test_contract_identity_and_marker_sets_cannot_be_weakened(self) -> None:
+        for key, value in (
+                ("sourceService", "dwp-platform-server"),
+                ("targetServices", ["dwp-auth-server"]),
+                ("retryMode", "idempotent-only"),
+                ("failureMode", "fail-contained")):
+            with self.subTest(key=key):
+                policy = copy.deepcopy(self.policy)
+                policy["httpClients"][0][key] = value
+                self.assertTrue(CHECKER_MODULE.policy_manifest_violations(policy))
+        for field, required in (
+                ("requiredMarkers", CHECKER_MODULE.MAIL_PROPOSAL_OUTCOME_REQUIRED),
+                ("forbiddenMarkers", CHECKER_MODULE.MAIL_PROPOSAL_OUTCOME_FORBIDDEN)):
+            marker = sorted(required)[0]
+            policy = copy.deepcopy(self.policy)
+            policy["httpClients"][0][field].remove(marker)
+            self.assertTrue(CHECKER_MODULE.policy_manifest_violations(policy))
+
+    def test_client_endpoint_token_identity_and_fail_closed_guards_are_executable(self) -> None:
+        client = self.PROFILE["path"]
+        cases = (
+            ('static final String SERVICE_IDENTITY = "dwp-people-server";',
+             'static final String SERVICE_IDENTITY = "dwp-gateway";'),
+            ('.header(SERVICE_TOKEN_HEADER, serviceToken)',
+             '.header(SERVICE_TOKEN_HEADER, "borrowed")'),
+            ('.uri("/internal/v1/mail/proposal-outcomes/preflight")',
+             '.uri("/api/mail/proposal-outcomes/preflight")'),
+            ('OutboundHttpHeaders.propagateObservability(headers)',
+             '/* OutboundHttpHeaders.propagateObservability(headers) */'),
+            ('if (serviceToken.isBlank()) {', 'if (false) {'),
+        )
+        for original, replacement in cases:
+            with self.subTest(original=original):
+                self.assert_source_mutation_rejected(
+                    client, original, replacement
+                )
+
+    def test_owner_token_and_people_identity_rejection_are_executable(self) -> None:
+        security = self.PROFILE["securitySource"]
+        endpoint = self.PROFILE["endpointSource"]
+        self.assert_source_mutation_rejected(
+            security,
+            "constantTimeEquals(serviceToken, providedToken)",
+            "true",
+        )
+        self.assert_source_mutation_rejected(
+            endpoint,
+            'static final String PEOPLE_SERVICE_IDENTITY = "dwp-people-server";',
+            'static final String PEOPLE_SERVICE_IDENTITY = "dwp-gateway";',
+        )
+        self.assert_source_mutation_rejected(
+            endpoint,
+            "requirePeopleService(serviceIdentity);",
+            "/* requirePeopleService(serviceIdentity); */",
+        )
+
+
 class SignedWorkloadBoundaryTest(unittest.TestCase):
     PACKAGE = "com.dwp.services.platform.example"
     SOURCE_ROOT = "dwp-platform-server/src/main/java/com/dwp/services/platform/example"
@@ -562,13 +795,15 @@ final class UnregisteredMeetingClient {
         relative = self.entries[self.CONTRACT_IDS[1]]["ownerToken"]["securitySource"]
         cases = [
             ("MEETING_SERVICE_IDENTITY.equals(identity)", "GATEWAY_SERVICE_IDENTITY.equals(identity)"),
+            ("GATEWAY_SERVICE_IDENTITY.equals(identity)", "true"),
+            ("PLATFORM_SERVICE_IDENTITY.equals(identity)", "true"),
             ("MEETING_FOLLOWUP_PATH)", "OTHER_PATH)"),
             ('"POST".equals(request.getMethod())', '"GET".equals(request.getMethod())'),
             ("MEETING_FOLLOWUP_PATH.equals(request.getRequestURI())", "true"),
             ("absentHeader(request, TOKEN_HEADER)", "true"),
             ("matches(expectedMeetingFollowupToken, meetingFollowupToken)", "true"),
             ("request, MEETING_FOLLOWUP_TOKEN_HEADER", "request, TOKEN_HEADER"),
-            ("if (!gateway && !meeting)", "if (false)"),
+            ("if (!productSurfaceCaller && !meeting)", "if (false)"),
             ("MessageDigest.isEqual(", "insecureEquals("),
             ("values.size() != 1", "false"),
         ]
@@ -616,7 +851,7 @@ final class UnregisteredMeetingClient {
     def test_auth_denial_must_set_unauthorized_status_and_return_before_filter_chain(self) -> None:
         relative = self.entries[self.CONTRACT_IDS[1]]["ownerToken"]["securitySource"]
         source = self.sources[relative]
-        start = source.index("if (!gateway && !meeting) {")
+        start = source.index("if (!productSurfaceCaller && !meeting) {")
         end = source.index("\n            filterChain.doFilter(request, response);", start)
         guard = source[start:end]
         status = "response.setStatus(ErrorCode.UNAUTHORIZED.getHttpStatus().value());"
@@ -637,7 +872,7 @@ final class UnregisteredMeetingClient {
         producer_match = "constantTimeEquals(expectedToken, presentedToken);"
         cases = [
             (auth, meeting_match, meeting_match[:-1] + " || true;"),
-            (auth, meeting_match, meeting_match[:-1] + " || gateway;"),
+            (auth, meeting_match, meeting_match[:-1] + " || productSurfaceCaller;"),
             (auth, gateway_match, gateway_match[:-1] + " || true;"),
             (auth, "actual.getBytes(StandardCharsets.UTF_8));",
              "actual.getBytes(StandardCharsets.UTF_8)) || true;"),

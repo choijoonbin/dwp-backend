@@ -702,10 +702,16 @@ def local_environment() -> dict[str, str]:
         ),
         "DWP_PEOPLE_SERVICE_TOKEN": "dwp-local-people-service-token",
         "DWP_PEOPLE_CURSOR_SECRET": "dwp-local-people-cursor-secret-change-outside-local",
+        "PEOPLE_DB_USERNAME": "dwp_people_runtime",
+        "PEOPLE_DB_PASSWORD": "dwp_password",
+        "DWP_PEOPLE_MIGRATION_PRINCIPAL_POLICY": "LOCAL_LEGACY",
+        "DWP_HRIS_PERFORMANCE_WAVE1_ENABLED": "true",
+        "DWP_PEOPLE_PEOPLE360_RUNTIME_ENABLED": "true",
         "DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED": "true",
         "DWP_PEOPLE_FLYWAY_LOCATIONS": (
             "classpath:db/migration,classpath:db/local-seed"
         ),
+        "DWP_PEOPLE_LOCAL_SEED_ENABLED": "true",
         "DWP_PROVIDER_SERVICE_TOKEN": "dwp-local-provider-service-token",
         "DWP_PROVIDER_FLYWAY_LOCATIONS": (
             "classpath:db/migration,classpath:db/local-seed"
@@ -822,6 +828,8 @@ def local_environment() -> dict[str, str]:
 
 def service_environment(service_name: str) -> dict[str, str]:
     environment = local_environment()
+    if service_name == "people":
+        environment.setdefault("DWP_SERVICE_INSTANCE", "local")
     if service_name == "frontend":
         environment.setdefault("NODE_OPTIONS", DEFAULT_FRONTEND_NODE_OPTIONS)
     approval_runtime_defaults = _local_approval_runtime_defaults(service_name)
@@ -912,7 +920,13 @@ def service_environment(service_name: str) -> dict[str, str]:
         environment.pop("DWP_PEOPLE_SERVICE_TOKEN", None)
     if service_name != "people":
         environment.pop("DWP_PEOPLE_CURSOR_SECRET", None)
+        environment.pop("PEOPLE_DB_USERNAME", None)
+        environment.pop("PEOPLE_DB_PASSWORD", None)
+        environment.pop("DWP_PEOPLE_MIGRATION_PRINCIPAL_POLICY", None)
+        environment.pop("DWP_HRIS_PERFORMANCE_WAVE1_ENABLED", None)
+        environment.pop("DWP_PEOPLE_PEOPLE360_RUNTIME_ENABLED", None)
         environment.pop("DWP_PEOPLE_FLYWAY_LOCATIONS", None)
+        environment.pop("DWP_PEOPLE_LOCAL_SEED_ENABLED", None)
         environment.pop("DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED", None)
     if service_name not in {"gateway", "provider"}:
         environment.pop("DWP_PROVIDER_SERVICE_TOKEN", None)
@@ -1073,6 +1087,7 @@ def doctor(required_services: Iterable[Service] | None = None) -> None:
 def start_infrastructure(
     include_events: bool = False,
     include_media: bool = False,
+    include_people: bool = False,
 ) -> None:
     profile_arguments: list[str] = []
     services = ["postgres", "redis"]
@@ -1118,6 +1133,8 @@ def start_infrastructure(
             ensure_database("dwp_notification")
             ensure_database("dwp_meetings")
             ensure_notification_runtime_role()
+            if include_people:
+                ensure_people_local_legacy_boundary()
             ensure_database("dwp_agent")
             print("postgres   ready at localhost:5432")
             print("redis      ready at localhost:6379")
@@ -1210,6 +1227,74 @@ BEGIN
 END
 $runtime_role$;
 GRANT CONNECT ON DATABASE dwp_notification TO dwp_notification_runtime;
+""",
+    )
+
+
+def ensure_people_local_legacy_boundary() -> None:
+    """Provision the isolated People runtime identity for local-only Flyway boot."""
+    docker_compose(
+        "exec",
+        "-T",
+        "postgres",
+        "psql",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-U",
+        "dwp_user",
+        "-d",
+        "postgres",
+        "-c",
+        """
+DO $runtime_role$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1 FROM pg_roles WHERE rolname = 'dwp_people_runtime'
+    ) THEN
+        CREATE ROLE dwp_people_runtime
+            LOGIN PASSWORD 'dwp_password'
+            NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+    END IF;
+    ALTER ROLE dwp_people_runtime
+        LOGIN PASSWORD 'dwp_password'
+        NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS;
+END
+$runtime_role$;
+REVOKE TEMPORARY, CREATE ON DATABASE dwp_people FROM PUBLIC;
+REVOKE TEMPORARY, CREATE ON DATABASE dwp_people FROM dwp_people_runtime;
+GRANT CONNECT ON DATABASE dwp_people TO dwp_people_runtime;
+ALTER ROLE dwp_people_runtime IN DATABASE dwp_people
+    SET search_path TO pg_catalog, public;
+""",
+    )
+    docker_compose(
+        "exec",
+        "-T",
+        "postgres",
+        "psql",
+        "-v",
+        "ON_ERROR_STOP=1",
+        "-U",
+        "dwp_user",
+        "-d",
+        "dwp_people",
+        "-c",
+        """
+CREATE SCHEMA IF NOT EXISTS hris_performance AUTHORIZATION dwp_user;
+REVOKE ALL ON SCHEMA public, hris_performance FROM PUBLIC;
+GRANT USAGE ON SCHEMA public, hris_performance TO dwp_people_runtime;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public, hris_performance
+    TO dwp_people_runtime;
+GRANT USAGE, SELECT, UPDATE ON ALL SEQUENCES IN SCHEMA public, hris_performance
+    TO dwp_people_runtime;
+ALTER DEFAULT PRIVILEGES FOR ROLE dwp_user IN SCHEMA public
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO dwp_people_runtime;
+ALTER DEFAULT PRIVILEGES FOR ROLE dwp_user IN SCHEMA public
+    GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO dwp_people_runtime;
+ALTER DEFAULT PRIVILEGES FOR ROLE dwp_user IN SCHEMA hris_performance
+    GRANT SELECT, INSERT, UPDATE, DELETE ON TABLES TO dwp_people_runtime;
+ALTER DEFAULT PRIVILEGES FOR ROLE dwp_user IN SCHEMA hris_performance
+    GRANT USAGE, SELECT, UPDATE ON SEQUENCES TO dwp_people_runtime;
 """,
     )
 
@@ -1415,6 +1500,7 @@ def main() -> None:
             include_media=any(
                 service.name in {"messaging", "meeting"} for service in services
             ),
+            include_people=any(service.name == "people" for service in services),
         )
         state = load_state()
         selected = {service.name: service for service in services}

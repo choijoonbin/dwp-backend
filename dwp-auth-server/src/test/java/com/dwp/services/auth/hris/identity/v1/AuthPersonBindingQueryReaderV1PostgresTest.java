@@ -41,8 +41,8 @@ class AuthPersonBindingQueryReaderV1PostgresTest {
         var flyway = Flyway.configure().dataSource(ownerSource)
                 .locations("filesystem:src/main/resources/db/migration").validateOnMigrate(true).outOfOrder(false).load();
         flyway.migrate();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("225");
-        assertThat(flyway.info().applied()).hasSize(127);
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("242");
+        assertThat(flyway.info().applied()).hasSize(144);
         try (Connection connection = ownerSource.getConnection()) {
             try (var value = connection.prepareStatement("SELECT set_config('dwp.test_password', ?, false)")) {
                 value.setString(1, PASSWORD);

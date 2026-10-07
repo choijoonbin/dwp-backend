@@ -11,13 +11,6 @@ public final class CalendarInsightsDtos {
     private CalendarInsightsDtos() {
     }
 
-    static CalendarDtos.HomeResponse attach(
-            CalendarDtos.HomeResponse home, Response insights) {
-        return new CalendarDtos.HomeResponse(
-                home.date(), home.timeZone(), home.nextEvent(), home.today(), home.metrics(),
-                home.weekLoad(), home.attention(), home.generatedAt(), insights);
-    }
-
     public record Metrics(
             int eventCount,
             int meetingMinutes,

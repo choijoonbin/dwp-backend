@@ -6,7 +6,7 @@ interface HomeShadowReceiptAdmissionGuard {
             long tenantId,
             long userId,
             String decisionRevision,
-            HomeShadowReceiptController.ShadowReceiptRequest request);
+            HomeShadowReceipt request);
 
     enum Admission {
         ADMITTED,

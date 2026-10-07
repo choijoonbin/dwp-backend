@@ -13,20 +13,25 @@ class ProductSurfaceInternalSecurityConfigTest {
     private final ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
 
     @Test
-    void acceptsOnlyThePurposeSpecificTokenAndGatewayIdentity() throws Exception {
+    void acceptsOnlyThePurposeSpecificTokenAndRegisteredProductSurfaceIdentities()
+            throws Exception {
         var filter = new ProductSurfaceInternalSecurityConfig.ProductSurfaceTokenFilter(
                 "trusted-product-surface-token", objectMapper);
-        MockHttpServletRequest accepted = new MockHttpServletRequest(
-                "POST", "/internal/auth/v1/product-surface-authority/evaluate");
-        accepted.addHeader(ProductSurfaceInternalSecurityConfig.TOKEN_HEADER,
-                "trusted-product-surface-token");
-        accepted.addHeader(ProductSurfaceInternalSecurityConfig.SERVICE_IDENTITY_HEADER,
-                "dwp-gateway");
-        MockHttpServletResponse acceptedResponse = new MockHttpServletResponse();
+        for (String identity : new String[] {
+                ProductSurfaceInternalSecurityConfig.GATEWAY_SERVICE_IDENTITY,
+                ProductSurfaceInternalSecurityConfig.PLATFORM_SERVICE_IDENTITY}) {
+            MockHttpServletRequest accepted = new MockHttpServletRequest(
+                    "POST", "/internal/auth/v1/product-surface-authority/evaluate");
+            accepted.addHeader(ProductSurfaceInternalSecurityConfig.TOKEN_HEADER,
+                    "trusted-product-surface-token");
+            accepted.addHeader(ProductSurfaceInternalSecurityConfig.SERVICE_IDENTITY_HEADER,
+                    identity);
+            MockHttpServletResponse acceptedResponse = new MockHttpServletResponse();
 
-        filter.doFilter(accepted, acceptedResponse, new MockFilterChain());
+            filter.doFilter(accepted, acceptedResponse, new MockFilterChain());
 
-        assertThat(acceptedResponse.getStatus()).isEqualTo(200);
+            assertThat(acceptedResponse.getStatus()).isEqualTo(200);
+        }
 
         MockHttpServletRequest rejected = new MockHttpServletRequest(
                 "POST", "/internal/auth/v1/product-surface-authority/evaluate");
@@ -41,14 +46,17 @@ class ProductSurfaceInternalSecurityConfigTest {
     }
 
     @Test
-    void rejectsMissingOrWrongGatewayIdentityEvenWithTheConfiguredToken() throws Exception {
+    void rejectsMissingOrUnregisteredIdentityEvenWithTheConfiguredToken() throws Exception {
         var filter = new ProductSurfaceInternalSecurityConfig.ProductSurfaceTokenFilter(
                 "trusted-product-surface-token", objectMapper);
 
         for (String path : new String[] {
                 "/internal/auth/v1/product-surface-authority/evaluate",
                 "/internal/auth/v1/governed-route-authority/evaluate"}) {
-            for (String identity : new String[] {null, "another-service"}) {
+            for (String identity : new String[] {
+                    null,
+                    "another-service",
+                    ProductSurfaceInternalSecurityConfig.MEETING_SERVICE_IDENTITY}) {
                 MockHttpServletRequest request = new MockHttpServletRequest("POST", path);
                 request.addHeader(ProductSurfaceInternalSecurityConfig.TOKEN_HEADER,
                         "trusted-product-surface-token");

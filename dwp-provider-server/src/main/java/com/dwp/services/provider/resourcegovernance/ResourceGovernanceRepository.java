@@ -12,6 +12,7 @@ import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.Resou
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.TenantLifecycleDecisionRequest;
 import com.dwp.services.provider.resourcegovernance.ResourceGovernanceDtos.UpsertCommitmentRequest;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
 import java.math.BigDecimal;
@@ -24,17 +25,37 @@ import java.util.UUID;
 @Repository
 public class ResourceGovernanceRepository {
 
-    private final ResourceCommitmentJdbcRepository resources;
-    private final ArtifactGovernanceJdbcRepository artifacts;
-    private final TenantLifecycleGovernanceJdbcRepository lifecycle;
+    private final ResourceCommitmentPersistence<
+            CommitmentRow, ResourceCommitmentChangeRow, InternalEvidenceFreshnessRow,
+            LedgerTotalsRow, LedgerRow> resources;
+    private final ArtifactGovernancePersistence<
+            ArtifactRow, ArtifactReviewRow, PlanRow, ArtifactEvidenceRow> artifacts;
+    private final TenantLifecycleGovernancePersistence<TenantLifecycleRequestRow> lifecycle;
+
+    @Autowired
+    ResourceGovernanceRepository(
+            ResourceCommitmentPersistence<
+                    CommitmentRow, ResourceCommitmentChangeRow,
+                    InternalEvidenceFreshnessRow, LedgerTotalsRow, LedgerRow> resources,
+            ArtifactGovernancePersistence<
+                    ArtifactRow, ArtifactReviewRow, PlanRow, ArtifactEvidenceRow> artifacts,
+            TenantLifecycleGovernancePersistence<TenantLifecycleRequestRow> lifecycle) {
+        this.resources = resources;
+        this.artifacts = artifacts;
+        this.lifecycle = lifecycle;
+    }
 
     public ResourceGovernanceRepository(
             ResourceCommitmentJdbcRepository resources,
             ArtifactGovernanceJdbcRepository artifacts,
             TenantLifecycleGovernanceJdbcRepository lifecycle) {
-        this.resources = resources;
-        this.artifacts = artifacts;
-        this.lifecycle = lifecycle;
+        this(
+                (ResourceCommitmentPersistence<
+                        CommitmentRow, ResourceCommitmentChangeRow,
+                        InternalEvidenceFreshnessRow, LedgerTotalsRow, LedgerRow>) resources,
+                (ArtifactGovernancePersistence<
+                        ArtifactRow, ArtifactReviewRow, PlanRow, ArtifactEvidenceRow>) artifacts,
+                (TenantLifecycleGovernancePersistence<TenantLifecycleRequestRow>) lifecycle);
     }
 
     public boolean tenantExists(UUID tenantId) {

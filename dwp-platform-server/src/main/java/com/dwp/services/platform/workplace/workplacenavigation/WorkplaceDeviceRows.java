@@ -6,14 +6,13 @@ import java.time.OffsetDateTime;
 import java.util.UUID;
 
 import static com.dwp.services.platform.workplace.workplacenavigation.WorkplaceNavigationDtos.*;
-import static com.dwp.services.platform.workplace.workplacenavigation.WorkplaceDeviceRepository.*;
 
 /** JDBC row mappings kept separate from the command repository. */
 final class WorkplaceDeviceRows {
     private WorkplaceDeviceRows() { }
 
-    static DeviceRow device(ResultSet rs, int row) throws SQLException {
-        return new DeviceRow(rs.getObject("device_id", UUID.class), rs.getLong("tenant_id"),
+    static <T> T device(ResultSet rs, int row, DeviceFactory<T> factory) throws SQLException {
+        return factory.create(rs.getObject("device_id", UUID.class), rs.getLong("tenant_id"),
                 rs.getString("device_identity_sha256"), rs.getString("display_name"),
                 DeviceType.valueOf(rs.getString("device_type")),
                 RegistrationState.valueOf(rs.getString("registration_state")),
@@ -57,5 +56,17 @@ final class WorkplaceDeviceRows {
                 rs.getObject("accepted_at", OffsetDateTime.class),
                 rs.getObject("completed_at", OffsetDateTime.class),
                 rs.getObject("updated_at", OffsetDateTime.class));
+    }
+
+    @FunctionalInterface
+    interface DeviceFactory<T> {
+        T create(
+                UUID deviceId, long tenantId, String identitySha256, String displayName,
+                DeviceType deviceType, RegistrationState registrationState,
+                UUID siteId, UUID floorId, UUID resourceId, String hardwareModel,
+                String osVersion, String appVersion, String policyVersion,
+                OffsetDateTime heartbeatAt, OffsetDateTime scheduleSourceAt,
+                OffsetDateTime scheduleReceivedAt, String recentErrorCode,
+                boolean safetyOfflineFallback, long version, OffsetDateTime updatedAt);
     }
 }

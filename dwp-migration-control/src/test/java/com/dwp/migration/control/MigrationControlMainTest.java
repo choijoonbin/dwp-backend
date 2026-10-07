@@ -27,6 +27,7 @@ class MigrationControlMainTest {
             "(?i)\\bCREATE\\s+SCHEMA\\b");
     private static final Pattern APPROVAL_RETENTION_AUTHORITY = Pattern.compile(
             "\\b(?:dwp_approval_retention_owner|dwp_approval_retention_executor|"
+                    + "dwp_approval_audit_relay|"
                     + "apr_retention_internal)\\b");
 
     @Test
@@ -146,12 +147,20 @@ class MigrationControlMainTest {
                             .collect(java.util.stream.Collectors.toSet()),
                     service);
             for (DatabaseCreateMigration capability
-                    : plan.managedRoleMigrations()) {
+                    : plan.privilegedMigrations()) {
                 if ("approval".equals(service)) {
-                    assertEquals(
-                            "approval-retention-privileged-migrations-v1",
-                            capability.planVersion());
-                    assertEquals("public", capability.ownerCapabilitySchema());
+                    if (capability
+                            == DatabaseCreateMigration.APPROVAL_NATIVE_SIGNATURE_GOVERNANCE) {
+                        assertEquals(
+                                "approval-database-create-migrations-v1",
+                                capability.planVersion());
+                        assertEquals("", capability.ownerCapabilitySchema());
+                    } else {
+                        assertEquals(
+                                "approval-retention-privileged-migrations-v1",
+                                capability.planVersion());
+                        assertEquals("public", capability.ownerCapabilitySchema());
+                    }
                 }
                 Path source = migrations.resolve(capability.fileName());
                 assertEquals(
@@ -344,8 +353,11 @@ class MigrationControlMainTest {
                         .collect(java.util.stream.Collectors.toSet()));
         ControlPlan approval = ControlPlan.forService("approval");
         assertEquals(
-                List.of("public", "apr_retention_internal"),
+                List.of("public", "apr_retention_internal", "apr_signature_native"),
                 approval.protectedSchemas(approval.streams().getFirst()));
+        assertEquals(
+                List.of("apr_signature_native"),
+                approval.migrationOwnedPrivateSchemas());
         assertEquals(
                 Set.of(
                         "24:stage record wide approval retention:"
@@ -370,9 +382,15 @@ class MigrationControlMainTest {
                         "33:include original retention command witness in exact record retention:"
                                 + "V33__include_original_retention_command_witness_in_exact_record_retention.sql:"
                                 + "-1306035251:false:public::dwp_approval_retention_owner",
-                        "38:bind retention aware trigger entrypoints to owner:"
-                                + "V38__bind_retention_aware_trigger_entrypoints_to_owner.sql:"
-                                + "-428315308:false:public::dwp_approval_retention_owner"),
+                        "34:close managed retention execution:"
+                                + "V34__close_managed_retention_execution.sql:"
+                                + "1356813009:false:public::dwp_approval_retention_owner",
+                        "36:include external signature evidence in exact record retention:"
+                                + "V36__include_external_signature_evidence_in_exact_record_retention.sql:"
+                                + "-1792700377:false:public::dwp_approval_retention_owner",
+                        "41:include native operations in exact record retention:"
+                                + "V41__include_native_operations_in_exact_record_retention.sql:"
+                                + "1478896050:false:public::dwp_approval_retention_owner"),
                 approval.managedRoleMigrations().stream()
                         .map(migration -> migration.version() + ":"
                                 + migration.description() + ":"
@@ -388,7 +406,11 @@ class MigrationControlMainTest {
                         "24:stage record wide approval retention:"
                                 + "V24__stage_record_wide_approval_retention.sql:"
                                 + "720574134:apr_retention_internal:"
-                                + "dwp_approval_retention_owner"),
+                                + "dwp_approval_retention_owner",
+                        "35:persist native signature provider governance:"
+                                + "V35__persist_native_signature_provider_governance.sql:"
+                                + "1732050526:apr_signature_native:"
+                                + "<migration-principal>"),
                 approval.databaseCreateMigrations().stream()
                         .map(migration -> migration.version() + ":"
                                 + migration.description() + ":"
@@ -398,10 +420,18 @@ class MigrationControlMainTest {
                                 + migration.schemaOwner())
                         .collect(java.util.stream.Collectors.toSet()));
         assertEquals(
+                Set.of("41:dwp_approval_audit_relay"),
+                approval.privilegedMigrations().stream()
+                        .filter(DatabaseCreateMigration::requiresRoleDdlAuthority)
+                        .map(migration -> migration.version() + ":"
+                                + migration.roleDdlTarget())
+                        .collect(java.util.stream.Collectors.toSet()));
+        assertEquals(
                 Set.of(
                         "dwp_approval_retention_owner:24:true:"
                                 + "apr_retention_internal,public",
-                        "dwp_approval_retention_executor:24:false:"),
+                        "dwp_approval_retention_executor:24:false:",
+                        "dwp_approval_audit_relay:41:false:"),
                 approval.managedDatabaseRoles().stream()
                         .map(role -> role.name() + ":" + role.introducedInVersion()
                                 + ":" + role.migrationAuthority() + ":"
@@ -411,7 +441,8 @@ class MigrationControlMainTest {
         assertEquals(
                 Set.of(
                         "dwp_approval_retention_owner",
-                        "dwp_approval_retention_executor"),
+                        "dwp_approval_retention_executor",
+                        "dwp_approval_audit_relay"),
                 approval.managedRoleNames());
         assertEquals(
                 Set.of("dwp_approval_retention_owner"),
@@ -425,7 +456,32 @@ class MigrationControlMainTest {
                                 + "value jsonb, depth integer):EXECUTE",
                         "dwp_approval_retention_owner:ROUTINE:public:"
                                 + "public.approval_typed_form_canonical_json("
-                                + "value jsonb):EXECUTE"),
+                                + "value jsonb):EXECUTE",
+                        "dwp_approval_audit_relay:SCHEMA:public:*:USAGE",
+                        "dwp_approval_audit_relay:SCHEMA:apr_retention_internal:*:USAGE",
+                        "dwp_approval_audit_relay:RELATION:public:"
+                                + "public.sys_audit_outbox:SELECT",
+                        "dwp_approval_audit_relay:RELATION:public:"
+                                + "public.sys_audit_outbox:DELETE",
+                        "dwp_approval_audit_relay:COLUMN:public:"
+                                + "public.sys_audit_outbox.status:UPDATE",
+                        "dwp_approval_audit_relay:COLUMN:public:"
+                                + "public.sys_audit_outbox.attempt_count:UPDATE",
+                        "dwp_approval_audit_relay:COLUMN:public:"
+                                + "public.sys_audit_outbox.available_at:UPDATE",
+                        "dwp_approval_audit_relay:COLUMN:public:"
+                                + "public.sys_audit_outbox.locked_by:UPDATE",
+                        "dwp_approval_audit_relay:COLUMN:public:"
+                                + "public.sys_audit_outbox.locked_until:UPDATE",
+                        "dwp_approval_audit_relay:COLUMN:public:"
+                                + "public.sys_audit_outbox.last_error:UPDATE",
+                        "dwp_approval_audit_relay:COLUMN:public:"
+                                + "public.sys_audit_outbox.published_at:UPDATE",
+                        "dwp_approval_audit_relay:COLUMN:public:"
+                                + "public.sys_audit_outbox.updated_at:UPDATE",
+                        "dwp_approval_audit_relay:ROUTINE:apr_retention_internal:"
+                                + "apr_retention_internal.audit_cleanup_eligible("
+                                + "p_row jsonb):EXECUTE"),
                 approval.auxiliaryRequiredAclPrivileges().stream()
                         .map(privilege -> privilege.grantee() + ":"
                                 + privilege.objectClass() + ":"
@@ -436,7 +492,8 @@ class MigrationControlMainTest {
         assertEquals(
                 Set.of(
                         "dwp_approval_retention_owner:SCHEMA:public:*:USAGE",
-                        "dwp_approval_retention_executor:SCHEMA:public:*:USAGE"),
+                        "dwp_approval_retention_executor:SCHEMA:public:*:USAGE",
+                        "dwp_approval_audit_relay:SCHEMA:public:*:USAGE"),
                 approval.auxiliaryRequiredSchemaUsagePrivileges().stream()
                         .map(privilege -> privilege.grantee() + ":"
                                 + privilege.objectClass() + ":"

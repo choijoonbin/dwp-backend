@@ -12,6 +12,8 @@ import java.util.UUID;
 
 import static com.dwp.services.platform.workplace.workplaceservices.WorkplaceServiceFulfillmentController.*;
 import static com.dwp.services.platform.workplace.workplaceservices.WorkplaceServiceOperationsDtos.*;
+import static com.dwp.services.platform.workplace.workplaceservices.WorkplaceServicesDtos.CommandState;
+import static com.dwp.services.platform.workplace.workplaceservices.WorkplaceServicesDtos.ProviderState;
 import static com.dwp.services.platform.workplace.workplaceservices.WorkplaceServicesController.*;
 import static com.dwp.services.platform.workplace.workplaceservices.WorkplaceServicesDtos.*;
 import static org.mockito.ArgumentMatchers.*;

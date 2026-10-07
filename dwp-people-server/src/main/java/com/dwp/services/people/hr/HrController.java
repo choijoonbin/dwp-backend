@@ -3,6 +3,7 @@ package com.dwp.services.people.hr;
 import com.dwp.core.common.ApiResponse;
 import com.dwp.services.people.workforce.People360Dtos;
 import com.dwp.services.people.workforce.People360Service;
+import io.swagger.v3.oas.annotations.Operation;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,11 +38,13 @@ public class HrController {
         this.people360 = people360;
     }
 
+    @Operation(operationId = "home")
     @GetMapping(value = "/home", params = "!projection")
     public ApiResponse<HrDtos.HomeOverview> home() {
         return ApiResponse.success(service.home());
     }
 
+    @Operation(operationId = "home")
     @GetMapping(value = "/home", params = "projection=people360")
     public ApiResponse<People360Dtos.Snapshot> people360(
             @RequestParam
@@ -57,11 +60,13 @@ public class HrController {
         return ApiResponse.success(service.time());
     }
 
+    @Operation(operationId = "team")
     @GetMapping(value = "/team", params = "!projection")
     public ApiResponse<HrDtos.TeamWorkspace> team() {
         return ApiResponse.success(service.team());
     }
 
+    @Operation(operationId = "team")
     @GetMapping(value = "/team", params = "projection=people360")
     public ApiResponse<People360Dtos.Snapshot> teamPeople360(
             @RequestParam UUID personId,

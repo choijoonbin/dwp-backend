@@ -9,14 +9,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.net.URI;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
-import java.security.SecureRandom;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
-import java.util.Base64;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -28,7 +23,7 @@ import java.util.regex.Pattern;
 import static com.dwp.services.platform.productivity.ProductivityTypes.*;
 
 @Service
-public class ProductivityService {
+public class ProductivityService extends ProductivityServiceSupport {
 
     private static final Set<String> ALLOWED_SCOPES = Set.of(
             "openid", "profile", "offline_access", "User.Read",
@@ -38,8 +33,6 @@ public class ProductivityService {
     private static final List<String> CAPABILITIES = List.of(
             "MAIL_METADATA", "CALENDAR_EVENTS", "DELTA_SYNC", "DEEP_LINK");
     private static final Pattern PROVIDER_TENANT = Pattern.compile("[A-Za-z0-9][A-Za-z0-9.-]{0,159}");
-    private static final SecureRandom RANDOM = new SecureRandom();
-
     private final ProductivityRepository repository;
     private final ProductivityCrypto crypto;
     private final ProductivityCredentialResolver credentialResolver;
@@ -665,96 +658,6 @@ public class ProductivityService {
             List<String> blocking) {
         checks.add(code + ":" + (success ? "PASS" : "FAIL"));
         if (!success) blocking.add(code);
-    }
-
-    private static boolean validRedirect(String value) {
-        if (isBlank(value)) return false;
-        try {
-            URI uri = URI.create(value);
-            if (uri.getHost() == null || uri.getFragment() != null) return false;
-            if ("https".equalsIgnoreCase(uri.getScheme())) return true;
-            return "http".equalsIgnoreCase(uri.getScheme())
-                    && ("localhost".equalsIgnoreCase(uri.getHost())
-                    || "127.0.0.1".equals(uri.getHost()));
-        } catch (IllegalArgumentException exception) {
-            return false;
-        }
-    }
-
-    private static boolean validUuid(String value) {
-        try {
-            UUID.fromString(value);
-            return true;
-        } catch (IllegalArgumentException | NullPointerException exception) {
-            return false;
-        }
-    }
-
-    private static String randomUrlValue(int bytes) {
-        byte[] value = new byte[bytes];
-        RANDOM.nextBytes(value);
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(value);
-    }
-
-    private static String sha256Url(String value) {
-        try {
-            return Base64.getUrlEncoder().withoutPadding().encodeToString(
-                    MessageDigest.getInstance("SHA-256")
-                            .digest(value.getBytes(StandardCharsets.US_ASCII)));
-        } catch (NoSuchAlgorithmException exception) {
-            throw new IllegalStateException("SHA-256 is not available.", exception);
-        }
-    }
-
-    private static String oauthAad(Long tenantId, Long userId, String stateHash) {
-        return "oauth:" + tenantId + ":" + userId + ":" + stateHash;
-    }
-
-    private static String subjectTokenAad(Long tenantId, Long userId, UUID connectorId) {
-        return "subject-token:" + tenantId + ":" + userId + ":" + connectorId;
-    }
-
-    private static String cursorAad(
-            Long tenantId,
-            ProductivityRepository.SubjectRecord subject,
-            ResourceKind resourceKind) {
-        return "cursor:" + tenantId + ":" + subject.subjectId() + ":" + resourceKind;
-    }
-
-    private static String itemAad(ProductivityRepository.ItemRecord item, String field) {
-        return itemAad(
-                item.tenantId(), item.userId(), item.connectorId(),
-                item.resourceKind(), item.sourceIdHash()) + ":" + field;
-    }
-
-    private static String itemAad(
-            Long tenantId,
-            Long userId,
-            UUID connectorId,
-            ResourceKind resourceKind,
-            String sourceHash) {
-        return "item:" + tenantId + ":" + userId + ":" + connectorId
-                + ":" + resourceKind + ":" + sourceHash;
-    }
-
-    private static String safeMessage(String code) {
-        return switch (code) {
-            case "GRAPH_AUTHENTICATION_REQUIRED", "OAUTH_REQUEST_REJECTED" ->
-                    "Microsoft 365 authorization must be renewed.";
-            case "GRAPH_RATE_LIMITED" ->
-                    "Microsoft Graph asked the connector to retry later.";
-            case "GRAPH_CURSOR_RESET_REQUIRED" ->
-                    "The provider delta cursor expired and requires a controlled reset.";
-            case "GRAPH_UNAVAILABLE" ->
-                    "Microsoft Graph is temporarily unavailable.";
-            case "GRAPH_ITEM_ID_MISSING", "GRAPH_ITEM_TIME_INVALID" ->
-                    "A provider item was skipped because required metadata was invalid.";
-            default -> "The productivity connector could not complete this operation.";
-        };
-    }
-
-    private static boolean isBlank(String value) {
-        return value == null || value.isBlank();
     }
 
     private BaseException conflict() {

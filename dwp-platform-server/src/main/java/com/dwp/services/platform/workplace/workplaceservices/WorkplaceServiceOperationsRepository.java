@@ -1,6 +1,5 @@
 package com.dwp.services.platform.workplace.workplaceservices;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -17,13 +16,13 @@ import static com.dwp.services.platform.workplace.workplaceservices.WorkplaceSer
 import static com.dwp.services.platform.workplace.workplaceservices.WorkplaceServicesDtos.CommandState;
 
 @Repository
-public class WorkplaceServiceOperationsRepository {
-    private final JdbcTemplate jdbc;
-    private final ObjectMapper objectMapper;
+public class WorkplaceServiceOperationsRepository
+        extends WorkplaceServiceOperationsRepositorySupport {
+    private final WorkplaceServiceInventoryRepository inventory;
 
     public WorkplaceServiceOperationsRepository(JdbcTemplate jdbc, ObjectMapper objectMapper) {
-        this.jdbc = jdbc;
-        this.objectMapper = objectMapper;
+        super(jdbc, objectMapper);
+        this.inventory = new WorkplaceServiceInventoryRepository(jdbc, objectMapper);
     }
 
     public void lockCommand(long tenantId, long actorUserId, String scope, String key) {
@@ -39,7 +38,8 @@ public class WorkplaceServiceOperationsRepository {
                 SELECT * FROM wp_service_operations_commands
                  WHERE tenant_id = ? AND actor_user_id = ?
                    AND command_scope = ? AND idempotency_key = ?
-                """, this::commandRow, tenantId, actorUserId, scope, key).stream().findFirst();
+                """, (rs, row) -> commandRow(rs, row, OperationsCommandRow::new),
+                tenantId, actorUserId, scope, key).stream().findFirst();
     }
 
     public void createCommand(OperationsCommandRow row) {
@@ -105,286 +105,93 @@ public class WorkplaceServiceOperationsRepository {
     }
 
     public List<ProviderRow> providers(long tenantId) {
-        return jdbc.query(providerSelect() + " WHERE profile.tenant_id = ?"
-                + " ORDER BY profile.display_name_en, profile.provider_code",
-                this::providerRow, tenantId);
+        return inventory.providers(tenantId).stream()
+                .map(WorkplaceServiceOperationsRepository::providerResult).toList();
     }
 
     public Optional<ProviderRow> provider(long tenantId, UUID providerId) {
-        return jdbc.query(providerSelect() + " WHERE profile.tenant_id = ?"
-                + " AND profile.provider_profile_id = ?", this::providerRow,
-                tenantId, providerId).stream().findFirst();
+        return inventory.provider(tenantId, providerId)
+                .map(WorkplaceServiceOperationsRepository::providerResult);
     }
 
     public Optional<ProviderRow> providerByCode(long tenantId, String providerCode) {
-        return jdbc.query(providerSelect() + " WHERE profile.tenant_id = ?"
-                + " AND profile.provider_code = ?", this::providerRow,
-                tenantId, providerCode).stream().findFirst();
-    }
-
-    private static String providerSelect() {
-        return """
-                SELECT profile.*, truth.configured, truth.observed_configuration_version,
-                       truth.reported_state, truth.evidence_reference, truth.observed_at,
-                       truth.received_at, truth.error_code
-                  FROM wp_service_provider_profiles profile
-                  JOIN wp_service_provider_truth truth
-                    ON truth.tenant_id = profile.tenant_id
-                   AND truth.provider_code = profile.provider_code
-                """;
+        return inventory.providerByCode(tenantId, providerCode)
+                .map(WorkplaceServiceOperationsRepository::providerResult);
     }
 
     public void createProvider(long tenantId, UUID providerId, ProviderCreateRequest request,
                                OffsetDateTime now) {
-        String code = request.providerCode().trim();
-        jdbc.update("""
-                INSERT INTO wp_service_provider_truth (
-                    tenant_id, provider_code, configured, configuration_version,
-                    version, updated_at)
-                VALUES (?, ?, FALSE, 1, 1, ?)
-                """, tenantId, code, now);
-        jdbc.update("""
-                INSERT INTO wp_service_provider_profiles (
-                    provider_profile_id, tenant_id, provider_code, display_name_ko,
-                    display_name_en, adapter_type, lifecycle_state, site_scope,
-                    capabilities, support_metadata, credential_binding_reference,
-                    configuration_version, version, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'DRAFT', ?::jsonb, ?::jsonb, ?::jsonb,
-                        ?, 1, 1, ?, ?)
-                """, providerId, tenantId, code, request.displayNameKo().trim(),
-                request.displayNameEn().trim(), request.adapterType().trim(),
-                json(request.siteScope()), json(request.capabilities()), json(request.support()),
-                normalize(request.credentialBindingReference()), now, now);
+        inventory.createProvider(tenantId, providerId, request, now);
     }
 
     public boolean updateProvider(long tenantId, UUID providerId,
                                   ProviderUpdateRequest request, OffsetDateTime now) {
-        int changed = jdbc.update("""
-                UPDATE wp_service_provider_profiles
-                   SET display_name_ko = ?, display_name_en = ?, adapter_type = ?,
-                       site_scope = ?::jsonb, capabilities = ?::jsonb,
-                       support_metadata = ?::jsonb,
-                       credential_binding_reference = CASE WHEN ? THEN NULL
-                           WHEN ? IS NOT NULL THEN ? ELSE credential_binding_reference END,
-                       configuration_version = configuration_version + 1,
-                       version = version + 1, updated_at = ?
-                 WHERE tenant_id = ? AND provider_profile_id = ? AND version = ?
-                """, request.displayNameKo().trim(), request.displayNameEn().trim(),
-                request.adapterType().trim(), json(request.siteScope()),
-                json(request.capabilities()), json(request.support()),
-                request.clearCredentialBinding(), normalize(request.credentialBindingReference()),
-                normalize(request.credentialBindingReference()), now, tenantId, providerId,
-                request.expectedVersion());
-        if (changed == 1) {
-            jdbc.update("""
-                    UPDATE wp_service_provider_truth truth
-                       SET configured = FALSE, configuration_version = profile.configuration_version,
-                           observed_configuration_version = NULL, reported_state = NULL,
-                           evidence_reference = NULL, observed_at = NULL, received_at = NULL,
-                           error_code = NULL, version = truth.version + 1, updated_at = ?
-                      FROM wp_service_provider_profiles profile
-                     WHERE truth.tenant_id = profile.tenant_id
-                       AND truth.provider_code = profile.provider_code
-                       AND profile.tenant_id = ? AND profile.provider_profile_id = ?
-                    """, now, tenantId, providerId);
-        }
-        return changed == 1;
+        return inventory.updateProvider(tenantId, providerId, request, now);
     }
 
     public boolean changeProviderState(long tenantId, UUID providerId, long expectedVersion,
                                        ProviderLifecycleState state, OffsetDateTime now) {
-        int changed = jdbc.update("""
-                UPDATE wp_service_provider_profiles
-                   SET lifecycle_state = ?, version = version + 1, updated_at = ?
-                 WHERE tenant_id = ? AND provider_profile_id = ? AND version = ?
-                """, state.name(), now, tenantId, providerId, expectedVersion);
-        if (changed == 1) {
-            jdbc.update("""
-                    UPDATE wp_service_provider_truth truth
-                       SET configured = (? = 'ACTIVE'
-                           AND profile.credential_binding_reference IS NOT NULL),
-                           configuration_version = profile.configuration_version,
-                           observed_configuration_version = CASE WHEN ? = 'ACTIVE'
-                               THEN observed_configuration_version ELSE NULL END,
-                           reported_state = CASE WHEN ? = 'ACTIVE' THEN reported_state ELSE NULL END,
-                           evidence_reference = CASE WHEN ? = 'ACTIVE' THEN evidence_reference ELSE NULL END,
-                           observed_at = CASE WHEN ? = 'ACTIVE' THEN observed_at ELSE NULL END,
-                           received_at = CASE WHEN ? = 'ACTIVE' THEN received_at ELSE NULL END,
-                           error_code = CASE WHEN ? = 'ACTIVE' THEN error_code ELSE NULL END,
-                           version = truth.version + 1, updated_at = ?
-                      FROM wp_service_provider_profiles profile
-                     WHERE truth.tenant_id = profile.tenant_id
-                       AND truth.provider_code = profile.provider_code
-                       AND profile.tenant_id = ? AND profile.provider_profile_id = ?
-                    """, state.name(), state.name(), state.name(), state.name(), state.name(),
-                    state.name(), state.name(), now, tenantId, providerId);
-        }
-        return changed == 1;
+        return inventory.changeProviderState(
+                tenantId, providerId, expectedVersion, state, now);
     }
 
     public boolean completeProviderVerification(
             long tenantId, UUID providerId, long expectedVersion, long actorUserId,
             WorkplaceServiceProviderVerifier.VerificationResult result, OffsetDateTime receivedAt) {
-        ProviderRow provider = provider(tenantId, providerId).orElse(null);
-        if (provider == null || provider.version() != expectedVersion) return false;
-        jdbc.update("""
-                INSERT INTO wp_service_provider_verifications (
-                    provider_verification_id, tenant_id, provider_profile_id,
-                    configuration_version, reported_state, evidence_reference,
-                    capability_evidence, source_observed_at, received_at,
-                    error_code, verified_by, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?::jsonb, ?, ?, ?, ?, ?)
-                """, UUID.randomUUID(), tenantId, providerId, provider.configurationVersion(),
-                result.reportedState(), result.evidenceReference(),
-                json(result.capabilityEvidence()), result.sourceObservedAt(), receivedAt,
-                normalize(result.errorCode()), actorUserId, receivedAt);
-        return jdbc.update("""
-                UPDATE wp_service_provider_truth
-                   SET configured = TRUE, configuration_version = ?,
-                       observed_configuration_version = ?, reported_state = ?,
-                       evidence_reference = ?, observed_at = ?, received_at = ?, error_code = ?,
-                       version = version + 1, updated_at = ?
-                 WHERE tenant_id = ? AND provider_code = ? AND configuration_version = ?
-                """, provider.configurationVersion(), provider.configurationVersion(),
-                result.reportedState(), result.evidenceReference(), result.sourceObservedAt(),
-                receivedAt, normalize(result.errorCode()), receivedAt, tenantId,
-                provider.providerCode(), provider.configurationVersion()) == 1;
+        return inventory.completeProviderVerification(
+                tenantId, providerId, expectedVersion, actorUserId, result, receivedAt);
     }
 
     public CatalogOperationsPolicy catalogPolicy(long tenantId, UUID itemId) {
-        return jdbc.query("""
-                SELECT catalog_item_id, capacity_mode, capacity_freshness_seconds,
-                       inspection_mode, inspection_checklist_schema
-                  FROM wp_service_catalog_items
-                 WHERE tenant_id = ? AND catalog_item_id = ?
-                """, (rs, row) -> new CatalogOperationsPolicy(
-                        rs.getObject("catalog_item_id", UUID.class),
-                        CapacityMode.valueOf(rs.getString("capacity_mode")),
-                        rs.getInt("capacity_freshness_seconds"),
-                        InspectionMode.valueOf(rs.getString("inspection_mode")),
-                        node(rs.getString("inspection_checklist_schema"))),
-                tenantId, itemId).stream().findFirst().orElse(null);
+        var value = inventory.catalogPolicy(tenantId, itemId);
+        return value == null ? null : new CatalogOperationsPolicy(
+                value.catalogItemId(), value.capacityMode(), value.capacityFreshnessSeconds(),
+                value.inspectionMode(), value.inspectionChecklistSchema());
     }
 
     public List<CapacityBucketRow> capacityBuckets(
             long tenantId, UUID itemId, String siteReference,
             OffsetDateTime from, OffsetDateTime to, OffsetDateTime now) {
-        return jdbc.query("""
-                SELECT bucket.*,
-                       COALESCE((SELECT SUM(hold.quantity)
-                         FROM wp_service_capacity_holds hold
-                        WHERE hold.tenant_id = bucket.tenant_id
-                          AND hold.capacity_bucket_id = bucket.capacity_bucket_id
-                          AND hold.hold_state = 'HELD' AND hold.expires_at > ?), 0) held_quantity
-                  FROM wp_service_capacity_buckets bucket
-                 WHERE bucket.tenant_id = ? AND bucket.catalog_item_id = ?
-                   AND bucket.site_reference = ?
-                   AND bucket.bucket_starts_at < ? AND bucket.bucket_ends_at > ?
-                 ORDER BY bucket.bucket_starts_at, bucket.capacity_bucket_id
-                """, this::capacityBucketRow, now, tenantId, itemId, siteReference, to, from);
+        return inventory.capacityBuckets(tenantId, itemId, siteReference, from, to, now)
+                .stream().map(value -> new CapacityBucketRow(
+                        value.bucketId(), value.catalogItemId(), value.siteReference(),
+                        value.startsAt(), value.endsAt(), value.capacityLimit(),
+                        value.committedQuantity(), value.heldQuantity(), value.sourceVersion(),
+                        value.sourceObservedAt(), value.receivedAt(), value.version())).toList();
     }
 
     public void upsertCapacityBucket(long tenantId, UUID itemId, String siteReference,
                                      CapacityBucketInput input, OffsetDateTime receivedAt) {
-        jdbc.update("""
-                INSERT INTO wp_service_capacity_buckets (
-                    capacity_bucket_id, tenant_id, catalog_item_id, site_reference,
-                    bucket_starts_at, bucket_ends_at, capacity_limit, committed_quantity,
-                    source_version, source_observed_at, received_at, version,
-                    created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?, ?, ?, 1, ?, ?)
-                ON CONFLICT (tenant_id, catalog_item_id, site_reference,
-                    bucket_starts_at, bucket_ends_at)
-                DO UPDATE SET capacity_limit = EXCLUDED.capacity_limit,
-                    source_version = EXCLUDED.source_version,
-                    source_observed_at = EXCLUDED.source_observed_at,
-                    received_at = EXCLUDED.received_at,
-                    version = wp_service_capacity_buckets.version + 1,
-                    updated_at = EXCLUDED.updated_at
-                WHERE wp_service_capacity_buckets.committed_quantity <= EXCLUDED.capacity_limit
-                """, UUID.randomUUID(), tenantId, itemId, siteReference,
-                input.startsAt(), input.endsAt(), input.capacityLimit(),
-                input.sourceVersion().trim(), input.sourceObservedAt(), receivedAt,
-                receivedAt, receivedAt);
+        inventory.upsertCapacityBucket(
+                tenantId, itemId, siteReference, input, receivedAt);
     }
 
     public CapacityHoldResult createCapacityHolds(
             long tenantId, UUID previewId, UUID itemId, String siteReference,
             OffsetDateTime from, OffsetDateTime to, int quantity,
             int freshnessSeconds, OffsetDateTime expiresAt, OffsetDateTime now) {
-        List<CapacityBucketRow> buckets = jdbc.query("""
-                SELECT bucket.*, COALESCE((SELECT SUM(hold.quantity)
-                         FROM wp_service_capacity_holds hold
-                        WHERE hold.tenant_id = bucket.tenant_id
-                          AND hold.capacity_bucket_id = bucket.capacity_bucket_id
-                          AND hold.hold_state = 'HELD' AND hold.expires_at > ?), 0) held_quantity
-                  FROM wp_service_capacity_buckets bucket
-                 WHERE bucket.tenant_id = ? AND bucket.catalog_item_id = ?
-                   AND bucket.site_reference = ?
-                   AND bucket.bucket_starts_at < ? AND bucket.bucket_ends_at > ?
-                 ORDER BY bucket.bucket_starts_at, bucket.capacity_bucket_id
-                 FOR UPDATE OF bucket
-                """, this::capacityBucketRow, now, tenantId, itemId, siteReference, to, from);
-        if (buckets.isEmpty()) return CapacityHoldResult.missing();
-        OffsetDateTime cursor = from;
-        OffsetDateTime freshUntil = null;
-        for (CapacityBucketRow bucket : buckets) {
-            if (bucket.startsAt().isAfter(cursor)) return CapacityHoldResult.missing();
-            if (bucket.receivedAt().plusSeconds(freshnessSeconds).isBefore(now)) {
-                return CapacityHoldResult.stale(bucket.receivedAt().plusSeconds(freshnessSeconds));
-            }
-            if (bucket.capacityLimit() - bucket.committedQuantity() - bucket.heldQuantity()
-                    < quantity) return CapacityHoldResult.exhausted();
-            if (bucket.endsAt().isAfter(cursor)) cursor = bucket.endsAt();
-            OffsetDateTime candidate = bucket.receivedAt().plusSeconds(freshnessSeconds);
-            if (freshUntil == null || candidate.isBefore(freshUntil)) freshUntil = candidate;
-        }
-        if (cursor.isBefore(to)) return CapacityHoldResult.missing();
-        List<UUID> holdIds = buckets.stream().map(ignored -> UUID.randomUUID()).toList();
-        for (int index = 0; index < buckets.size(); index++) {
-            CapacityBucketRow bucket = buckets.get(index);
-            jdbc.update("""
-                    INSERT INTO wp_service_capacity_holds (
-                        capacity_hold_id, tenant_id, preview_id, catalog_item_id,
-                        capacity_bucket_id, quantity, hold_state, bucket_version,
-                        expires_at, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, 'HELD', ?, ?, ?, ?)
-                    """, holdIds.get(index), tenantId, previewId, itemId,
-                    bucket.bucketId(), quantity, bucket.version(), expiresAt, now, now);
-        }
-        return CapacityHoldResult.held(holdIds, expiresAt, freshUntil);
+        var value = inventory.createCapacityHolds(
+                tenantId, previewId, itemId, siteReference, from, to, quantity,
+                freshnessSeconds, expiresAt, now);
+        return new CapacityHoldResult(
+                value.holdIds(), value.expiresAt(), value.freshUntil(), value.limitation());
     }
 
     public boolean commitCapacityHolds(long tenantId, UUID previewId, UUID orderId,
                                        OffsetDateTime now) {
-        List<CapacityHoldRow> holds = jdbc.query("""
-                SELECT hold.* FROM wp_service_capacity_holds hold
-                 WHERE hold.tenant_id = ? AND hold.preview_id = ?
-                 ORDER BY hold.capacity_bucket_id
-                 FOR UPDATE
-                """, this::capacityHoldRow, tenantId, previewId);
-        if (holds.isEmpty()) return true;
-        if (holds.stream().anyMatch(hold -> !"HELD".equals(hold.state())
-                || !hold.expiresAt().isAfter(now))) return false;
-        for (CapacityHoldRow hold : holds) {
-            int updated = jdbc.update("""
-                    UPDATE wp_service_capacity_buckets
-                       SET committed_quantity = committed_quantity + ?,
-                           version = version + 1, updated_at = ?
-                     WHERE tenant_id = ? AND capacity_bucket_id = ?
-                       AND version = ?
-                       AND committed_quantity + ? <= capacity_limit
-                    """, hold.quantity(), now, tenantId, hold.bucketId(),
-                    hold.bucketVersion(), hold.quantity());
-            if (updated != 1) return false;
-            jdbc.update("""
-                    UPDATE wp_service_capacity_holds
-                       SET hold_state = 'COMMITTED', service_order_id = ?, committed_at = ?,
-                           updated_at = ?
-                     WHERE tenant_id = ? AND capacity_hold_id = ? AND hold_state = 'HELD'
-                    """, orderId, now, now, tenantId, hold.holdId());
-        }
-        return true;
+        return inventory.commitCapacityHolds(tenantId, previewId, orderId, now);
+    }
+
+    private static ProviderRow providerResult(
+            WorkplaceServiceInventoryRepository.ProviderRow value) {
+        return new ProviderRow(
+                value.providerId(), value.providerCode(), value.displayNameKo(),
+                value.displayNameEn(), value.adapterType(), value.lifecycleState(),
+                value.siteScope(), value.capabilities(), value.support(),
+                value.credentialBindingReference(), value.configurationVersion(),
+                value.configured(), value.observedConfigurationVersion(),
+                value.reportedState(), value.evidenceReference(), value.observedAt(),
+                value.receivedAt(), value.errorCode(), value.version(), value.updatedAt());
     }
 
     public List<AssigneeRow> searchAssignees(
@@ -400,7 +207,7 @@ public class WorkplaceServiceOperationsRepository {
                         OR lower(directory_subject_id) LIKE lower(?))
                  ORDER BY public_display_name, directory_subject_id
                  LIMIT ?
-                """, this::assigneeRow, tenantId, now, providerCode,
+                """, (rs, row) -> assigneeRow(rs, row, AssigneeRow::new), tenantId, now, providerCode,
                 siteReference == null ? "" : siteReference,
                 "%" + query + "%", "%" + query + "%", limit);
     }
@@ -443,7 +250,8 @@ public class WorkplaceServiceOperationsRepository {
                    AND truth.provider_code = task.provider_code
                  WHERE task.tenant_id = ? AND task.service_order_id = ?
                    AND task.fulfillment_task_id = ?
-                """, this::taskContextRow, tenantId, orderId, taskId).stream().findFirst();
+                """, (rs, row) -> taskContextRow(rs, row, TaskContextRow::new),
+                tenantId, orderId, taskId).stream().findFirst();
     }
 
     public Optional<TaskContextRow> lineContext(
@@ -479,7 +287,7 @@ public class WorkplaceServiceOperationsRepository {
                  WHERE line.tenant_id = ? AND line.service_order_id = ?
                    AND line.service_order_line_id = ?
                    AND (? IS NULL OR order_row.requester_user_id = ?)
-                """, this::taskContextRow, tenantId, orderId, lineId,
+                """, (rs, row) -> taskContextRow(rs, row, TaskContextRow::new), tenantId, orderId, lineId,
                 requesterUserId, requesterUserId).stream().findFirst();
     }
 
@@ -600,7 +408,8 @@ public class WorkplaceServiceOperationsRepository {
                  WHERE tenant_id = ? AND service_order_id = ?
                    AND service_order_line_id = ? AND access_grant_id = ?
                    AND (? IS NULL OR requester_user_id = ?)
-                """, this::accessGrantRow, tenantId, orderId, lineId, grantId,
+                """, (rs, row) -> accessGrantRow(rs, row, AccessGrantRow::new),
+                tenantId, orderId, lineId, grantId,
                 requesterUserId, requesterUserId).stream().findFirst();
     }
 
@@ -656,7 +465,7 @@ public class WorkplaceServiceOperationsRepository {
                    AND provider_next_attempt_at <= CURRENT_TIMESTAMP
                  ORDER BY provider_next_attempt_at, tenant_id, access_grant_id
                  LIMIT ?
-                """, this::accessGrantRow, limit);
+                """, (rs, row) -> accessGrantRow(rs, row, AccessGrantRow::new), limit);
     }
 
     public boolean claimAccessGrantRecovery(
@@ -678,7 +487,8 @@ public class WorkplaceServiceOperationsRepository {
         return jdbc.query("""
                 SELECT * FROM wp_service_operations_commands
                  WHERE tenant_id = ? AND operations_command_id = ?
-                """, this::commandRow, tenantId, commandId).stream().findFirst();
+                """, (rs, row) -> commandRow(rs, row, OperationsCommandRow::new),
+                tenantId, commandId).stream().findFirst();
     }
 
     public ContactTarget resolveContact(long tenantId, TaskContextRow context,
@@ -750,158 +560,6 @@ public class WorkplaceServiceOperationsRepository {
                 VALUES (?, ?, ?, ?, ?::jsonb, ?, ?)
                 """, UUID.randomUUID(), tenantId, aggregateId, eventType,
                 json(detail), correlationId, now);
-    }
-
-    private ProviderRow providerRow(ResultSet rs, int ignored) throws SQLException {
-        return new ProviderRow(rs.getObject("provider_profile_id", UUID.class),
-                rs.getString("provider_code"), rs.getString("display_name_ko"),
-                rs.getString("display_name_en"), rs.getString("adapter_type"),
-                ProviderLifecycleState.valueOf(rs.getString("lifecycle_state")),
-                uuids(rs.getString("site_scope")), strings(rs.getString("capabilities")),
-                node(rs.getString("support_metadata")),
-                rs.getString("credential_binding_reference"),
-                rs.getLong("configuration_version"), rs.getBoolean("configured"),
-                nullableLong(rs, "observed_configuration_version"),
-                rs.getString("reported_state"), rs.getString("evidence_reference"),
-                rs.getObject("observed_at", OffsetDateTime.class),
-                rs.getObject("received_at", OffsetDateTime.class), rs.getString("error_code"),
-                rs.getLong("version"), rs.getObject("updated_at", OffsetDateTime.class));
-    }
-
-    private OperationsCommandRow commandRow(ResultSet rs, int ignored) throws SQLException {
-        return new OperationsCommandRow(rs.getObject("operations_command_id", UUID.class),
-                rs.getLong("tenant_id"), rs.getLong("actor_user_id"),
-                rs.getString("command_scope"), rs.getString("idempotency_key"),
-                rs.getString("request_fingerprint"), rs.getString("resource_type"),
-                rs.getObject("resource_id", UUID.class),
-                CommandState.valueOf(rs.getString("command_state")),
-                rs.getString("status_href"), rs.getString("correlation_id"),
-                rs.getObject("created_at", OffsetDateTime.class),
-                rs.getObject("updated_at", OffsetDateTime.class));
-    }
-
-    private CapacityBucketRow capacityBucketRow(ResultSet rs, int ignored) throws SQLException {
-        return new CapacityBucketRow(rs.getObject("capacity_bucket_id", UUID.class),
-                rs.getObject("catalog_item_id", UUID.class), rs.getString("site_reference"),
-                rs.getObject("bucket_starts_at", OffsetDateTime.class),
-                rs.getObject("bucket_ends_at", OffsetDateTime.class),
-                rs.getInt("capacity_limit"), rs.getInt("committed_quantity"),
-                rs.getInt("held_quantity"), rs.getString("source_version"),
-                rs.getObject("source_observed_at", OffsetDateTime.class),
-                rs.getObject("received_at", OffsetDateTime.class), rs.getLong("version"));
-    }
-
-    private CapacityHoldRow capacityHoldRow(ResultSet rs, int ignored) throws SQLException {
-        return new CapacityHoldRow(rs.getObject("capacity_hold_id", UUID.class),
-                rs.getObject("capacity_bucket_id", UUID.class), rs.getInt("quantity"),
-                rs.getString("hold_state"), rs.getLong("bucket_version"),
-                rs.getObject("expires_at", OffsetDateTime.class));
-    }
-
-    private AssigneeRow assigneeRow(ResultSet rs, int ignored) throws SQLException {
-        return new AssigneeRow(rs.getString("directory_subject_id"),
-                rs.getString("public_display_name"), rs.getBoolean("contact_available"),
-                strings(rs.getString("capabilities")), rs.getString("directory_version"),
-                rs.getObject("received_at", OffsetDateTime.class),
-                rs.getObject("fresh_until", OffsetDateTime.class));
-    }
-
-    private TaskContextRow taskContextRow(ResultSet rs, int ignored) throws SQLException {
-        return new TaskContextRow(rs.getObject("fulfillment_task_id", UUID.class),
-                rs.getObject("service_order_id", UUID.class),
-                rs.getObject("service_order_line_id", UUID.class), rs.getString("provider_code"),
-                rs.getLong("task_version"), rs.getLong("requester_user_id"),
-                rs.getString("site_reference"), rs.getLong("order_version"),
-                InspectionMode.valueOf(rs.getString("inspection_mode")),
-                node(rs.getString("inspection_checklist_schema")), rs.getInt("quantity"),
-                rs.getInt("fulfilled_quantity"), rs.getString("line_state"),
-                node(rs.getString("option_schema_snapshot")),
-                rs.getObject("provider_profile_id", UUID.class), rs.getString("adapter_type"),
-                rs.getString("credential_binding_reference"),
-                strings(rs.getString("capabilities")), node(rs.getString("support_metadata")),
-                ProviderLifecycleState.valueOf(rs.getString("lifecycle_state")),
-                rs.getLong("configuration_version"), rs.getBoolean("configured"),
-                nullableLong(rs, "observed_configuration_version"),
-                rs.getString("reported_state"), rs.getString("evidence_reference"),
-                rs.getObject("observed_at", OffsetDateTime.class),
-                rs.getObject("received_at", OffsetDateTime.class));
-    }
-
-    private InspectionAttempt inspectionAttempt(ResultSet rs, int ignored) throws SQLException {
-        return new InspectionAttempt(rs.getObject("inspection_attempt_id", UUID.class),
-                rs.getObject("service_order_id", UUID.class),
-                rs.getObject("service_order_line_id", UUID.class),
-                rs.getObject("fulfillment_task_id", UUID.class),
-                InspectionMode.valueOf(rs.getString("inspection_mode")),
-                InspectionActorRole.valueOf(rs.getString("inspector_role")),
-                InspectionDecision.valueOf(rs.getString("decision")),
-                node(rs.getString("checklist_schema_snapshot")),
-                node(rs.getString("checklist_responses")),
-                uuids(rs.getString("evidence_attachment_ids")), rs.getString("reason"),
-                rs.getBoolean("remediation_required"),
-                rs.getObject("created_at", OffsetDateTime.class));
-    }
-
-    private AccessGrantRow accessGrantRow(ResultSet rs, int ignored) throws SQLException {
-        return new AccessGrantRow(rs.getObject("access_grant_id", UUID.class),
-                rs.getLong("tenant_id"), rs.getObject("service_order_id", UUID.class),
-                rs.getObject("service_order_line_id", UUID.class),
-                rs.getLong("requester_user_id"), rs.getString("provider_code"),
-                rs.getString("adapter_type_snapshot"),
-                rs.getLong("provider_configuration_version"),
-                rs.getString("provider_credential_binding_reference"),
-                rs.getString("provider_operation_kind"),
-                rs.getObject("provider_operation_command_id", UUID.class),
-                rs.getString("provider_grant_reference"),
-                AccessGrantState.valueOf(rs.getString("grant_state")),
-                rs.getString("reason"),
-                rs.getObject("issued_at", OffsetDateTime.class),
-                rs.getObject("expires_at", OffsetDateTime.class),
-                rs.getObject("revoked_at", OffsetDateTime.class), rs.getLong("version"));
-    }
-
-    private String json(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("Workplace service operations JSON serialization failed.",
-                    exception);
-        }
-    }
-
-    private JsonNode node(String value) {
-        try {
-            return objectMapper.readTree(value);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("Stored Workplace service operations JSON is invalid.",
-                    exception);
-        }
-    }
-
-    private List<String> strings(String value) {
-        try {
-            return objectMapper.readerForListOf(String.class).readValue(value);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("Stored Workplace string array is invalid.", exception);
-        }
-    }
-
-    private List<UUID> uuids(String value) {
-        try {
-            return objectMapper.readerForListOf(UUID.class).readValue(value);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("Stored Workplace UUID array is invalid.", exception);
-        }
-    }
-
-    private static Long nullableLong(ResultSet rs, String column) throws SQLException {
-        long value = rs.getLong(column);
-        return rs.wasNull() ? null : value;
-    }
-
-    private static String normalize(String value) {
-        if (value == null || value.isBlank()) return null;
-        return value.trim();
     }
 
     public record OperationsCommandRow(

@@ -39805,40 +39805,6 @@
         ],
         "type": "object"
       },
-      "auth_ActivationCommand": {
-        "additionalProperties": false,
-        "properties": {
-          "activatedBy": {
-            "maxLength": 160,
-            "minLength": 0,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9@._:/+\\-]{0,159}$",
-            "type": "string"
-          },
-          "changeRef": {
-            "maxLength": 160,
-            "minLength": 3,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9@._:/+\\-]{2,159}$",
-            "type": "string"
-          },
-          "checksum": {
-            "minLength": 1,
-            "pattern": "^[0-9a-f]{64}$",
-            "type": "string"
-          },
-          "expectedRevision": {
-            "format": "int64",
-            "minimum": 0,
-            "type": "integer"
-          }
-        },
-        "required": [
-          "activatedBy",
-          "changeRef",
-          "checksum",
-          "expectedRevision"
-        ],
-        "type": "object"
-      },
       "auth_ActivationRequest": {
         "properties": {
           "durationMinutes": {
@@ -41036,6 +41002,36 @@
         },
         "type": "object"
       },
+      "auth_ApiResponseListIdentityAdminRoleSummary": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/auth_IdentityAdminRoleSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "auth_ApiResponseListIdentityProviderResponse": {
         "properties": {
           "correlationId": {
@@ -41224,6 +41220,36 @@
           "data": {
             "items": {
               "$ref": "#/components/schemas/auth_RoleSummary"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_ApiResponseListTenantSettingsEffectiveSetting": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/auth_TenantSettingsEffectiveSetting"
             },
             "type": "array"
           },
@@ -41786,6 +41812,60 @@
         },
         "type": "object"
       },
+      "auth_ApiResponseTenantAppAdoptionAssignment": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/auth_TenantAppAdoptionAssignment"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "auth_ApiResponseTenantCapabilityOverrideChange": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/auth_TenantCapabilityOverrideChange"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "auth_ApiResponseTenantGovernanceSnapshot": {
         "properties": {
           "correlationId": {
@@ -42283,6 +42363,46 @@
         },
         "type": "object"
       },
+      "auth_AppGovernanceCreateAssignmentRequest": {
+        "properties": {
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "principalRef": {
+            "maxLength": 160,
+            "minLength": 0,
+            "type": "string"
+          },
+          "principalType": {
+            "minLength": 1,
+            "pattern": "USER|GROUP",
+            "type": "string"
+          },
+          "resourceSetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "responsibilityCode": {
+            "minLength": 1,
+            "pattern": "APP_[A-Z_]{3,45}",
+            "type": "string"
+          },
+          "validTo": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "justification",
+          "principalRef",
+          "principalType",
+          "resourceSetId",
+          "responsibilityCode"
+        ],
+        "type": "object"
+      },
       "auth_ApplicationContext": {
         "properties": {
           "applicationName": {
@@ -42677,24 +42797,6 @@
       },
       "auth_Assignment": {
         "properties": {
-          "activatedAt": {
-            "format": "date-time",
-            "type": "string"
-          },
-          "activatedBy": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "activationReceiptId": {
-            "format": "uuid",
-            "type": "string"
-          },
-          "allowedActions": {
-            "items": {
-              "type": "string"
-            },
-            "type": "array"
-          },
           "approvedAt": {
             "format": "date-time",
             "type": "string"
@@ -42703,8 +42805,14 @@
             "format": "int64",
             "type": "integer"
           },
+          "approvedByName": {
+            "type": "string"
+          },
           "assignmentId": {
             "format": "uuid",
+            "type": "string"
+          },
+          "assignmentSource": {
             "type": "string"
           },
           "createdAt": {
@@ -42714,12 +42822,9 @@
           "decisionReason": {
             "type": "string"
           },
-          "externalSettlementState": {
-            "type": "string"
-          },
-          "installationId": {
-            "format": "uuid",
-            "type": "string"
+          "firstApproverBootstrapEligible": {
+            "description": "Actor-specific, non-authoritative hint that the current dashboard viewer may decide this assignment through the one-time first APP_ACCESS_APPROVER bootstrap path. The decision endpoint always revalidates authority, independence, state, scope, and version.",
+            "type": "boolean"
           },
           "justification": {
             "type": "string"
@@ -42727,41 +42832,42 @@
           "lifecycleState": {
             "type": "string"
           },
-          "productKey": {
+          "principalName": {
+            "type": "string"
+          },
+          "principalRef": {
+            "type": "string"
+          },
+          "principalType": {
             "type": "string"
           },
           "requestedBy": {
             "format": "int64",
             "type": "integer"
           },
-          "revocationReason": {
+          "requestedByName": {
             "type": "string"
           },
-          "revokedAt": {
+          "resourceSetId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resourceSetKey": {
+            "type": "string"
+          },
+          "resourceSetName": {
+            "type": "string"
+          },
+          "responsibilityCode": {
+            "type": "string"
+          },
+          "reviewDueAt": {
             "format": "date-time",
-            "type": "string"
-          },
-          "revokedBy": {
-            "format": "int64",
-            "type": "integer"
-          },
-          "seatQuantity": {
-            "format": "int32",
-            "type": "integer"
-          },
-          "sourceType": {
             "type": "string"
           },
           "updatedAt": {
             "format": "date-time",
             "type": "string"
-          },
-          "userDisplayName": {
-            "type": "string"
-          },
-          "userId": {
-            "format": "int64",
-            "type": "integer"
           },
           "validFrom": {
             "format": "date-time",
@@ -42810,7 +42916,7 @@
           },
           "items": {
             "items": {
-              "$ref": "#/components/schemas/auth_Assignment"
+              "$ref": "#/components/schemas/auth_TenantAppAdoptionAssignment"
             },
             "type": "array"
           },
@@ -43704,30 +43810,43 @@
       },
       "auth_CreateRequest": {
         "properties": {
-          "contractKey": {
-            "maxLength": 180,
+          "allowedOperations": {
+            "items": {
+              "pattern": "USERS|GROUPS",
+              "type": "string"
+            },
+            "maxItems": 2,
+            "minItems": 1,
+            "type": "array"
+          },
+          "connectorKey": {
+            "minLength": 1,
+            "pattern": "[A-Za-z][A-Za-z0-9_.-]{0,99}",
+            "type": "string"
+          },
+          "credentialTtlDays": {
+            "format": "int32",
+            "maximum": 365,
+            "minimum": 1,
+            "type": "integer"
+          },
+          "displayName": {
+            "maxLength": 200,
             "minLength": 0,
             "type": "string"
           },
-          "desiredState": {
-            "minLength": 1,
-            "pattern": "DISABLED|INHERIT",
-            "type": "string"
-          },
-          "justification": {
-            "maxLength": 1000,
-            "minLength": 10,
-            "type": "string"
-          },
-          "validTo": {
-            "format": "date-time",
+          "purpose": {
+            "maxLength": 300,
+            "minLength": 0,
             "type": "string"
           }
         },
         "required": [
-          "contractKey",
-          "desiredState",
-          "justification"
+          "allowedOperations",
+          "connectorKey",
+          "credentialTtlDays",
+          "displayName",
+          "purpose"
         ],
         "type": "object"
       },
@@ -44204,7 +44323,7 @@
       "auth_EffectiveCapability": {
         "properties": {
           "activeOverride": {
-            "$ref": "#/components/schemas/auth_Change"
+            "$ref": "#/components/schemas/auth_TenantCapabilityOverrideChange"
           },
           "baselineState": {
             "type": "string"
@@ -44708,6 +44827,41 @@
           },
           "is5xxServerError": {
             "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "auth_IdentityAdminRoleSummary": {
+        "properties": {
+          "assignmentClass": {
+            "type": "string"
+          },
+          "assignmentMode": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "conflictsWith": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "description": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "privileged": {
+            "type": "boolean"
+          },
+          "roleFamily": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -46350,7 +46504,7 @@
           },
           "changes": {
             "items": {
-              "$ref": "#/components/schemas/auth_Change"
+              "$ref": "#/components/schemas/auth_TenantCapabilityOverrideChange"
             },
             "type": "array"
           },
@@ -47128,6 +47282,19 @@
         ],
         "type": "object"
       },
+      "auth_ScimConnectorLifecycleRequest": {
+        "properties": {
+          "state": {
+            "minLength": 1,
+            "pattern": "ACTIVE|SUSPENDED|RETIRED",
+            "type": "string"
+          }
+        },
+        "required": [
+          "state"
+        ],
+        "type": "object"
+      },
       "auth_ServletContext": {
         "properties": {
           "attributeNames": {},
@@ -47359,6 +47526,26 @@
         },
         "type": "object"
       },
+      "auth_SettingSource": {
+        "properties": {
+          "evaluation": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "ownerKey": {
+            "type": "string"
+          },
+          "reason": {
+            "type": "string"
+          },
+          "value": {
+            "$ref": "#/components/schemas/auth_JsonNode"
+          }
+        },
+        "type": "object"
+      },
       "auth_SsoTestLoginCommand": {
         "properties": {
           "idempotencyKey": {
@@ -47462,6 +47649,262 @@
         },
         "type": "object"
       },
+      "auth_TenantAppAdoptionActivationCommand": {
+        "properties": {
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "reason",
+          "version"
+        ],
+        "type": "object"
+      },
+      "auth_TenantAppAdoptionAssignment": {
+        "properties": {
+          "activatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "activatedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "activationReceiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "assignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "externalSettlementState": {
+            "type": "string"
+          },
+          "installationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "justification": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "productKey": {
+            "type": "string"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "revocationReason": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revokedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "seatQuantity": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sourceType": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "userDisplayName": {
+            "type": "string"
+          },
+          "userId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "validFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "auth_TenantCapabilityOverrideChange": {
+        "properties": {
+          "activatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "activatedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "activationReceiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "appResourceKey": {
+            "type": "string"
+          },
+          "approvedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "approvedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "baseActiveRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "baseBundleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "contractKey": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "decisionReason": {
+            "type": "string"
+          },
+          "desiredState": {
+            "type": "string"
+          },
+          "justification": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "overrideChangeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyRuleKey": {
+            "type": "string"
+          },
+          "policyRuleVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "productKey": {
+            "type": "string"
+          },
+          "requestedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "revocationReason": {
+            "type": "string"
+          },
+          "revokedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "revokedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "auth_TenantCapabilityOverrideCreateRequest": {
+        "properties": {
+          "contractKey": {
+            "maxLength": 180,
+            "minLength": 0,
+            "type": "string"
+          },
+          "desiredState": {
+            "minLength": 1,
+            "pattern": "DISABLED|INHERIT",
+            "type": "string"
+          },
+          "justification": {
+            "maxLength": 1000,
+            "minLength": 10,
+            "type": "string"
+          },
+          "validTo": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "required": [
+          "contractKey",
+          "desiredState",
+          "justification"
+        ],
+        "type": "object"
+      },
       "auth_TenantDirectoryProjection": {
         "properties": {
           "defaultLocale": {
@@ -47491,7 +47934,7 @@
         "properties": {
           "effectiveSettings": {
             "items": {
-              "$ref": "#/components/schemas/auth_EffectiveSetting"
+              "$ref": "#/components/schemas/auth_TenantSettingsEffectiveSetting"
             },
             "type": "array"
           },
@@ -47516,6 +47959,45 @@
           },
           "tenantDirectory": {
             "$ref": "#/components/schemas/auth_TenantDirectoryProjection"
+          }
+        },
+        "type": "object"
+      },
+      "auth_TenantSettingsEffectiveSetting": {
+        "properties": {
+          "effectiveSource": {
+            "type": "string"
+          },
+          "effectiveValue": {
+            "$ref": "#/components/schemas/auth_JsonNode"
+          },
+          "evaluatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "evidenceState": {
+            "type": "string"
+          },
+          "locked": {
+            "type": "boolean"
+          },
+          "overrideAllowed": {
+            "type": "boolean"
+          },
+          "overrideState": {
+            "type": "string"
+          },
+          "resolutionStrategy": {
+            "type": "string"
+          },
+          "settingKey": {
+            "type": "string"
+          },
+          "sources": {
+            "items": {
+              "$ref": "#/components/schemas/auth_SettingSource"
+            },
+            "type": "array"
           }
         },
         "type": "object"
@@ -61049,6 +61531,648 @@
         },
         "type": "object"
       },
+      "payroll_AccessProjection": {
+        "properties": {
+          "canCreate": {
+            "type": "boolean"
+          },
+          "canEdit": {
+            "type": "boolean"
+          },
+          "canPublish": {
+            "type": "boolean"
+          },
+          "canReconcile": {
+            "type": "boolean"
+          },
+          "canReverse": {
+            "type": "boolean"
+          },
+          "canSimulate": {
+            "type": "boolean"
+          },
+          "publishDenialCode": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "payroll_ApiResponseConfigurationView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/payroll_ConfigurationView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "payroll_ApiResponseListConfigurationView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/payroll_ConfigurationView"
+            },
+            "type": "array"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "payroll_ApiResponseMutationResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/payroll_MutationResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "payroll_ApiResponseWorkspaceView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/payroll_WorkspaceView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "payroll_CalendarPeriod": {
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "endsOn": {
+            "format": "date",
+            "type": "string"
+          },
+          "paymentDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "startsOn": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "endsOn",
+          "paymentDate",
+          "startsOn"
+        ],
+        "type": "object"
+      },
+      "payroll_CommandReceiptView": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "commandType": {
+            "enum": [
+              "CREATE",
+              "UPDATE",
+              "SIMULATE",
+              "PUBLISH",
+              "REVERSE"
+            ],
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "configurationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "correlationId": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "failureCode": {
+            "type": "string"
+          },
+          "resultVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "reversalOfCommandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "status": {
+            "enum": [
+              "PENDING",
+              "SUCCEEDED",
+              "RESULT_UNKNOWN",
+              "REVERSAL_FAILED"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "payroll_ConfigurationView": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/payroll_AccessProjection"
+          },
+          "authorId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "configurationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "definition": {
+            "$ref": "#/components/schemas/payroll_FoundationDefinition"
+          },
+          "freshness": {
+            "$ref": "#/components/schemas/payroll_Freshness"
+          },
+          "lastCommandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publisherId": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "simulation": {
+            "$ref": "#/components/schemas/payroll_SimulationReport"
+          },
+          "status": {
+            "enum": [
+              "DRAFT",
+              "SIMULATED",
+              "PUBLISHED",
+              "REVERSED"
+            ],
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "payroll_CreateConfigurationRequest": {
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/payroll_FoundationDefinition"
+          }
+        },
+        "required": [
+          "definition"
+        ],
+        "type": "object"
+      },
+      "payroll_DependencyPin": {
+        "properties": {
+          "owner": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "resourceId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "owner",
+          "resourceId"
+        ],
+        "type": "object"
+      },
+      "payroll_EffectivePeriod": {
+        "properties": {
+          "endsOn": {
+            "format": "date",
+            "type": "string"
+          },
+          "startsOn": {
+            "format": "date",
+            "type": "string"
+          }
+        },
+        "required": [
+          "startsOn"
+        ],
+        "type": "object"
+      },
+      "payroll_FoundationDefinition": {
+        "properties": {
+          "dependencies": {
+            "items": {
+              "$ref": "#/components/schemas/payroll_DependencyPin"
+            },
+            "type": "array"
+          },
+          "effectivePeriod": {
+            "$ref": "#/components/schemas/payroll_EffectivePeriod"
+          },
+          "legalEntity": {
+            "$ref": "#/components/schemas/payroll_LegalEntity"
+          },
+          "payCalendar": {
+            "$ref": "#/components/schemas/payroll_PayCalendar"
+          },
+          "payrollGroup": {
+            "$ref": "#/components/schemas/payroll_PayrollGroup"
+          },
+          "roundingPolicies": {
+            "additionalProperties": {
+              "$ref": "#/components/schemas/payroll_RoundingPolicy"
+            },
+            "type": "object"
+          }
+        },
+        "required": [
+          "dependencies",
+          "effectivePeriod",
+          "legalEntity",
+          "payCalendar",
+          "payrollGroup",
+          "roundingPolicies"
+        ],
+        "type": "object"
+      },
+      "payroll_Freshness": {
+        "properties": {
+          "lastSuccessfulRefreshAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "LIVE",
+              "STALE",
+              "PARTIAL",
+              "UNAVAILABLE"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "payroll_LegalEntity": {
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "countryPack": {
+            "$ref": "#/components/schemas/payroll_VersionedCountryPackReference"
+          },
+          "displayName": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "countryPack",
+          "displayName",
+          "id"
+        ],
+        "type": "object"
+      },
+      "payroll_MutationResult": {
+        "properties": {
+          "configuration": {
+            "$ref": "#/components/schemas/payroll_ConfigurationView"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/payroll_CommandReceiptView"
+          }
+        },
+        "type": "object"
+      },
+      "payroll_PartialFailure": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "source": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "payroll_PayCalendar": {
+        "properties": {
+          "cadence": {
+            "enum": [
+              "WEEKLY",
+              "BIWEEKLY",
+              "SEMIMONTHLY",
+              "MONTHLY",
+              "CUSTOM"
+            ],
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "payrollGroupId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "periods": {
+            "items": {
+              "$ref": "#/components/schemas/payroll_CalendarPeriod"
+            },
+            "maxItems": 2147483647,
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": [
+          "cadence",
+          "id",
+          "payrollGroupId",
+          "periods"
+        ],
+        "type": "object"
+      },
+      "payroll_PayrollGroup": {
+        "properties": {
+          "code": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "currencies": {
+            "items": {
+              "type": "string"
+            },
+            "maxItems": 2147483647,
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "id": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "legalEntityId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "settlementCurrency": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "currencies",
+          "id",
+          "legalEntityId",
+          "settlementCurrency"
+        ],
+        "type": "object"
+      },
+      "payroll_ReversalCommand": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "publishCommandId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "publishCommandId"
+        ],
+        "type": "object"
+      },
+      "payroll_RoundingPolicy": {
+        "properties": {
+          "increment": {
+            "type": "number"
+          },
+          "mode": {
+            "enum": [
+              "UP",
+              "DOWN",
+              "CEILING",
+              "FLOOR",
+              "HALF_UP",
+              "HALF_DOWN",
+              "HALF_EVEN",
+              "UNNECESSARY"
+            ],
+            "type": "string"
+          },
+          "scale": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "increment",
+          "mode"
+        ],
+        "type": "object"
+      },
+      "payroll_SimulationReport": {
+        "properties": {
+          "configurationVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "definitionDigest": {
+            "type": "string"
+          },
+          "dependencyDigest": {
+            "type": "string"
+          },
+          "findings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "simulatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "simulatedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "simulationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "successful": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "payroll_UpdateConfigurationRequest": {
+        "properties": {
+          "definition": {
+            "$ref": "#/components/schemas/payroll_FoundationDefinition"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "definition"
+        ],
+        "type": "object"
+      },
+      "payroll_VersionCommand": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "payroll_VersionedCountryPackReference": {
+        "properties": {
+          "digest": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "packId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "digest",
+          "packId"
+        ],
+        "type": "object"
+      },
+      "payroll_WorkspaceView": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/payroll_AccessProjection"
+          },
+          "configurations": {
+            "items": {
+              "$ref": "#/components/schemas/payroll_ConfigurationView"
+            },
+            "type": "array"
+          },
+          "partialFailures": {
+            "items": {
+              "$ref": "#/components/schemas/payroll_PartialFailure"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
       "people_AbsenceWorkspace": {
         "properties": {
           "balances": {
@@ -61381,6 +62505,33 @@
         },
         "type": "object"
       },
+      "people_ApiResponseCommandReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_CommandReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "people_ApiResponseConfigurationCheck": {
         "properties": {
           "correlationId": {
@@ -61442,6 +62593,87 @@
           },
           "data": {
             "$ref": "#/components/schemas/people_CursorPagePersonSummary"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseCycleCollection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_CycleCollection"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseCycleCommandResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_CycleCommandResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseCycleDetail": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_CycleDetail"
           },
           "errorCode": {
             "type": "string"
@@ -62185,6 +63417,60 @@
         },
         "type": "object"
       },
+      "people_ApiResponsePeople360PageV1": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_People360PageV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponsePeople360SnapshotV1": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_People360SnapshotV1"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "people_ApiResponsePersonDetail": {
         "properties": {
           "correlationId": {
@@ -62246,6 +63532,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/people_Preview"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponsePreviewCommandResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_PreviewCommandResult"
           },
           "errorCode": {
             "type": "string"
@@ -63309,6 +64622,51 @@
         ],
         "type": "object"
       },
+      "people_CommandReceipt": {
+        "properties": {
+          "acceptedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "aggregateId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "appliedAggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "commandType": {
+            "type": "string"
+          },
+          "completedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "expectedAggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "originatingAction": {
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "resultRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "people_Company": {
         "properties": {
           "description": {
@@ -63535,6 +64893,67 @@
           "sourceKey",
           "sourceName",
           "sourceType"
+        ],
+        "type": "object"
+      },
+      "people_CreateCycleRequest": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cycleKey": {
+            "maxLength": 100,
+            "minLength": 0,
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "policyVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationRuleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "retentionPolicyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/people_StageInput"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "timezoneId": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "commandId",
+          "cycleKey",
+          "displayName",
+          "effectiveFrom",
+          "policyVersionId",
+          "retentionPolicyId",
+          "stages",
+          "timezoneId"
         ],
         "type": "object"
       },
@@ -63843,6 +65262,223 @@
           "size": {
             "format": "int32",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "people_CycleCollection": {
+        "properties": {
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cycles": {
+            "items": {
+              "$ref": "#/components/schemas/people_CycleSummary"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "people_CycleCommandResult": {
+        "properties": {
+          "cycle": {
+            "$ref": "#/components/schemas/people_CycleDetail"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/people_CommandReceipt"
+          }
+        },
+        "type": "object"
+      },
+      "people_CycleDetail": {
+        "properties": {
+          "activeVersionNo": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "createdBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "cycleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cycleKey": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "retentionPolicyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "updatedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "version": {
+            "$ref": "#/components/schemas/people_CycleVersion"
+          }
+        },
+        "type": "object"
+      },
+      "people_CycleStage": {
+        "properties": {
+          "closesAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "opensAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "sequenceNo": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "stageConfig": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "stageId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stageKey": {
+            "type": "string"
+          },
+          "stageType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_CycleSummary": {
+        "properties": {
+          "activeVersionNo": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "allowedActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "cycleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cycleKey": {
+            "type": "string"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_CycleVersion": {
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "authoredBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "cycleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "policyVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationRuleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publishedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "publishedBy": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/people_CycleStage"
+            },
+            "type": "array"
+          },
+          "timezoneId": {
+            "type": "string"
+          },
+          "versionNo": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "versionState": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -65150,6 +66786,198 @@
         },
         "type": "object"
       },
+      "people_People360AccessV1": {
+        "properties": {
+          "archetype": {
+            "enum": [
+              "SELF",
+              "MANAGER",
+              "HR_OPERATOR",
+              "AUDITOR"
+            ],
+            "type": "string"
+          },
+          "fieldDecisions": {
+            "items": {
+              "$ref": "#/components/schemas/people_People360FieldDecisionV1"
+            },
+            "type": "array"
+          },
+          "policyRevision": {
+            "type": "string"
+          },
+          "scope": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_People360EmploymentV1": {
+        "properties": {
+          "legalEmployerName": {
+            "type": "string"
+          },
+          "originalHireDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "relationshipEndDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "relationshipStartDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "relationshipType": {
+            "type": "string"
+          },
+          "workerNumber": {
+            "type": "string"
+          },
+          "workerStatus": {
+            "type": "string"
+          },
+          "workerType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_People360FieldDecisionV1": {
+        "properties": {
+          "decision": {
+            "enum": [
+              "VIEW",
+              "MASK",
+              "OMIT"
+            ],
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_People360PageV1": {
+        "properties": {
+          "asOf": {
+            "format": "date",
+            "type": "string"
+          },
+          "hasMore": {
+            "type": "boolean"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/people_People360SnapshotV1"
+            },
+            "type": "array"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "size": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "people_People360PersonV1": {
+        "properties": {
+          "displayName": {
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "personId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "preferredLocale": {
+            "type": "string"
+          },
+          "timeZone": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_People360PrimaryAssignmentV1": {
+        "properties": {
+          "assignmentKey": {
+            "type": "string"
+          },
+          "assignmentStatus": {
+            "type": "string"
+          },
+          "businessTitle": {
+            "type": "string"
+          },
+          "effectiveEndDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveStartDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "jobGradeName": {
+            "type": "string"
+          },
+          "jobProfileName": {
+            "type": "string"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "managerDisplayName": {
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_People360SnapshotV1": {
+        "properties": {
+          "access": {
+            "$ref": "#/components/schemas/people_People360AccessV1"
+          },
+          "asOf": {
+            "format": "date",
+            "type": "string"
+          },
+          "employment": {
+            "$ref": "#/components/schemas/people_People360EmploymentV1"
+          },
+          "person": {
+            "$ref": "#/components/schemas/people_People360PersonV1"
+          },
+          "primaryAssignment": {
+            "$ref": "#/components/schemas/people_People360PrimaryAssignmentV1"
+          },
+          "projectionRevision": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "READY",
+              "PARTIAL"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "people_Person": {
         "properties": {
           "assignmentKey": {
@@ -65400,6 +67228,67 @@
         },
         "type": "object"
       },
+      "people_PopulationPreview": {
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "cycleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expiresAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/people_PreviewMember"
+            },
+            "type": "array"
+          },
+          "participantCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "populationPreviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationRuleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewerAssignmentCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sourceCycleAggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "workforceSnapshotId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workforceSnapshotRevision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "people_Position": {
         "properties": {
           "annualCostAmount": {
@@ -65532,6 +67421,74 @@
         },
         "type": "object"
       },
+      "people_PreviewCommandResult": {
+        "properties": {
+          "preview": {
+            "$ref": "#/components/schemas/people_PopulationPreview"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/people_CommandReceipt"
+          }
+        },
+        "type": "object"
+      },
+      "people_PreviewMember": {
+        "properties": {
+          "eligibilityCode": {
+            "type": "string"
+          },
+          "gradeRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "jobProfileRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "participantRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "primaryAssignmentRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewerAssignmentRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workforceStatus": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_PreviewPopulationRequest": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedRevision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "asOf",
+          "commandId"
+        ],
+        "type": "object"
+      },
       "people_PreviewRequest": {
         "properties": {
           "datasetKey": {
@@ -65549,6 +67506,43 @@
         "required": [
           "datasetKey",
           "selection"
+        ],
+        "type": "object"
+      },
+      "people_PublishCycleRequest": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedRevision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "expectedWorkforceOwnerRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "populationPreviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "publicationApprovalRef": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "type": "string"
+          }
+        },
+        "required": [
+          "commandId",
+          "populationPreviewId",
+          "publicationApprovalRef",
+          "reason"
         ],
         "type": "object"
       },
@@ -66001,6 +67995,48 @@
         },
         "type": "object"
       },
+      "people_StageInput": {
+        "properties": {
+          "closesAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "opensAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "sequenceNo": {
+            "format": "int32",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "stageConfig": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "stageKey": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "stageType": {
+            "maxLength": 32,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "closesAt",
+          "opensAt",
+          "stageConfig",
+          "stageKey",
+          "stageType"
+        ],
+        "type": "object"
+      },
       "people_SubmitScenarioRequest": {
         "properties": {
           "reason": {
@@ -66421,6 +68457,66 @@
         ],
         "type": "object"
       },
+      "people_UpdateCycleRequest": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "displayName": {
+            "maxLength": 240,
+            "minLength": 0,
+            "type": "string"
+          },
+          "effectiveFrom": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveTo": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "expectedRevision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "policyVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationRuleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "retentionPolicyId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "stages": {
+            "items": {
+              "$ref": "#/components/schemas/people_StageInput"
+            },
+            "minItems": 1,
+            "type": "array"
+          },
+          "timezoneId": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "commandId",
+          "displayName",
+          "effectiveFrom",
+          "policyVersionId",
+          "retentionPolicyId",
+          "stages",
+          "timezoneId"
+        ],
+        "type": "object"
+      },
       "people_UpdateGoalRequest": {
         "properties": {
           "progressPercent": {
@@ -66507,6 +68603,23 @@
         },
         "required": [
           "workMode"
+        ],
+        "type": "object"
+      },
+      "people_ValidateCycleRequest": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedRevision": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "commandId"
         ],
         "type": "object"
       },
@@ -125641,6 +127754,700 @@
           "expectedVersion"
         ],
         "type": "object"
+      },
+      "time_ApiResponseCreateDraftView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/time_CreateDraftView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_ApiResponseReceiptView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/time_ReceiptView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_ApiResponseSimulationCommandView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/time_SimulationCommandView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_ApiResponseStudioView": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/time_StudioView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_ArrangementView": {
+        "properties": {
+          "extensionCode": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_AssignmentView": {
+        "properties": {
+          "assignmentId": {
+            "type": "string"
+          },
+          "freshness": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "snapshotRevision": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_CreateDraftRequest": {
+        "properties": {
+          "arrangementKind": {
+            "enum": [
+              "FIXED",
+              "FLEX",
+              "AVERAGED",
+              "SELECTIVE",
+              "COMPRESSED",
+              "PART_TIME",
+              "REDUCED",
+              "SPLIT_SHIFT",
+              "SHIFT",
+              "ON_CALL",
+              "DEEMED",
+              "DISCRETIONARY",
+              "TENANT_EXTENSION"
+            ],
+            "type": "string"
+          },
+          "assignmentSnapshotRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "effectiveEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "jurisdictionSubdivision": {
+            "type": "string"
+          },
+          "peopleAssignmentPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "policyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "priority": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "regimeKey": {
+            "type": "string"
+          },
+          "rulePackPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "scopeRef": {
+            "type": "string"
+          },
+          "scopeType": {
+            "enum": [
+              "GLOBAL",
+              "COUNTRY",
+              "SUBDIVISION",
+              "TENANT",
+              "LEGAL_ENTITY",
+              "BUSINESS_UNIT",
+              "WORKPLACE",
+              "POPULATION",
+              "PERSON",
+              "ASSIGNMENT"
+            ],
+            "type": "string"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/time_SegmentInput"
+            },
+            "type": "array"
+          },
+          "templateSchemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "tenantExtension": {
+            "$ref": "#/components/schemas/time_TenantExtensionInput"
+          },
+          "terms": {
+            "items": {
+              "$ref": "#/components/schemas/time_PolicyTermInput"
+            },
+            "type": "array"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "workerPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_CreateDraftView": {
+        "properties": {
+          "receipt": {
+            "$ref": "#/components/schemas/time_ReceiptView"
+          },
+          "workPlanId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_LifecycleRequest": {
+        "properties": {
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "time_PolicyPackView": {
+        "properties": {
+          "effectiveOn": {
+            "format": "date",
+            "type": "string"
+          },
+          "jurisdiction": {
+            "type": "string"
+          },
+          "revision": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_PolicyTermInput": {
+        "properties": {
+          "booleanValue": {
+            "type": "boolean"
+          },
+          "dateValue": {
+            "format": "date",
+            "type": "string"
+          },
+          "decimalValue": {
+            "type": "number"
+          },
+          "extensionKind": {
+            "enum": [
+              "FLEXIBLE",
+              "ELASTIC",
+              "AVERAGED",
+              "SELECTIVE",
+              "DISCRETIONARY",
+              "DEEMED",
+              "REDUCED",
+              "SHIFT",
+              "SPLIT_SHIFT",
+              "ON_CALL",
+              "OVERTIME",
+              "BREAK",
+              "WEEKLY_LIMIT"
+            ],
+            "type": "string"
+          },
+          "integerValue": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "parameterName": {
+            "type": "string"
+          },
+          "stringValue": {
+            "type": "string"
+          },
+          "valueType": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_PolicyTraceView": {
+        "properties": {
+          "disposition": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "level": {
+            "type": "string"
+          },
+          "policyCode": {
+            "type": "string"
+          },
+          "policyRevision": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_ReceiptView": {
+        "properties": {
+          "idempotencyKey": {
+            "type": "string"
+          },
+          "operation": {
+            "type": "string"
+          },
+          "receiptId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "workPlanId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_ResolutionView": {
+        "properties": {
+          "state": {
+            "type": "string"
+          },
+          "trace": {
+            "items": {
+              "$ref": "#/components/schemas/time_PolicyTraceView"
+            },
+            "type": "array"
+          },
+          "winningLevel": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_SegmentInput": {
+        "properties": {
+          "dayOfWeek": {
+            "enum": [
+              "MONDAY",
+              "TUESDAY",
+              "WEDNESDAY",
+              "THURSDAY",
+              "FRIDAY",
+              "SATURDAY",
+              "SUNDAY"
+            ],
+            "type": "string"
+          },
+          "end": {
+            "type": "string"
+          },
+          "endDayOffset": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "key": {
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "WORK",
+              "BREAK",
+              "ON_CALL",
+              "TRAINING"
+            ],
+            "type": "string"
+          },
+          "overlapPolicy": {
+            "enum": [
+              "REJECT",
+              "EARLIER",
+              "LATER"
+            ],
+            "type": "string"
+          },
+          "start": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_SegmentView": {
+        "properties": {
+          "dstResolution": {
+            "type": "string"
+          },
+          "endInstant": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "endOffset": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "localEnd": {
+            "type": "string"
+          },
+          "localStart": {
+            "type": "string"
+          },
+          "overnight": {
+            "type": "boolean"
+          },
+          "segmentId": {
+            "type": "string"
+          },
+          "startInstant": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "startOffset": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_SimulationCommandView": {
+        "properties": {
+          "receipt": {
+            "$ref": "#/components/schemas/time_ReceiptView"
+          },
+          "simulation": {
+            "$ref": "#/components/schemas/time_SimulationView"
+          }
+        },
+        "type": "object"
+      },
+      "time_SimulationRequest": {
+        "properties": {
+          "assignmentSnapshotRevision": {
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "policyRevision": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_SimulationRowView": {
+        "properties": {
+          "currentValue": {
+            "type": "string"
+          },
+          "draftValue": {
+            "type": "string"
+          },
+          "impact": {
+            "type": "string"
+          },
+          "key": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_SimulationView": {
+        "properties": {
+          "baseVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "findings": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "generatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "partialFailures": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "policyRevision": {
+            "type": "string"
+          },
+          "rows": {
+            "items": {
+              "$ref": "#/components/schemas/time_SimulationRowView"
+            },
+            "type": "array"
+          },
+          "status": {
+            "type": "string"
+          },
+          "workPlanId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_StudioView": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "freshness": {
+            "type": "string"
+          },
+          "partialFailures": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "queryState": {
+            "type": "string"
+          },
+          "workPlans": {
+            "items": {
+              "$ref": "#/components/schemas/time_WorkPlanView"
+            },
+            "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "time_TenantExtensionFieldInput": {
+        "properties": {
+          "booleanValue": {
+            "type": "boolean"
+          },
+          "dateValue": {
+            "format": "date",
+            "type": "string"
+          },
+          "decimalValue": {
+            "type": "number"
+          },
+          "fieldName": {
+            "type": "string"
+          },
+          "integerValue": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "stringValue": {
+            "type": "string"
+          },
+          "valueType": {
+            "enum": [
+              "STRING",
+              "INTEGER",
+              "DECIMAL",
+              "BOOLEAN",
+              "DATE"
+            ],
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "time_TenantExtensionInput": {
+        "properties": {
+          "fields": {
+            "items": {
+              "$ref": "#/components/schemas/time_TenantExtensionFieldInput"
+            },
+            "type": "array"
+          },
+          "schemaRef": {
+            "type": "string"
+          },
+          "schemaVersion": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "time_WorkPlanView": {
+        "properties": {
+          "arrangement": {
+            "$ref": "#/components/schemas/time_ArrangementView"
+          },
+          "assignment": {
+            "$ref": "#/components/schemas/time_AssignmentView"
+          },
+          "availableActions": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "effectiveEnd": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveStart": {
+            "format": "date",
+            "type": "string"
+          },
+          "lifecycle": {
+            "type": "string"
+          },
+          "policyPack": {
+            "$ref": "#/components/schemas/time_PolicyPackView"
+          },
+          "resolution": {
+            "$ref": "#/components/schemas/time_ResolutionView"
+          },
+          "segments": {
+            "items": {
+              "$ref": "#/components/schemas/time_SegmentView"
+            },
+            "type": "array"
+          },
+          "timeZone": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workPlanId": {
+            "type": "string"
+          }
+        },
+        "type": "object"
       }
     },
     "securitySchemes": {
@@ -160578,7 +163385,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/auth_CreateAssignmentRequest"
+                "$ref": "#/components/schemas/auth_AppGovernanceCreateAssignmentRequest"
               }
             }
           },
@@ -162482,17 +165289,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "additionalProperties": {
-                        "type": "boolean"
-                      },
-                      "type": "object"
-                    },
-                    {
-                      "$ref": "#/components/schemas/auth_ApiResponseListCampaignSummary"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/auth_ApiResponseListCampaignSummary"
                 }
               }
             },
@@ -162539,29 +165336,6 @@
               "*/*": {
                 "schema": {
                   "$ref": "#/components/schemas/auth_ApiResponseCampaignSummary"
-                }
-              }
-            },
-            "description": "OK"
-          }
-        },
-        "tags": [
-          "auth"
-        ]
-      }
-    },
-    "/api/auth/admin/access/reviews/security-probe": {
-      "get": {
-        "operationId": "auth_available",
-        "responses": {
-          "200": {
-            "content": {
-              "*/*": {
-                "schema": {
-                  "additionalProperties": {
-                    "type": "boolean"
-                  },
-                  "type": "object"
                 }
               }
             },
@@ -163683,7 +166457,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseListRoleSummary"
+                  "$ref": "#/components/schemas/auth_ApiResponseListIdentityAdminRoleSummary"
                 }
               }
             },
@@ -163969,7 +166743,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/auth_LifecycleRequest"
+                "$ref": "#/components/schemas/auth_ScimConnectorLifecycleRequest"
               }
             }
           },
@@ -164152,7 +166926,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseAssignment"
+                  "$ref": "#/components/schemas/auth_ApiResponseTenantAppAdoptionAssignment"
                 }
               }
             },
@@ -164198,7 +166972,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/auth_ActivationCommand"
+                "$ref": "#/components/schemas/auth_TenantAppAdoptionActivationCommand"
               }
             }
           },
@@ -164209,7 +166983,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseAssignment"
+                  "$ref": "#/components/schemas/auth_ApiResponseTenantAppAdoptionAssignment"
                 }
               }
             },
@@ -164266,7 +167040,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseAssignment"
+                  "$ref": "#/components/schemas/auth_ApiResponseTenantAppAdoptionAssignment"
                 }
               }
             },
@@ -164323,7 +167097,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseAssignment"
+                  "$ref": "#/components/schemas/auth_ApiResponseTenantAppAdoptionAssignment"
                 }
               }
             },
@@ -164388,7 +167162,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/auth_CreateRequest"
+                "$ref": "#/components/schemas/auth_TenantCapabilityOverrideCreateRequest"
               }
             }
           },
@@ -164399,7 +167173,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseChange"
+                  "$ref": "#/components/schemas/auth_ApiResponseTenantCapabilityOverrideChange"
                 }
               }
             },
@@ -164456,7 +167230,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseChange"
+                  "$ref": "#/components/schemas/auth_ApiResponseTenantCapabilityOverrideChange"
                 }
               }
             },
@@ -164513,7 +167287,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseChange"
+                  "$ref": "#/components/schemas/auth_ApiResponseTenantCapabilityOverrideChange"
                 }
               }
             },
@@ -164570,7 +167344,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseChange"
+                  "$ref": "#/components/schemas/auth_ApiResponseTenantCapabilityOverrideChange"
                 }
               }
             },
@@ -164627,7 +167401,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseChange"
+                  "$ref": "#/components/schemas/auth_ApiResponseTenantCapabilityOverrideChange"
                 }
               }
             },
@@ -164721,7 +167495,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "$ref": "#/components/schemas/auth_ActivationCommand"
+                "$ref": "#/components/schemas/auth_TenantAppAdoptionActivationCommand"
               }
             }
           },
@@ -165771,17 +168545,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "additionalProperties": {
-                        "type": "boolean"
-                      },
-                      "type": "object"
-                    },
-                    {
-                      "$ref": "#/components/schemas/auth_ApiResponseListIdentityProviderResponse"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/auth_ApiResponseListIdentityProviderResponse"
                 }
               }
             },
@@ -165939,17 +168703,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "additionalProperties": {
-                        "type": "boolean"
-                      },
-                      "type": "object"
-                    },
-                    {
-                      "$ref": "#/components/schemas/auth_ApiResponseAuthPolicyResponse"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/auth_ApiResponseAuthPolicyResponse"
                 }
               }
             },
@@ -166088,17 +168842,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "oneOf": [
-                    {
-                      "additionalProperties": {
-                        "type": "boolean"
-                      },
-                      "type": "object"
-                    },
-                    {
-                      "$ref": "#/components/schemas/auth_ApiResponseLoginOptionsResponse"
-                    }
-                  ]
+                  "$ref": "#/components/schemas/auth_ApiResponseLoginOptionsResponse"
                 }
               }
             },
@@ -166479,7 +169223,7 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/auth_ApiResponseListEffectiveSetting"
+                  "$ref": "#/components/schemas/auth_ApiResponseListTenantSettingsEffectiveSetting"
                 }
               }
             },
@@ -177086,6 +179830,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseWorkspaceView"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -177150,7 +179901,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/payroll_CreateConfigurationRequest"
               }
             }
           },
@@ -177158,6 +179909,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseMutationResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -177196,6 +179954,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseConfigurationView"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -177269,7 +180034,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/payroll_UpdateConfigurationRequest"
               }
             }
           },
@@ -177277,6 +180042,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseMutationResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -177360,7 +180132,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/payroll_VersionCommand"
               }
             }
           },
@@ -177368,6 +180140,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseMutationResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -177451,7 +180230,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/payroll_ReversalCommand"
               }
             }
           },
@@ -177459,6 +180238,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseMutationResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -177534,7 +180320,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/payroll_VersionCommand"
               }
             }
           },
@@ -177542,6 +180328,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseMutationResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -177580,6 +180373,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseListConfigurationView"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -177618,6 +180418,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseMutationResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -177674,6 +180481,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/payroll_ApiResponseMutationResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -178113,21 +180927,21 @@
         "parameters": [
           {
             "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
             "name": "projection",
             "required": false,
             "schema": {
               "enum": [
                 "people360"
               ],
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
-            "name": "asOf",
-            "required": false,
-            "schema": {
-              "format": "date",
               "type": "string"
             }
           },
@@ -178149,7 +180963,14 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseHomeOverview"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/people_ApiResponseHomeOverview"
+                    },
+                    {
+                      "$ref": "#/components/schemas/people_ApiResponsePeople360SnapshotV1"
+                    }
+                  ]
                 }
               }
             },
@@ -178366,17 +181187,6 @@
         "parameters": [
           {
             "in": "query",
-            "name": "projection",
-            "required": false,
-            "schema": {
-              "enum": [
-                "people360"
-              ],
-              "type": "string"
-            }
-          },
-          {
-            "in": "query",
             "name": "personId",
             "required": false,
             "schema": {
@@ -178390,6 +181200,17 @@
             "required": false,
             "schema": {
               "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "projection",
+            "required": false,
+            "schema": {
+              "enum": [
+                "people360"
+              ],
               "type": "string"
             }
           },
@@ -178411,7 +181232,14 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseTeamWorkspace"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/people_ApiResponseTeamWorkspace"
+                    },
+                    {
+                      "$ref": "#/components/schemas/people_ApiResponsePeople360SnapshotV1"
+                    }
+                  ]
                 }
               }
             },
@@ -178968,6 +181796,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseCommandReceipt"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -178997,6 +181832,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseCycleCollection"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -179060,7 +181902,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/people_CreateCycleRequest"
               }
             }
           },
@@ -179068,6 +181910,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseCycleCommandResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -179106,6 +181955,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseCycleDetail"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -179178,7 +182034,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/people_UpdateCycleRequest"
               }
             }
           },
@@ -179186,6 +182042,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseCycleCommandResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -179260,7 +182123,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/people_PreviewPopulationRequest"
               }
             }
           },
@@ -179268,6 +182131,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponsePreviewCommandResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -179359,7 +182229,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/people_PublishCycleRequest"
               }
             }
           },
@@ -179367,6 +182237,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseCycleCommandResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -179441,7 +182318,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/people_ValidateCycleRequest"
               }
             }
           },
@@ -179449,6 +182326,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseCycleCommandResult"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -183000,7 +185884,14 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponseCursorPagePersonSummary"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/people_ApiResponseCursorPagePersonSummary"
+                    },
+                    {
+                      "$ref": "#/components/schemas/people_ApiResponsePeople360PageV1"
+                    }
+                  ]
                 }
               }
             },
@@ -183073,7 +185964,14 @@
             "content": {
               "*/*": {
                 "schema": {
-                  "$ref": "#/components/schemas/people_ApiResponsePersonDetail"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/people_ApiResponsePersonDetail"
+                    },
+                    {
+                      "$ref": "#/components/schemas/people_ApiResponsePeople360SnapshotV1"
+                    }
+                  ]
                 }
               }
             },
@@ -238788,6 +241686,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_ApiResponseSimulationCommandView"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -238826,6 +241731,13 @@
         ],
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_ApiResponseStudioView"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -238884,7 +241796,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/time_CreateDraftRequest"
               }
             }
           },
@@ -238892,6 +241804,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_ApiResponseCreateDraftView"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -238906,6 +241825,15 @@
       "post": {
         "operationId": "time_hrisTimeTransitionWorkPlan",
         "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
           {
             "in": "path",
             "name": "workPlanId",
@@ -238930,15 +241858,6 @@
             }
           },
           {
-            "in": "header",
-            "name": "Idempotency-Key",
-            "required": true,
-            "schema": {
-              "format": "uuid",
-              "type": "string"
-            }
-          },
-          {
             "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
             "in": "query",
             "name": "contextScopeKey",
@@ -238973,7 +241892,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/time_LifecycleRequest"
               }
             }
           },
@@ -238981,6 +241900,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_ApiResponseReceiptView"
+                }
+              }
+            },
             "description": "OK"
           }
         },
@@ -238996,8 +241922,8 @@
         "operationId": "time_hrisTimeSimulateWorkPlan",
         "parameters": [
           {
-            "in": "path",
-            "name": "workPlanId",
+            "in": "header",
+            "name": "Idempotency-Key",
             "required": true,
             "schema": {
               "format": "uuid",
@@ -239005,8 +241931,8 @@
             }
           },
           {
-            "in": "header",
-            "name": "Idempotency-Key",
+            "in": "path",
+            "name": "workPlanId",
             "required": true,
             "schema": {
               "format": "uuid",
@@ -239048,7 +241974,7 @@
           "content": {
             "application/json": {
               "schema": {
-                "type": "object"
+                "$ref": "#/components/schemas/time_SimulationRequest"
               }
             }
           },
@@ -239056,6 +241982,13 @@
         },
         "responses": {
           "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/time_ApiResponseSimulationCommandView"
+                }
+              }
+            },
             "description": "OK"
           }
         },

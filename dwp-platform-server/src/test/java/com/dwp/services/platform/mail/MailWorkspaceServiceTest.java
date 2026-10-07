@@ -189,7 +189,8 @@ class MailWorkspaceServiceTest {
                     "SEND", "BCC", "HTML_BODY", "ATTACHMENTS", "SCHEDULING");
             assertThat(readiness.featureReadiness().get("BCC").state()).isEqualTo("READY");
         });
-        assertThat(context.accounts()).filteredOn(account ->
+        List<MailDtos.AccountSummary> accounts = context.accounts();
+        assertThat(accounts).filteredOn(account ->
                         account.accountId().equals(sandboxAccountId))
                 .singleElement()
                 .extracting(MailDtos.AccountSummary::readiness)

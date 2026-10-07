@@ -394,7 +394,7 @@ public class FeatureRolloutEvaluationClient {
     public record RequestMetadata(
             String correlationId,
             String traceParent,
-            String traceState) {
+            String traceState) implements FeatureRolloutRequestMetadata {
     }
 
     private record InternalEvaluationRequest(long authTenantId, String flagKey) {

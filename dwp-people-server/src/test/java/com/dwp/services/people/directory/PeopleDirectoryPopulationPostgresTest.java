@@ -60,6 +60,10 @@ class PeopleDirectoryPopulationPostgresTest {
         workforce(tenantId, employerId, denied.id(), "OUTSIDE");
         Workforce mixed = workforce(tenantId, employerId, allowed.id(), "MIXED");
         addWorker(tenantId, mixed.personId(), employerId, denied.id(), "MIXED-OUTSIDE");
+        Workforce sameWorkerMixed = workforce(
+                tenantId, employerId, allowed.id(), "MIXED-SAME-WORKER");
+        addRelationship(tenantId, sameWorkerMixed.workerId(), employerId, denied.id(),
+                "MIXED-SAME-WORKER-OUTSIDE", false);
         Workforce allowedOne = workforce(tenantId, employerId, allowed.id(), "ALLOWED-1");
         Workforce allowedTwo = workforce(tenantId, employerId, allowed.id(), "ALLOWED-2");
         Workforce allowedThree = workforce(tenantId, employerId, allowed.id(), "ALLOWED-3");
@@ -140,23 +144,34 @@ class PeopleDirectoryPopulationPostgresTest {
                 VALUES (?, ?, ?, 'EMPLOYEE', 'ACTIVE', DATE '2020-01-01')
                 RETURNING worker_id
                 """, Long.class, tenantId, personId, "WORKER-" + suffix + '-' + key);
+        addRelationship(tenantId, workerId, employerId, organizationId, suffix, true);
+        return workerId;
+    }
+
+    private void addRelationship(
+            long tenantId,
+            long workerId,
+            long employerId,
+            long organizationId,
+            String suffix,
+            boolean primary) {
+        UUID key = UUID.randomUUID();
         long relationshipId = jdbc.queryForObject("""
                 INSERT INTO ppl_work_relationships(
                     tenant_id, relationship_key, worker_id, legal_employer_id,
                     relationship_type, primary_relationship, start_date)
-                VALUES (?, ?, ?, ?, 'EMPLOYEE', TRUE, DATE '2020-01-01')
+                VALUES (?, ?, ?, ?, 'EMPLOYEE', ?, DATE '2020-01-01')
                 RETURNING work_relationship_id
                 """, Long.class, tenantId, "RELATIONSHIP-" + suffix + '-' + key,
-                workerId, employerId);
+                workerId, employerId, primary);
         jdbc.update("""
                 INSERT INTO ppl_assignments(
                     tenant_id, assignment_key, work_relationship_id,
                     effective_start_date, assignment_status, primary_assignment,
                     organization_id, business_title)
-                VALUES (?, ?, ?, DATE '2020-01-01', 'ACTIVE', TRUE, ?, 'Engineer')
+                VALUES (?, ?, ?, DATE '2020-01-01', 'ACTIVE', ?, ?, 'Engineer')
                 """, tenantId, "ASSIGNMENT-" + suffix + '-' + key,
-                relationshipId, organizationId);
-        return workerId;
+                relationshipId, primary, organizationId);
     }
 
     private record Organization(long id, UUID publicId) {

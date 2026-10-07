@@ -630,7 +630,8 @@ public class NotificationQueryRepository {
         }
     }
 
-    public record InboxContextFilter(String kind, String key) {
+    public record InboxContextFilter(String kind, String key)
+            implements NotificationInboxContext {
         public InboxContextFilter {
             if (!List.of("ACTOR", "THREAD", "RESOURCE", "TOPIC_TOKEN").contains(kind)) {
                 throw new NotificationException(

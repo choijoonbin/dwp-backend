@@ -134,12 +134,7 @@ class AdminMailPurgeGuard {
         return Set.copyOf(result);
     }
 
-    private PurgeBlockedException blocked(String code) {
-        return new PurgeBlockedException(code);
-    }
-
-    static final class PurgeBlockedException extends RuntimeException {
-        private static final long serialVersionUID = 1L;
-        PurgeBlockedException(String code) { super(code); }
+    private AdminMailPurgeBlockedException blocked(String code) {
+        return new AdminMailPurgeBlockedException(code);
     }
 }

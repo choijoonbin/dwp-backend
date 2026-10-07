@@ -1222,6 +1222,9 @@
         "oidc-provider"
       ],
       "path": "dwp-auth-server/src/main/java/com/dwp/services/auth/service/OidcService.java",
+      "requiredMarkerSources": [
+        "dwp-auth-server/src/main/java/com/dwp/services/auth/service/OidcProviderConfigurationInspector.java"
+      ],
       "purpose": "Perform OIDC discovery, token exchange, and user-info calls through an explicit provider host allowlist.",
       "auth": "Uses the configured OIDC client credential; DWP service tokens are forbidden.",
       "retryMode": "none",
@@ -1676,6 +1679,270 @@
         "X-DWP-Notification-Approval-System-Sla-Token",
         "X-DWP-Approval-System-Sla-Token",
         "X-DWP-Approval-Retention-Execution-Token"
+      ]
+    },
+    {
+      "id": "platform-agent-proposal-handoff-observer",
+      "classification": "platform-dwaion-proposal-handoff-observation",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-agent-runtime"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/dwaion/PlatformDwaionHandoffObserverClient.java",
+      "purpose": "Deliver idempotent owner-commit observations for Platform-owned DWAI-ON proposal handoffs after the owner transaction commits.",
+      "auth": "Uses the Agent service token, dedicated workflow-worker token, and a 15-second request-bound delegated identity assertion; browser credentials are forbidden.",
+      "retryMode": "outbox-owned",
+      "failureMode": "fail-contained",
+      "requiredMarkers": [
+        "${dwp.platform.dwaion-handoff.agent-url:http://localhost:8010}",
+        "/internal/v1/proposal-handoffs/%s/observations",
+        "X-DWP-Service-Token",
+        "X-DWP-Workflow-Worker-Token",
+        "X-DWP-Delegated-Identity",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        ".timeout(Duration.ofSeconds(8))",
+        "identitySecret.length < 24",
+        "response.body().length() > 65_536"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "Authorization",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Widget-Registry-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "approval-agent-proposal-handoff-observer",
+      "classification": "approval-dwaion-proposal-handoff-observation",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-approval-server",
+      "targetServices": [
+        "dwp-agent-runtime"
+      ],
+      "path": "dwp-approval-server/src/main/java/com/dwp/services/approval/dwaion/DwaionProposalHandoffObserverClient.java",
+      "purpose": "Deliver idempotent Approval owner-commit observations for DWAI-ON proposal handoffs after the approval transaction commits.",
+      "auth": "Uses the Agent service token, dedicated workflow-worker token, and a 15-second request-bound delegated identity assertion; browser credentials are forbidden.",
+      "retryMode": "outbox-owned",
+      "failureMode": "fail-contained",
+      "requiredMarkers": [
+        "${dwp.approval.dwaion-handoff.agent-url:http://localhost:8010}",
+        "/internal/v1/proposal-handoffs/%s/observations",
+        "X-DWP-Service-Token",
+        "X-DWP-Workflow-Worker-Token",
+        "X-DWP-Delegated-Identity",
+        "OutboundHttpHeaders.propagateObservability",
+        "HttpClient.Redirect.NEVER",
+        ".timeout(Duration.ofSeconds(8))",
+        "identitySecret.length < 24",
+        "response.body().length() > 65_536"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "Authorization",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Widget-Registry-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "platform-auth-mail-member-directory",
+      "classification": "mail-identity-subject-validation",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/mail/AuthMailMemberDirectory.java",
+      "purpose": "Validate and search active tenant users before Mail shared-member mutations through the Auth-owned identity contract.",
+      "auth": "Uses only the purpose-specific identity-sync token and propagates trusted observability headers.",
+      "retryMode": "idempotent-only",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "${dwp.identity-sync.auth-url:http://localhost:8001}",
+        "/internal/identity/v1/tenants/{tenantId}/users",
+        "X-DWP-Identity-Sync-Token",
+        "@CircuitBreaker",
+        "@Bulkhead",
+        "@Retry",
+        "OutboundHttpHeaders.propagateObservability"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Provisioning-Token",
+        "Authorization",
+        "Cookie",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "platform-auth-mail-purge-execution-authority",
+      "classification": "mail-purge-current-authority-evaluation",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "dwp-auth-server"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/mail/AuthMailPurgeExecutionAuthority.java",
+      "purpose": "Re-evaluate current elevated Mail purge authority immediately before the destructive owner transaction.",
+      "auth": "Uses the purpose-specific product-surface token with the exact dwp-platform-server identity and fails closed when authority is unavailable or stale.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "${dwp.platform.mail.purge.auth-url:http://localhost:8001}",
+        "/internal/auth/v1/product-surface-authority/evaluate",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Service-Identity",
+        "dwp-platform-server",
+        "route.admin.mail.retention.purge-execute.action",
+        "OutboundHttpHeaders.propagateObservability",
+        "!result.effectiveReadOnly()",
+        "AUTHORITY_SERVICE_UNAVAILABLE"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "X-DWP-Service-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Provisioning-Token",
+        "Authorization",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "platform-workplace-external-provider-transport",
+      "classification": "external-workplace-provider-transport",
+      "interfaceType": "external-connector",
+      "sourceService": "dwp-platform-server",
+      "targetServices": [
+        "workplace-provider-network"
+      ],
+      "path": "dwp-platform-server/src/main/java/com/dwp/services/platform/workplace/providerintegration/WorkplaceProviderHttpTransport.java",
+      "purpose": "Relay bounded Workplace owner operations to explicitly allowlisted external provider origins using owner-leased secret references.",
+      "auth": "Resolves a single secret owner for a secret-manager reference, leases a bearer token only for the call, and clears token characters after use.",
+      "retryMode": "none",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "dwp.workplace.provider-integration.http.allowed-hosts",
+        "dwp.workplace.provider-integration.http.allowed-providers",
+        "dwp.workplace.provider-integration.http.allow-insecure-localhost:false",
+        "validatedOrigin",
+        "secret-manager://",
+        "Idempotency-Key",
+        "Arrays.fill(token, '\\0')"
+      ],
+      "forbiddenMarkers": [
+        "X-DWP-Service-Token",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
+      ]
+    },
+    {
+      "id": "people-platform-mail-proposal-outcomes",
+      "classification": "people-mail-proposal-outcome-delivery",
+      "interfaceType": "internal-http",
+      "sourceService": "dwp-people-server",
+      "targetServices": [
+        "dwp-platform-server"
+      ],
+      "path": "dwp-people-server/src/main/java/com/dwp/services/people/hr/HrMailProposalOutcomeClient.java",
+      "purpose": "Preflight, record, or release the exact HR-owned result of a Platform Mail proposal without transferring owner-system write authority.",
+      "auth": "Uses the Platform service token, exact dwp-people-server identity, tenant and actor binding; the Platform owner independently rejects every other service identity.",
+      "retryMode": "outbox-owned",
+      "failureMode": "fail-closed",
+      "requiredMarkers": [
+        "/internal/v1/mail/proposal-outcomes/preflight",
+        "/internal/v1/mail/proposal-outcomes",
+        "/internal/v1/mail/proposal-outcomes/not-executed",
+        "X-DWP-Service-Token",
+        "X-DWP-Service-Identity",
+        "dwp-people-server",
+        "OutboundHttpHeaders.propagateObservability",
+        "requireConfigured()"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "Authorization",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Approval-Recovery-Token",
+        "X-DWP-Widget-Registry-Token",
+        "X-DWP-Approval-Form-User-Token",
+        "X-DWP-Approval-Workflow-Runtime-Token",
+        "X-DWP-Approval-Policy-Impact-Token",
+        "X-DWP-Approval-Information-Replay-Token",
+        "X-DWP-Approval-Workflow-Planning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token",
+        "X-DWP-Approval-Retention-Execution-Token",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Workflow-Worker-Token",
+        "X-DWP-Work-Source-Token"
+      ]
+    },
+    {
+      "id": "gateway-provider-rollout-application-receipt",
+      "classification": "gateway-feature-rollout-application-receipt",
+      "interfaceType": "gateway-verifier",
+      "sourceService": "dwp-gateway",
+      "targetServices": [
+        "dwp-provider-server"
+      ],
+      "path": "dwp-gateway/src/main/java/com/dwp/gateway/productsurface/FeatureRolloutApplicationReceiptClient.java",
+      "purpose": "Record a deterministic best-effort receipt after an authoritative feature-rollout decision has entered the Gateway enforcement cache.",
+      "auth": "Uses the Gateway service token and exact dwp-gateway identity; only correlation and trace observability metadata are propagated.",
+      "retryMode": "none",
+      "failureMode": "fail-contained",
+      "requiredMarkers": [
+        "${SERVICE_PROVIDER_URL:http://localhost:8004}",
+        "/internal/provider/v1/feature-rollouts/application-receipts",
+        "X-DWP-Service-Token",
+        "X-DWP-Service-Identity",
+        "dwp-gateway",
+        ".timeout(timeout)",
+        "TRACE_PARENT_HEADER",
+        "TRACE_STATE_HEADER",
+        "decision.authoritative()",
+        ".onErrorResume(ignored -> Mono.empty())"
+      ],
+      "forbiddenMarkers": [
+        "/api/",
+        "Authorization",
+        "Cookie",
+        "@Retry",
+        "X-DWP-Product-Surface-Token",
+        "X-DWP-Identity-Sync-Token",
+        "X-DWP-Provisioning-Token",
+        "X-DWP-Approval-Signature-Source-Token",
+        "X-DWP-Notification-Approval-System-Sla-Token",
+        "X-DWP-Approval-System-Sla-Token"
       ]
     }
   ],

@@ -1,14 +1,10 @@
 package com.dwp.services.platform.productivity;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 import org.springframework.stereotype.Repository;
 
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Instant;
@@ -19,9 +15,8 @@ import java.util.UUID;
 import static com.dwp.services.platform.productivity.ProductivityTypes.*;
 
 @Repository
-public class ProductivityRepository {
+public class ProductivityRepository extends ProductivityRepositorySupport {
 
-    private static final TypeReference<List<String>> STRING_LIST = new TypeReference<>() { };
     private static final String CONNECTOR_COLUMNS = """
             productivity_connector_id, tenant_id, connector_key, display_name,
             provider_type, auth_mode, provider_tenant_id, client_id, credential_reference,
@@ -31,11 +26,10 @@ public class ProductivityRepository {
             """;
 
     private final NamedParameterJdbcTemplate jdbc;
-    private final ObjectMapper objectMapper;
 
     public ProductivityRepository(NamedParameterJdbcTemplate jdbc, ObjectMapper objectMapper) {
+        super(objectMapper);
         this.jdbc = jdbc;
-        this.objectMapper = objectMapper;
     }
 
     public List<ConnectorRecord> connectors(Long tenantId) {
@@ -44,16 +38,15 @@ public class ProductivityRepository {
                         + "WHERE tenant_id = :tenantId AND lifecycle_state <> 'RETIRED' "
                         + "ORDER BY display_name, connector_key",
                 new MapSqlParameterSource("tenantId", tenantId),
-                this::connector);
+                (rs, row) -> connector(rs, row, ConnectorRecord::new));
     }
-
     public Optional<ConnectorRecord> connector(Long tenantId, UUID connectorId) {
         return jdbc.query(
                 "SELECT " + CONNECTOR_COLUMNS + " FROM int_productivity_connectors "
                         + "WHERE tenant_id = :tenantId AND productivity_connector_id = :connectorId",
                 new MapSqlParameterSource("tenantId", tenantId)
                         .addValue("connectorId", connectorId),
-                this::connector).stream().findFirst();
+                (rs, row) -> connector(rs, row, ConnectorRecord::new)).stream().findFirst();
     }
 
     public ConnectorRecord createConnector(Long tenantId, Long actorId, ConnectorDraft draft) {
@@ -164,9 +157,9 @@ public class ProductivityRepository {
                  ORDER BY updated_at DESC
                  LIMIT :limit
                 """, new MapSqlParameterSource("tenantId", tenantId)
-                .addValue("limit", Math.min(501, Math.max(1, limit))), this::subject);
+                .addValue("limit", Math.min(501, Math.max(1, limit))),
+                (rs, row) -> subject(rs, row, SubjectRecord::new));
     }
-
     public Optional<SubjectRecord> subject(Long tenantId, UUID connectorId, Long userId) {
         return jdbc.query("""
                 SELECT productivity_subject_id, tenant_id, productivity_connector_id,
@@ -178,8 +171,8 @@ public class ProductivityRepository {
                    AND productivity_connector_id = :connectorId
                    AND user_id = :userId
                 """, new MapSqlParameterSource("tenantId", tenantId)
-                .addValue("connectorId", connectorId)
-                .addValue("userId", userId), this::subject).stream().findFirst();
+                .addValue("connectorId", connectorId).addValue("userId", userId),
+                (rs, row) -> subject(rs, row, SubjectRecord::new)).stream().findFirst();
     }
 
     public SubjectRecord connectSubject(
@@ -377,8 +370,8 @@ public class ProductivityRepository {
                    AND productivity_subject_id = :subjectId
                    AND resource_kind = :resourceKind
                 """, new MapSqlParameterSource("tenantId", tenantId)
-                .addValue("subjectId", subjectId)
-                .addValue("resourceKind", resourceKind.name()), this::stream).stream().findFirst();
+                .addValue("subjectId", subjectId).addValue("resourceKind", resourceKind.name()),
+                (rs, row) -> stream(rs, row, StreamRecord::new)).stream().findFirst();
     }
 
     public boolean startStream(UUID streamId, boolean reset) {
@@ -594,7 +587,7 @@ public class ProductivityRepository {
                    AND (:resourceKind IS NULL OR resource_kind = :resourceKind)
                  ORDER BY occurred_at DESC, productivity_item_id
                  LIMIT :limit OFFSET :offset
-                """, parameters, this::item);
+                """, parameters, (rs, row) -> item(rs, row, ItemRecord::new));
         return new ItemResult(content, total);
     }
 
@@ -611,8 +604,9 @@ public class ProductivityRepository {
                  WHERE run.tenant_id = :tenantId
                  ORDER BY run.started_at DESC
                  LIMIT :limit
-                """, new MapSqlParameterSource("tenantId", tenantId)
-                .addValue("limit", Math.min(501, Math.max(1, limit))), this::run);
+                """, new MapSqlParameterSource("tenantId", tenantId).addValue(
+                        "limit", Math.min(501, Math.max(1, limit))),
+                (rs, row) -> run(rs, row, RunRecord::new));
     }
 
     public Metrics metrics(Long tenantId) {
@@ -678,159 +672,6 @@ public class ProductivityRepository {
                 .addValue("errorCode", errorCode));
     }
 
-    private MapSqlParameterSource connectorParameters(
-            Long tenantId,
-            Long actorId,
-            UUID connectorId,
-            ConnectorDraft draft) {
-        return new MapSqlParameterSource("connectorId", connectorId)
-                .addValue("tenantId", tenantId)
-                .addValue("actorId", actorId)
-                .addValue("connectorKey", draft.connectorKey())
-                .addValue("displayName", draft.displayName())
-                .addValue("providerType", draft.providerType().name())
-                .addValue("authMode", draft.authMode().name())
-                .addValue("providerTenantId", draft.providerTenantId())
-                .addValue("clientId", draft.clientId())
-                .addValue("credentialReference", draft.credentialReference())
-                .addValue("redirectUri", draft.redirectUri())
-                .addValue("requestedScopes", json(draft.requestedScopes()))
-                .addValue("capabilities", json(draft.capabilities()))
-                .addValue("policyState", draft.policyState().name());
-    }
-
-    private ConnectorRecord connector(ResultSet rs, int row) throws SQLException {
-        return new ConnectorRecord(
-                rs.getObject("productivity_connector_id", UUID.class),
-                rs.getLong("tenant_id"),
-                rs.getString("connector_key"),
-                rs.getString("display_name"),
-                ProviderType.valueOf(rs.getString("provider_type")),
-                AuthMode.valueOf(rs.getString("auth_mode")),
-                rs.getString("provider_tenant_id"),
-                rs.getString("client_id"),
-                rs.getString("credential_reference"),
-                rs.getString("redirect_uri"),
-                strings(rs.getString("requested_scopes")),
-                strings(rs.getString("capabilities")),
-                ConnectorLifecycle.valueOf(rs.getString("lifecycle_state")),
-                ConnectorHealth.valueOf(rs.getString("health_state")),
-                PolicyState.valueOf(rs.getString("policy_state")),
-                rs.getString("safe_error_code"),
-                instant(rs, "last_configuration_check_at"),
-                instant(rs, "last_successful_sync_at"),
-                rs.getInt("consecutive_failures"),
-                rs.getLong("version"));
-    }
-
-    private SubjectRecord subject(ResultSet rs, int row) throws SQLException {
-        return new SubjectRecord(
-                rs.getObject("productivity_subject_id", UUID.class),
-                rs.getLong("tenant_id"),
-                rs.getObject("productivity_connector_id", UUID.class),
-                rs.getLong("user_id"),
-                rs.getString("provider_subject_ref_hash"),
-                rs.getString("encrypted_refresh_token"),
-                strings(rs.getString("granted_scopes")),
-                ConsentState.valueOf(rs.getString("consent_state")),
-                instant(rs, "token_expires_at"),
-                instant(rs, "last_successful_sync_at"),
-                rs.getString("last_error_code"),
-                rs.getLong("version"));
-    }
-
-    private StreamRecord stream(ResultSet rs, int row) throws SQLException {
-        return new StreamRecord(
-                rs.getObject("productivity_sync_stream_id", UUID.class),
-                rs.getLong("tenant_id"),
-                rs.getObject("productivity_subject_id", UUID.class),
-                ResourceKind.valueOf(rs.getString("resource_kind")),
-                rs.getString("encrypted_cursor"),
-                rs.getString("cursor_fingerprint"),
-                instant(rs, "calendar_window_start"),
-                instant(rs, "calendar_window_end"),
-                StreamState.valueOf(rs.getString("stream_state")),
-                instant(rs, "last_attempt_at"),
-                instant(rs, "last_success_at"),
-                rs.getString("last_error_code"),
-                rs.getLong("version"));
-    }
-
-    private RunRecord run(ResultSet rs, int row) throws SQLException {
-        return new RunRecord(
-                rs.getObject("productivity_sync_run_id", UUID.class),
-                rs.getObject("productivity_connector_id", UUID.class),
-                rs.getLong("user_id"),
-                ResourceKind.valueOf(rs.getString("resource_kind")),
-                SyncMode.valueOf(rs.getString("sync_mode")),
-                SyncRunState.valueOf(rs.getString("run_state")),
-                instant(rs, "started_at"),
-                instant(rs, "completed_at"),
-                rs.getInt("upsert_count"),
-                rs.getInt("delete_count"),
-                rs.getInt("skip_count"),
-                rs.getInt("error_count"),
-                rs.getBoolean("partial_result"),
-                instant(rs, "retry_after_at"),
-                rs.getString("safe_error_code"),
-                rs.getString("correlation_id"));
-    }
-
-    private ItemRecord item(ResultSet rs, int row) throws SQLException {
-        return new ItemRecord(
-                rs.getObject("productivity_item_id", UUID.class),
-                rs.getLong("tenant_id"),
-                rs.getLong("user_id"),
-                rs.getObject("productivity_connector_id", UUID.class),
-                ResourceKind.valueOf(rs.getString("resource_kind")),
-                rs.getString("source_id_hash"),
-                rs.getString("encrypted_title"),
-                rs.getString("encrypted_source_url"),
-                instant(rs, "occurred_at"),
-                instant(rs, "ends_at"),
-                rs.getString("importance"),
-                nullableBoolean(rs, "read_state"),
-                rs.getBoolean("cancelled"),
-                rs.getString("classification"),
-                rs.getString("permission_reference_hash"),
-                rs.getString("source_version"));
-    }
-
-    private String json(Object value) {
-        try {
-            return objectMapper.writeValueAsString(value);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalArgumentException("Productivity metadata is invalid.", exception);
-        }
-    }
-
-    private List<String> strings(String json) {
-        if (json == null || json.isBlank()) return List.of();
-        try {
-            return objectMapper.readValue(json, STRING_LIST);
-        } catch (JsonProcessingException exception) {
-            throw new IllegalStateException("Stored productivity metadata is invalid.", exception);
-        }
-    }
-
-    private static Instant instant(ResultSet rs, String column) throws SQLException {
-        Timestamp value = rs.getTimestamp(column);
-        return value == null ? null : value.toInstant();
-    }
-
-    private static Timestamp timestamp(Instant value) {
-        return value == null ? null : Timestamp.from(value);
-    }
-
-    private static Boolean nullableBoolean(ResultSet rs, String column) throws SQLException {
-        boolean value = rs.getBoolean(column);
-        return rs.wasNull() ? null : value;
-    }
-
-    private static long number(Object value) {
-        return value instanceof Number number ? number.longValue() : 0;
-    }
-
     public record ConnectorDraft(
             String connectorKey,
             String displayName,
@@ -842,7 +683,7 @@ public class ProductivityRepository {
             String redirectUri,
             List<String> requestedScopes,
             List<String> capabilities,
-            PolicyState policyState) {
+            PolicyState policyState) implements ProductivityConnectorDraftView {
     }
 
     public record ConnectorRecord(

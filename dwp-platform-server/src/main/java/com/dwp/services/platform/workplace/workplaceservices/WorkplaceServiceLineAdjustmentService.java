@@ -11,7 +11,6 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.OffsetDateTime;
-import java.util.Objects;
 import java.util.UUID;
 import java.util.function.Supplier;
 
@@ -670,38 +669,4 @@ public class WorkplaceServiceLineAdjustmentService extends WorkplaceServicesServ
                 row.currency(), row.eligible(), row.reason(), row.expiresAt(), row.createdAt());
     }
 
-    private record PreparedInvocation(
-            long tenantId,
-            long actorUserId,
-            boolean requesterProjection,
-            boolean reconciliation,
-            boolean recoveryLookup,
-            boolean commandWasExisting,
-            LineCancellationPreviewRow preview,
-            LineRow line,
-            LineAdjustmentRow adjustment,
-            CommandRow activeCommand,
-            CommandRow originCommand,
-            UUID originCommandId,
-            ProviderRequest providerRequest,
-            LineAdjustmentCommandResult immediateResult) {
-
-        private PreparedInvocation {
-            if (immediateResult == null) {
-                Objects.requireNonNull(preview);
-                Objects.requireNonNull(line);
-                Objects.requireNonNull(adjustment);
-                Objects.requireNonNull(activeCommand);
-                Objects.requireNonNull(originCommand);
-                Objects.requireNonNull(originCommandId);
-                Objects.requireNonNull(providerRequest);
-            }
-        }
-
-        static PreparedInvocation immediate(LineAdjustmentCommandResult result) {
-            return new PreparedInvocation(0, 0, false, false, false, true,
-                    null, null, null, null, null, null, null,
-                    Objects.requireNonNull(result));
-        }
-    }
 }

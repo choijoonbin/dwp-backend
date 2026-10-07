@@ -76,8 +76,8 @@ class WorkforcePolicyGovernanceAuthorityAdapterV1PostgresTest {
         var owned=source(POSTGRES.getUsername(),POSTGRES.getPassword());owner=new JdbcTemplate(owned);
         var flyway=Flyway.configure().dataSource(owned).locations("filesystem:src/main/resources/db/migration")
                 .validateOnMigrate(true).outOfOrder(false).load();flyway.migrate();
-        assertEquals("225",flyway.info().current().getVersion().getVersion());
-        assertEquals(127,flyway.info().applied().length);
+        assertEquals("242",flyway.info().current().getVersion().getVersion());
+        assertEquals(144,flyway.info().applied().length);
         owner.update("INSERT INTO public.com_tenants(tenant_id,code,name) VALUES (41,'s1-native-owned','TEST_ONLY S1 owner')");
         for(long user:List.of(ACTOR,MAKER,CHECKER,TARGET))owner.update(
                 "INSERT INTO public.com_users(user_id,tenant_id,display_name) VALUES (?,41,'TEST_ONLY native actor')",user);

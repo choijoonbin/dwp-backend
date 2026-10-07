@@ -1,6 +1,7 @@
 package com.dwp.services.time.workregime;
 
 import static com.dwp.services.time.workregime.WorkRegimeApiModels.SIMULATION_PURPOSE;
+import static com.dwp.services.time.workregime.WorkRegimeTargetAuthorization.*;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
@@ -47,6 +48,7 @@ import com.dwp.services.time.workregime.WorkRegimeRepository.TransitionWrite;
 import com.dwp.services.time.workregime.WorkRegimeRepository.WorkPlanRecord;
 import com.dwp.services.time.workregime.WorkRegimeTargetPopulationResolver.PopulationAccess;
 import com.dwp.services.time.workregime.WorkRegimeTargetPopulationResolver.TargetMembershipEvidence;
+import com.dwp.services.time.workregime.WorkRegimeTargetAuthorization.OwnedPlan;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.nio.charset.StandardCharsets;
@@ -81,6 +83,7 @@ public final class WorkRegimeApplicationService {
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final WorkRegimeTargetPopulationResolver targetPopulationResolver;
+    private final WorkRegimeTargetAuthorization authorization;
 
     @Autowired
     public WorkRegimeApplicationService(
@@ -108,20 +111,22 @@ public final class WorkRegimeApplicationService {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper must not be null");
         this.targetPopulationResolver = Objects.requireNonNull(
                 targetPopulationResolver, "targetPopulationResolver must not be null");
+        this.authorization = new WorkRegimeTargetAuthorization(
+                repository, targetPopulationResolver, clock);
     }
 
     public StudioView list(VerifiedRequest request, LocalDate effectiveOn) {
         Objects.requireNonNull(effectiveOn, "effectiveOn must not be null");
         Authority authority = request.authority();
         requireOwnerDuty(authority);
-        PopulationAccess access = requireCurrentAccess(request);
-        TargetAuthorizationGuard guard = targetAuthorization(request, access);
+        PopulationAccess access = authorization.requireCurrentAccess(request);
+        TargetAuthorizationGuard guard = authorization.guard(request, access);
         List<WorkPlanView> views = new ArrayList<>();
         boolean populationPlanUnavailable = false;
         for (WorkPlanRecord record : repository.findEffective(guard, effectiveOn)) {
             try {
                 if (!covers(authority, record.revision().scopeRef())) continue;
-                requireCurrentTargetMembership(access, record);
+                authorization.requireCurrentTargetMembership(access, record);
                 views.add(toWorkPlan(authority, access, guard, record, effectiveOn));
             } catch (RuntimeException unavailable) {
                 populationPlanUnavailable = true;
@@ -147,8 +152,8 @@ public final class WorkRegimeApplicationService {
             CreateDraftRequest request) {
         Authority authority = verified.authority();
         requireDuty(authority, Duty.TIME_CONFIG_AUTHOR);
-        PopulationAccess access = requireCurrentAccess(verified);
-        TargetAuthorizationGuard guard = targetAuthorization(verified, access);
+        PopulationAccess access = authorization.requireCurrentAccess(verified);
+        TargetAuthorizationGuard guard = authorization.guard(verified, access);
         requireScope(authority, request.scopeRef());
         if (request.scopeType() != WorkRegimeModels.ScopeType.POPULATION
                 || !access.scopePublicRef().equals(request.scopeRef())) {
@@ -156,7 +161,7 @@ public final class WorkRegimeApplicationService {
         }
         EffectivePeriod period = new EffectivePeriod(
                 request.effectiveStart(), request.effectiveEnd());
-        TargetMembershipEvidence membership = requireCurrentTargetMembership(
+        TargetMembershipEvidence membership = authorization.requireCurrentTargetMembership(
                 access,
                 request.workerPublicId(),
                 request.peopleAssignmentPublicId(),
@@ -180,7 +185,7 @@ public final class WorkRegimeApplicationService {
                 request.rulePackPublicId(), request.jurisdiction(),
                 request.jurisdictionSubdivision(), request.policyRevision(),
                 request.scopeType().name(), request.scopeRef(), request.priority(), period));
-        TargetBindingEvidence targetBindingEvidence = targetBindingEvidence(
+        TargetBindingEvidence targetBindingEvidence = authorization.bindingEvidence(
                 authority, verified, access, membership);
         String sourceDigest = digest(new AssignmentEvidence(
                 request.workerPublicId(), request.peopleAssignmentPublicId(),
@@ -237,7 +242,7 @@ public final class WorkRegimeApplicationService {
             SimulationRequest request) {
         Authority authority = verified.authority();
         requireDuty(authority, Duty.TIME_CONFIG_AUTHOR);
-        OwnedPlan owned = ownedPlan(verified, workPlanId);
+        OwnedPlan owned = authorization.ownedPlan(verified, workPlanId);
         WorkPlanRecord plan = owned.plan();
         if (!SIMULATION_PURPOSE.equals(request.purpose())) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE);
@@ -321,7 +326,7 @@ public final class WorkRegimeApplicationService {
                 authority,
                 action == LifecycleAction.APPLY_APPROVAL || action == LifecycleAction.PUBLISH
                         ? Duty.TIME_CONFIG_APPROVER : Duty.TIME_CONFIG_AUTHOR);
-        OwnedPlan owned = ownedPlan(verified, workPlanId);
+        OwnedPlan owned = authorization.ownedPlan(verified, workPlanId);
         WorkPlanRecord plan = owned.plan();
         String requestDigest = digest(new TransitionEvidence(
                 workPlanId, authority.actorId(), action, expectedVersion));
@@ -366,12 +371,12 @@ public final class WorkRegimeApplicationService {
     public SimulationCommandView receipt(VerifiedRequest verified, UUID receiptId) {
         Authority authority = verified.authority();
         requireOwnerDuty(authority);
-        PopulationAccess access = requireCurrentAccess(verified);
-        TargetAuthorizationGuard guard = targetAuthorization(verified, access);
+        PopulationAccess access = authorization.requireCurrentAccess(verified);
+        TargetAuthorizationGuard guard = authorization.guard(verified, access);
         CommandReceipt receipt = commands.receipt(authority.tenantId(), receiptId)
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
         requireReceiptAccess(authority, receipt);
-        OwnedPlan owned = ownedPlan(verified, receipt.aggregateId());
+        OwnedPlan owned = authorization.ownedPlan(verified, receipt.aggregateId());
         CommandReceipt recovered = commands.recover(
                 authority.tenantId(), receiptId,
                 candidate -> reconcile(candidate, owned.guard()));
@@ -469,7 +474,7 @@ public final class WorkRegimeApplicationService {
             if (assignment.tenantId() != access.tenantId()) {
                 throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE);
             }
-            requireCurrentTargetMembership(
+            authorization.requireCurrentTargetMembership(
                     access,
                     assignment.workerId(),
                     assignment.peopleAssignmentId(),
@@ -522,153 +527,6 @@ public final class WorkRegimeApplicationService {
                 repository.findPolicyCandidates(
                         guard, plan.jurisdiction(), plan.policyRevision()),
                 plan.revision().publicId());
-    }
-
-    private OwnedPlan ownedPlan(VerifiedRequest verified, UUID publicId) {
-        Authority authority = verified.authority();
-        PopulationAccess access = requireCurrentAccess(verified);
-        TargetAuthorizationGuard guard = targetAuthorization(verified, access);
-        WorkPlanRecord record = repository.findByPublicId(guard, publicId)
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        requireScope(authority, record.revision().scopeRef());
-        requireCurrentTargetMembership(access, record);
-        return new OwnedPlan(access, guard, record);
-    }
-
-    private TargetAuthorizationGuard targetAuthorization(
-            VerifiedRequest verified, PopulationAccess access) {
-        return new TargetAuthorizationGuard(
-                access.tenantId(),
-                access.actorId(),
-                verified.contextScopeKey(),
-                access.populationPublicId(),
-                access.populationRevision(),
-                access.grantRevision(),
-                access.populationDigest(),
-                access.grantDigest(),
-                clock.instant());
-    }
-
-    private PopulationAccess requireCurrentAccess(VerifiedRequest verified) {
-        Authority authority = verified.authority();
-        PopulationAccess access;
-        try {
-            access = targetPopulationResolver.resolveActorAccess(
-                            authority.tenantId(),
-                            authority.actorId(),
-                            verified.contextScopeKey(),
-                            clock.instant())
-                    .orElseThrow(() -> new BaseException(
-                            ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
-                            "Current TIM target-population authority is unavailable."));
-        } catch (BaseException denied) {
-            throw denied;
-        } catch (RuntimeException unavailable) {
-            throw new BaseException(
-                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
-                    "Current TIM target-population authority could not be resolved.",
-                    unavailable);
-        }
-        boolean exact = access.tenantId() == authority.tenantId()
-                && access.actorId() == authority.actorId()
-                && access.gatewayScopeKey().equals(verified.contextScopeKey())
-                && access.validUntil().isAfter(clock.instant())
-                && authority.scopeRefs().equals(Set.of(access.scopePublicRef()));
-        if (!exact) {
-            throw new BaseException(
-                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
-                    "Current TIM target-population authority is stale or mismatched.");
-        }
-        return access;
-    }
-
-    private TargetMembershipEvidence requireCurrentTargetMembership(
-            PopulationAccess access, WorkPlanRecord plan) {
-        TargetBindingEvidence saved = plan.targetBindingEvidence();
-        if (!saved.populationPublicId().equals(access.populationPublicId())
-                || !plan.revision().scopeRef().equals(access.scopePublicRef())
-                || saved.populationRevision() != access.populationRevision()
-                || !saved.populationDigest().equals(access.populationDigest())) {
-            throw new BaseException(ErrorCode.FORBIDDEN);
-        }
-        TargetMembershipEvidence current = requireCurrentTargetMembership(
-                access,
-                plan.workerPublicId(),
-                plan.peopleAssignmentPublicId(),
-                plan.peopleAssignmentRevision(),
-                plan.assignmentPeriod());
-        if (saved.populationRevision() != current.populationRevision()
-                || !saved.populationDigest().equals(current.populationDigest())
-                || saved.membershipRevision() != current.membershipRevision()
-                || !saved.membershipDigest().equals(current.membershipDigest())) {
-            throw new BaseException(
-                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
-                    "Stored TIM target-population binding evidence is stale or mismatched.");
-        }
-        return current;
-    }
-
-    private TargetMembershipEvidence requireCurrentTargetMembership(
-            PopulationAccess access,
-            UUID workerPublicId,
-            UUID peopleAssignmentPublicId,
-            long peopleAssignmentRevision,
-            EffectivePeriod period) {
-        TargetMembershipEvidence membership;
-        try {
-            membership = targetPopulationResolver.resolveTargetMembership(
-                            access.tenantId(),
-                            access.populationPublicId(),
-                            workerPublicId,
-                            peopleAssignmentPublicId,
-                            peopleAssignmentRevision,
-                            period,
-                            clock.instant())
-                    .orElseThrow(() -> new BaseException(
-                            ErrorCode.FORBIDDEN,
-                            "The selected People assignment is outside the current target population."));
-        } catch (BaseException denied) {
-            throw denied;
-        } catch (RuntimeException unavailable) {
-            throw new BaseException(
-                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
-                    "Current TIM target-population membership could not be resolved.",
-                    unavailable);
-        }
-        if (membership.tenantId() != access.tenantId()
-                || !membership.populationPublicId().equals(access.populationPublicId())
-                || !membership.workerPublicId().equals(workerPublicId)
-                || !membership.peopleAssignmentPublicId().equals(peopleAssignmentPublicId)
-                || membership.peopleAssignmentRevision() != peopleAssignmentRevision
-                || !membership.effectivePeriod().contains(period)
-                || membership.populationRevision() != access.populationRevision()
-                || !membership.populationDigest().equals(access.populationDigest())) {
-            throw new BaseException(
-                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
-                    "TIM target-population projections are inconsistent.");
-        }
-        return membership;
-    }
-
-    private TargetBindingEvidence targetBindingEvidence(
-            Authority authority,
-            VerifiedRequest verified,
-            PopulationAccess access,
-            TargetMembershipEvidence membership) {
-        return new TargetBindingEvidence(
-                access.populationPublicId(),
-                access.populationRevision(),
-                membership.workerPublicId(),
-                membership.peopleAssignmentPublicId(),
-                membership.peopleAssignmentRevision(),
-                membership.membershipRevision(),
-                authority.actorId(),
-                verified.contextScopeKey(),
-                access.grantRevision(),
-                access.populationDigest(),
-                membership.membershipDigest(),
-                access.grantDigest(),
-                clock.instant());
     }
 
     private void requireRulePack(
@@ -792,44 +650,6 @@ public final class WorkRegimeApplicationService {
         if (!Long.toString(expected).equals(actual)) throw new BaseException(code);
     }
 
-    private static void requireScope(Authority authority, String scopeRef) {
-        if (!covers(authority, scopeRef)) throw new BaseException(ErrorCode.FORBIDDEN);
-    }
-
-    private static boolean covers(Authority authority, String scopeRef) {
-        return authority.scopeRefs().contains(scopeRef);
-    }
-
-    private static void requireDuty(Authority authority, Duty duty) {
-        if (!authority.duties().contains(duty)) throw new BaseException(ErrorCode.FORBIDDEN);
-    }
-
-    private static void requireOwnerDuty(Authority authority) {
-        if (authority.duties().stream().noneMatch(Set.of(
-                Duty.TIME_CONFIG_AUTHOR,
-                Duty.TIME_CONFIG_APPROVER,
-                Duty.TIME_OPERATOR,
-                Duty.TIME_AUDITOR)::contains)) {
-            throw new BaseException(ErrorCode.FORBIDDEN);
-        }
-    }
-
-    private static void requireReceiptAccess(
-            Authority authority, CommandReceipt receipt) {
-        boolean denied = receipt.operation() == LifecycleAction.REVISE_DRAFT
-                || receipt.operation() == LifecycleAction.ASSIGN
-                || authority.revoked()
-                || authority.actorId() != receipt.actorId()
-                || !authority.purpose().equals(receipt.purpose())
-                || !authority.scopeRefs().contains(receipt.scopePublicRef())
-                || authority.duties().stream().noneMatch(Set.of(
-                        Duty.TIME_CONFIG_AUTHOR,
-                        Duty.TIME_CONFIG_APPROVER,
-                        Duty.TIME_OPERATOR,
-                        Duty.TIME_AUDITOR)::contains);
-        if (denied) throw new BaseException(ErrorCode.NOT_FOUND);
-    }
-
     private static UUID stableId(
             long tenantId, LifecycleAction action, UUID idempotencyKey, String kind) {
         String value = tenantId + ":" + action.name() + ":" + idempotencyKey + ":" + kind;
@@ -868,12 +688,6 @@ public final class WorkRegimeApplicationService {
     }
 
     private record CreateCommandEvidence(long actorId, CreateDraftRequest request) {
-    }
-
-    private record OwnedPlan(
-            PopulationAccess access,
-            TargetAuthorizationGuard guard,
-            WorkPlanRecord plan) {
     }
 
     private record SimulationCommandEvidence(

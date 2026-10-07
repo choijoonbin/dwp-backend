@@ -36,6 +36,8 @@ final class ServiceRoleDdlBoundaryControl {
             execute(connection, "GRANT USAGE, CREATE ON SCHEMA "
                     + quoteIdentifier(schema) + " TO "
                     + quoteIdentifier(environment.migrationPrincipal()));
+        }
+        for (String schema : runtimeSchemas(environment)) {
             execute(connection, "GRANT USAGE ON SCHEMA "
                     + quoteIdentifier(schema) + " TO "
                     + quoteIdentifier(environment.runtimePrincipal()));
@@ -54,13 +56,17 @@ final class ServiceRoleDdlBoundaryControl {
         List<String> protectedSchemas = protectedSchemas(environment);
         requireOwnershipShape(connection, environment, protectedSchemas);
         List<String> migrationSchemas = migrationOwnedSchemas(environment);
+        List<String> runtimeSchemas = runtimeSchemas(environment);
         Array migrationSchemaArray = connection.createArrayOf(
                 "text", migrationSchemas.toArray(String[]::new));
+        Array runtimeSchemaArray = connection.createArrayOf(
+                "text", runtimeSchemas.toArray(String[]::new));
         Array protectedSchemaArray = connection.createArrayOf(
                 "text", protectedSchemas.toArray(String[]::new));
         try (PreparedStatement statement = connection.prepareStatement("""
                         WITH policy AS (
                             SELECT ?::text[] AS migration_schemas,
+                                   ?::text[] AS runtime_schemas,
                                    ?::text[] AS protected_schemas
                         )
                         SELECT COUNT(*) FILTER (
@@ -76,7 +82,7 @@ final class ServiceRoleDdlBoundaryControl {
                                          migration_role.oid, namespace.oid, 'CREATE')),
                                COUNT(*) FILTER (
                                    WHERE namespace.nspname = ANY (policy.protected_schemas)
-                                     AND (namespace.nspname = ANY (policy.migration_schemas))
+                                     AND (namespace.nspname = ANY (policy.runtime_schemas))
                                          <> pg_catalog.has_schema_privilege(
                                              runtime_role.oid, namespace.oid, 'USAGE')),
                                COUNT(*) FILTER (
@@ -91,9 +97,10 @@ final class ServiceRoleDdlBoundaryControl {
                          WHERE runtime_role.rolname=? AND migration_role.rolname=?
                         """)) {
             statement.setArray(1, migrationSchemaArray);
-            statement.setArray(2, protectedSchemaArray);
-            statement.setString(3, environment.runtimePrincipal());
-            statement.setString(4, environment.migrationPrincipal());
+            statement.setArray(2, runtimeSchemaArray);
+            statement.setArray(3, protectedSchemaArray);
+            statement.setString(4, environment.runtimePrincipal());
+            statement.setString(5, environment.migrationPrincipal());
             try (ResultSet result = statement.executeQuery()) {
                 if (!result.next()
                         || result.getLong(1) != 0L
@@ -107,6 +114,7 @@ final class ServiceRoleDdlBoundaryControl {
             }
         } finally {
             protectedSchemaArray.free();
+            runtimeSchemaArray.free();
             migrationSchemaArray.free();
         }
         requirePrincipalOwnsNothing(connection, environment.runtimePrincipal());
@@ -154,7 +162,6 @@ final class ServiceRoleDdlBoundaryControl {
         } finally {
             migrationSchemas.free();
         }
-        Map<String, String> expected = expectedSchemaOwners(environment);
         Map<String, String> actual = new LinkedHashMap<>();
         Array schemas = connection.createArrayOf(
                 "text", protectedSchemas.toArray(String[]::new));
@@ -174,6 +181,8 @@ final class ServiceRoleDdlBoundaryControl {
         } finally {
             schemas.free();
         }
+        Map<String, String> expected = expectedSchemaOwners(
+                environment, actual.keySet());
         if (!actual.equals(expected)) {
             throw new IllegalStateException(
                     "Migration Control service schema ownership is not exact; expected="
@@ -225,7 +234,7 @@ final class ServiceRoleDdlBoundaryControl {
         Array protectedSchemas = connection.createArrayOf(
                 "text", protectedSchemas(environment).toArray(String[]::new));
         Array migrationSchemas = connection.createArrayOf(
-                "text", migrationOwnedSchemas(environment).toArray(String[]::new));
+                "text", runtimeSchemas(environment).toArray(String[]::new));
         try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT COUNT(*) FILTER (
                            WHERE pg_catalog.has_schema_privilege(
@@ -349,6 +358,12 @@ final class ServiceRoleDdlBoundaryControl {
     }
 
     private static List<String> migrationOwnedSchemas(ControlEnvironment environment) {
+        LinkedHashSet<String> schemas = new LinkedHashSet<>(runtimeSchemas(environment));
+        schemas.addAll(environment.plan().migrationOwnedPrivateSchemas());
+        return List.copyOf(schemas);
+    }
+
+    private static List<String> runtimeSchemas(ControlEnvironment environment) {
         return environment.plan().streams().stream()
                 .map(StreamPlan::schema)
                 .distinct()
@@ -356,7 +371,7 @@ final class ServiceRoleDdlBoundaryControl {
     }
 
     private static Map<String, String> expectedSchemaOwners(
-            ControlEnvironment environment) {
+            ControlEnvironment environment, Set<String> existingProtectedSchemas) {
         Map<String, String> expected = new LinkedHashMap<>();
         for (StreamPlan stream : environment.plan().streams()) {
             expected.put(stream.schema(), environment.migrationPrincipal());
@@ -364,6 +379,11 @@ final class ServiceRoleDdlBoundaryControl {
         for (ManagedDatabaseRole role : environment.plan().managedDatabaseRoles()) {
             for (String schema : role.allowedOwnershipSchemas()) {
                 expected.putIfAbsent(schema, role.name());
+            }
+        }
+        for (String schema : environment.plan().migrationOwnedPrivateSchemas()) {
+            if (existingProtectedSchemas.contains(schema)) {
+                expected.put(schema, environment.migrationPrincipal());
             }
         }
         return Map.copyOf(expected);

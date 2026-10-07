@@ -11,11 +11,11 @@ final class WidgetPlacementWriteContractResolver {
     private WidgetPlacementWriteContractResolver() {
     }
 
-    static Map<String, WidgetCatalogService.PlacementWriteContract> resolve(
+    static <T> Map<String, T> resolve(
             WidgetRegistryDtos.EffectiveCatalogResponse evaluated,
-            WidgetDefinitionVersionRepository versions) {
-        Map<String, WidgetCatalogService.PlacementWriteContract> contracts =
-                new LinkedHashMap<>();
+            WidgetDefinitionVersionRepository versions,
+            PlacementWriteContractFactory<T> factory) {
+        Map<String, T> contracts = new LinkedHashMap<>();
         evaluated.contexts().stream()
                 .filter(context -> context.placementContext().endsWith("_PERSONAL"))
                 .flatMap(context -> context.items().stream())
@@ -24,13 +24,15 @@ final class WidgetPlacementWriteContractResolver {
                 .filter(item -> item.resolvedVersionId() != null)
                 .forEach(item -> versions.findById(item.resolvedVersionId())
                         .map(WidgetDefinitionVersion::getManifest)
-                        .map(WidgetPlacementWriteContractResolver::contract)
+                        .map(manifest -> contract(manifest, factory))
                         .ifPresent(contract -> contracts.putIfAbsent(
                                 item.definitionKey(), contract)));
         return Map.copyOf(contracts);
     }
 
-    private static WidgetCatalogService.PlacementWriteContract contract(JsonNode manifest) {
+    private static <T> T contract(
+            JsonNode manifest,
+            PlacementWriteContractFactory<T> factory) {
         JsonNode placement = manifest == null ? null : manifest.path("placement");
         if (placement == null || !"PERSONAL".equals(text(manifest, "/placement/policyClass"))) {
             return null;
@@ -42,9 +44,19 @@ final class WidgetPlacementWriteContractResolver {
         if (defaultSize == null || defaultHeight == null
                 || !allowedSizes.contains(defaultSize)
                 || !allowedHeights.contains(defaultHeight)) return null;
-        return new WidgetCatalogService.PlacementWriteContract(
+        return factory.create(
                 placement.path("canHide").asBoolean(false),
                 defaultSize, allowedSizes, defaultHeight, allowedHeights);
+    }
+
+    @FunctionalInterface
+    interface PlacementWriteContractFactory<T> {
+        T create(
+                boolean canHide,
+                String defaultSize,
+                Set<String> allowedSizes,
+                String defaultHeight,
+                Set<String> allowedHeights);
     }
 
     private static String text(JsonNode node, String pointer) {

@@ -208,7 +208,8 @@ public class HomeShadowReceiptController {
             @NotNull @Pattern(regexp = "CONTROL|INTERNAL|PILOT|EARLY_ADOPTER|GA")
             String rolloutRing,
             @NotNull @Size(max = 160)
-            @Pattern(regexp = "[A-Za-z0-9._:-]{1,160}") String rolloutRevision) {
+            @Pattern(regexp = "[A-Za-z0-9._:-]{1,160}") String rolloutRevision)
+            implements HomeShadowReceipt {
         public ShadowReceiptRequest {
             reasons = reasons == null ? Set.of() : Set.copyOf(reasons);
         }

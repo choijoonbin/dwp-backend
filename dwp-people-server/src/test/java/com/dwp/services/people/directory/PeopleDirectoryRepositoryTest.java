@@ -116,12 +116,15 @@ class PeopleDirectoryRepositoryTest {
                 ArgumentMatchers.<RowMapper<PeopleDirectoryRepository.DirectoryRow>>any());
         String normalized = normalized(sql.getValue()).toLowerCase();
         assertThat(normalized.indexOf(
-                "and exists ( select 1 from ppl_workers population_worker"))
+                "and exists ( select 1 from ppl_workers candidate_worker"))
                 .isGreaterThanOrEqualTo(0)
                 .isLessThan(normalized.lastIndexOf(
                         "order by p.person_id asc limit :limit"));
         assertThat(normalized)
                 .contains("population_worker.worker_id <> :populationactorworkerid")
+                .contains("population_worker.worker_id = candidate_worker.worker_id")
+                .contains("population_relationship.work_relationship_id = "
+                        + "candidate_relationship.work_relationship_id")
                 .contains("population_assignment.manager_assignment_key = "
                         + ":populationmanagerassignmentkey")
                 .contains("population_organization.public_id in "
@@ -129,7 +132,7 @@ class PeopleDirectoryRepositoryTest {
                 .contains("or candidate.manager_assignment_key = "
                         + ":populationmanagerassignmentkey")
                 .contains("from ppl_organizations boundary_organization")
-                .doesNotContain("and not exists (");
+                .contains("and not exists (");
         assertThat(parameters.getValue().getValue("populationActorWorkerId"))
                 .isEqualTo(91L);
         assertThat(parameters.getValue().getValue("populationOrganizationIds"))
@@ -159,7 +162,11 @@ class PeopleDirectoryRepositoryTest {
                 .contains("p.public_id = :publicid")
                 .contains("candidate.manager_assignment_key = "
                         + ":populationmanagerassignmentkey")
-                .contains("population_worker.person_id = p.person_id")
+                .contains("candidate_worker.person_id = p.person_id")
+                .contains("population_worker.worker_id = candidate_worker.worker_id")
+                .contains("population_relationship.work_relationship_id = "
+                        + "candidate_relationship.work_relationship_id")
+                .contains("and not exists (")
                 .contains("population_assignment.manager_assignment_key = "
                         + ":populationmanagerassignmentkey");
         assertThat(parameters.getValue().getValue("populationEnforced")).isEqualTo(true);

@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.condition.EnabledIfEnvironmentVariable;
-import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.AutoConfigurationExcludeFilter;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.autoconfigure.domain.EntityScan;
@@ -14,6 +13,7 @@ import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.context.TypeExcludeFilter;
 import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
 import org.springframework.context.annotation.ComponentScan;
+import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.FilterType;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.testcontainers.containers.PostgreSQLContainer;
@@ -156,7 +156,10 @@ class AuthOpenApiSnapshotExportTest {
         assertThat(properties.has("hasMore")).as(name + " hasMore").isTrue();
     }
 
-    @SpringBootConfiguration(proxyBeanMethods = false)
+    // This is an explicit exporter bootstrap, not the module's test-wide boot configuration.
+    // Keeping it as a plain configuration prevents @WebMvcTest from discovering it instead of
+    // AuthServerApplication and then trying to create JPA repositories without JPA auto-config.
+    @Configuration(proxyBeanMethods = false)
     @EnableAutoConfiguration
     @EntityScan(basePackages = "com.dwp.services.auth.entity")
     @EnableJpaRepositories(basePackages = "com.dwp.services.auth.repository")
@@ -170,7 +173,8 @@ class AuthOpenApiSnapshotExportTest {
                     @ComponentScan.Filter(type = FilterType.ASSIGNABLE_TYPE,
                             classes = AuthServerApplication.class),
                     @ComponentScan.Filter(type = FilterType.REGEX,
-                            pattern = "com\\.dwp\\.services\\.auth\\..*(Test|EmbeddedServer).*")
+                            pattern = "com\\.dwp\\.services\\.auth\\..*"
+                                    + "(Test|EmbeddedServer|SecurityProbe).*")
             })
     static class ExportApplication {
     }

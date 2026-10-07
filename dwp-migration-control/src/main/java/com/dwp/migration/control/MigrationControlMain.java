@@ -276,11 +276,7 @@ public final class MigrationControlMain {
     static void preparePrimaryMigrations(
             ControlEnvironment environment, StreamPlan primary) throws Exception {
         DatabaseCreateMigrationControl.applyPending(environment, primary);
-        // Platform V254.1 needs two extensions and an exact empty-database
-        // precondition before any sequential migration is allowed to mutate.
-        PlatformBridgeSchemaControl.prepare(environment, primary);
         applyTemporaryMigrations(environment, primary);
-        PlatformBridgeSchemaControl.applyPending(environment, primary);
     }
 
     static void applyTemporaryMigrations(

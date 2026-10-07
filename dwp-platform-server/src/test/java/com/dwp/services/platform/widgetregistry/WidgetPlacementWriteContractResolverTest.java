@@ -41,7 +41,8 @@ class WidgetPlacementWriteContractResolverTest {
                                 item("partner.governed-context", governedContextVersion,
                                         WidgetRegistryDtos.EffectiveCatalogState.AVAILABLE)))));
 
-        var result = WidgetPlacementWriteContractResolver.resolve(response, versions);
+        var result = WidgetPlacementWriteContractResolver.resolve(
+                response, versions, WidgetCatalogService.PlacementWriteContract::new);
 
         assertThat(result).containsOnlyKeys("partner.allowed");
         assertThat(result.get("partner.allowed").allowedSizes())

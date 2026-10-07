@@ -214,7 +214,20 @@ class GatewayProductSurfaceOpenApiContractTest {
                     .as("revision header for %s %s", binding.method(), binding.path())
                     .singleElement()
                     .satisfies(parameter -> {
-                        assertThat(parameter.path("required").asBoolean(true)).isFalse();
+                        boolean commandProofRequired = operation
+                                .path("x-dwp-command-proof-required").asBoolean(false);
+                        assertThat(parameter.path("required").asBoolean(false))
+                                .isEqualTo(commandProofRequired);
+                        assertThat(parameter.path("schema").path("type").asText())
+                                .isEqualTo("string");
+                        assertThat(parameter.path("schema").path("minLength").asInt())
+                                .isEqualTo(1);
+                        assertThat(parameter.path("schema").path("maxLength").asInt())
+                                .isEqualTo(200);
+                        if (commandProofRequired) {
+                            assertThat(parameter.has("x-dwp-conditional-required")).isFalse();
+                            return;
+                        }
                         boolean homeRuntimeMutation = binding.path().equals(
                                 "/api/platform/v2/home/shadow-receipts")
                                 || binding.path().equals(
@@ -226,12 +239,6 @@ class GatewayProductSurfaceOpenApiContractTest {
                             assertThat(parameter.path("description").asText())
                                     .contains("110/111", "000/100", "fail-closed");
                         }
-                        assertThat(parameter.path("schema").path("type").asText())
-                                .isEqualTo("string");
-                        assertThat(parameter.path("schema").path("minLength").asInt())
-                                .isEqualTo(1);
-                        assertThat(parameter.path("schema").path("maxLength").asInt())
-                                .isEqualTo(200);
                         assertThat(parameter.path("x-dwp-conditional-required")
                                 .path("enforcement").asText()).isEqualTo("FAIL_CLOSED");
                         if (homeRuntimeMutation) {
@@ -281,7 +288,12 @@ class GatewayProductSurfaceOpenApiContractTest {
                         binding.path("method").asText().toLowerCase()));
             }
         }
-        assertThat(actualConditional).containsAll(expected);
+        Set<GatewayOperation> expectedConditional = expected.stream()
+                .filter(binding -> !gateway.path("paths").path(binding.path())
+                        .path(binding.method()).path("x-dwp-command-proof-required")
+                        .asBoolean(false))
+                .collect(Collectors.toSet());
+        assertThat(actualConditional).containsAll(expectedConditional);
         // OpenAPI owners may expose snake_case parameter identifiers while the immutable
         // product-authorization ledger uses camelCase. Parameter names do not change the
         // structural route; preserve segment positions while comparing ownership coverage.

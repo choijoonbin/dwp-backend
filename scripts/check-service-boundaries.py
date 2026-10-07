@@ -163,6 +163,44 @@ HOME_PROVIDER_FORBIDDEN = {
 # each registered internal HTTP contract.
 INTERNAL_PURPOSE_TOKEN_HEADERS = PURPOSE_TOKEN_HEADERS | {
     "X-DWP-Work-Source-Token",
+    "X-DWP-Product-Surface-Token",
+    "X-DWP-Workflow-Worker-Token",
+}
+MAIL_PROPOSAL_OUTCOME_CLIENT = {
+    "id": "people-platform-mail-proposal-outcomes",
+    "classification": "people-mail-proposal-outcome-delivery",
+    "interfaceType": "internal-http",
+    "sourceService": "dwp-people-server",
+    "targetServices": ["dwp-platform-server"],
+    "path": (
+        "dwp-people-server/src/main/java/com/dwp/services/people/hr/"
+        "HrMailProposalOutcomeClient.java"
+    ),
+    "retryMode": "outbox-owned",
+    "failureMode": "fail-closed",
+    "securitySource": (
+        "dwp-platform-server/src/main/java/com/dwp/services/platform/security/"
+        "PlatformSecurityFilter.java"
+    ),
+    "endpointSource": (
+        "dwp-platform-server/src/main/java/com/dwp/services/platform/mail/"
+        "InternalMailProposalOutcomeController.java"
+    ),
+}
+MAIL_PROPOSAL_OUTCOME_REQUIRED = {
+    "/internal/v1/mail/proposal-outcomes/preflight",
+    "/internal/v1/mail/proposal-outcomes",
+    "/internal/v1/mail/proposal-outcomes/not-executed",
+    "X-DWP-Service-Token",
+    "X-DWP-Service-Identity",
+    "dwp-people-server",
+    "OutboundHttpHeaders.propagateObservability",
+    "requireConfigured()",
+}
+MAIL_PROPOSAL_OUTCOME_FORBIDDEN = PURPOSE_TOKEN_HEADERS | {
+    "/api/", "Authorization", "Cookie", "@Retry",
+    "X-DWP-Product-Surface-Token", "X-DWP-Workflow-Worker-Token",
+    "X-DWP-Work-Source-Token",
 }
 WORKFLOW_RUNTIME_TOKEN_HEADER = "X-DWP-Approval-Workflow-Runtime-Token"
 WORKFLOW_RUNTIME_CLIENT = (
@@ -382,6 +420,121 @@ def home_provider_source_violations(entry: dict[str, Any], source: str) -> list[
         for label, pattern in patterns.items():
             if not re.search(pattern, source):
                 violations.append(f"{entry['path']} is missing executable {label}")
+    return violations
+
+
+def mail_proposal_outcome_contract_trigger(entry: dict[str, Any]) -> bool:
+    return any((
+        entry.get("id") == MAIL_PROPOSAL_OUTCOME_CLIENT["id"],
+        entry.get("classification") == MAIL_PROPOSAL_OUTCOME_CLIENT["classification"],
+        entry.get("path") == MAIL_PROPOSAL_OUTCOME_CLIENT["path"],
+    ))
+
+
+def mail_proposal_outcome_identity(entry: dict[str, Any]) -> bool:
+    return all(
+        entry.get(key) == MAIL_PROPOSAL_OUTCOME_CLIENT[key]
+        for key in (
+            "id", "classification", "interfaceType", "sourceService", "targetServices",
+            "path", "retryMode", "failureMode",
+        )
+    )
+
+
+def mail_proposal_outcome_manifest_violations(entry: dict[str, Any]) -> list[str]:
+    if not mail_proposal_outcome_contract_trigger(entry):
+        return []
+    prefix = f"httpClients:{entry.get('id')} people-mail-proposal-outcome-delivery"
+    violations: list[str] = []
+    if not mail_proposal_outcome_identity(entry):
+        violations.append(
+            f"{prefix} must use the exact People-to-Platform owner boundary"
+        )
+    if not MAIL_PROPOSAL_OUTCOME_REQUIRED <= set(
+            string_entries(entry.get("requiredMarkers"))):
+        violations.append(
+            f"{prefix} must require every endpoint, identity, and transport marker"
+        )
+    if not MAIL_PROPOSAL_OUTCOME_FORBIDDEN <= set(
+            string_entries(entry.get("forbiddenMarkers"))):
+        violations.append(
+            f"{prefix} must forbid borrowed credentials, browser auth, and automatic retries"
+        )
+    for label in ("securitySource", "endpointSource"):
+        relative = Path(MAIL_PROPOSAL_OUTCOME_CLIENT[label])
+        source = ROOT / relative
+        owner = Path("dwp-platform-server/src/main/java")
+        if (not relative.is_relative_to(owner) or not source.is_file()
+                or not source.resolve().is_relative_to((ROOT / owner).resolve())):
+            violations.append(f"{prefix} {label} must be owned by dwp-platform-server")
+    return violations
+
+
+def mail_proposal_outcome_source_violations(
+        entry: dict[str, Any], source: str) -> list[str]:
+    if not mail_proposal_outcome_identity(entry):
+        return []
+    prefix = f"{entry['path']} people-mail-proposal-outcome-delivery"
+    violations: list[str] = []
+    executable = java_without_comments(source)
+    for name, expected in (
+        ("SERVICE_TOKEN_HEADER", "X-DWP-Service-Token"),
+        ("SERVICE_IDENTITY_HEADER", "X-DWP-Service-Identity"),
+        ("SERVICE_IDENTITY", "dwp-people-server"),
+    ):
+        if not exact_java_string(executable, name, expected):
+            violations.append(f"{prefix} must declare exact {name}")
+    for label, (pattern, count) in {
+        "preflight endpoint": (
+            r'\.uri\(\s*"/internal/v1/mail/proposal-outcomes/preflight"\s*\)', 1
+        ),
+        "record endpoint": (
+            r'\.uri\(\s*"/internal/v1/mail/proposal-outcomes"\s*\)', 1
+        ),
+        "release endpoint": (
+            r'\.uri\(\s*"/internal/v1/mail/proposal-outcomes/not-executed"\s*\)', 1
+        ),
+        "service token binding": (
+            r'\.header\(\s*SERVICE_TOKEN_HEADER\s*,\s*serviceToken\s*\)', 3
+        ),
+        "service identity binding": (
+            r'\.header\(\s*SERVICE_IDENTITY_HEADER\s*,\s*SERVICE_IDENTITY\s*\)', 3
+        ),
+        "observability propagation": (
+            r'OutboundHttpHeaders\.propagateObservability\(\s*headers\s*\)', 3
+        ),
+        "fail-closed token configuration": (
+            r'if\s*\(\s*serviceToken\.isBlank\(\)\s*\)\s*\{\s*throw\s+new\s+BaseException\(', 1
+        ),
+    }.items():
+        if len(executable_literal_matches(pattern, executable)) != count:
+            violations.append(f"{prefix} is missing executable {label}")
+
+    security_path = ROOT / MAIL_PROPOSAL_OUTCOME_CLIENT["securitySource"]
+    endpoint_path = ROOT / MAIL_PROPOSAL_OUTCOME_CLIENT["endpointSource"]
+    if not security_path.is_file() or not endpoint_path.is_file():
+        return violations
+    security = java_without_comments(security_path.read_text(encoding="utf-8"))
+    endpoint = java_without_comments(endpoint_path.read_text(encoding="utf-8"))
+    if not executable_literal_matches(
+            r'constantTimeEquals\(\s*serviceToken\s*,\s*providedToken\s*\)', security):
+        violations.append(f"{prefix} owner must compare the configured service token")
+    if not executable_literal_matches(
+            r'if\s*\(\s*!gatewayIdentity\s*&&\s*!runtimeIdentity\s*\)\s*\{[\s\S]*?return\s*;',
+            security):
+        violations.append(f"{prefix} owner must reject unverified service credentials")
+    if not exact_java_string(endpoint, "PEOPLE_SERVICE_IDENTITY", "dwp-people-server"):
+        violations.append(f"{prefix} owner must pin the People service identity")
+    if not executable_literal_matches(
+            r'@RequestMapping\(\s*"/internal/v1/mail/proposal-outcomes"\s*\)', endpoint):
+        violations.append(f"{prefix} owner must expose only the registered route family")
+    if len(executable_literal_matches(
+            r'requirePeopleService\(\s*serviceIdentity\s*\)\s*;', endpoint)) != 4:
+        violations.append(f"{prefix} owner must gate every endpoint by People identity")
+    if not executable_literal_matches(
+            r'if\s*\(\s*!PEOPLE_SERVICE_IDENTITY\.equals\(\s*serviceIdentity\s*\)\s*\)'
+            r'\s*\{[\s\S]*?ErrorCode\.FORBIDDEN', endpoint):
+        violations.append(f"{prefix} owner must reject every unverified service identity")
     return violations
 
 
@@ -1101,8 +1254,14 @@ def owner_token_source_violations(entry: dict[str, Any], source: str) -> list[st
             "startup identity validation": r"\bvalidateIdentityConfiguration\(\s*\)\s*;",
         }
     else:
-        constants = {"MEETING_FOLLOWUP_TOKEN_HEADER": token["header"], "SERVICE_IDENTITY_HEADER": token["identityHeader"],
-                     "MEETING_SERVICE_IDENTITY": token["identity"], "MEETING_FOLLOWUP_PATH": token["path"]}
+        constants = {
+            "MEETING_FOLLOWUP_TOKEN_HEADER": token["header"],
+            "SERVICE_IDENTITY_HEADER": token["identityHeader"],
+            "MEETING_SERVICE_IDENTITY": token["identity"],
+            "MEETING_FOLLOWUP_PATH": token["path"],
+            "GATEWAY_SERVICE_IDENTITY": "dwp-gateway",
+            "PLATFORM_SERVICE_IDENTITY": "dwp-platform-server",
+        }
         patterns = {
             "security configuration registration": r"@Configuration\s+public\s+class\s+ProductSurfaceInternalSecurityConfig",
             "security chain bean": r"@Bean\s+@Order\(\s*0\s*\)\s+SecurityFilterChain\s+productSurfaceInternalSecurityFilterChain\(",
@@ -1117,14 +1276,16 @@ def owner_token_source_violations(entry: dict[str, Any], source: str) -> list[st
             "Gateway credential exclusion": r"\babsentHeader\(\s*request\s*,\s*TOKEN_HEADER\s*\)",
             "dedicated credential comparison": r"\bmatches\(\s*expectedMeetingFollowupToken\s*,\s*meetingFollowupToken\s*\)",
             "dedicated credential input": r"\bexactHeader\(\s*request\s*,\s*MEETING_FOLLOWUP_TOKEN_HEADER\s*\)",
-            "conjunctive Gateway exclusion": (
-                r"\bboolean\s+gateway\s*=\s*GATEWAY_SERVICE_IDENTITY\.equals\(\s*identity\s*\)"
+            "conjunctive product-surface caller exclusion": (
+                r"\bboolean\s+productSurfaceCaller\s*=\s*\(\s*"
+                r"GATEWAY_SERVICE_IDENTITY\.equals\(\s*identity\s*\)"
+                r"\s*\|\|\s*PLATFORM_SERVICE_IDENTITY\.equals\(\s*identity\s*\)\s*\)"
                 r"\s*&&\s*!MEETING_FOLLOWUP_PATH\.equals\(\s*request\.getRequestURI\(\)\s*\)"
                 r"\s*&&\s*absentHeader\(\s*request\s*,\s*MEETING_FOLLOWUP_TOKEN_HEADER\s*\)"
                 r"\s*&&\s*matches\(\s*expectedToken\s*,\s*productSurfaceToken\s*\)\s*;"
             ),
             "unverified identity rejection": (
-                r"\bif\s*\(\s*!gateway\s*&&\s*!meeting\s*\)\s*\{"
+                r"\bif\s*\(\s*!productSurfaceCaller\s*&&\s*!meeting\s*\)\s*\{"
                 r"\s*response\.setStatus\(\s*ErrorCode\.UNAUTHORIZED\.getHttpStatus\(\)\.value\(\)\s*\)"
                 r"[\s\S]*?\breturn\s*;\s*\}\s*filterChain\.doFilter\(\s*request\s*,\s*response\s*\)"
             ),
@@ -1333,6 +1494,45 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                 forbidden_markers = validate_string_list(
                     violations, section, str(entry_id), entry, "forbiddenMarkers"
                 )
+                required_marker_sources = entry.get("requiredMarkerSources")
+                if required_marker_sources is not None:
+                    if interface_type != "external-connector":
+                        violations.append(
+                            f"{section}:{entry_id} requiredMarkerSources is only valid for external-connector"
+                        )
+                    if (not isinstance(required_marker_sources, list)
+                            or not required_marker_sources
+                            or any(not isinstance(value, str) or not value.strip()
+                                   for value in required_marker_sources)):
+                        violations.append(
+                            f"{section}:{entry_id} requiredMarkerSources must contain non-empty paths only"
+                        )
+                    else:
+                        marker_paths: list[Path] = []
+                        owner_relative = Path(str(source_service)) / "src/main/java"
+                        owner_root = ROOT / owner_relative
+                        for value in required_marker_sources:
+                            marker_path = validate_relative_path(
+                                violations, section, str(entry_id), value
+                            )
+                            if marker_path is None:
+                                continue
+                            marker_source = ROOT / marker_path
+                            if (not marker_path.is_relative_to(owner_relative)
+                                    or not marker_source.is_file()
+                                    or marker_source.suffix != ".java"
+                                    or not marker_source.resolve().is_relative_to(
+                                        owner_root.resolve())):
+                                violations.append(
+                                    f"{section}:{entry_id} requiredMarkerSources must be Java files owned by sourceService"
+                                )
+                            marker_paths.append(marker_path)
+                        client_path = Path(entry.get("path", ""))
+                        if (len(marker_paths) != len(set(marker_paths))
+                                or client_path in marker_paths):
+                            violations.append(
+                                f"{section}:{entry_id} requiredMarkerSources must be unique support files"
+                            )
                 if interface_type == "gateway-verifier":
                     if source_service != "dwp-gateway":
                         violations.append(
@@ -1364,6 +1564,7 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                                 f"{section}:{entry_id} internal-http contracts must forbid Gateway /api/ calls"
                             )
                         if ("signedWorkload" not in entry and "ownerToken" not in entry
+                                and not mail_proposal_outcome_identity(entry)
                                 and not INTERNAL_PURPOSE_TOKEN_HEADERS.intersection(required_markers)):
                             violations.append(
                                 f"{section}:{entry_id} internal-http contracts must require a purpose-specific service token"
@@ -1394,6 +1595,7 @@ def policy_manifest_violations(policy: dict[str, Any]) -> list[str]:
                 violations.extend(workflow_planning_manifest_violations(entry))
                 violations.extend(current_proof_manifest_violations(entry))
                 violations.extend(home_provider_manifest_violations(entry))
+                violations.extend(mail_proposal_outcome_manifest_violations(entry))
             elif section == "crossDatabaseExceptions":
                 allowed_databases = validate_string_list(
                     violations, section, str(entry_id), entry, "allowedDatabases"
@@ -1529,13 +1731,29 @@ def http_client_policy_violations(policy: dict[str, Any]) -> list[str]:
             violations.extend(workflow_planning_source_violations(contract, source))
             violations.extend(current_proof_source_violations(contract, source))
             violations.extend(home_provider_source_violations(contract, source))
+            violations.extend(mail_proposal_outcome_source_violations(contract, source))
+            marker_source = java_without_comments(source)
+            client_code = JAVA_NON_CODE_RE.sub(" ", source)
+            for support_value in string_entries(contract.get("requiredMarkerSources")):
+                support_path = Path(support_value)
+                support_file = ROOT / support_path
+                if not support_file.is_file():
+                    continue
+                support_source = java_without_comments(
+                    support_file.read_text(encoding="utf-8")
+                )
+                if not re.search(rf"\b{re.escape(support_path.stem)}\b", client_code):
+                    violations.append(
+                        f"{relative} ({contract['classification']}) does not wire required marker source {support_path}"
+                    )
+                marker_source += "\n" + support_source
             for required in string_entries(contract["requiredMarkers"]):
-                if required not in source:
+                if required not in marker_source:
                     violations.append(
                         f"{relative} ({contract['classification']}) is missing required contract marker {required!r}"
                     )
             for forbidden in string_entries(contract["forbiddenMarkers"]):
-                if forbidden in source:
+                if forbidden in marker_source:
                     violations.append(
                         f"{relative} ({contract['classification']}) contains forbidden marker {forbidden!r}"
                     )

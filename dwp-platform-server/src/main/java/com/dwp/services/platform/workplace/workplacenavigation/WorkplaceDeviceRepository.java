@@ -30,14 +30,16 @@ public class WorkplaceDeviceRepository {
     public Optional<DeviceRow> device(long tenantId, UUID deviceId) {
         return jdbc.query("""
                 SELECT * FROM wp_navigation_devices WHERE tenant_id=? AND device_id=?
-                """, WorkplaceDeviceRows::device, tenantId, deviceId).stream().findFirst();
+                """, (rs, row) -> WorkplaceDeviceRows.device(rs, row, DeviceRow::new),
+                tenantId, deviceId).stream().findFirst();
     }
 
     public Optional<DeviceRow> deviceByIdentity(long tenantId, String identitySha256) {
         return jdbc.query("""
                 SELECT * FROM wp_navigation_devices
                  WHERE tenant_id=? AND device_identity_sha256=?
-                """, WorkplaceDeviceRows::device, tenantId, identitySha256).stream().findFirst();
+                """, (rs, row) -> WorkplaceDeviceRows.device(rs, row, DeviceRow::new),
+                tenantId, identitySha256).stream().findFirst();
     }
 
     public List<DeviceRow> devices(long tenantId, UUID siteId, RegistrationState state) {
@@ -47,7 +49,8 @@ public class WorkplaceDeviceRepository {
                    AND (?::uuid IS NULL OR site_id=?::uuid)
                    AND (?::text IS NULL OR registration_state=?::text)
                  ORDER BY updated_at DESC, device_id
-                """, WorkplaceDeviceRows::device, tenantId, siteId, siteId,
+                """, (rs, row) -> WorkplaceDeviceRows.device(rs, row, DeviceRow::new),
+                tenantId, siteId, siteId,
                 state == null ? null : state.name(), state == null ? null : state.name());
     }
 

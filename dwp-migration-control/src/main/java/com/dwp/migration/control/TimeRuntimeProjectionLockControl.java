@@ -14,6 +14,9 @@ import java.util.Set;
 final class TimeRuntimeProjectionLockControl {
     private static final String ROUTINE_NAME = "tim_reject_runtime_projection_update";
     private static final String SEARCH_PATH = "search_path=pg_catalog, public, pg_temp";
+    private static final String PREDECESSOR_SEARCH_PATH =
+            "search_path=pg_catalog, pg_temp";
+    private static final String OWNER_BOUNDARY_VERSION = "7";
     private static final int BEFORE_UPDATE_ROW = 19;
     private static final Set<String> EXPECTED_GRANTS = Set.of(
             "public.tim_target_population_projections:updated_at",
@@ -50,8 +53,13 @@ final class TimeRuntimeProjectionLockControl {
                 || !EXPECTED_GRANTS.equals(actualGrants)) {
             violations.add("runtime column UPDATE grants differ: " + actualGrants);
         }
+        StreamPlan primary = environment.plan().streams().getFirst();
+        String expectedSearchPath = DatabaseControl.versionApplied(
+                connection, primary, OWNER_BOUNDARY_VERSION)
+                        ? SEARCH_PATH
+                        : PREDECESSOR_SEARCH_PATH;
         long routineOid = verifyRoutine(
-                connection, runtime, migration, violations);
+                connection, runtime, migration, expectedSearchPath, violations);
         if (routineOid != 0) {
             verifyTriggers(connection, routineOid, violations);
         }
@@ -65,6 +73,7 @@ final class TimeRuntimeProjectionLockControl {
             Connection connection,
             String runtime,
             String migration,
+            String expectedSearchPath,
             List<String> violations) throws SQLException {
         try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT routine.oid,
@@ -108,7 +117,7 @@ final class TimeRuntimeProjectionLockControl {
                         || !migration.equals(owner)
                         || !"f".equals(kind)
                         || !securityDefiner
-                        || !List.of(SEARCH_PATH).equals(configuration)
+                        || !List.of(expectedSearchPath).equals(configuration)
                         || !expectedSource(runtime).equals(source)) {
                     violations.add("routine posture differs"
                             + ":arguments=" + arguments

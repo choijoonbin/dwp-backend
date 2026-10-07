@@ -146,6 +146,7 @@ final class ProtectedSchemaAclControl {
         Set<String> privateSchemas = new LinkedHashSet<>(schemas(environment));
         environment.plan().streams().forEach(
                 stream -> privateSchemas.remove(stream.schema()));
+        privateSchemas.removeAll(environment.plan().migrationOwnedPrivateSchemas());
         if (privateSchemas.isEmpty()) {
             return;
         }

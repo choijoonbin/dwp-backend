@@ -39,7 +39,7 @@ public class WorkplaceProviderHttpTransport {
             String allowedProviders,
             @Value("${dwp.workplace.provider-integration.http.allow-insecure-localhost:false}")
             boolean allowInsecureLocalhost) {
-        URI base = validateBaseUrl(baseUrl, csv(allowedHosts), allowInsecureLocalhost);
+        URI base = validatedOrigin(baseUrl, csv(allowedHosts), allowInsecureLocalhost);
         this.client = builder.baseUrl(base.toString()).build();
         this.secretOwners = List.copyOf(secretOwners);
         this.allowedProviders = csv(allowedProviders);
@@ -111,7 +111,10 @@ public class WorkplaceProviderHttpTransport {
                 .findFirst().orElseThrow();
     }
 
-    private static URI validateBaseUrl(String value, Set<String> allowedHosts, boolean allowLocal) {
+    private static URI validatedOrigin(
+            String value,
+            Set<String> allowedHosts,
+            boolean allowLocal) {
         URI uri;
         try {
             uri = URI.create(value == null ? "" : value.trim());

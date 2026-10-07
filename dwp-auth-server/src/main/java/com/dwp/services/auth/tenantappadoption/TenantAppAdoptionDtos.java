@@ -1,5 +1,6 @@
 package com.dwp.services.auth.tenantappadoption;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -36,6 +37,7 @@ public final class TenantAppAdoptionDtos {
             @NotBlank @Size(min = 10, max = 1000) String reason) {
     }
 
+    @Schema(name = "TenantAppAdoptionActivationCommand")
     public record ActivationCommand(
             @NotNull @PositiveOrZero Long version,
             @NotBlank @Size(min = 10, max = 1000) String reason) {
@@ -110,6 +112,7 @@ public final class TenantAppAdoptionDtos {
         }
     }
 
+    @Schema(name = "TenantAppAdoptionAssignment")
     public record Assignment(
             UUID assignmentId,
             UUID installationId,

@@ -14,9 +14,6 @@ import org.springframework.stereotype.Repository;
 import java.math.BigDecimal;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDate;
-import java.time.format.DateTimeParseException;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -29,6 +26,7 @@ abstract class ApprovalCommandJdbcRepository {
     protected final ApprovalCommandPayloadSupport payloadSupport;
     protected final ApprovalDelegationCommandSupport delegationCommands;
     protected final ApprovalCommandFormNormalization formNormalization;
+    private final ApprovalCommandRequestPayloadSupport requestPayloads;
     private ApprovalAttachmentLifecycleBinding attachmentBinding;
     @org.springframework.beans.factory.annotation.Autowired void bindAttachmentLifecycleBinding(ApprovalAttachmentLifecycleBinding binding) { attachmentBinding = java.util.Objects.requireNonNull(binding); }
     protected ApprovalAttachmentLifecycleBinding attachmentLifecycleBinding() { if (attachmentBinding == null) throw new BaseException(ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE, "Attachment binding is unavailable."); return attachmentBinding; }
@@ -40,6 +38,7 @@ abstract class ApprovalCommandJdbcRepository {
         this.payloadSupport = new ApprovalCommandPayloadSupport(objectMapper);
         this.delegationCommands = new ApprovalDelegationCommandSupport(jdbc, payloadSupport);
         this.formNormalization = new ApprovalCommandFormNormalization(jdbc, objectMapper);
+        this.requestPayloads = new ApprovalCommandRequestPayloadSupport();
     }
 
     void validatePolicyRule(String policyKey, Map<String, Object> rule) {
@@ -424,100 +423,55 @@ abstract class ApprovalCommandJdbcRepository {
             String schema,
             Map<String, Object> payload,
             boolean requireRequiredFields) {
-        try {
-            Map<String, Object> definition = payloadSupport.object(
-                    schema, "Stored approval form schema is invalid.");
-            if (payloadSupport.isTypedFormSchema(definition)) {
-                new ApprovalFormSchemaV2Evaluator().evaluate(
-                        new ApprovalFormSchemaV2Compiler().compile(definition), payload, requireRequiredFields);
-                return;
-            }
-            Object rawFields = definition.get("fields");
-            if (!(rawFields instanceof List<?> fields) || fields.isEmpty()) {
-                throw new BaseException(ErrorCode.INVALID_STATE);
-            }
-            Set<String> knownKeys = new HashSet<>();
-            for (Object rawField : fields) {
-                if (!(rawField instanceof Map<?, ?> field)) {
-                    throw new BaseException(ErrorCode.INVALID_STATE);
-                }
-                String key = requiredRuntimeString(field, "key");
-                String type = normalized(requiredRuntimeString(field, "type"),
-                        Set.of("TEXT", "TEXTAREA", "NUMBER", "DATE", "SELECT", "USER"));
-                boolean required = Boolean.parseBoolean(String.valueOf(field.get("required")));
-                knownKeys.add(key);
-                Object value = payload.get(key);
-                boolean empty = value == null || (value instanceof String text && text.isBlank());
-                if (requireRequiredFields && required && empty) {
-                    throw new BaseException(
-                            ErrorCode.INVALID_INPUT_VALUE,
-                            "Required approval field is missing: " + key);
-                }
-                if (empty) continue;
-                validateRequestField(key, type, value, field.get("options"));
-            }
-            for (String key : payload.keySet()) {
-                if (!knownKeys.contains(key) && !"createdFrom".equals(key)) {
-                    throw new BaseException(
-                            ErrorCode.INVALID_INPUT_VALUE,
-                            "Unknown approval field: " + key);
-                }
-            }
-        } catch (BaseException exception) {
-            throw exception;
-        }
+        Map<String, Object> definition = payloadSupport.object(
+                schema, "Stored approval form schema is invalid.");
+        requestPayloads.validate(
+                definition, payloadSupport.isTypedFormSchema(definition),
+                payload, requireRequiredFields);
     }
 
-    Map<String, Object> normalizeRequestPayload(String schema, Map<String, Object> payload, boolean submitting) {
-        if (payloadSupport.isTypedFormSchema(schema)) return formNormalization.pure(schema, payload, submitting);
+    Map<String, Object> normalizeRequestPayload(
+            String schema,
+            Map<String, Object> payload,
+            boolean submitting) {
+        if (payloadSupport.isTypedFormSchema(schema)) {
+            return formNormalization.pure(schema, payload, submitting);
+        }
         validateRequestPayload(schema, payload, submitting);
         return payload;
     }
-    @org.springframework.beans.factory.annotation.Autowired
-    void bindFormReferenceNormalizer(ApprovalFormReferenceNormalizer normalizer) { formNormalization.bind(normalizer); }
 
-    Map<String, Object> normalizeRequestPayload(ApprovalRequestContext.Actor actor, UUID requestId, String schema,
-            Map<String, Object> payload, boolean submitting, long expectedVersion) {
-        return payloadSupport.isTypedFormSchema(schema) ? formNormalization.existing(actor, requestId, schema, payload, submitting,
-                expectedVersion, false) : normalizeRequestPayload(schema, payload, submitting);
+    @org.springframework.beans.factory.annotation.Autowired
+    void bindFormReferenceNormalizer(ApprovalFormReferenceNormalizer normalizer) {
+        formNormalization.bind(normalizer);
+    }
+
+    Map<String, Object> normalizeRequestPayload(
+            ApprovalRequestContext.Actor actor,
+            UUID requestId,
+            String schema,
+            Map<String, Object> payload,
+            boolean submitting,
+            long expectedVersion) {
+        return payloadSupport.isTypedFormSchema(schema)
+                ? formNormalization.existing(
+                        actor, requestId, schema, payload, submitting, expectedVersion, false)
+                : normalizeRequestPayload(schema, payload, submitting);
     }
 
     Map<String, Object> informationPayloadBase(String schema, Map<String, Object> currentPayload) {
-        Map<String, Object> definition = payloadSupport.object(schema, "Stored approval form schema is invalid.");
-        if (!payloadSupport.isTypedFormSchema(definition)) return new LinkedHashMap<>(currentPayload);
-        return new ApprovalFormSchemaV2Evaluator().withoutComputedValues(
-                new ApprovalFormSchemaV2Compiler().compile(definition), currentPayload);
+        Map<String, Object> definition = payloadSupport.object(
+                schema, "Stored approval form schema is invalid.");
+        return requestPayloads.informationBase(
+                definition, payloadSupport.isTypedFormSchema(definition), currentPayload);
     }
 
     void validateInformationPatch(Map<String, Object> patch) {
-        if (patch == null || patch.isEmpty()) return;
-        for (Map.Entry<String, Object> entry : patch.entrySet()) {
-            String key = entry.getKey();
-            Object value = entry.getValue();
-            if (key == null || key.isBlank() || "createdFrom".equals(key)) {
-                throw new BaseException(
-                        ErrorCode.INVALID_INPUT_VALUE,
-                        "Information responses cannot modify system-owned fields.");
-            }
-            if (!(value instanceof String) && !(value instanceof Number)) {
-                throw new BaseException(
-                        ErrorCode.INVALID_INPUT_VALUE,
-                        "Information-response values must be non-null form scalars.");
-            }
-            if (value instanceof String text && text.length() > 10000) {
-                throw new BaseException(
-                        ErrorCode.INVALID_INPUT_VALUE,
-                        "Information-response field value is too large: " + key);
-            }
-        }
+        requestPayloads.validateInformationPatch(patch);
     }
 
     void validateTypedInformationPatch(Map<String, Object> patch) {
-        if (patch == null) return;
-        if (patch.containsKey("createdFrom") || patch.values().stream().anyMatch(java.util.Objects::isNull)) {
-            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
-                    "Information responses cannot clear fields or change system-owned markers.");
-        }
+        requestPayloads.validateTypedInformationPatch(patch);
     }
 
     protected void validateRequestField(
@@ -525,33 +479,7 @@ abstract class ApprovalCommandJdbcRepository {
             String type,
             Object value,
             Object rawOptions) {
-        String text = String.valueOf(value).trim();
-        try {
-            switch (type) {
-                case "NUMBER" -> new BigDecimal(text);
-                case "DATE" -> LocalDate.parse(text);
-                case "SELECT" -> {
-                    if (!(rawOptions instanceof List<?> options)
-                            || options.stream().map(String::valueOf).noneMatch(text::equals)) {
-                        throw new BaseException(
-                                ErrorCode.INVALID_INPUT_VALUE,
-                                "Invalid option for approval field: " + key);
-                    }
-                }
-                case "TEXT", "TEXTAREA", "USER" -> {
-                    if (!(value instanceof String)) {
-                        throw new BaseException(
-                                ErrorCode.INVALID_INPUT_VALUE,
-                                "Approval field must be text: " + key);
-                    }
-                }
-                default -> throw new BaseException(ErrorCode.INVALID_STATE);
-            }
-        } catch (NumberFormatException | DateTimeParseException exception) {
-            throw new BaseException(
-                    ErrorCode.INVALID_INPUT_VALUE,
-                    "Invalid value for approval field: " + key);
-        }
+        requestPayloads.validateField(key, type, value, rawOptions);
     }
 
     protected String normalizeComment(String value) {
@@ -608,11 +536,7 @@ abstract class ApprovalCommandJdbcRepository {
     }
 
     protected String requiredRuntimeString(Map<?, ?> value, String key) {
-        Object raw = value.get(key);
-        if (raw == null || String.valueOf(raw).isBlank()) {
-            throw new BaseException(ErrorCode.INVALID_STATE);
-        }
-        return String.valueOf(raw).trim();
+        return requestPayloads.requiredString(value, key);
     }
 
     protected String normalizedOptional(String value) {
@@ -676,7 +600,6 @@ abstract class ApprovalCommandJdbcRepository {
 
     protected record PayloadEvidence(int revision, String sha256) {
     }
-
 
     protected record PolicyRuntime(
             String enforcementMode,

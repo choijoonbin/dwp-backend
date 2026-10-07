@@ -1,5 +1,6 @@
 package com.dwp.services.auth.identity;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
@@ -14,6 +15,7 @@ public final class AppEntitlementDtos {
     private AppEntitlementDtos() {
     }
 
+    @Schema(name = "AppEntitlementSyncRequest")
     public record SyncRequest(
             @NotBlank @Pattern(regexp = "USER|GROUP") String principalType,
             @NotBlank @Size(max = 160) String principalRef,

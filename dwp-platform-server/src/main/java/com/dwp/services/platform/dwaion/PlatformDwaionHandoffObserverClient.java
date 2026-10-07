@@ -1,11 +1,13 @@
 package com.dwp.services.platform.dwaion;
 
+import com.dwp.core.http.OutboundHttpHeaders;
 import com.dwp.services.platform.dwaion.PlatformDwaionHandoffOutboxRepository.Delivery;
 import com.dwp.services.platform.dwaion.PlatformDwaionHandoffOutboxRepository.ObservationSnapshot;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 
 import javax.crypto.Mac;
@@ -50,7 +52,11 @@ public class PlatformDwaionHandoffObserverClient {
             @Value("${dwp.platform.dwaion-handoff.worker-token:}") String workerToken,
             @Value("${dwp.platform.dwaion-handoff.identity-signing-secret:}") String identitySecret,
             @Value("${dwp.platform.dwaion-handoff.identity-key-id:gateway-agent-v1}") String identityKeyId) {
-        this(HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build(), json,
+        this(HttpClient.newBuilder()
+                        .connectTimeout(Duration.ofSeconds(3))
+                        .followRedirects(HttpClient.Redirect.NEVER)
+                        .build(),
+                json,
                 agentUrl, serviceToken, workerToken, identitySecret, identityKeyId,
                 Clock.systemUTC(), UUID::randomUUID);
     }
@@ -88,6 +94,9 @@ public class PlatformDwaionHandoffObserverClient {
         if ("COMPLETED".equals(state)) body.put("receipt", receipt(delivery));
         try {
             byte[] encoded = json.writeValueAsBytes(body);
+            HttpHeaders observability = new HttpHeaders();
+            OutboundHttpHeaders.propagateObservability(observability);
+            observability.set("X-Correlation-ID", delivery.correlationId());
             HttpRequest.Builder builder = HttpRequest.newBuilder(agentBaseUri.resolve(path))
                     .timeout(Duration.ofSeconds(8))
                     .header("Content-Type", "application/json")
@@ -96,7 +105,6 @@ public class PlatformDwaionHandoffObserverClient {
                     .header("X-DWP-Workflow-Worker-Token", workerToken)
                     .header("X-DWP-Tenant-ID", Long.toString(delivery.tenantId()))
                     .header("X-DWP-User-ID", Long.toString(delivery.ownerUserId()))
-                    .header("X-Correlation-ID", delivery.correlationId())
                     .header("X-DWP-Auth-Session-ID", delivery.authSessionId())
                     .header("X-DWP-Identity-Plane", "TENANT")
                     .header("X-DWP-Access-Mode", "NORMAL")
@@ -105,6 +113,8 @@ public class PlatformDwaionHandoffObserverClient {
             if (delivery.personPublicId() != null) {
                 builder.header("X-DWP-Person-Public-ID", delivery.personPublicId().toString());
             }
+            observability.forEach((name, values) ->
+                    values.forEach(value -> builder.header(name, value)));
             builder.header("X-DWP-Delegated-Identity", assertion(delivery, path));
             HttpResponse<String> response = http.send(
                     builder.POST(HttpRequest.BodyPublishers.ofByteArray(encoded)).build(),
@@ -231,8 +241,10 @@ public class PlatformDwaionHandoffObserverClient {
         if (!clean.endsWith("/")) clean += "/";
         URI uri = URI.create(clean);
         if (!("http".equals(uri.getScheme()) || "https".equals(uri.getScheme()))
-                || uri.getHost() == null || uri.getUserInfo() != null
-                || uri.getFragment() != null) {
+                || uri.getHost() == null || uri.getRawUserInfo() != null
+                || uri.getRawQuery() != null || uri.getRawFragment() != null
+                || uri.getRawPath() != null && !uri.getRawPath().isBlank()
+                        && !"/".equals(uri.getRawPath())) {
             throw new IllegalArgumentException("DWAI-ON Agent URL is invalid");
         }
         return uri;

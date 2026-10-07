@@ -152,7 +152,6 @@ final class FlywayControl {
     }
 
     static void migrateAndValidate(Flyway flyway, boolean requireNoPending) {
-        PlatformInventoryBridgeControl.applyIfRequired(flyway);
         flyway.migrate();
         ValidateResult validation = flyway.validateWithResult();
         if (!validation.validationSuccessful) {
