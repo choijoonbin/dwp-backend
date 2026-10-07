@@ -225,6 +225,87 @@
         },
         "type": "object"
       },
+      "ApiResponseAssignmentProposal": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AssignmentProposal"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseAssignmentProposalAssignmentDetail": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AssignmentProposalAssignmentDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseAssignmentProposalCommandResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/AssignmentProposalCommandResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseBenefitsWorkspace": {
         "properties": {
           "correlationId": {
@@ -475,6 +556,36 @@
           },
           "data": {
             "$ref": "#/components/schemas/LeaveRequest"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseListAssignmentProposalTimelineEntry": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/AssignmentProposalTimelineEntry"
+            },
+            "type": "array"
           },
           "errorCode": {
             "type": "string"
@@ -1545,6 +1656,353 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "AssignmentProposal": {
+        "properties": {
+          "assignmentKey": {
+            "type": "string"
+          },
+          "cancellationReason": {
+            "type": "string"
+          },
+          "cancelledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "changeType": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "personDisplayName": {
+            "type": "string"
+          },
+          "proposalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "proposedChanges": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "targetAssignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "targetAssignmentVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "targetRelationshipVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "targetWorkRelationshipId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "targetWorkerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "targetWorkerVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validationFindings": {
+            "items": {
+              "$ref": "#/components/schemas/AssignmentProposalValidationFinding"
+            },
+            "type": "array"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workerNumber": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AssignmentProposalAssignmentDetail": {
+        "properties": {
+          "assignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "assignmentKey": {
+            "type": "string"
+          },
+          "assignmentStatus": {
+            "type": "string"
+          },
+          "assignmentVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "businessTitle": {
+            "type": "string"
+          },
+          "changeReasonCode": {
+            "type": "string"
+          },
+          "effectiveEndDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveStartDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "fullTimeEquivalent": {
+            "type": "number"
+          },
+          "jobName": {
+            "type": "string"
+          },
+          "jobProfileKey": {
+            "type": "string"
+          },
+          "locationKey": {
+            "type": "string"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "managerAssignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "personDisplayName": {
+            "type": "string"
+          },
+          "primaryAssignment": {
+            "type": "boolean"
+          },
+          "relationshipVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workRelationshipId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workerHours": {
+            "type": "number"
+          },
+          "workerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workerNumber": {
+            "type": "string"
+          },
+          "workerVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AssignmentProposalCancelCommand": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "commandId",
+          "expectedVersion",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "AssignmentProposalCommandResult": {
+        "properties": {
+          "proposal": {
+            "$ref": "#/components/schemas/AssignmentProposal"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "AssignmentProposalCreateRequest": {
+        "properties": {
+          "changeType": {
+            "minLength": 1,
+            "pattern": "TRANSFER|PROMOTION|DEMOTION|CHANGE_MANAGER|CHANGE_LOCATION|CORRECTION",
+            "type": "string"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "expectedAssignmentVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "proposedChanges": {
+            "additionalProperties": {},
+            "minProperties": 1,
+            "type": "object"
+          },
+          "reasonCode": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "targetAssignmentId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "changeType",
+          "commandId",
+          "effectiveDate",
+          "expectedAssignmentVersion",
+          "proposedChanges",
+          "reasonCode",
+          "targetAssignmentId"
+        ],
+        "type": "object"
+      },
+      "AssignmentProposalTimelineEntry": {
+        "properties": {
+          "assignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "assignmentStatus": {
+            "type": "string"
+          },
+          "businessTitle": {
+            "type": "string"
+          },
+          "changeReasonCode": {
+            "type": "string"
+          },
+          "effectiveEndDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveSequence": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "effectiveStartDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "jobProfileKey": {
+            "type": "string"
+          },
+          "locationKey": {
+            "type": "string"
+          },
+          "managerAssignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "AssignmentProposalValidationFinding": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "AssignmentProposalVersionCommand": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "commandId",
+          "expectedVersion"
+        ],
         "type": "object"
       },
       "AssignmentSummary": {
@@ -7048,6 +7506,377 @@
         "tags": [
           "people-directory-controller"
         ]
+      }
+    },
+    "/v1/workforce/assignment-proposals": {
+      "post": {
+        "operationId": "createAssignmentProposal",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentProposalCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAssignmentProposalCommandResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "assignment-proposal-controller"
+        ],
+        "x-dwp-controller-method": "create",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
+      }
+    },
+    "/v1/workforce/assignment-proposals/{proposalId}": {
+      "get": {
+        "operationId": "getAssignmentProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAssignmentProposal"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "assignment-proposal-controller"
+        ],
+        "x-dwp-controller-method": "proposal",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
+      }
+    },
+    "/v1/workforce/assignment-proposals/{proposalId}/cancel": {
+      "post": {
+        "operationId": "cancelAssignmentProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentProposalCancelCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAssignmentProposalCommandResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "assignment-proposal-controller"
+        ],
+        "x-dwp-controller-method": "cancel",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
+      }
+    },
+    "/v1/workforce/assignment-proposals/{proposalId}/submit": {
+      "post": {
+        "operationId": "submitAssignmentProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentProposalVersionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAssignmentProposalCommandResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "assignment-proposal-controller"
+        ],
+        "x-dwp-command-proof-required": true,
+        "x-dwp-controller-method": "submit",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
+      }
+    },
+    "/v1/workforce/assignment-proposals/{proposalId}/validate": {
+      "post": {
+        "operationId": "validateAssignmentProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignmentProposalVersionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAssignmentProposalCommandResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "assignment-proposal-controller"
+        ],
+        "x-dwp-controller-method": "validate",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
+      }
+    },
+    "/v1/workforce/assignments/{assignmentId}": {
+      "get": {
+        "operationId": "getAssignment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseAssignmentProposalAssignmentDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "assignment-proposal-controller"
+        ],
+        "x-dwp-controller-method": "assignment",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
+      }
+    },
+    "/v1/workforce/assignments/{assignmentId}/timeline": {
+      "get": {
+        "operationId": "getAssignmentTimeline",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseListAssignmentProposalTimelineEntry"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "assignment-proposal-controller"
+        ],
+        "x-dwp-controller-method": "timeline",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
       }
     },
     "/v1/workforce/data-operations/hris/connectors": {

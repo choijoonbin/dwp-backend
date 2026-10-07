@@ -61273,6 +61273,87 @@
         },
         "type": "object"
       },
+      "people_ApiResponseAssignmentProposal": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_AssignmentProposal"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseAssignmentProposalAssignmentDetail": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_AssignmentProposalAssignmentDetail"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseAssignmentProposalCommandResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/people_AssignmentProposalCommandResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "people_ApiResponseBenefitsWorkspace": {
         "properties": {
           "correlationId": {
@@ -61523,6 +61604,36 @@
           },
           "data": {
             "$ref": "#/components/schemas/people_LeaveRequest"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_ApiResponseListAssignmentProposalTimelineEntry": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "items": {
+              "$ref": "#/components/schemas/people_AssignmentProposalTimelineEntry"
+            },
+            "type": "array"
           },
           "errorCode": {
             "type": "string"
@@ -62593,6 +62704,353 @@
             "type": "integer"
           }
         },
+        "type": "object"
+      },
+      "people_AssignmentProposal": {
+        "properties": {
+          "assignmentKey": {
+            "type": "string"
+          },
+          "cancellationReason": {
+            "type": "string"
+          },
+          "cancelledAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "changeType": {
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "lifecycleState": {
+            "type": "string"
+          },
+          "personDisplayName": {
+            "type": "string"
+          },
+          "proposalId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "proposedChanges": {
+            "additionalProperties": {},
+            "type": "object"
+          },
+          "reasonCode": {
+            "type": "string"
+          },
+          "submittedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "targetAssignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "targetAssignmentVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "targetRelationshipVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "targetWorkRelationshipId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "targetWorkerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "targetWorkerVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "updatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validatedAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "validationFindings": {
+            "items": {
+              "$ref": "#/components/schemas/people_AssignmentProposalValidationFinding"
+            },
+            "type": "array"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workerNumber": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_AssignmentProposalAssignmentDetail": {
+        "properties": {
+          "assignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "assignmentKey": {
+            "type": "string"
+          },
+          "assignmentStatus": {
+            "type": "string"
+          },
+          "assignmentVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "businessTitle": {
+            "type": "string"
+          },
+          "changeReasonCode": {
+            "type": "string"
+          },
+          "effectiveEndDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveStartDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "fullTimeEquivalent": {
+            "type": "number"
+          },
+          "jobName": {
+            "type": "string"
+          },
+          "jobProfileKey": {
+            "type": "string"
+          },
+          "locationKey": {
+            "type": "string"
+          },
+          "locationName": {
+            "type": "string"
+          },
+          "managerAssignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "personDisplayName": {
+            "type": "string"
+          },
+          "primaryAssignment": {
+            "type": "boolean"
+          },
+          "relationshipVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "workRelationshipId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workerHours": {
+            "type": "number"
+          },
+          "workerId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workerNumber": {
+            "type": "string"
+          },
+          "workerVersion": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "people_AssignmentProposalCancelCommand": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "reason": {
+            "maxLength": 1000,
+            "minLength": 0,
+            "type": "string"
+          }
+        },
+        "required": [
+          "commandId",
+          "expectedVersion",
+          "reason"
+        ],
+        "type": "object"
+      },
+      "people_AssignmentProposalCommandResult": {
+        "properties": {
+          "proposal": {
+            "$ref": "#/components/schemas/people_AssignmentProposal"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "replayed": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
+      "people_AssignmentProposalCreateRequest": {
+        "properties": {
+          "changeType": {
+            "minLength": 1,
+            "pattern": "TRANSFER|PROMOTION|DEMOTION|CHANGE_MANAGER|CHANGE_LOCATION|CORRECTION",
+            "type": "string"
+          },
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "effectiveDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "expectedAssignmentVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          },
+          "proposedChanges": {
+            "additionalProperties": {},
+            "minProperties": 1,
+            "type": "object"
+          },
+          "reasonCode": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "targetAssignmentId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "changeType",
+          "commandId",
+          "effectiveDate",
+          "expectedAssignmentVersion",
+          "proposedChanges",
+          "reasonCode",
+          "targetAssignmentId"
+        ],
+        "type": "object"
+      },
+      "people_AssignmentProposalTimelineEntry": {
+        "properties": {
+          "assignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "assignmentStatus": {
+            "type": "string"
+          },
+          "businessTitle": {
+            "type": "string"
+          },
+          "changeReasonCode": {
+            "type": "string"
+          },
+          "effectiveEndDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "effectiveSequence": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "effectiveStartDate": {
+            "format": "date",
+            "type": "string"
+          },
+          "jobProfileKey": {
+            "type": "string"
+          },
+          "locationKey": {
+            "type": "string"
+          },
+          "managerAssignmentId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "organizationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "version": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "people_AssignmentProposalValidationFinding": {
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "field": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "people_AssignmentProposalVersionCommand": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "expectedVersion": {
+            "format": "int64",
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "commandId",
+          "expectedVersion"
+        ],
         "type": "object"
       },
       "people_AssignmentSummary": {
@@ -179190,6 +179648,515 @@
         "tags": [
           "people"
         ]
+      }
+    },
+    "/api/people/v1/workforce/assignment-proposals": {
+      "post": {
+        "operationId": "people_createAssignmentProposal",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/people_AssignmentProposalCreateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseAssignmentProposalCommandResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ],
+        "x-dwp-controller-method": "create",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
+      }
+    },
+    "/api/people/v1/workforce/assignment-proposals/{proposalId}": {
+      "get": {
+        "operationId": "people_getAssignmentProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseAssignmentProposal"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ],
+        "x-dwp-controller-method": "proposal",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
+      }
+    },
+    "/api/people/v1/workforce/assignment-proposals/{proposalId}/cancel": {
+      "post": {
+        "operationId": "people_cancelAssignmentProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/people_AssignmentProposalCancelCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseAssignmentProposalCommandResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ],
+        "x-dwp-controller-method": "cancel",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
+      }
+    },
+    "/api/people/v1/workforce/assignment-proposals/{proposalId}/submit": {
+      "post": {
+        "operationId": "people_submitAssignmentProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/people_AssignmentProposalVersionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseAssignmentProposalCommandResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ],
+        "x-dwp-command-proof-required": true,
+        "x-dwp-controller-method": "submit",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
+      }
+    },
+    "/api/people/v1/workforce/assignment-proposals/{proposalId}/validate": {
+      "post": {
+        "operationId": "people_validateAssignmentProposal",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "proposalId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/people_AssignmentProposalVersionCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseAssignmentProposalCommandResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ],
+        "x-dwp-controller-method": "validate",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
+      }
+    },
+    "/api/people/v1/workforce/assignments/{assignmentId}": {
+      "get": {
+        "operationId": "people_getAssignment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseAssignmentProposalAssignmentDetail"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ],
+        "x-dwp-controller-method": "assignment",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
+      }
+    },
+    "/api/people/v1/workforce/assignments/{assignmentId}/timeline": {
+      "get": {
+        "operationId": "people_getAssignmentTimeline",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "assignmentId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/people_ApiResponseListAssignmentProposalTimelineEntry"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "people"
+        ],
+        "x-dwp-controller-method": "timeline",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "ON"
       }
     },
     "/api/people/v1/workforce/data-operations/hris/connectors": {

@@ -31,23 +31,28 @@ class HcmWorkspaceOpenApiContractTest {
             Map.entry("/v1/workforce/data-operations/hris/connectors/{connectorId}/executions", "post"),
             Map.entry("/v1/workforce/data-operations/hris/sync-runs/{syncRunId}/retry", "post"),
             Map.entry("/v1/workforce/data-operations/hris/connectors/{connectorId}/reconciliations", "post"),
-            Map.entry("/v1/hris/performance/cycles/{cycleId}/publish", "post"));
+            Map.entry("/v1/hris/performance/cycles/{cycleId}/publish", "post"),
+            Map.entry("/v1/workforce/assignment-proposals/{proposalId}/submit", "post"));
     private static final Set<String> STEP_UP_HEADERS = Set.of(
             "X-DWP-Step-Up-Challenge", "Idempotency-Key",
             "X-DWP-Expected-Decision-Revision", "X-DWP-Expected-Object-Version");
-    private static final Set<String> G3_PENDING_ASSIGNMENT_OPERATIONS = Set.of(
-            "GET /v1/workforce/assignments/{assignmentId}",
+    private static final Map<String, String> ASSIGNMENT_OPERATIONS = Map.of(
+            "GET /v1/workforce/assignments/{assignmentId}", "getAssignment",
             "GET /v1/workforce/assignments/{assignmentId}/timeline",
-            "GET /v1/workforce/assignment-proposals/{proposalId}",
-            "POST /v1/workforce/assignment-proposals",
+            "getAssignmentTimeline",
+            "GET /v1/workforce/assignment-proposals/{proposalId}", "getAssignmentProposal",
+            "POST /v1/workforce/assignment-proposals", "createAssignmentProposal",
             "POST /v1/workforce/assignment-proposals/{proposalId}/cancel",
+            "cancelAssignmentProposal",
             "POST /v1/workforce/assignment-proposals/{proposalId}/submit",
-            "POST /v1/workforce/assignment-proposals/{proposalId}/validate");
+            "submitAssignmentProposal",
+            "POST /v1/workforce/assignment-proposals/{proposalId}/validate",
+            "validateAssignmentProposal");
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
-    void everyStablePeoplePepBindingIsPublishedAndOnlyAssignmentAwaitsG3Projection()
+    void everyStablePeoplePepBindingAndG3AssignmentOperationIsPublished()
             throws Exception {
         JsonNode service = openApi("people.json");
         JsonNode gateway = openApi("gateway-public.json");
@@ -69,10 +74,78 @@ class HcmWorkspaceOpenApiContractTest {
                 .map(binding -> binding.method() + " " + binding.servicePath())
                 .collect(Collectors.toSet());
 
-        assertThat(missingServiceOperations)
-                .containsExactlyInAnyOrderElementsOf(G3_PENDING_ASSIGNMENT_OPERATIONS);
-        assertThat(missingGatewayOperations)
-                .containsExactlyInAnyOrderElementsOf(G3_PENDING_ASSIGNMENT_OPERATIONS);
+        assertThat(missingServiceOperations).isEmpty();
+        assertThat(missingGatewayOperations).isEmpty();
+
+        ASSIGNMENT_OPERATIONS.forEach((operation, operationId) -> {
+            String[] parts = operation.split(" ", 2);
+            String method = parts[0].toLowerCase();
+            String path = parts[1];
+            JsonNode serviceOperation = service.path("paths").path(path).path(method);
+            JsonNode gatewayOperation = gateway.path("paths")
+                    .path("/api/people" + path).path(method);
+            assertThat(serviceOperation.path("operationId").asText())
+                    .as(operation).isEqualTo(operationId);
+            assertThat(gatewayOperation.path("operationId").asText())
+                    .as("gateway " + operation)
+                    .isEqualTo("people_" + operationId);
+            assertPublishedResponseSchema(service, serviceOperation, operation);
+            assertPublishedResponseSchema(gateway, gatewayOperation, "gateway " + operation);
+        });
+    }
+
+    @Test
+    void assignmentProposalCommandProofHeadersAreExactInServiceAndGateway()
+            throws Exception {
+        JsonNode service = openApi("people.json");
+        JsonNode gateway = openApi("gateway-public.json");
+        Set<String> mutations = Set.of(
+                "/v1/workforce/assignment-proposals",
+                "/v1/workforce/assignment-proposals/{proposalId}/validate",
+                "/v1/workforce/assignment-proposals/{proposalId}/submit",
+                "/v1/workforce/assignment-proposals/{proposalId}/cancel");
+        for (String path : mutations) {
+            for (JsonNode operation : Set.of(
+                    service.path("paths").path(path).path("post"),
+                    gateway.path("paths").path("/api/people" + path).path("post"))) {
+                assertStringHeader(operation, "Idempotency-Key", 1, 200);
+            }
+        }
+
+        for (JsonNode submit : Set.of(
+                service.path("paths")
+                        .path("/v1/workforce/assignment-proposals/{proposalId}/submit")
+                        .path("post"),
+                gateway.path("paths")
+                        .path("/api/people/v1/workforce/assignment-proposals/{proposalId}/submit")
+                        .path("post"))) {
+            assertStringHeader(submit, "X-DWP-Step-Up-Challenge", 1, null);
+            assertStringHeader(
+                    submit, "X-DWP-Expected-Decision-Revision", 1, 200);
+            JsonNode objectVersion = header(submit, "X-DWP-Expected-Object-Version");
+            assertThat(objectVersion.path("required").asBoolean()).isTrue();
+            assertThat(objectVersion.path("schema").path("type").asText())
+                    .isEqualTo("integer");
+            assertThat(objectVersion.path("schema").path("format").asText())
+                    .isEqualTo("int64");
+            assertThat(objectVersion.path("schema").path("minimum").asLong())
+                    .isZero();
+        }
+
+        mutations.stream()
+                .filter(path -> !path.endsWith("/submit"))
+                .forEach(path -> {
+                    assertThat(headerNames(service.path("paths").path(path).path("post")))
+                            .doesNotContain(
+                                    "X-DWP-Step-Up-Challenge",
+                                    "X-DWP-Expected-Decision-Revision",
+                                    "X-DWP-Expected-Object-Version");
+                    assertThat(headerNames(gateway.path("paths")
+                            .path("/api/people" + path).path("post")))
+                            .doesNotContain(
+                                    "X-DWP-Step-Up-Challenge",
+                                    "X-DWP-Expected-Object-Version");
+                });
     }
 
     @Test
@@ -104,7 +177,7 @@ class HcmWorkspaceOpenApiContractTest {
     }
 
     @Test
-    void allEightPeopleOwnedHighRiskBindingsPublishTheCommandProofHeaders() throws Exception {
+    void allNinePeopleOwnedHighRiskBindingsPublishTheCommandProofHeaders() throws Exception {
         JsonNode service = openApi("people.json");
         JsonNode gateway = openApi("gateway-public.json");
         HIGH_RISK_OPERATIONS.forEach((path, method) -> {
@@ -130,6 +203,40 @@ class HcmWorkspaceOpenApiContractTest {
                 .filter(parameter -> "header".equals(parameter.path("in").asText()))
                 .map(parameter -> parameter.path("name").asText())
                 .collect(Collectors.toSet());
+    }
+
+    private void assertPublishedResponseSchema(
+            JsonNode document, JsonNode operation, String description) {
+        String reference = operation.path("responses").path("200")
+                .path("content").path("application/json").path("schema")
+                .path("$ref").asText();
+        assertThat(reference).as(description + " response schema")
+                .startsWith("#/components/schemas/");
+        assertThat(document.path("components").path("schemas")
+                .has(reference.substring("#/components/schemas/".length())))
+                .as(description + " response component").isTrue();
+    }
+
+    private void assertStringHeader(
+            JsonNode operation, String name, int minLength, Integer maxLength) {
+        JsonNode parameter = header(operation, name);
+        assertThat(parameter.path("required").asBoolean()).as(name + " required").isTrue();
+        assertThat(parameter.path("schema").path("type").asText())
+                .as(name + " type").isEqualTo("string");
+        assertThat(parameter.path("schema").path("minLength").asInt())
+                .as(name + " minLength").isEqualTo(minLength);
+        if (maxLength != null) {
+            assertThat(parameter.path("schema").path("maxLength").asInt())
+                    .as(name + " maxLength").isEqualTo(maxLength);
+        }
+    }
+
+    private JsonNode header(JsonNode operation, String name) {
+        return StreamSupport.stream(operation.path("parameters").spliterator(), false)
+                .filter(parameter -> "header".equals(parameter.path("in").asText()))
+                .filter(parameter -> name.equals(parameter.path("name").asText()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Missing header: " + name));
     }
 
     private Set<String> fieldNames(JsonNode object) {

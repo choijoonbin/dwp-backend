@@ -584,7 +584,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                     revision["x-dwp-conditional-required"],
                 )
 
-    def test_wave1_hris_owner_inventory_is_exact_and_default_off_services_are_reviewed(self) -> None:
+    def test_wave1_hris_owner_inventory_and_runtime_modes_are_exact(self) -> None:
         expected = {
             "auth": {
                 ("get", "/auth/hris/product-access/snapshot", "snapshot"),
@@ -605,6 +605,13 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 ("post", "/v1/hris/performance/cycles/{cycleId}/population-previews", "preview"),
                 ("post", "/v1/hris/performance/cycles/{cycleId}/publish", "publish"),
                 ("get", "/v1/hris/performance/command-receipts/{receiptId}", "receipt"),
+                ("get", "/v1/workforce/assignments/{assignmentId}", "assignment"),
+                ("get", "/v1/workforce/assignments/{assignmentId}/timeline", "timeline"),
+                ("get", "/v1/workforce/assignment-proposals/{proposalId}", "proposal"),
+                ("post", "/v1/workforce/assignment-proposals", "create"),
+                ("post", "/v1/workforce/assignment-proposals/{proposalId}/validate", "validate"),
+                ("post", "/v1/workforce/assignment-proposals/{proposalId}/submit", "submit"),
+                ("post", "/v1/workforce/assignment-proposals/{proposalId}/cancel", "cancel"),
             },
             "payroll": {
                 ("get", "/v1/hris/payroll/foundation/configurations", "configurations"),
@@ -637,6 +644,23 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             for service, overlay in overlays.items()
         }
         self.assertEqual(actual, expected)
+        self.assertEqual(
+            {
+                (method, path)
+                for path, path_item in overlays["people"]["paths"].items()
+                for method, operation in path_item.items()
+                if operation.get("x-dwp-runtime-default") == "ON"
+            },
+            {
+                ("get", "/v1/workforce/assignments/{assignmentId}"),
+                ("get", "/v1/workforce/assignments/{assignmentId}/timeline"),
+                ("get", "/v1/workforce/assignment-proposals/{proposalId}"),
+                ("post", "/v1/workforce/assignment-proposals"),
+                ("post", "/v1/workforce/assignment-proposals/{proposalId}/validate"),
+                ("post", "/v1/workforce/assignment-proposals/{proposalId}/submit"),
+                ("post", "/v1/workforce/assignment-proposals/{proposalId}/cancel"),
+            },
+        )
 
         services = {service.name: service for service in EXPORTER["SERVICES"]}
         self.assertEqual(services["time"].port, 8011)
@@ -687,7 +711,10 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                             published["x-dwp-controller-method"],
                             operation["x-dwp-controller-method"],
                         )
-                        self.assertEqual(published["x-dwp-runtime-default"], "OFF")
+                        self.assertEqual(
+                            published["x-dwp-runtime-default"],
+                            operation["x-dwp-runtime-default"],
+                        )
 
         self.assertEqual(len(patch_variants), 4)
 
@@ -773,6 +800,166 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "controller method drift"):
             EXPORTER["apply_design_time_overlay"](service, live)
 
+    def test_g3_assignment_reviewed_springdoc_capture_is_closed(self) -> None:
+        overlay = EXPORTER["load_design_time_overlays"]()["people"]
+        expected = {
+            ("post", "/v1/workforce/assignment-proposals"): (
+                "createAssignmentProposal",
+                "ApiResponseAssignmentProposalCommandResult",
+                "AssignmentProposalCreateRequest",
+            ),
+            ("get", "/v1/workforce/assignment-proposals/{proposalId}"): (
+                "getAssignmentProposal", "ApiResponseAssignmentProposal", None,
+            ),
+            ("post", "/v1/workforce/assignment-proposals/{proposalId}/cancel"): (
+                "cancelAssignmentProposal",
+                "ApiResponseAssignmentProposalCommandResult",
+                "AssignmentProposalCancelCommand",
+            ),
+            ("post", "/v1/workforce/assignment-proposals/{proposalId}/submit"): (
+                "submitAssignmentProposal",
+                "ApiResponseAssignmentProposalCommandResult",
+                "AssignmentProposalVersionCommand",
+            ),
+            ("post", "/v1/workforce/assignment-proposals/{proposalId}/validate"): (
+                "validateAssignmentProposal",
+                "ApiResponseAssignmentProposalCommandResult",
+                "AssignmentProposalVersionCommand",
+            ),
+            ("get", "/v1/workforce/assignments/{assignmentId}"): (
+                "getAssignment",
+                "ApiResponseAssignmentProposalAssignmentDetail",
+                None,
+            ),
+            ("get", "/v1/workforce/assignments/{assignmentId}/timeline"): (
+                "getAssignmentTimeline",
+                "ApiResponseListAssignmentProposalTimelineEntry",
+                None,
+            ),
+        }
+        captured = {
+            (method, path): operation
+            for path, path_item in overlay["paths"].items()
+            for method, operation in path_item.items()
+            if operation.get("x-dwp-reviewed-springdoc-capture") is True
+        }
+        self.assertEqual(set(captured), set(expected))
+
+        schemas = overlay["components"]["schemas"]
+        self.assertEqual(
+            set(schemas),
+            {
+                "AssignmentProposalCreateRequest",
+                "AssignmentProposalVersionCommand",
+                "AssignmentProposalCancelCommand",
+                "AssignmentProposalValidationFinding",
+                "AssignmentProposal",
+                "AssignmentProposalCommandResult",
+                "AssignmentProposalAssignmentDetail",
+                "AssignmentProposalTimelineEntry",
+                "ApiResponseAssignmentProposalCommandResult",
+                "ApiResponseAssignmentProposalAssignmentDetail",
+                "ApiResponseListAssignmentProposalTimelineEntry",
+                "ApiResponseAssignmentProposal",
+            },
+        )
+        self.assertEqual(
+            set(schemas["AssignmentProposalCreateRequest"]["required"]),
+            {
+                "changeType",
+                "commandId",
+                "effectiveDate",
+                "expectedAssignmentVersion",
+                "proposedChanges",
+                "reasonCode",
+                "targetAssignmentId",
+            },
+        )
+        self.assertEqual(
+            set(schemas["AssignmentProposalVersionCommand"]["required"]),
+            {"commandId", "expectedVersion"},
+        )
+        self.assertEqual(
+            set(schemas["AssignmentProposalCancelCommand"]["required"]),
+            {"commandId", "expectedVersion", "reason"},
+        )
+        for (method, path), (operation_id, response_schema, request_schema) in expected.items():
+            operation = captured[(method, path)]
+            self.assertEqual(operation["operationId"], operation_id)
+            self.assertEqual(operation["x-dwp-runtime-default"], "ON")
+            self.assertEqual(
+                operation["responses"]["200"]["content"]["application/json"]
+                ["schema"]["$ref"],
+                f"#/components/schemas/{response_schema}",
+            )
+            self.assertIn(response_schema, schemas)
+            if request_schema is not None:
+                self.assertEqual(
+                    operation["requestBody"]["content"]["application/json"]
+                    ["schema"]["$ref"],
+                    f"#/components/schemas/{request_schema}",
+                )
+                self.assertIn(request_schema, schemas)
+                parameters = {
+                    (parameter["in"], parameter["name"]): parameter
+                    for parameter in operation["parameters"]
+                }
+                idempotency = parameters[("header", "Idempotency-Key")]
+                self.assertTrue(idempotency["required"])
+                self.assertEqual(
+                    idempotency["schema"],
+                    {"type": "string", "minLength": 1, "maxLength": 200},
+                )
+
+        submit = captured[(
+            "post", "/v1/workforce/assignment-proposals/{proposalId}/submit"
+        )]
+        headers = {
+            parameter["name"]: parameter
+            for parameter in submit["parameters"]
+            if parameter["in"] == "header"
+        }
+        self.assertEqual(
+            headers["X-DWP-Step-Up-Challenge"]["schema"],
+            {"type": "string", "minLength": 1},
+        )
+        self.assertEqual(
+            headers["X-DWP-Expected-Decision-Revision"]["schema"],
+            {"type": "string", "minLength": 1, "maxLength": 200},
+        )
+        self.assertEqual(
+            headers["X-DWP-Expected-Object-Version"]["schema"],
+            {"type": "integer", "format": "int64", "minimum": 0},
+        )
+        self.assertTrue(all(headers[name]["required"] for name in (
+            "Idempotency-Key",
+            "X-DWP-Step-Up-Challenge",
+            "X-DWP-Expected-Decision-Revision",
+            "X-DWP-Expected-Object-Version",
+        )))
+
+    def test_g3_assignment_reviewed_components_reconcile_only_approved_snapshots(
+            self) -> None:
+        service = next(
+            service for service in EXPORTER["SERVICES"] if service.name == "people"
+        )
+        document = json.loads(
+            (ROOT / "contracts/openapi/people.json").read_text(encoding="utf-8")
+        )
+        document.setdefault("components", {}).setdefault("schemas", {})[
+            "AssignmentProposal"
+        ] = {"type": "string"}
+        with self.assertRaisesRegex(RuntimeError, "reviewed component collision"):
+            EXPORTER["apply_design_time_overlay"](service, document)
+        reconciled = EXPORTER["apply_design_time_overlay"](
+            service, document, approved_snapshot=True
+        )
+        self.assertEqual(
+            reconciled["components"]["schemas"]["AssignmentProposal"],
+            EXPORTER["load_design_time_overlays"]()["people"]
+            ["components"]["schemas"]["AssignmentProposal"],
+        )
+
     def test_wave1_hris_reviewed_inventory_matches_controller_annotations(self) -> None:
         contracts = (
             (
@@ -806,6 +993,12 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 {"cycles", "cycle", "create", "update", "validate", "preview", "publish", "receipt"},
             ),
             (
+                "people",
+                "dwp-people-server/src/main/java/com/dwp/services/people/hr/assignment/AssignmentProposalController.java",
+                "/v1/workforce",
+                {"assignment", "timeline", "proposal", "create", "validate", "submit", "cancel"},
+            ),
+            (
                 "payroll",
                 "dwp-payroll-server/src/main/java/com/dwp/services/payroll/foundation/PayrollFoundationController.java",
                 "/v1/hris/payroll/foundation",
@@ -825,7 +1018,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         )
         overlays = EXPORTER["load_design_time_overlays"]()
         reviewed = {
-            (service, operation["x-dwp-controller-method"]): (method, path)
+            (service, method, path, operation["x-dwp-controller-method"])
             for service, overlay in overlays.items()
             for path, path_item in overlay["paths"].items()
             for method, operation in path_item.items()
@@ -839,7 +1032,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             source = (ROOT / relative_file).read_text(encoding="utf-8")
             self.assertRegex(
                 source,
-                rf'@RequestMapping\(\s*"{re.escape(base_path)}"\s*\)',
+                rf'@RequestMapping\(\s*(?:value\s*=\s*)?"{re.escape(base_path)}"'
+                rf'(?:\s*,[^)]*)?\)',
             )
             discovered = {}
             for verb, arguments, controller_method in annotation.findall(source):
@@ -848,9 +1042,10 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 discovered[controller_method] = (verbs[verb], base_path + child_path)
             self.assertTrue(methods <= set(discovered), relative_file)
             for controller_method in methods:
-                self.assertEqual(
-                    reviewed[(service, controller_method)],
-                    discovered[controller_method],
+                method, path = discovered[controller_method]
+                self.assertIn(
+                    (service, method, path, controller_method),
+                    reviewed,
                     f"{relative_file}#{controller_method}",
                 )
 

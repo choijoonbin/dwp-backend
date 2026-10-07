@@ -288,7 +288,7 @@ def load_snapshot(service: ServiceContract) -> dict[str, Any]:
         raise RuntimeError(
             f"Unable to read approved {service.name} OpenAPI snapshot at {target}: {error}"
         ) from error
-    document = apply_design_time_overlay(service, document)
+    document = apply_design_time_overlay(service, document, approved_snapshot=True)
     if not str(document.get("openapi", "")).startswith("3.") or not document.get("paths"):
         raise RuntimeError(f"{service.name} approved OpenAPI snapshot is invalid")
     validate_unique_operation_ids(document, service.name)
@@ -351,22 +351,69 @@ def merge_reviewed_parameters(
             identities.add(identity)
 
 
-def apply_design_time_overlay(
-        service: ServiceContract, document: dict[str, Any]) -> dict[str, Any]:
-    """Merge reviewed default-off HRIS operations into a runtime/approved service contract.
+def merge_reviewed_components(
+        merged: dict[str, Any],
+        reviewed: dict[str, Any],
+        service_name: str,
+        *,
+        approved_snapshot: bool = False) -> None:
+    """Merge focused springdoc schemas, replacing only stale approved captures."""
+    if not isinstance(reviewed, dict) or set(reviewed) - {"schemas"}:
+        raise RuntimeError(
+            f"HRIS design-time components are invalid for {service_name}"
+        )
+    schemas = reviewed.get("schemas", {})
+    if not isinstance(schemas, dict):
+        raise RuntimeError(
+            f"HRIS design-time component schemas are invalid for {service_name}"
+        )
+    target = merged.setdefault("components", {}).setdefault("schemas", {})
+    if not isinstance(target, dict):
+        raise RuntimeError(f"HRIS live component schemas are invalid for {service_name}")
+    for name, schema in schemas.items():
+        if not isinstance(name, str) or not name or not isinstance(schema, dict):
+            raise RuntimeError(
+                f"HRIS design-time component schema is invalid for {service_name}: {name}"
+            )
+        existing = target.get(name)
+        if existing is not None and existing != schema and not approved_snapshot:
+            raise RuntimeError(
+                f"HRIS reviewed component collision for {service_name}: {name}"
+            )
+        target[name] = copy.deepcopy(schema)
 
-    ADD operations become the canonical representation when the runtime controller is disabled.
-    If springdoc does expose the controller, its method-derived operationId is checked before the
-    reviewed stable operationId is applied. PATCH operations describe query-dispatched controller
-    variants that OpenAPI cannot represent as a second operation for the same method and path.
+
+def apply_design_time_overlay(
+        service: ServiceContract,
+        document: dict[str, Any],
+        *,
+        approved_snapshot: bool = False) -> dict[str, Any]:
+    """Merge reviewed HRIS operations into a runtime/approved service contract.
+
+    ADD operations become the canonical representation when an approved snapshot has not yet
+    observed the controller. ``x-dwp-runtime-default`` distinguishes current always-on controllers
+    from reviewed default-off owners. If springdoc does expose the controller, its method-derived
+    operationId is checked before the reviewed stable operationId is applied. PATCH operations
+    describe query-dispatched controller variants that OpenAPI cannot represent as a second
+    operation for the same method and path.
     """
     overlay = load_design_time_overlays().get(service.name)
     if overlay is None:
         return document
-    if set(overlay) != {"paths"} or not isinstance(overlay["paths"], dict):
+    if (
+        set(overlay) not in ({"paths"}, {"components", "paths"})
+        or not isinstance(overlay["paths"], dict)
+    ):
         raise RuntimeError(f"HRIS design-time overlay is invalid for {service.name}")
 
     merged = copy.deepcopy(document)
+    if "components" in overlay:
+        merge_reviewed_components(
+            merged,
+            overlay["components"],
+            service.name,
+            approved_snapshot=approved_snapshot,
+        )
     paths = merged.setdefault("paths", {})
     for path, path_item in overlay["paths"].items():
         if not isinstance(path, str) or not path.startswith("/") or not isinstance(path_item, dict):
@@ -389,6 +436,11 @@ def apply_design_time_overlay(
             ):
                 raise RuntimeError(
                     f"HRIS design-time operation metadata is invalid for "
+                    f"{service.name}: {method.upper()} {path}"
+                )
+            if mode == "ADD" and reviewed.get("x-dwp-runtime-default") not in {"ON", "OFF"}:
+                raise RuntimeError(
+                    f"HRIS design-time runtime default is invalid for "
                     f"{service.name}: {method.upper()} {path}"
                 )
 
@@ -431,15 +483,19 @@ def apply_design_time_overlay(
                         f"{method.upper()} {path}; expected {controller_method}, "
                         f"found {actual_operation_id}"
                     )
-                # Preserve springdoc's exact schemas while canonicalizing the public identifier.
-                live = copy.deepcopy(existing)
-                live["operationId"] = stable_operation_id
-                live["x-dwp-controller-method"] = controller_method
-                merge_reviewed_parameters(live, canonical)
-                for key, value in canonical.items():
-                    if key.startswith("x-dwp-"):
-                        live[key] = value
-                canonical = live
+                captured_slice = canonical.get("x-dwp-reviewed-springdoc-capture") is True
+                if not (approved_snapshot and captured_slice):
+                    # Preserve springdoc's exact schemas while canonicalizing the public
+                    # identifier. A marked reviewed slice only replaces a stale approved
+                    # snapshot; a live service remains authoritative.
+                    live = copy.deepcopy(existing)
+                    live["operationId"] = stable_operation_id
+                    live["x-dwp-controller-method"] = controller_method
+                    merge_reviewed_parameters(live, canonical)
+                    for key, value in canonical.items():
+                        if key.startswith("x-dwp-"):
+                            live[key] = value
+                    canonical = live
             target_path_item[method] = canonical
     return merged
 
@@ -832,8 +888,28 @@ def add_product_governance_contract(document: dict[str, Any]) -> None:
                     f"Gateway expected-decision revision parameter collision: "
                     f"{method.upper()} {actual_path}"
                 )
-            canonical_revision = copy.deepcopy(EXPECTED_DECISION_REVISION_PARAMETER)
-            if actual_path in HOME_RUNTIME_MUTATION_PATHS:
+            command_proof_required = (
+                operation.get("x-dwp-command-proof-required") is True
+            )
+            if command_proof_required:
+                if not revision_collisions:
+                    raise RuntimeError(
+                        f"Gateway required command proof is missing a decision revision: "
+                        f"{method.upper()} {actual_path}"
+                    )
+                canonical_revision = copy.deepcopy(revision_collisions[0][1])
+                if (
+                    canonical_revision.get("required") is not True
+                    or canonical_revision.get("schema")
+                    != {"type": "string", "minLength": 1, "maxLength": 200}
+                ):
+                    raise RuntimeError(
+                        f"Gateway required command proof decision revision is invalid: "
+                        f"{method.upper()} {actual_path}"
+                    )
+            else:
+                canonical_revision = copy.deepcopy(EXPECTED_DECISION_REVISION_PARAMETER)
+            if actual_path in HOME_RUNTIME_MUTATION_PATHS and not command_proof_required:
                 canonical_revision["description"] = (
                     "Required and fail-closed for the Home Runtime authority states "
                     "100/110/111; state 000 never enters the Home Runtime owner contract."

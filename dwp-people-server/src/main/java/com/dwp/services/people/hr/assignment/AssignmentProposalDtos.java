@@ -1,5 +1,6 @@
 package com.dwp.services.people.hr.assignment;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotEmpty;
@@ -19,6 +20,7 @@ public final class AssignmentProposalDtos {
     private AssignmentProposalDtos() {
     }
 
+    @Schema(name = "AssignmentProposalCreateRequest")
     public record CreateRequest(
             @NotNull UUID commandId,
             @NotNull UUID targetAssignmentId,
@@ -28,20 +30,23 @@ public final class AssignmentProposalDtos {
             @NotNull LocalDate effectiveDate,
             @NotBlank @Size(max = 80) String reasonCode,
             @NotEmpty Map<@NotBlank @Size(max = 80) String, Object> proposedChanges,
-            @Min(0) long expectedAssignmentVersion) {
+            @NotNull @Min(0) Long expectedAssignmentVersion) {
     }
 
+    @Schema(name = "AssignmentProposalVersionCommand")
     public record VersionCommand(
             @NotNull UUID commandId,
-            @Min(0) long expectedVersion) {
+            @NotNull @Min(0) Long expectedVersion) {
     }
 
+    @Schema(name = "AssignmentProposalCancelCommand")
     public record CancelCommand(
             @NotNull UUID commandId,
-            @Min(0) long expectedVersion,
+            @NotNull @Min(0) Long expectedVersion,
             @NotBlank @Size(max = 1000) String reason) {
     }
 
+    @Schema(name = "AssignmentProposalValidationFinding")
     public record ValidationFinding(
             String code,
             String field,
@@ -49,6 +54,7 @@ public final class AssignmentProposalDtos {
             String message) {
     }
 
+    @Schema(name = "AssignmentProposal")
     public record Proposal(
             UUID proposalId,
             UUID targetAssignmentId,
@@ -75,12 +81,14 @@ public final class AssignmentProposalDtos {
             Instant updatedAt) {
     }
 
+    @Schema(name = "AssignmentProposalCommandResult")
     public record CommandResult(
             UUID receiptId,
             boolean replayed,
             Proposal proposal) {
     }
 
+    @Schema(name = "AssignmentProposalAssignmentDetail")
     public record AssignmentDetail(
             UUID assignmentId,
             UUID workerId,
@@ -108,6 +116,7 @@ public final class AssignmentProposalDtos {
             long assignmentVersion) {
     }
 
+    @Schema(name = "AssignmentProposalTimelineEntry")
     public record TimelineEntry(
             UUID assignmentId,
             LocalDate effectiveStartDate,
