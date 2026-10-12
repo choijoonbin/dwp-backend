@@ -6,17 +6,20 @@ CREATE TABLE hris_reference_configurations (
     configuration_id UUID NOT NULL,
     configuration_key VARCHAR(128) NOT NULL,
     domain VARCHAR(8) NOT NULL,
+    scope_type VARCHAR(32) NOT NULL,
+    scope_id UUID NOT NULL,
     created_by BIGINT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     CONSTRAINT pk_hris_reference_configurations
         PRIMARY KEY (tenant_id, configuration_id),
     CONSTRAINT uq_hris_reference_configurations_key
-        UNIQUE (tenant_id, configuration_key),
-    CONSTRAINT ck_hris_reference_configurations_tenant
-        CHECK (tenant_id > 0),
+        UNIQUE (tenant_id, scope_type, scope_id, configuration_key),
+    CONSTRAINT ck_hris_reference_configurations_tenant CHECK (tenant_id > 0),
     CONSTRAINT ck_hris_reference_configurations_domain
-        CHECK (domain IN ('HRM', 'PER', 'TIM', 'PAY', 'SYS'))
+        CHECK (domain IN ('HRM', 'PER', 'TIM', 'PAY', 'SYS')),
+    CONSTRAINT ck_hris_reference_configurations_scope
+        CHECK (scope_type IN ('LEGAL_ENTITY', 'POLICY_NODE'))
 );
 
 CREATE TABLE hris_reference_configuration_versions (
@@ -24,6 +27,8 @@ CREATE TABLE hris_reference_configuration_versions (
     configuration_id UUID NOT NULL,
     version BIGINT NOT NULL,
     domain VARCHAR(8) NOT NULL,
+    scope_type VARCHAR(32) NOT NULL,
+    scope_id UUID NOT NULL,
     lifecycle_state VARCHAR(32) NOT NULL,
     effective_from TIMESTAMPTZ NOT NULL,
     effective_to TIMESTAMPTZ,
@@ -31,12 +36,33 @@ CREATE TABLE hris_reference_configuration_versions (
     schema_version INTEGER NOT NULL,
     payload_reference VARCHAR(256) NOT NULL,
     payload_digest CHAR(64) NOT NULL,
+
     validation_receipt_id UUID,
+    validation_evidence_digest CHAR(64),
+    validation_schema_revision INTEGER,
+    validation_scope_digest CHAR(64),
+    validated_at TIMESTAMPTZ,
+
     simulation_receipt_id UUID,
+    simulation_validation_receipt_id UUID,
+    simulation_evidence_digest CHAR(64),
+    simulation_impact_digest CHAR(64),
+    simulated_at TIMESTAMPTZ,
+    simulation_fresh_until TIMESTAMPTZ,
+
+    submission_receipt_id UUID,
+    submission_validation_receipt_id UUID,
+    submission_simulation_receipt_id UUID,
+    submitted_evidence_digest CHAR(64),
+    approval_workflow_key VARCHAR(128),
+    submitted_at TIMESTAMPTZ,
+
     approval_receipt_id UUID,
-    retirement_approval_receipt_id UUID,
-    impact_digest CHAR(64),
+    approval_submission_receipt_id UUID,
     approval_decision_digest CHAR(64),
+    approval_evidence_digest CHAR(64),
+    approved_at TIMESTAMPTZ,
+
     scheduled_at TIMESTAMPTZ,
     replacement_version BIGINT,
     supersedes_version BIGINT,
@@ -55,6 +81,8 @@ CREATE TABLE hris_reference_configuration_versions (
         CHECK (version > 0 AND aggregate_version >= 0 AND schema_version > 0),
     CONSTRAINT ck_hris_reference_configuration_versions_domain
         CHECK (domain IN ('HRM', 'PER', 'TIM', 'PAY', 'SYS')),
+    CONSTRAINT ck_hris_reference_configuration_versions_scope
+        CHECK (scope_type IN ('LEGAL_ENTITY', 'POLICY_NODE')),
     CONSTRAINT ck_hris_reference_configuration_versions_state
         CHECK (lifecycle_state IN (
             'DRAFT', 'VALIDATED', 'SIMULATED', 'PENDING_APPROVAL', 'APPROVED',
@@ -65,10 +93,33 @@ CREATE TABLE hris_reference_configuration_versions (
         CHECK (length(trim(payload_reference)) BETWEEN 1 AND 256),
     CONSTRAINT ck_hris_reference_configuration_versions_payload_digest
         CHECK (payload_digest ~ '^[a-f0-9]{64}$'),
-    CONSTRAINT ck_hris_reference_configuration_versions_impact_digest
-        CHECK (impact_digest IS NULL OR impact_digest ~ '^[a-f0-9]{64}$'),
-    CONSTRAINT ck_hris_reference_configuration_versions_approval_digest
-        CHECK (approval_decision_digest IS NULL OR approval_decision_digest ~ '^[a-f0-9]{64}$'),
+    CONSTRAINT ck_hris_reference_configuration_validation_fact CHECK (
+        validation_receipt_id IS NULL OR (
+            validation_evidence_digest ~ '^[a-f0-9]{64}$'
+            AND validation_schema_revision > 0
+            AND validation_scope_digest ~ '^[a-f0-9]{64}$'
+            AND validated_at IS NOT NULL)),
+    CONSTRAINT ck_hris_reference_configuration_simulation_fact CHECK (
+        simulation_receipt_id IS NULL OR (
+            simulation_validation_receipt_id = validation_receipt_id
+            AND simulation_evidence_digest ~ '^[a-f0-9]{64}$'
+            AND simulation_impact_digest ~ '^[a-f0-9]{64}$'
+            AND simulated_at IS NOT NULL
+            AND simulation_fresh_until > simulated_at)),
+    CONSTRAINT ck_hris_reference_configuration_submission_fact CHECK (
+        submission_receipt_id IS NULL OR (
+            submission_validation_receipt_id = validation_receipt_id
+            AND submission_simulation_receipt_id = simulation_receipt_id
+            AND submitted_evidence_digest ~ '^[a-f0-9]{64}$'
+            AND approval_workflow_key ~ '^[a-z][a-z0-9.-]{2,127}$'
+            AND submitted_at IS NOT NULL)),
+    CONSTRAINT ck_hris_reference_configuration_approval_fact CHECK (
+        approval_receipt_id IS NULL OR (
+            approval_submission_receipt_id = submission_receipt_id
+            AND approval_decision_digest ~ '^[a-f0-9]{64}$'
+            AND approval_evidence_digest ~ '^[a-f0-9]{64}$'
+            AND approved_at IS NOT NULL
+            AND approved_by IS NOT NULL)),
     CONSTRAINT ck_hris_reference_configuration_versions_sod
         CHECK (approved_by IS NULL OR approved_by <> authored_by),
     CONSTRAINT fk_hris_reference_configuration_versions_replacement
@@ -87,13 +138,16 @@ ALTER TABLE hris_reference_configuration_versions
         tstzrange(effective_from, effective_to, '[)') WITH &&)
     WHERE (lifecycle_state = 'PUBLISHED');
 
-CREATE INDEX ix_hris_reference_configuration_versions_state
+CREATE INDEX ix_hris_reference_configuration_versions_scope_state
     ON hris_reference_configuration_versions (
-        tenant_id, lifecycle_state, updated_at DESC, configuration_id, version DESC);
+        tenant_id, scope_type, scope_id, lifecycle_state,
+        updated_at DESC, configuration_id, version DESC);
 
 CREATE TABLE hris_reference_configuration_command_receipts (
     tenant_id BIGINT NOT NULL,
     receipt_id UUID NOT NULL,
+    subject_id BIGINT NOT NULL,
+    originating_action VARCHAR(128) NOT NULL,
     idempotency_key VARCHAR(128) NOT NULL,
     request_digest CHAR(64) NOT NULL,
     command_type VARCHAR(64) NOT NULL,
@@ -104,10 +158,13 @@ CREATE TABLE hris_reference_configuration_command_receipts (
     CONSTRAINT pk_hris_reference_configuration_command_receipts
         PRIMARY KEY (tenant_id, receipt_id),
     CONSTRAINT uq_hris_reference_configuration_idempotency
-        UNIQUE (tenant_id, idempotency_key),
+        UNIQUE (tenant_id, subject_id, originating_action, idempotency_key),
     CONSTRAINT fk_hris_reference_configuration_receipt_version
         FOREIGN KEY (tenant_id, configuration_id, configuration_version)
         REFERENCES hris_reference_configuration_versions (tenant_id, configuration_id, version),
+    CONSTRAINT ck_hris_reference_configuration_receipt_subject CHECK (subject_id > 0),
+    CONSTRAINT ck_hris_reference_configuration_receipt_action
+        CHECK (length(originating_action) BETWEEN 1 AND 128),
     CONSTRAINT ck_hris_reference_configuration_receipt_key
         CHECK (length(idempotency_key) BETWEEN 16 AND 128),
     CONSTRAINT ck_hris_reference_configuration_receipt_digest
@@ -132,10 +189,17 @@ CREATE TABLE hris_reference_configuration_outbox (
         UNIQUE (tenant_id, aggregate_id, aggregate_version, event_type),
     CONSTRAINT ck_hris_reference_configuration_outbox_event
         CHECK (event_type = 'dwp.hris.configuration.published.v1'),
-    CONSTRAINT ck_hris_reference_configuration_outbox_payload
-        CHECK (jsonb_typeof(payload) = 'object'),
-    CONSTRAINT ck_hris_reference_configuration_outbox_attempts
-        CHECK (attempt_count >= 0)
+    CONSTRAINT ck_hris_reference_configuration_outbox_payload CHECK (
+        jsonb_typeof(payload) = 'object'
+        AND payload ?& ARRAY[
+            'configurationId', 'configurationType', 'scopeType', 'scopeId', 'version',
+            'effectiveFrom', 'effectiveTo', 'payloadSchemaVersion', 'payloadDigest',
+            'approvalReceiptId', 'publishedAt', 'eventSequence']
+        AND payload - ARRAY[
+            'configurationId', 'configurationType', 'scopeType', 'scopeId', 'version',
+            'effectiveFrom', 'effectiveTo', 'payloadSchemaVersion', 'payloadDigest',
+            'approvalReceiptId', 'publishedAt', 'eventSequence'] = '{}'::jsonb),
+    CONSTRAINT ck_hris_reference_configuration_outbox_attempts CHECK (attempt_count >= 0)
 );
 
 CREATE INDEX ix_hris_reference_configuration_outbox_pending
@@ -152,8 +216,7 @@ CREATE TABLE hris_reference_configuration_audit (
     correlation_id UUID NOT NULL,
     evidence_digest CHAR(64) NOT NULL,
     occurred_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    CONSTRAINT pk_hris_reference_configuration_audit
-        PRIMARY KEY (tenant_id, audit_id),
+    CONSTRAINT pk_hris_reference_configuration_audit PRIMARY KEY (tenant_id, audit_id),
     CONSTRAINT ck_hris_reference_configuration_audit_digest
         CHECK (evidence_digest ~ '^[a-f0-9]{64}$')
 );
@@ -162,13 +225,17 @@ CREATE INDEX ix_hris_reference_configuration_audit_subject
     ON hris_reference_configuration_audit (
         tenant_id, configuration_id, configuration_version, occurred_at, audit_id);
 
--- RLS is defense in depth. The application role owns these tables in existing deployments,
--- while restricted runtime/reporting roles must bind dwp.tenant_id for every transaction.
+-- Every runtime transaction must bind dwp.tenant_id with SET LOCAL/set_config(..., true).
 ALTER TABLE hris_reference_configurations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hris_reference_configurations FORCE ROW LEVEL SECURITY;
 ALTER TABLE hris_reference_configuration_versions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hris_reference_configuration_versions FORCE ROW LEVEL SECURITY;
 ALTER TABLE hris_reference_configuration_command_receipts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hris_reference_configuration_command_receipts FORCE ROW LEVEL SECURITY;
 ALTER TABLE hris_reference_configuration_outbox ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hris_reference_configuration_outbox FORCE ROW LEVEL SECURITY;
 ALTER TABLE hris_reference_configuration_audit ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hris_reference_configuration_audit FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY hris_reference_configurations_tenant_policy
     ON hris_reference_configurations
@@ -192,35 +259,23 @@ CREATE POLICY hris_reference_configuration_audit_tenant_policy
     WITH CHECK (tenant_id = NULLIF(current_setting('dwp.tenant_id', TRUE), '')::BIGINT);
 
 CREATE OR REPLACE FUNCTION guard_hris_reference_configuration_immutable_content()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     IF OLD.lifecycle_state IN ('PUBLISHED', 'RETIRED')
        AND ROW(
-           OLD.domain,
-           OLD.schema_key,
-           OLD.schema_version,
-           OLD.payload_reference,
-           OLD.payload_digest,
-           OLD.validation_receipt_id,
-           OLD.simulation_receipt_id,
-           OLD.approval_receipt_id,
-           OLD.impact_digest,
-           OLD.approval_decision_digest,
-           OLD.effective_from)
+           OLD.domain, OLD.scope_type, OLD.scope_id, OLD.schema_key, OLD.schema_version,
+           OLD.payload_reference, OLD.payload_digest, OLD.validation_receipt_id,
+           OLD.validation_evidence_digest, OLD.simulation_receipt_id,
+           OLD.simulation_evidence_digest, OLD.submission_receipt_id,
+           OLD.submitted_evidence_digest, OLD.approval_receipt_id,
+           OLD.approval_evidence_digest, OLD.effective_from)
            IS DISTINCT FROM ROW(
-           NEW.domain,
-           NEW.schema_key,
-           NEW.schema_version,
-           NEW.payload_reference,
-           NEW.payload_digest,
-           NEW.validation_receipt_id,
-           NEW.simulation_receipt_id,
-           NEW.approval_receipt_id,
-           NEW.impact_digest,
-           NEW.approval_decision_digest,
-           NEW.effective_from) THEN
+           NEW.domain, NEW.scope_type, NEW.scope_id, NEW.schema_key, NEW.schema_version,
+           NEW.payload_reference, NEW.payload_digest, NEW.validation_receipt_id,
+           NEW.validation_evidence_digest, NEW.simulation_receipt_id,
+           NEW.simulation_evidence_digest, NEW.submission_receipt_id,
+           NEW.submitted_evidence_digest, NEW.approval_receipt_id,
+           NEW.approval_evidence_digest, NEW.effective_from) THEN
         RAISE EXCEPTION 'published HRIS reference configuration content is immutable'
             USING ERRCODE = '23514';
     END IF;
@@ -233,9 +288,7 @@ BEFORE UPDATE ON hris_reference_configuration_versions
 FOR EACH ROW EXECUTE FUNCTION guard_hris_reference_configuration_immutable_content();
 
 CREATE OR REPLACE FUNCTION reject_hris_reference_configuration_immutable_row()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
     RAISE EXCEPTION 'immutable HRIS reference-configuration evidence cannot be changed'
         USING ERRCODE = '23514';
@@ -251,26 +304,12 @@ BEFORE UPDATE OR DELETE ON hris_reference_configuration_audit
 FOR EACH ROW EXECUTE FUNCTION reject_hris_reference_configuration_immutable_row();
 
 CREATE OR REPLACE FUNCTION guard_hris_reference_configuration_outbox_fact()
-RETURNS TRIGGER
-LANGUAGE plpgsql
-AS $$
+RETURNS TRIGGER LANGUAGE plpgsql AS $$
 BEGIN
-    IF ROW(
-        OLD.tenant_id,
-        OLD.event_id,
-        OLD.aggregate_id,
-        OLD.aggregate_version,
-        OLD.event_type,
-        OLD.payload,
-        OLD.created_at)
-        IS DISTINCT FROM ROW(
-        NEW.tenant_id,
-        NEW.event_id,
-        NEW.aggregate_id,
-        NEW.aggregate_version,
-        NEW.event_type,
-        NEW.payload,
-        NEW.created_at) THEN
+    IF ROW(OLD.tenant_id, OLD.event_id, OLD.aggregate_id, OLD.aggregate_version,
+           OLD.event_type, OLD.payload, OLD.created_at)
+       IS DISTINCT FROM ROW(NEW.tenant_id, NEW.event_id, NEW.aggregate_id,
+           NEW.aggregate_version, NEW.event_type, NEW.payload, NEW.created_at) THEN
         RAISE EXCEPTION 'immutable HRIS reference-configuration outbox fact cannot be changed'
             USING ERRCODE = '23514';
     END IF;

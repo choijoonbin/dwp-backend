@@ -2,6 +2,7 @@ package com.dwp.services.platform.hrisconfiguration.referenceconfiguration;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.platform.contracts.hris.generated.HrisConfigurationPublishedV1;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -16,7 +17,6 @@ import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -28,7 +28,7 @@ import java.util.UUID;
 import java.util.function.Function;
 
 import static com.dwp.services.platform.hrisconfiguration.referenceconfiguration.ReferenceConfigurationDtos.*;
-import static com.dwp.services.platform.hrisconfiguration.referenceconfiguration.ReferenceConfigurationRepository.TransitionEvidence;
+import static com.dwp.services.platform.hrisconfiguration.referenceconfiguration.ReferenceConfigurationRepository.*;
 
 @Service
 public class ReferenceConfigurationService {
@@ -36,18 +36,18 @@ public class ReferenceConfigurationService {
     static final String PUBLISHED_EVENT = "dwp.hris.configuration.published.v1";
     static final String INVALIDATION_EVENT = "dwp.hris.access.assignment.changed.v1";
     static final String WORKBENCH_ROUTE = "/hr/settings/reference-data";
+    static final String PURPOSE = "HRIS_SYSTEM_ADMIN";
     static final String UPDATE_PERMISSION = "CONFIG.HRIS_POLICY:UPDATE";
     static final String PUBLISH_PERMISSION = "ACTION.HRIS_POLICY_PUBLISH:PUBLISH";
     static final String VIEW_PERMISSION = "CONFIG.HRIS_WORKBENCH:VIEW";
+    static final Set<String> FIELD_GROUPS = Set.of(
+            "POLICY_VERSION", "REFERENCE_DATA", "EFFECTIVE_STATUS");
+    static final Set<String> CATALOG_FIELDS = Set.of(
+            "publicId", "key", "type", "state", "version", "updatedAt");
     static final Set<String> ALLOWED_SORTS = Set.of(
-            "policyVersion:ASC",
-            "referenceData:ASC",
-            "effectiveStatus:ASC",
-            "policyVersion:DESC",
-            "referenceData:DESC",
-            "effectiveStatus:DESC",
-            "itemPublicId:ASC",
-            "itemPublicId:DESC");
+            "policyVersion:ASC", "referenceData:ASC", "effectiveStatus:ASC",
+            "policyVersion:DESC", "referenceData:DESC", "effectiveStatus:DESC",
+            "itemPublicId:ASC", "itemPublicId:DESC");
 
     private static final List<AvailableAction> AUTHOR_ACTIONS = List.of(
             action(
@@ -100,14 +100,43 @@ public class ReferenceConfigurationService {
 
     @Transactional(readOnly = true)
     public CatalogResponse configurations(AccessContext access, int limit) {
+        return configurations(access, new CatalogQuery(
+                now(), null, null, List.copyOf(CATALOG_FIELDS),
+                FreshnessPreference.FRESH_ONLY, limit));
+    }
+
+    @Transactional(readOnly = true)
+    public CatalogResponse configurations(AccessContext access, CatalogQuery query) {
         requireManager(access);
-        int boundedLimit = Math.max(1, Math.min(limit, 100));
-        OffsetDateTime asOf = now();
+        validateCatalogQuery(query);
+        CursorState cursor = decodeCursor(query.cursor());
+        OffsetDateTime asOf = effectiveAsOf(query.asOf(), cursor);
+        CatalogFilter filter = parseCatalogFilter(query.filter());
+        String scopeRevision = scopeRevision(access);
+        String queryDigest = digest(Map.of(
+                "asOf", asOf,
+                "filter", filter == null ? "" : filter,
+                "fields", query.fields(),
+                "freshness", query.freshness()));
+        UUID seek = validateCursor(
+                cursor, "CATALOG", access.tenantId(), scopeRevision, queryDigest, asOf);
+        CatalogPage page = repository.queryCatalog(
+                access.tenantId(), access.scope(), asOf, filter, seek, query.limit());
+        if (!page.seekFound()) throw conflict("REFERENCE_CONFIGURATION_CURSOR_STALE");
+        String nextCursor = page.hasNext() && !page.items().isEmpty()
+                ? encodeCursor(new CursorState(
+                        "CATALOG", access.tenantId(), scopeRevision, queryDigest, asOf,
+                        page.items().getLast().publicId()))
+                : null;
+        boolean stale = asOf.isBefore(now().minusMinutes(5));
+        if (stale && query.freshness() == FreshnessPreference.FRESH_ONLY) {
+            throw conflict("REFERENCE_CONFIGURATION_FRESH_SNAPSHOT_REQUIRED");
+        }
         return new CatalogResponse(
                 asOf,
-                null,
-                repository.list(access.tenantId(), boundedLimit),
-                asOf.plusSeconds(30),
+                nextCursor,
+                page.items(),
+                stale ? asOf : now().plusSeconds(30),
                 asOf.plusMinutes(5));
     }
 
@@ -117,7 +146,7 @@ public class ReferenceConfigurationService {
             UUID configurationId,
             long version) {
         requireManager(access);
-        return response(requiredVersion(access.tenantId(), configurationId, version));
+        return response(requiredVersion(access, configurationId, version));
     }
 
     @Transactional
@@ -128,6 +157,9 @@ public class ReferenceConfigurationService {
             CreateVersionCommand body) {
         requireAuthor(access);
         requireEffectiveWindow(body.effectiveFrom(), body.effectiveTo());
+        if (!body.payload().reference().matches("^ref_[A-Za-z0-9_-]{8,248}$")) {
+            throw invalid("REFERENCE_CONFIGURATION_OWNER_REFERENCE_INVALID");
+        }
         return execute(
                 access,
                 command,
@@ -138,9 +170,9 @@ public class ReferenceConfigurationService {
                 body,
                 receiptId -> {
                     long version = repository.createVersion(
-                            access.tenantId(), configurationId, access.subjectId(), body, now());
-                    return result(configurationId, version, 0, body.domain(), body.effectiveFrom(),
-                            body.effectiveTo(), body.payload().digest());
+                            access.tenantId(), access.scope(), configurationId,
+                            access.subjectId(), body, now());
+                    return result(configurationId, version, 0);
                 });
     }
 
@@ -153,18 +185,31 @@ public class ReferenceConfigurationService {
             ValidationCommand body) {
         requireAuthor(access);
         return transition(
-                access,
-                command,
-                configurationId,
-                version,
-                "VALIDATE_VERSION",
-                "configuration.version.validate",
-                body,
-                LifecycleState.DRAFT,
-                LifecycleState.VALIDATED,
-                (receiptId, ignored) -> new TransitionEvidence(
-                        access.subjectId(), receiptId, null, null, null,
-                        null, null, null, null, null, null),
+                access, command, configurationId, version,
+                "VALIDATE_VERSION", "configuration.version.validate", body,
+                LifecycleState.DRAFT, LifecycleState.VALIDATED,
+                (receiptId, detail) -> {
+                    requireEffectiveWindow(detail.effectiveFrom(), detail.effectiveTo());
+                    if (body.schemaRevision() != detail.schemaVersion()) {
+                        throw conflict("REFERENCE_CONFIGURATION_SCHEMA_REVISION_MISMATCH");
+                    }
+                    if (!normalizeDigest(body.inputScopeDigest()).equals(access.scope().digest())) {
+                        throw forbidden("REFERENCE_CONFIGURATION_SCOPE_EVIDENCE_MISMATCH");
+                    }
+                    OffsetDateTime producedAt = now();
+                    String evidenceDigest = digest(Map.of(
+                            "schemaKey", detail.schemaKey(),
+                            "schemaRevision", detail.schemaVersion(),
+                            "payloadDigest", detail.payloadDigest(),
+                            "scopeDigest", access.scope().digest(),
+                            "effectiveFrom", detail.effectiveFrom(),
+                            "effectiveTo", nullable(detail.effectiveTo())));
+                    return TransitionEvidence.validation(
+                            access.subjectId(),
+                            new ValidationFact(
+                                    receiptId, evidenceDigest, body.schemaRevision(),
+                                    access.scope().digest(), producedAt));
+                },
                 false);
     }
 
@@ -177,18 +222,29 @@ public class ReferenceConfigurationService {
             SimulationCommand body) {
         requireAuthor(access);
         return transition(
-                access,
-                command,
-                configurationId,
-                version,
-                "SIMULATE_VERSION",
-                "configuration.version.simulate",
-                body,
-                LifecycleState.VALIDATED,
-                LifecycleState.SIMULATED,
-                (receiptId, ignored) -> new TransitionEvidence(
-                        access.subjectId(), body.validationReceiptId(), receiptId, null, null,
-                        null, null, null, null, null, null),
+                access, command, configurationId, version,
+                "SIMULATE_VERSION", "configuration.version.simulate", body,
+                LifecycleState.VALIDATED, LifecycleState.SIMULATED,
+                (receiptId, detail) -> {
+                    ValidationFact validation = requireValidation(detail, body.validationReceiptId());
+                    OffsetDateTime producedAt = now();
+                    String evidenceDigest = digest(Map.of(
+                            "validationEvidence", validation.evidenceDigest(),
+                            "sampleScopeRefDigest", digest(body.sampleScopeRef()),
+                            "sampleScopeDigest", normalizeDigest(body.sampleScopeDigest()),
+                            "payloadDigest", detail.payloadDigest(),
+                            "aggregateVersion", detail.aggregateVersion()));
+                    String impactDigest = digest(Map.of(
+                            "simulationEvidence", evidenceDigest,
+                            "effectiveFrom", detail.effectiveFrom(),
+                            "effectiveTo", nullable(detail.effectiveTo()),
+                            "domain", detail.domain().name()));
+                    return TransitionEvidence.simulation(
+                            access.subjectId(),
+                            new SimulationFact(
+                                    receiptId, validation.receiptId(), evidenceDigest, impactDigest,
+                                    producedAt, producedAt.plusMinutes(15)));
+                },
                 false);
     }
 
@@ -201,18 +257,33 @@ public class ReferenceConfigurationService {
             SubmitCommand body) {
         requireAuthor(access);
         return transition(
-                access,
-                command,
-                configurationId,
-                version,
-                "SUBMIT_VERSION",
-                "configuration.version.submit",
-                body,
-                LifecycleState.SIMULATED,
-                LifecycleState.PENDING_APPROVAL,
-                (receiptId, ignored) -> new TransitionEvidence(
-                        access.subjectId(), body.validationReceiptId(), body.simulationReceiptId(),
-                        null, body.impactDigest(), null, null, null, null, null, null),
+                access, command, configurationId, version,
+                "SUBMIT_VERSION", "configuration.version.submit", body,
+                LifecycleState.SIMULATED, LifecycleState.PENDING_APPROVAL,
+                (receiptId, detail) -> {
+                    ValidationFact validation = requireValidation(detail, body.validationReceiptId());
+                    SimulationFact simulation = requireSimulation(
+                            detail, body.simulationReceiptId(), validation.receiptId());
+                    if (now().isAfter(simulation.freshUntil())) {
+                        throw conflict("REFERENCE_CONFIGURATION_SIMULATION_STALE");
+                    }
+                    if (!simulation.impactDigest().equals(normalizeDigest(body.impactDigest()))) {
+                        throw conflict("REFERENCE_CONFIGURATION_IMPACT_EVIDENCE_MISMATCH");
+                    }
+                    OffsetDateTime producedAt = now();
+                    String evidenceDigest = digest(Map.of(
+                            "validationReceiptId", validation.receiptId(),
+                            "validationEvidence", validation.evidenceDigest(),
+                            "simulationReceiptId", simulation.receiptId(),
+                            "simulationEvidence", simulation.evidenceDigest(),
+                            "impactDigest", simulation.impactDigest(),
+                            "approvalWorkflowKey", body.approvalWorkflowKey()));
+                    return TransitionEvidence.submission(
+                            access.subjectId(),
+                            new SubmissionFact(
+                                    receiptId, validation.receiptId(), simulation.receiptId(),
+                                    evidenceDigest, body.approvalWorkflowKey(), producedAt));
+                },
                 false);
     }
 
@@ -225,20 +296,28 @@ public class ReferenceConfigurationService {
             ApprovalCommand body) {
         requirePublisher(access, command);
         return transition(
-                access,
-                command,
-                configurationId,
-                version,
-                "APPROVE_VERSION",
-                "configuration.version.approve",
-                body,
-                LifecycleState.PENDING_APPROVAL,
-                LifecycleState.APPROVED,
+                access, command, configurationId, version,
+                "APPROVE_VERSION", "configuration.version.approve", body,
+                LifecycleState.PENDING_APPROVAL, LifecycleState.APPROVED,
                 (receiptId, detail) -> {
                     requireDifferentActor(detail, access.subjectId());
-                    return new TransitionEvidence(
-                            access.subjectId(), null, null, body.approvalReceiptId(), null,
-                            body.approvalDecisionDigest(), null, null, null, null, null);
+                    SubmissionFact submission = requireSubmission(detail, body.approvalReceiptId());
+                    requireStoredReceipt(
+                            access.tenantId(), submission.receiptId(), "SUBMIT_VERSION",
+                            configurationId, version);
+                    OffsetDateTime producedAt = now();
+                    String decisionDigest = normalizeDigest(body.approvalDecisionDigest());
+                    String evidenceDigest = digest(Map.of(
+                            "submissionReceiptId", submission.receiptId(),
+                            "submittedEvidence", submission.evidenceDigest(),
+                            "decisionDigest", decisionDigest,
+                            "approver", access.subjectPublicId(),
+                            "decisionRevision", access.scope().decisionRevision()));
+                    return TransitionEvidence.approval(
+                            access.subjectId(),
+                            new ApprovalFact(
+                                    receiptId, submission.receiptId(), decisionDigest,
+                                    evidenceDigest, producedAt));
                 },
                 false);
     }
@@ -252,26 +331,19 @@ public class ReferenceConfigurationService {
             ScheduleCommand body) {
         requirePublisher(access, command);
         requireEffectiveWindow(body.effectiveFrom(), body.effectiveTo());
-        if (body.publishAt().isBefore(now())) {
-            throw invalid("REFERENCE_CONFIGURATION_SCHEDULE_IN_PAST");
+        if (body.publishAt().isBefore(now()) || body.effectiveFrom().isBefore(body.publishAt())) {
+            throw invalid("REFERENCE_CONFIGURATION_SCHEDULE_CLOCK_INVALID");
         }
         return transition(
-                access,
-                command,
-                configurationId,
-                version,
-                "SCHEDULE_VERSION",
-                "configuration.version.schedule",
-                body,
-                LifecycleState.APPROVED,
-                LifecycleState.SCHEDULED,
+                access, command, configurationId, version,
+                "SCHEDULE_VERSION", "configuration.version.schedule", body,
+                LifecycleState.APPROVED, LifecycleState.SCHEDULED,
                 (receiptId, detail) -> {
                     requireDifferentActor(detail, access.subjectId());
-                    requireApproval(detail, body.approvalReceiptId());
-                    return new TransitionEvidence(
-                            access.subjectId(), null, null, body.approvalReceiptId(),
-                            body.impactDigest(), null, body.publishAt(), body.effectiveFrom(),
-                            body.effectiveTo(), null, null);
+                    requirePublishEvidence(detail, body.approvalReceiptId(), body.impactDigest());
+                    return TransitionEvidence.schedule(
+                            access.subjectId(), body.publishAt(),
+                            body.effectiveFrom(), body.effectiveTo());
                 },
                 false);
     }
@@ -285,27 +357,31 @@ public class ReferenceConfigurationService {
             PublishCommand body) {
         requirePublisher(access, command);
         requireEffectiveWindow(body.effectiveFrom(), body.effectiveTo());
-        VersionDetail detail = requiredVersion(access.tenantId(), configurationId, version);
+        VersionDetail detail = requiredVersion(access, configurationId, version);
         LifecycleState expected = detail.state() == LifecycleState.SCHEDULED
                 ? LifecycleState.SCHEDULED
                 : LifecycleState.APPROVED;
         return transition(
-                access,
-                command,
-                configurationId,
-                version,
-                "PUBLISH_VERSION",
-                "configuration.version.publish",
-                body,
-                expected,
-                LifecycleState.PUBLISHED,
+                access, command, configurationId, version,
+                "PUBLISH_VERSION", "configuration.version.publish", body,
+                expected, LifecycleState.PUBLISHED,
                 (receiptId, fresh) -> {
                     requireDifferentActor(fresh, access.subjectId());
-                    requireApproval(fresh, body.approvalReceiptId());
-                    return new TransitionEvidence(
-                            access.subjectId(), null, null, body.approvalReceiptId(),
-                            body.impactDigest(), null, null, body.effectiveFrom(),
-                            body.effectiveTo(), null, null);
+                    requirePublishEvidence(fresh, body.approvalReceiptId(), body.impactDigest());
+                    if (now().isBefore(body.effectiveFrom())) {
+                        throw conflict("REFERENCE_CONFIGURATION_EFFECTIVE_CLOCK_NOT_REACHED");
+                    }
+                    if (fresh.state() == LifecycleState.SCHEDULED) {
+                        if (fresh.scheduledAt() == null || now().isBefore(fresh.scheduledAt())) {
+                            throw conflict("REFERENCE_CONFIGURATION_SCHEDULE_NOT_DUE");
+                        }
+                        if (!fresh.effectiveFrom().isEqual(body.effectiveFrom())
+                                || !java.util.Objects.equals(fresh.effectiveTo(), body.effectiveTo())) {
+                            throw conflict("REFERENCE_CONFIGURATION_SCHEDULE_WINDOW_MISMATCH");
+                        }
+                    }
+                    return TransitionEvidence.publish(
+                            access.subjectId(), body.effectiveFrom(), body.effectiveTo());
                 },
                 true);
     }
@@ -318,40 +394,46 @@ public class ReferenceConfigurationService {
             long version,
             RollbackCommand body) {
         requirePublisher(access, command);
-        if (body.targetPublishedVersion() >= version) {
+        if (body.targetPublishedVersion() >= version || body.effectiveFrom().isBefore(now())) {
             throw invalid("REFERENCE_CONFIGURATION_ROLLBACK_TARGET_INVALID");
         }
         return execute(
-                access,
-                command,
-                configurationId,
-                "ROLLBACK_VERSION",
-                "configuration.version.rollback",
-                version,
-                body,
+                access, command, configurationId,
+                "ROLLBACK_VERSION", "configuration.version.rollback", version, body,
                 receiptId -> {
-                    VersionDetail current = requiredVersion(access.tenantId(), configurationId, version);
+                    VersionDetail current = requiredVersion(access, configurationId, version);
                     requireExpectedVersion(command, current.aggregateVersion());
                     requireDifferentActor(current, access.subjectId());
+                    if (current.state() != LifecycleState.PUBLISHED) {
+                        throw conflict("REFERENCE_CONFIGURATION_ROLLBACK_SOURCE_NOT_PUBLISHED");
+                    }
                     VersionDetail target = requiredVersion(
-                            access.tenantId(), configurationId, body.targetPublishedVersion());
-                    requireDifferentActor(target, access.subjectId());
+                            access, configurationId, body.targetPublishedVersion());
+                    requireCompatibility(current, target);
+                    if (target.state() != LifecycleState.PUBLISHED
+                            && target.state() != LifecycleState.RETIRED) {
+                        throw conflict("REFERENCE_CONFIGURATION_ROLLBACK_TARGET_NOT_PUBLISHED");
+                    }
+                    requireApproval(current, body.approvalReceiptId());
+                    SimulationFact targetSimulation = target.simulation();
+                    if (targetSimulation == null
+                            || !targetSimulation.impactDigest().equals(
+                                    normalizeDigest(body.impactDigest()))) {
+                        throw conflict("REFERENCE_CONFIGURATION_ROLLBACK_IMPACT_MISMATCH");
+                    }
                     long rollbackVersion;
                     try {
                         rollbackVersion = repository.rollback(
-                                access.tenantId(), configurationId, version,
+                                access.tenantId(), access.scope(), configurationId, version,
                                 body.targetPublishedVersion(), current.aggregateVersion(),
-                                access.subjectId(), body, now());
+                                access.subjectId(), body, targetSimulation.impactDigest(), now());
                     } catch (IllegalStateException exception) {
                         throw conflict(exception.getMessage());
                     }
                     VersionDetail rolledBack = requiredVersion(
-                            access.tenantId(), configurationId, rollbackVersion);
+                            access, configurationId, rollbackVersion);
                     appendPublishedEvent(access, rolledBack);
-                    return result(
-                            configurationId, rollbackVersion, rolledBack.aggregateVersion(),
-                            rolledBack.domain(), rolledBack.effectiveFrom(), rolledBack.effectiveTo(),
-                            rolledBack.payloadDigest());
+                    return result(configurationId, rollbackVersion, rolledBack.aggregateVersion());
                 });
     }
 
@@ -364,23 +446,33 @@ public class ReferenceConfigurationService {
             RetireCommand body) {
         requirePublisher(access, command);
         return transition(
-                access,
-                command,
-                configurationId,
-                version,
-                "RETIRE_VERSION",
-                "configuration.version.retire",
-                body,
-                LifecycleState.PUBLISHED,
-                LifecycleState.RETIRED,
+                access, command, configurationId, version,
+                "RETIRE_VERSION", "configuration.version.retire", body,
+                LifecycleState.PUBLISHED, LifecycleState.RETIRED,
                 (receiptId, detail) -> {
                     requireDifferentActor(detail, access.subjectId());
-                    if (!body.effectiveTo().isAfter(detail.effectiveFrom())) {
-                        throw invalid("REFERENCE_CONFIGURATION_EFFECTIVE_WINDOW_INVALID");
+                    requireApproval(detail, body.approvalReceiptId());
+                    if (!body.effectiveTo().isAfter(detail.effectiveFrom())
+                            || body.effectiveTo().isAfter(now())) {
+                        throw invalid("REFERENCE_CONFIGURATION_RETIRE_BOUNDARY_INVALID");
                     }
-                    return new TransitionEvidence(
-                            access.subjectId(), null, null, body.approvalReceiptId(), null, null,
-                            null, null, body.effectiveTo(), body.replacementVersion(), body.reasonCode());
+                    if (body.replacementVersion() != null) {
+                        if (body.replacementVersion() == version) {
+                            throw invalid("REFERENCE_CONFIGURATION_SUCCESSOR_INVALID");
+                        }
+                        VersionDetail successor = requiredVersion(
+                                access, configurationId, body.replacementVersion());
+                        requireCompatibility(detail, successor);
+                        if ((successor.state() != LifecycleState.SCHEDULED
+                                && successor.state() != LifecycleState.PUBLISHED)
+                                || successor.approval() == null
+                                || !successor.effectiveFrom().isEqual(body.effectiveTo())) {
+                            throw conflict("REFERENCE_CONFIGURATION_SUCCESSOR_BOUNDARY_MISMATCH");
+                        }
+                    }
+                    return TransitionEvidence.retire(
+                            access.subjectId(), body.effectiveTo(),
+                            body.replacementVersion(), body.reasonCode());
                 },
                 false);
     }
@@ -389,13 +481,23 @@ public class ReferenceConfigurationService {
     public WorkbenchResponse workbench(AccessContext access, WorkbenchQuery query) {
         requireView(access);
         validateQuery(query);
-        OffsetDateTime asOf = query.asOf() == null ? now() : query.asOf();
+        CursorState cursor = decodeCursor(query.cursor());
+        OffsetDateTime asOf = effectiveAsOf(query.asOf(), cursor);
         String scopeRevision = scopeRevision(access);
-        validateCursor(query.cursor(), access.tenantId(), scopeRevision);
+        String queryDigest = workbenchQueryDigest(query, asOf);
+        UUID seek = validateCursor(
+                cursor, "WORKBENCH", access.tenantId(), scopeRevision, queryDigest, asOf);
+        Freshness freshness = asOf.isBefore(now().minusSeconds(30))
+                ? Freshness.STALE
+                : Freshness.CURRENT;
+        if (freshness == Freshness.STALE && query.freshness() == FreshnessPreference.FRESH_ONLY) {
+            throw conflict("REFERENCE_CONFIGURATION_FRESH_SNAPSHOT_REQUIRED");
+        }
 
-        List<CatalogItem> catalog;
+        WorkbenchPage page;
         try {
-            catalog = repository.list(access.tenantId(), 100);
+            page = repository.queryWorkbench(
+                    access.tenantId(), access.scope(), query, asOf, seek, query.limit());
         } catch (RuntimeException exception) {
             PartialFailure failure = new PartialFailure(
                     "reference-configuration",
@@ -403,31 +505,18 @@ public class ReferenceConfigurationService {
                     query.correlationId(),
                     true);
             WorkbenchQueryState unavailable = new WorkbenchQueryState(
-                    QueryState.UNAVAILABLE,
-                    scopeRevision,
-                    Freshness.UNAVAILABLE,
-                    null,
-                    new FieldDecisionSummary(0, 0, 0),
-                    List.of(failure),
-                    query.correlationId(),
+                    QueryState.UNAVAILABLE, scopeRevision, Freshness.UNAVAILABLE, null,
+                    new FieldDecisionSummary(0, 0, 0), List.of(failure), query.correlationId(),
                     new CachePolicy(scopeRevision, INVALIDATION_EVENT, 0));
-            return new WorkbenchResponse(
-                    "1",
-                    asOf,
-                    "REFERENCE",
-                    unavailable,
-                    List.of());
+            return new WorkbenchResponse("1", asOf, "REFERENCE", unavailable, List.of());
         }
+        if (!page.seekFound()) throw conflict("REFERENCE_CONFIGURATION_CURSOR_STALE");
+
         List<PartialFailure> failures = new ArrayList<>();
         List<WorkbenchItem> items = new ArrayList<>();
-        for (CatalogItem item : catalog) {
+        for (WorkbenchRow row : page.rows()) {
             try {
-                VersionDetail detail = repository
-                        .findVersion(access.tenantId(), item.publicId(), item.version())
-                        .orElse(null);
-                if (detail != null && matches(query.filter(), item, detail, asOf)) {
-                    items.add(workbenchItem(access, item, detail));
-                }
+                items.add(workbenchItem(access, query.fields(), row.item(), row.detail()));
             } catch (RuntimeException exception) {
                 failures.add(new PartialFailure(
                         "reference-configuration",
@@ -436,29 +525,26 @@ public class ReferenceConfigurationService {
                         true));
             }
         }
-        items.sort(comparator(query.sort()));
-        if (items.size() > query.limit()) {
-            items = new ArrayList<>(items.subList(0, query.limit()));
-        }
-        long viewCount = items.stream().mapToLong(item -> item.fieldGroups().size()).sum();
+        String nextCursor = page.hasNext() && !page.rows().isEmpty()
+                ? encodeCursor(new CursorState(
+                        "WORKBENCH", access.tenantId(), scopeRevision, queryDigest, asOf,
+                        page.rows().getLast().item().publicId()))
+                : null;
+        long viewCount = items.stream().flatMap(item -> item.fieldGroups().values().stream())
+                .filter(value -> value.decision() == FieldDecision.VIEW).count();
+        long maskedCount = items.stream().flatMap(item -> item.fieldGroups().values().stream())
+                .filter(value -> value.decision() == FieldDecision.MASK).count();
+        long omittedCount = (long) items.size() * FIELD_GROUPS.size() - viewCount - maskedCount;
         QueryState state = !failures.isEmpty()
                 ? QueryState.PARTIAL
                 : items.isEmpty() ? QueryState.EMPTY : QueryState.COMPLETE;
         WorkbenchQueryState queryState = new WorkbenchQueryState(
-                state,
-                scopeRevision,
-                Freshness.CURRENT,
-                null,
-                new FieldDecisionSummary(viewCount, 0, 0),
-                List.copyOf(failures),
-                query.correlationId(),
-                new CachePolicy(scopeRevision, INVALIDATION_EVENT, 30));
-        return new WorkbenchResponse(
-                "1",
-                asOf,
-                "REFERENCE",
-                queryState,
-                List.copyOf(items));
+                state, scopeRevision, freshness, nextCursor,
+                new FieldDecisionSummary(viewCount, maskedCount, omittedCount),
+                List.copyOf(failures), query.correlationId(),
+                new CachePolicy(scopeRevision, INVALIDATION_EVENT,
+                        freshness == Freshness.CURRENT ? 30 : 0));
+        return new WorkbenchResponse("1", asOf, "REFERENCE", queryState, List.copyOf(items));
     }
 
     private CommandReceipt transition(
@@ -474,30 +560,18 @@ public class ReferenceConfigurationService {
             TransitionEvidenceFactory evidenceFactory,
             boolean emitPublishedEvent) {
         return execute(
-                access,
-                command,
-                configurationId,
-                commandType,
-                action,
-                version,
-                body,
+                access, command, configurationId, commandType, action, version, body,
                 receiptId -> {
-                    VersionDetail detail = requiredVersion(access.tenantId(), configurationId, version);
+                    VersionDetail detail = requiredVersion(access, configurationId, version);
                     requireExpectedVersion(command, detail.aggregateVersion());
                     TransitionEvidence evidence = evidenceFactory.create(receiptId, detail);
                     boolean changed = repository.transition(
-                            access.tenantId(), configurationId, version, detail.aggregateVersion(),
-                            expected, target, evidence, now());
-                    if (!changed) {
-                        throw conflict("REFERENCE_CONFIGURATION_VERSION_CONFLICT");
-                    }
-                    VersionDetail updated = requiredVersion(access.tenantId(), configurationId, version);
-                    if (emitPublishedEvent) {
-                        appendPublishedEvent(access, updated);
-                    }
-                    return result(
-                            configurationId, version, updated.aggregateVersion(), updated.domain(),
-                            updated.effectiveFrom(), updated.effectiveTo(), updated.payloadDigest());
+                            access.tenantId(), access.scope(), configurationId, version,
+                            detail.aggregateVersion(), expected, target, evidence, now());
+                    if (!changed) throw conflict("REFERENCE_CONFIGURATION_VERSION_CONFLICT");
+                    VersionDetail updated = requiredVersion(access, configurationId, version);
+                    if (emitPublishedEvent) appendPublishedEvent(access, updated);
+                    return result(configurationId, version, updated.aggregateVersion());
                 });
     }
 
@@ -517,15 +591,18 @@ public class ReferenceConfigurationService {
         requestIdentity.put("configurationId", configurationId);
         if (targetVersion != null) requestIdentity.put("targetVersion", targetVersion);
         requestIdentity.put("body", body);
-        requestIdentity.put("subjectPrincipalPublicId", subjectPublicId(access));
+        requestIdentity.put("subjectPrincipalPublicId", access.subjectPublicId());
         requestIdentity.put("purposeCode", command.purposeCode());
+        requestIdentity.put("populationScopeDigest", access.scope().digest());
         if (command.expectedObjectVersion() != null) {
             requestIdentity.put("expectedObjectVersion", command.expectedObjectVersion());
         }
         requestIdentity.put("authorizationContextDigest", authorizationContextDigest(access, command));
         String requestDigest = digest(requestIdentity);
-        repository.lockIdempotency(access.tenantId(), command.idempotencyKey());
-        var prior = repository.findReceipt(access.tenantId(), command.idempotencyKey());
+        repository.lockIdempotency(
+                access.tenantId(), access.subjectId(), action, command.idempotencyKey());
+        var prior = repository.findReceipt(
+                access.tenantId(), access.subjectId(), action, command.idempotencyKey());
         if (prior.isPresent()) {
             if (!prior.get().requestDigest().equals(requestDigest)) {
                 throw conflict("IDEMPOTENCY_PAYLOAD_MISMATCH");
@@ -537,22 +614,14 @@ public class ReferenceConfigurationService {
         MutationResult result = mutation.apply(receiptId);
         OffsetDateTime createdAt = now();
         CommandReceipt receipt = new CommandReceipt(
-                receiptId,
-                commandType,
-                action,
-                subjectPublicId(access),
-                digest("tenant:" + access.tenantId()),
-                revision(command.expectedDecisionRevision()),
-                command.purposeCode(),
-                revision(command.expectedDecisionRevision()),
-                "SUCCEEDED",
-                command.correlationId(),
-                requestDigest,
-                createdAt,
-                result.aggregateVersion(),
+                receiptId, commandType, action, access.subjectPublicId(),
+                access.scope().digest(), access.fieldPolicyRevision(), command.purposeCode(),
+                access.authorizationRevision(), "SUCCEEDED", command.correlationId(),
+                requestDigest, createdAt, result.aggregateVersion(),
                 result.configurationId() + "/" + result.version());
         repository.saveReceipt(
-                access.tenantId(), command.idempotencyKey(), requestDigest, receipt);
+                access.tenantId(), access.subjectId(), action, command.idempotencyKey(),
+                requestDigest, receipt);
         repository.appendAudit(
                 access.tenantId(), configurationId, result.version(), action,
                 access.subjectId(), command.correlationId().toString(), requestDigest, createdAt);
@@ -560,110 +629,157 @@ public class ReferenceConfigurationService {
     }
 
     private void appendPublishedEvent(AccessContext access, VersionDetail detail) {
-        Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("configurationPublicId", detail.configurationId());
-        payload.put("domain", detail.domain());
-        payload.put("version", detail.version());
-        payload.put("effectiveFrom", detail.effectiveFrom());
-        payload.put("effectiveTo", detail.effectiveTo());
-        payload.put("payloadDigest", detail.payloadDigest());
-        payload.put("occurredAt", now());
+        if (detail.approval() == null) {
+            throw conflict("REFERENCE_CONFIGURATION_APPROVAL_EVIDENCE_MISSING");
+        }
+        OffsetDateTime publishedAt = now();
+        HrisConfigurationPublishedV1 event = new HrisConfigurationPublishedV1(
+                detail.configurationId(),
+                "HRIS_REFERENCE_" + detail.domain().name(),
+                detail.scopeType() == ScopeType.POLICY_NODE ? "POPULATION" : "LEGAL_ENTITY",
+                detail.scopeId(),
+                detail.version(),
+                detail.effectiveFrom().withOffsetSameInstant(ZoneOffset.UTC).toLocalDate(),
+                detail.effectiveTo() == null
+                        ? null
+                        : detail.effectiveTo().withOffsetSameInstant(ZoneOffset.UTC).toLocalDate(),
+                payloadSchemaVersion(detail),
+                detail.payloadDigest(),
+                detail.approval().receiptId(),
+                publishedAt.toInstant(),
+                detail.version());
+        String payload = json(event);
+        try {
+            HrisConfigurationPublishedV1 roundTrip = objectMapper.readValue(
+                    payload, HrisConfigurationPublishedV1.class);
+            if (!event.equals(roundTrip)) {
+                throw new IllegalStateException("REFERENCE_CONFIGURATION_EVENT_ROUND_TRIP_MISMATCH");
+            }
+        } catch (JsonProcessingException exception) {
+            throw new IllegalStateException(
+                    "REFERENCE_CONFIGURATION_EVENT_ROUND_TRIP_FAILED", exception);
+        }
         repository.appendOutbox(
                 access.tenantId(), detail.configurationId(), detail.version(),
-                PUBLISHED_EVENT, json(payload), now());
+                PUBLISHED_EVENT, payload, publishedAt);
     }
 
     private WorkbenchItem workbenchItem(
             AccessContext access,
+            List<String> requestedFields,
             CatalogItem item,
             VersionDetail detail) {
         Map<String, FieldValue<?>> groups = new LinkedHashMap<>();
-        groups.put("POLICY_VERSION", FieldValue.view(new PolicyValue(
+        addField(access, requestedFields, groups, "POLICY_VERSION", new PolicyValue(
                 detail.schemaKey(), detail.version(), detail.effectiveFrom().toLocalDate(),
                 detail.effectiveTo() == null ? null : detail.effectiveTo().toLocalDate(),
-                detail.state().name())));
-        groups.put("REFERENCE_DATA", FieldValue.view(new ReferenceValue(
-                item.publicId().toString(), item.domain().name(), item.key(), item.version())));
-        groups.put("EFFECTIVE_STATUS", FieldValue.view(new StatusValue(
-                item.state().name(), item.version())));
+                detail.state().name()));
+        addField(access, requestedFields, groups, "REFERENCE_DATA", new ReferenceValue(
+                item.publicId().toString(), item.domain().name(), item.key(), item.version()));
+        addField(access, requestedFields, groups, "EFFECTIVE_STATUS", new StatusValue(
+                item.state().name(), item.version()));
+        if (groups.isEmpty()) {
+            throw forbidden("REFERENCE_CONFIGURATION_ALL_FIELDS_OMITTED");
+        }
         return new WorkbenchItem(
-                item.publicId().toString(),
-                item.key(),
-                item.state().name(),
-                Map.copyOf(groups),
+                item.publicId().toString(), item.key(), item.state().name(), Map.copyOf(groups),
                 new DeepLink(WORKBENCH_ROUTE, item.publicId().toString()),
-                actions(access));
+                actions(access, groups));
     }
 
-    private List<AvailableAction> actions(AccessContext access) {
+    private void addField(
+            AccessContext access,
+            List<String> requestedFields,
+            Map<String, FieldValue<?>> groups,
+            String key,
+            Object value) {
+        if (!requestedFields.contains(key) || access.omittedFieldGroups().contains(key)) return;
+        if (access.maskedFieldGroups().contains(key)) {
+            groups.put(key, FieldValue.masked("FIELD_POLICY", "hris.field.masked"));
+        } else {
+            groups.put(key, FieldValue.view(value));
+        }
+    }
+
+    private List<AvailableAction> actions(
+            AccessContext access,
+            Map<String, FieldValue<?>> groups) {
+        boolean configurationVisible = decision(groups, "POLICY_VERSION") == FieldDecision.VIEW
+                && decision(groups, "REFERENCE_DATA") == FieldDecision.VIEW;
+        boolean impactVisible = decision(groups, "EFFECTIVE_STATUS") == FieldDecision.VIEW;
+        if (!configurationVisible) return List.of();
         List<AvailableAction> result = new ArrayList<>();
         Set<String> permissions = permissions(access.permissions());
         if (permissions.contains(UPDATE_PERMISSION)) result.addAll(AUTHOR_ACTIONS);
-        if (permissions.contains(PUBLISH_PERMISSION)) result.addAll(PUBLISHER_ACTIONS);
+        if (impactVisible && permissions.contains(PUBLISH_PERMISSION)) result.addAll(PUBLISHER_ACTIONS);
         return List.copyOf(result);
     }
 
-    private boolean matches(
-            WorkbenchFilter filter,
-            CatalogItem item,
-            VersionDetail detail,
-            OffsetDateTime asOf) {
-        if (filter == null) return true;
-        if (notEmpty(filter.policyKeys()) && !filter.policyKeys().contains(detail.schemaKey())) return false;
-        if (filter.minimumPolicyRevision() != null
-                && detail.version() < filter.minimumPolicyRevision()) return false;
-        if (notEmpty(filter.referencePublicIds())
-                && !filter.referencePublicIds().contains(item.publicId().toString())) return false;
-        if (notEmpty(filter.referenceCodes())
-                && !filter.referenceCodes().contains(item.domain().name())) return false;
-        if (notEmpty(filter.effectiveStatuses())
-                && !filter.effectiveStatuses().contains(item.state().name())) return false;
-        if (filter.minimumStatusRevision() != null
-                && detail.version() < filter.minimumStatusRevision()) return false;
-        if (filter.effectiveOn() != null) {
-            var date = filter.effectiveOn();
-            if (date.isBefore(detail.effectiveFrom().toLocalDate())) return false;
-            if (detail.effectiveTo() != null && !date.isBefore(detail.effectiveTo().toLocalDate())) {
-                return false;
+    private FieldDecision decision(Map<String, FieldValue<?>> groups, String key) {
+        FieldValue<?> value = groups.get(key);
+        return value == null ? FieldDecision.OMIT : value.decision();
+    }
+
+    private void validateCatalogQuery(CatalogQuery query) {
+        if (query == null || query.limit() < 1 || query.limit() > 100
+                || query.fields() == null || query.fields().isEmpty()
+                || query.freshness() == null
+                || !CATALOG_FIELDS.containsAll(query.fields())
+                || new LinkedHashSet<>(query.fields()).size() != query.fields().size()) {
+            throw invalid("REFERENCE_CONFIGURATION_CATALOG_QUERY_INVALID");
+        }
+        if (query.filter() != null && query.filter().length() > 1000) {
+            throw invalid("REFERENCE_CONFIGURATION_CATALOG_FILTER_INVALID");
+        }
+    }
+
+    private CatalogFilter parseCatalogFilter(String value) {
+        if (value == null || value.isBlank()) return null;
+        String key = null;
+        Domain domain = null;
+        LifecycleState state = null;
+        Long minimumVersion = null;
+        Set<String> seen = new LinkedHashSet<>();
+        for (String expression : value.split(";", -1)) {
+            String[] pair = expression.split("==", 2);
+            if (pair.length != 2 || pair[0].isBlank() || pair[1].isBlank()
+                    || !seen.add(pair[0])) {
+                throw invalid("REFERENCE_CONFIGURATION_CATALOG_FILTER_INVALID");
+            }
+            try {
+                switch (pair[0]) {
+                    case "key" -> key = pair[1];
+                    case "type" -> domain = Domain.valueOf(pair[1]);
+                    case "state" -> state = LifecycleState.valueOf(pair[1]);
+                    case "minimumVersion" -> minimumVersion = Long.parseLong(pair[1]);
+                    default -> throw invalid("REFERENCE_CONFIGURATION_CATALOG_FILTER_INVALID");
+                }
+            } catch (IllegalArgumentException exception) {
+                throw invalid("REFERENCE_CONFIGURATION_CATALOG_FILTER_INVALID");
             }
         }
-        return !asOf.isBefore(detail.createdAt());
-    }
-
-    private Comparator<WorkbenchItem> comparator(List<String> sorts) {
-        Comparator<WorkbenchItem> comparator = null;
-        for (String sort : sorts) {
-            Comparator<WorkbenchItem> next = switch (sort) {
-                case "policyVersion:ASC" -> Comparator.comparingLong(this::policyVersion);
-                case "policyVersion:DESC" -> Comparator.comparingLong(this::policyVersion).reversed();
-                case "referenceData:ASC" -> Comparator.comparing(WorkbenchItem::title);
-                case "referenceData:DESC" -> Comparator.comparing(WorkbenchItem::title).reversed();
-                case "effectiveStatus:ASC" -> Comparator.comparing(WorkbenchItem::statusCode);
-                case "effectiveStatus:DESC" -> Comparator.comparing(WorkbenchItem::statusCode).reversed();
-                case "itemPublicId:ASC" -> Comparator.comparing(WorkbenchItem::itemPublicId);
-                case "itemPublicId:DESC" -> Comparator.comparing(WorkbenchItem::itemPublicId).reversed();
-                default -> throw invalid("REFERENCE_CONFIGURATION_SORT_INVALID");
-            };
-            comparator = comparator == null ? next : comparator.thenComparing(next);
+        if (minimumVersion != null && minimumVersion < 1) {
+            throw invalid("REFERENCE_CONFIGURATION_CATALOG_FILTER_INVALID");
         }
-        return comparator == null
-                ? Comparator.comparing(WorkbenchItem::itemPublicId)
-                : comparator.thenComparing(WorkbenchItem::itemPublicId);
-    }
-
-    private long policyVersion(WorkbenchItem item) {
-        FieldValue<?> value = item.fieldGroups().get("POLICY_VERSION");
-        return value != null && value.value() instanceof PolicyValue policy ? policy.revision() : 0;
+        return new CatalogFilter(key, domain, state, minimumVersion);
     }
 
     private void validateQuery(WorkbenchQuery query) {
         if (query == null || query.limit() == null || query.limit() < 1 || query.limit() > 100) {
             throw invalid("REFERENCE_CONFIGURATION_QUERY_INVALID");
         }
+        if (query.filter() == null) throw invalid("REFERENCE_CONFIGURATION_FILTER_REQUIRED");
+        validateFilterValues(query.filter());
         if (query.sort() == null || query.sort().isEmpty() || query.sort().size() > 3
                 || new LinkedHashSet<>(query.sort()).size() != query.sort().size()
                 || !ALLOWED_SORTS.containsAll(query.sort())) {
             throw invalid("REFERENCE_CONFIGURATION_SORT_INVALID");
+        }
+        if (query.fields() == null || query.fields().isEmpty()
+                || !FIELD_GROUPS.containsAll(query.fields())
+                || new LinkedHashSet<>(query.fields()).size() != query.fields().size()
+                || query.freshness() == null) {
+            throw invalid("REFERENCE_CONFIGURATION_FIELD_SELECTION_INVALID");
         }
         Locale locale = Locale.forLanguageTag(query.locale());
         if (locale.getLanguage().isBlank()) throw invalid("REFERENCE_CONFIGURATION_LOCALE_INVALID");
@@ -677,39 +793,173 @@ public class ReferenceConfigurationService {
         }
     }
 
-    private void validateCursor(String cursor, long tenantId, String scopeRevision) {
-        if (cursor == null) return;
+    private void validateFilterValues(WorkbenchFilter filter) {
+        validateList(filter.policyKeys(), 50, "^[A-Za-z0-9._:-]{1,128}$");
+        validateList(filter.referencePublicIds(), 50, "^[A-Za-z0-9._:-]{1,128}$");
+        validateList(filter.referenceCodes(), 50, "^[A-Z][A-Z0-9_]{1,63}$");
+        validateList(filter.effectiveStatuses(), 50, "^[A-Z][A-Z0-9_]{1,63}$");
+        if ((filter.minimumPolicyRevision() != null && filter.minimumPolicyRevision() < 1)
+                || (filter.minimumStatusRevision() != null && filter.minimumStatusRevision() < 1)) {
+            throw invalid("REFERENCE_CONFIGURATION_FILTER_INVALID");
+        }
+    }
+
+    private void validateList(List<String> values, int max, String pattern) {
+        if (values == null) return;
+        if (values.size() > max || new LinkedHashSet<>(values).size() != values.size()
+                || values.stream().anyMatch(value -> value == null || !value.matches(pattern))) {
+            throw invalid("REFERENCE_CONFIGURATION_FILTER_INVALID");
+        }
+    }
+
+    private String workbenchQueryDigest(WorkbenchQuery query, OffsetDateTime asOf) {
+        Map<String, Object> identity = new LinkedHashMap<>();
+        identity.put("asOf", asOf);
+        identity.put("filter", query.filter());
+        identity.put("fields", query.fields());
+        identity.put("freshness", query.freshness());
+        identity.put("sort", query.sort());
+        identity.put("locale", query.locale());
+        identity.put("timeZone", query.timeZone());
+        return digest(identity);
+    }
+
+    private OffsetDateTime effectiveAsOf(OffsetDateTime requested, CursorState cursor) {
+        OffsetDateTime value = requested != null ? requested : cursor != null ? cursor.asOf() : now();
+        if (value.isAfter(now().plusSeconds(1))) {
+            throw invalid("REFERENCE_CONFIGURATION_AS_OF_INVALID");
+        }
+        return value;
+    }
+
+    private UUID validateCursor(
+            CursorState cursor,
+            String kind,
+            long tenantId,
+            String scopeRevision,
+            String queryDigest,
+            OffsetDateTime asOf) {
+        if (cursor == null) return null;
+        if (!kind.equals(cursor.kind())
+                || cursor.tenantId() != tenantId
+                || !scopeRevision.equals(cursor.scopeRevision())
+                || !queryDigest.equals(cursor.queryDigest())
+                || !asOf.isEqual(cursor.asOf())) {
+            throw conflict("REFERENCE_CONFIGURATION_CURSOR_STALE");
+        }
+        return cursor.seekAfter();
+    }
+
+    private CursorState decodeCursor(String cursor) {
+        if (cursor == null) return null;
         try {
             String decoded = new String(
                     Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
-            String[] parts = decoded.split(":", 4);
-            if (parts.length != 4
-                    || Long.parseLong(parts[0]) != tenantId
-                    || !parts[1].equals(scopeRevision)
-                    || !parts[3].equals(digest(parts[0] + ":" + parts[1] + ":" + parts[2]))) {
-                throw conflict("REFERENCE_CONFIGURATION_CURSOR_STALE");
+            String[] parts = decoded.split("\\|", 7);
+            if (parts.length != 7) throw invalid("REFERENCE_CONFIGURATION_CURSOR_INVALID");
+            String unsigned = String.join("|", parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]);
+            if (!digest(unsigned).equals(parts[6])) {
+                throw invalid("REFERENCE_CONFIGURATION_CURSOR_INVALID");
             }
-        } catch (IllegalArgumentException exception) {
+            return new CursorState(
+                    parts[0], Long.parseLong(parts[1]), parts[2], parts[3],
+                    OffsetDateTime.parse(parts[4]), UUID.fromString(parts[5]));
+        } catch (BaseException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
             throw invalid("REFERENCE_CONFIGURATION_CURSOR_INVALID");
         }
     }
 
-    String encodeCursor(long tenantId, String scopeRevision, String itemPublicId) {
-        String value = tenantId + ":" + scopeRevision + ":" + itemPublicId;
+    private String encodeCursor(CursorState state) {
+        String unsigned = String.join("|",
+                state.kind(), Long.toString(state.tenantId()), state.scopeRevision(),
+                state.queryDigest(), state.asOf().toString(), state.seekAfter().toString());
         return Base64.getUrlEncoder().withoutPadding().encodeToString(
-                (value + ":" + digest(value)).getBytes(StandardCharsets.UTF_8));
+                (unsigned + "|" + digest(unsigned)).getBytes(StandardCharsets.UTF_8));
     }
 
-    private void requireEffectiveWindow(OffsetDateTime from, OffsetDateTime to) {
-        if (to != null && !to.isAfter(from)) {
-            throw invalid("REFERENCE_CONFIGURATION_EFFECTIVE_WINDOW_INVALID");
+    String encodeCursor(
+            long tenantId,
+            String scopeRevision,
+            String queryDigest,
+            OffsetDateTime asOf,
+            UUID itemPublicId) {
+        return encodeCursor(new CursorState(
+                "WORKBENCH", tenantId, scopeRevision, queryDigest, asOf, itemPublicId));
+    }
+
+    private ValidationFact requireValidation(VersionDetail detail, UUID receiptId) {
+        if (detail.validation() == null || !detail.validation().receiptId().equals(receiptId)) {
+            throw conflict("REFERENCE_CONFIGURATION_VALIDATION_EVIDENCE_MISMATCH");
+        }
+        return detail.validation();
+    }
+
+    private SimulationFact requireSimulation(
+            VersionDetail detail,
+            UUID receiptId,
+            UUID validationReceiptId) {
+        if (detail.simulation() == null
+                || !detail.simulation().receiptId().equals(receiptId)
+                || !detail.simulation().validationReceiptId().equals(validationReceiptId)) {
+            throw conflict("REFERENCE_CONFIGURATION_SIMULATION_EVIDENCE_MISMATCH");
+        }
+        return detail.simulation();
+    }
+
+    private SubmissionFact requireSubmission(VersionDetail detail, UUID receiptId) {
+        if (detail.submission() == null || !detail.submission().receiptId().equals(receiptId)) {
+            throw conflict("REFERENCE_CONFIGURATION_SUBMITTED_EVIDENCE_MISMATCH");
+        }
+        return detail.submission();
+    }
+
+    private void requireStoredReceipt(
+            long tenantId,
+            UUID receiptId,
+            String commandType,
+            UUID configurationId,
+            long version) {
+        StoredReceipt stored = repository.findReceiptById(tenantId, receiptId)
+                .orElseThrow(() -> conflict("REFERENCE_CONFIGURATION_RECEIPT_NOT_FOUND"));
+        if (!commandType.equals(stored.receipt().commandType())
+                || !(configurationId + "/" + version).equals(stored.receipt().resultRef())) {
+            throw conflict("REFERENCE_CONFIGURATION_RECEIPT_EVIDENCE_MISMATCH");
+        }
+    }
+
+    private void requirePublishEvidence(
+            VersionDetail detail,
+            UUID approvalReceiptId,
+            String impactDigest) {
+        requireApproval(detail, approvalReceiptId);
+        if (detail.simulation() == null
+                || !detail.simulation().impactDigest().equals(normalizeDigest(impactDigest))) {
+            throw conflict("REFERENCE_CONFIGURATION_IMPACT_EVIDENCE_MISMATCH");
         }
     }
 
     private void requireApproval(VersionDetail detail, UUID approvalReceiptId) {
-        if (detail.approvalReceiptId() == null
-                || !detail.approvalReceiptId().equals(approvalReceiptId)) {
+        if (detail.approval() == null
+                || !detail.approval().receiptId().equals(approvalReceiptId)) {
             throw conflict("REFERENCE_CONFIGURATION_APPROVAL_EVIDENCE_MISMATCH");
+        }
+    }
+
+    private void requireCompatibility(VersionDetail current, VersionDetail candidate) {
+        if (current.domain() != candidate.domain()
+                || current.scopeType() != candidate.scopeType()
+                || !current.scopeId().equals(candidate.scopeId())
+                || !current.schemaKey().equals(candidate.schemaKey())
+                || current.schemaVersion() != candidate.schemaVersion()) {
+            throw conflict("REFERENCE_CONFIGURATION_SCHEMA_INCOMPATIBLE");
+        }
+    }
+
+    private void requireEffectiveWindow(OffsetDateTime from, OffsetDateTime to) {
+        if (from == null || (to != null && !to.isAfter(from))) {
+            throw invalid("REFERENCE_CONFIGURATION_EFFECTIVE_WINDOW_INVALID");
         }
     }
 
@@ -762,15 +1012,24 @@ public class ReferenceConfigurationService {
             throw new BaseException(ErrorCode.STEP_UP_REQUIRED, "REFERENCE_CONFIGURATION_STEP_UP_REQUIRED");
         }
         if (command.expectedDecisionRevision() == null
-                || command.expectedDecisionRevision().isBlank()) {
+                || !command.expectedDecisionRevision().equals(access.scope().decisionRevision())) {
             throw new BaseException(
                     ErrorCode.DECISION_REVISION_CONFLICT,
-                    "REFERENCE_CONFIGURATION_DECISION_REVISION_REQUIRED");
+                    "REFERENCE_CONFIGURATION_DECISION_REVISION_MISMATCH");
         }
     }
 
     private void validateAccess(AccessContext access) {
-        if (access == null || access.tenantId() <= 0 || access.subjectId() <= 0) {
+        if (access == null || access.tenantId() <= 0 || access.subjectId() <= 0
+                || access.subjectPublicId() == null || access.scope() == null
+                || access.scope().type() == null || access.scope().id() == null
+                || access.scope().digest() == null
+                || !access.scope().digest().matches("^[a-f0-9]{64}$")
+                || access.scope().decisionRevision() == null
+                || access.scope().decisionRevision().isBlank()
+                || access.fieldPolicyRevision() < 1 || access.authorizationRevision() < 1
+                || access.revalidateAt() == null || !access.revalidateAt().isAfter(now())
+                || !PURPOSE.equals(access.purposeCode())) {
             throw forbidden("REFERENCE_CONFIGURATION_TRUSTED_CONTEXT_REQUIRED");
         }
         Set<String> roles = permissions(access.roles());
@@ -781,6 +1040,13 @@ public class ReferenceConfigurationService {
         if (!permissions.contains("APP.HCM:VIEW") && !permissions.contains("APP.HRIS:VIEW")) {
             throw forbidden("REFERENCE_CONFIGURATION_ENTITLEMENT_REQUIRED");
         }
+        if (!FIELD_GROUPS.containsAll(access.maskedFieldGroups())
+                || !FIELD_GROUPS.containsAll(access.omittedFieldGroups())
+                || !java.util.Collections.disjoint(
+                        access.maskedFieldGroups(), access.omittedFieldGroups())
+                || access.omittedFieldGroups().containsAll(FIELD_GROUPS)) {
+            throw forbidden("REFERENCE_CONFIGURATION_FIELD_POLICY_INVALID");
+        }
     }
 
     private void validateCommand(CommandContext command) {
@@ -789,15 +1055,17 @@ public class ReferenceConfigurationService {
                 || command.idempotencyKey().length() < 16
                 || command.idempotencyKey().length() > 128
                 || command.correlationId() == null
-                || command.purposeCode() == null
-                || command.purposeCode().length() < 3
-                || command.purposeCode().length() > 64) {
+                || !PURPOSE.equals(command.purposeCode())) {
             throw invalid("REFERENCE_CONFIGURATION_COMMAND_CONTEXT_INVALID");
         }
     }
 
-    private VersionDetail requiredVersion(long tenantId, UUID configurationId, long version) {
-        return repository.findVersion(tenantId, configurationId, version)
+    private VersionDetail requiredVersion(
+            AccessContext access,
+            UUID configurationId,
+            long version) {
+        return repository.findVersion(
+                        access.tenantId(), access.scope(), configurationId, version)
                 .orElseThrow(() -> new BaseException(
                         ErrorCode.RESOURCE_NOT_AVAILABLE,
                         "REFERENCE_CONFIGURATION_NOT_FOUND"));
@@ -805,42 +1073,40 @@ public class ReferenceConfigurationService {
 
     private VersionResponse response(VersionDetail detail) {
         return new VersionResponse(
-                detail.configurationId(),
-                detail.version(),
-                detail.state(),
-                detail.effectiveFrom(),
-                detail.effectiveTo(),
-                detail.schemaKey(),
-                detail.schemaVersion(),
-                detail.payloadDigest(),
-                detail.approvalReceiptId(),
+                detail.configurationId(), detail.version(), detail.state(),
+                detail.effectiveFrom(), detail.effectiveTo(), detail.schemaKey(),
+                detail.schemaVersion(), detail.payloadDigest(),
+                detail.approval() == null ? null : detail.approval().receiptId(),
                 detail.aggregateVersion());
     }
 
     private MutationResult result(
             UUID configurationId,
             long version,
-            long aggregateVersion,
-            Domain domain,
-            OffsetDateTime effectiveFrom,
-            OffsetDateTime effectiveTo,
-            String payloadDigest) {
-        return new MutationResult(
-                configurationId, version, aggregateVersion, domain,
-                effectiveFrom, effectiveTo, payloadDigest);
+            long aggregateVersion) {
+        return new MutationResult(configurationId, version, aggregateVersion);
     }
 
     private String scopeRevision(AccessContext access) {
-        return "scope-" + digest(access.tenantId() + "|"
-                + permissions(access.permissions()).stream().sorted().toList()).substring(0, 24);
+        return "scope-" + digest(Map.of(
+                "scopeDecision", access.scope().decisionRevision(),
+                "scopeDigest", access.scope().digest(),
+                "fieldPolicyRevision", access.fieldPolicyRevision(),
+                "authorizationRevision", access.authorizationRevision(),
+                "masked", access.maskedFieldGroups().stream().sorted().toList(),
+                "omitted", access.omittedFieldGroups().stream().sorted().toList()))
+                .substring(0, 40);
     }
 
     private String authorizationContextDigest(AccessContext access, CommandContext command) {
         Map<String, Object> context = new LinkedHashMap<>();
         context.put("tenantId", access.tenantId());
-        context.put("subjectPrincipalPublicId", subjectPublicId(access));
+        context.put("subjectPrincipalPublicId", access.subjectPublicId());
+        context.put("populationScopeDigest", access.scope().digest());
         context.put("permissions", permissions(access.permissions()).stream().sorted().toList());
         context.put("roles", permissions(access.roles()).stream().sorted().toList());
+        context.put("fieldPolicyRevision", access.fieldPolicyRevision());
+        context.put("authorizationRevision", access.authorizationRevision());
         if (command.expectedDecisionRevision() != null) {
             context.put("decisionRevision", command.expectedDecisionRevision());
         }
@@ -848,22 +1114,6 @@ public class ReferenceConfigurationService {
             context.put("stepUpProofDigest", digest(command.stepUpChallenge()));
         }
         return digest(context);
-    }
-
-    private UUID subjectPublicId(AccessContext access) {
-        return UUID.nameUUIDFromBytes(
-                (access.tenantId() + ":" + access.subjectId()).getBytes(StandardCharsets.UTF_8));
-    }
-
-    private long revision(String value) {
-        if (value == null) return 1;
-        String digits = value.replaceAll("\\D+", "");
-        if (digits.isBlank()) return 1;
-        try {
-            return Math.max(1, Long.parseLong(digits));
-        } catch (NumberFormatException ignored) {
-            return 1;
-        }
     }
 
     private Set<String> permissions(String value) {
@@ -879,12 +1129,30 @@ public class ReferenceConfigurationService {
         return Set.copyOf(result);
     }
 
-    private boolean notEmpty(List<String> values) {
-        return values != null && !values.isEmpty();
+    private String payloadSchemaVersion(VersionDetail detail) {
+        String candidate = detail.schemaKey();
+        if (candidate.matches("^[A-Za-z][A-Za-z0-9._-]{0,127}\\.v[1-9][0-9]*$")) {
+            return candidate;
+        }
+        String prefix = candidate.replaceAll("[^A-Za-z0-9._-]", "_");
+        if (prefix.isBlank() || !Character.isLetter(prefix.charAt(0))) prefix = "Hris_" + prefix;
+        int maximumPrefix = 124 - Integer.toString(detail.schemaVersion()).length();
+        if (prefix.length() > maximumPrefix) prefix = prefix.substring(0, maximumPrefix);
+        return prefix + ".v" + detail.schemaVersion();
+    }
+
+    private String normalizeDigest(String value) {
+        return value.startsWith("sha256:")
+                ? value.substring(7).toLowerCase(Locale.ROOT)
+                : value.toLowerCase(Locale.ROOT);
+    }
+
+    private Object nullable(Object value) {
+        return value == null ? "<null>" : value;
     }
 
     private OffsetDateTime now() {
-        return OffsetDateTime.now(clock).withOffsetSameInstant(ZoneOffset.UTC);
+        return OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC);
     }
 
     private String digest(Object value) {
@@ -925,14 +1193,28 @@ public class ReferenceConfigurationService {
 
     private static AvailableAction action(String key, String href) {
         return new AvailableAction(
-                key,
-                "POST",
-                href,
-                "REQUIRED_IDEMPOTENCY_KEY",
+                key, "POST", href, "REQUIRED_IDEMPOTENCY_KEY",
                 "OWNER_PEP_RISK_POLICY_DECISION_REQUIRED");
     }
 
-    public record AccessContext(long tenantId, long subjectId, String permissions, String roles) {
+    public record AccessContext(
+            long tenantId,
+            long subjectId,
+            UUID subjectPublicId,
+            String permissions,
+            String roles,
+            PopulationScope scope,
+            long fieldPolicyRevision,
+            long authorizationRevision,
+            OffsetDateTime revalidateAt,
+            Set<String> maskedFieldGroups,
+            Set<String> omittedFieldGroups,
+            String purposeCode) {
+
+        public AccessContext {
+            maskedFieldGroups = maskedFieldGroups == null ? Set.of() : Set.copyOf(maskedFieldGroups);
+            omittedFieldGroups = omittedFieldGroups == null ? Set.of() : Set.copyOf(omittedFieldGroups);
+        }
     }
 
     public record CommandContext(
@@ -944,14 +1226,16 @@ public class ReferenceConfigurationService {
             String stepUpChallenge) {
     }
 
-    private record MutationResult(
-            UUID configurationId,
-            long version,
-            long aggregateVersion,
-            Domain domain,
-            OffsetDateTime effectiveFrom,
-            OffsetDateTime effectiveTo,
-            String payloadDigest) {
+    private record MutationResult(UUID configurationId, long version, long aggregateVersion) {
+    }
+
+    private record CursorState(
+            String kind,
+            long tenantId,
+            String scopeRevision,
+            String queryDigest,
+            OffsetDateTime asOf,
+            UUID seekAfter) {
     }
 
     @FunctionalInterface
