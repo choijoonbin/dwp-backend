@@ -10,6 +10,11 @@ import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockCommandRec
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockEvent;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockEventType;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockException;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockExceptionCandidate;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockExceptionProjectionQuery;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionCandidate;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionPage;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionQuery;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockSourceType;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.DstResolution;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.InstantAuthority;
@@ -24,17 +29,12 @@ import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
-import java.util.function.Function;
 import java.util.regex.Pattern;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -60,7 +60,6 @@ public final class ClockIngestionService {
     private static final String VOID_ACTION = "hris.action.tim.clock.void";
     private static final String VOID_HREF = "/api/time/v1/clock-events/{eventId}/voids";
     private static final int MAX_QUERY_LIMIT = 100;
-    private static final int MAX_QUERY_SCAN = 1_001;
     private static final int MAX_AUTHORIZED_WORKERS = 1_000;
     private static final String DIGEST_PATTERN = "^[0-9a-f]{64}$";
     private static final String REASON_PATTERN = "^[A-Z][A-Z0-9_]{1,79}$";
@@ -117,26 +116,29 @@ public final class ClockIngestionService {
                 authority,
                 "IAQ-034|" + query.fingerprintSource(),
                 query.cursor());
-        List<ClockEvent> events = scopedEvents(authority);
-        ProjectionFacts facts = facts(events);
-        List<ClockCandidate> candidates = events.stream()
-                .filter(event -> !event.occurredAt().isAfter(query.asOf()))
-                .map(event -> new ClockCandidate(
-                        event,
-                        status(event, facts.resolutionVoids()),
-                        quality(event, facts.sequenceGaps())))
-                .filter(candidate -> matches(candidate, query))
-                .sorted(clockComparator(query.sort()))
+        ClockProjectionPage<ClockProjectionCandidate> page = repository.queryClock(
+                new ClockProjectionQuery(
+                        authority.tenantId(),
+                        authority.authorizedWorkerPublicIds(),
+                        query.asOf(),
+                        window.snapshotHighWater(),
+                        window.afterKey(),
+                        query.limit(),
+                        query.sort(),
+                        query.startFrom(),
+                        query.startTo(),
+                        query.endFrom(),
+                        query.endTo(),
+                        query.effectiveOn(),
+                        query.zoneId().getId(),
+                        query.ingestionCodes(),
+                        query.minimumIngestionRevision(),
+                        query.qualityCodes(),
+                        query.evidenceDigest()));
+        List<ClockIaQueryModels.ClockItem> items = page.items().stream()
+                .map(candidate -> clockItem(candidate, authority))
                 .toList();
-        List<ClockCandidate> page = page(candidates, window.position(), query.limit());
-        List<ClockIaQueryModels.ClockItem> items = page.stream()
-                .map(candidate -> clockItem(candidate, authority, facts.resolutionVoids()))
-                .toList();
-        String nextCursor = nextCursor(
-                authority,
-                window,
-                page.size(),
-                candidates.size());
+        String nextCursor = nextCursor(authority, window, page);
         return new ClockIaQueryModels.ClockProjection(
                 PROJECTION_VERSION,
                 query.asOf(),
@@ -157,24 +159,27 @@ public final class ClockIngestionService {
                 authority,
                 "IAQ-042|" + query.fingerprintSource(),
                 query.cursor());
-        List<ClockEvent> events = scopedEvents(authority);
-        ProjectionFacts facts = facts(events);
-        List<ClockException> derived = deriveExceptions(events, facts);
-        List<ExceptionCandidate> candidates = derived.stream()
-                .filter(exception -> !exception.occurredAt().isAfter(query.asOf()))
-                .map(ExceptionCandidate::new)
-                .filter(candidate -> matches(candidate, query))
-                .sorted(exceptionComparator(query.sort()))
+        ClockProjectionPage<ClockExceptionCandidate> page = repository.queryExceptions(
+                new ClockExceptionProjectionQuery(
+                        authority.tenantId(),
+                        authority.authorizedWorkerPublicIds(),
+                        query.asOf(),
+                        window.snapshotHighWater(),
+                        window.afterKey(),
+                        query.limit(),
+                        query.sort(),
+                        query.effectiveOn(),
+                        query.zoneId().getId(),
+                        query.exceptionCodes(),
+                        query.minimumRevision(),
+                        query.ownerCodes(),
+                        query.ownerPublicIds(),
+                        query.metadataKeys(),
+                        query.metadataVersions()));
+        List<ClockIaQueryModels.ExceptionItem> items = page.items().stream()
+                .map(candidate -> exceptionItem(exception(candidate), authority))
                 .toList();
-        List<ExceptionCandidate> page = page(candidates, window.position(), query.limit());
-        List<ClockIaQueryModels.ExceptionItem> items = page.stream()
-                .map(candidate -> exceptionItem(candidate.value(), authority))
-                .toList();
-        String nextCursor = nextCursor(
-                authority,
-                window,
-                page.size(),
-                candidates.size());
+        String nextCursor = nextCursor(authority, window, page);
         return new ClockIaQueryModels.ExceptionProjection(
                 PROJECTION_VERSION,
                 query.asOf(),
@@ -333,55 +338,34 @@ public final class ClockIngestionService {
                 authority, idempotencyKey, "CLOCK_VOID", requestDigest, correction));
     }
 
-    private List<ClockEvent> scopedEvents(VerifiedClockRequest authority) {
-        return repository.findRecent(
-                authority.tenantId(),
-                authority.authorizedWorkerPublicIds(),
-                MAX_QUERY_SCAN);
-    }
-
     private QueryWindow queryWindow(
             VerifiedClockRequest authority,
             String fingerprintSource,
             String cursor) {
         String fingerprint = ClockQueryCursorCodec.fingerprint(
                 fingerprintSource + "|population:" + authority.populationScopeDigest());
-        long position = cursor == null
-                ? 0
-                : cursors.verify(
-                        cursor,
-                        authority.tenantId(),
-                        fingerprint,
-                        authority.queryScopeRevision(),
-                        authority.authorizationRevision());
-        if (position > MAX_QUERY_SCAN) {
-            throw new BaseException(ErrorCode.FORBIDDEN, "TIM IAQ cursor position is invalid.");
-        }
-        return new QueryWindow(position, fingerprint);
+        if (cursor == null) return new QueryWindow(null, List.of(), fingerprint);
+        ClockQueryCursorCodec.CursorState state = cursors.verify(
+                cursor,
+                authority.tenantId(),
+                fingerprint,
+                authority.queryScopeRevision(),
+                authority.decisionRevision());
+        return new QueryWindow(state.snapshotHighWater(), state.afterKey(), fingerprint);
     }
 
-    private String nextCursor(
+    private <T> String nextCursor(
             VerifiedClockRequest authority,
             QueryWindow window,
-            int pageSize,
-            int totalSize) {
-        long next = window.position() + pageSize;
-        if (next >= totalSize) return null;
+            ClockProjectionPage<T> page) {
+        if (!page.hasMore()) return null;
         return cursors.issue(
                 authority.tenantId(),
-                next,
+                page.snapshotHighWater(),
+                page.nextKey(),
                 window.fingerprint(),
                 authority.queryScopeRevision(),
-                authority.authorizationRevision());
-    }
-
-    private static <T> List<T> page(List<T> values, long position, int limit) {
-        if (position < 0 || position > values.size()) {
-            throw new BaseException(ErrorCode.FORBIDDEN, "TIM IAQ cursor position is invalid.");
-        }
-        int from = Math.toIntExact(position);
-        int to = Math.min(values.size(), from + limit);
-        return List.copyOf(values.subList(from, to));
+                authority.decisionRevision());
     }
 
     private ClockIaQueryModels.QueryState queryState(
@@ -400,7 +384,7 @@ public final class ClockIngestionService {
                 List.of(),
                 correlationId,
                 new ClockIaQueryModels.CachePolicy(
-                        authority.authorizationRevision(),
+                        authority.decisionRevision(),
                         INVALIDATION_EVENT,
                         0));
     }
@@ -436,9 +420,8 @@ public final class ClockIngestionService {
     }
 
     private ClockIaQueryModels.ClockItem clockItem(
-            ClockCandidate candidate,
-            VerifiedClockRequest authority,
-            Map<UUID, UUID> resolutionVoids) {
+            ClockProjectionCandidate candidate,
+            VerifiedClockRequest authority) {
         ClockEvent event = candidate.event();
         ClockIaQueryModels.ClockFieldGroups groups = new ClockIaQueryModels.ClockFieldGroups(
                 field(authority, "CLOCK_EVENT", new ClockIaQueryModels.ViewedTemporalField(
@@ -459,13 +442,13 @@ public final class ClockIngestionService {
                 candidate.statusCode(),
                 groups,
                 new ClockIaQueryModels.DeepLink(CLOCK_ROUTE, event.clockEventId().toString()),
-                availableVoid(authority, event, resolutionVoids));
+                availableVoid(authority, event, candidate.resolutionVoidEventId() != null));
     }
 
     private ClockIaQueryModels.ExceptionItem exceptionItem(
             ClockException exception,
             VerifiedClockRequest authority) {
-        String metadataKey = "clock.exception."
+        String metadataKey = "clock.recovery."
                 + exception.code().toLowerCase(Locale.ROOT).replace('_', '.');
         ClockIaQueryModels.ExceptionFieldGroups groups =
                 new ClockIaQueryModels.ExceptionFieldGroups(
@@ -483,10 +466,10 @@ public final class ClockIngestionService {
                                 new ClockIaQueryModels.ViewedMetadataField(
                                         "VIEW", new ClockIaQueryModels.MetadataValue(
                                                 metadataKey,
-                                                Long.toString(exception.eventOrder()),
+                                                exception.state(),
                                                 exception.evidenceDigest()))));
         List<ClockIaQueryModels.AvailableAction> actions =
-                "OPEN".equals(exception.state())
+                ("OPEN".equals(exception.state()) || "QUARANTINED".equals(exception.state()))
                         && canOfferVoid(authority, exception.workerPublicId())
                         ? List.of(voidAction())
                         : List.of();
@@ -515,9 +498,9 @@ public final class ClockIngestionService {
     private static List<ClockIaQueryModels.AvailableAction> availableVoid(
             VerifiedClockRequest authority,
             ClockEvent event,
-            Map<UUID, UUID> resolutionVoids) {
+            boolean resolvedByVoid) {
         if (event.eventType() == ClockEventType.VOID
-                || resolutionVoids.containsKey(event.clockEventId())
+                || resolvedByVoid
                 || !canOfferVoid(authority, event.workerPublicId())) {
             return List.of();
         }
@@ -528,8 +511,7 @@ public final class ClockIngestionService {
             VerifiedClockRequest authority,
             UUID workerPublicId) {
         return authority.actions().contains(ClockAction.CORRECT)
-                && authority.stepUpSatisfied()
-                && workerPublicId.equals(authority.workerPublicId());
+                && authority.authorizedWorkerPublicIds().contains(workerPublicId);
     }
 
     private static ClockIaQueryModels.AvailableAction voidAction() {
@@ -539,173 +521,6 @@ public final class ClockIngestionService {
                 VOID_HREF,
                 "REQUIRED_IDEMPOTENCY_KEY",
                 "OWNER_PEP_RISK_POLICY_DECISION_REQUIRED");
-    }
-
-    private static ProjectionFacts facts(List<ClockEvent> events) {
-        Map<UUID, UUID> resolutionVoids = new HashMap<>();
-        for (ClockEvent event : events) {
-            if (event.eventType() == ClockEventType.VOID && event.voidsClockEventId() != null) {
-                resolutionVoids.put(event.voidsClockEventId(), event.clockEventId());
-            }
-        }
-        Set<UUID> gaps = new HashSet<>();
-        Map<UUID, Long> previousSequence = new HashMap<>();
-        events.stream()
-                .sorted(Comparator.comparingLong(ClockEvent::eventOrder))
-                .filter(event -> event.eventType() != ClockEventType.VOID)
-                .forEach(event -> {
-                    Long sequence = event.sourceSequence();
-                    Long previous = previousSequence.put(event.sourcePublicId(), sequence);
-                    if (sequence != null && previous != null && sequence > previous + 1) {
-                        gaps.add(event.clockEventId());
-                    }
-                });
-        return new ProjectionFacts(Map.copyOf(resolutionVoids), Set.copyOf(gaps));
-    }
-
-    private static List<ClockException> deriveExceptions(
-            List<ClockEvent> events,
-            ProjectionFacts facts) {
-        List<ClockException> exceptions = new ArrayList<>();
-        events.stream()
-                .filter(event -> event.eventType() != ClockEventType.VOID)
-                .forEach(event -> {
-                    if (facts.sequenceGaps().contains(event.clockEventId())) {
-                        exceptions.add(exception(
-                                event, "SOURCE_SEQUENCE_GAP", "ERROR",
-                                facts.resolutionVoids()));
-                    }
-                    if (event.trustLevel() == TrustLevel.LOW) {
-                        exceptions.add(exception(
-                                event, "LOW_TRUST_EVIDENCE", "WARNING",
-                                facts.resolutionVoids()));
-                    }
-                    if (event.captureMode() == CaptureMode.OFFLINE) {
-                        exceptions.add(exception(
-                                event, "OFFLINE_EVIDENCE_REVIEW", "WARNING",
-                                facts.resolutionVoids()));
-                    }
-                });
-        return List.copyOf(exceptions);
-    }
-
-    private static String status(ClockEvent event, Map<UUID, UUID> resolutionVoids) {
-        if (event.eventType() == ClockEventType.VOID) return "CORRECTIVE_VOID";
-        return resolutionVoids.containsKey(event.clockEventId()) ? "VOIDED" : "ACCEPTED";
-    }
-
-    private static String quality(ClockEvent event, Set<UUID> gaps) {
-        if (gaps.contains(event.clockEventId())) return "SOURCE_SEQUENCE_GAP";
-        if (event.trustLevel() == TrustLevel.LOW) return "LOW_TRUST_EVIDENCE";
-        if (event.captureMode() == CaptureMode.OFFLINE) return "OFFLINE_EVIDENCE_REVIEW";
-        return "EVIDENCE_VERIFIED";
-    }
-
-    private static boolean matches(ClockCandidate candidate, NormalizedClockQuery query) {
-        ClockEvent event = candidate.event();
-        if (query.startFrom() != null && event.occurredAt().isBefore(query.startFrom())) {
-            return false;
-        }
-        if (query.startTo() != null && event.occurredAt().isAfter(query.startTo())) return false;
-        if (query.endFrom() != null || query.endTo() != null) return false;
-        if (query.effectiveOn() != null
-                && !event.occurredAt().atZone(query.zoneId()).toLocalDate()
-                        .equals(query.effectiveOn())) {
-            return false;
-        }
-        if (!query.ingestionCodes().isEmpty()
-                && !query.ingestionCodes().contains(candidate.statusCode())) {
-            return false;
-        }
-        if (query.minimumIngestionRevision() != null
-                && event.eventOrder() < query.minimumIngestionRevision()) {
-            return false;
-        }
-        if (!query.qualityCodes().isEmpty()
-                && !query.qualityCodes().contains(candidate.qualityCode())) {
-            return false;
-        }
-        return query.evidenceDigest() == null
-                || query.evidenceDigest().equals(event.payloadDigest());
-    }
-
-    private static boolean matches(
-            ExceptionCandidate candidate,
-            NormalizedExceptionQuery query) {
-        ClockException exception = candidate.value();
-        if (query.effectiveOn() != null
-                && !exception.occurredAt().atZone(query.zoneId()).toLocalDate()
-                        .equals(query.effectiveOn())) {
-            return false;
-        }
-        if (!query.exceptionCodes().isEmpty()
-                && !query.exceptionCodes().contains(exception.code())) {
-            return false;
-        }
-        if (query.minimumRevision() != null
-                && exception.eventOrder() < query.minimumRevision()) {
-            return false;
-        }
-        if (!query.ownerCodes().isEmpty() && !query.ownerCodes().contains("CLOCK_EVENT")) {
-            return false;
-        }
-        if (!query.ownerPublicIds().isEmpty()
-                && !query.ownerPublicIds().contains(exception.clockEventId().toString())) {
-            return false;
-        }
-        String key = "clock.exception."
-                + exception.code().toLowerCase(Locale.ROOT).replace('_', '.');
-        if (!query.metadataKeys().isEmpty() && !query.metadataKeys().contains(key)) return false;
-        return query.metadataVersions().isEmpty()
-                || query.metadataVersions().contains(Long.toString(exception.eventOrder()));
-    }
-
-    private static Comparator<ClockCandidate> clockComparator(List<String> sorts) {
-        return comparator(
-                sorts,
-                sort -> switch (sort) {
-                    case "clockEvent" -> Comparator.comparing(
-                            candidate -> candidate.event().occurredAt());
-                    case "ingestionStatus" -> Comparator.comparing(ClockCandidate::statusCode);
-                    case "qualityFinding" -> Comparator.comparing(ClockCandidate::qualityCode);
-                    case "itemPublicId" -> Comparator.comparing(
-                            candidate -> candidate.event().clockEventId().toString());
-                    default -> throw new IllegalStateException("Unexpected clock sort");
-                },
-                Comparator.comparing(candidate -> candidate.event().clockEventId().toString()));
-    }
-
-    private static Comparator<ExceptionCandidate> exceptionComparator(List<String> sorts) {
-        return comparator(
-                sorts,
-                sort -> switch (sort) {
-                    case "exception" -> Comparator.comparing(
-                            candidate -> candidate.value().code());
-                    case "ownerDeepLink" -> Comparator.comparing(
-                            candidate -> candidate.value().clockEventId().toString());
-                    case "recoveryMetadata" -> Comparator.comparingLong(
-                            candidate -> candidate.value().eventOrder());
-                    case "itemPublicId" -> Comparator.comparing(
-                            candidate -> candidate.value().exceptionId().toString());
-                    default -> throw new IllegalStateException("Unexpected exception sort");
-                },
-                Comparator.comparing(candidate -> candidate.value().exceptionId().toString()));
-    }
-
-    private static <T> Comparator<T> comparator(
-            List<String> sorts,
-            Function<String, Comparator<T>> resolver,
-            Comparator<T> fallback) {
-        Comparator<T> result = null;
-        for (String token : sorts) {
-            int split = token.lastIndexOf(':');
-            String field = token.substring(0, split);
-            boolean descending = token.endsWith(":DESC");
-            Comparator<T> next = resolver.apply(field);
-            if (descending) next = next.reversed();
-            result = result == null ? next : result.thenComparing(next);
-        }
-        return result == null ? fallback : result.thenComparing(fallback);
     }
 
     private NormalizedClockQuery normalizeClock(ClockIaQueryModels.ClockQueryRequest request) {
@@ -814,6 +629,9 @@ public final class ClockIngestionService {
         if (cursor != null && !CURSOR.matcher(cursor).matches()) {
             throw invalid(queryId + " cursor format is invalid.");
         }
+        if (cursor != null && asOf == null) {
+            throw invalid(queryId + " continuation requires the original asOf instant.");
+        }
         return new CommonQuery(
                 limit,
                 normalizedSort,
@@ -894,8 +712,10 @@ public final class ClockIngestionService {
                 || !digest(authority.populationDigest())
                 || !digest(authority.membershipDigest())
                 || !digest(authority.grantDigest())
-                || !safeText(authority.fieldPolicyRevision(), 128)
-                || !safeText(authority.authorizationRevision(), 128)
+                || authority.fieldPolicyRevision() <= 0
+                || authority.authorizationRevision() <= 0
+                || authority.decisionRevision() == null
+                || !authority.decisionRevision().matches("psr-[0-9a-f]{64}")
                 || !requiredPurpose.equals(authority.purposeCode())) {
             throw authorityUnavailable();
         }
@@ -1014,27 +834,24 @@ public final class ClockIngestionService {
                 + idempotencyKey).getBytes(StandardCharsets.UTF_8));
     }
 
-    private static ClockException exception(
-            ClockEvent event,
-            String code,
-            String severity,
-            Map<UUID, UUID> resolutionVoids) {
-        UUID resolutionVoid = resolutionVoids.get(event.clockEventId());
+    private static ClockException exception(ClockExceptionCandidate candidate) {
+        ClockEvent event = candidate.event();
         UUID exceptionId = UUID.nameUUIDFromBytes(
-                (event.clockEventId() + "|" + code).getBytes(StandardCharsets.UTF_8));
+                (event.clockEventId() + "|" + candidate.exceptionCode())
+                        .getBytes(StandardCharsets.UTF_8));
         return new ClockException(
                 exceptionId,
                 event.clockEventId(),
-                code,
-                severity,
-                resolutionVoid == null ? "OPEN" : "RESOLVED",
+                candidate.exceptionCode(),
+                candidate.severity(),
+                candidate.recoveryState(),
                 event.eventOrder(),
                 event.workerPublicId(),
                 event.sourcePublicId(),
                 event.sourceSequence(),
                 event.occurredAt(),
                 event.payloadDigest(),
-                resolutionVoid);
+                candidate.resolutionVoidEventId());
     }
 
     private static boolean digest(String value) {
@@ -1063,20 +880,17 @@ public final class ClockIngestionService {
                 "Current TIM authority is absent, stale, or mismatched.");
     }
 
-    private record QueryWindow(long position, String fingerprint) {}
+    private record QueryWindow(
+            Long snapshotHighWater,
+            List<String> afterKey,
+            String fingerprint) {
+
+        QueryWindow {
+            afterKey = List.copyOf(afterKey);
+        }
+    }
 
     private record DecisionCounts(int view, int masked, int omitted) {}
-
-    private record ProjectionFacts(
-            Map<UUID, UUID> resolutionVoids,
-            Set<UUID> sequenceGaps) {}
-
-    private record ClockCandidate(
-            ClockEvent event,
-            String statusCode,
-            String qualityCode) {}
-
-    private record ExceptionCandidate(ClockException value) {}
 
     private record CommonQuery(
             int limit,

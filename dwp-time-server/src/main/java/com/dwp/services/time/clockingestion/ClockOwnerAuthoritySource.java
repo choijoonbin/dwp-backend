@@ -9,9 +9,9 @@ import java.util.Optional;
  *
  * <p>The bridge must resolve authority through {@link ClockOwnerRoute#authorityContractKey()} so
  * PAGE reads cannot fall back to legacy DATA routes and ACTION writes retain their canonical
- * route contracts. No permissive module-local implementation exists. Enabling the feature
- * without an exact bridge therefore fails application startup rather than trusting
- * caller-supplied identity.
+ * route contracts. The production adapter accepts only the gateway's sealed decision projection;
+ * enabling the feature without an exact projection resolver therefore fails closed rather than
+ * trusting caller-supplied identity.
  */
 public interface ClockOwnerAuthoritySource {
 

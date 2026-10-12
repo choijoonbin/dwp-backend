@@ -16,12 +16,22 @@ import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneRules;
 import java.time.zone.ZoneRulesProvider;
 import java.util.List;
+import java.util.NavigableMap;
 import java.util.Objects;
 
 /** Rejects civil-time or source evidence that cannot reproduce the supplied instant exactly. */
 public final class ClockEvidenceValidator {
 
     private static final String DIGEST_PATTERN = "^[0-9a-f]{64}$";
+    private final ZoneRulesResolver rulesResolver;
+
+    public ClockEvidenceValidator() {
+        this(ClockEvidenceValidator::installedRules);
+    }
+
+    ClockEvidenceValidator(ZoneRulesResolver rulesResolver) {
+        this.rulesResolver = Objects.requireNonNull(rulesResolver, "rulesResolver must not be null");
+    }
 
     public void validate(RecordClockCommand command) {
         if (command == null
@@ -64,14 +74,14 @@ public final class ClockEvidenceValidator {
                     "Clock time-zone evidence is invalid.",
                     invalidZone);
         }
-        String currentTzdb = expectedTzdbVersion(zone);
-        if (!currentTzdb.equals(command.tzdbVersion())
-                || !expectedTimeZoneRuleVersion(zone, currentTzdb)
+        ZoneRules suppliedRules = rulesResolver.resolve(zone, command.tzdbVersion());
+        if (suppliedRules == null
+                || !expectedTimeZoneRuleVersion(zone, command.tzdbVersion())
                         .equals(command.timeZoneRuleVersion())) {
             invalid("Clock rule-version evidence is unavailable or stale.");
         }
 
-        Instant resolved = resolve(command, zone, suppliedOffset);
+        Instant resolved = resolve(command, suppliedRules, suppliedOffset);
         if (!resolved.equals(command.occurredAt())) {
             invalid("Clock instant and civil-time evidence are inconsistent.");
         }
@@ -127,8 +137,7 @@ public final class ClockEvidenceValidator {
     }
 
     private static Instant resolve(
-            RecordClockCommand command, ZoneId zone, ZoneOffset suppliedOffset) {
-        ZoneRules rules = zone.getRules();
+            RecordClockCommand command, ZoneRules rules, ZoneOffset suppliedOffset) {
         List<ZoneOffset> validOffsets = rules.getValidOffsets(command.sourceLocalDateTime());
         if (validOffsets.size() == 1) {
             if (command.dstResolution() != DstResolution.EXACT_OFFSET_SUPPLIED
@@ -173,6 +182,11 @@ public final class ClockEvidenceValidator {
         return zone.getId() + "@" + tzdbVersion;
     }
 
+    private static ZoneRules installedRules(ZoneId zone, String tzdbVersion) {
+        NavigableMap<String, ZoneRules> versions = ZoneRulesProvider.getVersions(zone.getId());
+        return versions.get(tzdbVersion);
+    }
+
     private static void requireCaptureEvidence(RecordClockCommand command) {
         boolean deviceSource = command.sourceType() == ClockSourceType.MOBILE
                 || command.sourceType() == ClockSourceType.KIOSK
@@ -210,5 +224,10 @@ public final class ClockEvidenceValidator {
                     expected.getBytes(java.nio.charset.StandardCharsets.US_ASCII),
                     actual.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
         }
+    }
+
+    @FunctionalInterface
+    interface ZoneRulesResolver {
+        ZoneRules resolve(ZoneId zone, String tzdbVersion);
     }
 }

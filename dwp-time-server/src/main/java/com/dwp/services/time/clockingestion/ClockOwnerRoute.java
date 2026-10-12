@@ -10,6 +10,7 @@ public enum ClockOwnerRoute {
             "/v1/hris/workbench/clock-ingestion",
             "IAQ-034",
             "route.hcm.operations.time-clock-ingestion.page",
+            "DATA.HR_TIME:VIEW",
             ClockAction.VIEW,
             ClockIngestionService.VIEW_PURPOSE,
             false),
@@ -18,6 +19,7 @@ public enum ClockOwnerRoute {
             "/v1/hris/workbench/time-exceptions",
             "IAQ-042",
             "route.hcm.operations.time-exceptions.page",
+            "DATA.HR_TIME:VIEW",
             ClockAction.VIEW,
             ClockIngestionService.VIEW_PURPOSE,
             false),
@@ -26,6 +28,7 @@ public enum ClockOwnerRoute {
             "/v1/clock-events",
             "PEP-TIM-007",
             "route.hcm.personal.time-clock-event-record.action",
+            "DATA.HR_TIME:CREATE",
             ClockAction.RECORD,
             ClockIngestionService.CAPTURE_PURPOSE,
             false),
@@ -34,6 +37,7 @@ public enum ClockOwnerRoute {
             "/v1/clock-events/" + uuid() + "/voids",
             "PEP-TIM-008",
             "route.hcm.operations.time-clock-event-void.action",
+            "DATA.HR_TIME:UPDATE",
             ClockAction.CORRECT,
             ClockIngestionService.CAPTURE_PURPOSE,
             true);
@@ -42,6 +46,7 @@ public enum ClockOwnerRoute {
     private final Pattern path;
     private final String bindingId;
     private final String authorityContractKey;
+    private final String capability;
     private final ClockAction action;
     private final String requiredPurpose;
     private final boolean stepUpRequired;
@@ -51,6 +56,7 @@ public enum ClockOwnerRoute {
             String path,
             String bindingId,
             String authorityContractKey,
+            String capability,
             ClockAction action,
             String requiredPurpose,
             boolean stepUpRequired) {
@@ -58,6 +64,7 @@ public enum ClockOwnerRoute {
         this.path = Pattern.compile("^" + path + "$");
         this.bindingId = bindingId;
         this.authorityContractKey = authorityContractKey;
+        this.capability = capability;
         this.action = action;
         this.requiredPurpose = requiredPurpose;
         this.stepUpRequired = stepUpRequired;
@@ -71,13 +78,17 @@ public enum ClockOwnerRoute {
         return bindingId;
     }
 
-    /** Canonical v35 PAGE/ACTION key consumed by the Control-owned authority bridge. */
+    /** Canonical v36 PAGE/ACTION key consumed by the Control-owned authority bridge. */
     public String authorityContractKey() {
         return authorityContractKey;
     }
 
     public ClockAction action() {
         return action;
+    }
+
+    public String capability() {
+        return capability;
     }
 
     public String requiredPurpose() {

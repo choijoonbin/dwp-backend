@@ -1,6 +1,9 @@
 package com.dwp.services.time.clockingestion;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
@@ -73,9 +76,10 @@ public final class ClockIngestionModels {
             String populationDigest,
             String membershipDigest,
             String grantDigest,
-            String fieldPolicyRevision,
+            long fieldPolicyRevision,
             String purposeCode,
-            String authorizationRevision,
+            long authorizationRevision,
+            String decisionRevision,
             Instant revalidateAt,
             UUID correlationId,
             Set<UUID> authorizedWorkerPublicIds,
@@ -157,17 +161,112 @@ public final class ClockIngestionModels {
             UUID correlationId,
             long recordedBy) {}
 
+    /**
+     * Pinned TimeCommandReceipt.v1. The final four values are owner-internal replay evidence and
+     * are deliberately excluded from the HTTP representation.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
     public record ClockCommandReceipt(
             UUID receiptId,
-            UUID idempotencyKey,
             String commandType,
-            UUID clockEventId,
+            String originatingAction,
+            UUID subjectPrincipalPublicId,
+            String populationScopeDigest,
+            long fieldPolicyRevision,
+            String purposeCode,
+            long authorizationRevision,
             String status,
-            String requestDigest,
-            String resultDigest,
             UUID correlationId,
+            String requestDigest,
             Instant createdAt,
-            boolean replayed) {}
+            Long aggregateVersion,
+            String resultRef,
+            @JsonIgnore UUID idempotencyKey,
+            @JsonIgnore UUID clockEventId,
+            @JsonIgnore String resultDigest,
+            @JsonIgnore boolean replayed) {}
+
+    public record ClockProjectionQuery(
+            long tenantId,
+            Set<UUID> workerScope,
+            Instant asOf,
+            Long snapshotHighWater,
+            List<String> afterKey,
+            int limit,
+            List<String> sort,
+            Instant startFrom,
+            Instant startTo,
+            Instant endFrom,
+            Instant endTo,
+            LocalDate effectiveOn,
+            String timeZone,
+            List<String> ingestionCodes,
+            Long minimumIngestionRevision,
+            List<String> qualityCodes,
+            String evidenceDigest) {
+
+        public ClockProjectionQuery {
+            workerScope = workerScope == null ? Set.of() : Set.copyOf(workerScope);
+            afterKey = afterKey == null ? List.of() : List.copyOf(afterKey);
+            sort = sort == null ? List.of() : List.copyOf(sort);
+            ingestionCodes = ingestionCodes == null ? List.of() : List.copyOf(ingestionCodes);
+            qualityCodes = qualityCodes == null ? List.of() : List.copyOf(qualityCodes);
+        }
+    }
+
+    public record ClockExceptionProjectionQuery(
+            long tenantId,
+            Set<UUID> workerScope,
+            Instant asOf,
+            Long snapshotHighWater,
+            List<String> afterKey,
+            int limit,
+            List<String> sort,
+            LocalDate effectiveOn,
+            String timeZone,
+            List<String> exceptionCodes,
+            Long minimumRevision,
+            List<String> ownerCodes,
+            List<String> ownerPublicIds,
+            List<String> metadataKeys,
+            List<String> metadataVersions) {
+
+        public ClockExceptionProjectionQuery {
+            workerScope = workerScope == null ? Set.of() : Set.copyOf(workerScope);
+            afterKey = afterKey == null ? List.of() : List.copyOf(afterKey);
+            sort = sort == null ? List.of() : List.copyOf(sort);
+            exceptionCodes = exceptionCodes == null ? List.of() : List.copyOf(exceptionCodes);
+            ownerCodes = ownerCodes == null ? List.of() : List.copyOf(ownerCodes);
+            ownerPublicIds = ownerPublicIds == null ? List.of() : List.copyOf(ownerPublicIds);
+            metadataKeys = metadataKeys == null ? List.of() : List.copyOf(metadataKeys);
+            metadataVersions = metadataVersions == null ? List.of() : List.copyOf(metadataVersions);
+        }
+    }
+
+    public record ClockProjectionCandidate(
+            ClockEvent event,
+            String statusCode,
+            String qualityCode,
+            UUID resolutionVoidEventId) {}
+
+    public record ClockExceptionCandidate(
+            ClockEvent event,
+            String exceptionCode,
+            String severity,
+            String recoveryState,
+            UUID resolutionVoidEventId) {}
+
+    public record ClockProjectionPage<T>(
+            long snapshotHighWater,
+            List<T> items,
+            boolean hasMore,
+            List<String> nextKey) {
+
+        public ClockProjectionPage {
+            items = items == null ? List.of() : List.copyOf(items);
+            nextKey = nextKey == null ? List.of() : List.copyOf(nextKey);
+        }
+    }
 
     public record ClockWorkbench(
             String queryState,

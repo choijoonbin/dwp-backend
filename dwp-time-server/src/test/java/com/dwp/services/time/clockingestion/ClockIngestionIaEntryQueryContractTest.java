@@ -12,6 +12,11 @@ import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockAppend;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockCommandReceipt;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockEvent;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockEventType;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockExceptionCandidate;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockExceptionProjectionQuery;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionCandidate;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionPage;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionQuery;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockSourceType;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.DstResolution;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.InstantAuthority;
@@ -216,6 +221,56 @@ class ClockIngestionIaEntryQueryContractTest {
                 ErrorCode.INVALID_INPUT_VALUE);
     }
 
+    @Test
+    void repositoryKeysetSnapshotDoesNotPrecutOldAscRowsOrAdmitLateFacts() {
+        List<ClockEvent> facts = new ArrayList<>();
+        for (int index = 1; index <= 1_003; index++) {
+            Instant occurred = NOW.minusSeconds(20_000L - index);
+            facts.add(eventAt(index, occurred, occurred.plusSeconds(1), null));
+        }
+        CapturingRepository largeRepository = new CapturingRepository(facts);
+        Clock fixed = Clock.fixed(NOW, ZoneOffset.UTC);
+        ClockIngestionService largeService = new ClockIngestionService(
+                largeRepository,
+                new ClockEvidenceValidator(),
+                fixed,
+                new ClockQueryCursorCodec(
+                        "clock-iaq-large-contract-secret",
+                        Duration.ofMinutes(15), objectMapper, fixed));
+        VerifiedClockRequest authority = authority(
+                ClockIngestionService.VIEW_PURPOSE,
+                Set.of(WORKER), Set.of(), Set.of(), "scope-revision-large");
+
+        ClockIaQueryModels.ClockProjection page = largeService.workbench(
+                authority, clockRequest(100, null, List.of("clockEvent:ASC")));
+        assertThat(page.items().getFirst().itemPublicId())
+                .isEqualTo(new UUID(1, 1).toString());
+
+        ClockEvent late = eventAt(
+                1_004, NOW.minusSeconds(30_000), NOW.plusSeconds(1), null);
+        ClockEvent postSnapshotVoid = eventAt(
+                1_005, NOW.minusSeconds(29_000), NOW.plusSeconds(2), new UUID(1, 1));
+        largeRepository.add(late);
+        largeRepository.add(postSnapshotVoid);
+
+        List<String> identifiers = new ArrayList<>();
+        identifiers.addAll(page.items().stream()
+                .map(ClockIaQueryModels.ClockItem::itemPublicId).toList());
+        while (page.queryState().nextCursor() != null) {
+            page = largeService.workbench(
+                    authority,
+                    clockRequest(
+                            100, page.queryState().nextCursor(), List.of("clockEvent:ASC")));
+            identifiers.addAll(page.items().stream()
+                    .map(ClockIaQueryModels.ClockItem::itemPublicId).toList());
+        }
+
+        assertThat(identifiers).hasSize(1_003).doesNotHaveDuplicates();
+        assertThat(identifiers)
+                .doesNotContain(late.clockEventId().toString(), postSnapshotVoid.clockEventId().toString());
+        assertThat(identifiers.getLast()).isEqualTo(new UUID(1, 1_003).toString());
+    }
+
     private static ClockIaQueryModels.ClockQueryRequest clockRequest(
             int limit,
             String cursor,
@@ -271,8 +326,9 @@ class ClockIngestionIaEntryQueryContractTest {
                 DIGEST,
                 DIGEST,
                 DIGEST,
-                "field-policy-5",
+                5,
                 purpose,
+                17,
                 "psr-" + "b".repeat(64),
                 NOW.plusSeconds(300),
                 CORRELATION,
@@ -325,6 +381,26 @@ class ClockIngestionIaEntryQueryContractTest {
                 72L);
     }
 
+    private static ClockEvent eventAt(
+            long order, Instant occurredAt, Instant receivedAt, UUID voidsEventId) {
+        ClockEvent source = event(
+                order, WORKER, order, TrustLevel.VERIFIED, CaptureMode.ONLINE);
+        return new ClockEvent(
+                source.clockEventId(), order, source.tenantId(), source.sourcePublicId(),
+                source.sourceEventKey(), voidsEventId == null ? order : null,
+                source.sourceType(), source.devicePublicId(), source.captureMode(),
+                source.offlineBatchPublicId(), source.workerPublicId(),
+                source.peopleAssignmentPublicId(), source.peopleAssignmentRevision(),
+                voidsEventId == null ? ClockEventType.IN : ClockEventType.VOID,
+                occurredAt, receivedAt,
+                LocalDateTime.ofInstant(occurredAt, ZoneOffset.UTC), source.sourceTimeZone(),
+                source.sourceUtcOffsetMinutes(), source.dstResolution(), source.instantAuthority(),
+                source.tzdbVersion(), source.timeZoneRuleVersion(),
+                source.sourceProvenanceDigest(), source.payloadDigest(), source.trustLevel(),
+                voidsEventId, voidsEventId == null ? null : "POST_SNAPSHOT_VOID",
+                source.correlationId(), source.recordedBy());
+    }
+
     private static void assertCode(Runnable operation, ErrorCode expected) {
         assertThatThrownBy(operation::run)
                 .isInstanceOf(BaseException.class)
@@ -337,7 +413,11 @@ class ClockIngestionIaEntryQueryContractTest {
         private Set<UUID> lastWorkerScope;
 
         private CapturingRepository(List<ClockEvent> events) {
-            this.events = List.copyOf(events);
+            this.events = new ArrayList<>(events);
+        }
+
+        private void add(ClockEvent event) {
+            events.add(event);
         }
 
         @Override
@@ -354,19 +434,134 @@ class ClockIngestionIaEntryQueryContractTest {
         }
 
         @Override
-        public List<ClockEvent> findRecent(
-                long tenantId,
-                Set<UUID> workerScope,
-                int limit) {
+        public ClockProjectionPage<ClockProjectionCandidate> queryClock(
+                ClockProjectionQuery query) {
+            lastWorkerScope = Set.copyOf(query.workerScope());
+            long highWater = highWater(
+                    query.tenantId(), query.workerScope(), query.asOf(), query.snapshotHighWater());
+            List<ClockProjectionCandidate> candidates = scoped(
+                            query.tenantId(), query.workerScope(), query.asOf(), highWater).stream()
+                    .map(event -> new ClockProjectionCandidate(
+                            event,
+                            "ACCEPTED",
+                            event.trustLevel() == TrustLevel.LOW ? "LOW_TRUST_EVIDENCE"
+                                    : event.captureMode() == CaptureMode.OFFLINE
+                                            ? "OFFLINE_EVIDENCE_REVIEW" : "EVIDENCE_VERIFIED",
+                            null))
+                    .sorted(clockComparator(query.sort()))
+                    .filter(candidate -> after(candidate, query.sort(), query.afterKey()))
+                    .toList();
+            boolean hasMore = candidates.size() > query.limit();
+            List<ClockProjectionCandidate> page = candidates.stream()
+                    .limit(query.limit()).toList();
+            List<String> next = hasMore ? clockKey(page.getLast(), query.sort()) : List.of();
+            return new ClockProjectionPage<>(highWater, page, hasMore, next);
+        }
+
+        @Override
+        public ClockProjectionPage<ClockExceptionCandidate> queryExceptions(
+                ClockExceptionProjectionQuery query) {
+            lastWorkerScope = Set.copyOf(query.workerScope());
+            long highWater = highWater(
+                    query.tenantId(), query.workerScope(), query.asOf(), query.snapshotHighWater());
+            List<ClockEvent> scoped = scoped(
+                    query.tenantId(), query.workerScope(), query.asOf(), highWater);
+            List<ClockExceptionCandidate> candidates = new ArrayList<>();
+            long previous = 0;
+            for (ClockEvent event : scoped) {
+                if (event.sourceSequence() != null && previous > 0
+                        && event.sourceSequence() > previous + 1) {
+                    candidates.add(new ClockExceptionCandidate(
+                            event, "SOURCE_SEQUENCE_GAP", "ERROR", "OPEN", null));
+                }
+                if (event.sourceSequence() != null) previous = Math.max(previous, event.sourceSequence());
+                if (event.trustLevel() == TrustLevel.LOW) {
+                    candidates.add(new ClockExceptionCandidate(
+                            event, "LOW_TRUST_EVIDENCE", "WARNING", "OPEN", null));
+                }
+                if (event.captureMode() == CaptureMode.OFFLINE) {
+                    candidates.add(new ClockExceptionCandidate(
+                            event, "OFFLINE_EVIDENCE_REVIEW", "WARNING", "OPEN", null));
+                }
+            }
+            candidates.sort(Comparator.comparing(ClockExceptionCandidate::exceptionCode)
+                    .thenComparing(value -> value.event().clockEventId()));
+            boolean hasMore = candidates.size() > query.limit();
+            List<ClockExceptionCandidate> page = candidates.stream()
+                    .limit(query.limit()).toList();
+            return new ClockProjectionPage<>(highWater, page, hasMore, List.of());
+        }
+
+        private long highWater(
+                long tenantId, Set<UUID> workers, Instant asOf, Long requested) {
+            if (requested != null) return requested;
+            return events.stream()
+                    .filter(event -> event.tenantId() == tenantId)
+                    .filter(event -> workers.contains(event.workerPublicId()))
+                    .filter(event -> !event.receivedAt().isAfter(asOf))
+                    .mapToLong(ClockEvent::eventOrder).max().orElse(0);
+        }
+
+        private List<ClockEvent> scoped(
+                long tenantId, Set<UUID> workerScope, Instant asOf, long highWater) {
             lastWorkerScope = Set.copyOf(workerScope);
             List<ClockEvent> result = new ArrayList<>();
             events.stream()
                     .filter(event -> event.tenantId() == tenantId)
                     .filter(event -> workerScope.contains(event.workerPublicId()))
-                    .sorted(Comparator.comparingLong(ClockEvent::eventOrder).reversed())
-                    .limit(limit)
+                    .filter(event -> event.eventOrder() <= highWater)
+                    .filter(event -> !event.receivedAt().isAfter(asOf))
+                    .filter(event -> !event.occurredAt().isAfter(asOf))
+                    .sorted(Comparator.comparingLong(ClockEvent::eventOrder))
                     .forEach(result::add);
             return List.copyOf(result);
+        }
+
+        private Comparator<ClockProjectionCandidate> clockComparator(List<String> sort) {
+            Comparator<ClockProjectionCandidate> result = null;
+            for (String token : sort) {
+                Comparator<ClockProjectionCandidate> next = token.startsWith("clockEvent:")
+                        ? Comparator.comparing(value -> value.event().occurredAt())
+                        : token.startsWith("itemPublicId:")
+                                ? Comparator.comparing(value -> value.event().clockEventId())
+                                : Comparator.comparing(ClockProjectionCandidate::statusCode);
+                if (token.endsWith(":DESC")) next = next.reversed();
+                result = result == null ? next : result.thenComparing(next);
+            }
+            Comparator<ClockProjectionCandidate> identifier =
+                    Comparator.comparing(value -> value.event().clockEventId());
+            return result == null ? identifier : result.thenComparing(identifier);
+        }
+
+        private boolean after(
+                ClockProjectionCandidate candidate, List<String> sort, List<String> afterKey) {
+            if (afterKey == null || afterKey.isEmpty()) return true;
+            List<String> key = clockKey(candidate, sort);
+            for (int index = 0; index < key.size(); index++) {
+                int compared = key.get(index).compareTo(afterKey.get(index));
+                if (compared == 0) continue;
+                boolean descending = index < sort.size() && sort.get(index).endsWith(":DESC");
+                return descending ? compared < 0 : compared > 0;
+            }
+            return false;
+        }
+
+        private List<String> clockKey(
+                ClockProjectionCandidate candidate, List<String> sort) {
+            List<String> values = new ArrayList<>();
+            boolean hasId = false;
+            for (String token : sort) {
+                if (token.startsWith("clockEvent:")) {
+                    values.add(candidate.event().occurredAt().toString());
+                } else if (token.startsWith("itemPublicId:")) {
+                    values.add(candidate.event().clockEventId().toString());
+                    hasId = true;
+                } else {
+                    values.add(candidate.statusCode());
+                }
+            }
+            if (!hasId) values.add(candidate.event().clockEventId().toString());
+            return List.copyOf(values);
         }
     }
 }
