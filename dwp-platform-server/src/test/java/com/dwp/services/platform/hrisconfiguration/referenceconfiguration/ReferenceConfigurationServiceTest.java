@@ -194,6 +194,14 @@ class ReferenceConfigurationServiceTest {
                 NOW.minusDays(5), null, null, simulation, null, approvalFact));
 
         assertThatThrownBy(() -> service.rollback(
+                publisher(303), command("rollback-future-effective", 5L, true), configurationId, 2,
+                new RollbackCommand(
+                        1L, approval, SAMPLE_DIGEST, NOW.plusMinutes(1), "INCIDENT_RECOVERY")))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("ROLLBACK_TARGET_INVALID");
+        assertThat(find(configurationId, 2).state()).isEqualTo(LifecycleState.PUBLISHED);
+
+        assertThatThrownBy(() -> service.rollback(
                 publisher(303), command("rollback-wrong-impact", 5L, true), configurationId, 2,
                 new RollbackCommand(1L, approval, PAYLOAD_DIGEST, NOW, "INCIDENT_RECOVERY")))
                 .isInstanceOf(BaseException.class)
@@ -206,9 +214,17 @@ class ReferenceConfigurationServiceTest {
         VersionDetail rollbackVersion = find(configurationId, 3);
         ReferenceConfigurationService retireService = serviceAt(NOW.plusHours(2));
         OffsetDateTime boundary = NOW.plusHours(1);
-        repository.put(42, detail(
+        repository.put(42, scheduled(detail(
                 configurationId, 4, LifecycleState.SCHEDULED, 5, 101, 202L,
-                boundary, null, null, simulation, null, approvalFact));
+                boundary, null, null, simulation, null, approvalFact), boundary.minusMinutes(30)));
+        assertThatThrownBy(() -> retireService.retire(
+                publisher(303), command("retire-future-boundary", 1L, true), configurationId, 3,
+                new RetireCommand(rollbackVersion.approval().receiptId(), NOW.plusHours(3),
+                        4L, "SUCCESSOR_ACTIVATION")))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("RETIRE_BOUNDARY_INVALID");
+        assertThat(find(configurationId, 3).state()).isEqualTo(LifecycleState.PUBLISHED);
+        assertThat(find(configurationId, 4).state()).isEqualTo(LifecycleState.SCHEDULED);
         assertThatThrownBy(() -> retireService.retire(
                 publisher(303), command("retire-boundary-mismatch", 1L, true), configurationId, 3,
                 new RetireCommand(rollbackVersion.approval().receiptId(), NOW.plusMinutes(30),
@@ -221,6 +237,11 @@ class ReferenceConfigurationServiceTest {
                         4L, "SUCCESSOR_ACTIVATION"));
         assertThat(find(configurationId, 3).state()).isEqualTo(LifecycleState.RETIRED);
         assertThat(find(configurationId, 3).replacementVersion()).isEqualTo(4L);
+        assertThat(find(configurationId, 3).effectiveTo()).isEqualTo(boundary);
+        assertThat(find(configurationId, 4).state()).isEqualTo(LifecycleState.PUBLISHED);
+        assertThat(find(configurationId, 4).effectiveFrom()).isEqualTo(boundary);
+        assertThat(find(configurationId, 4).effectiveTo()).isNull();
+        assertThat(repository.outbox).hasSize(2);
     }
 
     @Test
@@ -288,6 +309,17 @@ class ReferenceConfigurationServiceTest {
                 "ref_owner_1234567890", PAYLOAD_DIGEST,
                 validation, simulation, submission, approval, aggregateVersion,
                 authoredBy, approvedBy, null, null, null, NOW.minusDays(20), NOW);
+    }
+
+    private static VersionDetail scheduled(VersionDetail detail, OffsetDateTime scheduledAt) {
+        return new VersionDetail(
+                detail.configurationId(), detail.version(), detail.domain(), detail.scopeType(),
+                detail.scopeId(), detail.state(), detail.effectiveFrom(), detail.effectiveTo(),
+                detail.schemaKey(), detail.schemaVersion(), detail.payloadReference(),
+                detail.payloadDigest(), detail.validation(), detail.simulation(), detail.submission(),
+                detail.approval(), detail.aggregateVersion(), detail.authoredBy(), detail.approvedBy(),
+                scheduledAt, detail.supersedesVersion(), detail.replacementVersion(),
+                detail.createdAt(), detail.updatedAt());
     }
 
     private CreateVersionCommand create(String reference, OffsetDateTime effectiveFrom) {

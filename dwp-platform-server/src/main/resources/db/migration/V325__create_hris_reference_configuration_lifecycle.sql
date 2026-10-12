@@ -143,6 +143,38 @@ CREATE INDEX ix_hris_reference_configuration_versions_scope_state
         tenant_id, scope_type, scope_id, lifecycle_state,
         updated_at DESC, configuration_id, version DESC);
 
+-- Append-only transaction-time snapshots make lifecycle reads stable at a fixed asOf instant.
+-- The snapshot contains lifecycle metadata and owner references only; raw reference data stays in SoR.
+CREATE TABLE hris_reference_configuration_version_history (
+    tenant_id BIGINT NOT NULL,
+    configuration_id UUID NOT NULL,
+    version BIGINT NOT NULL,
+    aggregate_version BIGINT NOT NULL,
+    scope_type VARCHAR(32) NOT NULL,
+    scope_id UUID NOT NULL,
+    captured_at TIMESTAMPTZ NOT NULL,
+    snapshot JSONB NOT NULL,
+    CONSTRAINT pk_hris_reference_configuration_version_history
+        PRIMARY KEY (tenant_id, configuration_id, version, aggregate_version),
+    CONSTRAINT fk_hris_reference_configuration_version_history_version
+        FOREIGN KEY (tenant_id, configuration_id, version)
+        REFERENCES hris_reference_configuration_versions (tenant_id, configuration_id, version),
+    CONSTRAINT ck_hris_reference_configuration_version_history_scope
+        CHECK (scope_type IN ('LEGAL_ENTITY', 'POLICY_NODE')),
+    CONSTRAINT ck_hris_reference_configuration_version_history_snapshot CHECK (
+        jsonb_typeof(snapshot) = 'object'
+        AND snapshot ?& ARRAY[
+            'tenant_id', 'configuration_id', 'version', 'aggregate_version',
+            'scope_type', 'scope_id', 'lifecycle_state', 'effective_from',
+            'schema_key', 'schema_version', 'payload_reference', 'payload_digest',
+            'created_at', 'updated_at'])
+);
+
+CREATE INDEX ix_hris_reference_configuration_history_as_of
+    ON hris_reference_configuration_version_history (
+        tenant_id, scope_type, scope_id, captured_at,
+        configuration_id, version DESC, aggregate_version DESC);
+
 CREATE TABLE hris_reference_configuration_command_receipts (
     tenant_id BIGINT NOT NULL,
     receipt_id UUID NOT NULL,
@@ -230,6 +262,8 @@ ALTER TABLE hris_reference_configurations ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hris_reference_configurations FORCE ROW LEVEL SECURITY;
 ALTER TABLE hris_reference_configuration_versions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hris_reference_configuration_versions FORCE ROW LEVEL SECURITY;
+ALTER TABLE hris_reference_configuration_version_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE hris_reference_configuration_version_history FORCE ROW LEVEL SECURITY;
 ALTER TABLE hris_reference_configuration_command_receipts ENABLE ROW LEVEL SECURITY;
 ALTER TABLE hris_reference_configuration_command_receipts FORCE ROW LEVEL SECURITY;
 ALTER TABLE hris_reference_configuration_outbox ENABLE ROW LEVEL SECURITY;
@@ -243,6 +277,10 @@ CREATE POLICY hris_reference_configurations_tenant_policy
     WITH CHECK (tenant_id = NULLIF(current_setting('dwp.tenant_id', TRUE), '')::BIGINT);
 CREATE POLICY hris_reference_configuration_versions_tenant_policy
     ON hris_reference_configuration_versions
+    USING (tenant_id = NULLIF(current_setting('dwp.tenant_id', TRUE), '')::BIGINT)
+    WITH CHECK (tenant_id = NULLIF(current_setting('dwp.tenant_id', TRUE), '')::BIGINT);
+CREATE POLICY hris_reference_configuration_history_tenant_policy
+    ON hris_reference_configuration_version_history
     USING (tenant_id = NULLIF(current_setting('dwp.tenant_id', TRUE), '')::BIGINT)
     WITH CHECK (tenant_id = NULLIF(current_setting('dwp.tenant_id', TRUE), '')::BIGINT);
 CREATE POLICY hris_reference_configuration_receipts_tenant_policy
@@ -297,6 +335,10 @@ $$;
 
 CREATE TRIGGER trg_hris_reference_configuration_receipt_immutable
 BEFORE UPDATE OR DELETE ON hris_reference_configuration_command_receipts
+FOR EACH ROW EXECUTE FUNCTION reject_hris_reference_configuration_immutable_row();
+
+CREATE TRIGGER trg_hris_reference_configuration_history_immutable
+BEFORE UPDATE OR DELETE ON hris_reference_configuration_version_history
 FOR EACH ROW EXECUTE FUNCTION reject_hris_reference_configuration_immutable_row();
 
 CREATE TRIGGER trg_hris_reference_configuration_audit_immutable

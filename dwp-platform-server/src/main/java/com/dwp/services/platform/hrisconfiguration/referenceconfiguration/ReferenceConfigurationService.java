@@ -109,9 +109,10 @@ public class ReferenceConfigurationService {
     public CatalogResponse configurations(AccessContext access, CatalogQuery query) {
         requireManager(access);
         validateCatalogQuery(query);
+        CatalogFilter filter = parseCatalogFilter(query.filter());
+        authorizeCatalogQuery(access, query, filter);
         CursorState cursor = decodeCursor(query.cursor());
         OffsetDateTime asOf = effectiveAsOf(query.asOf(), cursor);
-        CatalogFilter filter = parseCatalogFilter(query.filter());
         String scopeRevision = scopeRevision(access);
         String queryDigest = digest(Map.of(
                 "asOf", asOf,
@@ -132,10 +133,13 @@ public class ReferenceConfigurationService {
         if (stale && query.freshness() == FreshnessPreference.FRESH_ONLY) {
             throw conflict("REFERENCE_CONFIGURATION_FRESH_SNAPSHOT_REQUIRED");
         }
+        List<CatalogItem> projectedItems = page.items().stream()
+                .map(item -> projectCatalogItem(query.fields(), item))
+                .toList();
         return new CatalogResponse(
                 asOf,
                 nextCursor,
-                page.items(),
+                projectedItems,
                 stale ? asOf : now().plusSeconds(30),
                 asOf.plusMinutes(5));
     }
@@ -394,18 +398,24 @@ public class ReferenceConfigurationService {
             long version,
             RollbackCommand body) {
         requirePublisher(access, command);
-        if (body.targetPublishedVersion() >= version || body.effectiveFrom().isBefore(now())) {
+        if (body.targetPublishedVersion() >= version || body.effectiveFrom().isAfter(now())) {
             throw invalid("REFERENCE_CONFIGURATION_ROLLBACK_TARGET_INVALID");
         }
         return execute(
                 access, command, configurationId,
                 "ROLLBACK_VERSION", "configuration.version.rollback", version, body,
                 receiptId -> {
+                    OffsetDateTime activationTime = now();
                     VersionDetail current = requiredVersion(access, configurationId, version);
                     requireExpectedVersion(command, current.aggregateVersion());
                     requireDifferentActor(current, access.subjectId());
                     if (current.state() != LifecycleState.PUBLISHED) {
                         throw conflict("REFERENCE_CONFIGURATION_ROLLBACK_SOURCE_NOT_PUBLISHED");
+                    }
+                    requireActiveAt(current, activationTime,
+                            "REFERENCE_CONFIGURATION_ROLLBACK_SOURCE_NOT_ACTIVE");
+                    if (!activationTime.isAfter(current.effectiveFrom())) {
+                        throw conflict("REFERENCE_CONFIGURATION_ROLLBACK_SOURCE_NOT_ACTIVE");
                     }
                     VersionDetail target = requiredVersion(
                             access, configurationId, body.targetPublishedVersion());
@@ -426,7 +436,7 @@ public class ReferenceConfigurationService {
                         rollbackVersion = repository.rollback(
                                 access.tenantId(), access.scope(), configurationId, version,
                                 body.targetPublishedVersion(), current.aggregateVersion(),
-                                access.subjectId(), body, targetSimulation.impactDigest(), now());
+                                access.subjectId(), body, targetSimulation.impactDigest(), activationTime);
                     } catch (IllegalStateException exception) {
                         throw conflict(exception.getMessage());
                     }
@@ -445,42 +455,65 @@ public class ReferenceConfigurationService {
             long version,
             RetireCommand body) {
         requirePublisher(access, command);
-        return transition(
-                access, command, configurationId, version,
-                "RETIRE_VERSION", "configuration.version.retire", body,
-                LifecycleState.PUBLISHED, LifecycleState.RETIRED,
-                (receiptId, detail) -> {
-                    requireDifferentActor(detail, access.subjectId());
-                    requireApproval(detail, body.approvalReceiptId());
-                    if (!body.effectiveTo().isAfter(detail.effectiveFrom())
-                            || body.effectiveTo().isAfter(now())) {
-                        throw invalid("REFERENCE_CONFIGURATION_RETIRE_BOUNDARY_INVALID");
+        if (body.replacementVersion() == null || body.replacementVersion() == version) {
+            throw invalid("REFERENCE_CONFIGURATION_SUCCESSOR_REQUIRED");
+        }
+        if (body.effectiveTo().isAfter(now())) {
+            throw invalid("REFERENCE_CONFIGURATION_RETIRE_BOUNDARY_INVALID");
+        }
+        return execute(
+                access, command, configurationId,
+                "RETIRE_VERSION", "configuration.version.retire", version, body,
+                receiptId -> {
+                    OffsetDateTime activationTime = now();
+                    VersionDetail current = requiredVersion(access, configurationId, version);
+                    requireExpectedVersion(command, current.aggregateVersion());
+                    requireDifferentActor(current, access.subjectId());
+                    requireApproval(current, body.approvalReceiptId());
+                    if (current.state() != LifecycleState.PUBLISHED
+                            || !body.effectiveTo().isAfter(current.effectiveFrom())) {
+                        throw conflict("REFERENCE_CONFIGURATION_RETIRE_SOURCE_NOT_PUBLISHED");
                     }
-                    if (body.replacementVersion() != null) {
-                        if (body.replacementVersion() == version) {
-                            throw invalid("REFERENCE_CONFIGURATION_SUCCESSOR_INVALID");
-                        }
-                        VersionDetail successor = requiredVersion(
-                                access, configurationId, body.replacementVersion());
-                        requireCompatibility(detail, successor);
-                        if ((successor.state() != LifecycleState.SCHEDULED
-                                && successor.state() != LifecycleState.PUBLISHED)
-                                || successor.approval() == null
-                                || !successor.effectiveFrom().isEqual(body.effectiveTo())) {
-                            throw conflict("REFERENCE_CONFIGURATION_SUCCESSOR_BOUNDARY_MISMATCH");
-                        }
+                    requireActiveAt(current, activationTime,
+                            "REFERENCE_CONFIGURATION_RETIRE_SOURCE_NOT_ACTIVE");
+
+                    VersionDetail successor = requiredVersion(
+                            access, configurationId, body.replacementVersion());
+                    requireCompatibility(current, successor);
+                    requireDifferentActor(successor, access.subjectId());
+                    if (successor.state() != LifecycleState.SCHEDULED
+                            || successor.approval() == null
+                            || successor.scheduledAt() == null
+                            || successor.scheduledAt().isAfter(activationTime)
+                            || !successor.effectiveFrom().isEqual(body.effectiveTo())
+                            || (successor.effectiveTo() != null
+                            && !successor.effectiveTo().isAfter(activationTime))) {
+                        throw conflict("REFERENCE_CONFIGURATION_SUCCESSOR_BOUNDARY_MISMATCH");
                     }
-                    return TransitionEvidence.retire(
-                            access.subjectId(), body.effectiveTo(),
-                            body.replacementVersion(), body.reasonCode());
-                },
-                false);
+                    boolean changed;
+                    try {
+                        changed = repository.retireAndActivateSuccessor(
+                                access.tenantId(), access.scope(), configurationId,
+                                version, current.aggregateVersion(), successor.version(),
+                                successor.aggregateVersion(), body.effectiveTo(),
+                                body.reasonCode(), activationTime);
+                    } catch (IllegalStateException exception) {
+                        throw conflict(exception.getMessage());
+                    }
+                    if (!changed) throw conflict("REFERENCE_CONFIGURATION_VERSION_CONFLICT");
+                    VersionDetail activated = requiredVersion(
+                            access, configurationId, successor.version());
+                    appendPublishedEvent(access, activated);
+                    VersionDetail retired = requiredVersion(access, configurationId, version);
+                    return result(configurationId, version, retired.aggregateVersion());
+                });
     }
 
     @Transactional(readOnly = true)
     public WorkbenchResponse workbench(AccessContext access, WorkbenchQuery query) {
         requireView(access);
         validateQuery(query);
+        authorizeWorkbenchQuery(access, query);
         CursorState cursor = decodeCursor(query.cursor());
         OffsetDateTime asOf = effectiveAsOf(query.asOf(), cursor);
         String scopeRevision = scopeRevision(access);
@@ -670,19 +703,27 @@ public class ReferenceConfigurationService {
             CatalogItem item,
             VersionDetail detail) {
         Map<String, FieldValue<?>> groups = new LinkedHashMap<>();
+        boolean identityVisible = fieldVisible(access, requestedFields, "POLICY_VERSION")
+                && fieldVisible(access, requestedFields, "REFERENCE_DATA");
+        boolean statusVisible = fieldVisible(access, requestedFields, "EFFECTIVE_STATUS");
         addField(access, requestedFields, groups, "POLICY_VERSION", new PolicyValue(
-                detail.schemaKey(), detail.version(), detail.effectiveFrom().toLocalDate(),
+                identityVisible ? detail.schemaKey() : "RESTRICTED",
+                detail.version(), detail.effectiveFrom().toLocalDate(),
                 detail.effectiveTo() == null ? null : detail.effectiveTo().toLocalDate(),
-                detail.state().name()));
+                statusVisible ? detail.state().name() : "RESTRICTED"));
         addField(access, requestedFields, groups, "REFERENCE_DATA", new ReferenceValue(
-                item.publicId().toString(), item.domain().name(), item.key(), item.version()));
+                item.publicId().toString(), item.domain().name(),
+                identityVisible ? item.key() : "RESTRICTED", item.version()));
         addField(access, requestedFields, groups, "EFFECTIVE_STATUS", new StatusValue(
                 item.state().name(), item.version()));
         if (groups.isEmpty()) {
             throw forbidden("REFERENCE_CONFIGURATION_ALL_FIELDS_OMITTED");
         }
         return new WorkbenchItem(
-                item.publicId().toString(), item.key(), item.state().name(), Map.copyOf(groups),
+                item.publicId().toString(),
+                identityVisible ? item.key() : "Restricted reference configuration",
+                statusVisible ? item.state().name() : "RESTRICTED",
+                Map.copyOf(groups),
                 new DeepLink(WORKBENCH_ROUTE, item.publicId().toString()),
                 actions(access, groups));
     }
@@ -720,9 +761,132 @@ public class ReferenceConfigurationService {
         return value == null ? FieldDecision.OMIT : value.decision();
     }
 
+    private boolean fieldVisible(
+            AccessContext access,
+            List<String> requestedFields,
+            String fieldGroup) {
+        return requestedFields.contains(fieldGroup)
+                && !access.maskedFieldGroups().contains(fieldGroup)
+                && !access.omittedFieldGroups().contains(fieldGroup);
+    }
+
+    private CatalogItem projectCatalogItem(
+            List<String> fields,
+            CatalogItem item) {
+        return new CatalogItem(
+                item.publicId(),
+                fields.contains("key") ? item.key() : null,
+                fields.contains("type") ? item.domain() : null,
+                fields.contains("state") ? item.state() : null,
+                fields.contains("version") ? item.version() : null,
+                fields.contains("updatedAt") ? item.updatedAt() : null);
+    }
+
+    private void authorizeCatalogQuery(
+            AccessContext access,
+            CatalogQuery query,
+            CatalogFilter filter) {
+        if (query.fields().contains("key")) {
+            requireQueryFieldView(access, query.fields(), "key", "POLICY_VERSION",
+                    "REFERENCE_CONFIGURATION_CATALOG_FIELD_POLICY_DENIED");
+            requireQueryFieldView(access, query.fields(), "key", "REFERENCE_DATA",
+                    "REFERENCE_CONFIGURATION_CATALOG_FIELD_POLICY_DENIED");
+        }
+        if (query.fields().contains("type")) {
+            requireQueryFieldView(access, query.fields(), "type", "REFERENCE_DATA",
+                    "REFERENCE_CONFIGURATION_CATALOG_FIELD_POLICY_DENIED");
+        }
+        if (query.fields().contains("state") || query.fields().contains("updatedAt")) {
+            requirePolicyView(access, "EFFECTIVE_STATUS",
+                    "REFERENCE_CONFIGURATION_CATALOG_FIELD_POLICY_DENIED");
+        }
+        if (query.fields().contains("version")) {
+            requirePolicyView(access, "POLICY_VERSION",
+                    "REFERENCE_CONFIGURATION_CATALOG_FIELD_POLICY_DENIED");
+        }
+        if (filter == null) return;
+        if (filter.key() != null) {
+            requireCatalogFilterView(access, query.fields(), "key", "POLICY_VERSION");
+            requireCatalogFilterView(access, query.fields(), "key", "REFERENCE_DATA");
+        }
+        if (filter.domain() != null) {
+            requireCatalogFilterView(access, query.fields(), "type", "REFERENCE_DATA");
+        }
+        if (filter.state() != null) {
+            requireCatalogFilterView(access, query.fields(), "state", "EFFECTIVE_STATUS");
+        }
+        if (filter.minimumVersion() != null) {
+            requireCatalogFilterView(access, query.fields(), "version", "POLICY_VERSION");
+        }
+    }
+
+    private void requireCatalogFilterView(
+            AccessContext access,
+            List<String> fields,
+            String wireField,
+            String fieldGroup) {
+        requireQueryFieldView(access, fields, wireField, fieldGroup,
+                "REFERENCE_CONFIGURATION_CATALOG_FILTER_POLICY_DENIED");
+    }
+
+    private void authorizeWorkbenchQuery(AccessContext access, WorkbenchQuery query) {
+        WorkbenchFilter filter = query.filter();
+        if (notEmpty(filter.policyKeys())) {
+            requireQueryFieldView(access, query.fields(), "POLICY_VERSION", "POLICY_VERSION",
+                    "REFERENCE_CONFIGURATION_QUERY_FIELD_POLICY_DENIED");
+            requireQueryFieldView(access, query.fields(), "REFERENCE_DATA", "REFERENCE_DATA",
+                    "REFERENCE_CONFIGURATION_QUERY_FIELD_POLICY_DENIED");
+        }
+        if (filter.minimumPolicyRevision() != null) {
+            requireQueryFieldView(access, query.fields(), "POLICY_VERSION", "POLICY_VERSION",
+                    "REFERENCE_CONFIGURATION_QUERY_FIELD_POLICY_DENIED");
+        }
+        if (notEmpty(filter.referencePublicIds()) || notEmpty(filter.referenceCodes())) {
+            requireQueryFieldView(access, query.fields(), "REFERENCE_DATA", "REFERENCE_DATA",
+                    "REFERENCE_CONFIGURATION_QUERY_FIELD_POLICY_DENIED");
+        }
+        if (notEmpty(filter.effectiveStatuses()) || filter.minimumStatusRevision() != null
+                || filter.effectiveOn() != null) {
+            requireQueryFieldView(access, query.fields(), "EFFECTIVE_STATUS", "EFFECTIVE_STATUS",
+                    "REFERENCE_CONFIGURATION_QUERY_FIELD_POLICY_DENIED");
+        }
+        for (String sort : query.sort()) {
+            if (sort.startsWith("policyVersion:")) {
+                requireQueryFieldView(access, query.fields(), "POLICY_VERSION", "POLICY_VERSION",
+                        "REFERENCE_CONFIGURATION_QUERY_FIELD_POLICY_DENIED");
+            } else if (sort.startsWith("referenceData:")) {
+                requireQueryFieldView(access, query.fields(), "POLICY_VERSION", "POLICY_VERSION",
+                        "REFERENCE_CONFIGURATION_QUERY_FIELD_POLICY_DENIED");
+                requireQueryFieldView(access, query.fields(), "REFERENCE_DATA", "REFERENCE_DATA",
+                        "REFERENCE_CONFIGURATION_QUERY_FIELD_POLICY_DENIED");
+            } else if (sort.startsWith("effectiveStatus:")) {
+                requireQueryFieldView(access, query.fields(), "EFFECTIVE_STATUS", "EFFECTIVE_STATUS",
+                        "REFERENCE_CONFIGURATION_QUERY_FIELD_POLICY_DENIED");
+            }
+        }
+    }
+
+    private void requireQueryFieldView(
+            AccessContext access,
+            List<String> requestedFields,
+            String requestedField,
+            String fieldGroup,
+            String error) {
+        if (!requestedFields.contains(requestedField)) throw forbidden(error);
+        requirePolicyView(access, fieldGroup, error);
+    }
+
+    private void requirePolicyView(AccessContext access, String fieldGroup, String error) {
+        if (access.maskedFieldGroups().contains(fieldGroup)
+                || access.omittedFieldGroups().contains(fieldGroup)) {
+            throw forbidden(error);
+        }
+    }
+
     private void validateCatalogQuery(CatalogQuery query) {
         if (query == null || query.limit() < 1 || query.limit() > 100
                 || query.fields() == null || query.fields().isEmpty()
+                || !query.fields().contains("publicId")
                 || query.freshness() == null
                 || !CATALOG_FIELDS.containsAll(query.fields())
                 || new LinkedHashSet<>(query.fields()).size() != query.fields().size()) {
@@ -963,6 +1127,13 @@ public class ReferenceConfigurationService {
         }
     }
 
+    private void requireActiveAt(VersionDetail detail, OffsetDateTime instant, String error) {
+        if (detail.effectiveFrom().isAfter(instant)
+                || (detail.effectiveTo() != null && !detail.effectiveTo().isAfter(instant))) {
+            throw conflict(error);
+        }
+    }
+
     private void requireDifferentActor(VersionDetail detail, long actorId) {
         if (detail.authoredBy() != null && detail.authoredBy() == actorId) {
             throw new BaseException(ErrorCode.SOD_CONFLICT, "NO_PUBLISH_OWN_POLICY");
@@ -1127,6 +1298,10 @@ public class ReferenceConfigurationService {
             result.add(token.toUpperCase(Locale.ROOT));
         }
         return Set.copyOf(result);
+    }
+
+    private boolean notEmpty(List<?> values) {
+        return values != null && !values.isEmpty();
     }
 
     private String payloadSchemaVersion(VersionDetail detail) {

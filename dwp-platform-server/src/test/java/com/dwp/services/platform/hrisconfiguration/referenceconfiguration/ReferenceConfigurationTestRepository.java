@@ -16,6 +16,7 @@ final class ReferenceConfigurationTestRepository implements ReferenceConfigurati
     final Map<String, VersionDetail> versions = new HashMap<>();
     final Map<String, StoredReceipt> receipts = new HashMap<>();
     final Map<String, StoredReceipt> receiptsById = new HashMap<>();
+    final List<Snapshot> history = new ArrayList<>();
     final List<String> outbox = new ArrayList<>();
     final List<String> audit = new ArrayList<>();
     RuntimeException listFailure;
@@ -95,8 +96,7 @@ final class ReferenceConfigurationTestRepository implements ReferenceConfigurati
             int limit) {
         List<WorkbenchRow> candidates = latestRows(tenantId, scope, asOf).stream()
                 .filter(row -> matches(row, filter))
-                .sorted(Comparator.comparing((WorkbenchRow row) -> row.item().key())
-                        .thenComparing(row -> row.item().publicId()))
+                .sorted(Comparator.comparing(row -> row.item().publicId()))
                 .toList();
         int start = seekIndex(candidates, seekAfter);
         if (seekAfter != null && start < 0) return new CatalogPage(List.of(), false, false);
@@ -159,7 +159,7 @@ final class ReferenceConfigurationTestRepository implements ReferenceConfigurati
         if (targetState == LifecycleState.APPROVED
                 && (current.submission() == null || !current.submission().receiptId()
                 .equals(evidence.approval().submissionReceiptId()))) return false;
-        versions.put(key, new VersionDetail(
+        VersionDetail updated = new VersionDetail(
                 current.configurationId(), current.version(), current.domain(),
                 current.scopeType(), current.scopeId(), targetState,
                 evidence.effectiveFrom() == null ? current.effectiveFrom() : evidence.effectiveFrom(),
@@ -175,7 +175,9 @@ final class ReferenceConfigurationTestRepository implements ReferenceConfigurati
                 evidence.scheduledAt() == null ? current.scheduledAt() : evidence.scheduledAt(),
                 current.supersedesVersion(), evidence.replacementVersion() == null
                 ? current.replacementVersion() : evidence.replacementVersion(),
-                current.createdAt(), now));
+                current.createdAt(), now);
+        versions.put(key, updated);
+        history.add(new Snapshot(tenantId, updated, now));
         return true;
     }
 
@@ -197,14 +199,16 @@ final class ReferenceConfigurationTestRepository implements ReferenceConfigurati
                 || current.aggregateVersion() != expectedAggregateVersion) {
             throw new IllegalStateException("REFERENCE_CONFIGURATION_VERSION_CONFLICT");
         }
-        versions.put(key(tenantId, configurationId, currentVersion), new VersionDetail(
+        VersionDetail retired = new VersionDetail(
                 current.configurationId(), current.version(), current.domain(), current.scopeType(),
-                current.scopeId(), LifecycleState.RETIRED, current.effectiveFrom(), command.effectiveFrom(),
+                current.scopeId(), LifecycleState.RETIRED, current.effectiveFrom(), now,
                 current.schemaKey(), current.schemaVersion(), current.payloadReference(),
                 current.payloadDigest(), current.validation(), current.simulation(), current.submission(),
                 current.approval(), current.aggregateVersion() + 1, current.authoredBy(),
                 current.approvedBy(), current.scheduledAt(), current.supersedesVersion(),
-                current.replacementVersion(), current.createdAt(), now));
+                current.replacementVersion(), current.createdAt(), now);
+        versions.put(key(tenantId, configurationId, currentVersion), retired);
+        history.add(new Snapshot(tenantId, retired, now));
         long next = tenantVersions(tenantId).stream()
                 .filter(value -> value.configurationId().equals(configurationId))
                 .mapToLong(VersionDetail::version).max().orElse(currentVersion) + 1;
@@ -219,11 +223,69 @@ final class ReferenceConfigurationTestRepository implements ReferenceConfigurati
                 source.approval() == null ? null : source.approval().evidenceDigest(), now);
         put(tenantId, new VersionDetail(
                 configurationId, next, source.domain(), source.scopeType(), source.scopeId(),
-                LifecycleState.PUBLISHED, command.effectiveFrom(), null, source.schemaKey(),
+                LifecycleState.PUBLISHED, now, null, source.schemaKey(),
                 source.schemaVersion(), source.payloadReference(), source.payloadDigest(),
                 source.validation(), copiedSimulation, source.submission(), rollbackApproval,
                 1, source.authoredBy(), actorId, null, currentVersion, null, now, now));
         return next;
+    }
+
+    @Override
+    public boolean retireAndActivateSuccessor(
+            long tenantId,
+            PopulationScope scope,
+            UUID configurationId,
+            long currentVersion,
+            long currentAggregateVersion,
+            long successorVersion,
+            long successorAggregateVersion,
+            OffsetDateTime boundary,
+            String reasonCode,
+            OffsetDateTime now) {
+        VersionDetail current = findVersion(
+                tenantId, scope, configurationId, currentVersion).orElse(null);
+        VersionDetail successor = findVersion(
+                tenantId, scope, configurationId, successorVersion).orElse(null);
+        if (current == null || successor == null
+                || current.state() != LifecycleState.PUBLISHED
+                || current.aggregateVersion() != currentAggregateVersion
+                || current.effectiveFrom().isAfter(now)
+                || current.effectiveFrom().isAfter(boundary)
+                || current.effectiveFrom().isEqual(boundary)
+                || current.effectiveTo() != null && !current.effectiveTo().isAfter(now)) {
+            return false;
+        }
+        if (successor.state() != LifecycleState.SCHEDULED
+                || successor.aggregateVersion() != successorAggregateVersion
+                || !successor.effectiveFrom().isEqual(boundary)
+                || successor.scheduledAt() == null || successor.scheduledAt().isAfter(now)
+                || successor.effectiveTo() != null && !successor.effectiveTo().isAfter(now)
+                || successor.approval() == null) {
+            throw new IllegalStateException(
+                    "REFERENCE_CONFIGURATION_SUCCESSOR_ACTIVATION_CONFLICT");
+        }
+        VersionDetail retired = new VersionDetail(
+                current.configurationId(), current.version(), current.domain(), current.scopeType(),
+                current.scopeId(), LifecycleState.RETIRED, current.effectiveFrom(), boundary,
+                current.schemaKey(), current.schemaVersion(), current.payloadReference(),
+                current.payloadDigest(), current.validation(), current.simulation(), current.submission(),
+                current.approval(), current.aggregateVersion() + 1, current.authoredBy(),
+                current.approvedBy(), current.scheduledAt(), current.supersedesVersion(),
+                successorVersion, current.createdAt(), now);
+        VersionDetail activated = new VersionDetail(
+                successor.configurationId(), successor.version(), successor.domain(),
+                successor.scopeType(), successor.scopeId(), LifecycleState.PUBLISHED,
+                successor.effectiveFrom(), successor.effectiveTo(), successor.schemaKey(),
+                successor.schemaVersion(), successor.payloadReference(), successor.payloadDigest(),
+                successor.validation(), successor.simulation(), successor.submission(),
+                successor.approval(), successor.aggregateVersion() + 1, successor.authoredBy(),
+                successor.approvedBy(), successor.scheduledAt(), successor.supersedesVersion(),
+                successor.replacementVersion(), successor.createdAt(), now);
+        versions.put(key(tenantId, configurationId, currentVersion), retired);
+        versions.put(key(tenantId, configurationId, successorVersion), activated);
+        history.add(new Snapshot(tenantId, retired, now));
+        history.add(new Snapshot(tenantId, activated, now));
+        return true;
     }
 
     @Override
@@ -242,6 +304,7 @@ final class ReferenceConfigurationTestRepository implements ReferenceConfigurati
 
     void put(long tenantId, VersionDetail detail) {
         versions.put(key(tenantId, detail.configurationId(), detail.version()), detail);
+        history.add(new Snapshot(tenantId, detail, detail.updatedAt()));
     }
 
     private List<VersionDetail> tenantVersions(long tenantId) {
@@ -253,11 +316,17 @@ final class ReferenceConfigurationTestRepository implements ReferenceConfigurati
     private List<WorkbenchRow> latestRows(
             long tenantId, PopulationScope scope, OffsetDateTime asOf) {
         Map<UUID, VersionDetail> latest = new HashMap<>();
-        tenantVersions(tenantId).stream()
-                .filter(value -> value.scopeType() == scope.type() && value.scopeId().equals(scope.id()))
-                .filter(value -> !value.createdAt().isAfter(asOf))
+        history.stream()
+                .filter(value -> value.tenantId() == tenantId)
+                .filter(value -> value.detail().scopeType() == scope.type()
+                        && value.detail().scopeId().equals(scope.id()))
+                .filter(value -> !value.capturedAt().isAfter(asOf))
+                .map(Snapshot::detail)
                 .forEach(value -> latest.merge(value.configurationId(), value,
-                        (left, right) -> left.version() > right.version() ? left : right));
+                        (left, right) -> left.version() > right.version()
+                                || left.version() == right.version()
+                                && left.aggregateVersion() > right.aggregateVersion()
+                                ? left : right));
         return latest.values().stream().map(detail -> new WorkbenchRow(
                 new CatalogItem(detail.configurationId(), detail.schemaKey(), detail.domain(),
                         detail.state(), detail.version(), detail.updatedAt()), detail)).toList();
@@ -339,5 +408,8 @@ final class ReferenceConfigurationTestRepository implements ReferenceConfigurati
         if (digest == null) return null;
         return digest.startsWith("sha256:")
                 ? digest.substring(7).toLowerCase() : digest.toLowerCase();
+    }
+
+    record Snapshot(long tenantId, VersionDetail detail, OffsetDateTime capturedAt) {
     }
 }

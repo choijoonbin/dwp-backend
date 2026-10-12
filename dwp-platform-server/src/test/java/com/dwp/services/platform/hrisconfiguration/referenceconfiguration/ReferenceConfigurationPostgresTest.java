@@ -20,10 +20,12 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
 import static com.dwp.services.platform.hrisconfiguration.referenceconfiguration.ReferenceConfigurationDtos.*;
+import static com.dwp.services.platform.hrisconfiguration.referenceconfiguration.ReferenceConfigurationRepository.*;
 import static com.dwp.services.platform.hrisconfiguration.referenceconfiguration.ReferenceConfigurationService.AccessContext;
 import static com.dwp.services.platform.hrisconfiguration.referenceconfiguration.ReferenceConfigurationService.CommandContext;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -45,6 +47,7 @@ class ReferenceConfigurationPostgresTest {
 
     private static JdbcTemplate jdbc;
     private static TransactionTemplate transactions;
+    private static JdbcReferenceConfigurationRepository repository;
     private static ReferenceConfigurationService service;
 
     @BeforeAll
@@ -65,8 +68,9 @@ class ReferenceConfigurationPostgresTest {
         flyway.migrate();
         jdbc = new JdbcTemplate(dataSource);
         transactions = new TransactionTemplate(new DataSourceTransactionManager(dataSource));
+        repository = new JdbcReferenceConfigurationRepository(jdbc, MAPPER);
         service = new ReferenceConfigurationService(
-                new JdbcReferenceConfigurationRepository(jdbc, MAPPER), MAPPER,
+                repository, MAPPER,
                 Clock.fixed(Instant.parse("2026-10-12T12:00:00Z"), ZoneOffset.UTC));
     }
 
@@ -200,6 +204,78 @@ class ReferenceConfigurationPostgresTest {
                     """, Integer.class, tenant42, tenant43);
         });
         assertThat(visible).isEqualTo(1);
+    }
+
+    @Test
+    void postgresHistoryReturnsLifecycleAsOfAndKeepsFixedPaginationStable() {
+        PopulationScope scope = new PopulationScope(
+                ScopeType.LEGAL_ENTITY, SCOPE_ID, SCOPE_DIGEST, "decision-revision-7");
+        OffsetDateTime t0 = NOW.minusHours(3);
+        OffsetDateTime t1 = NOW.minusHours(2);
+        OffsetDateTime t2 = NOW.minusHours(1);
+        UUID first = UUID.fromString("00000000-0000-4000-8000-000000000701");
+        UUID second = UUID.fromString("00000000-0000-4000-8000-000000000702");
+        UUID third = UUID.fromString("00000000-0000-4000-8000-000000000703");
+        transaction(() -> {
+            repository.createVersion(42, scope, first, 501,
+                    create("history-alpha", t0), t0);
+            repository.createVersion(42, scope, second, 501,
+                    create("history-beta", t0), t0);
+            repository.createVersion(42, scope, third, 501,
+                    create("history-gamma", t0), t0);
+            return null;
+        });
+
+        WorkbenchQuery query = new WorkbenchQuery(
+                t1, null, 1,
+                new WorkbenchFilter(List.of(), null, List.of(), List.of(), List.of(), null, null),
+                List.of("itemPublicId:ASC"), "en", "UTC", UUID.randomUUID(),
+                List.of("POLICY_VERSION", "REFERENCE_DATA", "EFFECTIVE_STATUS"),
+                FreshnessPreference.ALLOW_STALE);
+        WorkbenchPage firstPage = transaction(() -> repository.queryWorkbench(
+                42, scope, query, t1, null, 1));
+        assertThat(firstPage.rows()).hasSize(1);
+        assertThat(firstPage.rows().getFirst().item().publicId()).isEqualTo(first);
+        assertThat(firstPage.rows().getFirst().detail().state()).isEqualTo(LifecycleState.DRAFT);
+
+        transaction(() -> {
+            boolean changed = repository.transition(
+                    42, scope, second, 1, 0,
+                    LifecycleState.DRAFT, LifecycleState.PUBLISHED,
+                    TransitionEvidence.publish(502, t0, null), t2);
+            assertThat(changed).isTrue();
+            repository.createVersion(
+                    42, scope,
+                    UUID.fromString("00000000-0000-4000-8000-000000000699"),
+                    501, create("history-late", t2), t2);
+            return null;
+        });
+
+        WorkbenchPage secondPage = transaction(() -> repository.queryWorkbench(
+                42, scope, query, t1, first, 1));
+        assertThat(secondPage.rows()).hasSize(1);
+        assertThat(secondPage.rows().getFirst().item().publicId()).isEqualTo(second);
+        assertThat(secondPage.rows().getFirst().detail().state()).isEqualTo(LifecycleState.DRAFT);
+        WorkbenchPage current = transaction(() -> repository.queryWorkbench(
+                42, scope, query, NOW, first, 10));
+        assertThat(current.rows().stream()
+                .filter(row -> row.item().publicId().equals(second))
+                .findFirst().orElseThrow().detail().state()).isEqualTo(LifecycleState.PUBLISHED);
+
+        assertThatThrownBy(() -> transaction(() -> {
+            jdbc.update("""
+                    UPDATE hris_reference_configuration_version_history
+                       SET captured_at = captured_at + INTERVAL '1 second'
+                     WHERE tenant_id = 42 AND configuration_id = ?
+                    """, first);
+            return null;
+        })).isInstanceOf(DataIntegrityViolationException.class);
+    }
+
+    private static CreateVersionCommand create(String schemaKey, OffsetDateTime effectiveFrom) {
+        return new CreateVersionCommand(
+                Domain.SYS, effectiveFrom, null, schemaKey, 1,
+                new PayloadReference("ref_owner_1234567890", PAYLOAD_DIGEST));
     }
 
     private static AccessContext access(long tenantId, long subjectId, String permissions) {

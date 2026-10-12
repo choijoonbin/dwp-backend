@@ -25,6 +25,8 @@ class ReferenceConfigurationMigrationContractTest {
                 .contains("simulation_fresh_until")
                 .contains("submission_receipt_id")
                 .contains("approval_submission_receipt_id")
+                .contains("hris_reference_configuration_version_history")
+                .contains("captured_at TIMESTAMPTZ NOT NULL")
                 .contains("dwp.hris.configuration.published.v1")
                 .contains("'configurationId', 'configurationType', 'scopeType', 'scopeId', 'version'")
                 .contains("'approvalReceiptId', 'publishedAt', 'eventSequence'")
@@ -36,6 +38,7 @@ class ReferenceConfigurationMigrationContractTest {
                 .contains("FORCE ROW LEVEL SECURITY")
                 .contains("current_setting('dwp.tenant_id', TRUE)")
                 .contains("approved_by <> authored_by")
-                .contains("immutable_content");
+                .contains("immutable_content")
+                .contains("trg_hris_reference_configuration_history_immutable");
     }
 }
