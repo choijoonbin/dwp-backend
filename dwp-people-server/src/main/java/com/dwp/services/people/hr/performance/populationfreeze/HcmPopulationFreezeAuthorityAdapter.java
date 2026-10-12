@@ -3,6 +3,7 @@ package com.dwp.services.people.hr.performance.populationfreeze;
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.core.security.HcmEligibilityScopeKey;
+import com.dwp.services.people.hr.HcmPopulationScopeService;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmV3PepRegistry;
 import com.dwp.services.people.security.PeopleRequestContext;
@@ -14,9 +15,11 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -35,7 +38,7 @@ final class HcmPopulationFreezeAuthorityAdapter implements PopulationFreezeAutho
             "route.hcm.operations.performance-population-freeze.action";
     static final String REVIEW_OPERATIONS_ROUTE_CONTRACT =
             "route.hcm.operations.performance-review-operations.page";
-    static final String FREEZE_CAPABILITY_CONTRACT = "hcm.operations.performance.update";
+    static final String FREEZE_CAPABILITY_CONTRACT = "hcm.operations.performance.freeze";
     static final String REVIEW_OPERATIONS_CAPABILITY_CONTRACT =
             "hcm.operations.performance.view";
     private static final String APPLICATION = "APP.HRIS";
@@ -43,7 +46,7 @@ final class HcmPopulationFreezeAuthorityAdapter implements PopulationFreezeAutho
     private static final Map<String, OperationContract> OPERATIONS = Map.of(
             "performance.population.freeze",
             new OperationContract(
-                    "UPDATE", "PERFORMANCE_CONFIGURATION", FREEZE_ROUTE_CONTRACT,
+                    "APPROVE", "PERFORMANCE_CONFIGURATION", FREEZE_ROUTE_CONTRACT,
                     "ACTION", false, FREEZE_CAPABILITY_CONTRACT),
             "performance.review-operations.query",
             new OperationContract(
@@ -55,18 +58,25 @@ final class HcmPopulationFreezeAuthorityAdapter implements PopulationFreezeAutho
 
     private final Supplier<HcmPepContext.Evidence> evidenceSupplier;
     private final Supplier<PeopleRequestContext.Actor> actorSupplier;
+    private final Function<Boolean, PopulationFreezeAuthorityPort.TargetPopulation>
+            populationResolver;
     private final Clock clock;
 
-    HcmPopulationFreezeAuthorityAdapter() {
-        this(HcmPepContext::current, PeopleRequestContext::require, Clock.systemUTC());
+    @org.springframework.beans.factory.annotation.Autowired
+    HcmPopulationFreezeAuthorityAdapter(HcmPopulationScopeService populations) {
+        this(HcmPepContext::current, PeopleRequestContext::require,
+                mutation -> resolvePopulation(populations, mutation), Clock.systemUTC());
     }
 
     HcmPopulationFreezeAuthorityAdapter(
             Supplier<HcmPepContext.Evidence> evidenceSupplier,
             Supplier<PeopleRequestContext.Actor> actorSupplier,
+            Function<Boolean, PopulationFreezeAuthorityPort.TargetPopulation>
+                    populationResolver,
             Clock clock) {
         this.evidenceSupplier = Objects.requireNonNull(evidenceSupplier);
         this.actorSupplier = Objects.requireNonNull(actorSupplier);
+        this.populationResolver = Objects.requireNonNull(populationResolver);
         this.clock = Objects.requireNonNull(clock);
     }
 
@@ -135,16 +145,31 @@ final class HcmPopulationFreezeAuthorityAdapter implements PopulationFreezeAutho
         if (freezeOperation && request.cycleId() == null) {
             throw unavailable("The PER population target is unavailable.");
         }
+        PopulationFreezeAuthorityPort.TargetPopulation targetPopulation;
+        try {
+            targetPopulation = populationResolver.apply(freezeOperation);
+        } catch (BaseException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw unavailable("Current PER owner population is unavailable.");
+        }
+        if (!canonicalPopulation(targetPopulation)) {
+            throw unavailable("Current PER owner population is incomplete.");
+        }
+        Map<String, PopulationFreezeAuthorityPort.FieldDecision> fieldDecisions =
+                fieldDecisions(targetPopulation);
         String targetBinding = freezeOperation
                 ? request.cycleId().toString() : "REVIEW_OPERATIONS_COLLECTION";
         String populationDigest = digest(
                 "population-freeze", request.tenantId(), request.actorId(),
                 evidence.contextKey(), evidence.scopeKey(), route.routeContractKey(),
-                targetBinding);
+                targetBinding, targetPopulation.revision(), targetPopulation.tenantWide(),
+                targetPopulation.managerAssignmentRef(), targetPopulation.organizationRefs(),
+                targetPopulation.fieldGroups());
         long fieldPolicyRevision = positiveRevision(
                 "field-policy", route.routeContractKey(), route.profileKey(),
                 route.projectionPolicyKey(), route.responseSchemaKey(),
-                route.predicatePolicyKeys(), route.targetBindingKinds());
+                route.predicatePolicyKeys(), route.targetBindingKinds(), fieldDecisions);
         long authorizationRevision = positiveRevision(
                 "authorization", evidence.decisionRevision(), evidence.contextKey(),
                 evidence.scopeKey(), evidence.revalidateAt());
@@ -152,7 +177,51 @@ final class HcmPopulationFreezeAuthorityAdapter implements PopulationFreezeAutho
                 request.tenantId(), request.actorId(), request.subjectPrincipalPublicId(),
                 request.applicationEntitlement(), request.resource(), request.action(),
                 request.operation(), request.purposeCode(), populationDigest,
+                targetPopulation, fieldDecisions,
                 fieldPolicyRevision, authorizationRevision);
+    }
+
+    private static PopulationFreezeAuthorityPort.TargetPopulation resolvePopulation(
+            HcmPopulationScopeService populations,
+            boolean mutation) {
+        HcmPopulationScopeService.ResolvedPopulation resolved = mutation
+                ? populations.requireOperationsForMutation("READ")
+                : populations.requireOperations("READ");
+        populations.requireTrustedScope(
+                resolved, "hcm.operations", "TARGET_POPULATION",
+                "ORG_UNIT/LEGAL_ENTITY", "WORKFORCE_TARGET_POPULATION",
+                "TALENT_TARGET_POPULATION");
+        return new PopulationFreezeAuthorityPort.TargetPopulation(
+                resolved.scope().tenantWide(), resolved.scope().managerAssignmentKey(),
+                resolved.scope().organizationIds(), resolved.scope().fieldGroups(),
+                resolved.targetPopulationRevision());
+    }
+
+    private boolean canonicalPopulation(
+            PopulationFreezeAuthorityPort.TargetPopulation population) {
+        return population != null
+                && population.revision() != null
+                && !population.revision().isBlank()
+                && population.revision().length() <= 500
+                && (population.tenantWide()
+                || population.managerAssignmentRef() != null
+                || !population.organizationRefs().isEmpty());
+    }
+
+    private Map<String, PopulationFreezeAuthorityPort.FieldDecision> fieldDecisions(
+            PopulationFreezeAuthorityPort.TargetPopulation population) {
+        Map<String, PopulationFreezeAuthorityPort.FieldDecision> decisions =
+                new LinkedHashMap<>();
+        decisions.put("REVIEW_ASSIGNMENT", population.fieldGroups().contains("DIRECTORY")
+                ? PopulationFreezeAuthorityPort.FieldDecision.VIEW
+                : PopulationFreezeAuthorityPort.FieldDecision.OMIT);
+        decisions.put("WORK_QUEUE", population.fieldGroups().contains("EMPLOYMENT")
+                ? PopulationFreezeAuthorityPort.FieldDecision.VIEW
+                : PopulationFreezeAuthorityPort.FieldDecision.MASK);
+        decisions.put("DUE_STATUS", population.fieldGroups().contains("DIRECTORY")
+                ? PopulationFreezeAuthorityPort.FieldDecision.VIEW
+                : PopulationFreezeAuthorityPort.FieldDecision.OMIT);
+        return Map.copyOf(decisions);
     }
 
     private boolean canonicalContext(String value) {

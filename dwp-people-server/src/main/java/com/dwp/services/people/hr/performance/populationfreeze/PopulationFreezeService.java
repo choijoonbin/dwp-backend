@@ -27,7 +27,7 @@ public class PopulationFreezeService {
     static final String ORIGINATING_ACTION = "performance.population.freeze";
     static final String APPLICATION_ENTITLEMENT = "APP.HRIS";
     static final String RESOURCE = "DATA.HR_TALENT";
-    static final String AUTHORITY_ACTION = "UPDATE";
+    static final String AUTHORITY_ACTION = "APPROVE";
     static final String AUTHORITY_PURPOSE = "PERFORMANCE_CONFIGURATION";
     private static final String COMMAND_TYPE = "FREEZE_POPULATION";
     private static final String FREEZE_TARGET_TYPE = "PERFORMANCE_CYCLE";
@@ -82,6 +82,7 @@ public class PopulationFreezeService {
         PopulationFreezeDtos.FreezePopulationRequest normalized = normalize(request);
         PopulationFreezeAuthorityPort.AuthorityEvidence authority = requireAuthority(
                 actor, subjectId, cycleId);
+        repository.bindTenant(actor.tenantId());
         String requestHash = canonicalizer.commandHash(
                 normalized, expectedCycleRevision, actor.tenantId(), actor.userId(),
                 subjectId, cycleId);
@@ -90,19 +91,32 @@ public class PopulationFreezeService {
                 actor.tenantId(), subjectId, key, cycleId, expectedCycleRevision,
                 normalized.commandId(), requestHash);
         if (replay.isPresent()) return replay.get();
+        Optional<PopulationFreezeRepository.ReceiptRecord> commandReceipt =
+                repository.receiptById(actor.tenantId(), normalized.commandId());
+        if (commandReceipt.isPresent()) {
+            throw conflict(
+                    "The command identifier is already bound to a different idempotency key.",
+                    null);
+        }
 
         PopulationFreezeRepository.FreezeCandidate candidate = repository.candidate(
                 actor.tenantId(), cycleId, normalized.populationPreviewId())
                 .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        validateCandidate(candidate, normalized, expectedCycleRevision);
+        validateCandidate(candidate, normalized, expectedCycleRevision, authority);
 
         if (!repository.reserveReceipt(
                 actor.tenantId(), actor.userId(), subjectId, normalized.commandId(), key,
                 cycleId, expectedCycleRevision, requestHash, authority)) {
-            return replay(actor.tenantId(), subjectId, key, cycleId,
-                    expectedCycleRevision, normalized.commandId(), requestHash)
-                    .orElseThrow(() -> conflict(
-                            "The population-freeze command winner is unavailable.", null));
+            Optional<PopulationFreezeDtos.FreezeCommandResult> winner = replay(
+                    actor.tenantId(), subjectId, key, cycleId,
+                    expectedCycleRevision, normalized.commandId(), requestHash);
+            if (winner.isPresent()) return winner.get();
+            if (repository.receiptById(actor.tenantId(), normalized.commandId()).isPresent()) {
+                throw conflict(
+                        "The command identifier is already bound to a different idempotency key.",
+                        null);
+            }
+            throw conflict("The population-freeze command winner is unavailable.", null);
         }
         highRisk.requireExact(
                 HcmPopulationFreezeAuthorityAdapter.FREEZE_CAPABILITY_CONTRACT,
@@ -166,7 +180,8 @@ public class PopulationFreezeService {
     private void validateCandidate(
             PopulationFreezeRepository.FreezeCandidate candidate,
             PopulationFreezeDtos.FreezePopulationRequest request,
-            long expectedCycleRevision) {
+            long expectedCycleRevision,
+            PopulationFreezeAuthorityPort.AuthorityEvidence authority) {
         if (!"VALIDATED".equals(candidate.lifecycleState())
                 || candidate.activeVersionNo() != candidate.cycleVersionNo()) {
             throw new BaseException(
@@ -185,6 +200,18 @@ public class PopulationFreezeService {
             throw new BaseException(
                     ErrorCode.OBJECT_VERSION_CONFLICT,
                     "The population preview is stale or unavailable.");
+        }
+        if (!request.populationPreviewId().equals(candidate.latestReadyPreviewId())) {
+            throw new BaseException(
+                    ErrorCode.OBJECT_VERSION_CONFLICT,
+                    "Only the latest current READY preview can be frozen.");
+        }
+        if (candidate.members().stream().anyMatch(member ->
+                !authority.targetPopulation().permits(
+                        member.organizationRef(), member.reviewerAssignmentRef()))) {
+            throw new BaseException(
+                    ErrorCode.FORBIDDEN,
+                    "The preview contains members outside the current target population.");
         }
         if (!request.populationRuleId().equals(candidate.populationRuleVersionId())
                 || !request.workforceSnapshotId().equals(candidate.workforceSnapshotId())
@@ -243,6 +270,13 @@ public class PopulationFreezeService {
                 || !AUTHORITY_PURPOSE.equals(evidence.purposeCode())
                 || evidence.populationScopeDigest() == null
                 || !evidence.populationScopeDigest().matches("[0-9a-f]{64}")
+                || evidence.targetPopulation() == null
+                || (!evidence.targetPopulation().tenantWide()
+                && evidence.targetPopulation().managerAssignmentRef() == null
+                && evidence.targetPopulation().organizationRefs().isEmpty())
+                || evidence.fieldDecisions() == null
+                || !evidence.fieldDecisions().keySet().containsAll(List.of(
+                "REVIEW_ASSIGNMENT", "WORK_QUEUE", "DUE_STATUS"))
                 || evidence.fieldPolicyRevision() <= 0
                 || evidence.authorizationRevision() <= 0) {
             throw authorityUnavailable(null);

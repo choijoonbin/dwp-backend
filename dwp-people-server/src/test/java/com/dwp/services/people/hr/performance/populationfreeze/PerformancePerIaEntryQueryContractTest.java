@@ -10,6 +10,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -17,6 +18,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -55,10 +57,12 @@ class PerformancePerIaEntryQueryContractTest {
         PeopleRequestContext.set(
                 ACTOR_ID, TENANT_ID, subjectId, Set.of("HRIS_PERFORMANCE_OPERATOR"),
                 Set.of("APP.HRIS:VIEW", "DATA.HR_TALENT:VIEW",
-                        "DATA.HR_TALENT:UPDATE"));
+                        "DATA.HR_TALENT:UPDATE", "DATA.HR_TALENT:APPROVE"));
         when(authority.authorize(any())).thenReturn(authorityEvidence(31L));
         when(repository.query(any())).thenReturn(
                 new PerformanceReviewOperationsRepository.Page(List.of(), false));
+        when(repository.seekPosition(any(), any())).thenAnswer(invocation -> seekPosition(
+                invocation.getArgument(0), invocation.getArgument(1)));
         service = service(() -> authority);
     }
 
@@ -104,14 +108,35 @@ class PerformancePerIaEntryQueryContractTest {
     @Test
     void cursorBindsScopeAndRevision() {
         String fingerprint = PerformanceReviewOperationsCursorCodec.fingerprint("request");
-        String cursor = cursors.issue(TENANT_ID, 25L, fingerprint, "scope:one");
+        PerformanceReviewOperationsCursorCodec.SeekPosition position =
+                new PerformanceReviewOperationsCursorCodec.SeekPosition(
+                        List.of("READY_TO_FREEZE", new UUID(0, 25).toString()),
+                        new UUID(0, 25));
+        String cursor = cursors.issue(TENANT_ID, position, fingerprint, "scope:one");
 
         assertThat(cursors.verify(cursor, TENANT_ID, fingerprint, "scope:one"))
-                .isEqualTo(25L);
+                .isEqualTo(position);
         assertCode(() -> cursors.verify(
                 cursor, TENANT_ID, fingerprint, "scope:changed"), ErrorCode.FORBIDDEN);
         assertCode(() -> cursors.verify(
                 cursor, TENANT_ID + 1, fingerprint, "scope:one"), ErrorCode.FORBIDDEN);
+    }
+
+    @Test
+    void seekPositionContainsTheFullSortTupleAndCycleTieBreaker() {
+        PerformanceReviewOperationsRepository.ReviewOperationRow row = row(25);
+        PerformanceReviewOperationsRepository realRepository =
+                new PerformanceReviewOperationsRepository(
+                        mock(NamedParameterJdbcTemplate.class));
+
+        PerformanceReviewOperationsCursorCodec.SeekPosition position =
+                realRepository.seekPosition(row, List.of(
+                        "reviewAssignment:DESC", "workQueue:ASC", "dueStatus:DESC"));
+
+        assertThat(position.sortValues()).containsExactly(
+                row.displayName(), Integer.toString(row.openCount()),
+                row.statusCode(), row.cycleId().toString());
+        assertThat(position.cycleId()).isEqualTo(row.cycleId());
     }
 
     @Test
@@ -129,7 +154,7 @@ class PerformancePerIaEntryQueryContractTest {
         verify(repository).query(criteria.capture());
 
         assertThat(criteria.getValue().limit()).isEqualTo(1);
-        assertThat(criteria.getValue().offset()).isZero();
+        assertThat(criteria.getValue().seek()).isNull();
         assertThat(criteria.getValue().asOf()).isEqualTo(NOW);
         assertThat(criteria.getValue().sort())
                 .containsExactly("dueStatus:DESC", "itemPublicId:ASC");
@@ -142,7 +167,9 @@ class PerformancePerIaEntryQueryContractTest {
                 "ko-KR", "Asia/Seoul", UUID.randomUUID(), NOW,
                 firstPage.queryState().nextCursor()));
         verify(repository, org.mockito.Mockito.times(2)).query(criteria.capture());
-        assertThat(criteria.getAllValues().getLast().offset()).isEqualTo(1L);
+        assertThat(criteria.getAllValues().getLast().seek()).isNotNull();
+        assertThat(criteria.getAllValues().getLast().seek().cycleId())
+                .isEqualTo(row(1).cycleId());
     }
 
     @Test
@@ -249,6 +276,26 @@ class PerformancePerIaEntryQueryContractTest {
     }
 
     @Test
+    void authorityFieldDecisionsDriveMaskAndOmitProjection() throws Exception {
+        when(authority.authorize(any())).thenReturn(authorityEvidence(
+                32L, Map.of(
+                        "REVIEW_ASSIGNMENT", PopulationFreezeAuthorityPort.FieldDecision.VIEW,
+                        "WORK_QUEUE", PopulationFreezeAuthorityPort.FieldDecision.MASK,
+                        "DUE_STATUS", PopulationFreezeAuthorityPort.FieldDecision.OMIT)));
+        when(repository.query(any())).thenReturn(page(row(1), false));
+
+        PerformanceReviewOperationsDtos.Projection projection = service.query(request());
+        JsonNode groups = objectMapper.valueToTree(projection.items().getFirst().fieldGroups());
+
+        assertThat(groups.path("REVIEW_ASSIGNMENT").path("decision").asText()).isEqualTo("VIEW");
+        assertThat(groups.path("WORK_QUEUE").path("decision").asText()).isEqualTo("MASK");
+        assertThat(groups.has("DUE_STATUS")).isFalse();
+        assertThat(projection.queryState().fieldDecisionSummary())
+                .isEqualTo(new PerformanceReviewOperationsDtos.FieldDecisionSummary(1, 1, 1));
+        assertThat(projection.items().getFirst().availableActions()).isEmpty();
+    }
+
+    @Test
     void problemStatusAndCorrelationAreClosed() {
         PerformanceReviewOperationsDtos.QueryRequest invalid =
                 new PerformanceReviewOperationsDtos.QueryRequest(
@@ -291,7 +338,38 @@ class PerformancePerIaEntryQueryContractTest {
                 null, "READY_TO_FREEZE", "WITHIN_SLA");
     }
 
+    private PerformanceReviewOperationsCursorCodec.SeekPosition seekPosition(
+            PerformanceReviewOperationsRepository.ReviewOperationRow row,
+            List<String> sort) {
+        List<String> effectiveSort = sort.stream()
+                .anyMatch(value -> value.startsWith("itemPublicId:"))
+                ? sort
+                : java.util.stream.Stream.concat(
+                        sort.stream(), java.util.stream.Stream.of("itemPublicId:ASC"))
+                .toList();
+        List<String> values = effectiveSort.stream().map(value -> {
+            String field = value.substring(0, value.indexOf(':'));
+            return switch (field) {
+                case "reviewAssignment" -> row.displayName();
+                case "workQueue" -> Integer.toString(row.openCount());
+                case "dueStatus" -> row.statusCode();
+                case "itemPublicId" -> row.cycleId().toString();
+                default -> throw new IllegalArgumentException(field);
+            };
+        }).toList();
+        return new PerformanceReviewOperationsCursorCodec.SeekPosition(values, row.cycleId());
+    }
+
     private PopulationFreezeAuthorityPort.AuthorityEvidence authorityEvidence(long revision) {
+        return authorityEvidence(revision, Map.of(
+                "REVIEW_ASSIGNMENT", PopulationFreezeAuthorityPort.FieldDecision.VIEW,
+                "WORK_QUEUE", PopulationFreezeAuthorityPort.FieldDecision.VIEW,
+                "DUE_STATUS", PopulationFreezeAuthorityPort.FieldDecision.VIEW));
+    }
+
+    private PopulationFreezeAuthorityPort.AuthorityEvidence authorityEvidence(
+            long revision,
+            Map<String, PopulationFreezeAuthorityPort.FieldDecision> fieldDecisions) {
         return new PopulationFreezeAuthorityPort.AuthorityEvidence(
                 TENANT_ID, ACTOR_ID, subjectId,
                 PerformanceReviewOperationsService.APPLICATION_ENTITLEMENT,
@@ -299,7 +377,9 @@ class PerformancePerIaEntryQueryContractTest {
                 PerformanceReviewOperationsService.AUTHORITY_ACTION,
                 PerformanceReviewOperationsService.QUERY_OPERATION,
                 PerformanceReviewOperationsService.QUERY_PURPOSE,
-                "a".repeat(64), 11L, revision);
+                "a".repeat(64), new PopulationFreezeAuthorityPort.TargetPopulation(
+                true, null, Set.of(), Set.of("DIRECTORY", "EMPLOYMENT"),
+                "population:31"), fieldDecisions, 11L, revision);
     }
 
     private PerformanceReviewOperationsDtos.QueryState state(

@@ -100,28 +100,39 @@ public class PerformanceReviewOperationsService {
         String fingerprint = PerformanceReviewOperationsCursorCodec.fingerprint(
                 query.fingerprintSource() + "|" + scopeRevision
                         + "|auth:" + authority.authorizationRevision());
-        long offset = query.cursor() == null ? 0 : cursors.verify(
+        PerformanceReviewOperationsCursorCodec.SeekPosition seek = query.cursor() == null
+                ? null : cursors.verify(
                 query.cursor(), actor.tenantId(), fingerprint, scopeRevision);
 
         Instant effectiveStart = query.effectiveOn() == null ? null
                 : query.effectiveOn().atStartOfDay(query.zoneId()).toInstant();
         Instant effectiveEnd = query.effectiveOn() == null ? null
                 : query.effectiveOn().plusDays(1).atStartOfDay(query.zoneId()).toInstant();
+        repository.bindTenant(actor.tenantId());
         PerformanceReviewOperationsRepository.Page page = repository.query(
                 new PerformanceReviewOperationsRepository.QueryCriteria(
-                        actor.tenantId(), query.limit(), offset, query.asOf(), query.sort(),
+                        actor.tenantId(), query.limit(), query.asOf(), query.sort(), seek,
+                        authority.targetPopulation(),
                         query.reviewAssignmentCodes(), query.reviewAssignmentPublicIds(),
                         query.minimumOpenCount(), query.maximumOpenCount(), query.slaStates(),
                         query.dueStatusCodes(), query.minimumRevision(),
                         effectiveStart, effectiveEnd));
 
         List<PerformanceReviewOperationsDtos.Item> items = page.rows().stream()
-                .map(row -> item(row, actor))
+                .map(row -> item(row, actor, authority))
                 .toList();
         String nextCursor = page.hasMore()
-                ? cursors.issue(actor.tenantId(), offset + items.size(),
+                ? cursors.issue(actor.tenantId(), repository.seekPosition(
+                page.rows().getLast(), query.sort()),
                 fingerprint, scopeRevision)
                 : null;
+        long viewCount = authority.fieldDecisions().values().stream()
+                .filter(value -> value == PopulationFreezeAuthorityPort.FieldDecision.VIEW)
+                .count() * items.size();
+        long maskCount = authority.fieldDecisions().values().stream()
+                .filter(value -> value == PopulationFreezeAuthorityPort.FieldDecision.MASK)
+                .count() * items.size();
+        long omitCount = (long) items.size() * 3 - viewCount - maskCount;
         PerformanceReviewOperationsDtos.QueryState state =
                 new PerformanceReviewOperationsDtos.QueryState(
                         items.isEmpty() ? "EMPTY" : "COMPLETE",
@@ -129,7 +140,8 @@ public class PerformanceReviewOperationsService {
                         "CURRENT",
                         nextCursor,
                         new PerformanceReviewOperationsDtos.FieldDecisionSummary(
-                                items.size() * 3, 0, 0),
+                                Math.toIntExact(viewCount), Math.toIntExact(maskCount),
+                                Math.toIntExact(omitCount)),
                         List.of(),
                         query.correlationId(),
                         new PerformanceReviewOperationsDtos.CachePolicy(
@@ -143,44 +155,92 @@ public class PerformanceReviewOperationsService {
 
     private PerformanceReviewOperationsDtos.Item item(
             PerformanceReviewOperationsRepository.ReviewOperationRow row,
-            PeopleRequestContext.Actor actor) {
-        long revision = row.aggregateVersion() + 1;
+            PeopleRequestContext.Actor actor,
+            PopulationFreezeAuthorityPort.AuthorityEvidence authority) {
+        long revision = row.aggregateVersion();
+        PopulationFreezeAuthorityPort.FieldDecision referenceDecision =
+                authority.fieldDecisions().get("REVIEW_ASSIGNMENT");
+        PopulationFreezeAuthorityPort.FieldDecision queueDecision =
+                authority.fieldDecisions().get("WORK_QUEUE");
+        PopulationFreezeAuthorityPort.FieldDecision statusDecision =
+                authority.fieldDecisions().get("DUE_STATUS");
         PerformanceReviewOperationsDtos.FieldGroups groups =
                 new PerformanceReviewOperationsDtos.FieldGroups(
-                        new PerformanceReviewOperationsDtos.ViewedReferenceField(
-                                "VIEW",
-                                new PerformanceReviewOperationsDtos.ReferenceValue(
-                                        row.cycleId().toString(), "PERFORMANCE_REVIEW",
-                                        row.displayName(), revision)),
-                        new PerformanceReviewOperationsDtos.ViewedQueueField(
-                                "VIEW",
-                                new PerformanceReviewOperationsDtos.QueueValue(
-                                        row.openCount(), row.oldestAt(), row.slaStatus(),
-                                        revision)),
-                        new PerformanceReviewOperationsDtos.ViewedStatusField(
-                                "VIEW",
-                                new PerformanceReviewOperationsDtos.StatusValue(
-                                        row.statusCode(), revision)));
+                        referenceField(referenceDecision, row, revision),
+                        queueField(queueDecision, row, revision),
+                        statusField(statusDecision, row, revision));
         return new PerformanceReviewOperationsDtos.Item(
                 "performance-cycle:" + row.cycleId(),
-                row.displayName(),
-                row.statusCode(),
+                referenceDecision == PopulationFreezeAuthorityPort.FieldDecision.VIEW
+                        ? row.displayName() : "Performance review",
+                statusDecision == PopulationFreezeAuthorityPort.FieldDecision.VIEW
+                        ? row.statusCode() : "RESTRICTED",
                 groups,
                 new PerformanceReviewOperationsDtos.DeepLink(
                         DEEP_LINK, row.cycleId().toString()),
-                actions(row, actor));
+                actions(row, actor, authority));
+    }
+
+    private Object referenceField(
+            PopulationFreezeAuthorityPort.FieldDecision decision,
+            PerformanceReviewOperationsRepository.ReviewOperationRow row,
+            long revision) {
+        if (decision == PopulationFreezeAuthorityPort.FieldDecision.OMIT) return null;
+        if (decision == PopulationFreezeAuthorityPort.FieldDecision.MASK) {
+            return masked("FIELD_POLICY");
+        }
+        return new PerformanceReviewOperationsDtos.ViewedReferenceField(
+                "VIEW", new PerformanceReviewOperationsDtos.ReferenceValue(
+                row.cycleId().toString(), "PERFORMANCE_REVIEW", row.displayName(), revision));
+    }
+
+    private Object queueField(
+            PopulationFreezeAuthorityPort.FieldDecision decision,
+            PerformanceReviewOperationsRepository.ReviewOperationRow row,
+            long revision) {
+        if (decision == PopulationFreezeAuthorityPort.FieldDecision.OMIT) return null;
+        if (decision == PopulationFreezeAuthorityPort.FieldDecision.MASK) {
+            return masked("FIELD_POLICY");
+        }
+        return new PerformanceReviewOperationsDtos.ViewedQueueField(
+                "VIEW", new PerformanceReviewOperationsDtos.QueueValue(
+                row.openCount(), row.oldestAt(), row.slaStatus(), revision));
+    }
+
+    private Object statusField(
+            PopulationFreezeAuthorityPort.FieldDecision decision,
+            PerformanceReviewOperationsRepository.ReviewOperationRow row,
+            long revision) {
+        if (decision == PopulationFreezeAuthorityPort.FieldDecision.OMIT) return null;
+        if (decision == PopulationFreezeAuthorityPort.FieldDecision.MASK) {
+            return masked("FIELD_POLICY");
+        }
+        return new PerformanceReviewOperationsDtos.ViewedStatusField(
+                "VIEW", new PerformanceReviewOperationsDtos.StatusValue(
+                row.statusCode(), revision));
+    }
+
+    private PerformanceReviewOperationsDtos.MaskedField masked(String reason) {
+        return new PerformanceReviewOperationsDtos.MaskedField(
+                "MASK", null, reason, "hris.field.masked");
     }
 
     private List<PerformanceReviewOperationsDtos.AvailableAction> actions(
             PerformanceReviewOperationsRepository.ReviewOperationRow row,
-            PeopleRequestContext.Actor actor) {
-        if (!actor.hasPermission(RESOURCE, "UPDATE", "MANAGE")) return List.of();
+            PeopleRequestContext.Actor actor,
+            PopulationFreezeAuthorityPort.AuthorityEvidence authority) {
+        if (authority.fieldDecisions().get("REVIEW_ASSIGNMENT")
+                != PopulationFreezeAuthorityPort.FieldDecision.VIEW
+                || authority.fieldDecisions().get("DUE_STATUS")
+                != PopulationFreezeAuthorityPort.FieldDecision.VIEW) return List.of();
         List<PerformanceReviewOperationsDtos.AvailableAction> actions = new ArrayList<>();
-        if (row.cycleVersionId() != null && row.populationRuleVersionId() != null
+        if (actor.hasPermission(RESOURCE, "UPDATE", "MANAGE")
+                && row.cycleVersionId() != null && row.populationRuleVersionId() != null
                 && List.of("DRAFT", "VALIDATED").contains(row.lifecycleState())) {
             actions.add(action(PREVIEW_ACTION, PREVIEW_HREF));
         }
-        if ("VALIDATED".equals(row.lifecycleState())
+        if (actor.hasPermission(RESOURCE, "APPROVE", "MANAGE")
+                && "VALIDATED".equals(row.lifecycleState())
                 && "READY_TO_FREEZE".equals(row.statusCode())
                 && row.populationPreviewId() != null
                 && row.populationFreezeId() == null) {
@@ -339,6 +399,13 @@ public class PerformanceReviewOperationsService {
                 || !QUERY_PURPOSE.equals(evidence.purposeCode())
                 || evidence.populationScopeDigest() == null
                 || !evidence.populationScopeDigest().matches("[0-9a-f]{64}")
+                || evidence.targetPopulation() == null
+                || (!evidence.targetPopulation().tenantWide()
+                && evidence.targetPopulation().managerAssignmentRef() == null
+                && evidence.targetPopulation().organizationRefs().isEmpty())
+                || evidence.fieldDecisions() == null
+                || !evidence.fieldDecisions().keySet().containsAll(List.of(
+                "REVIEW_ASSIGNMENT", "WORK_QUEUE", "DUE_STATUS"))
                 || evidence.fieldPolicyRevision() <= 0
                 || evidence.authorizationRevision() <= 0) {
             throw authorityUnavailable(null);
