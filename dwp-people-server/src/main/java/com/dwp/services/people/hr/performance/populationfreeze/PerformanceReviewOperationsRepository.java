@@ -15,27 +15,28 @@ import java.util.UUID;
 @Repository
 class PerformanceReviewOperationsRepository {
 
+    private static final UUID EMPTY_UUID = new UUID(0, 0);
     private static final String STATUS_EXPRESSION = """
             CASE
-                WHEN f.population_freeze_id IS NOT NULL THEN 'FROZEN'
-                WHEN c.lifecycle_state = 'RETIRED' THEN 'RETIRED'
-                WHEN p.population_preview_id IS NULL THEN 'PREVIEW_REQUIRED'
-                WHEN p.preview_state = 'READY' AND p.expires_at <= :asOf
+                WHEN h.population_freeze_id IS NOT NULL THEN 'FROZEN'
+                WHEN h.lifecycle_state = 'RETIRED' THEN 'RETIRED'
+                WHEN h.population_preview_id IS NULL THEN 'PREVIEW_REQUIRED'
+                WHEN h.preview_state = 'READY' AND h.preview_expires_at <= :asOf
                     THEN 'PREVIEW_STALE'
-                WHEN p.preview_state = 'READY' THEN 'READY_TO_FREEZE'
-                WHEN p.preview_state = 'STALE' THEN 'PREVIEW_STALE'
+                WHEN h.preview_state = 'READY' THEN 'READY_TO_FREEZE'
+                WHEN h.preview_state = 'STALE' THEN 'PREVIEW_STALE'
                 ELSE 'RESULT_UNKNOWN'
             END
             """;
     private static final String OPEN_COUNT_EXPRESSION = """
-            CASE WHEN f.population_freeze_id IS NOT NULL
-                 THEN 0 ELSE COALESCE(p.participant_count, 0) END
+            CASE WHEN h.population_freeze_id IS NOT NULL
+                 THEN 0 ELSE COALESCE(h.participant_count, 0) END
             """;
     private static final String SLA_EXPRESSION = """
             CASE
-                WHEN f.population_freeze_id IS NOT NULL THEN 'COMPLETE'
-                WHEN p.population_preview_id IS NULL THEN 'NOT_STARTED'
-                WHEN p.preview_state = 'READY' AND p.expires_at > :asOf
+                WHEN h.population_freeze_id IS NOT NULL THEN 'COMPLETE'
+                WHEN h.population_preview_id IS NULL THEN 'NOT_STARTED'
+                WHEN h.preview_state = 'READY' AND h.preview_expires_at > :asOf
                     THEN 'WITHIN_SLA'
                 ELSE 'AT_RISK'
             END
@@ -47,20 +48,50 @@ class PerformanceReviewOperationsRepository {
         this.jdbc = jdbc;
     }
 
+    void bindTenant(long tenantId) {
+        jdbc.queryForObject(
+                "SELECT set_config('dwp.tenant_id', CAST(:tenantId AS VARCHAR), TRUE)",
+                new MapSqlParameterSource("tenantId", tenantId), String.class);
+    }
+
     Page query(QueryCriteria criteria) {
         MapSqlParameterSource parameters = new MapSqlParameterSource()
                 .addValue("tenantId", criteria.tenantId())
                 .addValue("limit", criteria.limit() + 1)
-                .addValue("offset", criteria.offset())
-                .addValue("asOf", Timestamp.from(criteria.asOf()));
-        StringBuilder where = new StringBuilder(" WHERE c.tenant_id = :tenantId\n");
+                .addValue("asOf", Timestamp.from(criteria.asOf()))
+                .addValue("tenantWide", criteria.targetPopulation().tenantWide())
+                .addValue("organizationRefs",
+                        criteria.targetPopulation().organizationRefs().isEmpty()
+                                ? List.of(EMPTY_UUID)
+                                : criteria.targetPopulation().organizationRefs())
+                .addValue("managerAssignmentRef",
+                        uuidOrNull(criteria.targetPopulation().managerAssignmentRef()));
+        StringBuilder where = new StringBuilder("""
+                 WHERE h.tenant_id = :tenantId
+                   AND (
+                       :tenantWide
+                       OR EXISTS (
+                           SELECT 1
+                             FROM hris_performance.prf_population_preview_members scoped_member
+                            WHERE scoped_member.tenant_id = h.tenant_id
+                              AND scoped_member.population_preview_id = h.population_preview_id
+                              AND scoped_member.created_at <= :asOf
+                              AND (
+                                  scoped_member.organization_ref IN (:organizationRefs)
+                                  OR (CAST(:managerAssignmentRef AS UUID) IS NOT NULL
+                                      AND scoped_member.reviewer_assignment_ref =
+                                          CAST(:managerAssignmentRef AS UUID))
+                              )
+                       )
+                   )
+                """);
         if (!criteria.reviewAssignmentCodes().isEmpty()) {
             where.append(" AND :reviewCode IN (:reviewCodes)\n");
             parameters.addValue("reviewCode", "PERFORMANCE_REVIEW")
                     .addValue("reviewCodes", criteria.reviewAssignmentCodes());
         }
         if (!criteria.reviewAssignmentPublicIds().isEmpty()) {
-            where.append(" AND CAST(c.cycle_id AS VARCHAR) IN (:reviewPublicIds)\n");
+            where.append(" AND CAST(h.cycle_id AS VARCHAR) IN (:reviewPublicIds)\n");
             parameters.addValue("reviewPublicIds", criteria.reviewAssignmentPublicIds());
         }
         if (criteria.minimumOpenCount() != null) {
@@ -82,56 +113,39 @@ class PerformanceReviewOperationsRepository {
             parameters.addValue("dueStatusCodes", criteria.dueStatusCodes());
         }
         if (criteria.minimumRevision() != null) {
-            where.append(" AND c.aggregate_version + 1 >= :minimumRevision\n");
+            where.append(" AND h.aggregate_version >= :minimumRevision\n");
             parameters.addValue("minimumRevision", criteria.minimumRevision());
         }
         if (criteria.effectiveStart() != null) {
-            where.append(" AND v.effective_from < :effectiveEnd\n")
-                    .append(" AND (v.effective_to IS NULL OR v.effective_to > :effectiveStart)\n");
-            parameters.addValue("effectiveStart", criteria.effectiveStart())
-                    .addValue("effectiveEnd", criteria.effectiveEnd());
+            where.append(" AND h.effective_from < :effectiveEnd\n")
+                    .append(" AND (h.effective_to IS NULL OR h.effective_to > :effectiveStart)\n");
+            parameters.addValue("effectiveStart", Timestamp.from(criteria.effectiveStart()))
+                    .addValue("effectiveEnd", Timestamp.from(criteria.effectiveEnd()));
         }
+        appendSeek(where, parameters, criteria.sort(), criteria.seek());
 
         String sql = """
-                SELECT c.cycle_id, c.display_name, c.lifecycle_state,
-                       c.aggregate_version,
-                       v.cycle_version_id, v.population_rule_version_id,
-                       p.population_preview_id, p.preview_state,
-                       p.participant_count, p.created_at AS preview_created_at,
-                       p.expires_at, f.population_freeze_id,
+                SELECT h.cycle_id, h.display_name, h.lifecycle_state,
+                       h.aggregate_version,
+                       h.cycle_version_id, h.population_rule_version_id,
+                       h.population_preview_id, h.preview_state,
+                       h.participant_count, h.preview_created_at,
+                       h.preview_expires_at, h.population_freeze_id,
                 """ + STATUS_EXPRESSION + " AS status_code,\n"
                 + OPEN_COUNT_EXPRESSION + " AS open_count,\n"
                 + SLA_EXPRESSION + " AS sla_status\n"
                 + """
-                    FROM hris_performance.prf_cycles c
-                    LEFT JOIN hris_performance.prf_cycle_versions v
-                      ON v.tenant_id = c.tenant_id
-                     AND v.cycle_id = c.cycle_id
-                     AND v.version_no = c.active_version_no
-                    LEFT JOIN LATERAL (
-                        SELECT candidate.population_preview_id,
-                               candidate.preview_state,
-                               candidate.participant_count,
-                               candidate.created_at,
-                               candidate.expires_at
-                          FROM hris_performance.prf_population_previews candidate
-                         WHERE candidate.tenant_id = c.tenant_id
-                           AND candidate.cycle_version_id = v.cycle_version_id
-                         ORDER BY candidate.created_at DESC,
-                                  candidate.population_preview_id DESC
-                         LIMIT 1
-                    ) p ON TRUE
-                    LEFT JOIN LATERAL (
-                        SELECT candidate.population_freeze_id
-                          FROM hris_performance.prf_population_freezes candidate
-                         WHERE candidate.tenant_id = c.tenant_id
-                           AND candidate.cycle_version_id = v.cycle_version_id
-                         ORDER BY candidate.frozen_at DESC,
-                                  candidate.population_freeze_id DESC
-                         LIMIT 1
-                    ) f ON TRUE
+                    FROM (
+                        SELECT DISTINCT ON (history.tenant_id, history.cycle_id)
+                               history.*
+                          FROM hris_performance.prf_review_operation_history history
+                         WHERE history.tenant_id = :tenantId
+                           AND history.observed_at <= :asOf
+                         ORDER BY history.tenant_id, history.cycle_id,
+                                  history.observed_at DESC, history.history_id DESC
+                    ) h
                 """ + where + " ORDER BY " + orderBy(criteria.sort())
-                + " LIMIT :limit OFFSET :offset";
+                + " LIMIT :limit";
         List<ReviewOperationRow> rows = jdbc.query(sql, parameters, this::row);
         boolean hasMore = rows.size() > criteria.limit();
         List<ReviewOperationRow> values = hasMore
@@ -140,24 +154,77 @@ class PerformanceReviewOperationsRepository {
         return new Page(values, hasMore);
     }
 
+    private void appendSeek(
+            StringBuilder where,
+            MapSqlParameterSource parameters,
+            List<String> sort,
+            PerformanceReviewOperationsCursorCodec.SeekPosition seek) {
+        if (seek == null) return;
+        List<SortTerm> terms = sortTerms(sort);
+        if (seek.sortValues().size() != terms.size()) {
+            throw new IllegalArgumentException("IAQ-021 seek tuple does not match its sort.");
+        }
+        List<String> branches = new ArrayList<>();
+        for (int index = 0; index < terms.size(); index++) {
+            List<String> predicates = new ArrayList<>();
+            for (int prior = 0; prior < index; prior++) {
+                predicates.add(terms.get(prior).expression() + " = :seek" + prior);
+            }
+            SortTerm term = terms.get(index);
+            predicates.add(term.expression() + (term.descending() ? " < " : " > ")
+                    + ":seek" + index);
+            branches.add('(' + String.join(" AND ", predicates) + ')');
+            parameters.addValue("seek" + index,
+                    seekValue(term, seek.sortValues().get(index)));
+        }
+        where.append(" AND (").append(String.join(" OR ", branches)).append(")\n");
+    }
+
+    private Object seekValue(SortTerm term, String value) {
+        return switch (term.kind()) {
+            case "workQueue" -> Integer.valueOf(value);
+            case "itemPublicId" -> UUID.fromString(value);
+            default -> value;
+        };
+    }
+
     private String orderBy(List<String> sort) {
-        List<String> order = new ArrayList<>();
+        return String.join(", ", sortTerms(sort).stream()
+                .map(term -> term.expression() + (term.descending() ? " DESC" : " ASC")
+                        + " NULLS LAST")
+                .toList());
+    }
+
+    private List<SortTerm> sortTerms(List<String> sort) {
+        List<SortTerm> terms = new ArrayList<>();
         for (String value : sort) {
             String[] parts = value.split(":", -1);
-            String direction = "DESC".equals(parts[1]) ? "DESC" : "ASC";
             String expression = switch (parts[0]) {
-                case "reviewAssignment" -> "c.display_name";
+                case "reviewAssignment" -> "h.display_name";
                 case "workQueue" -> OPEN_COUNT_EXPRESSION;
                 case "dueStatus" -> STATUS_EXPRESSION;
-                case "itemPublicId" -> "c.cycle_id";
+                case "itemPublicId" -> "h.cycle_id";
                 default -> throw new IllegalArgumentException("Unsupported IAQ-021 sort.");
             };
-            order.add(expression + " " + direction + " NULLS LAST");
+            terms.add(new SortTerm(parts[0], expression, "DESC".equals(parts[1])));
         }
         if (sort.stream().noneMatch(value -> value.startsWith("itemPublicId:"))) {
-            order.add("c.cycle_id ASC");
+            terms.add(new SortTerm("itemPublicId", "h.cycle_id", false));
         }
-        return String.join(", ", order);
+        return List.copyOf(terms);
+    }
+
+    PerformanceReviewOperationsCursorCodec.SeekPosition seekPosition(
+            ReviewOperationRow row,
+            List<String> sort) {
+        List<String> values = sortTerms(sort).stream().map(term -> switch (term.kind()) {
+            case "reviewAssignment" -> row.displayName();
+            case "workQueue" -> Integer.toString(row.openCount());
+            case "dueStatus" -> row.statusCode();
+            case "itemPublicId" -> row.cycleId().toString();
+            default -> throw new IllegalArgumentException("Unsupported IAQ-021 sort.");
+        }).toList();
+        return new PerformanceReviewOperationsCursorCodec.SeekPosition(values, row.cycleId());
     }
 
     private ReviewOperationRow row(ResultSet rs, int rowNumber) throws SQLException {
@@ -171,7 +238,7 @@ class PerformanceReviewOperationsRepository {
                 nullableUuid(rs, "population_preview_id"),
                 rs.getString("preview_state"), openCount,
                 openCount == 0 ? null : nullableInstant(rs, "preview_created_at"),
-                nullableInstant(rs, "expires_at"), freezeId,
+                nullableInstant(rs, "preview_expires_at"), freezeId,
                 rs.getString("status_code"), rs.getString("sla_status"));
     }
 
@@ -188,12 +255,22 @@ class PerformanceReviewOperationsRepository {
         return timestamp == null ? null : timestamp.toInstant();
     }
 
+    private static UUID uuidOrNull(String value) {
+        if (value == null) return null;
+        try {
+            return UUID.fromString(value);
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
     record QueryCriteria(
             long tenantId,
             int limit,
-            long offset,
             Instant asOf,
             List<String> sort,
+            PerformanceReviewOperationsCursorCodec.SeekPosition seek,
+            PopulationFreezeAuthorityPort.TargetPopulation targetPopulation,
             List<String> reviewAssignmentCodes,
             List<String> reviewAssignmentPublicIds,
             Integer minimumOpenCount,
@@ -223,5 +300,8 @@ class PerformanceReviewOperationsRepository {
             UUID populationFreezeId,
             String statusCode,
             String slaStatus) {
+    }
+
+    private record SortTerm(String kind, String expression, boolean descending) {
     }
 }

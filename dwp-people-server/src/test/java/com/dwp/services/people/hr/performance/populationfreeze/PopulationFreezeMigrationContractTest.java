@@ -22,11 +22,16 @@ class PopulationFreezeMigrationContractTest {
                 .contains("CREATE TABLE hris_performance.prf_population_freezes")
                 .contains("CREATE TABLE hris_performance.prf_population_freeze_members")
                 .contains("CREATE TABLE hris_performance.prf_population_freeze_reviewers")
+                .contains("CREATE TABLE hris_performance.prf_review_operation_history")
+                .contains("prf_serialize_population_preview")
+                .contains("ux_prf_population_previews_current_ready")
                 .contains("PER_POPULATION_FREEZE_IMMUTABLE")
                 .contains("BEFORE UPDATE OR DELETE")
                 .contains("ENABLE ROW LEVEL SECURITY")
+                .contains("FORCE ROW LEVEL SECURITY")
+                .contains("set_config('dwp.tenant_id'")
                 .contains("current_setting('dwp.tenant_id', TRUE)")
-                .doesNotContain("UPDATE hris_performance.prf_population_previews")
+                .contains("SET preview_state = 'STALE'")
                 .doesNotContain("DELETE FROM hris_performance.prf_population_previews");
     }
 }

@@ -19,6 +19,8 @@ import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.List;
+import java.util.UUID;
 
 /** Authenticated IAQ-021 cursor bound to tenant, normalized query, and authority revision. */
 @Component
@@ -60,9 +62,13 @@ final class PerformanceReviewOperationsCursorCodec {
         this.clock = clock;
     }
 
-    String issue(long tenantId, long position, String fingerprint, String scopeRevision) {
+    String issue(
+            long tenantId,
+            SeekPosition position,
+            String fingerprint,
+            String scopeRevision) {
         requireConfigured();
-        if (position < 0) throw invalid();
+        if (!valid(position)) throw invalid();
         CursorPayload payload = new CursorPayload(
                 tenantId, position, fingerprint, scopeRevision,
                 clock.instant().plus(ttl).getEpochSecond());
@@ -78,7 +84,7 @@ final class PerformanceReviewOperationsCursorCodec {
         }
     }
 
-    long verify(
+    SeekPosition verify(
             String cursor,
             long tenantId,
             String fingerprint,
@@ -104,7 +110,7 @@ final class PerformanceReviewOperationsCursorCodec {
             if (!MessageDigest.isEqual(sign(payloadBytes), signature)) throw invalid();
             CursorPayload payload = objectMapper.readValue(payloadBytes, CursorPayload.class);
             if (payload.tenantId() != tenantId
-                    || payload.position() < 0
+                    || !valid(payload.position())
                     || !fingerprint.equals(payload.fingerprint())
                     || !scopeRevision.equals(payload.scopeRevision())
                     || payload.expiresAtEpochSecond() <= clock.instant().getEpochSecond()) {
@@ -153,9 +159,26 @@ final class PerformanceReviewOperationsCursorCodec {
                 "The IAQ-021 cursor is invalid, expired, or outside the current scope.");
     }
 
+    private boolean valid(SeekPosition position) {
+        return position != null
+                && position.cycleId() != null
+                && position.sortValues() != null
+                && !position.sortValues().isEmpty()
+                && position.sortValues().size() <= 4
+                && position.sortValues().stream().allMatch(value ->
+                value != null && !value.isBlank() && value.length() <= 512);
+    }
+
+    record SeekPosition(List<String> sortValues, UUID cycleId) {
+
+        SeekPosition {
+            sortValues = sortValues == null ? null : List.copyOf(sortValues);
+        }
+    }
+
     private record CursorPayload(
             long tenantId,
-            long position,
+            SeekPosition position,
             String fingerprint,
             String scopeRevision,
             long expiresAtEpochSecond) {

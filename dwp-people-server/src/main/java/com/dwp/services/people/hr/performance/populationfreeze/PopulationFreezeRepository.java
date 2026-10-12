@@ -29,10 +29,31 @@ class PopulationFreezeRepository {
         this.objectMapper = objectMapper;
     }
 
+    void bindTenant(long tenantId) {
+        jdbc.queryForObject(
+                "SELECT set_config('dwp.tenant_id', CAST(:tenantId AS VARCHAR), TRUE)",
+                new MapSqlParameterSource("tenantId", tenantId), String.class);
+    }
+
     Optional<FreezeCandidate> candidate(
             long tenantId,
             UUID cycleId,
             UUID previewId) {
+        List<UUID> lockedVersions = jdbc.query("""
+                SELECT v.cycle_version_id
+                  FROM hris_performance.prf_cycles c
+                  JOIN hris_performance.prf_cycle_versions v
+                    ON v.tenant_id = c.tenant_id
+                   AND v.cycle_id = c.cycle_id
+                   AND v.version_no = c.active_version_no
+                 WHERE c.tenant_id = :tenantId
+                   AND c.cycle_id = :cycleId
+                 FOR UPDATE OF c, v
+                """, new MapSqlParameterSource()
+                .addValue("tenantId", tenantId)
+                .addValue("cycleId", cycleId), (rs, rowNum) ->
+                uuid(rs, "cycle_version_id"));
+        if (lockedVersions.size() != 1) return Optional.empty();
         List<FreezeCandidateRow> rows = jdbc.query("""
                 SELECT c.cycle_id, c.lifecycle_state, c.active_version_no,
                        c.aggregate_version AS cycle_aggregate_version,
@@ -47,7 +68,18 @@ class PopulationFreezeRepository {
                            ELSE p.preview_state
                        END AS preview_state,
                        p.participant_count, p.reviewer_assignment_count,
-                       p.content_hash, p.expires_at
+                       p.content_hash, p.expires_at,
+                       (
+                           SELECT current.population_preview_id
+                             FROM hris_performance.prf_population_previews current
+                            WHERE current.tenant_id = p.tenant_id
+                              AND current.cycle_version_id = p.cycle_version_id
+                              AND current.preview_state = 'READY'
+                              AND current.expires_at > CURRENT_TIMESTAMP
+                            ORDER BY current.created_at DESC,
+                                     current.population_preview_id DESC
+                            LIMIT 1
+                       ) AS latest_ready_preview_id
                   FROM hris_performance.prf_population_previews p
                   JOIN hris_performance.prf_cycle_versions v
                     ON v.tenant_id = p.tenant_id
@@ -58,7 +90,7 @@ class PopulationFreezeRepository {
                  WHERE p.tenant_id = :tenantId
                    AND p.population_preview_id = :previewId
                    AND c.cycle_id = :cycleId
-                 FOR UPDATE OF c, p
+                 FOR UPDATE OF p
                 """, new MapSqlParameterSource()
                 .addValue("tenantId", tenantId)
                 .addValue("cycleId", cycleId)
@@ -69,7 +101,8 @@ class PopulationFreezeRepository {
                 row.previewId(), row.populationRuleVersionId(), row.workforceSnapshotId(),
                 row.workforceSnapshotRevision(), row.sourceCycleAggregateVersion(),
                 row.previewState(), row.participantCount(), row.reviewerAssignmentCount(),
-                row.contentHash(), row.expiresAt(), members(tenantId, row.previewId())));
+                row.contentHash(), row.expiresAt(), row.latestReadyPreviewId(),
+                members(tenantId, row.previewId())));
     }
 
     Optional<ReceiptRecord> receiptByIdempotency(
@@ -121,10 +154,7 @@ class PopulationFreezeRepository {
                     :cycleId, :expectedRevision, :requestHash,
                     :scopeDigest, :fieldPolicyRevision, :purposeCode,
                     :authorizationRevision, 'ACCEPTED')
-                ON CONFLICT (
-                    tenant_id, subject_principal_public_id,
-                    originating_action, idempotency_key)
-                DO NOTHING
+                ON CONFLICT DO NOTHING
                 """, new MapSqlParameterSource()
                 .addValue("receiptId", receiptId)
                 .addValue("tenantId", tenantId)
@@ -340,7 +370,8 @@ class PopulationFreezeRepository {
                 rs.getLong("source_cycle_aggregate_version"),
                 rs.getString("preview_state"), rs.getInt("participant_count"),
                 rs.getInt("reviewer_assignment_count"), rs.getString("content_hash"),
-                nullableInstant(rs, "expires_at"));
+                nullableInstant(rs, "expires_at"),
+                nullableUuid(rs, "latest_ready_preview_id"));
     }
 
     private String json(Object value) {
@@ -408,6 +439,7 @@ class PopulationFreezeRepository {
             int reviewerAssignmentCount,
             String contentHash,
             Instant expiresAt,
+            UUID latestReadyPreviewId,
             List<PreviewMember> members) {
 
         FreezeCandidate {
@@ -437,7 +469,8 @@ class PopulationFreezeRepository {
             int participantCount,
             int reviewerAssignmentCount,
             String contentHash,
-            Instant expiresAt) {
+            Instant expiresAt,
+            UUID latestReadyPreviewId) {
     }
 
     private record PopulationFrozenEvent(

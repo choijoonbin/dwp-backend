@@ -8,6 +8,8 @@ import org.postgresql.ds.PGSimpleDataSource;
 import org.springframework.dao.DataAccessException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.jdbc.datasource.DataSourceTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -17,7 +19,12 @@ import java.sql.Timestamp;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -37,19 +44,22 @@ class PopulationFreezePostgresTest {
     private final UUID snapshotId = UUID.randomUUID();
     private final UUID subjectId = UUID.randomUUID();
     private final UUID receiptId = UUID.randomUUID();
+    private UUID seededOrganization;
+    private UUID seededReviewer;
     private JdbcTemplate plainJdbc;
+    private DataSource testDataSource;
     private PopulationFreezeRepository repository;
     private PerformanceReviewOperationsRepository reviewOperations;
     private PopulationFreezeCanonicalizer canonicalizer;
 
     @BeforeEach
     void migrateAndSeedTheExistingPreview() {
-        DataSource dataSource = dataSource();
-        plainJdbc = new JdbcTemplate(dataSource);
+        testDataSource = dataSource();
+        plainJdbc = new JdbcTemplate(testDataSource);
         plainJdbc.execute("DROP SCHEMA IF EXISTS hris_performance CASCADE");
         plainJdbc.execute("CREATE SCHEMA hris_performance");
         Flyway.configure(getClass().getClassLoader())
-                .dataSource(dataSource)
+                .dataSource(testDataSource)
                 .locations("classpath:db/performance-migration")
                 .defaultSchema("hris_performance")
                 .schemas("hris_performance")
@@ -59,9 +69,9 @@ class PopulationFreezePostgresTest {
                 .migrate();
         ObjectMapper objectMapper = new ObjectMapper().findAndRegisterModules();
         repository = new PopulationFreezeRepository(
-                new NamedParameterJdbcTemplate(dataSource), objectMapper);
+                new NamedParameterJdbcTemplate(testDataSource), objectMapper);
         reviewOperations = new PerformanceReviewOperationsRepository(
-                new NamedParameterJdbcTemplate(dataSource));
+                new NamedParameterJdbcTemplate(testDataSource));
         canonicalizer = new PopulationFreezeCanonicalizer(objectMapper);
         seedPreview();
     }
@@ -111,7 +121,7 @@ class PopulationFreezePostgresTest {
     }
 
     @Test
-    void databaseRejectsMutationAndEnablesTenantRlsOnEveryFreezeTable() {
+    void databaseRejectsMutationAndForcesTenantRlsOnEveryProjectionTable() {
         PopulationFreezeRepository.FreezeCandidate candidate = repository.candidate(
                 tenantId, cycleId, previewId).orElseThrow();
         repository.reserveReceipt(
@@ -134,23 +144,23 @@ class PopulationFreezePostgresTest {
                    AND relname IN (
                        'prf_population_freezes',
                        'prf_population_freeze_members',
-                       'prf_population_freeze_reviewers')
+                       'prf_population_freeze_reviewers',
+                       'prf_review_operation_history')
                    AND relrowsecurity
+                   AND relforcerowsecurity
                  ORDER BY relname
                 """, String.class)).containsExactly(
                 "prf_population_freeze_members",
                 "prf_population_freeze_reviewers",
-                "prf_population_freezes");
+                "prf_population_freezes",
+                "prf_review_operation_history");
     }
 
     @Test
-    void reviewOperationsProjectsPreviewThenFreezeWithoutMutatingPreview() {
+    void reviewOperationsKeepsAnAsOfSnapshotStableAcrossLaterStatusChanges() {
         String previewBefore = previewFingerprint();
-        PerformanceReviewOperationsRepository.QueryCriteria criteria =
-                new PerformanceReviewOperationsRepository.QueryCriteria(
-                        tenantId, 10, 0, Instant.now(), List.of("itemPublicId:ASC"),
-                        List.of(), List.of(), null, null, List.of(), List.of(),
-                        null, null, null);
+        Instant anchoredAt = databaseNow();
+        PerformanceReviewOperationsRepository.QueryCriteria criteria = criteria(anchoredAt);
 
         PerformanceReviewOperationsRepository.Page before = reviewOperations.query(criteria);
         assertThat(before.rows()).singleElement().satisfies(row -> {
@@ -167,12 +177,141 @@ class PopulationFreezePostgresTest {
         repository.createFreeze(
                 tenantId, 19L, receiptId, UUID.randomUUID(), candidate);
 
-        PerformanceReviewOperationsRepository.Page after = reviewOperations.query(criteria);
-        assertThat(after.rows()).singleElement().satisfies(row -> {
+        plainJdbc.execute("SELECT pg_sleep(0.01)");
+        plainJdbc.update("""
+                UPDATE hris_performance.prf_cycles
+                   SET display_name = 'FY27 Review Revised', aggregate_version = 5
+                 WHERE tenant_id = ? AND cycle_id = ?
+                """, tenantId, cycleId);
+
+        PerformanceReviewOperationsRepository.Page anchored = reviewOperations.query(criteria);
+        assertThat(anchored.rows()).singleElement().satisfies(row -> {
+            assertThat(row.displayName()).isEqualTo("FY27 Review");
+            assertThat(row.statusCode()).isEqualTo("READY_TO_FREEZE");
+            assertThat(row.openCount()).isEqualTo(1);
+        });
+        PerformanceReviewOperationsRepository.Page current = reviewOperations.query(
+                criteria(databaseNow()));
+        assertThat(current.rows()).singleElement().satisfies(row -> {
+            assertThat(row.displayName()).isEqualTo("FY27 Review Revised");
             assertThat(row.statusCode()).isEqualTo("FROZEN");
             assertThat(row.openCount()).isZero();
         });
         assertThat(previewFingerprint()).isEqualTo(previewBefore);
+    }
+
+    @Test
+    void reviewOperationsFiltersRowsByOwnerResolvedOrganizationOrManagerScope() {
+        Instant asOf = databaseNow();
+        PopulationFreezeAuthorityPort.TargetPopulation organizationScope =
+                new PopulationFreezeAuthorityPort.TargetPopulation(
+                        false, null, Set.of(seededOrganization), Set.of(), "org-scope");
+        PopulationFreezeAuthorityPort.TargetPopulation managerScope =
+                new PopulationFreezeAuthorityPort.TargetPopulation(
+                        false, seededReviewer.toString(), Set.of(), Set.of(), "manager-scope");
+        PopulationFreezeAuthorityPort.TargetPopulation deniedScope =
+                new PopulationFreezeAuthorityPort.TargetPopulation(
+                        false, null, Set.of(UUID.randomUUID()), Set.of(), "denied-scope");
+
+        assertThat(reviewOperations.query(criteria(asOf, organizationScope)).rows())
+                .singleElement();
+        assertThat(reviewOperations.query(criteria(asOf, managerScope)).rows())
+                .singleElement();
+        assertThat(reviewOperations.query(criteria(asOf, deniedScope)).rows()).isEmpty();
+    }
+
+    @Test
+    void serializesConcurrentPreviewsAndLeavesExactlyOneCurrentReadyCandidate()
+            throws Exception {
+        UUID first = UUID.randomUUID();
+        UUID second = UUID.randomUUID();
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> firstInsert = executor.submit(() -> {
+                start.await();
+                return insertPreview(first, UUID.randomUUID(), 32L);
+            });
+            Future<Integer> secondInsert = executor.submit(() -> {
+                start.await();
+                return insertPreview(second, UUID.randomUUID(), 33L);
+            });
+            start.countDown();
+
+            assertThat(firstInsert.get()).isOne();
+            assertThat(secondInsert.get()).isOne();
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(plainJdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM hris_performance.prf_population_previews
+                 WHERE tenant_id = ? AND cycle_version_id = ?
+                   AND preview_state = 'READY'
+                """, Integer.class, tenantId, cycleVersionId)).isOne();
+        PopulationFreezeRepository.FreezeCandidate oldCandidate = repository.candidate(
+                tenantId, cycleId, previewId).orElseThrow();
+        assertThat(oldCandidate.previewState()).isEqualTo("STALE");
+        assertThat(oldCandidate.latestReadyPreviewId()).isIn(first, second);
+        assertThat(oldCandidate.latestReadyPreviewId()).isNotEqualTo(previewId);
+    }
+
+    @Test
+    void concurrentDifferentKeysForOneCommandIdHaveOneWinnerAndNoSideEffects()
+            throws Exception {
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Boolean> first = executor.submit(() -> {
+                start.await();
+                return repository.reserveReceipt(
+                        tenantId, 19L, subjectId, receiptId, "collision-a", cycleId, 4L,
+                        "a".repeat(64), authority());
+            });
+            Future<Boolean> second = executor.submit(() -> {
+                start.await();
+                return repository.reserveReceipt(
+                        tenantId, 19L, subjectId, receiptId, "collision-b", cycleId, 4L,
+                        "b".repeat(64), authority());
+            });
+            start.countDown();
+
+            assertThat(List.of(first.get(), second.get()))
+                    .containsExactlyInAnyOrder(true, false);
+        } finally {
+            executor.shutdownNow();
+        }
+        assertThat(plainJdbc.queryForObject("""
+                SELECT COUNT(*) FROM hris_performance.prf_command_receipts
+                 WHERE tenant_id = ? AND command_receipt_id = ?
+                """, Integer.class, tenantId, receiptId)).isOne();
+        assertThat(plainJdbc.queryForObject("""
+                SELECT COUNT(*) FROM hris_performance.prf_population_freezes
+                 WHERE tenant_id = ?
+                """, Integer.class, tenantId)).isZero();
+        assertThat(plainJdbc.queryForObject("""
+                SELECT COUNT(*) FROM hris_performance.prf_outbox_events
+                 WHERE tenant_id = ? AND command_receipt_id = ?
+                """, Integer.class, tenantId, receiptId)).isZero();
+    }
+
+    @Test
+    void runtimeAndMigrationOwnerRolesCannotBypassForcedTenantIsolation() {
+        PopulationFreezeRepository.FreezeCandidate candidate = repository.candidate(
+                tenantId, cycleId, previewId).orElseThrow();
+        repository.reserveReceipt(
+                tenantId, 19L, subjectId, receiptId, "freeze-rls", cycleId, 4L,
+                "d".repeat(64), authority());
+        repository.createFreeze(tenantId, 19L, receiptId, UUID.randomUUID(), candidate);
+        createRlsRoles();
+
+        assertThat(countAsRole("per_runtime_test", tenantId)).isPositive();
+        assertThat(countAsRole("per_runtime_test", tenantId + 1)).isZero();
+        assertThat(countAsRole("per_runtime_test", null)).isZero();
+        assertThat(countAsRole("per_owner_test", tenantId)).isPositive();
+        assertThat(countAsRole("per_owner_test", tenantId + 1)).isZero();
+        assertThat(countAsRole("per_owner_test", null)).isZero();
     }
 
     private void seedPreview() {
@@ -180,14 +319,14 @@ class PopulationFreezePostgresTest {
         UUID includedAssignment = UUID.randomUUID();
         UUID excludedParticipant = UUID.randomUUID();
         UUID excludedAssignment = UUID.randomUUID();
-        UUID organization = UUID.randomUUID();
-        UUID reviewer = UUID.randomUUID();
+        seededOrganization = UUID.randomUUID();
+        seededReviewer = UUID.randomUUID();
         var members = java.util.List.of(
                 new PopulationFreezeRepository.PreviewMember(
-                        includedParticipant, includedAssignment, "ACTIVE", organization,
-                        reviewer, null, null, "INCLUDED"),
+                        includedParticipant, includedAssignment, "ACTIVE", seededOrganization,
+                        seededReviewer, null, null, "INCLUDED"),
                 new PopulationFreezeRepository.PreviewMember(
-                        excludedParticipant, excludedAssignment, "ACTIVE", organization,
+                        excludedParticipant, excludedAssignment, "ACTIVE", seededOrganization,
                         null, null, null, "EXCLUDED"));
         String contentHash = canonicalizer.previewContentHash(members);
         plainJdbc.update("""
@@ -252,7 +391,103 @@ class PopulationFreezePostgresTest {
                 tenantId, 19L, subjectId, PopulationFreezeService.APPLICATION_ENTITLEMENT,
                 PopulationFreezeService.RESOURCE, PopulationFreezeService.AUTHORITY_ACTION,
                 PopulationFreezeService.ORIGINATING_ACTION,
-                PopulationFreezeService.AUTHORITY_PURPOSE, "c".repeat(64), 11, 23);
+                PopulationFreezeService.AUTHORITY_PURPOSE, "c".repeat(64),
+                new PopulationFreezeAuthorityPort.TargetPopulation(
+                        true, null, Set.of(), Set.of("DIRECTORY", "EMPLOYMENT"), "scope-1"),
+                Map.of(
+                        "REVIEW_ASSIGNMENT", PopulationFreezeAuthorityPort.FieldDecision.VIEW,
+                        "WORK_QUEUE", PopulationFreezeAuthorityPort.FieldDecision.VIEW,
+                        "DUE_STATUS", PopulationFreezeAuthorityPort.FieldDecision.VIEW),
+                11, 23);
+    }
+
+    private PerformanceReviewOperationsRepository.QueryCriteria criteria(Instant asOf) {
+        return criteria(asOf, authority().targetPopulation());
+    }
+
+    private PerformanceReviewOperationsRepository.QueryCriteria criteria(
+            Instant asOf,
+            PopulationFreezeAuthorityPort.TargetPopulation targetPopulation) {
+        return new PerformanceReviewOperationsRepository.QueryCriteria(
+                tenantId, 10, asOf, List.of("itemPublicId:ASC"), null,
+                targetPopulation, List.of(), List.of(), null, null,
+                List.of(), List.of(), null, null, null);
+    }
+
+    private Instant databaseNow() {
+        return plainJdbc.queryForObject(
+                "SELECT clock_timestamp()", java.time.OffsetDateTime.class).toInstant();
+    }
+
+    private int insertPreview(UUID id, UUID workforceSnapshotId, long snapshotRevision) {
+        return plainJdbc.update("""
+                INSERT INTO hris_performance.prf_population_previews (
+                    population_preview_id, tenant_id, cycle_version_id,
+                    source_cycle_aggregate_version, population_rule_version_id,
+                    workforce_snapshot_id, workforce_snapshot_revision,
+                    preview_state, participant_count, reviewer_assignment_count,
+                    content_hash, aggregate_version, created_by, expires_at)
+                VALUES (?, ?, ?, 4, ?, ?, ?, 'READY', 0, 0, ?, 1, 10,
+                        CURRENT_TIMESTAMP + INTERVAL '1 hour')
+                """, id, tenantId, cycleVersionId, ruleId, workforceSnapshotId,
+                snapshotRevision, canonicalizer.previewContentHash(List.of()));
+    }
+
+    private void createRlsRoles() {
+        plainJdbc.execute("""
+                DO $$ BEGIN
+                    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'per_runtime_test') THEN
+                        CREATE ROLE per_runtime_test NOLOGIN;
+                    END IF;
+                    IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'per_owner_test') THEN
+                        CREATE ROLE per_owner_test NOLOGIN;
+                    END IF;
+                END $$
+                """);
+        plainJdbc.execute("GRANT USAGE ON SCHEMA hris_performance TO per_runtime_test");
+        plainJdbc.execute("""
+                GRANT SELECT ON hris_performance.prf_population_freezes,
+                    hris_performance.prf_population_freeze_members,
+                    hris_performance.prf_population_freeze_reviewers,
+                    hris_performance.prf_review_operation_history TO per_runtime_test
+                """);
+        plainJdbc.execute("ALTER TABLE hris_performance.prf_population_freezes OWNER TO per_owner_test");
+        plainJdbc.execute("""
+                ALTER TABLE hris_performance.prf_population_freeze_members OWNER TO per_owner_test
+                """);
+        plainJdbc.execute("""
+                ALTER TABLE hris_performance.prf_population_freeze_reviewers OWNER TO per_owner_test
+                """);
+        plainJdbc.execute("""
+                ALTER TABLE hris_performance.prf_review_operation_history OWNER TO per_owner_test
+                """);
+        plainJdbc.execute("GRANT USAGE ON SCHEMA hris_performance TO per_owner_test");
+    }
+
+    private int countAsRole(String role, Long contextTenantId) {
+        TransactionTemplate transaction = new TransactionTemplate(
+                new DataSourceTransactionManager(testDataSource));
+        Integer count = transaction.execute(status -> {
+            JdbcTemplate jdbc = new JdbcTemplate(testDataSource);
+            jdbc.execute("SET LOCAL ROLE " + role);
+            if (contextTenantId != null) {
+                jdbc.queryForObject(
+                        "SELECT set_config('dwp.tenant_id', ?, TRUE)",
+                        String.class, contextTenantId.toString());
+            }
+            return jdbc.queryForObject("""
+                    SELECT
+                        (SELECT COUNT(*)
+                           FROM hris_performance.prf_population_freezes)
+                      + (SELECT COUNT(*)
+                           FROM hris_performance.prf_population_freeze_members)
+                      + (SELECT COUNT(*)
+                           FROM hris_performance.prf_population_freeze_reviewers)
+                      + (SELECT COUNT(*)
+                           FROM hris_performance.prf_review_operation_history)
+                    """, Integer.class);
+        });
+        return count == null ? 0 : count;
     }
 
     private DataSource dataSource() {

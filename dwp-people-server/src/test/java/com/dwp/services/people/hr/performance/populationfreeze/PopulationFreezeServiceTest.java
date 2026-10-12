@@ -15,6 +15,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -54,7 +55,7 @@ class PopulationFreezeServiceTest {
     @BeforeEach
     void setUp() {
         PeopleRequestContext.set(ACTOR_ID, TENANT_ID, subjectId, Set.of("OPERATOR"), Set.of(
-                "APP.HRIS:VIEW", "DATA.HR_TALENT:UPDATE"));
+                "APP.HRIS:VIEW", "DATA.HR_TALENT:APPROVE"));
         when(authority.authorize(any())).thenReturn(authorityEvidence());
         service = new PopulationFreezeService(
                 repository, canonicalizer, audit,
@@ -84,7 +85,8 @@ class PopulationFreezeServiceTest {
         when(repository.createFreeze(
                 anyLong(), anyLong(), any(), any(), any())).thenReturn(freeze);
         when(repository.receiptById(TENANT_ID, commandId))
-                .thenReturn(Optional.of(new PopulationFreezeRepository.ReceiptRecord(
+                .thenReturn(Optional.empty(), Optional.of(
+                        new PopulationFreezeRepository.ReceiptRecord(
                         receipt, "freeze-1", "a".repeat(64))));
 
         PopulationFreezeDtos.FreezeCommandResult result = service.freeze(
@@ -130,6 +132,51 @@ class PopulationFreezeServiceTest {
         verify(repository, never()).createFreeze(
                 anyLong(), anyLong(), any(), any(), any());
         verifyNoInteractions(audit);
+    }
+
+    @Test
+    void rejectsAFormerReadyPreviewWhenAnotherPreviewIsCurrent() {
+        PopulationFreezeRepository.FreezeCandidate candidate = candidate(
+                UUID.randomUUID(), true);
+        when(repository.receiptByIdempotency(anyLong(), any(), any(), any()))
+                .thenReturn(Optional.empty());
+        when(repository.candidate(TENANT_ID, cycleId, previewId))
+                .thenReturn(Optional.of(candidate));
+
+        assertThatThrownBy(() -> service.freeze(
+                cycleId, 4L, request(candidate.contentHash()),
+                "freeze-old-preview", null, headers()))
+                .isInstanceOf(BaseException.class)
+                .extracting(error -> ((BaseException) error).getErrorCode())
+                .isEqualTo(ErrorCode.OBJECT_VERSION_CONFLICT);
+
+        verify(repository, never()).reserveReceipt(
+                anyLong(), anyLong(), any(), any(), any(), any(), anyLong(), any(), any());
+        verifyNoInteractions(highRisk, audit);
+    }
+
+    @Test
+    void rejectsPreviewMembersOutsideTheResolvedTargetPopulationBeforeReceipt() {
+        PopulationFreezeRepository.FreezeCandidate candidate = candidate();
+        PopulationFreezeAuthorityPort.TargetPopulation scopedPopulation =
+                new PopulationFreezeAuthorityPort.TargetPopulation(
+                        false, null, Set.of(UUID.randomUUID()), Set.of("DIRECTORY"), "scope-2");
+        when(authority.authorize(any())).thenReturn(authorityEvidence(scopedPopulation));
+        when(repository.receiptByIdempotency(anyLong(), any(), any(), any()))
+                .thenReturn(Optional.empty());
+        when(repository.candidate(TENANT_ID, cycleId, previewId))
+                .thenReturn(Optional.of(candidate));
+
+        assertThatThrownBy(() -> service.freeze(
+                cycleId, 4L, request(candidate.contentHash()),
+                "freeze-out-of-scope", null, headers()))
+                .isInstanceOf(BaseException.class)
+                .extracting(error -> ((BaseException) error).getErrorCode())
+                .isEqualTo(ErrorCode.FORBIDDEN);
+
+        verify(repository, never()).reserveReceipt(
+                anyLong(), anyLong(), any(), any(), any(), any(), anyLong(), any(), any());
+        verifyNoInteractions(highRisk, audit);
     }
 
     @Test
@@ -209,6 +256,59 @@ class PopulationFreezeServiceTest {
     }
 
     @Test
+    void reusedCommandIdWithDifferentIdempotencyKeyFailsWithoutEffects() {
+        PopulationFreezeRepository.FreezeCandidate candidate = candidate();
+        when(repository.receiptByIdempotency(
+                TENANT_ID, subjectId, PopulationFreezeService.ORIGINATING_ACTION,
+                "freeze-command-reuse"))
+                .thenReturn(Optional.empty());
+        when(repository.receiptById(TENANT_ID, commandId))
+                .thenReturn(Optional.of(new PopulationFreezeRepository.ReceiptRecord(
+                        receipt("SUCCEEDED", freezeId), "another-key", "0".repeat(64))));
+
+        assertThatThrownBy(() -> service.freeze(
+                cycleId, 4L, request(candidate.contentHash()),
+                "freeze-command-reuse", null, headers()))
+                .isInstanceOf(BaseException.class)
+                .extracting(error -> ((BaseException) error).getErrorCode())
+                .isEqualTo(ErrorCode.RESOURCE_CONFLICT);
+
+        verify(repository, never()).candidate(anyLong(), any(), any());
+        verify(repository, never()).reserveReceipt(
+                anyLong(), anyLong(), any(), any(), any(), any(), anyLong(), any(), any());
+        verifyNoInteractions(highRisk, audit);
+    }
+
+    @Test
+    void concurrentCommandIdCollisionMapsToCanonicalConflictWithoutEffects() {
+        PopulationFreezeRepository.FreezeCandidate candidate = candidate();
+        when(repository.receiptByIdempotency(
+                TENANT_ID, subjectId, PopulationFreezeService.ORIGINATING_ACTION,
+                "freeze-command-race"))
+                .thenReturn(Optional.empty());
+        when(repository.receiptById(TENANT_ID, commandId))
+                .thenReturn(Optional.empty(), Optional.of(
+                        new PopulationFreezeRepository.ReceiptRecord(
+                                receipt("ACCEPTED", null), "winning-key", "0".repeat(64))));
+        when(repository.candidate(TENANT_ID, cycleId, previewId))
+                .thenReturn(Optional.of(candidate));
+        when(repository.reserveReceipt(
+                anyLong(), anyLong(), any(), any(), any(), any(), anyLong(), any(), any()))
+                .thenReturn(false);
+
+        assertThatThrownBy(() -> service.freeze(
+                cycleId, 4L, request(candidate.contentHash()),
+                "freeze-command-race", null, headers()))
+                .isInstanceOf(BaseException.class)
+                .extracting(error -> ((BaseException) error).getErrorCode())
+                .isEqualTo(ErrorCode.RESOURCE_CONFLICT);
+
+        verify(repository, never()).createFreeze(
+                anyLong(), anyLong(), any(), any(), any());
+        verifyNoInteractions(highRisk, audit);
+    }
+
+    @Test
     void missingCanonicalAuthorityFailsBeforeRepositoryAccess() {
         service = new PopulationFreezeService(
                 repository, canonicalizer, audit,
@@ -224,6 +324,12 @@ class PopulationFreezeServiceTest {
     }
 
     private PopulationFreezeRepository.FreezeCandidate candidate() {
+        return candidate(previewId, true);
+    }
+
+    private PopulationFreezeRepository.FreezeCandidate candidate(
+            UUID latestReadyPreviewId,
+            boolean includeCurrentMembers) {
         List<PopulationFreezeRepository.PreviewMember> members = List.of(
                 new PopulationFreezeRepository.PreviewMember(
                         UUID.randomUUID(), UUID.randomUUID(), "ACTIVE", UUID.randomUUID(),
@@ -235,7 +341,8 @@ class PopulationFreezeServiceTest {
         return new PopulationFreezeRepository.FreezeCandidate(
                 cycleId, "VALIDATED", 1, 4L, cycleVersionId, 1,
                 previewId, ruleId, snapshotId, 31L, 4L, "READY",
-                1, 1, hash, NOW.plusSeconds(3_600), members);
+                1, 1, hash, NOW.plusSeconds(3_600), latestReadyPreviewId,
+                includeCurrentMembers ? members : List.of());
     }
 
     private PopulationFreezeDtos.FreezePopulationRequest request(String hash) {
@@ -260,11 +367,22 @@ class PopulationFreezeServiceTest {
     }
 
     private PopulationFreezeAuthorityPort.AuthorityEvidence authorityEvidence() {
+        return authorityEvidence(new PopulationFreezeAuthorityPort.TargetPopulation(
+                true, null, Set.of(), Set.of("DIRECTORY", "EMPLOYMENT"), "scope-1"));
+    }
+
+    private PopulationFreezeAuthorityPort.AuthorityEvidence authorityEvidence(
+            PopulationFreezeAuthorityPort.TargetPopulation targetPopulation) {
         return new PopulationFreezeAuthorityPort.AuthorityEvidence(
                 TENANT_ID, ACTOR_ID, subjectId, PopulationFreezeService.APPLICATION_ENTITLEMENT,
                 PopulationFreezeService.RESOURCE, PopulationFreezeService.AUTHORITY_ACTION,
                 PopulationFreezeService.ORIGINATING_ACTION,
-                PopulationFreezeService.AUTHORITY_PURPOSE, "a".repeat(64), 11L, 23L);
+                PopulationFreezeService.AUTHORITY_PURPOSE, "a".repeat(64), targetPopulation,
+                Map.of(
+                        "REVIEW_ASSIGNMENT", PopulationFreezeAuthorityPort.FieldDecision.VIEW,
+                        "WORK_QUEUE", PopulationFreezeAuthorityPort.FieldDecision.VIEW,
+                        "DUE_STATUS", PopulationFreezeAuthorityPort.FieldDecision.VIEW),
+                11L, 23L);
     }
 
     private HcmStepUpHeaders headers() {

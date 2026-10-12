@@ -26,8 +26,10 @@ class HcmPopulationFreezeAuthorityAdapterTest {
 
     @Test
     void acceptsOnlyTheExactPepPer009RouteCapabilityAndPopulation() {
+        assertThat(HcmPopulationFreezeAuthorityAdapter.FREEZE_CAPABILITY_CONTRACT)
+                .isEqualTo("hcm.operations.performance.freeze");
         HcmPopulationFreezeAuthorityAdapter adapter = adapter(
-                actor(TENANT, SUBJECT, Set.of("DATA.HR_TALENT:UPDATE")),
+                actor(TENANT, SUBJECT, Set.of("DATA.HR_TALENT:APPROVE")),
                 evidence(HcmPopulationFreezeAuthorityAdapter.FREEZE_ROUTE_CONTRACT,
                         HcmPopulationFreezeAuthorityAdapter.FREEZE_CAPABILITY_CONTRACT,
                         Set.of("predicate.hcm-domain-target-population.v1"),
@@ -36,6 +38,9 @@ class HcmPopulationFreezeAuthorityAdapterTest {
         PopulationFreezeAuthorityPort.AuthorityEvidence result = adapter.authorize(request());
 
         assertThat(result.populationScopeDigest()).matches("[0-9a-f]{64}");
+        assertThat(result.targetPopulation().organizationRefs()).isNotEmpty();
+        assertThat(result.fieldDecisions()).containsEntry(
+                "WORK_QUEUE", PopulationFreezeAuthorityPort.FieldDecision.VIEW);
         assertThat(result.fieldPolicyRevision()).isPositive();
         assertThat(result.authorizationRevision()).isPositive();
     }
@@ -64,10 +69,10 @@ class HcmPopulationFreezeAuthorityAdapterTest {
     @Test
     void rejectsCrossTenantAndWrongRouteBeforeReturningEvidence() {
         HcmPopulationFreezeAuthorityAdapter crossTenant = adapter(
-                actor(TENANT + 1, SUBJECT, Set.of("DATA.HR_TALENT:UPDATE")),
+                actor(TENANT + 1, SUBJECT, Set.of("DATA.HR_TALENT:APPROVE")),
                 validEvidence());
         HcmPopulationFreezeAuthorityAdapter wrongRoute = adapter(
-                actor(TENANT, SUBJECT, Set.of("DATA.HR_TALENT:UPDATE")),
+                actor(TENANT, SUBJECT, Set.of("DATA.HR_TALENT:APPROVE")),
                 evidence("route.hcm.operations.performance-cycle-population-preview.action",
                         HcmPopulationFreezeAuthorityAdapter.FREEZE_CAPABILITY_CONTRACT,
                         Set.of("predicate.hcm-domain-target-population.v1"),
@@ -80,13 +85,13 @@ class HcmPopulationFreezeAuthorityAdapterTest {
     @Test
     void rejectsStaleEvidenceAndMissingPopulationPredicate() {
         HcmPopulationFreezeAuthorityAdapter stale = adapter(
-                actor(TENANT, SUBJECT, Set.of("DATA.HR_TALENT:UPDATE")),
+                actor(TENANT, SUBJECT, Set.of("DATA.HR_TALENT:APPROVE")),
                 evidence(HcmPopulationFreezeAuthorityAdapter.FREEZE_ROUTE_CONTRACT,
                         HcmPopulationFreezeAuthorityAdapter.FREEZE_CAPABILITY_CONTRACT,
                         Set.of("predicate.hcm-domain-target-population.v1"),
                         Set.of("TARGET_POPULATION"), NOW));
         HcmPopulationFreezeAuthorityAdapter missingPopulation = adapter(
-                actor(TENANT, SUBJECT, Set.of("DATA.HR_TALENT:UPDATE")),
+                actor(TENANT, SUBJECT, Set.of("DATA.HR_TALENT:APPROVE")),
                 evidence(HcmPopulationFreezeAuthorityAdapter.FREEZE_ROUTE_CONTRACT,
                         HcmPopulationFreezeAuthorityAdapter.FREEZE_CAPABILITY_CONTRACT,
                         Set.of(), Set.of("OBJECT"), NOW.plusSeconds(60)));
@@ -100,7 +105,14 @@ class HcmPopulationFreezeAuthorityAdapterTest {
             PeopleRequestContext.Actor actor,
             HcmPepContext.Evidence evidence) {
         return new HcmPopulationFreezeAuthorityAdapter(
-                () -> evidence, () -> actor, Clock.fixed(NOW, ZoneOffset.UTC));
+                () -> evidence, () -> actor, ignored -> targetPopulation(),
+                Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+
+    private PopulationFreezeAuthorityPort.TargetPopulation targetPopulation() {
+        return new PopulationFreezeAuthorityPort.TargetPopulation(
+                false, UUID.randomUUID().toString(), Set.of(UUID.randomUUID()),
+                Set.of("DIRECTORY", "EMPLOYMENT"), "population:17");
     }
 
     private PeopleRequestContext.Actor actor(
