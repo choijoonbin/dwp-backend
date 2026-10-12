@@ -142,23 +142,68 @@ class SysIaEntryQueryContractTest {
     }
 
     @Test
+    void asOfSelectsLifecycleSnapshotAndFixedCursorDoesNotDrift() {
+        UUID firstId = UUID.fromString("00000000-0000-4000-8000-000000000101");
+        UUID secondId = UUID.fromString("00000000-0000-4000-8000-000000000102");
+        UUID thirdId = UUID.fromString("00000000-0000-4000-8000-000000000103");
+        OffsetDateTime t0 = NOW.minusMinutes(10);
+        OffsetDateTime t1 = NOW.minusMinutes(5);
+        OffsetDateTime t2 = NOW.minusMinutes(1);
+        repository.put(42, snapshot(firstId, "alpha-policy", LifecycleState.DRAFT, 0, t0));
+        repository.put(42, snapshot(secondId, "beta-policy", LifecycleState.DRAFT, 0, t0));
+        repository.put(42, snapshot(thirdId, "gamma-policy", LifecycleState.DRAFT, 0, t0));
+
+        WorkbenchQuery firstQuery = query(
+                1, emptyFilter(), List.of("itemPublicId:ASC"), t1, null,
+                FreshnessPreference.ALLOW_STALE);
+        WorkbenchResponse first = service.workbench(viewer, firstQuery);
+        assertThat(first.items()).extracting(WorkbenchItem::itemPublicId)
+                .containsExactly(firstId.toString());
+        assertThat(first.queryState().nextCursor()).isNotBlank();
+
+        repository.put(42, snapshot(
+                secondId, "beta-policy", LifecycleState.PUBLISHED, 1, t2));
+        repository.put(42, snapshot(
+                UUID.fromString("00000000-0000-4000-8000-000000000099"),
+                "late-policy", LifecycleState.PUBLISHED, 0, t2));
+
+        WorkbenchResponse second = service.workbench(viewer, query(
+                1, emptyFilter(), List.of("itemPublicId:ASC"), null,
+                first.queryState().nextCursor(), FreshnessPreference.ALLOW_STALE));
+        assertThat(second.asOf()).isEqualTo(t1);
+        assertThat(second.items()).extracting(WorkbenchItem::itemPublicId)
+                .containsExactly(secondId.toString());
+        assertThat(second.items().getFirst().statusCode()).isEqualTo("DRAFT");
+
+        WorkbenchResponse current = service.workbench(viewer, query(
+                10, emptyFilter(), List.of("itemPublicId:ASC"), NOW, null,
+                FreshnessPreference.FRESH_ONLY));
+        assertThat(current.items().stream()
+                .filter(item -> item.itemPublicId().equals(secondId.toString()))
+                .findFirst().orElseThrow().statusCode()).isEqualTo("PUBLISHED");
+    }
+
+    @Test
     void catalogFilterFieldsFreshnessAndCursorAreEnforced() {
         seed("alpha-policy", LifecycleState.VALIDATED);
         seed("beta-policy", LifecycleState.DRAFT);
         CatalogQuery firstQuery = new CatalogQuery(
                 NOW, null, "type==SYS;minimumVersion==1",
-                List.of("publicId", "key", "type"), FreshnessPreference.FRESH_ONLY, 1);
+                List.of("publicId", "key", "type", "version"),
+                FreshnessPreference.FRESH_ONLY, 1);
         CatalogResponse first = service.configurations(viewer, firstQuery);
         assertThat(first.items()).hasSize(1);
         assertThat(first.nextCursor()).isNotBlank();
         CatalogResponse second = service.configurations(viewer, new CatalogQuery(
                 null, first.nextCursor(), "type==SYS;minimumVersion==1",
-                List.of("publicId", "key", "type"), FreshnessPreference.FRESH_ONLY, 1));
+                List.of("publicId", "key", "type", "version"),
+                FreshnessPreference.FRESH_ONLY, 1));
         assertThat(second.items()).hasSize(1);
         assertThat(second.items().getFirst().publicId()).isNotEqualTo(first.items().getFirst().publicId());
         assertThatThrownBy(() -> service.configurations(viewer, new CatalogQuery(
                 null, first.nextCursor(), "state==DRAFT",
-                List.of("publicId", "key", "type"), FreshnessPreference.FRESH_ONLY, 1)))
+                List.of("publicId", "key", "type", "state"),
+                FreshnessPreference.FRESH_ONLY, 1)))
                 .isInstanceOf(BaseException.class).hasMessageContaining("CURSOR_STALE");
     }
 
@@ -173,9 +218,57 @@ class SysIaEntryQueryContractTest {
                 .doesNotContainKey("EFFECTIVE_STATUS");
         assertThat(item.fieldGroups().get("POLICY_VERSION").decision()).isEqualTo(FieldDecision.VIEW);
         assertThat(item.fieldGroups().get("REFERENCE_DATA").decision()).isEqualTo(FieldDecision.MASK);
+        assertThat(((PolicyValue) item.fieldGroups().get("POLICY_VERSION").value()).policyKey())
+                .isEqualTo("RESTRICTED");
+        assertThat(((PolicyValue) item.fieldGroups().get("POLICY_VERSION").value()).status())
+                .isEqualTo("RESTRICTED");
+        assertThat(item.title()).isEqualTo("Restricted reference configuration");
+        assertThat(item.statusCode()).isEqualTo("RESTRICTED");
         assertThat(item.availableActions()).isEmpty();
         assertThat(response.queryState().fieldDecisionSummary())
                 .isEqualTo(new FieldDecisionSummary(1, 1, 1));
+
+        AccessContext maskedPolicy = access(
+                "decision-revision-7", Set.of("POLICY_VERSION"), Set.of());
+        WorkbenchItem inverse = service.workbench(maskedPolicy, query(10)).items().getFirst();
+        assertThat(((ReferenceValue) inverse.fieldGroups().get("REFERENCE_DATA").value()).label())
+                .isEqualTo("RESTRICTED");
+        assertThat(inverse.title()).isEqualTo("Restricted reference configuration");
+    }
+
+    @Test
+    void hiddenFieldFiltersSortsAndCatalogKeysCannotBeUsedAsOracles() {
+        seed("alpha-policy", LifecycleState.DRAFT);
+        AccessContext maskedReference = access(
+                "decision-revision-7", Set.of("REFERENCE_DATA"), Set.of());
+        assertThatThrownBy(() -> service.workbench(maskedReference, query(
+                10, emptyFilter(), List.of("referenceData:ASC"), null, null,
+                FreshnessPreference.FRESH_ONLY)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("QUERY_FIELD_POLICY_DENIED");
+        assertThatThrownBy(() -> service.workbench(maskedReference, query(
+                10, new WorkbenchFilter(List.of(), null, List.of(), List.of("SYS"),
+                        List.of(), null, null), List.of("itemPublicId:ASC"), null, null,
+                FreshnessPreference.FRESH_ONLY)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("QUERY_FIELD_POLICY_DENIED");
+        assertThatThrownBy(() -> service.configurations(maskedReference, new CatalogQuery(
+                NOW, null, "key==alpha-policy", List.of("publicId", "key"),
+                FreshnessPreference.FRESH_ONLY, 10)))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("CATALOG_FIELD_POLICY_DENIED");
+
+        AccessContext omittedPolicy = access(
+                "decision-revision-7", Set.of(), Set.of("POLICY_VERSION"));
+        WorkbenchQuery hiddenPolicyFilter = new WorkbenchQuery(
+                null, null, 10,
+                new WorkbenchFilter(List.of("alpha-policy"), null,
+                        List.of(), List.of(), List.of(), null, null),
+                List.of("itemPublicId:ASC"), "en", "UTC", UUID.randomUUID(),
+                List.of("REFERENCE_DATA", "EFFECTIVE_STATUS"), FreshnessPreference.FRESH_ONLY);
+        assertThatThrownBy(() -> service.workbench(omittedPolicy, hiddenPolicyFilter))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("QUERY_FIELD_POLICY_DENIED");
     }
 
     @Test
@@ -264,6 +357,19 @@ class SysIaEntryQueryContractTest {
                 effectiveFrom, null, key, 1, "ref_owner_1234567890", "b".repeat(64),
                 null, null, null, null, version, 101L, null, null, null, null,
                 createdAt, createdAt.plusHours(1));
+    }
+
+    private VersionDetail snapshot(
+            UUID id,
+            String key,
+            LifecycleState state,
+            long aggregateVersion,
+            OffsetDateTime capturedAt) {
+        return new VersionDetail(
+                id, 1, Domain.SYS, ScopeType.LEGAL_ENTITY, SCOPE_ID, state,
+                NOW.minusDays(1), null, key, 1, "ref_owner_1234567890", "b".repeat(64),
+                null, null, null, null, aggregateVersion, 101L, null, null, null, null,
+                capturedAt.minusMinutes(1), capturedAt);
     }
 
     private WorkbenchQuery query(int limit) {

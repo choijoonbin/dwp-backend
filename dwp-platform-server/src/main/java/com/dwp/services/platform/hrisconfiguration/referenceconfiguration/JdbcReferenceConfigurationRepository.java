@@ -145,6 +145,7 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                  FOR UPDATE
                 """, tenantId, configurationId, scope.type().name(), scope.id());
         if (!command.domain().name().equals(owner.get("domain"))
+                || !command.schemaKey().equals(owner.get("configuration_key"))
                 || !scope.type().name().equals(owner.get("scope_type"))
                 || !scope.id().equals(owner.get("scope_id"))) {
             throw new IllegalStateException("REFERENCE_CONFIGURATION_OWNER_CONFLICT");
@@ -185,6 +186,7 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                  WHERE tenant_id = ? AND configuration_id = ?
                    AND scope_type = ? AND scope_id = ?
                 """, now, tenantId, configurationId, scope.type().name(), scope.id());
+        captureSnapshot(tenantId, scope, configurationId, version, now);
         return version;
     }
 
@@ -218,8 +220,7 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
             int limit) {
         List<WorkbenchRow> candidates = latestRows(tenantId, scope, asOf).stream()
                 .filter(row -> matchesCatalog(row, filter))
-                .sorted(Comparator.comparing((WorkbenchRow row) -> row.item().key())
-                        .thenComparing(row -> row.item().publicId()))
+                .sorted(Comparator.comparing(row -> row.item().publicId()))
                 .toList();
         int start = seekIndex(candidates, seekAfter);
         boolean seekFound = seekAfter == null || start >= 0;
@@ -264,16 +265,19 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                 SELECT c.configuration_key, v.*
                   FROM hris_reference_configurations c
                   JOIN LATERAL (
-                       SELECT *
-                         FROM hris_reference_configuration_versions candidate
-                        WHERE candidate.tenant_id = c.tenant_id
-                          AND candidate.configuration_id = c.configuration_id
-                          AND candidate.scope_type = c.scope_type
-                          AND candidate.scope_id = c.scope_id
-                          AND candidate.created_at <= ?
-                        ORDER BY candidate.version DESC
+                       SELECT history.snapshot
+                         FROM hris_reference_configuration_version_history history
+                        WHERE history.tenant_id = c.tenant_id
+                          AND history.configuration_id = c.configuration_id
+                          AND history.scope_type = c.scope_type
+                          AND history.scope_id = c.scope_id
+                          AND history.captured_at <= ?
+                        ORDER BY history.version DESC, history.aggregate_version DESC
                         LIMIT 1
-                  ) v ON TRUE
+                  ) history ON TRUE
+                  CROSS JOIN LATERAL jsonb_populate_record(
+                      NULL::hris_reference_configuration_versions,
+                      history.snapshot) v
                  WHERE c.tenant_id = ? AND c.scope_type = ? AND c.scope_id = ?
                 """, (rs, row) -> {
                     VersionDetail detail = version(rs, row);
@@ -396,6 +400,9 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                     expectedState.name(), expectedAggregateVersion);
             default -> throw new IllegalArgumentException("Unsupported lifecycle transition " + targetState);
         };
+        if (changed == 1) {
+            captureSnapshot(tenantId, scope, configurationId, version, now);
+        }
         return changed == 1;
     }
 
@@ -424,9 +431,10 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                  WHERE tenant_id = ? AND configuration_id = ? AND version = ?
                    AND scope_type = ? AND scope_id = ?
                    AND lifecycle_state = 'PUBLISHED' AND aggregate_version = ?
-                """, command.effectiveFrom(), command.reasonCode(), now,
+                   AND effective_from < ? AND (effective_to IS NULL OR effective_to > ?)
+                """, now, command.reasonCode(), now,
                 tenantId, configurationId, currentVersion, scope.type().name(), scope.id(),
-                expectedAggregateVersion);
+                expectedAggregateVersion, now, now);
         if (closed != 1) {
             throw new IllegalStateException("REFERENCE_CONFIGURATION_VERSION_CONFLICT");
         }
@@ -459,7 +467,7 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                         ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?)
                 """,
                 tenantId, configurationId, rollbackVersion, source.domain().name(),
-                scope.type().name(), scope.id(), command.effectiveFrom(), source.schemaKey(),
+                scope.type().name(), scope.id(), now, source.schemaKey(),
                 source.schemaVersion(), source.payloadReference(), source.payloadDigest(),
                 value(source.validation(), ValidationFact::receiptId),
                 value(source.validation(), ValidationFact::evidenceDigest),
@@ -484,7 +492,55 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                 value(source.approval(), ApprovalFact::evidenceDigest),
                 value(source.approval(), ApprovalFact::producedAt),
                 source.authoredBy(), actorId, currentVersion, command.reasonCode(), now, now);
+        captureSnapshot(tenantId, scope, configurationId, currentVersion, now);
+        captureSnapshot(tenantId, scope, configurationId, rollbackVersion, now);
         return rollbackVersion;
+    }
+
+    @Override
+    public boolean retireAndActivateSuccessor(
+            long tenantId,
+            PopulationScope scope,
+            UUID configurationId,
+            long currentVersion,
+            long currentAggregateVersion,
+            long successorVersion,
+            long successorAggregateVersion,
+            OffsetDateTime boundary,
+            String reasonCode,
+            OffsetDateTime now) {
+        bindTenant(tenantId);
+        int retired = jdbc.update("""
+                UPDATE hris_reference_configuration_versions
+                   SET lifecycle_state = 'RETIRED', effective_to = ?, replacement_version = ?,
+                       reason_code = ?, aggregate_version = aggregate_version + 1, updated_at = ?
+                 WHERE tenant_id = ? AND configuration_id = ? AND version = ?
+                   AND scope_type = ? AND scope_id = ?
+                   AND lifecycle_state = 'PUBLISHED' AND aggregate_version = ?
+                   AND effective_from < ?
+                   AND effective_from <= ? AND (effective_to IS NULL OR effective_to > ?)
+                """, boundary, successorVersion, reasonCode, now,
+                tenantId, configurationId, currentVersion, scope.type().name(), scope.id(),
+                currentAggregateVersion, boundary, now, now);
+        if (retired != 1) return false;
+        int activated = jdbc.update("""
+                UPDATE hris_reference_configuration_versions
+                   SET lifecycle_state = 'PUBLISHED', aggregate_version = aggregate_version + 1,
+                       updated_at = ?
+                 WHERE tenant_id = ? AND configuration_id = ? AND version = ?
+                   AND scope_type = ? AND scope_id = ?
+                   AND lifecycle_state = 'SCHEDULED' AND aggregate_version = ?
+                   AND effective_from = ? AND scheduled_at <= ?
+                   AND (effective_to IS NULL OR effective_to > ?)
+                   AND approval_receipt_id IS NOT NULL
+                """, now, tenantId, configurationId, successorVersion,
+                scope.type().name(), scope.id(), successorAggregateVersion, boundary, now, now);
+        if (activated != 1) {
+            throw new IllegalStateException("REFERENCE_CONFIGURATION_SUCCESSOR_ACTIVATION_CONFLICT");
+        }
+        captureSnapshot(tenantId, scope, configurationId, currentVersion, now);
+        captureSnapshot(tenantId, scope, configurationId, successorVersion, now);
+        return true;
     }
 
     @Override
@@ -522,6 +578,28 @@ class JdbcReferenceConfigurationRepository implements ReferenceConfigurationRepo
                 VALUES (?, ?, ?, ?, ?, ?, CAST(? AS uuid), ?, ?)
                 """, tenantId, UUID.randomUUID(), configurationId, version, action,
                 actorId, correlationId, evidenceDigest, now);
+    }
+
+    private void captureSnapshot(
+            long tenantId,
+            PopulationScope scope,
+            UUID configurationId,
+            long version,
+            OffsetDateTime capturedAt) {
+        int inserted = jdbc.update("""
+                INSERT INTO hris_reference_configuration_version_history (
+                    tenant_id, configuration_id, version, aggregate_version,
+                    scope_type, scope_id, captured_at, snapshot)
+                SELECT v.tenant_id, v.configuration_id, v.version, v.aggregate_version,
+                       v.scope_type, v.scope_id, ?, to_jsonb(v)
+                  FROM hris_reference_configuration_versions v
+                 WHERE v.tenant_id = ? AND v.configuration_id = ? AND v.version = ?
+                   AND v.scope_type = ? AND v.scope_id = ?
+                """, capturedAt, tenantId, configurationId, version,
+                scope.type().name(), scope.id());
+        if (inserted != 1) {
+            throw new IllegalStateException("REFERENCE_CONFIGURATION_SNAPSHOT_CAPTURE_FAILED");
+        }
     }
 
     private StoredReceipt storedReceipt(ResultSet rs) throws SQLException {

@@ -84,6 +84,18 @@ interface ReferenceConfigurationRepository {
             String ownerImpactDigest,
             OffsetDateTime now);
 
+    boolean retireAndActivateSuccessor(
+            long tenantId,
+            PopulationScope scope,
+            UUID configurationId,
+            long currentVersion,
+            long currentAggregateVersion,
+            long successorVersion,
+            long successorAggregateVersion,
+            OffsetDateTime boundary,
+            String reasonCode,
+            OffsetDateTime now);
+
     void appendOutbox(
             long tenantId,
             UUID configurationId,

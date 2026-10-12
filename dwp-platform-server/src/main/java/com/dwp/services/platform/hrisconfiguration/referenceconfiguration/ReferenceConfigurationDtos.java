@@ -176,11 +176,11 @@ public final class ReferenceConfigurationDtos {
 
     public record CatalogItem(
             UUID publicId,
-            String key,
-            @JsonProperty("type") Domain domain,
-            LifecycleState state,
-            long version,
-            OffsetDateTime updatedAt) {
+            @JsonInclude(JsonInclude.Include.NON_NULL) String key,
+            @JsonInclude(JsonInclude.Include.NON_NULL) @JsonProperty("type") Domain domain,
+            @JsonInclude(JsonInclude.Include.NON_NULL) LifecycleState state,
+            @JsonInclude(JsonInclude.Include.NON_NULL) Long version,
+            @JsonInclude(JsonInclude.Include.NON_NULL) OffsetDateTime updatedAt) {
     }
 
     public record CatalogResponse(
