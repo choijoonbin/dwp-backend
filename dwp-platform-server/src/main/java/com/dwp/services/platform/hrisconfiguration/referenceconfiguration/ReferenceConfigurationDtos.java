@@ -21,43 +21,30 @@ public final class ReferenceConfigurationDtos {
     private ReferenceConfigurationDtos() {
     }
 
-    public enum Domain {
-        HRM,
-        PER,
-        TIM,
-        PAY,
-        SYS
-    }
+    public enum Domain { HRM, PER, TIM, PAY, SYS }
+
+    /** Exact population boundary allocated by PEP-SYS-011..047. */
+    public enum ScopeType { LEGAL_ENTITY, POLICY_NODE }
 
     public enum LifecycleState {
-        DRAFT,
-        VALIDATED,
-        SIMULATED,
-        PENDING_APPROVAL,
-        APPROVED,
-        SCHEDULED,
-        PUBLISHED,
-        REJECTED,
-        RETIRED,
-        FAILED_ACTIVATION
+        DRAFT, VALIDATED, SIMULATED, PENDING_APPROVAL, APPROVED, SCHEDULED,
+        PUBLISHED, REJECTED, RETIRED, FAILED_ACTIVATION
     }
 
-    public enum QueryState {
-        COMPLETE,
-        EMPTY,
-        PARTIAL,
-        UNAVAILABLE
-    }
+    public enum QueryState { COMPLETE, EMPTY, PARTIAL, UNAVAILABLE }
 
-    public enum Freshness {
-        CURRENT,
-        STALE,
-        UNAVAILABLE
-    }
+    public enum Freshness { CURRENT, STALE, UNAVAILABLE }
 
-    public enum FieldDecision {
-        VIEW,
-        MASK
+    public enum FreshnessPreference { FRESH_ONLY, ALLOW_STALE }
+
+    /** OMIT is represented by the absence of a field group in the wire projection. */
+    public enum FieldDecision { VIEW, MASK, OMIT }
+
+    public record PopulationScope(
+            @NotNull ScopeType type,
+            @NotNull UUID id,
+            @NotBlank @Pattern(regexp = "^[a-f0-9]{64}$") String digest,
+            @NotBlank @Size(max = 128) String decisionRevision) {
     }
 
     public record PayloadReference(
@@ -127,10 +114,32 @@ public final class ReferenceConfigurationDtos {
             @NotBlank @Pattern(regexp = "^[A-Z][A-Z0-9_]{2,63}$") String reasonCode) {
     }
 
+    public record ValidationFact(
+            UUID receiptId, String evidenceDigest, int schemaRevision,
+            String populationScopeDigest, OffsetDateTime producedAt) {
+    }
+
+    public record SimulationFact(
+            UUID receiptId, UUID validationReceiptId, String evidenceDigest,
+            String impactDigest, OffsetDateTime producedAt, OffsetDateTime freshUntil) {
+    }
+
+    public record SubmissionFact(
+            UUID receiptId, UUID validationReceiptId, UUID simulationReceiptId,
+            String evidenceDigest, String approvalWorkflowKey, OffsetDateTime producedAt) {
+    }
+
+    public record ApprovalFact(
+            UUID receiptId, UUID submissionReceiptId, String decisionDigest,
+            String evidenceDigest, OffsetDateTime producedAt) {
+    }
+
     public record VersionDetail(
             UUID configurationId,
             long version,
             Domain domain,
+            ScopeType scopeType,
+            UUID scopeId,
             LifecycleState state,
             OffsetDateTime effectiveFrom,
             OffsetDateTime effectiveTo,
@@ -138,12 +147,16 @@ public final class ReferenceConfigurationDtos {
             int schemaVersion,
             String payloadReference,
             String payloadDigest,
-            UUID approvalReceiptId,
+            ValidationFact validation,
+            SimulationFact simulation,
+            SubmissionFact submission,
+            ApprovalFact approval,
             long aggregateVersion,
             Long authoredBy,
             Long approvedBy,
             OffsetDateTime scheduledAt,
             Long supersedesVersion,
+            Long replacementVersion,
             OffsetDateTime createdAt,
             OffsetDateTime updatedAt) {
     }
@@ -176,6 +189,19 @@ public final class ReferenceConfigurationDtos {
             List<CatalogItem> items,
             OffsetDateTime freshUntil,
             OffsetDateTime staleAfter) {
+    }
+
+    public record CatalogFilter(
+            String key, Domain domain, LifecycleState state, Long minimumVersion) {
+    }
+
+    public record CatalogQuery(
+            OffsetDateTime asOf,
+            String cursor,
+            String filter,
+            List<String> fields,
+            FreshnessPreference freshness,
+            int limit) {
     }
 
     public record CommandReceipt(
@@ -213,7 +239,23 @@ public final class ReferenceConfigurationDtos {
             @NotNull @Size(min = 1, max = 3) List<String> sort,
             @NotBlank @Size(min = 2, max = 35) String locale,
             @NotBlank @Size(max = 255) String timeZone,
-            @NotNull UUID correlationId) {
+            @NotNull UUID correlationId,
+            List<String> fields,
+            FreshnessPreference freshness) {
+
+        public WorkbenchQuery(
+                OffsetDateTime asOf,
+                String cursor,
+                Integer limit,
+                WorkbenchFilter filter,
+                List<String> sort,
+                String locale,
+                String timeZone,
+                UUID correlationId) {
+            this(asOf, cursor, limit, filter, sort, locale, timeZone, correlationId,
+                    List.of("POLICY_VERSION", "REFERENCE_DATA", "EFFECTIVE_STATUS"),
+                    FreshnessPreference.FRESH_ONLY);
+        }
     }
 
     public record FieldValue<T>(
@@ -231,11 +273,8 @@ public final class ReferenceConfigurationDtos {
     }
 
     public record PolicyValue(
-            String policyKey,
-            long revision,
-            LocalDate effectiveFrom,
-            LocalDate effectiveTo,
-            String status) {
+            String policyKey, long revision, LocalDate effectiveFrom,
+            LocalDate effectiveTo, String status) {
     }
 
     public record ReferenceValue(String publicId, String code, String label, long revision) {
@@ -248,19 +287,13 @@ public final class ReferenceConfigurationDtos {
     }
 
     public record AvailableAction(
-            String actionKey,
-            String method,
-            String hrefTemplate,
-            String idempotencyPolicy,
-            String stepUpPolicy) {
+            String actionKey, String method, String hrefTemplate,
+            String idempotencyPolicy, String stepUpPolicy) {
     }
 
     public record WorkbenchItem(
-            String itemPublicId,
-            String title,
-            String statusCode,
-            Map<String, FieldValue<?>> fieldGroups,
-            DeepLink deepLink,
+            String itemPublicId, String title, String statusCode,
+            Map<String, FieldValue<?>> fieldGroups, DeepLink deepLink,
             List<AvailableAction> availableActions) {
     }
 
@@ -268,16 +301,11 @@ public final class ReferenceConfigurationDtos {
     }
 
     public record PartialFailure(
-            String componentKey,
-            String errorCode,
-            UUID correlationId,
-            boolean retryable) {
+            String componentKey, String errorCode, UUID correlationId, boolean retryable) {
     }
 
     public record CachePolicy(
-            String authorizationDecisionRevision,
-            String invalidationEvent,
-            int maxAgeSeconds) {
+            String authorizationDecisionRevision, String invalidationEvent, int maxAgeSeconds) {
     }
 
     public record WorkbenchQueryState(
