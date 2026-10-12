@@ -9,6 +9,7 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.Ordered;
 import org.springframework.core.annotation.Order;
@@ -48,12 +49,21 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
             Set.of("ADMIN", "HR_ADMIN", "PEOPLE_ADMIN");
     private final String serviceToken;
     private final ObjectMapper objectMapper;
+    private final boolean employeeChangeEnabled;
 
+    @Autowired
     public PeopleSecurityFilter(
             @Value("${dwp.people.service-token:}") String serviceToken,
-            ObjectMapper objectMapper) {
+            ObjectMapper objectMapper,
+            @Value("${dwp.hris.employee-change.enabled:false}")
+            boolean employeeChangeEnabled) {
         this.serviceToken = serviceToken == null ? "" : serviceToken.trim();
         this.objectMapper = objectMapper;
+        this.employeeChangeEnabled = employeeChangeEnabled;
+    }
+
+    PeopleSecurityFilter(String serviceToken, ObjectMapper objectMapper) {
+        this(serviceToken, objectMapper, false);
     }
 
     @Override
@@ -64,8 +74,9 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                 || path.startsWith("/internal/provider/")
                 || isAuthorizedSyntheticBootstrap(request, path)
                 || isHomeProviderPost(request, path)
-                || HrisEmployeeChangeSecurityBridge
-                        .isVerifiedApprovalDecisionCallback(request)
+                || employeeChangeEnabled
+                        && HrisEmployeeChangeSecurityBridge.isApprovalDecisionCallback(
+                                request.getMethod(), path, request.getQueryString())
                 || path.equals("/error");
     }
 
@@ -89,8 +100,8 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
-        if (HrisEmployeeChangeSecurityBridge.isApprovalDecisionCallback(
-                request.getMethod(), request.getRequestURI())) {
+        if (HrisEmployeeChangeSecurityBridge.claimsApprovalCallbackFamily(
+                request.getRequestURI())) {
             writeError(response, ErrorCode.UNAUTHORIZED,
                     "Verified HRIS approval workload authority is required.");
             return;

@@ -250,8 +250,15 @@ public final class HrisWorkloadProofV2 {
         if (!KID.matcher(keyId).matches()) {
             throw denied("JOSE_KEY_ID_INVALID");
         }
-        VerifiedSigningKey key = Objects.requireNonNull(
-                resolver.resolve(keyId), "resolved signing key");
+        VerifiedSigningKey key;
+        try {
+            key = resolver.resolve(keyId);
+        } catch (RuntimeException exception) {
+            throw denied("WORKLOAD_SIGNING_KEY_UNTRUSTED");
+        }
+        if (key == null) {
+            throw denied("WORKLOAD_SIGNING_KEY_UNTRUSTED");
+        }
         if (!(key.publicKey() instanceof RSAPublicKey rsa)
                 || rsa.getModulus().bitLength() < 2048) {
             throw denied("RS256_SIGNING_KEY_REQUIRED");

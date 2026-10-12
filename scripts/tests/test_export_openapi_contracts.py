@@ -605,6 +605,58 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             },
             "platform": {
                 ("get", "/v1/hris/configuration/projection", "projection"),
+                ("get", "/v1/hris/workbench/settings-reference", "workbench"),
+                ("get", "/v1/admin/hris/configurations", "configurations"),
+                (
+                    "post",
+                    "/v1/admin/hris/configurations/{configId}/versions",
+                    "createVersion",
+                ),
+                (
+                    "get",
+                    "/v1/admin/hris/configurations/{configId}/versions/{version}",
+                    "version",
+                ),
+                (
+                    "post",
+                    "/v1/admin/hris/configurations/{configId}/versions/{version}/validate",
+                    "validate",
+                ),
+                (
+                    "post",
+                    "/v1/admin/hris/configurations/{configId}/versions/{version}/simulate",
+                    "simulate",
+                ),
+                (
+                    "post",
+                    "/v1/admin/hris/configurations/{configId}/versions/{version}/submit",
+                    "submit",
+                ),
+                (
+                    "post",
+                    "/v1/admin/hris/configurations/{configId}/versions/{version}/approve",
+                    "approve",
+                ),
+                (
+                    "post",
+                    "/v1/admin/hris/configurations/{configId}/versions/{version}/schedule",
+                    "schedule",
+                ),
+                (
+                    "post",
+                    "/v1/admin/hris/configurations/{configId}/versions/{version}/publish",
+                    "publish",
+                ),
+                (
+                    "post",
+                    "/v1/admin/hris/configurations/{configId}/versions/{version}/rollback",
+                    "rollback",
+                ),
+                (
+                    "post",
+                    "/v1/admin/hris/configurations/{configId}/versions/{version}/retire",
+                    "retire",
+                ),
             },
             "people": {
                 ("get", "/v1/hr/home", "people360"),
@@ -737,6 +789,61 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                         )
 
         self.assertEqual(len(patch_variants), 4)
+
+    def test_sys_reference_configuration_source_owner_and_gateway_are_exact(self) -> None:
+        platform = json.loads(
+            (ROOT / "contracts/openapi/platform.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(
+            len(EXPORTER["SYS_REFERENCE_CONFIGURATION_ROUTE_KEYS"]),
+            12,
+        )
+        EXPORTER["validate_sys_reference_configuration_contract"](
+            platform, gateway
+        )
+
+        incomplete_gateway = copy.deepcopy(gateway)
+        del incomplete_gateway["paths"][
+            "/api/platform/v1/hris/workbench/settings-reference"
+        ]
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "operation is missing from source, owner, or Gateway",
+        ):
+            EXPORTER["validate_sys_reference_configuration_contract"](
+                platform, incomplete_gateway
+            )
+
+        invalid_operation_id = copy.deepcopy(gateway)
+        invalid_operation_id["paths"][
+            "/api/platform/v1/admin/hris/configurations"
+        ]["get"]["operationId"] = "platform_referenceConfigurations"
+        with self.assertRaisesRegex(RuntimeError, "operationId drift"):
+            EXPORTER["validate_sys_reference_configuration_contract"](
+                platform, invalid_operation_id
+            )
+
+        invalid_response = copy.deepcopy(gateway)
+        invalid_response["paths"][
+            "/api/platform/v1/admin/hris/configurations/{configId}/versions"
+        ]["post"]["responses"] = {"200": {"description": "OK"}}
+        with self.assertRaisesRegex(RuntimeError, "response drift"):
+            EXPORTER["validate_sys_reference_configuration_contract"](
+                platform, invalid_response
+            )
+
+        anonymous_operation = copy.deepcopy(gateway)
+        anonymous_operation["paths"][
+            "/api/platform/v1/hris/workbench/settings-reference"
+        ]["get"]["security"] = []
+        with self.assertRaisesRegex(RuntimeError, "anonymous security override"):
+            EXPORTER["validate_sys_reference_configuration_contract"](
+                platform, anonymous_operation
+            )
 
     def test_people360_variant_parameters_remain_conditional(self) -> None:
         services = {service.name: service for service in EXPORTER["SERVICES"]}

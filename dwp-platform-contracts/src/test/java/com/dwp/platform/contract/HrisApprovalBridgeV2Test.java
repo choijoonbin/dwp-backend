@@ -117,6 +117,40 @@ class HrisApprovalBridgeV2Test {
     }
 
     @Test
+    void mapsUnknownSigningKeyResolutionToStableForbiddenFailure() throws Exception {
+        ApprovalRequestV1 request = request(uuid(12), "subject:unknown-key",
+                "unknown-key-command", "a".repeat(64));
+        byte[] bytes = mapper.writeValueAsBytes(request);
+        List<HrisWorkloadProofV2.Header> headers = proof(
+                CREATE_AND_SUBMIT, CREATE_AND_SUBMIT.path(null), bytes);
+
+        assertThatThrownBy(() -> HrisWorkloadProofV2.verify(
+                mapper, Clock.fixed(NOW, ZoneOffset.UTC), CREATE_AND_SUBMIT,
+                CREATE_AND_SUBMIT.path(null), headers, bytes,
+                keyId -> {
+                    throw new IllegalArgumentException("unknown key");
+                },
+                (endpoint, path, caller, tenant) -> true,
+                new HrisApprovalBridgeStoresV2.Replay()))
+                .isInstanceOfSatisfying(HrisApprovalBridgeV2.BridgeFailure.class,
+                        failure -> {
+                            assertThat(failure.httpStatus()).isEqualTo(403);
+                            assertThat(failure.reason())
+                                    .isEqualTo("WORKLOAD_SIGNING_KEY_UNTRUSTED");
+                        });
+
+        assertThatThrownBy(() -> HrisWorkloadProofV2.verify(
+                mapper, Clock.fixed(NOW, ZoneOffset.UTC), CREATE_AND_SUBMIT,
+                CREATE_AND_SUBMIT.path(null), headers, bytes,
+                keyId -> null,
+                (endpoint, path, caller, tenant) -> true,
+                new HrisApprovalBridgeStoresV2.Replay()))
+                .isInstanceOfSatisfying(HrisApprovalBridgeV2.BridgeFailure.class,
+                        failure -> assertThat(failure.reason())
+                                .isEqualTo("WORKLOAD_SIGNING_KEY_UNTRUSTED"));
+    }
+
+    @Test
     void bindsRequesterAndPinnedWorkflowAuthorityWithoutCurrentVersionFallback() throws Exception {
         ApprovalRequestV1 invalidRequester = new ApprovalRequestV1(
                 uuid(20), "hris.employee-change.v1", 1,

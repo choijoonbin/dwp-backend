@@ -47,6 +47,212 @@
             "x-dwp-overlay-mode": "ADD",
             "x-dwp-runtime-default": "OFF"
           }
+        },
+        "/v1/hris/workbench/settings-reference": {
+          "get": {
+            "operationId": "hrisReferenceConfigurationWorkbench",
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["hris-reference-configuration-controller"],
+            "x-dwp-controller-method": "workbench",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/configurations": {
+          "get": {
+            "operationId": "hrisReferenceConfigurations",
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["hris-reference-configuration-controller"],
+            "x-dwp-controller-method": "configurations",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/configurations/{configId}/versions": {
+          "post": {
+            "operationId": "hrisReferenceConfigurationCreateVersion",
+            "parameters": [
+              {"in": "path", "name": "configId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-reference-configuration-controller"],
+            "x-dwp-controller-method": "createVersion",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/configurations/{configId}/versions/{version}": {
+          "get": {
+            "operationId": "hrisReferenceConfigurationVersion",
+            "parameters": [
+              {"in": "path", "name": "configId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "path", "name": "version", "required": true, "schema": {"format": "int64", "minimum": 1, "type": "integer"}}
+            ],
+            "responses": {"200": {"description": "OK"}},
+            "tags": ["hris-reference-configuration-controller"],
+            "x-dwp-controller-method": "version",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/validate": {
+          "post": {
+            "operationId": "hrisReferenceConfigurationValidateVersion",
+            "parameters": [
+              {"in": "path", "name": "configId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "path", "name": "version", "required": true, "schema": {"format": "int64", "minimum": 1, "type": "integer"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-reference-configuration-controller"],
+            "x-dwp-controller-method": "validate",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/simulate": {
+          "post": {
+            "operationId": "hrisReferenceConfigurationSimulateVersion",
+            "parameters": [
+              {"in": "path", "name": "configId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "path", "name": "version", "required": true, "schema": {"format": "int64", "minimum": 1, "type": "integer"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-reference-configuration-controller"],
+            "x-dwp-controller-method": "simulate",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/submit": {
+          "post": {
+            "operationId": "hrisReferenceConfigurationSubmitVersion",
+            "parameters": [
+              {"in": "path", "name": "configId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "path", "name": "version", "required": true, "schema": {"format": "int64", "minimum": 1, "type": "integer"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-reference-configuration-controller"],
+            "x-dwp-controller-method": "submit",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/approve": {
+          "post": {
+            "operationId": "hrisReferenceConfigurationApproveVersion",
+            "parameters": [
+              {"in": "path", "name": "configId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "path", "name": "version", "required": true, "schema": {"format": "int64", "minimum": 1, "type": "integer"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Decision-Revision", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Object-Version", "required": true, "schema": {"format": "int64", "minimum": 0, "type": "integer"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-reference-configuration-controller"],
+            "x-dwp-command-proof-required": true,
+            "x-dwp-controller-method": "approve",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/schedule": {
+          "post": {
+            "operationId": "hrisReferenceConfigurationScheduleVersion",
+            "parameters": [
+              {"in": "path", "name": "configId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "path", "name": "version", "required": true, "schema": {"format": "int64", "minimum": 1, "type": "integer"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Decision-Revision", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Object-Version", "required": true, "schema": {"format": "int64", "minimum": 0, "type": "integer"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-reference-configuration-controller"],
+            "x-dwp-command-proof-required": true,
+            "x-dwp-controller-method": "schedule",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/publish": {
+          "post": {
+            "operationId": "hrisReferenceConfigurationPublishVersion",
+            "parameters": [
+              {"in": "path", "name": "configId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "path", "name": "version", "required": true, "schema": {"format": "int64", "minimum": 1, "type": "integer"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Decision-Revision", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Object-Version", "required": true, "schema": {"format": "int64", "minimum": 0, "type": "integer"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-reference-configuration-controller"],
+            "x-dwp-command-proof-required": true,
+            "x-dwp-controller-method": "publish",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/rollback": {
+          "post": {
+            "operationId": "hrisReferenceConfigurationRollbackVersion",
+            "parameters": [
+              {"in": "path", "name": "configId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "path", "name": "version", "required": true, "schema": {"format": "int64", "minimum": 1, "type": "integer"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Decision-Revision", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Object-Version", "required": true, "schema": {"format": "int64", "minimum": 0, "type": "integer"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-reference-configuration-controller"],
+            "x-dwp-command-proof-required": true,
+            "x-dwp-controller-method": "rollback",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
+        },
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/retire": {
+          "post": {
+            "operationId": "hrisReferenceConfigurationRetireVersion",
+            "parameters": [
+              {"in": "path", "name": "configId", "required": true, "schema": {"format": "uuid", "type": "string"}},
+              {"in": "path", "name": "version", "required": true, "schema": {"format": "int64", "minimum": 1, "type": "integer"}},
+              {"in": "header", "name": "Idempotency-Key", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Step-Up-Challenge", "required": true, "schema": {"minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Decision-Revision", "required": true, "schema": {"maxLength": 200, "minLength": 1, "type": "string"}},
+              {"in": "header", "name": "X-DWP-Expected-Object-Version", "required": true, "schema": {"format": "int64", "minimum": 0, "type": "integer"}},
+              {"in": "header", "name": "X-Correlation-ID", "required": false, "schema": {"type": "string"}}
+            ],
+            "requestBody": {"content": {"application/json": {"schema": {"type": "object"}}}, "required": true},
+            "responses": {"202": {"description": "Accepted"}},
+            "tags": ["hris-reference-configuration-controller"],
+            "x-dwp-command-proof-required": true,
+            "x-dwp-controller-method": "retire",
+            "x-dwp-overlay-mode": "ADD",
+            "x-dwp-runtime-default": "OFF"
+          }
         }
       }
     },

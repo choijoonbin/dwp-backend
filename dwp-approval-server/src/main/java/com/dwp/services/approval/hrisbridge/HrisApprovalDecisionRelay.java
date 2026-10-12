@@ -125,9 +125,8 @@ final class HrisApprovalDecisionRelay {
             complete(delivery, exact);
         } catch (RestClientResponseException failure) {
             int status = failure.getStatusCode().value();
-            boolean transientClientFailure = status == 408 || status == 425 || status == 429;
             fail(delivery, failure.getStatusCode().is4xxClientError()
-                    && !transientClientFailure, "HTTP_" + status);
+                    && !retryableClientStatus(status), "HTTP_" + status);
         } catch (RestClientException failure) {
             fail(delivery, false, "TRANSPORT_UNAVAILABLE");
         } catch (RuntimeException failure) {
@@ -135,6 +134,10 @@ final class HrisApprovalDecisionRelay {
             // receipt was observed. Stable idempotency permits a bounded retry.
             fail(delivery, false, "INVALID_COMMAND_RECEIPT");
         }
+    }
+
+    static boolean retryableClientStatus(int status) {
+        return status == 408 || status == 425 || status == 429;
     }
 
     private CommandReceiptV1 receipt(byte[] bytes, Delivery delivery) {

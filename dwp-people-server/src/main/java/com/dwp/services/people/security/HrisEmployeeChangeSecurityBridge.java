@@ -1,6 +1,6 @@
 package com.dwp.services.people.security;
 
-import jakarta.servlet.http.HttpServletRequest;
+import com.dwp.platform.contracts.hris.approval.v2.HrisApprovalBridgeV2;
 
 import java.util.Locale;
 import java.util.regex.Pattern;
@@ -8,10 +8,9 @@ import java.util.regex.Pattern;
 /**
  * Control-owned recognition boundary for the HRM employee-change handoff.
  *
- * <p>The browser bindings remain governed by the generated v36 People PEP. The internal
- * approval callback belongs to a separate workload-authentication filter: that filter may mark
- * the request only after it has verified the signed workload proof and rejected borrowed browser
- * identity. A caller cannot create the marker with an HTTP header.</p>
+ * <p>The browser bindings remain governed by the generated v36 People PEP. The exact internal
+ * Approval callback is handed directly to its raw-byte controller; the controller invokes the
+ * v2 workload verifier exactly once.</p>
  */
 public final class HrisEmployeeChangeSecurityBridge {
 
@@ -30,17 +29,8 @@ public final class HrisEmployeeChangeSecurityBridge {
             "/v1/hris/employee-change-requests";
     private static final String CALLBACK_PREFIX =
             "/internal/hris-people/v1/employee-change-requests/";
-    private static final String CALLBACK_SUFFIX = "/approval-decisions";
     private static final Pattern REQUEST_COMMAND = Pattern.compile(
             "^" + Pattern.quote(REQUESTS_PATH) + "/([^/]+)/(submit|apply)$");
-    private static final Pattern CALLBACK = Pattern.compile(
-            "^" + Pattern.quote(CALLBACK_PREFIX)
-                    + "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
-                    + Pattern.quote(CALLBACK_SUFFIX) + "$",
-            Pattern.CASE_INSENSITIVE);
-    private static final Object VERIFIED_WORKLOAD_MARKER = new Object();
-    private static final String VERIFIED_WORKLOAD_ATTRIBUTE =
-            HrisEmployeeChangeSecurityBridge.class.getName() + ".verifiedApprovalWorkload";
 
     private HrisEmployeeChangeSecurityBridge() {
     }
@@ -81,23 +71,18 @@ public final class HrisEmployeeChangeSecurityBridge {
     }
 
     /** True only for the canonical People callback owned by the Approval workload bridge. */
-    public static boolean isApprovalDecisionCallback(String method, String path) {
-        return "POST".equals(method) && path != null && canonical(path)
-                && CALLBACK.matcher(path).matches();
+    public static boolean isApprovalDecisionCallback(
+            String method,
+            String path,
+            String queryString) {
+        return "POST".equals(method) && queryString == null && path != null
+                && canonical(path)
+                && HrisApprovalBridgeV2.DECISION_CALLBACK.matchesPath(path);
     }
 
-    /**
-     * Called by the dedicated workload verifier after signature, binding, replay, and forbidden
-     * browser-header checks have all succeeded.
-     */
-    public static void markApprovalWorkloadVerified(HttpServletRequest request) {
-        request.setAttribute(VERIFIED_WORKLOAD_ATTRIBUTE, VERIFIED_WORKLOAD_MARKER);
-    }
-
-    public static boolean isVerifiedApprovalDecisionCallback(HttpServletRequest request) {
-        return isApprovalDecisionCallback(request.getMethod(), request.getRequestURI())
-                && request.getAttribute(VERIFIED_WORKLOAD_ATTRIBUTE)
-                == VERIFIED_WORKLOAD_MARKER;
+    /** Claims the internal namespace so near-miss requests cannot use legacy browser auth. */
+    public static boolean claimsApprovalCallbackFamily(String path) {
+        return path != null && path.startsWith(CALLBACK_PREFIX);
     }
 
     private static boolean canonical(String path) {

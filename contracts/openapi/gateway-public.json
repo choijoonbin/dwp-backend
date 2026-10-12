@@ -191298,6 +191298,979 @@
         ]
       }
     },
+    "/api/platform/v1/admin/hris/configurations": {
+      "get": {
+        "operationId": "platform_hrisReferenceConfigurations",
+        "parameters": [
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-controller-method": "configurations",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/admin/hris/configurations/{configId}/versions": {
+      "post": {
+        "operationId": "platform_hrisReferenceConfigurationCreateVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-controller-method": "createVersion",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}": {
+      "get": {
+        "operationId": "platform_hrisReferenceConfigurationVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-controller-method": "version",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/approve": {
+      "post": {
+        "operationId": "platform_hrisReferenceConfigurationApproveVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-command-proof-required": true,
+        "x-dwp-controller-method": "approve",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/publish": {
+      "post": {
+        "operationId": "platform_hrisReferenceConfigurationPublishVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-command-proof-required": true,
+        "x-dwp-controller-method": "publish",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/retire": {
+      "post": {
+        "operationId": "platform_hrisReferenceConfigurationRetireVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-command-proof-required": true,
+        "x-dwp-controller-method": "retire",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/rollback": {
+      "post": {
+        "operationId": "platform_hrisReferenceConfigurationRollbackVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-command-proof-required": true,
+        "x-dwp-controller-method": "rollback",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/schedule": {
+      "post": {
+        "operationId": "platform_hrisReferenceConfigurationScheduleVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-command-proof-required": true,
+        "x-dwp-controller-method": "schedule",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/simulate": {
+      "post": {
+        "operationId": "platform_hrisReferenceConfigurationSimulateVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-controller-method": "simulate",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/submit": {
+      "post": {
+        "operationId": "platform_hrisReferenceConfigurationSubmitVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-controller-method": "submit",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/admin/hris/configurations/{configId}/versions/{version}/validate": {
+      "post": {
+        "operationId": "platform_hrisReferenceConfigurationValidateVersion",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "configId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Required and fail-closed for product-authorization rollout states 110/111; optional for backward-compatible baseline/shadow states 000/100.",
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 1,
+              "type": "string"
+            },
+            "x-dwp-conditional-required": {
+              "enforcement": "FAIL_CLOSED",
+              "rolloutStates": [
+                "110",
+                "111"
+              ]
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-controller-method": "validate",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
     "/api/platform/v1/admin/integrations/productivity/connectors": {
       "get": {
         "operationId": "platform_connectors",
@@ -219382,6 +220355,35 @@
           "platform"
         ],
         "x-dwp-controller-method": "projection",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/api/platform/v1/hris/workbench/settings-reference": {
+      "get": {
+        "operationId": "platform_hrisReferenceConfigurationWorkbench",
+        "parameters": [
+          {
+            "description": "Opaque management scope returned by the product authority contract. Send exactly one value when more than one scope is available; omit it only when authority has one unambiguous scope. Blank, duplicate, malformed, oversized, revoked, or stale values fail closed. The Gateway consumes this parameter and forwards only its server-verified X-DWP-Context-Scope-Key evidence.",
+            "in": "query",
+            "name": "contextScopeKey",
+            "required": false,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 3,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{2,199}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "platform"
+        ],
+        "x-dwp-controller-method": "workbench",
         "x-dwp-runtime-default": "OFF"
       }
     },

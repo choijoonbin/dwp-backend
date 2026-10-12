@@ -27,6 +27,84 @@ PRODUCT_AUTHORIZATION_REGISTRY = (
 PRODUCT_AUTHORIZATION_VERSION = 37
 HRIS_DESIGN_TIME_OVERLAY = CONTRACT_ROOT / "hris-wave1-design-time.json"
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
+SYS_REFERENCE_CONFIGURATION_ROUTE_PREFIX = "route.hcm.configuration."
+SYS_REFERENCE_CONFIGURATION_OPERATION_CONTRACTS = {
+    "route.hcm.configuration.settings-reference.page": (
+        "get",
+        "/v1/hris/workbench/settings-reference",
+        "hrisReferenceConfigurationWorkbench",
+        "200",
+    ),
+    "route.hcm.configuration.configurations.data": (
+        "get",
+        "/v1/admin/hris/configurations",
+        "hrisReferenceConfigurations",
+        "200",
+    ),
+    "route.hcm.configuration.configuration-version.data": (
+        "get",
+        "/v1/admin/hris/configurations/{configId}/versions/{version}",
+        "hrisReferenceConfigurationVersion",
+        "200",
+    ),
+    "route.hcm.configuration.configuration-version-create.action": (
+        "post",
+        "/v1/admin/hris/configurations/{configId}/versions",
+        "hrisReferenceConfigurationCreateVersion",
+        "202",
+    ),
+    "route.hcm.configuration.configuration-version-validate.action": (
+        "post",
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/validate",
+        "hrisReferenceConfigurationValidateVersion",
+        "202",
+    ),
+    "route.hcm.configuration.configuration-version-simulate.action": (
+        "post",
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/simulate",
+        "hrisReferenceConfigurationSimulateVersion",
+        "202",
+    ),
+    "route.hcm.configuration.configuration-version-submit.action": (
+        "post",
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/submit",
+        "hrisReferenceConfigurationSubmitVersion",
+        "202",
+    ),
+    "route.hcm.configuration.configuration-version-approve.action": (
+        "post",
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/approve",
+        "hrisReferenceConfigurationApproveVersion",
+        "202",
+    ),
+    "route.hcm.configuration.configuration-version-schedule.action": (
+        "post",
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/schedule",
+        "hrisReferenceConfigurationScheduleVersion",
+        "202",
+    ),
+    "route.hcm.configuration.configuration-version-publish.action": (
+        "post",
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/publish",
+        "hrisReferenceConfigurationPublishVersion",
+        "202",
+    ),
+    "route.hcm.configuration.configuration-version-rollback.action": (
+        "post",
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/rollback",
+        "hrisReferenceConfigurationRollbackVersion",
+        "202",
+    ),
+    "route.hcm.configuration.configuration-version-retire.action": (
+        "post",
+        "/v1/admin/hris/configurations/{configId}/versions/{version}/retire",
+        "hrisReferenceConfigurationRetireVersion",
+        "202",
+    ),
+}
+SYS_REFERENCE_CONFIGURATION_ROUTE_KEYS = frozenset(
+    SYS_REFERENCE_CONFIGURATION_OPERATION_CONTRACTS
+)
 PATH_PARAMETER_PATTERN = re.compile(r"\{[^{}]+}")
 TELEMETRY_PUBLIC_PATH = "/api/platform/v1/observability/product-surface-events"
 TELEMETRY_TRUSTED_HEADERS = {"X-DWP-Tenant-ID", "X-DWP-Rollout-Cohort"}
@@ -828,7 +906,7 @@ def gateway_contract(
     return prune_unreachable_components(gateway)
 
 
-def product_governed_operations() -> dict[tuple[str, str], bool]:
+def load_product_authorization_registry() -> dict[str, Any]:
     try:
         registry = json.loads(PRODUCT_AUTHORIZATION_REGISTRY.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -845,6 +923,11 @@ def product_governed_operations() -> dict[tuple[str, str], bool]:
         raise RuntimeError(
             f"Product authorization v{PRODUCT_AUTHORIZATION_VERSION} registry is invalid"
         )
+    return registry
+
+
+def product_governed_operations() -> dict[tuple[str, str], bool]:
+    registry = load_product_authorization_registry()
     operations: dict[tuple[str, str], bool] = {}
     for route in registry["routes"]:
         subject = route.get("subject", {})
@@ -1001,6 +1084,246 @@ def add_product_governance_contract(document: dict[str, Any]) -> None:
         )
 
 
+def validate_sys_reference_configuration_contract(
+        platform_document: dict[str, Any],
+        gateway_document: dict[str, Any]) -> None:
+    """Pin the SYS-007 source, owner, and browser contracts to one exact registry."""
+    registry = load_product_authorization_registry()
+    routes = {
+        route.get("routeContractKey"): route
+        for route in registry["routes"]
+        if isinstance(route.get("routeContractKey"), str)
+        and route["routeContractKey"].startswith(
+            SYS_REFERENCE_CONFIGURATION_ROUTE_PREFIX
+        )
+    }
+    if set(routes) != SYS_REFERENCE_CONFIGURATION_ROUTE_KEYS:
+        missing = sorted(SYS_REFERENCE_CONFIGURATION_ROUTE_KEYS - set(routes))
+        unexpected = sorted(set(routes) - SYS_REFERENCE_CONFIGURATION_ROUTE_KEYS)
+        raise RuntimeError(
+            "SYS reference-configuration authorization routes are not exact: "
+            f"missing={missing}, unexpected={unexpected}"
+        )
+
+    expected_operations: list[
+        tuple[str, str, str, str, str, dict[str, Any]]
+    ] = []
+    for route_key, route in sorted(routes.items()):
+        if (
+            route.get("lifecycleState") != "ACTIVE"
+            or route.get("subject", {}).get("type") != "PRODUCT"
+        ):
+            raise RuntimeError(
+                f"SYS reference-configuration route is not active PRODUCT: {route_key}"
+            )
+        gateway_bindings = route.get("gatewayApiBindings")
+        owner_bindings = route.get("servicePepBindings")
+        if (
+            not isinstance(gateway_bindings, list)
+            or len(gateway_bindings) != 1
+            or not isinstance(owner_bindings, list)
+            or len(owner_bindings) != 1
+        ):
+            raise RuntimeError(
+                f"SYS reference-configuration route must have one browser and owner "
+                f"binding: {route_key}"
+            )
+        gateway_binding = gateway_bindings[0]
+        owner_binding = owner_bindings[0]
+        expected_method, expected_owner_path, operation_id, response_status = (
+            SYS_REFERENCE_CONFIGURATION_OPERATION_CONTRACTS[route_key]
+        )
+        method = str(gateway_binding.get("method", "")).lower()
+        browser_path = gateway_binding.get("path")
+        owner_path = owner_binding.get("path")
+        if (
+            method not in HTTP_METHODS
+            or method != expected_method
+            or str(owner_binding.get("method", "")).lower() != method
+            or gateway_binding.get("bindingKey") != owner_binding.get("bindingKey")
+            or owner_binding.get("serviceKey") != "platform"
+            or not isinstance(browser_path, str)
+            or not isinstance(owner_path, str)
+            or owner_path != expected_owner_path
+            or platform_path(owner_path) != browser_path
+        ):
+            raise RuntimeError(
+                f"SYS reference-configuration browser/owner binding drift: {route_key}"
+            )
+        expected_operations.append((
+            method,
+            owner_path,
+            browser_path,
+            operation_id,
+            response_status,
+            route,
+        ))
+
+    platform_overlay = load_design_time_overlays().get("platform", {}).get("paths", {})
+    source_operations = {
+        (method, path)
+        for path, path_item in platform_overlay.items()
+        if (
+            path == "/v1/hris/workbench/settings-reference"
+            or path.startswith("/v1/admin/hris/configurations")
+        )
+        for method in path_item
+        if method in HTTP_METHODS
+    }
+    expected_source_operations = {
+        (method, owner_path)
+        for method, owner_path, _, _, _, _ in expected_operations
+    }
+    if source_operations != expected_source_operations:
+        raise RuntimeError(
+            "SYS reference-configuration design-time operations are not exact: "
+            f"missing={sorted(expected_source_operations - source_operations)}, "
+            f"unexpected={sorted(source_operations - expected_source_operations)}"
+        )
+
+    def parameters_by_identity(
+            operation: dict[str, Any]) -> dict[tuple[str, str], dict[str, Any]]:
+        return {
+            (
+                str(parameter.get("in", "")).lower(),
+                str(parameter.get("name", "")).lower(),
+            ): parameter
+            for parameter in operation.get("parameters", [])
+            if isinstance(parameter, dict)
+        }
+
+    for (
+        method,
+        owner_path,
+        browser_path,
+        operation_id,
+        response_status,
+        route,
+    ) in expected_operations:
+        source_operation = platform_overlay[owner_path].get(method)
+        owner_operation = platform_document.get("paths", {}).get(
+            owner_path, {}
+        ).get(method)
+        browser_operation = gateway_document.get("paths", {}).get(
+            browser_path, {}
+        ).get(method)
+        if not all(
+            isinstance(operation, dict)
+            for operation in (source_operation, owner_operation, browser_operation)
+        ):
+            raise RuntimeError(
+                "SYS reference-configuration operation is missing from source, owner, "
+                f"or Gateway: {method.upper()} {owner_path}"
+            )
+        assert isinstance(source_operation, dict)
+        assert isinstance(owner_operation, dict)
+        assert isinstance(browser_operation, dict)
+        if (
+            source_operation.get("x-dwp-overlay-mode") != "ADD"
+            or source_operation.get("x-dwp-runtime-default") != "OFF"
+            or owner_operation.get("x-dwp-runtime-default") != "OFF"
+            or browser_operation.get("x-dwp-runtime-default") != "OFF"
+        ):
+            raise RuntimeError(
+                "SYS reference-configuration operation must remain default-off: "
+                f"{method.upper()} {owner_path}"
+            )
+
+        operation_contracts = (
+            ("source", source_operation, operation_id),
+            ("owner", owner_operation, operation_id),
+            ("Gateway", browser_operation, f"platform_{operation_id}"),
+        )
+        for contract_name, operation, expected_operation_id in operation_contracts:
+            if operation.get("operationId") != expected_operation_id:
+                raise RuntimeError(
+                    "SYS reference-configuration operationId drift: "
+                    f"{contract_name} {method.upper()} {owner_path}"
+                )
+            if set(operation.get("responses", {})) != {response_status}:
+                raise RuntimeError(
+                    "SYS reference-configuration response drift: "
+                    f"{contract_name} {method.upper()} {owner_path}"
+                )
+            # An explicit empty security requirement makes an operation anonymous in
+            # OpenAPI. Session-authenticated PRODUCT operations may inherit a scheme or
+            # declare a non-empty one, but may never opt out of authentication.
+            if operation.get("security", object()) == []:
+                raise RuntimeError(
+                    "SYS reference-configuration anonymous security override: "
+                    f"{contract_name} {method.upper()} {owner_path}"
+                )
+
+        browser_parameters = parameters_by_identity(browser_operation)
+        scope_parameter = browser_parameters.get(("query", "contextscopekey"))
+        if scope_parameter != SCOPE_SELECTION_PARAMETER:
+            raise RuntimeError(
+                "SYS reference-configuration Gateway operation is not governed: "
+                f"{method.upper()} {browser_path}"
+            )
+        if method == "post":
+            owner_parameters = parameters_by_identity(owner_operation)
+            source_parameters = parameters_by_identity(source_operation)
+            idempotency_identity = ("header", "idempotency-key")
+            if (
+                idempotency_identity not in source_parameters
+                or idempotency_identity not in owner_parameters
+                or idempotency_identity not in browser_parameters
+                or any(
+                    parameters[idempotency_identity].get("required") is not True
+                    for parameters in (
+                        source_parameters,
+                        owner_parameters,
+                        browser_parameters,
+                    )
+                )
+                or source_operation.get("requestBody", {}).get("required") is not True
+                or owner_operation.get("requestBody", {}).get("required") is not True
+                or browser_operation.get("requestBody", {}).get("required") is not True
+            ):
+                raise RuntimeError(
+                    "SYS reference-configuration mutation is not idempotent: "
+                    f"{method.upper()} {owner_path}"
+                )
+            step_up_bindings = route.get("stepUpCommandBindings", [])
+            if not isinstance(step_up_bindings, list):
+                raise RuntimeError(
+                    f"SYS reference-configuration step-up binding is invalid: "
+                    f"{route['routeContractKey']}"
+                )
+            if step_up_bindings:
+                proof_headers = {
+                    ("header", "x-dwp-step-up-challenge"),
+                    ("header", "x-dwp-expected-decision-revision"),
+                    ("header", "x-dwp-expected-object-version"),
+                }
+                if (
+                    len(step_up_bindings) != 1
+                    or owner_operation.get("x-dwp-command-proof-required") is not True
+                    or browser_operation.get("x-dwp-command-proof-required") is not True
+                    or not proof_headers <= set(owner_parameters)
+                    or not proof_headers <= set(browser_parameters)
+                    or any(
+                        owner_parameters[identity].get("required") is not True
+                        or browser_parameters[identity].get("required") is not True
+                        for identity in proof_headers
+                    )
+                ):
+                    raise RuntimeError(
+                        "SYS reference-configuration step-up proof drift: "
+                        f"{route['routeContractKey']}"
+                    )
+            else:
+                revision = browser_parameters.get(
+                    ("header", "x-dwp-expected-decision-revision")
+                )
+                if revision != EXPECTED_DECISION_REVISION_PARAMETER:
+                    raise RuntimeError(
+                        "SYS reference-configuration decision revision drift: "
+                        f"{route['routeContractKey']}"
+                    )
+
+
 def prune_unreachable_components(document: dict[str, Any]) -> dict[str, Any]:
     """Keep only components reachable from public operations and their transitive refs."""
     components = document.get("components", {})
@@ -1098,6 +1421,9 @@ def main() -> int:
     outputs["gateway-owned.json"] = gateway_owned
     outputs["gateway-public.json"] = gateway_contract(documents, gateway_owned)
     validate_unique_operation_ids(outputs["gateway-public.json"], "gateway-public")
+    validate_sys_reference_configuration_contract(
+        outputs["platform.json"], outputs["gateway-public.json"]
+    )
     validate_platform_device_identity(outputs["platform.json"])
     validate_platform_device_identity(outputs["gateway-public.json"], gateway=True)
     validate_approval_signature_operations(outputs["gateway-public.json"], gateway=True)

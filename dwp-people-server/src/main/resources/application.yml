@@ -68,6 +68,23 @@ spring:
 
 dwp:
   hris:
+    employee-change:
+      # Control-owned bridge remains dark until registered workload keys and
+      # explicit tenant grants are installed on both services.
+      enabled: ${DWP_HRIS_EMPLOYEE_CHANGE_ENABLED:false}
+      approval-bridge:
+        relay-enabled: ${DWP_HRIS_EMPLOYEE_CHANGE_APPROVAL_RELAY_ENABLED:false}
+        approval-public-jwk: ${DWP_HRIS_EMPLOYEE_CHANGE_APPROVAL_PUBLIC_JWK:}
+        approval-authentication: ${DWP_HRIS_EMPLOYEE_CHANGE_APPROVAL_AUTHENTICATION:}
+        approval-tenant-grants: ${DWP_HRIS_EMPLOYEE_CHANGE_APPROVAL_TENANT_GRANTS:}
+        people-private-jwk: ${DWP_HRIS_EMPLOYEE_CHANGE_PEOPLE_PRIVATE_JWK:}
+        approval-url: ${SERVICE_APPROVAL_URL:http://localhost:8005}
+        worker-id: ${DWP_HRIS_EMPLOYEE_CHANGE_APPROVAL_RELAY_WORKER_ID:}
+        batch-size: ${DWP_HRIS_EMPLOYEE_CHANGE_APPROVAL_RELAY_BATCH_SIZE:25}
+        maximum-attempts: ${DWP_HRIS_EMPLOYEE_CHANGE_APPROVAL_RELAY_MAXIMUM_ATTEMPTS:10}
+        lease-seconds: ${DWP_HRIS_EMPLOYEE_CHANGE_APPROVAL_RELAY_LEASE_SECONDS:30}
+        poll-delay-ms: ${DWP_HRIS_EMPLOYEE_CHANGE_APPROVAL_RELAY_POLL_DELAY_MS:2000}
+        initial-delay-ms: ${DWP_HRIS_EMPLOYEE_CHANGE_APPROVAL_RELAY_INITIAL_DELAY_MS:5000}
     people-workforce:
       synthetic-bootstrap:
         enabled: ${DWP_HRIS_PEOPLE_WORKFORCE_SYNTHETIC_BOOTSTRAP_ENABLED:false}

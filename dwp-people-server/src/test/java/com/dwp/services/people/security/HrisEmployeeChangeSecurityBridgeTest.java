@@ -200,45 +200,52 @@ class HrisEmployeeChangeSecurityBridgeTest {
     }
 
     @Test
-    void approvalCallbackCanBypassBrowserAuthOnlyAfterWorkloadVerification()
+    void approvalCallbackBypassesBrowserAuthOnlyWhenFeatureAndExactPathAreEnabled()
             throws Exception {
-        PeopleSecurityFilter filter = new PeopleSecurityFilter("trusted", objectMapper);
+        PeopleSecurityFilter disabled = new PeopleSecurityFilter(
+                "trusted", objectMapper, false);
         MockHttpServletRequest browser = browserRequest("POST", CALLBACK);
         browser.addHeader(PeopleSecurityFilter.ROLES_HEADER, "PEOPLE_ADMIN");
         MockHttpServletResponse browserResponse = new MockHttpServletResponse();
         MockFilterChain browserChain = new MockFilterChain();
 
-        filter.doFilter(browser, browserResponse, browserChain);
+        disabled.doFilter(browser, browserResponse, browserChain);
 
         assertThat(browserResponse.getStatus()).isEqualTo(401);
         assertThat(browserChain.getRequest()).isNull();
 
+        PeopleSecurityFilter enabled = new PeopleSecurityFilter(
+                "trusted", objectMapper, true);
         MockHttpServletRequest workload = new MockHttpServletRequest("POST", CALLBACK);
         workload.addHeader("X-DWP-Service-Identity", "dwp-approval-server");
-        workload.addHeader("X-DWP-Workload-Proof", "verified-by-prior-filter");
-        HrisEmployeeChangeSecurityBridge.markApprovalWorkloadVerified(workload);
+        workload.addHeader("X-DWP-Workload-Proof", "verified-by-controller");
         MockFilterChain workloadChain = new MockFilterChain();
 
-        filter.doFilter(workload, new MockHttpServletResponse(), workloadChain);
+        enabled.doFilter(workload, new MockHttpServletResponse(), workloadChain);
 
         assertThat(workloadChain.getRequest()).isSameAs(workload);
     }
 
     @Test
-    void workloadMarkerCannotBlessWrongMethodOrNearbyCallbackPath() throws Exception {
-        PeopleSecurityFilter filter = new PeopleSecurityFilter("", objectMapper);
+    void featureCannotBlessWrongMethodQueryUppercaseOrNearbyCallbackPath() throws Exception {
+        PeopleSecurityFilter filter = new PeopleSecurityFilter("", objectMapper, true);
+        MockHttpServletRequest withQuery = new MockHttpServletRequest("POST", CALLBACK);
+        withQuery.setQueryString("retry=true");
         for (MockHttpServletRequest request : List.of(
                 new MockHttpServletRequest("GET", CALLBACK),
                 new MockHttpServletRequest("POST", CALLBACK + "/extra"),
                 new MockHttpServletRequest("POST", CALLBACK.replace(
-                        REQUEST_ID, "not-a-uuid")))) {
-            HrisEmployeeChangeSecurityBridge.markApprovalWorkloadVerified(request);
+                        REQUEST_ID, "not-a-uuid")),
+                new MockHttpServletRequest("POST",
+                        "/internal/hris-people/v1/employee-change-requests/"
+                                + "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA/approval-decisions"),
+                withQuery)) {
             MockHttpServletResponse response = new MockHttpServletResponse();
             MockFilterChain chain = new MockFilterChain();
 
             filter.doFilter(request, response, chain);
 
-            assertThat(response.getStatus()).as(request.getRequestURI()).isEqualTo(502);
+            assertThat(response.getStatus()).as(request.getRequestURI()).isEqualTo(401);
             assertThat(chain.getRequest()).isNull();
         }
     }
