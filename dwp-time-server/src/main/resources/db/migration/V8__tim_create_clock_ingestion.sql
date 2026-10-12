@@ -15,9 +15,9 @@ CREATE TABLE tme_clock_command_receipts (
     grant_revision BIGINT NOT NULL,
     membership_revision BIGINT NOT NULL,
     population_scope_digest CHAR(64) NOT NULL,
-    field_policy_revision VARCHAR(128) NOT NULL,
+    field_policy_revision BIGINT NOT NULL,
     purpose_code VARCHAR(120) NOT NULL,
-    authorization_revision VARCHAR(128) NOT NULL,
+    authorization_revision BIGINT NOT NULL,
     request_digest CHAR(64) NOT NULL,
     result_event_public_id UUID NOT NULL,
     result_digest CHAR(64) NOT NULL,
@@ -31,7 +31,8 @@ CREATE TABLE tme_clock_command_receipts (
         CHECK (command_type IN ('CLOCK_RECORD', 'CLOCK_VOID')),
     CONSTRAINT ck_tme_clock_receipt_actor CHECK (actor_id > 0),
     CONSTRAINT ck_tme_clock_receipt_revisions CHECK (
-        population_revision > 0 AND grant_revision > 0 AND membership_revision > 0),
+        population_revision > 0 AND grant_revision > 0 AND membership_revision > 0
+        AND field_policy_revision > 0 AND authorization_revision > 0),
     CONSTRAINT ck_tme_clock_receipt_status CHECK (status = 'SUCCEEDED'),
     CONSTRAINT ck_tme_clock_receipt_digests CHECK (
         population_scope_digest ~ '^[0-9a-f]{64}$'
@@ -177,10 +178,14 @@ BEGIN
      WHERE tenant_id = NEW.tenant_id
        AND source_public_id = NEW.source_public_id
        AND source_sequence IS NOT NULL;
-    IF previous_sequence IS NOT NULL AND NEW.source_sequence <= previous_sequence THEN
-        RAISE EXCEPTION 'clock source sequence must advance monotonically'
+    IF previous_sequence IS NOT NULL
+       AND NEW.source_sequence <= previous_sequence
+       AND NEW.capture_mode <> 'OFFLINE' THEN
+        RAISE EXCEPTION 'online clock source sequence must advance monotonically'
             USING ERRCODE = '23514';
     END IF;
+    -- A unique delayed offline fact is preserved. Snapshot projections derive its typed
+    -- OUT_OF_ORDER_OFFLINE_SEQUENCE quarantine without rewriting this immutable row.
     RETURN NEW;
 END;
 $function$;

@@ -12,6 +12,11 @@ import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockAppend;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockCommandReceipt;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockEvent;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockEventType;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockExceptionCandidate;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockExceptionProjectionQuery;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionCandidate;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionPage;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionQuery;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockSourceType;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.DstResolution;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.InstantAuthority;
@@ -20,10 +25,12 @@ import com.dwp.services.time.clockingestion.ClockIngestionModels.TrustLevel;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.VerifiedClockRequest;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.VoidClockCommand;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -50,26 +57,28 @@ class ClockIngestionServiceTest {
 
     private InMemoryClockRepository repository;
     private ClockIngestionService service;
+    private MutableClock clock;
 
     @BeforeEach
     void setUp() {
         repository = new InMemoryClockRepository();
-        Clock fixed = Clock.fixed(NOW, ZoneOffset.UTC);
+        clock = new MutableClock(NOW);
         service = new ClockIngestionService(
                 repository,
                 new ClockEvidenceValidator(),
-                fixed,
+                clock,
                 new ClockQueryCursorCodec(
                         "clock-ingestion-service-test-secret",
                         Duration.ofMinutes(15),
                         new ObjectMapper().findAndRegisterModules(),
-                        fixed));
+                        clock));
     }
 
     @Test
     void recordsOnceAndReturnsTheOriginalReceiptForAnExactReplay() {
         ClockCommandReceipt first = service.record(
                 captureAuthority(true), IDEMPOTENCY, command("source-1", 1));
+        clock.advance(Duration.ofMinutes(2));
         ClockCommandReceipt replay = service.record(
                 captureAuthority(true), IDEMPOTENCY, command("source-1", 1));
 
@@ -77,6 +86,8 @@ class ClockIngestionServiceTest {
         assertThat(first.replayed()).isFalse();
         assertThat(replay.receiptId()).isEqualTo(first.receiptId());
         assertThat(replay.clockEventId()).isEqualTo(first.clockEventId());
+        assertThat(replay.createdAt()).isEqualTo(first.createdAt());
+        assertThat(replay.resultDigest()).isEqualTo(first.resultDigest());
         assertThat(replay.replayed()).isTrue();
         assertThat(repository.events).hasSize(1);
         assertThat(service.workbench(viewAuthority(true), clockQuery()).items())
@@ -93,6 +104,27 @@ class ClockIngestionServiceTest {
                 .isInstanceOfSatisfying(BaseException.class, failure ->
                         assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_CONFLICT));
         assertThat(repository.events).hasSize(1);
+    }
+
+    @Test
+    void serializesOnlyThePinnedTimeCommandReceiptFields() {
+        ClockCommandReceipt receipt = service.record(
+                captureAuthority(true), IDEMPOTENCY, command("source-1", 1));
+        JsonNode json = new ObjectMapper().findAndRegisterModules().valueToTree(receipt);
+
+        assertThat(json.fieldNames()).toIterable().containsExactlyInAnyOrder(
+                "receiptId", "commandType", "originatingAction",
+                "subjectPrincipalPublicId", "populationScopeDigest",
+                "fieldPolicyRevision", "purposeCode", "authorizationRevision",
+                "status", "correlationId", "requestDigest", "createdAt",
+                "aggregateVersion", "resultRef");
+        assertThat(json.path("fieldPolicyRevision").isIntegralNumber()).isTrue();
+        assertThat(json.path("authorizationRevision").isIntegralNumber()).isTrue();
+        assertThat(json.toString())
+                .doesNotContain("idempotencyKey")
+                .doesNotContain("clockEventId")
+                .doesNotContain("resultDigest")
+                .doesNotContain("replayed");
     }
 
     @Test
@@ -130,7 +162,20 @@ class ClockIngestionServiceTest {
         ClockCommandReceipt voided = service.voidEvent(
                 captureAuthority(true), recorded.clockEventId(), VOID_IDEMPOTENCY,
                 new VoidClockCommand("DEVICE_DUPLICATE"));
+        clock.advance(Duration.ofMinutes(2));
+        ClockCommandReceipt replay = service.voidEvent(
+                captureAuthority(true), recorded.clockEventId(), VOID_IDEMPOTENCY,
+                new VoidClockCommand("DEVICE_DUPLICATE"));
         assertThat(voided.commandType()).isEqualTo("CLOCK_VOID");
+        assertThat(replay.receiptId()).isEqualTo(voided.receiptId());
+        assertThat(replay.createdAt()).isEqualTo(voided.createdAt());
+        assertThat(replay.resultDigest()).isEqualTo(voided.resultDigest());
+        assertThat(replay.replayed()).isTrue();
+        assertThatThrownBy(() -> service.voidEvent(
+                captureAuthority(true), recorded.clockEventId(), VOID_IDEMPOTENCY,
+                new VoidClockCommand("OPERATOR_CORRECTION")))
+                .isInstanceOfSatisfying(BaseException.class, failure ->
+                        assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_CONFLICT));
         assertThat(repository.find(41L, recorded.clockEventId())).contains(original);
         assertThat(repository.find(41L, voided.clockEventId()).orElseThrow())
                 .satisfies(event -> {
@@ -170,6 +215,46 @@ class ClockIngestionServiceTest {
                 .allSatisfy(item -> assertThat(item.statusCode()).isEqualTo("RESOLVED"));
     }
 
+    @Test
+    void preservesDelayedUniqueOfflineFactAndExposesTypedGapRecovery() {
+        service.record(captureAuthority(true), IDEMPOTENCY, command("ordered-1", 1));
+        service.record(
+                captureAuthority(true),
+                UUID.fromString("20000000-0000-4000-8000-000000000020"),
+                command("ordered-3", 3));
+        UUID delayedKey = UUID.fromString("20000000-0000-4000-8000-000000000021");
+        ClockCommandReceipt delayed = service.record(
+                captureAuthority(true), delayedKey, lowTrustOfflineCommand("delayed-2", 2));
+        ClockCommandReceipt replay = service.record(
+                captureAuthority(true), delayedKey, lowTrustOfflineCommand("delayed-2", 2));
+
+        assertThat(replay.receiptId()).isEqualTo(delayed.receiptId());
+        assertThat(repository.events).hasSize(3);
+        var projection = service.exceptions(viewAuthority(true), exceptionQuery());
+        assertThat(projection.items())
+                .filteredOn(item -> item.title().equals("SOURCE_SEQUENCE_GAP"))
+                .allSatisfy(item -> assertThat(item.statusCode()).isEqualTo("RESOLVED"));
+        assertThat(projection.items())
+                .filteredOn(item -> item.title().equals("OUT_OF_ORDER_OFFLINE_SEQUENCE"))
+                .singleElement()
+                .satisfies(item -> assertThat(item.statusCode()).isEqualTo("QUARANTINED"));
+
+        assertThatThrownBy(() -> service.record(
+                captureAuthority(true),
+                UUID.fromString("20000000-0000-4000-8000-000000000022"),
+                lowTrustOfflineCommand("delayed-2", 2)))
+                .isInstanceOfSatisfying(BaseException.class, failure ->
+                        assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+
+        service.voidEvent(
+                captureAuthority(true), delayed.clockEventId(), VOID_IDEMPOTENCY,
+                new VoidClockCommand("DELAYED_SEQUENCE_REVIEWED"));
+        assertThat(service.exceptions(viewAuthority(true), exceptionQuery()).items())
+                .filteredOn(item -> item.title().equals("OUT_OF_ORDER_OFFLINE_SEQUENCE"))
+                .singleElement()
+                .satisfies(item -> assertThat(item.statusCode()).isEqualTo("RESOLVED"));
+    }
+
     private static VerifiedClockRequest viewAuthority(boolean stepUp) {
         return authority(ClockIngestionService.VIEW_PURPOSE, stepUp);
     }
@@ -198,8 +283,9 @@ class ClockIngestionServiceTest {
                 DIGEST,
                 DIGEST,
                 DIGEST,
-                "field-policy-5",
+                5,
                 purpose,
+                17,
                 "psr-" + "b".repeat(64),
                 NOW.plusSeconds(300),
                 UUID.fromString("20000000-0000-4000-8000-000000000009"),
@@ -316,6 +402,8 @@ class ClockIngestionServiceTest {
         private final Map<String, Stored> receipts = new HashMap<>();
         private final Map<UUID, ClockEvent> events = new LinkedHashMap<>();
         private final Map<UUID, Long> sourceSequences = new HashMap<>();
+        private final Set<String> sourceEventIdentities = new java.util.HashSet<>();
+        private final Set<String> sourceSequenceIdentities = new java.util.HashSet<>();
         private final Set<UUID> voided = new java.util.HashSet<>();
         private long order;
 
@@ -334,10 +422,16 @@ class ClockIngestionServiceTest {
             ClockEvent event = append.event();
             if (event.sourceSequence() != null) {
                 long last = sourceSequences.getOrDefault(event.sourcePublicId(), 0L);
-                if (event.sourceSequence() <= last) {
+                String eventIdentity = event.sourcePublicId() + "|" + event.sourceEventKey();
+                String sequenceIdentity = event.sourcePublicId() + "|" + event.sourceSequence();
+                if (!sourceEventIdentities.add(eventIdentity)
+                        || !sourceSequenceIdentities.add(sequenceIdentity)
+                        || (event.captureMode() != CaptureMode.OFFLINE
+                                && event.sourceSequence() <= last)) {
                     throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
                 }
-                sourceSequences.put(event.sourcePublicId(), event.sourceSequence());
+                sourceSequences.merge(
+                        event.sourcePublicId(), event.sourceSequence(), Math::max);
             }
             if (event.voidsClockEventId() != null && !voided.add(event.voidsClockEventId())) {
                 throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
@@ -358,15 +452,114 @@ class ClockIngestionServiceTest {
         }
 
         @Override
-        public List<ClockEvent> findRecent(long tenantId, Set<UUID> workerScope, int limit) {
-            List<ClockEvent> result = new ArrayList<>();
-            events.values().stream()
+        public ClockProjectionPage<ClockProjectionCandidate> queryClock(
+                ClockProjectionQuery query) {
+            List<ClockEvent> scoped = scoped(query.tenantId(), query.workerScope(), query.asOf(),
+                    query.snapshotHighWater());
+            List<ClockProjectionCandidate> candidates = scoped.stream()
+                    .map(event -> candidate(event, scoped))
+                    .sorted(java.util.Comparator.comparingLong(
+                            candidate -> candidate.event().eventOrder()))
+                    .toList();
+            return new ClockProjectionPage<>(
+                    highWater(scoped), candidates.stream().limit(query.limit()).toList(),
+                    candidates.size() > query.limit(), List.of());
+        }
+
+        @Override
+        public ClockProjectionPage<ClockExceptionCandidate> queryExceptions(
+                ClockExceptionProjectionQuery query) {
+            List<ClockEvent> scoped = scoped(query.tenantId(), query.workerScope(), query.asOf(),
+                    query.snapshotHighWater());
+            List<ClockExceptionCandidate> candidates = new ArrayList<>();
+            for (ClockEvent event : scoped) {
+                if (event.eventType() == ClockEventType.VOID) continue;
+                ClockProjectionCandidate fact = candidate(event, scoped);
+                String quality = fact.qualityCode();
+                if (quality.equals("SOURCE_SEQUENCE_GAP")
+                        || quality.equals("SOURCE_SEQUENCE_GAP_RECOVERED")) {
+                    candidates.add(exception(event, "SOURCE_SEQUENCE_GAP", "ERROR",
+                            quality.endsWith("RECOVERED") ? "RESOLVED" : "OPEN",
+                            fact.resolutionVoidEventId()));
+                }
+                if (quality.equals("OUT_OF_ORDER_OFFLINE_SEQUENCE")) {
+                    candidates.add(exception(event, quality, "ERROR",
+                            fact.resolutionVoidEventId() == null ? "QUARANTINED" : "RESOLVED",
+                            fact.resolutionVoidEventId()));
+                }
+                if (event.trustLevel() == TrustLevel.LOW) {
+                    candidates.add(exception(event, "LOW_TRUST_EVIDENCE", "WARNING",
+                            fact.resolutionVoidEventId() == null ? "OPEN" : "RESOLVED",
+                            fact.resolutionVoidEventId()));
+                }
+                if (event.captureMode() == CaptureMode.OFFLINE) {
+                    candidates.add(exception(event, "OFFLINE_EVIDENCE_REVIEW", "WARNING",
+                            fact.resolutionVoidEventId() == null ? "OPEN" : "RESOLVED",
+                            fact.resolutionVoidEventId()));
+                }
+            }
+            return new ClockProjectionPage<>(
+                    highWater(scoped), candidates.stream().limit(query.limit()).toList(),
+                    candidates.size() > query.limit(), List.of());
+        }
+
+        private List<ClockEvent> scoped(
+                long tenantId, Set<UUID> workers, Instant asOf, Long requestedHighWater) {
+            long highWater = requestedHighWater == null
+                    ? events.values().stream()
+                            .filter(event -> event.tenantId() == tenantId)
+                            .filter(event -> workers.contains(event.workerPublicId()))
+                            .filter(event -> !event.receivedAt().isAfter(asOf))
+                            .mapToLong(ClockEvent::eventOrder).max().orElse(0)
+                    : requestedHighWater;
+            return events.values().stream()
                     .filter(event -> event.tenantId() == tenantId)
-                    .filter(event -> workerScope.contains(event.workerPublicId()))
-                    .sorted(java.util.Comparator.comparingLong(ClockEvent::eventOrder).reversed())
-                    .limit(limit)
-                    .forEach(result::add);
-            return List.copyOf(result);
+                    .filter(event -> workers.contains(event.workerPublicId()))
+                    .filter(event -> event.eventOrder() <= highWater)
+                    .filter(event -> !event.receivedAt().isAfter(asOf))
+                    .filter(event -> !event.occurredAt().isAfter(asOf))
+                    .sorted(java.util.Comparator.comparingLong(ClockEvent::eventOrder))
+                    .toList();
+        }
+
+        private ClockProjectionCandidate candidate(ClockEvent event, List<ClockEvent> scoped) {
+            UUID resolution = scoped.stream()
+                    .filter(value -> event.clockEventId().equals(value.voidsClockEventId()))
+                    .map(ClockEvent::clockEventId).findFirst().orElse(null);
+            long prior = scoped.stream()
+                    .filter(value -> value.eventOrder() < event.eventOrder())
+                    .filter(value -> value.sourcePublicId().equals(event.sourcePublicId()))
+                    .filter(value -> value.sourceSequence() != null)
+                    .mapToLong(ClockEvent::sourceSequence).max().orElse(0);
+            boolean gap = event.sourceSequence() != null && prior > 0
+                    && event.sourceSequence() > prior + 1;
+            boolean gapOpen = gap && java.util.stream.LongStream
+                    .range(prior + 1, event.sourceSequence())
+                    .anyMatch(missing -> scoped.stream().noneMatch(value ->
+                            value.sourcePublicId().equals(event.sourcePublicId())
+                                    && value.sourceSequence() != null
+                                    && value.sourceSequence() == missing));
+            boolean outOfOrder = event.sourceSequence() != null && prior > 0
+                    && event.sourceSequence() < prior;
+            String status = event.eventType() == ClockEventType.VOID ? "CORRECTIVE_VOID"
+                    : resolution != null ? "VOIDED"
+                    : outOfOrder ? "QUARANTINED" : "ACCEPTED";
+            String quality = gap && gapOpen ? "SOURCE_SEQUENCE_GAP"
+                    : gap ? "SOURCE_SEQUENCE_GAP_RECOVERED"
+                    : outOfOrder ? "OUT_OF_ORDER_OFFLINE_SEQUENCE"
+                    : event.trustLevel() == TrustLevel.LOW ? "LOW_TRUST_EVIDENCE"
+                    : event.captureMode() == CaptureMode.OFFLINE
+                            ? "OFFLINE_EVIDENCE_REVIEW" : "EVIDENCE_VERIFIED";
+            return new ClockProjectionCandidate(event, status, quality, resolution);
+        }
+
+        private ClockExceptionCandidate exception(
+                ClockEvent event, String code, String severity, String state, UUID resolution) {
+            return new ClockExceptionCandidate(event, code, severity, state, resolution);
+        }
+
+        private long highWater(List<ClockEvent> scoped) {
+            return scoped.stream().mapToLong(ClockEvent::eventOrder).max().orElse(0);
         }
 
         private static ClockEvent withOrder(ClockEvent event, long order) {
@@ -394,10 +587,53 @@ class ClockIngestionServiceTest {
 
             private ClockCommandReceipt receipt(boolean replayed) {
                 return new ClockCommandReceipt(
-                        receiptId, idempotencyKey, commandType, event.clockEventId(),
-                        "SUCCEEDED", requestDigest, event.payloadDigest(), correlationId,
-                        event.receivedAt(), replayed);
+                        receiptId,
+                        commandType,
+                        commandType.equals("CLOCK_RECORD")
+                                ? "TIME_CLOCK_RECORD" : "TIME_CLOCK_CORRECT",
+                        SUBJECT,
+                        DIGEST,
+                        5,
+                        ClockIngestionService.CAPTURE_PURPOSE,
+                        17,
+                        "SUCCEEDED",
+                        correlationId,
+                        requestDigest,
+                        event.receivedAt(),
+                        event.eventOrder(),
+                        event.clockEventId().toString(),
+                        idempotencyKey,
+                        event.clockEventId(),
+                        event.payloadDigest(),
+                        replayed);
             }
+        }
+    }
+
+    private static final class MutableClock extends Clock {
+        private Instant value;
+
+        private MutableClock(Instant value) {
+            this.value = value;
+        }
+
+        private void advance(Duration duration) {
+            value = value.plus(duration);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return value;
         }
     }
 }

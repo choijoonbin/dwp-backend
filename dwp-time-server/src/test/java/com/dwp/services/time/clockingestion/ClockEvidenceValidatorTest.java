@@ -132,6 +132,50 @@ class ClockEvidenceValidatorTest {
                 .hasMessageContaining("rule-version");
     }
 
+    @Test
+    void validatesAgainstTheExactSuppliedInstalledTzdbVersion() {
+        RecordClockCommand current = command(
+                "UTC",
+                LocalDateTime.parse("2026-10-12T01:30:00"),
+                Instant.parse("2026-10-12T01:30:00Z"),
+                0,
+                DstResolution.EXACT_OFFSET_SUPPLIED,
+                InstantAuthority.SOURCE_INSTANT,
+                CaptureMode.ONLINE,
+                null);
+        RecordClockCommand historicUnsealed = new RecordClockCommand(
+                current.sourcePublicId(), current.sourceEventKey(), current.sourceSequence(),
+                current.sourceType(), current.devicePublicId(), current.captureMode(),
+                current.offlineBatchPublicId(), current.workerPublicId(),
+                current.peopleAssignmentPublicId(), current.peopleAssignmentRevision(),
+                current.eventType(), current.occurredAt(), current.sourceLocalDateTime(),
+                current.sourceTimeZone(), current.sourceUtcOffsetMinutes(),
+                current.dstResolution(), current.instantAuthority(), "2020a", "UTC@2020a",
+                "0".repeat(64), current.trustLevel());
+        RecordClockCommand historic = copy(
+                historicUnsealed, ClockEvidenceValidator.provenanceDigest(historicUnsealed));
+        ClockEvidenceValidator exactVersionValidator = new ClockEvidenceValidator(
+                (zone, version) -> version.equals("2020a") ? zone.getRules() : null);
+
+        assertThatCode(() -> exactVersionValidator.validate(historic))
+                .doesNotThrowAnyException();
+
+        RecordClockCommand unsupportedUnsealed = new RecordClockCommand(
+                historic.sourcePublicId(), historic.sourceEventKey(), historic.sourceSequence(),
+                historic.sourceType(), historic.devicePublicId(), historic.captureMode(),
+                historic.offlineBatchPublicId(), historic.workerPublicId(),
+                historic.peopleAssignmentPublicId(), historic.peopleAssignmentRevision(),
+                historic.eventType(), historic.occurredAt(), historic.sourceLocalDateTime(),
+                historic.sourceTimeZone(), historic.sourceUtcOffsetMinutes(),
+                historic.dstResolution(), historic.instantAuthority(), "2019z", "UTC@2019z",
+                "0".repeat(64), historic.trustLevel());
+        RecordClockCommand unsupported = copy(
+                unsupportedUnsealed, ClockEvidenceValidator.provenanceDigest(unsupportedUnsealed));
+        assertThatThrownBy(() -> exactVersionValidator.validate(unsupported))
+                .isInstanceOf(BaseException.class)
+                .hasMessageContaining("rule-version");
+    }
+
     private static RecordClockCommand command(
             String zone,
             LocalDateTime local,

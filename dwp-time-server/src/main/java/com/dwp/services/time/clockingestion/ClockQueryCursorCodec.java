@@ -12,6 +12,7 @@ import java.security.MessageDigest;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Base64;
+import java.util.List;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -28,7 +29,7 @@ import org.springframework.stereotype.Component;
 final class ClockQueryCursorCodec {
 
     private static final String ALGORITHM = "HmacSHA256";
-    private static final byte VERSION = 1;
+    private static final byte VERSION = 2;
     private static final int SIGNATURE_LENGTH = 32;
     private static final byte[] DOMAIN =
             "dwp.hris.time.clock-ingestion.cursor.v1\n".getBytes(StandardCharsets.UTF_8);
@@ -55,15 +56,23 @@ final class ClockQueryCursorCodec {
 
     String issue(
             long tenantId,
-            long position,
+            long snapshotHighWater,
+            List<String> afterKey,
             String fingerprint,
             String scopeRevision,
             String authorizationRevision) {
         requireConfigured();
-        if (position < 0) throw invalid();
+        if (snapshotHighWater < 0
+                || afterKey == null
+                || afterKey.isEmpty()
+                || afterKey.size() > 4
+                || afterKey.stream().anyMatch(value -> value == null || value.length() > 128)) {
+            throw invalid();
+        }
         CursorPayload payload = new CursorPayload(
                 tenantId,
-                position,
+                snapshotHighWater,
+                List.copyOf(afterKey),
                 fingerprint,
                 scopeRevision,
                 authorizationRevision,
@@ -80,7 +89,7 @@ final class ClockQueryCursorCodec {
         }
     }
 
-    long verify(
+    CursorState verify(
             String cursor,
             long tenantId,
             String fingerprint,
@@ -107,14 +116,19 @@ final class ClockQueryCursorCodec {
             if (!MessageDigest.isEqual(sign(payloadBytes), signature)) throw invalid();
             CursorPayload payload = objectMapper.readValue(payloadBytes, CursorPayload.class);
             if (payload.tenantId() != tenantId
-                    || payload.position() < 0
+                    || payload.snapshotHighWater() < 0
+                    || payload.afterKey() == null
+                    || payload.afterKey().isEmpty()
+                    || payload.afterKey().size() > 4
+                    || payload.afterKey().stream()
+                            .anyMatch(value -> value == null || value.length() > 128)
                     || !fingerprint.equals(payload.fingerprint())
                     || !scopeRevision.equals(payload.scopeRevision())
                     || !authorizationRevision.equals(payload.authorizationRevision())
                     || payload.expiresAtEpochSecond() < clock.instant().getEpochSecond()) {
                 throw invalid();
             }
-            return payload.position();
+            return new CursorState(payload.snapshotHighWater(), payload.afterKey());
         } catch (BaseException exception) {
             throw exception;
         } catch (IllegalArgumentException | IOException exception) {
@@ -159,9 +173,16 @@ final class ClockQueryCursorCodec {
 
     private record CursorPayload(
             long tenantId,
-            long position,
+            long snapshotHighWater,
+            List<String> afterKey,
             String fingerprint,
             String scopeRevision,
             String authorizationRevision,
             long expiresAtEpochSecond) {}
+
+    record CursorState(long snapshotHighWater, List<String> afterKey) {
+        CursorState {
+            afterKey = List.copyOf(afterKey);
+        }
+    }
 }

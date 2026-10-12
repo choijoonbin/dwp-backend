@@ -97,7 +97,7 @@ public final class ClockOwnerAccessFilter extends OncePerRequestFilter {
         }
 
         request.setAttribute(VERIFIED_REQUEST_ATTRIBUTE, verified);
-        response.setHeader("X-DWP-Decision-Revision", verified.authorizationRevision());
+        response.setHeader("X-DWP-Decision-Revision", verified.decisionRevision());
         filterChain.doFilter(request, response);
     }
 
