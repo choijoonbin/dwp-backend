@@ -40,7 +40,7 @@ class GatewayVerifiedClockOwnerAuthoritySourceTest {
                     "time-service-token", true, Clock.fixed(NOW, ZoneOffset.UTC), resolver);
 
     @Test
-    void pageDecisionProjectsBoundedPopulationFieldPolicyAndCorrectEntitlement() {
+    void pageDecisionProjectsBoundedPopulationWithExactDataGrantAndZeroAppEntitlement() {
         MockHttpServletRequest request = request(ClockOwnerRoute.WORKBENCH, "NORMAL");
         request.addHeader(GatewayVerifiedClockOwnerAuthoritySource.MASKED_FIELD_GROUPS_HEADER,
                 "QUALITY_FINDING");
@@ -61,15 +61,22 @@ class GatewayVerifiedClockOwnerAuthoritySourceTest {
         assertThat(verified.stepUpSatisfied()).isFalse();
         assertThat(verified.populationScopeDigest()).matches("[0-9a-f]{64}");
         assertThat(verified.queryScopeRevision()).matches("scope-[0-9a-f]{64}");
+        assertThat(verified.routeContractKey())
+                .isEqualTo(ClockOwnerRoute.WORKBENCH.authorityContractKey());
+        assertThat(verified.contextKey()).isEqualTo(CONTEXT);
+        assertThat(verified.grantDigest()).isEqualTo("b".repeat(64));
+        assertThat(request.getHeader(
+                GatewayVerifiedClockOwnerAuthoritySource.PERMISSIONS_HEADER))
+                .doesNotContain("APP.");
     }
 
     @Test
-    void pageDecisionDoesNotOfferCorrectionWithoutTheExactUpdateCapability() {
+    void appHrisAliasRemainsCompatibleButDoesNotReplaceTheExactUpdateCapability() {
         MockHttpServletRequest request = request(ClockOwnerRoute.WORKBENCH, "NORMAL");
         request.removeHeader(GatewayVerifiedClockOwnerAuthoritySource.PERMISSIONS_HEADER);
         request.addHeader(
                 GatewayVerifiedClockOwnerAuthoritySource.PERMISSIONS_HEADER,
-                "APP.HCM:VIEW,DATA.HR_TIME:VIEW");
+                "APP.HRIS:VIEW,DATA.HR_TIME:VIEW");
 
         var verified = source.verify(request, ClockOwnerRoute.WORKBENCH).orElseThrow();
 
@@ -92,11 +99,13 @@ class GatewayVerifiedClockOwnerAuthoritySourceTest {
 
     @Test
     void voidDecisionRequiresExactCurrentRevisionAndElevatedModeForStepUp() {
-        var normal = source.verify(
-                request(ClockOwnerRoute.VOID, "NORMAL"), ClockOwnerRoute.VOID).orElseThrow();
+        assertThatThrownBy(() -> source.verify(
+                request(ClockOwnerRoute.VOID, "NORMAL"), ClockOwnerRoute.VOID))
+                .isInstanceOfSatisfying(BaseException.class, failure ->
+                        assertThat(failure.getErrorCode())
+                                .isEqualTo(ErrorCode.STEP_UP_REQUIRED));
         var elevated = source.verify(
                 request(ClockOwnerRoute.VOID, "ELEVATED"), ClockOwnerRoute.VOID).orElseThrow();
-        assertThat(normal.stepUpSatisfied()).isFalse();
         assertThat(elevated.stepUpSatisfied()).isTrue();
 
         MockHttpServletRequest mismatch = request(ClockOwnerRoute.VOID, "ELEVATED");
@@ -107,6 +116,17 @@ class GatewayVerifiedClockOwnerAuthoritySourceTest {
                 .isInstanceOfSatisfying(BaseException.class, failure ->
                         assertThat(failure.getErrorCode())
                                 .isEqualTo(ErrorCode.DECISION_REVISION_CONFLICT));
+
+        MockHttpServletRequest malformedVersion = request(ClockOwnerRoute.VOID, "ELEVATED");
+        malformedVersion.removeHeader(
+                GatewayVerifiedClockOwnerAuthoritySource.EXPECTED_OBJECT_VERSION_HEADER);
+        malformedVersion.addHeader(
+                GatewayVerifiedClockOwnerAuthoritySource.EXPECTED_OBJECT_VERSION_HEADER,
+                "not-a-version");
+        assertThatThrownBy(() -> source.verify(malformedVersion, ClockOwnerRoute.VOID))
+                .isInstanceOfSatisfying(BaseException.class, failure ->
+                        assertThat(failure.getErrorCode())
+                                .isEqualTo(ErrorCode.STEP_UP_CHALLENGE_MISMATCH));
     }
 
     @Test
@@ -124,7 +144,7 @@ class GatewayVerifiedClockOwnerAuthoritySourceTest {
         MockHttpServletRequest missingCapability = request(ClockOwnerRoute.RECORD, "NORMAL");
         missingCapability.removeHeader(GatewayVerifiedClockOwnerAuthoritySource.PERMISSIONS_HEADER);
         missingCapability.addHeader(GatewayVerifiedClockOwnerAuthoritySource.PERMISSIONS_HEADER,
-                "APP.HCM:VIEW");
+                "APP.HRIS:VIEW");
         missingCapability.addHeader("X-DWP-Roles", "HRIS_DUTY_TIME_OPERATOR");
         assertThat(source.verify(missingCapability, ClockOwnerRoute.RECORD)).isEmpty();
     }
@@ -149,7 +169,7 @@ class GatewayVerifiedClockOwnerAuthoritySourceTest {
                 "time-service-token");
         request.addHeader(GatewayVerifiedClockOwnerAuthoritySource.TENANT_HEADER, "41");
         request.addHeader(GatewayVerifiedClockOwnerAuthoritySource.USER_HEADER, "72");
-        String capabilities = "APP.HCM:VIEW," + route.capability();
+        String capabilities = route.capability();
         if (route.action() == ClockAction.VIEW) capabilities += ",DATA.HR_TIME:UPDATE";
         request.addHeader(GatewayVerifiedClockOwnerAuthoritySource.PERMISSIONS_HEADER,
                 capabilities);
@@ -189,6 +209,14 @@ class GatewayVerifiedClockOwnerAuthoritySourceTest {
         if (route == ClockOwnerRoute.RECORD) {
             request.addHeader(GatewayVerifiedClockOwnerAuthoritySource.SOURCE_SCOPE_HEADER,
                     SOURCE.toString());
+        }
+        if (route.stepUpRequired()) {
+            request.addHeader(
+                    GatewayVerifiedClockOwnerAuthoritySource.STEP_UP_CHALLENGE_HEADER,
+                    "signed.challenge.token");
+            request.addHeader(
+                    GatewayVerifiedClockOwnerAuthoritySource.EXPECTED_OBJECT_VERSION_HEADER,
+                    "1");
         }
         return request;
     }

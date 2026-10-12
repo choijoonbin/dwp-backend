@@ -64,6 +64,8 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
                 || path.startsWith("/internal/provider/")
                 || isAuthorizedSyntheticBootstrap(request, path)
                 || isHomeProviderPost(request, path)
+                || HrisEmployeeChangeSecurityBridge
+                        .isVerifiedApprovalDecisionCallback(request)
                 || path.equals("/error");
     }
 
@@ -87,6 +89,12 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
             HttpServletRequest request,
             HttpServletResponse response,
             FilterChain filterChain) throws ServletException, IOException {
+        if (HrisEmployeeChangeSecurityBridge.isApprovalDecisionCallback(
+                request.getMethod(), request.getRequestURI())) {
+            writeError(response, ErrorCode.UNAUTHORIZED,
+                    "Verified HRIS approval workload authority is required.");
+            return;
+        }
         if (serviceToken.isBlank()) {
             writeError(response, ErrorCode.EXTERNAL_SERVICE_ERROR,
                     "People service identity is not configured.");
@@ -120,6 +128,16 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
         boolean supportAccess = request.getHeader(SUPPORT_SESSION_HEADER) != null
                 && !request.getHeader(SUPPORT_SESSION_HEADER).isBlank();
         boolean exactHcmEvidence = exactHcmEvidence(request);
+        String employeeChangeRoute = HrisEmployeeChangeSecurityBridge.browserRouteContract(
+                request.getMethod(), request.getRequestURI());
+        if (HrisEmployeeChangeSecurityBridge.claimsBrowserFamily(
+                request.getRequestURI())
+                && (employeeChangeRoute == null
+                || !exactHcmEvidence(request, employeeChangeRoute))) {
+            writeError(response, ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "Exact v36 employee-change route authority is required.");
+            return;
+        }
         if (supportAccess && !authorizedSupportRequest(request)) {
             writeError(response, ErrorCode.FORBIDDEN,
                     "The support session does not permit this workforce resource.");
@@ -179,10 +197,27 @@ public class PeopleSecurityFilter extends OncePerRequestFilter {
     }
 
     private boolean exactHcmEvidence(HttpServletRequest request) {
-        String state = request.getHeader(PeopleSecurityHeaders.ROLLOUT_STATE);
-        String route = request.getHeader(PeopleSecurityHeaders.ROUTE_CONTRACT);
+        String state = exactHeader(request, PeopleSecurityHeaders.ROLLOUT_STATE);
+        String route = exactHeader(request, PeopleSecurityHeaders.ROUTE_CONTRACT);
         return state != null && state.matches("1[1][01]")
                 && route != null && route.startsWith("route.hcm.");
+    }
+
+    private boolean exactHcmEvidence(HttpServletRequest request, String expectedRoute) {
+        return exactHcmEvidence(request) && expectedRoute.equals(
+                exactHeader(request, PeopleSecurityHeaders.ROUTE_CONTRACT));
+    }
+
+    private String exactHeader(HttpServletRequest request, String name) {
+        java.util.Enumeration<String> values = request.getHeaders(name);
+        if (values == null || !values.hasMoreElements()) return null;
+        String value = values.nextElement();
+        if (values.hasMoreElements() || value == null || value.isBlank()
+                || !value.equals(value.trim()) || value.indexOf(',') >= 0
+                || value.indexOf('\r') >= 0 || value.indexOf('\n') >= 0) {
+            return null;
+        }
+        return value;
     }
 
     private Set<String> parseRoles(String header) {

@@ -115,6 +115,8 @@ public class ApprovalSecurityFilter extends OncePerRequestFilter {
         String path = request.getRequestURI();
         return path.startsWith("/actuator/health")
                 || path.startsWith("/v3/api-docs")
+                || ("POST".equals(request.getMethod())
+                    && "/internal/hris-approval/v1/approval-requests".equals(path))
                 || isHomeProviderPost(request, path)
                 || path.equals("/error");
     }

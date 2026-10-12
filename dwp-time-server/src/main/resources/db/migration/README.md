@@ -18,3 +18,6 @@ approved, immutable versioned migrations in this location.
   to the exact People-derived `hcm-scope-*` eligibility key returned by Gateway.
 - `V7` normalizes every post-foundation trigger function to the migration-owner execution
   profile with a fixed search path and no direct service-role execution.
+- `V8` creates immutable clock-ingestion facts, durable command receipts, and their local outbox.
+- `V9` binds corrective voids to one-time Auth-signed v36 step-up challenges and persists their
+  replay evidence in the same tenant transaction as the clock fact.

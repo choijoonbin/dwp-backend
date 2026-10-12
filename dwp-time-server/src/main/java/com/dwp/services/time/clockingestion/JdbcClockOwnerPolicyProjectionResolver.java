@@ -24,7 +24,7 @@ import org.springframework.transaction.support.TransactionTemplate;
         name = "dwp.hris.time.clock-ingestion.enabled",
         havingValue = "true",
         matchIfMissing = false)
-final class JdbcClockOwnerPolicyProjectionResolver
+class JdbcClockOwnerPolicyProjectionResolver
         implements ClockOwnerPolicyProjectionResolver {
 
     private static final String SET_TENANT_SQL =

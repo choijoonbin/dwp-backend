@@ -576,6 +576,33 @@
         },
         "type": "object"
       },
+      "ApiResponseFreezeCommandResult": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/FreezeCommandResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseHomeOverview": {
         "properties": {
           "correlationId": {
@@ -1387,6 +1414,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/PreviewCommandResult"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseProjection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/Projection"
           },
           "errorCode": {
             "type": "string"
@@ -2273,6 +2327,26 @@
         },
         "type": "object"
       },
+      "AvailableAction": {
+        "properties": {
+          "actionKey": {
+            "type": "string"
+          },
+          "hrefTemplate": {
+            "type": "string"
+          },
+          "idempotencyPolicy": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "stepUpPolicy": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "BenefitPlan": {
         "properties": {
           "coverageLevel": {
@@ -2324,6 +2398,21 @@
               "$ref": "#/components/schemas/EnrollmentWindow"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "CachePolicy": {
+        "properties": {
+          "authorizationDecisionRevision": {
+            "type": "string"
+          },
+          "invalidationEvent": {
+            "type": "string"
+          },
+          "maxAgeSeconds": {
+            "format": "int32",
+            "type": "integer"
           }
         },
         "type": "object"
@@ -3570,6 +3659,17 @@
         ],
         "type": "object"
       },
+      "DeepLink": {
+        "properties": {
+          "resourcePublicId": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "DesignPolicy": {
         "properties": {
           "maximumContingentPercent": {
@@ -3722,6 +3822,85 @@
         },
         "required": [
           "syncMode"
+        ],
+        "type": "object"
+      },
+      "FieldDecisionSummary": {
+        "properties": {
+          "maskedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "omittedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "viewCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "FieldGroups": {
+        "properties": {
+          "DUE_STATUS": {},
+          "REVIEW_ASSIGNMENT": {},
+          "WORK_QUEUE": {}
+        },
+        "type": "object"
+      },
+      "FreezeCommandResult": {
+        "properties": {
+          "freeze": {
+            "$ref": "#/components/schemas/PopulationFreeze"
+          },
+          "receipt": {
+            "$ref": "#/components/schemas/CommandReceipt"
+          }
+        },
+        "type": "object"
+      },
+      "FreezePopulationRequest": {
+        "properties": {
+          "commandId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationPreviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationRuleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "previewContentHash": {
+            "minLength": 1,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "reason": {
+            "maxLength": 500,
+            "minLength": 10,
+            "type": "string"
+          },
+          "workforceSnapshotId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workforceSnapshotRevision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "commandId",
+          "populationPreviewId",
+          "populationRuleId",
+          "previewContentHash",
+          "reason",
+          "workforceSnapshotId"
         ],
         "type": "object"
       },
@@ -4002,6 +4181,32 @@
               "$ref": "#/components/schemas/OrganizationHealth"
             },
             "type": "array"
+          }
+        },
+        "type": "object"
+      },
+      "Item": {
+        "properties": {
+          "availableActions": {
+            "items": {
+              "$ref": "#/components/schemas/AvailableAction"
+            },
+            "type": "array"
+          },
+          "deepLink": {
+            "$ref": "#/components/schemas/DeepLink"
+          },
+          "fieldGroups": {
+            "$ref": "#/components/schemas/FieldGroups"
+          },
+          "itemPublicId": {
+            "type": "string"
+          },
+          "statusCode": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
           }
         },
         "type": "object"
@@ -4533,6 +4738,24 @@
         },
         "type": "object"
       },
+      "PartialFailure": {
+        "properties": {
+          "componentKey": {
+            "type": "string"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
+          }
+        },
+        "type": "object"
+      },
       "PayCycle": {
         "properties": {
           "absenceValidated": {
@@ -5056,6 +5279,65 @@
         },
         "type": "object"
       },
+      "PopulationFreeze": {
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "cycleId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "cycleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "frozenAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "participantCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "populationFreezeId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationPreviewId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "populationRuleVersionId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "reviewerAssignmentCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "sourceCycleAggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "state": {
+            "type": "string"
+          },
+          "workforceSnapshotId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "workforceSnapshotRevision": {
+            "format": "int64",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "PopulationPreview": {
         "properties": {
           "aggregateVersion": {
@@ -5481,6 +5763,30 @@
         ],
         "type": "object"
       },
+      "Projection": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Item"
+            },
+            "type": "array"
+          },
+          "projectionVersion": {
+            "type": "string"
+          },
+          "queryState": {
+            "$ref": "#/components/schemas/QueryState"
+          },
+          "variantKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ProvisionTenantRequest": {
         "properties": {
           "dataRegion": {
@@ -5592,6 +5898,39 @@
         "required": [
           "version"
         ],
+        "type": "object"
+      },
+      "QueryState": {
+        "properties": {
+          "cachePolicy": {
+            "$ref": "#/components/schemas/CachePolicy"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "fieldDecisionSummary": {
+            "$ref": "#/components/schemas/FieldDecisionSummary"
+          },
+          "freshness": {
+            "type": "string"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "partialFailures": {
+            "items": {
+              "$ref": "#/components/schemas/PartialFailure"
+            },
+            "type": "array"
+          },
+          "scopeDecisionRevision": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
         "type": "object"
       },
       "Receipt": {
@@ -8210,6 +8549,100 @@
         "x-dwp-runtime-default": "OFF"
       }
     },
+    "/v1/hris/performance/cycles/{cycleId}/population-freezes": {
+      "post": {
+        "operationId": "hrisPerformanceFreezePopulation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "cycleId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-Match",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-Correlation-ID",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FreezePopulationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseFreezeCommandResult"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "population-freeze-controller"
+        ],
+        "x-dwp-controller-method": "freeze",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
     "/v1/hris/performance/cycles/{cycleId}/population-previews": {
       "post": {
         "operationId": "hrisPerformancePreviewPopulation",
@@ -8409,6 +8842,173 @@
           "performance-cycle-controller"
         ],
         "x-dwp-controller-method": "validate",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/performance/workbench/review-operations": {
+      "get": {
+        "operationId": "hrisPerformanceReviewOperations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": true,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "correlationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reviewAssignmentCodes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "reviewAssignmentPublicIds",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimumOpenCount",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "maximumOpenCount",
+            "required": false,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "slaStates",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "dueStatusCodes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimumDueRevision",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "effectiveOn",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseProjection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "performance-review-operations-controller"
+        ],
+        "x-dwp-controller-method": "query",
+        "x-dwp-reviewed-springdoc-capture": true,
         "x-dwp-runtime-default": "OFF"
       }
     },

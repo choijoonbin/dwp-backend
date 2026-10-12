@@ -18,6 +18,7 @@ import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjection
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionPage;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionQuery;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockSourceType;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockStepUpHeaders;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.DstResolution;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.InstantAuthority;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.RecordClockCommand;
@@ -71,7 +72,8 @@ class ClockIngestionServiceTest {
                         "clock-ingestion-service-test-secret",
                         Duration.ofMinutes(15),
                         new ObjectMapper().findAndRegisterModules(),
-                        clock));
+                        clock),
+                new ClockStepUpTestVerifier());
     }
 
     @Test
@@ -155,16 +157,19 @@ class ClockIngestionServiceTest {
 
         assertThatThrownBy(() -> service.voidEvent(
                 captureAuthority(false), recorded.clockEventId(), VOID_IDEMPOTENCY,
+                stepUp(recorded.aggregateVersion()),
                 new VoidClockCommand("DEVICE_DUPLICATE")))
                 .isInstanceOfSatisfying(BaseException.class, failure ->
                         assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.STEP_UP_REQUIRED));
 
         ClockCommandReceipt voided = service.voidEvent(
                 captureAuthority(true), recorded.clockEventId(), VOID_IDEMPOTENCY,
+                stepUp(recorded.aggregateVersion()),
                 new VoidClockCommand("DEVICE_DUPLICATE"));
         clock.advance(Duration.ofMinutes(2));
         ClockCommandReceipt replay = service.voidEvent(
                 captureAuthority(true), recorded.clockEventId(), VOID_IDEMPOTENCY,
+                stepUp(recorded.aggregateVersion()),
                 new VoidClockCommand("DEVICE_DUPLICATE"));
         assertThat(voided.commandType()).isEqualTo("CLOCK_VOID");
         assertThat(replay.receiptId()).isEqualTo(voided.receiptId());
@@ -173,6 +178,7 @@ class ClockIngestionServiceTest {
         assertThat(replay.replayed()).isTrue();
         assertThatThrownBy(() -> service.voidEvent(
                 captureAuthority(true), recorded.clockEventId(), VOID_IDEMPOTENCY,
+                stepUp(recorded.aggregateVersion()),
                 new VoidClockCommand("OPERATOR_CORRECTION")))
                 .isInstanceOfSatisfying(BaseException.class, failure ->
                         assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_CONFLICT));
@@ -187,6 +193,7 @@ class ClockIngestionServiceTest {
         assertThatThrownBy(() -> service.voidEvent(
                 captureAuthority(true), recorded.clockEventId(),
                 UUID.fromString("20000000-0000-4000-8000-000000000008"),
+                stepUp(recorded.aggregateVersion()),
                 new VoidClockCommand("OPERATOR_CORRECTION")))
                 .isInstanceOfSatisfying(BaseException.class, failure ->
                         assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_CONFLICT));
@@ -208,6 +215,7 @@ class ClockIngestionServiceTest {
 
         service.voidEvent(
                 captureAuthority(true), first.clockEventId(), VOID_IDEMPOTENCY,
+                stepUp(first.aggregateVersion()),
                 new VoidClockCommand("UNTRUSTED_SOURCE"));
         assertThat(service.exceptions(viewAuthority(true), exceptionQuery()).items())
                 .filteredOn(item -> List.of(
@@ -248,6 +256,7 @@ class ClockIngestionServiceTest {
 
         service.voidEvent(
                 captureAuthority(true), delayed.clockEventId(), VOID_IDEMPOTENCY,
+                stepUp(delayed.aggregateVersion()),
                 new VoidClockCommand("DELAYED_SEQUENCE_REVIEWED"));
         assertThat(service.exceptions(viewAuthority(true), exceptionQuery()).items())
                 .filteredOn(item -> item.title().equals("OUT_OF_ORDER_OFFLINE_SEQUENCE"))
@@ -276,6 +285,10 @@ class ClockIngestionServiceTest {
                 WORKER,
                 ASSIGNMENT,
                 7,
+                ClockIngestionService.CAPTURE_PURPOSE.equals(purpose)
+                        ? AuthSignedClockStepUpVerifier.ROUTE_CONTRACT_KEY
+                        : ClockOwnerRoute.WORKBENCH.authorityContractKey(),
+                "psc-" + "c".repeat(64),
                 HcmEligibilityScopeKey.derived(
                         41L, 72L, "hcm.operations.clock-ingestion", "scope-source",
                         "relationship-9", "population-9"),
@@ -295,6 +308,11 @@ class ClockIngestionServiceTest {
                 Set.of(),
                 Set.of(SOURCE),
                 stepUp);
+    }
+
+    private static ClockStepUpHeaders stepUp(Long eventVersion) {
+        return new ClockStepUpHeaders(
+                "challenge-1", "psr-" + "b".repeat(64), eventVersion);
     }
 
     private static ClockIaQueryModels.ClockQueryRequest clockQuery() {

@@ -1,0 +1,211 @@
+{
+  "schemaVersion": 2,
+  "contractId": "HRIS-APPROVAL-EMPLOYEE-CHANGE-BRIDGE-V2",
+  "lifecycleState": "PRODUCTION_WIRE_PINNED",
+  "supersedes": "HRIS-APPROVAL-EMPLOYEE-CHANGE-BRIDGE-V1",
+  "compatibility": {
+    "resourceApiMajor": 1,
+    "note": "The successor hardens transport and persistence; the two canonical /v1 resource paths and SVC binding IDs do not change.",
+    "v1MutationForbidden": true
+  },
+  "bindings": [
+    {
+      "bindingId": "SVC-PEP-APR-001",
+      "operationId": "createAndSubmitEmployeeChangeApprovalRequest",
+      "ownerWorkloadId": "dwp-approval-server",
+      "callerWorkloadId": "dwp-people-server",
+      "method": "POST",
+      "path": "/internal/hris-approval/v1/approval-requests",
+      "audience": "dwp-approval-server",
+      "purpose": "HRIS_EMPLOYEE_CHANGE_APPROVAL_REQUEST_SUBMIT",
+      "requestSchema": "PDX-010 ApprovalRequestV1",
+      "requiredState": "PENDING",
+      "responseSchema": "CreateAndSubmitReceiptV2"
+    },
+    {
+      "bindingId": "SVC-PEP-HRM-001",
+      "operationId": "recordEmployeeChangeDecision",
+      "ownerWorkloadId": "dwp-people-server",
+      "callerWorkloadId": "dwp-approval-server",
+      "method": "POST",
+      "path": "/internal/hris-people/v1/employee-change-requests/{requestPublicId}/approval-decisions",
+      "audience": "dwp-people-server",
+      "purpose": "HRIS_APPROVAL_DECISION_CALLBACK",
+      "requestSchema": "ApprovalDecisionCallbackV1",
+      "responseSchema": "CommandReceiptV1"
+    }
+  ],
+  "httpProfile": {
+    "requiredSingleValueHeaders": {
+      "Content-Type": ["application/json", "application/json; charset=utf-8"],
+      "X-DWP-Service-Identity": "exact callerWorkloadId",
+      "X-DWP-Workload-Proof": "one compact JWS"
+    },
+    "outboundAccept": "application/json",
+    "duplicateHeaderNamesOrValues": "REJECT",
+    "observabilityOnly": ["traceparent", "tracestate"],
+    "prohibited": [
+      "Authorization",
+      "Cookie",
+      "Origin",
+      "Referer",
+      "Sec-Fetch-*",
+      "Sec-CH-UA-*",
+      "X-DWP-Tenant*",
+      "X-DWP-User-ID",
+      "X-DWP-Person-Public-ID",
+      "X-DWP-Display-Name-B64",
+      "X-Forwarded-User",
+      "X-Forwarded-Email",
+      "every unrecognized X-DWP-* header"
+    ],
+    "pathRules": ["no query", "no fragment", "no trailing slash alias"]
+  },
+  "workloadProof": {
+    "wire": "X-DWP-Workload-Proof compact JWS",
+    "joseHeader": {
+      "additionalProperties": false,
+      "exactFields": ["alg", "typ", "kid"],
+      "fixed": {"alg": "RS256", "typ": "JWT"},
+      "minimumRsaBits": 2048
+    },
+    "claims": {
+      "additionalProperties": false,
+      "exactFields": [
+        "iss",
+        "aud",
+        "sub",
+        "iat",
+        "nbf",
+        "exp",
+        "jti",
+        "requestNonce",
+        "bindingId",
+        "purpose",
+        "method",
+        "path",
+        "tenantId",
+        "requestBodySha256",
+        "authn"
+      ],
+      "bindings": {
+        "iss": "exact callerWorkloadId",
+        "sub": "exact callerWorkloadId",
+        "aud": "exact ownerWorkloadId",
+        "bindingId": "exact SVC bindingId",
+        "purpose": "exact binding purpose",
+        "method": "POST",
+        "path": "exact resolved canonical path",
+        "tenantId": "positive signed owner tenant only",
+        "requestBodySha256": "lowercase SHA-256 of exact received UTF-8 bytes",
+        "authn": ["MTLS_SPIFFE", "CLIENT_CREDENTIAL_JWT"]
+      },
+      "time": ["iat equals nbf", "exp is after iat", "exp minus iat is at most 30 seconds", "proof is currently valid"],
+      "replay": ["jti and requestNonce are distinct canonical lowercase UUIDs", "both share one durable single-use namespace"]
+    },
+    "derivedAuthentication": {
+      "rule": "authn is re-derived from the verified key profile and is never trusted from the claim alone",
+      "MTLS_SPIFFE": "certificate SPIFFE workload identity equals sub",
+      "CLIENT_CREDENTIAL_JWT": "kid resolves to a registered caller client-key profile"
+    },
+    "tenantAdmission": [
+      "tenantId comes only from the verified signed claim",
+      "owner revalidates the caller current tenant grant",
+      "owner revalidates target tenant equality",
+      "caller tenant override is forbidden"
+    ]
+  },
+  "commandDigest": {
+    "bodySha256": "sha256(exact received UTF-8 request bytes)",
+    "canonicalMaterial": "HRIS-BRIDGE-V2\\n{bindingId}\\n{method}\\n{exactPath}\\n{callerWorkloadId}\\n{audience}\\n{tenantId}\\n{purpose}\\napplication/json\\n{bodySha256}",
+    "encoding": "UTF-8 with LF separators only",
+    "result": "lowercase SHA-256",
+    "excluded": ["proof", "kid", "jti", "requestNonce", "iat", "nbf", "exp", "traceparent", "tracestate"],
+    "retry": "persist exact request bytes and commandDigest; mint a new workload proof for each attempt"
+  },
+  "createAndSubmitAuthority": {
+    "requesterRefPattern": "^person:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    "requesterResolution": "service-native Auth lookup returns exactly one ACTIVE same-tenant user/person",
+    "forbiddenRequesterSources": ["browser headers", "ThreadLocal actor", "synthetic user"],
+    "workflowResolution": [
+      "workflowKey and workflowVersion resolve exactly one PUBLISHED effective typed-quorum workflow version",
+      "the pinned workflow version resolves exactly one active effective PUBLISHED form binding",
+      "generic current_version fallback is forbidden"
+    ],
+    "nativePayload": {
+      "additionalProperties": false,
+      "fields": ["requestId", "subjectRef", "subjectRevision", "requesterRef", "requestedAction", "payloadRef", "payloadDigest", "requestedAt", "correlationId"],
+      "fixedOutsidePayload": {"state": "PENDING", "priority": "NORMAL"},
+      "title": "Employee change request {requestId}",
+      "summary": "Requested action {requestedAction} for {subjectRef}",
+      "ledgerOnly": ["idempotencyKey"]
+    }
+  },
+  "idempotency": {
+    "createAndSubmit": {
+      "primarySemanticIdentity": ["tenantId", "subjectRef", "subjectRevision"],
+      "collisionAliases": [["tenantId", "requestId"], ["tenantId", "idempotencyKey"]],
+      "sameCommandDigest": "return exact persisted original response bytes",
+      "differentCommandDigestForAnyMatchingIdentity": "HTTP_409",
+      "splitAliasOwnership": "HTTP_409"
+    },
+    "decisionCallback": {
+      "identity": ["tenantId", "decisionEventId"],
+      "pathRequestPublicIdIncludedBy": "commandDigest exactPath",
+      "sameCommandDigest": "return exact persisted original CommandReceiptV1 bytes",
+      "differentCommandDigest": "HTTP_409"
+    }
+  },
+  "decisionSource": {
+    "approvalPolicyRevision": "apr_quorum_stage_runtime.context.pins.policyVersion frozen at typed-quorum submission",
+    "decisionActorPublicId": "actor of the accepted vote that caused the terminal decision",
+    "correlationId": "original PDX-010 correlationId",
+    "payloadDigest": "original PDX-010 payloadDigest",
+    "forbidden": ["current policy requery", "request revision substitution", "delivery-attempt actor or revision"]
+  },
+  "commandReceiptV1": {
+    "additionalProperties": false,
+    "requiredFields": [
+      "receiptId",
+      "commandType",
+      "originatingAction",
+      "subjectPrincipalPublicId",
+      "populationScopeDigest",
+      "fieldPolicyRevision",
+      "purposeCode",
+      "authorizationRevision",
+      "status",
+      "correlationId",
+      "requestDigest",
+      "createdAt"
+    ],
+    "status": ["ACCEPTED", "RUNNING", "SUCCEEDED", "REJECTED", "FAILED", "RESULT_UNKNOWN"],
+    "callbackFixed": {
+      "commandType": "RECORD_EMPLOYEE_CHANGE_APPROVAL_DECISION",
+      "originatingAction": "HRM_EMPLOYEE_CHANGE_APPROVAL_DECISION_RECORD",
+      "purposeCode": "HRIS_APPROVAL_DECISION_CALLBACK",
+      "status": "SUCCEEDED",
+      "requestDigest": "commandDigest"
+    }
+  },
+  "durability": {
+    "approvalMigration": "V58__bridge_hris_employee_change_approvals.sql",
+    "tables": [
+      "apr_hris_bridge_proof_replays",
+      "apr_hris_employee_change_approval_bindings",
+      "apr_hris_employee_change_decision_outbox"
+    ],
+    "peopleCallbackLedger": "owned by the HRM module migration, not Approval V58"
+  },
+  "readiness": {
+    "contractAndSchema": "PINNED",
+    "runtimeAdapters": "REQUIRED_BEFORE_PRODUCTION",
+    "requiredAdapters": [
+      "Approval ingress JWS/mTLS or registered-client verifier",
+      "Approval service-native requester/workflow/form authority resolver",
+      "Approval transactional create-and-submit ledger",
+      "Approval terminal decision outbox relay",
+      "People callback verifier and durable callback idempotency ledger"
+    ]
+  }
+}

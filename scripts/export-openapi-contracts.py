@@ -22,9 +22,9 @@ CONTRACT_ROOT = ROOT / "contracts" / "openapi"
 GATEWAY_OWNED_SNAPSHOT = CONTRACT_ROOT / "gateway-owned.json"
 AGENT_PUBLIC_SNAPSHOT = CONTRACT_ROOT / "agent-public.json"
 PRODUCT_AUTHORIZATION_REGISTRY = (
-    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v36.json"
+    ROOT / "contracts" / "product-authorization" / "product-surfaces-v1.bundle-v37.json"
 )
-PRODUCT_AUTHORIZATION_VERSION = 36
+PRODUCT_AUTHORIZATION_VERSION = 37
 HRIS_DESIGN_TIME_OVERLAY = CONTRACT_ROOT / "hris-wave1-design-time.json"
 HTTP_METHODS = {"get", "put", "post", "delete", "options", "head", "patch", "trace"}
 PATH_PARAMETER_PATTERN = re.compile(r"\{[^{}]+}")

@@ -47,6 +47,8 @@ final class GatewayVerifiedClockOwnerAuthoritySource implements ClockOwnerAuthor
     static final String CURRENT_REVISION_HEADER = "X-DWP-Current-Decision-Revision";
     static final String CURRENT_REVALIDATE_AT_HEADER = "X-DWP-Current-Revalidate-At";
     static final String EXPECTED_REVISION_HEADER = "X-DWP-Expected-Decision-Revision";
+    static final String STEP_UP_CHALLENGE_HEADER = "X-DWP-Step-Up-Challenge";
+    static final String EXPECTED_OBJECT_VERSION_HEADER = "X-DWP-Expected-Object-Version";
     static final String ROLLOUT_STATE_HEADER = "X-DWP-Rollout-State";
     static final String ROLLOUT_REVISION_HEADER = "X-DWP-Rollout-Revision";
     static final String ROLLOUT_COHORT_HEADER = "X-DWP-Rollout-Cohort";
@@ -62,7 +64,6 @@ final class GatewayVerifiedClockOwnerAuthoritySource implements ClockOwnerAuthor
     static final String TARGET_ASSIGNMENT_REVISION_HEADER =
             "X-DWP-Target-Assignment-Revision";
 
-    private static final String APP_ENTITLEMENT = "APP.HCM:VIEW";
     private static final String CORRECT_CAPABILITY = "DATA.HR_TIME:UPDATE";
     private static final Set<String> ENFORCED_ROLLOUT_STATES = Set.of("110", "111");
     private static final Set<String> ROLLOUT_COHORTS = Set.of(
@@ -148,8 +149,7 @@ final class GatewayVerifiedClockOwnerAuthoritySource implements ClockOwnerAuthor
         if (request.getHeader(SUPPORT_SESSION_HEADER) != null) return Optional.empty();
 
         Set<String> permissions = exactTokens(request, PERMISSIONS_HEADER, 100, true);
-        if (permissions == null || !permissions.contains(APP_ENTITLEMENT)
-                || !permissions.contains(route.capability())) {
+        if (permissions == null || !permissions.contains(route.capability())) {
             return Optional.empty();
         }
         if (route.action() != ClockAction.VIEW
@@ -157,6 +157,21 @@ final class GatewayVerifiedClockOwnerAuthoritySource implements ClockOwnerAuthor
             throw new BaseException(
                     ErrorCode.DECISION_REVISION_CONFLICT,
                     "Current TIM clock command decision is mismatched.");
+        }
+        if (route.stepUpRequired()) {
+            if (!"ELEVATED".equals(accessMode)
+                    || single(request, STEP_UP_CHALLENGE_HEADER, 16_384) == null
+                    || single(request, EXPECTED_OBJECT_VERSION_HEADER, 32) == null) {
+                throw new BaseException(
+                        ErrorCode.STEP_UP_REQUIRED,
+                        "Command-bound TIM step-up evidence is required.");
+            }
+            if (positiveOrZeroLong(
+                    single(request, EXPECTED_OBJECT_VERSION_HEADER, 32)) == null) {
+                throw new BaseException(
+                        ErrorCode.STEP_UP_CHALLENGE_MISMATCH,
+                        "The TIM expected object version is invalid.");
+            }
         }
 
         PopulationProjection projection = projectionResolver.resolve(
@@ -239,6 +254,8 @@ final class GatewayVerifiedClockOwnerAuthoritySource implements ClockOwnerAuthor
                 target.workerPublicId(),
                 target.peopleAssignmentPublicId(),
                 target.peopleAssignmentRevision(),
+                route.authorityContractKey(),
+                contextKey,
                 gatewayScopeKey,
                 populationScopeDigest,
                 projection.populationDigest(),

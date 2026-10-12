@@ -18,9 +18,9 @@ SPEC.loader.exec_module(GENERATOR)
 class ProductAuthorizationV36Test(unittest.TestCase):
     @classmethod
     def setUpClass(cls) -> None:
-        cls.v35, cls.v36 = GENERATOR.build_snapshots(
-            GENERATOR.load_source()
-        )[-2:]
+        snapshots = GENERATOR.build_snapshots(GENERATOR.load_source())
+        cls.v35 = snapshots[34]
+        cls.v36 = snapshots[35]
         cls.v35_routes = {
             route["routeContractKey"]: route for route in cls.v35["routes"]
         }

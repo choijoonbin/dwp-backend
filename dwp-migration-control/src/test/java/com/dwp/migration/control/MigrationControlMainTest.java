@@ -321,6 +321,21 @@ class MigrationControlMainTest {
     }
 
     @Test
+    void timeControlAdmitsOnlyTheClockOutboxPublisherSurface() {
+        assertEquals(
+                Set.of(
+                        "COLUMN:public.tme_clock_outbox_events.publish_attempts:UPDATE",
+                        "COLUMN:public.tme_clock_outbox_events.published_at:UPDATE",
+                        "RELATION:public.tme_clock_outbox_events:SELECT"),
+                ControlPlan.forService("time").auxiliaryAclPrivileges().stream()
+                        .filter(privilege -> privilege.objectIdentity()
+                                .startsWith("public.tme_clock_outbox_events"))
+                        .map(privilege -> privilege.objectClass() + ":"
+                                + privilege.objectIdentity() + ":" + privilege.privilege())
+                        .collect(java.util.stream.Collectors.toSet()));
+    }
+
+    @Test
     void platformControlPinsDigestWrapperAndDeniesDirectAuditMutation() {
         ControlPlan platform = ControlPlan.forService("platform");
 

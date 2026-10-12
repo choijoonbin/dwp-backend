@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
-"""Run the narrow G5 People/PAY/TIM owner-runtime restart acceptance.
+"""Run the narrow G5/G7 People/PAY/TIM owner-runtime contract acceptance.
 
 The harness owns one disposable PostgreSQL container, creates only the three
-HRIS owner databases, obtains native receipts from dwp-migration-control, and
-boots every owner twice against the same sealed database.  Both boots must
-publish the approved OpenAPI contract and leave the sealed Flyway histories
-unchanged.  It deliberately does not import or invoke the W1 acceptance runner.
+HRIS owner databases selected by the caller, obtains native receipts from
+dwp-migration-control, and boots each selected owner once for a focused contract
+refresh or twice for same-database restart acceptance. Every boot must publish
+the approved OpenAPI contract and leave the sealed Flyway histories unchanged.
+It deliberately does not import or invoke the W1 acceptance runner.
 """
 
 from __future__ import annotations
@@ -80,6 +81,11 @@ SERVICES = (
         ),
         feature_environment=(
             ("DWP_HRIS_PERFORMANCE_WAVE1_ENABLED", "true"),
+            ("DWP_HRIS_PERFORMANCE_POPULATION_FREEZE_ENABLED", "true"),
+            (
+                "DWP_HRIS_PERFORMANCE_POPULATION_FREEZE_CURSOR_SECRET",
+                "g7-openapi-performance-population-freeze-cursor-secret-v1",
+            ),
             ("DWP_HCM_PRODUCT_AUTHORIZATION_V3_ENABLED", "true"),
             ("DWP_PEOPLE_PEOPLE360_RUNTIME_ENABLED", "true"),
         ),
@@ -104,7 +110,14 @@ SERVICES = (
         "dwp_time_migration",
         "dwp_time_runtime",
         publisher_role="dwp_time_projection_publisher",
-        feature_environment=(("DWP_TIME_WORK_REGIME_API_ENABLED", "true"),),
+        feature_environment=(
+            ("DWP_TIME_WORK_REGIME_API_ENABLED", "true"),
+            ("DWP_HRIS_TIME_CLOCK_INGESTION_ENABLED", "true"),
+            (
+                "DWP_HRIS_TIME_CLOCK_INGESTION_CURSOR_SECRET",
+                "g7-openapi-time-clock-ingestion-cursor-secret-v1",
+            ),
+        ),
     ),
 )
 
@@ -216,27 +229,31 @@ def mapped_postgres_port(container: str) -> int:
     return int(match.group(1))
 
 
-def role_passwords() -> dict[str, str]:
+def role_passwords(services: tuple[ServiceSpec, ...] = SERVICES) -> dict[str, str]:
     roles = {
         service.migration_role
-        for service in SERVICES
+        for service in services
     } | {
         service.runtime_role
-        for service in SERVICES
+        for service in services
     } | {
         service.publisher_role
-        for service in SERVICES
+        for service in services
         if service.publisher_role
     } | {
         service.metadata_role
-        for service in SERVICES
+        for service in services
         if service.metadata_role
     }
     return {role: secrets.token_urlsafe(36) for role in roles}
 
 
-def provision_databases(container: str, passwords: dict[str, str]) -> None:
-    for service in SERVICES:
+def provision_databases(
+    container: str,
+    passwords: dict[str, str],
+    services: tuple[ServiceSpec, ...] = SERVICES,
+) -> None:
+    for service in services:
         psql(container, "postgres", f'CREATE DATABASE "{service.database}";')
     for role in sorted(passwords):
         psql(
@@ -246,10 +263,10 @@ def provision_databases(container: str, passwords: dict[str, str]) -> None:
             f'NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS '
             f'CONNECTION LIMIT -1 PASSWORD {sql_literal(passwords[role])};',
         )
-    databases = ("postgres", "template0", "template1", *(item.database for item in SERVICES))
+    databases = ("postgres", "template0", "template1", *(item.database for item in services))
     for database in databases:
         psql(container, "postgres", f'REVOKE CONNECT ON DATABASE "{database}" FROM PUBLIC;')
-    for service in SERVICES:
+    for service in services:
         principals = [service.migration_role, service.runtime_role]
         if service.publisher_role:
             principals.append(service.publisher_role)
@@ -417,9 +434,10 @@ def run_controls(
     passwords: dict[str, str],
     reference: str,
     timeout: float,
+    services: tuple[ServiceSpec, ...] = SERVICES,
 ) -> dict[str, dict[str, Any]]:
     receipts: dict[str, dict[str, Any]] = {}
-    for service in SERVICES:
+    for service in services:
         status(f"sealing {service.name} with official Migration Control")
         environment = host_environment()
         environment.update({
@@ -471,20 +489,23 @@ def run_controls(
     return receipts
 
 
-def build_owner_jars(timeout: float) -> dict[str, Path]:
-    status("building the three owner boot jars")
+def build_owner_jars(
+    timeout: float,
+    services: tuple[ServiceSpec, ...] = SERVICES,
+) -> dict[str, Path]:
+    status("building the selected owner boot jars")
     run_checked(
         (
             str(ROOT / "gradlew"),
             "--no-daemon",
             "--console=plain",
-            *(f":{service.module}:bootJar" for service in SERVICES),
+            *(f":{service.module}:bootJar" for service in services),
         ),
         environment=host_environment(),
         timeout=timeout,
     )
     jars: dict[str, Path] = {}
-    for service in SERVICES:
+    for service in services:
         candidates = sorted(
             path
             for path in (ROOT / service.module / "build" / "libs").glob("*.jar")
@@ -876,7 +897,7 @@ def require_approved_parity(
         raise GateFailure(f"{error}\n{parity_diff(service, document)}") from error
 
 
-def run_owner_twice(
+def run_owner(
     service: ServiceSpec,
     jar: Path,
     container: str,
@@ -886,13 +907,17 @@ def run_owner_twice(
     evidence: Path,
     timeout: float,
     write_openapi: bool,
+    boots: int,
+    capture_live_openapi: Path | None,
 ) -> dict[str, Any]:
     port = allocate_port()
     environment = runtime_environment(service, port, postgres_port, passwords, receipt)
     sealed_history = history_digest(container, service)
     documents: list[dict[str, Any]] = []
-    for boot in (1, 2):
-        status(f"starting {service.name} boot {boot}/2 against the same sealed database")
+    for boot in range(1, boots + 1):
+        status(
+            f"starting {service.name} boot {boot}/{boots} against the same sealed database"
+        )
         log = evidence / f"{service.name}-boot-{boot}.log"
         with log.open("wb") as output:
             process = subprocess.Popen(
@@ -906,13 +931,21 @@ def run_owner_twice(
         try:
             wait_for_runtime(process, port, log, timeout)
             documents.append(fetch_openapi(service, port))
-            require_approved_parity(
-                service,
-                port,
-                documents[-1],
-                timeout,
-                write=write_openapi,
-            )
+            if capture_live_openapi is not None:
+                capture_live_openapi.mkdir(parents=True, exist_ok=True)
+                capture = capture_live_openapi / f"{service.name}-boot-{boot}.json"
+                capture.write_text(
+                    json.dumps(documents[-1], indent=2, sort_keys=True) + "\n",
+                    encoding="utf-8",
+                )
+            else:
+                require_approved_parity(
+                    service,
+                    port,
+                    documents[-1],
+                    timeout,
+                    write=write_openapi,
+                )
         finally:
             stop_runtime(process)
         if history_digest(container, service) != sealed_history:
@@ -921,7 +954,7 @@ def run_owner_twice(
         json.dumps(document, ensure_ascii=True, separators=(",", ":"), sort_keys=True)
         for document in documents
     ]
-    if rendered[0] != rendered[1]:
+    if len(rendered) > 1 and len(set(rendered)) != 1:
         raise GateFailure(f"{service.name} OpenAPI changed across same-DB restart")
     return {
         "database": service.database,
@@ -929,8 +962,9 @@ def run_owner_twice(
         "historySha256": sealed_history,
         "openapiSha256": hashlib.sha256(rendered[0].encode("utf-8")).hexdigest(),
         "pathCount": len(documents[0]["paths"]),
-        "approvedParityChecks": 2,
-        "sameDatabaseRestart": True,
+        "approvedParityChecks": 0 if capture_live_openapi is not None else boots,
+        "captureOnly": capture_live_openapi is not None,
+        "sameDatabaseRestart": boots > 1,
     }
 
 
@@ -938,10 +972,14 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     if shutil.which("docker") is None or shutil.which("java") is None:
         raise GateFailure("docker and java are required")
     run_checked(("docker", "version"), timeout=30)
+    selected_names = set(args.service or ())
+    services = tuple(
+        service for service in SERVICES if not selected_names or service.name in selected_names
+    )
     reference = control_reference()
-    jars = build_owner_jars(args.command_timeout)
+    jars = build_owner_jars(args.command_timeout, services)
     bootstrap_password = secrets.token_urlsafe(36)
-    passwords = role_passwords()
+    passwords = role_passwords(services)
     container = "dwp-g5-owner-" + secrets.token_hex(6)
     with tempfile.TemporaryDirectory(prefix="dwp-g5-owner-runtime-") as directory:
         evidence = Path(directory)
@@ -961,16 +999,17 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
             started = True
             wait_for_postgres(container, args.startup_timeout)
             postgres_port = mapped_postgres_port(container)
-            provision_databases(container, passwords)
+            provision_databases(container, passwords, services)
             receipts = run_controls(
                 postgres_port,
                 bootstrap_password,
                 passwords,
                 reference,
                 args.command_timeout,
+                services,
             )
             results = {
-                service.name: run_owner_twice(
+                service.name: run_owner(
                     service,
                     jars[service.name],
                     container,
@@ -980,8 +1019,10 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
                     evidence,
                     args.startup_timeout,
                     args.write_openapi,
+                    args.boots,
+                    args.capture_live_openapi,
                 )
-                for service in SERVICES
+                for service in services
             }
         finally:
             if started:
@@ -1011,6 +1052,19 @@ def parser() -> argparse.ArgumentParser:
     value.add_argument("--startup-timeout", type=float, default=180.0)
     value.add_argument("--command-timeout", type=float, default=600.0)
     value.add_argument(
+        "--boots",
+        type=int,
+        choices=(1, 2),
+        default=2,
+        help="boot each selected owner once for contract refresh or twice for restart acceptance",
+    )
+    value.add_argument(
+        "--service",
+        action="append",
+        choices=[service.name for service in SERVICES],
+        help="run only the selected owner; repeat to select more than one",
+    )
+    value.add_argument(
         "--plan",
         action="store_true",
         help="print the fixed narrow service/control plan without starting anything",
@@ -1023,14 +1077,30 @@ def parser() -> argparse.ArgumentParser:
             "and additive-only schema checks, then immediately run exact --check"
         ),
     )
+    value.add_argument(
+        "--capture-live-openapi",
+        type=Path,
+        help=(
+            "write raw live owner OpenAPI documents to this directory and skip "
+            "approved parity; use only to prepare a reviewed design-time slice"
+        ),
+    )
     return value
 
 
 def main(arguments: list[str] | None = None) -> int:
     args = parser().parse_args(arguments)
+    if args.capture_live_openapi is not None and args.write_openapi:
+        raise GateFailure("--capture-live-openapi cannot be combined with --write-openapi")
     if args.startup_timeout < 30 or args.command_timeout < 60:
         raise GateFailure("timeouts are below the fail-closed minimum")
     if args.plan:
+        selected_names = set(args.service or ())
+        services = tuple(
+            service
+            for service in SERVICES
+            if not selected_names or service.name in selected_names
+        )
         print(json.dumps({
             "services": [
                 {
@@ -1040,9 +1110,9 @@ def main(arguments: list[str] | None = None) -> int:
                     "controlTask": (
                         f":dwp-migration-control:run{service.control_suffix}MigrationControl"
                     ),
-                    "boots": 2,
+                    "boots": args.boots,
                 }
-                for service in SERVICES
+                for service in services
             ],
             "usesW1Runner": False,
         }, separators=(",", ":"), sort_keys=True))

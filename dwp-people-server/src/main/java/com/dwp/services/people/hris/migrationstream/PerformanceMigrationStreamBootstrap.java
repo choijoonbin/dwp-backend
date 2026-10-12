@@ -43,6 +43,12 @@ public final class PerformanceMigrationStreamBootstrap implements FlywayMigratio
                             PeopleMigrationStreamProperties.SCHEMA,
                             "sys_people_audit_events",
                             "DELETE"));
+    static final List<String> OWNER_TRIGGER_BOUNDARY_SCHEMAS = List.of(
+            PeopleMigrationStreamProperties.SCHEMA,
+            PerformanceMigrationStreamProperties.SCHEMA);
+    static final Set<String> OWNER_TRIGGER_SEARCH_PATH_SETTINGS = Set.of(
+            "search_path=pg_catalog, public, pg_temp",
+            "search_path=pg_catalog");
 
     private static final MigrationAdoptionGuard.Contract PEOPLE_ADOPTION_CONTRACT =
             new MigrationAdoptionGuard.Contract(
@@ -331,12 +337,22 @@ public final class PerformanceMigrationStreamBootstrap implements FlywayMigratio
                     DomainEventLedgerRuntimeGuard.Profile.ACTIVE);
             RuntimeTablePrivilegeGuard.verifyDenied(
                     "People", applicationDataSource, DENIED_AUDIT_TABLE_PRIVILEGES);
-            OwnerTriggerExecutionBoundaryGuard.verify(
-                    "People", applicationDataSource,
-                    List.of(PeopleMigrationStreamProperties.SCHEMA,
-                            PerformanceMigrationStreamProperties.SCHEMA),
-                    peopleProperties.user());
+            verifyOwnerTriggerExecutionBoundary(
+                    applicationDataSource, peopleProperties.user());
         }
+    }
+
+    static void verifyOwnerTriggerExecutionBoundary(
+            DataSource applicationDataSource,
+            String migrationPrincipal) {
+        OwnerTriggerExecutionBoundaryGuard.verify(
+                "People",
+                applicationDataSource,
+                OWNER_TRIGGER_BOUNDARY_SCHEMAS,
+                OWNER_TRIGGER_BOUNDARY_SCHEMAS,
+                Set.of(migrationPrincipal),
+                OWNER_TRIGGER_SEARCH_PATH_SETTINGS,
+                Set.of(migrationPrincipal));
     }
 
     static Flyway performanceFlyway(

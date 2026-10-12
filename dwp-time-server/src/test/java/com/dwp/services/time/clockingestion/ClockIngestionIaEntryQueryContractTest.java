@@ -69,7 +69,8 @@ class ClockIngestionIaEntryQueryContractTest {
                         "clock-iaq-contract-secret-value",
                         Duration.ofMinutes(15),
                         objectMapper,
-                        fixed));
+                        fixed),
+                new ClockStepUpTestVerifier());
     }
 
     @Test
@@ -236,7 +237,8 @@ class ClockIngestionIaEntryQueryContractTest {
                 fixed,
                 new ClockQueryCursorCodec(
                         "clock-iaq-large-contract-secret",
-                        Duration.ofMinutes(15), objectMapper, fixed));
+                        Duration.ofMinutes(15), objectMapper, fixed),
+                new ClockStepUpTestVerifier());
         VerifiedClockRequest authority = authority(
                 ClockIngestionService.VIEW_PURPOSE,
                 Set.of(WORKER), Set.of(), Set.of(), "scope-revision-large");
@@ -319,6 +321,10 @@ class ClockIngestionIaEntryQueryContractTest {
                 WORKER,
                 ASSIGNMENT,
                 7,
+                ClockIngestionService.CAPTURE_PURPOSE.equals(purpose)
+                        ? AuthSignedClockStepUpVerifier.ROUTE_CONTRACT_KEY
+                        : ClockOwnerRoute.WORKBENCH.authorityContractKey(),
+                "psc-" + "c".repeat(64),
                 HcmEligibilityScopeKey.derived(
                         41L, 72L, "hcm.operations.clock-ingestion", "scope-source",
                         "relationship-9", "population-9"),

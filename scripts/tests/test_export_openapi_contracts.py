@@ -447,7 +447,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected"):
             EXPORTER["validate_approval_signature_operations"](unexpected)
 
-    def test_gateway_openapi_projection_consumes_append_only_v36_registry(self) -> None:
+    def test_gateway_openapi_projection_consumes_corrective_v37_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -456,8 +456,22 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 36)
-        self.assertEqual(registry["version"], 36)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 37)
+        self.assertEqual(registry["version"], 37)
+        void_route = next(
+            route for route in registry["routes"]
+            if route["routeContractKey"]
+            == "route.hcm.operations.time-clock-event-void.action"
+        )
+        self.assertEqual(
+            ["full-management"],
+            [profile["profileKey"] for profile in void_route["accessProfiles"]],
+        )
+        personal_time = next(
+            capability for capability in registry["capabilities"]
+            if capability["contractKey"] == "hcm.personal.time.submit"
+        )
+        self.assertNotIn(void_route["routeContractKey"], personal_time["routeContractKeys"])
         self.assertEqual(len(dwaion_routes), 160)
         self.assertEqual(
             sum(route["routeKind"] == "ACTION" for route in dwaion_routes), 93
@@ -603,8 +617,10 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 ("patch", "/v1/hris/performance/cycles/{cycleId}", "update"),
                 ("post", "/v1/hris/performance/cycles/{cycleId}/validate", "validate"),
                 ("post", "/v1/hris/performance/cycles/{cycleId}/population-previews", "preview"),
+                ("post", "/v1/hris/performance/cycles/{cycleId}/population-freezes", "freeze"),
                 ("post", "/v1/hris/performance/cycles/{cycleId}/publish", "publish"),
                 ("get", "/v1/hris/performance/command-receipts/{receiptId}", "receipt"),
+                ("get", "/v1/hris/performance/workbench/review-operations", "query"),
                 ("get", "/v1/workforce/assignments/{assignmentId}", "assignment"),
                 ("get", "/v1/workforce/assignments/{assignmentId}/timeline", "timeline"),
                 ("get", "/v1/workforce/assignment-proposals/{proposalId}", "proposal"),
@@ -626,11 +642,15 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 ("post", "/v1/hris/payroll/foundation/receipts/{commandId}/reconcile", "reconcile"),
             },
             "time": {
+                ("post", "/v1/clock-events", "record"),
+                ("post", "/v1/clock-events/{eventId}/voids", "voidEvent"),
                 ("get", "/v1/hris/work-plans", "list"),
                 ("post", "/v1/hris/work-plans/drafts", "createDraft"),
                 ("post", "/v1/hris/work-plans/{workPlanId}/simulations", "simulate"),
                 ("post", "/v1/hris/work-plans/{workPlanId}/actions/{action}", "transition"),
                 ("get", "/v1/hris/work-plan-receipts/{receiptId}", "receipt"),
+                ("get", "/v1/hris/workbench/clock-ingestion", "workbench"),
+                ("get", "/v1/hris/workbench/time-exceptions", "exceptions"),
             },
         }
         overlays = EXPORTER["load_design_time_overlays"]()
@@ -935,7 +955,13 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             for method, operation in path_item.items()
             if operation.get("x-dwp-reviewed-springdoc-capture") is True
         }
-        self.assertEqual(set(captured), set(expected))
+        self.assertEqual(
+            set(captured),
+            set(expected) | {
+                ("post", "/v1/hris/performance/cycles/{cycleId}/population-freezes"),
+                ("get", "/v1/hris/performance/workbench/review-operations"),
+            },
+        )
 
         schemas = overlay["components"]["schemas"]
         self.assertEqual(
@@ -953,6 +979,21 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 "ApiResponseAssignmentProposalAssignmentDetail",
                 "ApiResponseListAssignmentProposalTimelineEntry",
                 "ApiResponseAssignmentProposal",
+                "ApiResponseFreezeCommandResult",
+                "ApiResponseProjection",
+                "AvailableAction",
+                "CachePolicy",
+                "CommandReceipt",
+                "DeepLink",
+                "FieldDecisionSummary",
+                "FieldGroups",
+                "FreezeCommandResult",
+                "FreezePopulationRequest",
+                "Item",
+                "PartialFailure",
+                "PopulationFreeze",
+                "Projection",
+                "QueryState",
             },
         )
         self.assertEqual(
@@ -1030,6 +1071,115 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             "X-DWP-Expected-Object-Version",
         )))
 
+    def test_g7_per_time_reviewed_springdoc_captures_are_closed(self) -> None:
+        expected_operations = {
+            "people": {
+                ("post", "/v1/hris/performance/cycles/{cycleId}/population-freezes"):
+                    ("hrisPerformanceFreezePopulation", "freeze"),
+                ("get", "/v1/hris/performance/workbench/review-operations"):
+                    ("hrisPerformanceReviewOperations", "query"),
+            },
+            "time": {
+                ("post", "/v1/clock-events"):
+                    ("hrisTimeRecordClockEvent", "record"),
+                ("post", "/v1/clock-events/{eventId}/voids"):
+                    ("hrisTimeVoidClockEvent", "voidEvent"),
+                ("get", "/v1/hris/workbench/clock-ingestion"):
+                    ("hrisTimeClockIngestionWorkbench", "workbench"),
+                ("get", "/v1/hris/workbench/time-exceptions"):
+                    ("hrisTimeClockIngestionExceptions", "exceptions"),
+            },
+        }
+        expected_schemas = {
+            "people": {
+                "ApiResponseFreezeCommandResult",
+                "ApiResponseProjection",
+                "AvailableAction",
+                "CachePolicy",
+                "CommandReceipt",
+                "DeepLink",
+                "FieldDecisionSummary",
+                "FieldGroups",
+                "FreezeCommandResult",
+                "FreezePopulationRequest",
+                "Item",
+                "PartialFailure",
+                "PopulationFreeze",
+                "Projection",
+                "QueryState",
+            },
+            "time": {
+                "ApiResponseClockCommandReceipt",
+                "ApiResponseClockProjection",
+                "ApiResponseExceptionProjection",
+                "AvailableAction",
+                "CachePolicy",
+                "ClockCommandReceipt",
+                "ClockFieldGroups",
+                "ClockItem",
+                "ClockProjection",
+                "DeepLink",
+                "ExceptionFieldGroups",
+                "ExceptionItem",
+                "ExceptionProjection",
+                "FieldDecisionSummary",
+                "PartialFailure",
+                "QueryState",
+                "RecordClockCommand",
+                "VoidClockCommand",
+            },
+        }
+
+        def schema_references(value: object) -> set[str]:
+            if isinstance(value, list):
+                return set().union(*(schema_references(item) for item in value))
+            if not isinstance(value, dict):
+                return set()
+            references = set()
+            reference = value.get("$ref")
+            prefix = "#/components/schemas/"
+            if isinstance(reference, str) and reference.startswith(prefix):
+                references.add(reference.removeprefix(prefix))
+            for child in value.values():
+                references.update(schema_references(child))
+            return references
+
+        overlays = EXPORTER["load_design_time_overlays"]()
+        for service, expected in expected_operations.items():
+            overlay = overlays[service]
+            captured = {
+                (method, path): operation
+                for path, path_item in overlay["paths"].items()
+                for method, operation in path_item.items()
+                if (method, path) in expected
+                and operation.get("x-dwp-reviewed-springdoc-capture") is True
+            }
+            self.assertEqual(set(captured), set(expected))
+            for operation_key, (operation_id, controller_method) in expected.items():
+                operation = captured[operation_key]
+                self.assertEqual(operation["operationId"], operation_id)
+                self.assertEqual(
+                    operation["x-dwp-controller-method"], controller_method
+                )
+                self.assertEqual(operation["x-dwp-overlay-mode"], "ADD")
+                self.assertEqual(operation["x-dwp-runtime-default"], "OFF")
+
+            schemas = overlay["components"]["schemas"]
+            closure = set()
+            pending = set().union(*(
+                schema_references(operation) for operation in captured.values()
+            ))
+            while pending:
+                name = pending.pop()
+                self.assertIn(name, schemas)
+                if name in closure:
+                    continue
+                closure.add(name)
+                pending.update(schema_references(schemas[name]) - closure)
+            self.assertEqual(closure, expected_schemas[service])
+            if service == "time":
+                self.assertEqual(set(schemas), expected_schemas[service])
+
     def test_g3_assignment_reviewed_components_reconcile_only_approved_snapshots(
             self) -> None:
         service = next(
@@ -1086,6 +1236,18 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             ),
             (
                 "people",
+                "dwp-people-server/src/main/java/com/dwp/services/people/hr/performance/populationfreeze/PopulationFreezeController.java",
+                "/v1/hris/performance",
+                {"freeze"},
+            ),
+            (
+                "people",
+                "dwp-people-server/src/main/java/com/dwp/services/people/hr/performance/populationfreeze/PerformanceReviewOperationsController.java",
+                "/v1/hris/performance",
+                {"query"},
+            ),
+            (
+                "people",
                 "dwp-people-server/src/main/java/com/dwp/services/people/hr/assignment/AssignmentProposalController.java",
                 "/v1/workforce",
                 {"assignment", "timeline", "proposal", "create", "validate", "submit", "cancel"},
@@ -1101,6 +1263,12 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 "dwp-time-server/src/main/java/com/dwp/services/time/workregime/WorkRegimeOwnerController.java",
                 "/v1/hris",
                 {"list", "createDraft", "simulate", "transition", "receipt"},
+            ),
+            (
+                "time",
+                "dwp-time-server/src/main/java/com/dwp/services/time/clockingestion/ClockOwnerController.java",
+                None,
+                {"workbench", "exceptions", "record", "voidEvent"},
             ),
         )
         annotation = re.compile(
@@ -1122,16 +1290,19 @@ class ExportOpenApiContractsTest(unittest.TestCase):
 
         for service, relative_file, base_path, methods in contracts:
             source = (ROOT / relative_file).read_text(encoding="utf-8")
-            self.assertRegex(
-                source,
-                rf'@RequestMapping\(\s*(?:value\s*=\s*)?"{re.escape(base_path)}"'
-                rf'(?:\s*,[^)]*)?\)',
-            )
+            if base_path is not None:
+                self.assertRegex(
+                    source,
+                    rf'@RequestMapping\(\s*(?:value\s*=\s*)?"{re.escape(base_path)}"'
+                    rf'(?:\s*,[^)]*)?\)',
+                )
             discovered = {}
             for verb, arguments, controller_method in annotation.findall(source):
                 path_match = re.search(r'"(/[^"]*)"', arguments or "")
                 child_path = path_match.group(1) if path_match else ""
-                discovered[controller_method] = (verbs[verb], base_path + child_path)
+                discovered[controller_method] = (
+                    verbs[verb], (base_path or "") + child_path
+                )
             self.assertTrue(methods <= set(discovered), relative_file)
             for controller_method in methods:
                 method, path = discovered[controller_method]

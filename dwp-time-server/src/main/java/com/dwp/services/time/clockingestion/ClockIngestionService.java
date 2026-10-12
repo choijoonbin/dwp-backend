@@ -16,6 +16,7 @@ import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjection
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionPage;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionQuery;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockSourceType;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockStepUpHeaders;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.DstResolution;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.InstantAuthority;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.RecordClockCommand;
@@ -86,23 +87,29 @@ public final class ClockIngestionService {
     private final ClockEvidenceValidator validator;
     private final Clock clock;
     private final ClockQueryCursorCodec cursors;
+    private final ClockStepUpVerifier stepUpVerifier;
 
     @Autowired
     public ClockIngestionService(
             ClockEventRepository repository,
-            ClockQueryCursorCodec cursors) {
-        this(repository, new ClockEvidenceValidator(), Clock.systemUTC(), cursors);
+            ClockQueryCursorCodec cursors,
+            ClockStepUpVerifier stepUpVerifier) {
+        this(repository, new ClockEvidenceValidator(), Clock.systemUTC(), cursors,
+                stepUpVerifier);
     }
 
     ClockIngestionService(
             ClockEventRepository repository,
             ClockEvidenceValidator validator,
             Clock clock,
-            ClockQueryCursorCodec cursors) {
+            ClockQueryCursorCodec cursors,
+            ClockStepUpVerifier stepUpVerifier) {
         this.repository = Objects.requireNonNull(repository, "repository must not be null");
         this.validator = Objects.requireNonNull(validator, "validator must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.cursors = Objects.requireNonNull(cursors, "cursors must not be null");
+        this.stepUpVerifier = Objects.requireNonNull(
+                stepUpVerifier, "stepUpVerifier must not be null");
     }
 
     public ClockIaQueryModels.ClockProjection workbench(
@@ -241,13 +248,14 @@ public final class ClockIngestionService {
                 authority.correlationId(),
                 authority.actorId());
         return repository.append(new ClockAppend(
-                authority, idempotencyKey, "CLOCK_RECORD", requestDigest, event));
+                authority, idempotencyKey, "CLOCK_RECORD", requestDigest, event, null));
     }
 
     public ClockCommandReceipt voidEvent(
             VerifiedClockRequest authority,
             UUID clockEventId,
             UUID idempotencyKey,
+            ClockStepUpHeaders stepUpHeaders,
             VoidClockCommand command) {
         requireAuthority(authority, ClockAction.CORRECT, CAPTURE_PURPOSE, true);
         requireIdempotencyKey(idempotencyKey);
@@ -265,6 +273,13 @@ public final class ClockIngestionService {
         if (original.eventType() == ClockEventType.VOID || original.voidsClockEventId() != null) {
             throw new BaseException(ErrorCode.NOT_FOUND);
         }
+        var verifiedChallenge = stepUpVerifier.verifyVoid(
+                authority,
+                clockEventId,
+                original.eventOrder(),
+                idempotencyKey,
+                command,
+                stepUpHeaders);
 
         Instant correctedAt = clock.instant();
         UUID correctionSourceId = stableId(
@@ -335,7 +350,12 @@ public final class ClockIngestionService {
                 authority.correlationId(),
                 authority.actorId());
         return repository.append(new ClockAppend(
-                authority, idempotencyKey, "CLOCK_VOID", requestDigest, correction));
+                authority,
+                idempotencyKey,
+                "CLOCK_VOID",
+                requestDigest,
+                correction,
+                verifiedChallenge));
     }
 
     private QueryWindow queryWindow(

@@ -36,6 +36,41 @@ class HrisG5OwnerRuntimeAcceptanceTest(unittest.TestCase):
             [service["controlMode"] for service in plan["services"]],
         )
 
+    def test_plan_can_select_only_contract_owners_needed_by_a_slice(self) -> None:
+        result = subprocess.run(
+            (
+                sys.executable,
+                str(SCRIPT),
+                "--plan",
+                "--service",
+                "people",
+                "--service",
+                "time",
+                "--boots",
+                "1",
+            ),
+            cwd=ROOT,
+            check=True,
+            text=True,
+            capture_output=True,
+        )
+        plan = json.loads(result.stdout)
+
+        self.assertEqual(
+            ["people", "time"],
+            [service["service"] for service in plan["services"]],
+        )
+        self.assertEqual([1, 1], [service["boots"] for service in plan["services"]])
+
+    def test_live_capture_cannot_mutate_approved_snapshots(self) -> None:
+        with self.assertRaisesRegex(
+                MODULE["GateFailure"], "cannot be combined"):
+            MODULE["main"]([
+                "--capture-live-openapi",
+                str(ROOT / "build" / "openapi-capture"),
+                "--write-openapi",
+            ])
+
     def test_runtime_environment_binds_receipt_and_enabled_owner(self) -> None:
         reference = "dwp-migration-control-v2:" + "a" * 64
         passwords = MODULE["role_passwords"]()

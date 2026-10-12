@@ -67,6 +67,22 @@ dwp:
     runtime-service-token: ${DWP_APPROVAL_RUNTIME_SERVICE_TOKEN:}
     home-runtime-service-token: ${DWP_APPROVAL_HOME_RUNTIME_SERVICE_TOKEN:}
     product-authorization-v2-enabled: ${DWP_APPROVAL_PRODUCT_AUTHORIZATION_V2_ENABLED:false}
+    hris-bridge:
+      # Production-wire transport remains fail-closed until the registered
+      # workload keys and explicit tenant grants are installed.
+      enabled: ${DWP_APPROVAL_HRIS_BRIDGE_ENABLED:false}
+      relay-enabled: ${DWP_APPROVAL_HRIS_BRIDGE_RELAY_ENABLED:false}
+      people-public-jwk: ${DWP_APPROVAL_HRIS_PEOPLE_PUBLIC_JWK:}
+      people-authentication: ${DWP_APPROVAL_HRIS_PEOPLE_AUTHENTICATION:}
+      people-tenant-grants: ${DWP_APPROVAL_HRIS_PEOPLE_TENANT_GRANTS:}
+      approval-private-jwk: ${DWP_APPROVAL_HRIS_PRIVATE_JWK:}
+      people-url: ${SERVICE_PEOPLE_URL:http://localhost:8003}
+      worker-id: ${DWP_APPROVAL_HRIS_RELAY_WORKER_ID:}
+      batch-size: ${DWP_APPROVAL_HRIS_RELAY_BATCH_SIZE:25}
+      maximum-attempts: ${DWP_APPROVAL_HRIS_RELAY_MAXIMUM_ATTEMPTS:10}
+      lease-seconds: ${DWP_APPROVAL_HRIS_RELAY_LEASE_SECONDS:30}
+      poll-delay-ms: ${DWP_APPROVAL_HRIS_RELAY_POLL_DELAY_MS:2000}
+      initial-delay-ms: ${DWP_APPROVAL_HRIS_RELAY_INITIAL_DELAY_MS:5000}
     # Forward-only gate. Enable only after every Approval pod advertises the
     # management-scope-v1 compatibility fence; never use old-binary rollback.
     management-scope-writes-enabled: ${DWP_APPROVAL_MANAGEMENT_SCOPE_WRITES_ENABLED:false}

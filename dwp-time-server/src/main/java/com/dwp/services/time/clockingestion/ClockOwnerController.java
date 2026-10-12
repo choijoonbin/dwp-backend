@@ -4,16 +4,23 @@ import static com.dwp.services.time.clockingestion.ClockOwnerAccessFilter.VERIFI
 
 import com.dwp.core.common.ApiResponse;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockCommandReceipt;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockStepUpHeaders;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.RecordClockCommand;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.VerifiedClockRequest;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.VoidClockCommand;
 import io.swagger.v3.oas.annotations.Operation;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -25,13 +32,18 @@ import org.springframework.web.bind.annotation.RestController;
 
 /** Exact owner HTTP operations for IAQ-034, IAQ-042, PEP-TIM-007, and PEP-TIM-008. */
 @RestController
+@Validated
 @ConditionalOnProperty(
         name = "dwp.hris.time.clock-ingestion.enabled",
         havingValue = "true",
         matchIfMissing = false)
-public final class ClockOwnerController {
+public class ClockOwnerController {
 
     private static final String IDEMPOTENCY_KEY = "Idempotency-Key";
+    private static final String STEP_UP_CHALLENGE = "X-DWP-Step-Up-Challenge";
+    private static final String EXPECTED_DECISION_REVISION =
+            "X-DWP-Expected-Decision-Revision";
+    private static final String EXPECTED_OBJECT_VERSION = "X-DWP-Expected-Object-Version";
 
     private final ClockIngestionService service;
 
@@ -140,7 +152,7 @@ public final class ClockOwnerController {
     public ApiResponse<ClockCommandReceipt> record(
             @RequestAttribute(VERIFIED_REQUEST_ATTRIBUTE) VerifiedClockRequest verified,
             @RequestHeader(IDEMPOTENCY_KEY) UUID idempotencyKey,
-            @RequestBody RecordClockCommand command) {
+            @Valid @RequestBody RecordClockCommand command) {
         return ApiResponse.success(service.record(verified, idempotencyKey, command));
     }
 
@@ -149,8 +161,21 @@ public final class ClockOwnerController {
     public ApiResponse<ClockCommandReceipt> voidEvent(
             @RequestAttribute(VERIFIED_REQUEST_ATTRIBUTE) VerifiedClockRequest verified,
             @RequestHeader(IDEMPOTENCY_KEY) UUID idempotencyKey,
+            @RequestHeader(STEP_UP_CHALLENGE)
+            @NotBlank @Size(max = 16_384) String challenge,
+            @RequestHeader(EXPECTED_DECISION_REVISION)
+            @NotBlank @Size(max = 200)
+            @Pattern(regexp = "^psr-[0-9a-f]{64}$") String decisionRevision,
+            @RequestHeader(EXPECTED_OBJECT_VERSION)
+            @PositiveOrZero Long expectedObjectVersion,
             @PathVariable UUID eventId,
-            @RequestBody VoidClockCommand command) {
-        return ApiResponse.success(service.voidEvent(verified, eventId, idempotencyKey, command));
+            @Valid @RequestBody VoidClockCommand command) {
+        return ApiResponse.success(service.voidEvent(
+                verified,
+                eventId,
+                idempotencyKey,
+                new ClockStepUpHeaders(
+                        challenge, decisionRevision, expectedObjectVersion),
+                command));
     }
 }

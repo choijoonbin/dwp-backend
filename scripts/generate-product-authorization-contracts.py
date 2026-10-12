@@ -134,31 +134,40 @@ LEGACY_HCM_PEOPLE_PEP_V34_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
 LEGACY_HCM_PEOPLE_PEP_V35_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
     "hcm-people-pep-v35.generated.json"
 )
-HCM_PEOPLE_PEP_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+LEGACY_HCM_PEOPLE_PEP_V36_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
     "hcm-people-pep-v36.generated.json"
+)
+HCM_PEOPLE_PEP_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+    "hcm-people-pep-v37.generated.json"
 )
 LEGACY_HCM_TIME_PEP_V35_OUTPUT = (
     ROOT
     / "dwp-time-server/src/main/resources/product-authorization/"
     / "hcm-time-pep-v35.generated.json"
 )
-HCM_TIME_PEP_OUTPUT = LEGACY_HCM_TIME_PEP_V35_OUTPUT.with_name(
+LEGACY_HCM_TIME_PEP_V36_OUTPUT = LEGACY_HCM_TIME_PEP_V35_OUTPUT.with_name(
     "hcm-time-pep-v36.generated.json"
+)
+HCM_TIME_PEP_OUTPUT = LEGACY_HCM_TIME_PEP_V35_OUTPUT.with_name(
+    "hcm-time-pep-v37.generated.json"
 )
 LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "hcm-platform-pep-v35.generated.json"
 )
-HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+LEGACY_HCM_PLATFORM_PEP_V36_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
     "hcm-platform-pep-v36.generated.json"
+)
+HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+    "hcm-platform-pep-v37.generated.json"
 )
 PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 37))
+BUNDLE_VERSIONS = tuple(range(1, 38))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -264,7 +273,15 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 57, "routes": 974, "PAGE": 124, "DATA": 295, "ACTION": 555},
     36: {"capabilities": 237, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 57, "routes": 974, "PAGE": 124, "DATA": 295, "ACTION": 555},
+    37: {"capabilities": 237, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 57, "routes": 974, "PAGE": 124, "DATA": 295, "ACTION": 555},
 }
+
+V37_TIME_VOID_ROUTE = "route.hcm.operations.time-clock-event-void.action"
+V37_TIME_VOID_REMOVED_PROFILE = "self-service"
+V37_PROFILE_REMOVALS = frozenset({
+    (V37_TIME_VOID_ROUTE, V37_TIME_VOID_REMOVED_PROFILE, 37),
+})
 
 V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES = frozenset({
     "route.dwaion.work.research-audit-download.data",
@@ -352,6 +369,7 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     33: "9c9a18b44eb83de0e98f4ec16e44c1df0ce216e00bc7075462f4e35f7fb87639",
     34: "852d20e1e639e1a7170f02b5714d21d8c51a9eb8ff5ac32d8b7940b82d6be83b",
     35: "38ef33070a33b5da9a7825c764bd24daacd24c8ca4008f3a926727321d3d098d",
+    36: "12e4b9329ab53ab1efd6c5f6e23ccc7869c4184a79e5a64f614fe9c40a9e704b",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -1147,6 +1165,21 @@ def _validate_descriptor_enrichment_envelope(
                 f"{descriptor_key}: invalid enrichment introduction version",
             )
 
+    declared_profile_removals = {
+        (
+            patch["routeContractKey"],
+            removal.get("profileKey"),
+            removal.get("introducedInVersion"),
+        )
+        for patch in enrichment["routes"]
+        for removal in patch.get("versionedAccessProfileRemovals", [])
+        if isinstance(patch, dict) and isinstance(removal, dict)
+    }
+    require(
+        declared_profile_removals == V37_PROFILE_REMOVALS,
+        "versioned access profile removals must contain only the exact v37 time void correction",
+    )
+
     all_capabilities = {
         item["contractKey"]: item
         for item in base["capabilities"]
@@ -1210,6 +1243,7 @@ def _apply_descriptor_enrichments(
                 "routeContractKey", "authorizationEquivalenceKey",
                 "queryParameterConstraintsByBinding", "projectionBindings",
                 "versionedQueryParameterConstraints",
+                "versionedAccessProfileRemovals",
                 "stepUpCommandBindings", "requiredAccessByProfile",
                 "introducedInVersion"
             },
@@ -1238,6 +1272,34 @@ def _apply_descriptor_enrichments(
         )
         for profile_key, value in required_access.items():
             profiles[profile_key]["requiredAccess"] = copy.deepcopy(value)
+        profile_removals = patch.get("versionedAccessProfileRemovals", [])
+        require(
+            isinstance(profile_removals, list)
+            and all(
+                isinstance(value, dict)
+                and set(value) == {"introducedInVersion", "profileKey"}
+                and (
+                    key,
+                    value.get("profileKey"),
+                    value.get("introducedInVersion"),
+                ) in V37_PROFILE_REMOVALS
+                for value in profile_removals
+            ),
+            f"{key}: invalid versioned access profile removal",
+        )
+        for value in profile_removals:
+            if version < value["introducedInVersion"]:
+                continue
+            profile_key = value["profileKey"]
+            require(
+                profile_key in profiles,
+                f"{key}: removed access profile does not exist: {profile_key}",
+            )
+            route["accessProfiles"] = [
+                profile for profile in route["accessProfiles"]
+                if profile["profileKey"] != profile_key
+            ]
+            profiles.pop(profile_key)
         for binding_key, constraints in patch.get(
             "queryParameterConstraintsByBinding", {}
         ).items():
@@ -1327,6 +1389,7 @@ def _apply_projection_binding(route: dict[str, Any], patch: Any) -> None:
 def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) -> None:
     require(current["version"] == previous["version"] + 1, "snapshot versions must be contiguous")
     added_descriptor = False
+    applied_v37_correction = False
     for section, key in SECTION_KEYS.items():
         prior = {item[key]: item for item in previous[section]}
         candidate = {item[key]: item for item in current[section]}
@@ -1379,6 +1442,15 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
             ):
                 continue
             if (
+                current["version"] == 37
+                and section == "routes"
+                and _is_v37_time_void_profile_removal(
+                    descriptor_key, prior_descriptor, candidate_descriptor
+                )
+            ):
+                applied_v37_correction = True
+                continue
+            if (
                 current["version"] == 30
                 and section == "accessPolicies"
                 and descriptor_key == "dwaion.work-access.v1"
@@ -1407,14 +1479,28 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
                 }
             ):
                 continue
+            if (
+                current["version"] == 37
+                and section == "capabilities"
+                and descriptor_key == "hcm.personal.time.submit"
+                and prior_descriptor == candidate_descriptor
+                and candidate_routes == prior_routes - {V37_TIME_VOID_ROUTE}
+            ):
+                continue
             if prior_descriptor != candidate_descriptor or not prior_routes <= candidate_routes:
                 drift.append(descriptor_key)
         require(
             not drift,
             f"v{current['version']}/{section}: prior descriptor or reverse-reference drift {drift}",
         )
-    require(added_descriptor,
-            f"v{current['version']}: append-only wave must add a descriptor")
+    if current["version"] == 37:
+        require(
+            not added_descriptor and applied_v37_correction,
+            "v37 must contain only the exact time void access-profile correction",
+        )
+    else:
+        require(added_descriptor,
+                f"v{current['version']}: append-only wave must add a descriptor")
     prior_endpoints = previous.get("authorityEndpoints", [])
     current_endpoints = current.get("authorityEndpoints", [])
     if current["version"] == 2:
@@ -1570,6 +1656,34 @@ def _is_v36_performance_freeze_authority_upgrade(
     else:
         candidate.pop("stepUpCommandBindings", None)
     return candidate == prior
+
+
+def _is_v37_time_void_profile_removal(
+    route_key: str,
+    previous: dict[str, Any],
+    current: dict[str, Any],
+) -> bool:
+    if route_key != V37_TIME_VOID_ROUTE:
+        return False
+    prior_profiles = unique(
+        previous.get("accessProfiles", []),
+        "profileKey",
+        f"{route_key} previous profiles",
+    )
+    candidate_profiles = unique(
+        current.get("accessProfiles", []),
+        "profileKey",
+        f"{route_key} current profiles",
+    )
+    if (
+        set(prior_profiles) != {"full-management", V37_TIME_VOID_REMOVED_PROFILE}
+        or set(candidate_profiles) != {"full-management"}
+        or candidate_profiles["full-management"] != prior_profiles["full-management"]
+    ):
+        return False
+    normalized = copy.deepcopy(current)
+    normalized["accessProfiles"] = copy.deepcopy(previous["accessProfiles"])
+    return normalized == previous
 
 
 def _validate_release_snapshot(snapshot: dict[str, Any]) -> None:
@@ -3038,10 +3152,13 @@ def verify_no_out_of_lineage_artifacts() -> None:
         LEGACY_HCM_PEOPLE_PEP_V33_OUTPUT,
         LEGACY_HCM_PEOPLE_PEP_V34_OUTPUT,
         LEGACY_HCM_PEOPLE_PEP_V35_OUTPUT,
+        LEGACY_HCM_PEOPLE_PEP_V36_OUTPUT,
         HCM_PEOPLE_PEP_OUTPUT,
         LEGACY_HCM_TIME_PEP_V35_OUTPUT,
+        LEGACY_HCM_TIME_PEP_V36_OUTPUT,
         HCM_TIME_PEP_OUTPUT,
         LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT,
+        LEGACY_HCM_PLATFORM_PEP_V36_OUTPUT,
         HCM_PLATFORM_PEP_OUTPUT,
     }
     candidates = {
@@ -3348,7 +3465,7 @@ def main() -> int:
             version=35,
             product_key="hcm",
         )
-        hcm_people_pep = build_approvals_pep(
+        legacy_hcm_people_pep_v36 = build_approvals_pep(
             snapshots[35],
             "people",
             "hcm-people-pep-v36",
@@ -3362,6 +3479,22 @@ def main() -> int:
                 "predicatePolicies": 14,
             },
             version=36,
+            product_key="hcm",
+        )
+        hcm_people_pep = build_approvals_pep(
+            snapshots[36],
+            "people",
+            "hcm-people-pep-v37",
+            {
+                "routes": 73,
+                "bindings": 100,
+                "routeKinds": {"ACTION": 34, "DATA": 13, "PAGE": 26},
+                "capabilities": 43,
+                "accessPolicies": 5,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 14,
+            },
+            version=37,
             product_key="hcm",
         )
         legacy_hcm_time_pep_v35 = build_approvals_pep(
@@ -3380,7 +3513,7 @@ def main() -> int:
             version=35,
             product_key="hcm",
         )
-        hcm_time_pep = build_approvals_pep(
+        legacy_hcm_time_pep_v36 = build_approvals_pep(
             snapshots[35],
             "time",
             "hcm-time-pep-v36",
@@ -3394,6 +3527,22 @@ def main() -> int:
                 "predicatePolicies": 3,
             },
             version=36,
+            product_key="hcm",
+        )
+        hcm_time_pep = build_approvals_pep(
+            snapshots[36],
+            "time",
+            "hcm-time-pep-v37",
+            {
+                "routes": 12,
+                "bindings": 12,
+                "routeKinds": {"ACTION": 8, "DATA": 2, "PAGE": 2},
+                "capabilities": 9,
+                "accessPolicies": 0,
+                "entitlementExpressions": 0,
+                "predicatePolicies": 3,
+            },
+            version=37,
             product_key="hcm",
         )
         legacy_hcm_platform_pep_v35 = build_approvals_pep(
@@ -3412,7 +3561,7 @@ def main() -> int:
             version=35,
             product_key="hcm",
         )
-        hcm_platform_pep = build_approvals_pep(
+        legacy_hcm_platform_pep_v36 = build_approvals_pep(
             snapshots[35],
             "platform",
             "hcm-platform-pep-v36",
@@ -3426,6 +3575,22 @@ def main() -> int:
                 "predicatePolicies": 3,
             },
             version=36,
+            product_key="hcm",
+        )
+        hcm_platform_pep = build_approvals_pep(
+            snapshots[36],
+            "platform",
+            "hcm-platform-pep-v37",
+            {
+                "routes": 19,
+                "bindings": 20,
+                "routeKinds": {"ACTION": 10, "DATA": 6, "PAGE": 3},
+                "capabilities": 5,
+                "accessPolicies": 4,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 3,
+            },
+            version=37,
             product_key="hcm",
         )
     except ContractError as exc:
@@ -3545,6 +3710,11 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                LEGACY_HCM_PEOPLE_PEP_V36_OUTPUT,
+                render(legacy_hcm_people_pep_v36),
+                args.check,
+            ),
+            write_or_check(
                 HCM_PEOPLE_PEP_OUTPUT,
                 render(hcm_people_pep),
                 args.check,
@@ -3555,6 +3725,11 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                LEGACY_HCM_TIME_PEP_V36_OUTPUT,
+                render(legacy_hcm_time_pep_v36),
+                args.check,
+            ),
+            write_or_check(
                 HCM_TIME_PEP_OUTPUT,
                 render(hcm_time_pep),
                 args.check,
@@ -3562,6 +3737,11 @@ def main() -> int:
             write_or_check(
                 LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT,
                 render(legacy_hcm_platform_pep_v35),
+                args.check,
+            ),
+            write_or_check(
+                LEGACY_HCM_PLATFORM_PEP_V36_OUTPUT,
+                render(legacy_hcm_platform_pep_v36),
                 args.check,
             ),
             write_or_check(
@@ -3629,13 +3809,22 @@ def main() -> int:
         verify_approvals_pep(
             LEGACY_HCM_PEOPLE_PEP_V35_OUTPUT, legacy_hcm_people_pep_v35
         )
+        verify_approvals_pep(
+            LEGACY_HCM_PEOPLE_PEP_V36_OUTPUT, legacy_hcm_people_pep_v36
+        )
         verify_approvals_pep(HCM_PEOPLE_PEP_OUTPUT, hcm_people_pep)
         verify_approvals_pep(
             LEGACY_HCM_TIME_PEP_V35_OUTPUT, legacy_hcm_time_pep_v35
         )
+        verify_approvals_pep(
+            LEGACY_HCM_TIME_PEP_V36_OUTPUT, legacy_hcm_time_pep_v36
+        )
         verify_approvals_pep(HCM_TIME_PEP_OUTPUT, hcm_time_pep)
         verify_approvals_pep(
             LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT, legacy_hcm_platform_pep_v35
+        )
+        verify_approvals_pep(
+            LEGACY_HCM_PLATFORM_PEP_V36_OUTPUT, legacy_hcm_platform_pep_v36
         )
         verify_approvals_pep(HCM_PLATFORM_PEP_OUTPUT, hcm_platform_pep)
     except (ContractError, OSError, json.JSONDecodeError) as exc:

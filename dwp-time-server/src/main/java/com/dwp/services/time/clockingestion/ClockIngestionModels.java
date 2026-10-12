@@ -1,7 +1,16 @@
 package com.dwp.services.time.clockingestion;
 
+import com.dwp.core.security.ProductSurfaceStepUpChallengeVerifier;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
+import jakarta.validation.constraints.Max;
+import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Pattern;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
+import jakarta.validation.constraints.Size;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
@@ -71,6 +80,8 @@ public final class ClockIngestionModels {
             UUID workerPublicId,
             UUID peopleAssignmentPublicId,
             long peopleAssignmentRevision,
+            String routeContractKey,
+            String contextKey,
             String gatewayScopeKey,
             String populationScopeDigest,
             String populationDigest,
@@ -105,29 +116,41 @@ public final class ClockIngestionModels {
     }
 
     public record RecordClockCommand(
-            UUID sourcePublicId,
-            String sourceEventKey,
-            long sourceSequence,
-            ClockSourceType sourceType,
+            @NotNull UUID sourcePublicId,
+            @NotBlank @Size(max = 200) String sourceEventKey,
+            @Positive long sourceSequence,
+            @NotNull ClockSourceType sourceType,
             UUID devicePublicId,
-            CaptureMode captureMode,
+            @NotNull CaptureMode captureMode,
             UUID offlineBatchPublicId,
-            UUID workerPublicId,
-            UUID peopleAssignmentPublicId,
-            long peopleAssignmentRevision,
-            ClockEventType eventType,
-            Instant occurredAt,
-            LocalDateTime sourceLocalDateTime,
-            String sourceTimeZone,
-            int sourceUtcOffsetMinutes,
-            DstResolution dstResolution,
-            InstantAuthority instantAuthority,
-            String tzdbVersion,
-            String timeZoneRuleVersion,
-            String sourceProvenanceDigest,
-            TrustLevel trustLevel) {}
+            @NotNull UUID workerPublicId,
+            @NotNull UUID peopleAssignmentPublicId,
+            @PositiveOrZero long peopleAssignmentRevision,
+            @NotNull ClockEventType eventType,
+            @NotNull Instant occurredAt,
+            @NotNull LocalDateTime sourceLocalDateTime,
+            @NotBlank @Size(max = 80) String sourceTimeZone,
+            @Min(-840) @Max(840) int sourceUtcOffsetMinutes,
+            @NotNull DstResolution dstResolution,
+            @NotNull InstantAuthority instantAuthority,
+            @NotBlank @Size(max = 40) String tzdbVersion,
+            @NotBlank @Size(max = 80) String timeZoneRuleVersion,
+            @NotBlank @Pattern(regexp = "^[0-9a-f]{64}$") String sourceProvenanceDigest,
+            @NotNull TrustLevel trustLevel) {}
 
-    public record VoidClockCommand(String reasonCode) {}
+    public record VoidClockCommand(
+            @NotBlank
+            @Pattern(regexp = "^[A-Z][A-Z0-9_]{1,79}$")
+            String reasonCode) {}
+
+    /** Exact public proof headers for the v36 TIM corrective-void command. */
+    public record ClockStepUpHeaders(
+            @NotBlank @Size(max = 16_384) String challenge,
+            @NotBlank
+            @Size(max = 200)
+            @Pattern(regexp = "^psr-[0-9a-f]{64}$")
+            String decisionRevision,
+            @NotNull @PositiveOrZero Long expectedObjectVersion) {}
 
     public record ClockEvent(
             UUID clockEventId,
@@ -313,7 +336,8 @@ public final class ClockIngestionModels {
             UUID idempotencyKey,
             String commandType,
             String requestDigest,
-            ClockEvent event) {}
+            ClockEvent event,
+            ProductSurfaceStepUpChallengeVerifier.VerifiedChallenge stepUpChallenge) {}
 
     private ClockIngestionModels() {}
 }

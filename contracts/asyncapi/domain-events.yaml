@@ -1,7 +1,7 @@
 asyncapi: 3.0.0
 info:
   title: DWP Domain Events
-  version: 1.0.0
+  version: 1.1.0
   description: Versioned CloudEvents-aligned contracts published from transactional outboxes.
 defaultContentType: application/json
 servers:
@@ -16,6 +16,12 @@ channels:
         $ref: '#/components/messages/domainEvent'
       workplaceBookingEvent:
         $ref: '#/components/messages/workplaceBookingEvent'
+      performancePopulationFrozen:
+        $ref: '#/components/messages/performancePopulationFrozen'
+      clockEventRecorded:
+        $ref: '#/components/messages/clockEventRecorded'
+      employeeChangeApplied:
+        $ref: '#/components/messages/employeeChangeApplied'
   workplaceOccupancySignals:
     address: dwp.workplace.occupancy-signals.v1
     messages:
@@ -29,6 +35,9 @@ operations:
     messages:
       - $ref: '#/channels/domainEvents/messages/domainEvent'
       - $ref: '#/channels/domainEvents/messages/workplaceBookingEvent'
+      - $ref: '#/channels/domainEvents/messages/performancePopulationFrozen'
+      - $ref: '#/channels/domainEvents/messages/clockEventRecorded'
+      - $ref: '#/channels/domainEvents/messages/employeeChangeApplied'
   receiveWorkplaceOccupancySignal:
     action: receive
     channel:
@@ -47,6 +56,21 @@ components:
       contentType: application/json
       payload:
         $ref: '#/components/schemas/WorkplaceBookingEventEnvelope'
+    performancePopulationFrozen:
+      name: PerformancePopulationFrozen.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/PerformancePopulationFrozenEnvelope'
+    clockEventRecorded:
+      name: ClockEventRecorded.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/ClockEventRecordedEnvelope'
+    employeeChangeApplied:
+      name: EmployeeChangeApplied.v1
+      contentType: application/json
+      payload:
+        $ref: '#/components/schemas/EmployeeChangeAppliedEnvelope'
     workplaceOccupancySignal:
       name: WorkplaceOccupancySignal
       contentType: application/json
@@ -170,6 +194,140 @@ components:
         reasonCode:
           type: [string, 'null']
           maxLength: 80
+    PerformancePopulationFrozenEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - aggregateType
+            - data
+          properties:
+            type:
+              const: PerformancePopulationFrozen.v1
+            schemaVersion:
+              const: 1
+            aggregateType:
+              const: PERFORMANCE_POPULATION_FREEZE
+            data:
+              $ref: '#/components/schemas/PerformancePopulationFrozenData'
+    PerformancePopulationFrozenData:
+      type: object
+      additionalProperties: false
+      required:
+        - cycleVersionId
+        - populationFreezeId
+        - workforceSnapshotId
+        - workforceSnapshotRevision
+        - participantCount
+        - reviewerAssignmentCount
+        - contentHash
+      properties:
+        cycleVersionId:
+          type: string
+          format: uuid
+        populationFreezeId:
+          type: string
+          format: uuid
+        workforceSnapshotId:
+          type: string
+          format: uuid
+        workforceSnapshotRevision:
+          type: integer
+          minimum: 1
+        participantCount:
+          type: integer
+          minimum: 0
+        reviewerAssignmentCount:
+          type: integer
+          minimum: 0
+        contentHash:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+    ClockEventRecordedEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - aggregateType
+            - data
+          properties:
+            type:
+              const: ClockEventRecorded.v1
+            schemaVersion:
+              const: 1
+            aggregateType:
+              const: ClockStream
+            data:
+              $ref: '#/components/schemas/ClockEventRecordedData'
+    ClockEventRecordedData:
+      type: object
+      additionalProperties: false
+      required:
+        - clockEventId
+        - workerId
+        - eventType
+        - occurredAt
+        - sourceId
+        - sourceOffsetMinutes
+        - payloadDigest
+        - sourceSequence
+        - sourceProvenanceDigest
+        - voidsClockEventId
+      properties:
+        clockEventId:
+          type: string
+          format: uuid
+        workerId:
+          type: string
+          format: uuid
+        eventType:
+          enum: [IN, OUT, BREAK_START, BREAK_END, VOID]
+        occurredAt:
+          type: string
+          format: date-time
+        sourceId:
+          type: string
+          format: uuid
+        sourceOffsetMinutes:
+          type: integer
+          minimum: -840
+          maximum: 840
+        payloadDigest:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        sourceSequence:
+          type: [integer, 'null']
+          minimum: 1
+        sourceProvenanceDigest:
+          type: string
+          pattern: '^[0-9a-f]{64}$'
+        voidsClockEventId:
+          type: [string, 'null']
+          format: uuid
+    EmployeeChangeAppliedEnvelope:
+      allOf:
+        - $ref: '#/components/schemas/DomainEventEnvelope'
+        - type: object
+          required:
+            - type
+            - schemaVersion
+            - aggregateType
+            - data
+          properties:
+            type:
+              const: EmployeeChangeApplied.v1
+            schemaVersion:
+              const: 1
+            aggregateType:
+              const: EmployeeChangeRequest
+            data:
+              $ref: '#/components/schemas/EmployeeChangeAppliedData'
+    EmployeeChangeAppliedData:
+      $ref: '../hris/canonical/schemas/cross-module-canonical-schemas.v1.json#/$defs/XCON_022'
     WorkplaceOccupancySignal:
       type: object
       additionalProperties: false

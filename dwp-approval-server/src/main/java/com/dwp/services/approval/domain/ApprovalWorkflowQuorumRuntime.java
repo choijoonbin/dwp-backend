@@ -21,6 +21,7 @@ public final class ApprovalWorkflowQuorumRuntime {
     private final ApprovalWorkflowQuorumAuthority authority;
     private final ApprovalWorkflowQuorumEvaluator evaluator = new ApprovalWorkflowQuorumEvaluator();
     private final ApprovalWorkflowQuorumEvidence evidence;
+    private final ApprovalTerminalDecisionSink terminalDecisions;
 
     public record VoteCommand(long tenantId, UUID requestId, UUID stepId, long generation, UUID taskId,
             long expectedTaskVersion, long expectedStageVersion, Pins expectedPins, long actorUserId,
@@ -30,10 +31,17 @@ public final class ApprovalWorkflowQuorumRuntime {
 
     public ApprovalWorkflowQuorumRuntime(NamedParameterJdbcTemplate jdbc, ObjectMapper mapper,
             TransactionTemplate transactions, ApprovalWorkflowQuorumAuthority authority, AuditOutboxRecorder audit) {
+        this(jdbc, mapper, transactions, authority, audit, null);
+    }
+
+    public ApprovalWorkflowQuorumRuntime(NamedParameterJdbcTemplate jdbc, ObjectMapper mapper,
+            TransactionTemplate transactions, ApprovalWorkflowQuorumAuthority authority,
+            AuditOutboxRecorder audit, ApprovalTerminalDecisionSink terminalDecisions) {
         this.store = new ApprovalWorkflowQuorumRuntimeStore(jdbc, mapper);
         this.transactions = transactions;
         this.authority = java.util.Objects.requireNonNull(authority);
         this.evidence = new ApprovalWorkflowQuorumEvidence(store, audit);
+        this.terminalDecisions = terminalDecisions;
     }
 
     public Pins canonicalPins(long tenant, UUID request, ApprovalWorkflowQuorumDefinition definition) {
@@ -142,7 +150,8 @@ public final class ApprovalWorkflowQuorumRuntime {
         AcceptedVote accepted = evaluator.accept(new State(row.snapshot(), row.version(), store.votes(tenant, request, row)),
                 command.expectedStageVersion(), command.expectedPins(), current, command.decision(), command.reason(), now);
         Vote vote = accepted.vote();
-        p.addValue("vote", UUID.randomUUID()).addValue("version", vote.stageVersion()).addValue("actor", vote.actorUserId())
+        UUID voteId = UUID.randomUUID();
+        p.addValue("vote", voteId).addValue("version", vote.stageVersion()).addValue("actor", vote.actorUserId())
                 .addValue("actorPerson", vote.actorPersonPublicId()).addValue("person", vote.principalPersonPublicId())
                 .addValue("decision", vote.decision().name()).addValue("evidence", store.json(vote)).addValue("now", time(now))
                 .addValue("taskVersion", command.expectedTaskVersion()).addValue("payloadRevision", vote.payloadRevision())
@@ -183,6 +192,10 @@ public final class ApprovalWorkflowQuorumRuntime {
                     completed_at=CASE WHEN :status='IN_REVIEW' THEN NULL ELSE CAST(:now AS timestamptz) END
                  WHERE tenant_id=:tenant AND request_id=:request AND status='IN_REVIEW'
                 """, store.scope(tenant, request).addValue("status", requestStatus).addValue("now", time(now)).addValue("actor", vote.actorUserId())));
+        if (terminalDecisions != null && !"IN_REVIEW".equals(requestStatus)) {
+            terminalDecisions.accepted(tenant, request, voteId,
+                    vote.actorPersonPublicId(), now, requestStatus);
+        }
         evidence.append(tenant, request, vote.actorUserId(), "Approval.Quorum.VoteAccepted",
                 Map.of("stepId", row.stepId().toString(), "stageVersion", vote.stageVersion(), "decision", vote.decision().name(),
                         "outcome", outcome.name(), "requestStatus", requestStatus, "payloadRevision", vote.payloadRevision(),

@@ -17,5 +17,16 @@ processResources {
 dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-databind'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
     testImplementation 'com.fasterxml.jackson.datatype:jackson-datatype-jsr310'
+}
+
+tasks.named('test') {
+    inputs.file(rootProject.file('contracts/asyncapi/domain-events.yaml'))
+            .withPropertyName('domainEventsAsyncApi')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(rootProject.file(
+            'contracts/hris/canonical/schemas/cross-module-canonical-schemas.v1.json'))
+            .withPropertyName('hrisCanonicalSchemas')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
 }

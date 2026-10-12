@@ -110,6 +110,14 @@ dwp:
       migration-control-reference: ${DWP_TIME_MIGRATION_CONTROL_REFERENCE:}
     service-token: ${DWP_TIME_SERVICE_TOKEN:}
     product-authorization-enabled: ${DWP_TIME_PRODUCT_AUTHORIZATION_ENABLED:true}
+    step-up:
+      public-key-pem: ${DWP_TIME_STEP_UP_PUBLIC_KEY_PEM:}
+      issuer: ${DWP_TIME_STEP_UP_ISSUER:}
+      audience: ${DWP_TIME_STEP_UP_AUDIENCE:dwp-time-server}
+      key-id: ${DWP_TIME_STEP_UP_KEY_ID:}
+      required-acr: ${DWP_TIME_STEP_UP_REQUIRED_ACR:urn:dwp:acr:mfa}
+      maximum-authentication-age-seconds: ${DWP_TIME_STEP_UP_MAX_AUTH_AGE_SECONDS:600}
+      maximum-challenge-ttl-seconds: ${DWP_TIME_STEP_UP_MAX_TTL_SECONDS:900}
 
 management:
   endpoints:

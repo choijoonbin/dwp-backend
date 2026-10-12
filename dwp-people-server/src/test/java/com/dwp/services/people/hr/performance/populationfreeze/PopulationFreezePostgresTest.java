@@ -312,6 +312,102 @@ class PopulationFreezePostgresTest {
         assertThat(countAsRole("per_owner_test", tenantId)).isPositive();
         assertThat(countAsRole("per_owner_test", tenantId + 1)).isZero();
         assertThat(countAsRole("per_owner_test", null)).isZero();
+        assertThat(canExecuteTenantContextCapture("per_runtime_test")).isFalse();
+        assertThat(canExecuteTenantContextCapture("per_owner_test")).isFalse();
+    }
+
+    @Test
+    void appendOnlyHardeningPreservesOwnerTriggerExecutionAndSealsDirectRuntimeCalls() {
+        List<Map<String, Object>> routines = plainJdbc.queryForList("""
+                SELECT routine.proname,
+                       routine.prosecdef,
+                       COALESCE(array_to_string(routine.proconfig, ','), '') AS configuration,
+                       owner_role.rolname AS owner_name,
+                       routine.prorettype::regtype::text AS return_type
+                  FROM pg_proc routine
+                  JOIN pg_namespace namespace ON namespace.oid = routine.pronamespace
+                  JOIN pg_roles owner_role ON owner_role.oid = routine.proowner
+                 WHERE namespace.nspname = 'hris_performance'
+                   AND routine.proname IN (
+                       'prf_serialize_population_preview',
+                       'prf_capture_review_operation',
+                       'prf_capture_review_operation_trigger',
+                       'prf_reject_population_freeze_mutation',
+                       'prf_guard_review_operation_history')
+                 ORDER BY routine.proname
+                """);
+        assertThat(routines).hasSize(5);
+        assertThat(routines).allSatisfy(routine ->
+                assertThat(routine.get("owner_name")).isEqualTo(POSTGRES.getUsername()));
+        assertThat(routines).filteredOn(routine ->
+                Set.of(
+                        "prf_serialize_population_preview",
+                        "prf_capture_review_operation_trigger",
+                        "prf_reject_population_freeze_mutation")
+                        .contains(routine.get("proname")))
+                .allSatisfy(routine -> {
+                    assertThat(routine.get("prosecdef")).isEqualTo(true);
+                    assertThat(routine.get("configuration")).isEqualTo("search_path=pg_catalog");
+                    assertThat(routine.get("return_type")).isEqualTo("trigger");
+                });
+        assertThat(routines).filteredOn(routine ->
+                "prf_capture_review_operation".equals(routine.get("proname")))
+                .singleElement()
+                .satisfies(routine -> {
+                    assertThat(routine.get("prosecdef")).isEqualTo(false);
+                    assertThat(routine.get("configuration")).isEqualTo("");
+                    assertThat(routine.get("return_type")).isEqualTo("void");
+                });
+        assertThat(routines).filteredOn(routine ->
+                "prf_guard_review_operation_history".equals(routine.get("proname")))
+                .singleElement()
+                .satisfies(routine -> {
+                    assertThat(routine.get("prosecdef")).isEqualTo(false);
+                    assertThat(routine.get("configuration")).isEqualTo("search_path=pg_catalog");
+                    assertThat(routine.get("return_type")).isEqualTo("trigger");
+                });
+
+        int historyBefore = reviewOperationHistoryCount();
+        plainJdbc.update("""
+                UPDATE hris_performance.prf_cycles
+                   SET display_name = 'FY27 Review owner-trigger proof', aggregate_version = 5
+                 WHERE tenant_id = ? AND cycle_id = ?
+                """, tenantId, cycleId);
+        assertThat(reviewOperationHistoryCount()).isEqualTo(historyBefore + 1);
+
+        createRlsRoles();
+        for (String routine : List.of(
+                "prf_serialize_population_preview()",
+                "prf_capture_review_operation(bigint,uuid)",
+                "prf_capture_review_operation_trigger()",
+                "prf_reject_population_freeze_mutation()",
+                "prf_guard_review_operation_history()")) {
+            assertThat(canExecuteRoutine("per_runtime_test", routine)).isFalse();
+            assertThat(canExecuteRoutine("per_owner_test", routine)).isFalse();
+        }
+        long directHistoryId = Long.MAX_VALUE - 100;
+        assertThatThrownBy(() -> executeAsRole("per_runtime_test", """
+                INSERT INTO hris_performance.prf_review_operation_history (
+                    history_id, tenant_id, cycle_id, display_name,
+                    lifecycle_state, aggregate_version)
+                VALUES (?, ?, ?, 'forged history', 'VALIDATED', 999)
+                """, directHistoryId, tenantId, cycleId))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("PER_REVIEW_OPERATION_HISTORY_OWNER_PATH_REQUIRED");
+        assertThatThrownBy(() -> executeAsRole("per_runtime_test", """
+                UPDATE hris_performance.prf_review_operation_history
+                   SET display_name = 'rewritten history'
+                 WHERE tenant_id = ? AND cycle_id = ?
+                """, tenantId, cycleId))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("PER_REVIEW_OPERATION_HISTORY_IMMUTABLE");
+        assertThatThrownBy(() -> executeAsRole("per_runtime_test", """
+                DELETE FROM hris_performance.prf_review_operation_history
+                 WHERE tenant_id = ? AND cycle_id = ?
+                """, tenantId, cycleId))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("PER_REVIEW_OPERATION_HISTORY_IMMUTABLE");
+        assertThat(reviewOperationHistoryCount()).isEqualTo(historyBefore + 1);
     }
 
     private void seedPreview() {
@@ -446,10 +542,13 @@ class PopulationFreezePostgresTest {
                 """);
         plainJdbc.execute("GRANT USAGE ON SCHEMA hris_performance TO per_runtime_test");
         plainJdbc.execute("""
+                GRANT SELECT, INSERT, UPDATE, DELETE
+                    ON hris_performance.prf_review_operation_history TO per_runtime_test
+                """);
+        plainJdbc.execute("""
                 GRANT SELECT ON hris_performance.prf_population_freezes,
                     hris_performance.prf_population_freeze_members,
-                    hris_performance.prf_population_freeze_reviewers,
-                    hris_performance.prf_review_operation_history TO per_runtime_test
+                    hris_performance.prf_population_freeze_reviewers TO per_runtime_test
                 """);
         plainJdbc.execute("ALTER TABLE hris_performance.prf_population_freezes OWNER TO per_owner_test");
         plainJdbc.execute("""
@@ -488,6 +587,42 @@ class PopulationFreezePostgresTest {
                     """, Integer.class);
         });
         return count == null ? 0 : count;
+    }
+
+    private boolean canExecuteTenantContextCapture(String role) {
+        return canExecuteRoutine(
+                role, "prf_capture_review_operation(bigint,uuid)");
+    }
+
+    private boolean canExecuteRoutine(String role, String routine) {
+        return Boolean.TRUE.equals(plainJdbc.queryForObject(
+                "SELECT has_function_privilege(?, CAST(? AS regprocedure), 'EXECUTE')",
+                Boolean.class,
+                role,
+                "hris_performance." + routine));
+    }
+
+    private int reviewOperationHistoryCount() {
+        return plainJdbc.queryForObject("""
+                SELECT COUNT(*)
+                  FROM hris_performance.prf_review_operation_history
+                 WHERE tenant_id = ? AND cycle_id = ?
+                """, Integer.class, tenantId, cycleId);
+    }
+
+    private int executeAsRole(String role, String sql, Object... parameters) {
+        TransactionTemplate transaction = new TransactionTemplate(
+                new DataSourceTransactionManager(testDataSource));
+        Integer updated = transaction.execute(status -> {
+            JdbcTemplate jdbc = new JdbcTemplate(testDataSource);
+            jdbc.execute("SET LOCAL ROLE " + role);
+            jdbc.queryForObject(
+                    "SELECT set_config('dwp.tenant_id', ?, TRUE)",
+                    String.class,
+                    Long.toString(tenantId));
+            return jdbc.update(sql, parameters);
+        });
+        return updated == null ? 0 : updated;
     }
 
     private DataSource dataSource() {

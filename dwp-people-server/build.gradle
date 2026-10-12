@@ -17,12 +17,20 @@ dependencies {
     implementation project(':dwp-platform-contracts')
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:postgresql'
     testImplementation 'org.postgresql:postgresql'
 }
 
 tasks.named('test') {
+    inputs.file(rootProject.file('contracts/asyncapi/domain-events.yaml'))
+            .withPropertyName('domainEventsAsyncApi')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file(rootProject.file(
+            'contracts/hris/canonical/schemas/cross-module-canonical-schemas.v1.json'))
+            .withPropertyName('hrisCanonicalSchemas')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
     inputs.file(rootProject.file(
             'contracts/in-process/hris/workforce-snapshot-query-port.v1.schema.json'))
             .withPropertyName('workforceSnapshotQueryPortSchema')

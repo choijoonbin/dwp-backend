@@ -31,6 +31,12 @@ class HcmPlatformPepSecurityContractTest {
                 "/v1/admin/hris/configurations/c1/versions/2/publish")).isTrue();
         assertThat(registry.governsPathFamily("/v1/admin/users")).isFalse();
         assertThat(registry.governsPathFamily("/v1/admin/hris/other")).isFalse();
+        assertThat(registry.governsPathFamily(
+                "/v1/hris/workbench/settings-reference/extra")).isFalse();
+        assertThat(registry.governsPathFamily(
+                "/v1/admin/hris/configurations-admin")).isFalse();
+        assertThat(registry.governsPathFamily(
+                "/v1/admin/hris/configurations%2fc1")).isTrue();
     }
 
     @Test
@@ -73,6 +79,24 @@ class HcmPlatformPepSecurityContractTest {
         MockHttpServletResponse response = new MockHttpServletResponse();
         filter.doFilter(nearby, response, new MockFilterChain());
         assertThat(response.getStatus()).isEqualTo(403);
+    }
+
+    @Test
+    void browserHeadersCannotReplaceTheTrustedGatewayServiceToken() throws Exception {
+        MockHttpServletRequest request = new MockHttpServletRequest(
+                "GET", "/v1/hris/workbench/settings-reference");
+        request.addHeader(PlatformSecurityFilter.USER_HEADER, "101");
+        request.addHeader(PlatformSecurityFilter.TENANT_HEADER, "7");
+        request.addHeader(PlatformSecurityFilter.ROLES_HEADER, "TENANT_ADMIN");
+        request.addHeader(PlatformSecurityFilter.PERMISSIONS_HEADER,
+                "CONFIG.HRIS_WORKBENCH:VIEW");
+        trustedEvidence(request,
+                "route.hcm.configuration.settings-reference.page", false);
+        MockHttpServletResponse response = new MockHttpServletResponse();
+
+        filter.doFilter(request, response, new MockFilterChain());
+
+        assertThat(response.getStatus()).isEqualTo(401);
     }
 
     @Test

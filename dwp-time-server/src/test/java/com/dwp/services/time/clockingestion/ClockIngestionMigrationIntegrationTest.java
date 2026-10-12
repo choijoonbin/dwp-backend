@@ -12,6 +12,7 @@ import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockEventType;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockExceptionProjectionQuery;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockProjectionQuery;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockSourceType;
+import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockStepUpHeaders;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.DstResolution;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.InstantAuthority;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.RecordClockCommand;
@@ -86,7 +87,7 @@ class ClockIngestionMigrationIntegrationTest {
                 .load();
         // Flyway may count its schema-creation action in this result; the history assertion below
         // pins the leased version and filename exactly.
-        assertThat(flyway.migrate().migrationsExecuted).isGreaterThanOrEqualTo(8);
+        assertThat(flyway.migrate().migrationsExecuted).isGreaterThanOrEqualTo(9);
     }
 
     @AfterAll
@@ -95,13 +96,18 @@ class ClockIngestionMigrationIntegrationTest {
     }
 
     @Test
-    void cleanUpgradeIsRepeatableAndV8IsExactlyLeased() {
+    void cleanUpgradeIsRepeatableAndClockMigrationsAreExactlyLeased() {
         assertThat(flyway.validateWithResult().validationSuccessful).isTrue();
         assertThat(flyway.migrate().migrationsExecuted).isZero();
         assertThat(admin.queryForObject(
                 "SELECT count(*) FROM flyway_schema_history "
                         + "WHERE success AND version='8' "
                         + "AND script='V8__tim_create_clock_ingestion.sql'",
+                Integer.class)).isOne();
+        assertThat(admin.queryForObject(
+                "SELECT count(*) FROM flyway_schema_history "
+                        + "WHERE success AND version='9' "
+                        + "AND script='V9__tim_bind_clock_void_step_up.sql'",
                 Integer.class)).isOne();
     }
 
@@ -114,11 +120,12 @@ class ClockIngestionMigrationIntegrationTest {
                    AND relname IN (
                        'tme_clock_command_receipts',
                        'tme_clock_events',
-                       'tme_clock_outbox_events')
+                       'tme_clock_outbox_events',
+                       'tme_clock_step_up_replay_ledger')
                    AND relkind = 'r'
                    AND relrowsecurity
                    AND relforcerowsecurity
-                """, Integer.class)).isEqualTo(3);
+                """, Integer.class)).isEqualTo(4);
         assertThat(admin.queryForObject("""
                 SELECT has_table_privilege(?, 'public.tme_clock_events', 'INSERT')
                    AND has_table_privilege(?, 'public.tme_clock_events', 'SELECT')
@@ -128,6 +135,17 @@ class ClockIngestionMigrationIntegrationTest {
                        ?, 'public.tme_clock_command_receipts', 'UPDATE')
                 """, Boolean.class,
                 RUNTIME_ROLE, RUNTIME_ROLE, RUNTIME_ROLE, RUNTIME_ROLE, RUNTIME_ROLE)).isTrue();
+        assertThat(admin.queryForObject("""
+                SELECT has_table_privilege(
+                           ?, 'public.tme_clock_step_up_replay_ledger', 'SELECT')
+                   AND has_table_privilege(
+                           ?, 'public.tme_clock_step_up_replay_ledger', 'INSERT')
+                   AND NOT has_table_privilege(
+                           ?, 'public.tme_clock_step_up_replay_ledger', 'UPDATE')
+                   AND NOT has_table_privilege(
+                           ?, 'public.tme_clock_step_up_replay_ledger', 'DELETE')
+                """, Boolean.class,
+                RUNTIME_ROLE, RUNTIME_ROLE, RUNTIME_ROLE, RUNTIME_ROLE)).isTrue();
         assertThat(admin.queryForObject("""
                 SELECT has_column_privilege(
                            ?, 'public.tme_clock_outbox_events', 'published_at', 'UPDATE')
@@ -247,7 +265,8 @@ class ClockIngestionMigrationIntegrationTest {
                         "clock-integration-replay-secret",
                         Duration.ofMinutes(15),
                         new ObjectMapper().findAndRegisterModules(),
-                        clock));
+                        clock),
+                new ClockStepUpTestVerifier());
         VerifiedClockRequest authority = authority(
                 tenantId, subjectId, populationId, workerId, assignmentId, sourceId,
                 correlationId, clock.instant());
@@ -265,20 +284,47 @@ class ClockIngestionMigrationIntegrationTest {
         UUID voidKey = UUID.fromString("90530000-0000-4000-8000-000000000008");
         var voided = service.voidEvent(
                 authority, record.clockEventId(), voidKey,
+                stepUp(record.aggregateVersion()),
                 new VoidClockCommand("DEVICE_DUPLICATE"));
         clock.advance(Duration.ofMinutes(2));
         var voidReplay = service.voidEvent(
                 authority, record.clockEventId(), voidKey,
+                stepUp(record.aggregateVersion()),
                 new VoidClockCommand("DEVICE_DUPLICATE"));
         assertThat(voidReplay.receiptId()).isEqualTo(voided.receiptId());
         assertThat(voidReplay.createdAt()).isEqualTo(voided.createdAt());
         assertThat(voidReplay.resultDigest()).isEqualTo(voided.resultDigest());
         assertThat(voidReplay.replayed()).isTrue();
+        assertThat(admin.queryForObject(
+                "SELECT count(*) FROM tme_clock_step_up_replay_ledger "
+                        + "WHERE tenant_id = ? AND target_id = ?",
+                Integer.class, tenantId, record.clockEventId().toString())).isOne();
         assertThatThrownBy(() -> service.voidEvent(
                 authority, record.clockEventId(), voidKey,
+                stepUp(record.aggregateVersion()),
                 new VoidClockCommand("OPERATOR_CORRECTION")))
                 .isInstanceOfSatisfying(BaseException.class, failure ->
                         assertThat(failure.getErrorCode()).isEqualTo(ErrorCode.RESOURCE_CONFLICT));
+
+        UUID secondRecordKey = UUID.fromString("90530000-0000-4000-8000-000000000009");
+        var secondRecord = service.record(
+                authority,
+                secondRecordKey,
+                command(sourceId, workerId, assignmentId, "integration-source-2", 2));
+        UUID secondVoidKey = UUID.fromString("90530000-0000-4000-8000-000000000010");
+        assertThatThrownBy(() -> service.voidEvent(
+                authority,
+                secondRecord.clockEventId(),
+                secondVoidKey,
+                stepUp(secondRecord.aggregateVersion()),
+                new VoidClockCommand("DEVICE_DUPLICATE")))
+                .isInstanceOfSatisfying(BaseException.class, failure ->
+                        assertThat(failure.getErrorCode())
+                                .isEqualTo(ErrorCode.STEP_UP_CHALLENGE_REPLAY));
+        assertThat(admin.queryForObject(
+                "SELECT count(*) FROM tme_clock_events "
+                        + "WHERE tenant_id = ? AND voids_event_public_id = ?",
+                Integer.class, tenantId, secondRecord.clockEventId())).isZero();
     }
 
     private static VerifiedClockRequest authority(
@@ -302,6 +348,8 @@ class ClockIngestionMigrationIntegrationTest {
                 workerId,
                 assignmentId,
                 7,
+                AuthSignedClockStepUpVerifier.ROUTE_CONTRACT_KEY,
+                "psc-" + "f".repeat(64),
                 HcmEligibilityScopeKey.derived(
                         tenantId, 72, "hcm.operations.clock-ingestion", "integration-replay",
                         "relationship-9", "population-9"),
@@ -323,13 +371,28 @@ class ClockIngestionMigrationIntegrationTest {
                 true);
     }
 
+    private static ClockStepUpHeaders stepUp(Long eventVersion) {
+        return new ClockStepUpHeaders(
+                "integration-challenge-1", "psr-" + "e".repeat(64), eventVersion);
+    }
+
     private static RecordClockCommand command(
             UUID sourceId, UUID workerId, UUID assignmentId) {
+        return command(
+                sourceId, workerId, assignmentId, "integration-source-1", 1);
+    }
+
+    private static RecordClockCommand command(
+            UUID sourceId,
+            UUID workerId,
+            UUID assignmentId,
+            String sourceEventKey,
+            long sourceSequence) {
         String tzdb = ClockEvidenceValidator.expectedTzdbVersion("UTC");
         RecordClockCommand unsealed = new RecordClockCommand(
                 sourceId,
-                "integration-source-1",
-                1,
+                sourceEventKey,
+                sourceSequence,
                 ClockSourceType.API,
                 null,
                 CaptureMode.ONLINE,

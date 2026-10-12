@@ -19,6 +19,7 @@ dependencies {
     implementation project(':dwp-platform-contracts')
 
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    testImplementation 'com.fasterxml.jackson.dataformat:jackson-dataformat-yaml'
     testImplementation 'com.networknt:json-schema-validator:1.5.9'
     testImplementation 'org.testcontainers:junit-jupiter'
     testImplementation 'org.testcontainers:postgresql'
@@ -27,4 +28,10 @@ dependencies {
 
 springBoot {
     mainClass = 'com.dwp.services.time.TimeServerApplication'
+}
+
+tasks.named('test') {
+    inputs.file(rootProject.file('contracts/asyncapi/domain-events.yaml'))
+            .withPropertyName('domainEventsAsyncApi')
+            .withPathSensitivity(PathSensitivity.RELATIVE)
 }

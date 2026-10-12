@@ -4593,7 +4593,6 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "MEDIUM",
       "routeContractKeys": [
-        "route.hcm.operations.time-clock-event-void.action",
         "route.hcm.personal.time-clock-event-record.action"
       ],
       "scopeResolver": "SELF",
@@ -7206,7 +7205,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "12e4b9329ab53ab1efd6c5f6e23ccc7869c4184a79e5a64f614fe9c40a9e704b",
+  "checksum": "1f23280116bc5b29f1a7ea6cc4ccbd2092a91673979d6bb46164a0dbb95ae10c",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -42945,26 +42944,6 @@
             "OBJECT",
             "TARGET_POPULATION"
           ]
-        },
-        {
-          "activeAccessModes": [
-            "NORMAL",
-            "ELEVATED"
-          ],
-          "precedence": 200,
-          "predicatePolicyKeys": [
-            "predicate.hcm-time-capture-authority.v1"
-          ],
-          "profileKey": "self-service",
-          "readOnly": false,
-          "requiredAccess": {
-            "capabilityContractKey": "hcm.personal.time.submit",
-            "type": "CAPABILITY"
-          },
-          "targetBindingKinds": [
-            "SELF",
-            "OBJECT"
-          ]
         }
       ],
       "gatewayApiBindings": [
@@ -68452,5 +68431,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 36
+  "version": 37
 }

@@ -1,6 +1,60 @@
 {
   "components": {
     "schemas": {
+      "ApiResponseClockCommandReceipt": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ClockCommandReceipt"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseClockProjection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ClockProjection"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ApiResponseCreateDraftView": {
         "properties": {
           "correlationId": {
@@ -8,6 +62,33 @@
           },
           "data": {
             "$ref": "#/components/schemas/CreateDraftView"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "message": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "success": {
+            "type": "boolean"
+          },
+          "timestamp": {
+            "format": "date-time",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ApiResponseExceptionProjection": {
+        "properties": {
+          "correlationId": {
+            "type": "string"
+          },
+          "data": {
+            "$ref": "#/components/schemas/ExceptionProjection"
           },
           "errorCode": {
             "type": "string"
@@ -137,6 +218,153 @@
         },
         "type": "object"
       },
+      "AvailableAction": {
+        "properties": {
+          "actionKey": {
+            "type": "string"
+          },
+          "hrefTemplate": {
+            "type": "string"
+          },
+          "idempotencyPolicy": {
+            "type": "string"
+          },
+          "method": {
+            "type": "string"
+          },
+          "stepUpPolicy": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "CachePolicy": {
+        "properties": {
+          "authorizationDecisionRevision": {
+            "type": "string"
+          },
+          "invalidationEvent": {
+            "type": "string"
+          },
+          "maxAgeSeconds": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "ClockCommandReceipt": {
+        "properties": {
+          "aggregateVersion": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "authorizationRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "commandType": {
+            "type": "string"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "fieldPolicyRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "originatingAction": {
+            "type": "string"
+          },
+          "populationScopeDigest": {
+            "type": "string"
+          },
+          "purposeCode": {
+            "type": "string"
+          },
+          "receiptId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "requestDigest": {
+            "type": "string"
+          },
+          "resultRef": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "subjectPrincipalPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ClockFieldGroups": {
+        "properties": {
+          "CLOCK_EVENT": {},
+          "INGESTION_STATUS": {},
+          "QUALITY_FINDING": {}
+        },
+        "type": "object"
+      },
+      "ClockItem": {
+        "properties": {
+          "availableActions": {
+            "items": {
+              "$ref": "#/components/schemas/AvailableAction"
+            },
+            "type": "array"
+          },
+          "deepLink": {
+            "$ref": "#/components/schemas/DeepLink"
+          },
+          "fieldGroups": {
+            "$ref": "#/components/schemas/ClockFieldGroups"
+          },
+          "itemPublicId": {
+            "type": "string"
+          },
+          "statusCode": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ClockProjection": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ClockItem"
+            },
+            "type": "array"
+          },
+          "projectionVersion": {
+            "type": "string"
+          },
+          "queryState": {
+            "$ref": "#/components/schemas/QueryState"
+          },
+          "variantKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "CreateDraftRequest": {
         "properties": {
           "arrangementKind": {
@@ -255,11 +483,115 @@
         },
         "type": "object"
       },
+      "DeepLink": {
+        "properties": {
+          "resourcePublicId": {
+            "type": "string"
+          },
+          "route": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ExceptionFieldGroups": {
+        "properties": {
+          "EXCEPTION": {},
+          "OWNER_DEEP_LINK": {},
+          "RECOVERY_METADATA": {}
+        },
+        "type": "object"
+      },
+      "ExceptionItem": {
+        "properties": {
+          "availableActions": {
+            "items": {
+              "$ref": "#/components/schemas/AvailableAction"
+            },
+            "type": "array"
+          },
+          "deepLink": {
+            "$ref": "#/components/schemas/DeepLink"
+          },
+          "fieldGroups": {
+            "$ref": "#/components/schemas/ExceptionFieldGroups"
+          },
+          "itemPublicId": {
+            "type": "string"
+          },
+          "statusCode": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "ExceptionProjection": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/ExceptionItem"
+            },
+            "type": "array"
+          },
+          "projectionVersion": {
+            "type": "string"
+          },
+          "queryState": {
+            "$ref": "#/components/schemas/QueryState"
+          },
+          "variantKey": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
+      "FieldDecisionSummary": {
+        "properties": {
+          "maskedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "omittedCount": {
+            "format": "int32",
+            "type": "integer"
+          },
+          "viewCount": {
+            "format": "int32",
+            "type": "integer"
+          }
+        },
+        "type": "object"
+      },
       "LifecycleRequest": {
         "properties": {
           "expectedVersion": {
             "format": "int64",
             "type": "integer"
+          }
+        },
+        "type": "object"
+      },
+      "PartialFailure": {
+        "properties": {
+          "componentKey": {
+            "type": "string"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "errorCode": {
+            "type": "string"
+          },
+          "retryable": {
+            "type": "boolean"
           }
         },
         "type": "object"
@@ -348,6 +680,39 @@
         },
         "type": "object"
       },
+      "QueryState": {
+        "properties": {
+          "cachePolicy": {
+            "$ref": "#/components/schemas/CachePolicy"
+          },
+          "correlationId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "fieldDecisionSummary": {
+            "$ref": "#/components/schemas/FieldDecisionSummary"
+          },
+          "freshness": {
+            "type": "string"
+          },
+          "nextCursor": {
+            "type": "string"
+          },
+          "partialFailures": {
+            "items": {
+              "$ref": "#/components/schemas/PartialFailure"
+            },
+            "type": "array"
+          },
+          "scopeDecisionRevision": {
+            "type": "string"
+          },
+          "state": {
+            "type": "string"
+          }
+        },
+        "type": "object"
+      },
       "ReceiptView": {
         "properties": {
           "idempotencyKey": {
@@ -370,6 +735,149 @@
             "type": "string"
           }
         },
+        "type": "object"
+      },
+      "RecordClockCommand": {
+        "properties": {
+          "captureMode": {
+            "enum": [
+              "ONLINE",
+              "OFFLINE"
+            ],
+            "type": "string"
+          },
+          "devicePublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "dstResolution": {
+            "enum": [
+              "EXACT_OFFSET_SUPPLIED",
+              "EARLIER_OFFSET_SELECTED",
+              "LATER_OFFSET_SELECTED",
+              "GAP_SHIFT_FORWARD"
+            ],
+            "type": "string"
+          },
+          "eventType": {
+            "enum": [
+              "IN",
+              "OUT",
+              "BREAK_START",
+              "BREAK_END",
+              "VOID"
+            ],
+            "type": "string"
+          },
+          "instantAuthority": {
+            "enum": [
+              "SOURCE_INSTANT",
+              "LOCAL_WITH_OFFSET",
+              "SERVER_RESOLVED"
+            ],
+            "type": "string"
+          },
+          "occurredAt": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "offlineBatchPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "peopleAssignmentPublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "peopleAssignmentRevision": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sourceEventKey": {
+            "maxLength": 200,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sourceLocalDateTime": {
+            "format": "date-time",
+            "type": "string"
+          },
+          "sourceProvenanceDigest": {
+            "minLength": 1,
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "sourcePublicId": {
+            "format": "uuid",
+            "type": "string"
+          },
+          "sourceSequence": {
+            "format": "int64",
+            "type": "integer"
+          },
+          "sourceTimeZone": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "sourceType": {
+            "enum": [
+              "WEB",
+              "MOBILE",
+              "KIOSK",
+              "DEVICE",
+              "IMPORT",
+              "API"
+            ],
+            "type": "string"
+          },
+          "sourceUtcOffsetMinutes": {
+            "format": "int32",
+            "maximum": 840,
+            "minimum": -840,
+            "type": "integer"
+          },
+          "timeZoneRuleVersion": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string"
+          },
+          "trustLevel": {
+            "enum": [
+              "LOW",
+              "STANDARD",
+              "VERIFIED"
+            ],
+            "type": "string"
+          },
+          "tzdbVersion": {
+            "maxLength": 40,
+            "minLength": 0,
+            "type": "string"
+          },
+          "workerPublicId": {
+            "format": "uuid",
+            "type": "string"
+          }
+        },
+        "required": [
+          "captureMode",
+          "dstResolution",
+          "eventType",
+          "instantAuthority",
+          "occurredAt",
+          "peopleAssignmentPublicId",
+          "sourceEventKey",
+          "sourceLocalDateTime",
+          "sourceProvenanceDigest",
+          "sourcePublicId",
+          "sourceTimeZone",
+          "sourceType",
+          "timeZoneRuleVersion",
+          "trustLevel",
+          "tzdbVersion",
+          "workerPublicId"
+        ],
         "type": "object"
       },
       "ResolutionView": {
@@ -642,6 +1150,19 @@
         },
         "type": "object"
       },
+      "VoidClockCommand": {
+        "properties": {
+          "reasonCode": {
+            "minLength": 1,
+            "pattern": "^[A-Z][A-Z0-9_]{1,79}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "reasonCode"
+        ],
+        "type": "object"
+      },
       "WorkPlanView": {
         "properties": {
           "arrangement": {
@@ -703,6 +1224,134 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/v1/clock-events": {
+      "post": {
+        "operationId": "hrisTimeRecordClockEvent",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecordClockCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseClockCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "clock-owner-controller"
+        ],
+        "x-dwp-controller-method": "record",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/clock-events/{eventId}/voids": {
+      "post": {
+        "operationId": "hrisTimeVoidClockEvent",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "Idempotency-Key",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Step-Up-Challenge",
+            "required": true,
+            "schema": {
+              "maxLength": 16384,
+              "minLength": 0,
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Decision-Revision",
+            "required": true,
+            "schema": {
+              "maxLength": 200,
+              "minLength": 0,
+              "pattern": "^psr-[0-9a-f]{64}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "X-DWP-Expected-Object-Version",
+            "required": true,
+            "schema": {
+              "format": "int64",
+              "minimum": 0,
+              "type": "integer"
+            }
+          },
+          {
+            "in": "path",
+            "name": "eventId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/VoidClockCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseClockCommandReceipt"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "clock-owner-controller"
+        ],
+        "x-dwp-controller-method": "voidEvent",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
     "/v1/hris/work-plan-receipts/{receiptId}": {
       "get": {
         "operationId": "hrisTimeWorkPlanReceipt",
@@ -927,6 +1576,337 @@
           "work-regime-owner-controller"
         ],
         "x-dwp-controller-method": "simulate",
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/workbench/clock-ingestion": {
+      "get": {
+        "operationId": "hrisTimeClockIngestionWorkbench",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": true,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "correlationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "clockEventStartFrom",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "clockEventStartTo",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "clockEventEndFrom",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "clockEventEndTo",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "effectiveOn",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ingestionStatusCodes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimumIngestionRevision",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "qualityDecisionCodes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "qualityEvidenceDigest",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseClockProjection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "clock-owner-controller"
+        ],
+        "x-dwp-controller-method": "workbench",
+        "x-dwp-reviewed-springdoc-capture": true,
+        "x-dwp-runtime-default": "OFF"
+      }
+    },
+    "/v1/hris/workbench/time-exceptions": {
+      "get": {
+        "operationId": "hrisTimeClockIngestionExceptions",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": true,
+            "schema": {
+              "format": "int32",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "required": true,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "locale",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "timeZone",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "correlationId",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "asOf",
+            "required": false,
+            "schema": {
+              "format": "date-time",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "effectiveOn",
+            "required": false,
+            "schema": {
+              "format": "date",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "exceptionCodes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "minimumExceptionRevision",
+            "required": false,
+            "schema": {
+              "format": "int64",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ownerDeepLinkCodes",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "ownerDeepLinkPublicIds",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "recoveryMetadataKeys",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "recoveryMetadataVersions",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "*/*": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiResponseExceptionProjection"
+                }
+              }
+            },
+            "description": "OK"
+          }
+        },
+        "tags": [
+          "clock-owner-controller"
+        ],
+        "x-dwp-controller-method": "exceptions",
+        "x-dwp-reviewed-springdoc-capture": true,
         "x-dwp-runtime-default": "OFF"
       }
     }

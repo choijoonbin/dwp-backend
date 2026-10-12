@@ -52,7 +52,7 @@ ALLOWED_OVERRIDE_REFS = {
 RESERVED_CONTRACTS = {"hcm.reference.publish", "hcm.integration.rotate-secret"}
 REGISTRY_VERSIONS = (
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36,
+    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37,
 )
 FIXED_GROUP_VERSIONS = {"CANARY": 1, "APPROVALS": 2, "HCM": 3}
 PRESERVED_V7_CATALOG_HASHES = {
@@ -668,6 +668,50 @@ def validate_monotonic_registry_lineage(
             candidate.pop("stepUpCommandBindings", None)
         return descriptor_monotonic_contains(candidate, inherited)
 
+    def is_v37_time_void_profile_removal(
+        version: int,
+        identity: tuple[str, str],
+        current: dict[str, Any],
+        inherited: dict[str, Any],
+    ) -> bool:
+        if version != 37:
+            return False
+        section, key = identity
+        void_route = "route.hcm.operations.time-clock-event-void.action"
+        if section == "capabilities" and key == "hcm.personal.time.submit":
+            inherited_routes = inherited.get("routeContractKeys", [])
+            current_routes = current.get("routeContractKeys", [])
+            if (
+                len(inherited_routes) != len(set(inherited_routes))
+                or len(current_routes) != len(set(current_routes))
+                or set(inherited_routes) != set(current_routes) | {void_route}
+                or void_route in current_routes
+            ):
+                return False
+            normalized = copy.deepcopy(current)
+            normalized["routeContractKeys"] = copy.deepcopy(inherited_routes)
+            return normalized == inherited
+        if section != "routes" or key != void_route:
+            return False
+        inherited_profiles = {
+            profile.get("profileKey"): profile
+            for profile in inherited.get("accessProfiles", [])
+        }
+        current_profiles = {
+            profile.get("profileKey"): profile
+            for profile in current.get("accessProfiles", [])
+        }
+        if (
+            set(inherited_profiles) != {"full-management", "self-service"}
+            or set(current_profiles) != {"full-management"}
+            or current_profiles["full-management"]
+            != inherited_profiles["full-management"]
+        ):
+            return False
+        normalized = copy.deepcopy(current)
+        normalized["accessProfiles"] = copy.deepcopy(inherited["accessProfiles"])
+        return normalized == inherited
+
     keyed_sections = list(DESCRIPTOR_SECTIONS.values()) + [
         ("authorityEndpoints", "endpointKey")
     ]
@@ -693,6 +737,9 @@ def validate_monotonic_registry_lineage(
                     version, identity, current[identity], record
                 )
                 and not is_v36_performance_freeze_authority_upgrade(
+                    version, identity, current[identity], record
+                )
+                and not is_v37_time_void_profile_removal(
                     version, identity, current[identity], record
                 )
             )

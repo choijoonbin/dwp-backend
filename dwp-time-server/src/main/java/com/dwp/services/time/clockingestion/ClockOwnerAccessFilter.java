@@ -74,6 +74,8 @@ public final class ClockOwnerAccessFilter extends OncePerRequestFilter {
                     ? ErrorCode.DECISION_REVISION_CONFLICT
                     : failure.getErrorCode() == ErrorCode.STEP_UP_REQUIRED
                             ? ErrorCode.STEP_UP_REQUIRED
+                            : failure.getErrorCode() == ErrorCode.STEP_UP_CHALLENGE_MISMATCH
+                                    ? ErrorCode.STEP_UP_CHALLENGE_MISMATCH
                             : ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE;
             deny(response, code, "Trusted TIM clock authority is unavailable.");
             return;

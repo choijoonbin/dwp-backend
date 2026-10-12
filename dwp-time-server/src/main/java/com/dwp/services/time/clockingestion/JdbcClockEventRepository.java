@@ -2,6 +2,7 @@ package com.dwp.services.time.clockingestion;
 
 import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
+import com.dwp.core.security.ProductSurfaceStepUpChallengeVerifier;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.CaptureMode;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockAppend;
 import com.dwp.services.time.clockingestion.ClockIngestionModels.ClockCommandReceipt;
@@ -33,7 +34,9 @@ import java.util.UUID;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
 import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
@@ -48,7 +51,7 @@ import org.springframework.transaction.support.TransactionTemplate;
         name = "dwp.hris.time.clock-ingestion.enabled",
         havingValue = "true",
         matchIfMissing = false)
-public final class JdbcClockEventRepository implements ClockEventRepository {
+public class JdbcClockEventRepository implements ClockEventRepository {
 
     private static final String SET_TENANT_SQL =
             "SELECT set_config('dwp.tenant_id', ?, true)";
@@ -569,10 +572,14 @@ public final class JdbcClockEventRepository implements ClockEventRepository {
                 append.commandType(),
                 append.idempotencyKey()));
         requireExactBinding(append, stored);
-        if (inserted == 0) return stored.toView(true);
+        if (inserted == 0) {
+            return stored.toView(
+                    true, eventVersion(stored.tenantId(), stored.eventId()));
+        }
         if (!stored.receiptId().equals(proposedReceiptId)) {
             throw new BaseException(ErrorCode.RESOURCE_CONFLICT);
         }
+        requireAndConsumeStepUpChallenge(append);
 
         Long eventOrder = jdbc.queryForObject("""
                 INSERT INTO tme_clock_events (
@@ -624,7 +631,141 @@ public final class JdbcClockEventRepository implements ClockEventRepository {
             throw new IllegalStateException("Clock event order was not allocated");
         }
         insertOutbox(event, eventOrder, proposedReceiptId);
-        return stored.toView(false);
+        return stored.toView(false, eventOrder);
+    }
+
+    private void requireAndConsumeStepUpChallenge(ClockAppend append) {
+        ProductSurfaceStepUpChallengeVerifier.VerifiedChallenge challenge =
+                append.stepUpChallenge();
+        if (!"CLOCK_VOID".equals(append.commandType())) {
+            if (challenge != null) {
+                throw new BaseException(
+                        ErrorCode.STEP_UP_CHALLENGE_MISMATCH,
+                        "Step-up proof is forbidden for this TIM clock command.");
+            }
+            return;
+        }
+        if (challenge == null || append.event().voidsClockEventId() == null) {
+            throw new BaseException(
+                    ErrorCode.STEP_UP_REQUIRED,
+                    "A verified TIM corrective-void challenge is required.");
+        }
+
+        ProductSurfaceStepUpChallengeVerifier.CommandBinding binding = challenge.binding();
+        long targetVersion = lockedEventVersion(
+                append.authority().tenantId(), append.event().voidsClockEventId());
+        String expectedPath = AuthSignedClockStepUpVerifier.PUBLIC_PATH_PREFIX
+                + append.event().voidsClockEventId() + "/voids";
+        boolean exact = binding != null
+                && binding.actorUserId() == append.authority().actorId()
+                && binding.tenantId() == append.authority().tenantId()
+                && AuthSignedClockStepUpVerifier.ROUTE_CONTRACT_KEY.equals(
+                        binding.commandContractKey())
+                && append.authority().contextKey().equals(binding.contextKey())
+                && AuthSignedClockStepUpVerifier.ACTIVATION_POLICY.equals(
+                        binding.activationPolicy())
+                && AuthSignedClockStepUpVerifier.CAPABILITY_CONTRACT_KEY.equals(
+                        binding.capabilityContractKey())
+                && append.authority().gatewayScopeKey().equals(binding.scopeRef())
+                && AuthSignedClockStepUpVerifier.TARGET_TYPE.equals(binding.targetType())
+                && append.event().voidsClockEventId().toString().equals(binding.targetId())
+                && binding.targetVersion() == targetVersion
+                && AuthSignedClockStepUpVerifier.COMMAND_METHOD.equals(binding.commandMethod())
+                && expectedPath.equals(binding.commandPath())
+                && append.idempotencyKey().toString().equals(binding.idempotencyKey())
+                && append.authority().decisionRevision().equals(binding.decisionRevision())
+                && binding.payloadSha256() != null
+                && binding.payloadSha256().matches("[0-9a-f]{64}")
+                && challenge.challengeId() != null
+                && !challenge.challengeId().isBlank()
+                && challenge.nonce() != null
+                && !challenge.nonce().isBlank()
+                && challenge.issuer() != null
+                && !challenge.issuer().isBlank()
+                && challenge.expiresAt() != null;
+        if (!exact) {
+            throw new BaseException(
+                    ErrorCode.STEP_UP_CHALLENGE_MISMATCH,
+                    "Verified TIM step-up evidence does not match the current event.");
+        }
+        consumeStepUpChallenge(challenge);
+    }
+
+    private long lockedEventVersion(long tenantId, UUID eventId) {
+        List<Long> versions = jdbc.query(
+                "SELECT event_order FROM tme_clock_events "
+                        + "WHERE tenant_id = ? AND public_id = ? FOR SHARE",
+                (row, ignored) -> row.getLong("event_order"),
+                tenantId,
+                eventId);
+        if (versions.size() != 1 || versions.getFirst() <= 0) {
+            throw new BaseException(
+                    ErrorCode.STEP_UP_CHALLENGE_MISMATCH,
+                    "The TIM step-up target version is unavailable.");
+        }
+        return versions.getFirst();
+    }
+
+    private Long eventVersion(long tenantId, UUID eventId) {
+        List<Long> versions = jdbc.query(
+                "SELECT event_order FROM tme_clock_events "
+                        + "WHERE tenant_id = ? AND public_id = ?",
+                (row, ignored) -> row.getLong("event_order"),
+                tenantId,
+                eventId);
+        if (versions.size() != 1 || versions.getFirst() <= 0) {
+            throw new IllegalStateException("Durable clock event version was not recovered");
+        }
+        return versions.getFirst();
+    }
+
+    private void consumeStepUpChallenge(
+            ProductSurfaceStepUpChallengeVerifier.VerifiedChallenge challenge) {
+        ProductSurfaceStepUpChallengeVerifier.CommandBinding binding = challenge.binding();
+        try {
+            int inserted = jdbc.update("""
+                    INSERT INTO tme_clock_step_up_replay_ledger (
+                        replay_id, tenant_id, actor_user_id, challenge_id, nonce,
+                        command_contract_key, activation_policy, capability_contract_key,
+                        context_key, scope_ref, target_type, target_id, target_version,
+                        command_method, command_path, idempotency_key, payload_sha256,
+                        decision_revision, issuer, expires_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    UUID.randomUUID(),
+                    binding.tenantId(),
+                    binding.actorUserId(),
+                    challenge.challengeId(),
+                    challenge.nonce(),
+                    binding.commandContractKey(),
+                    binding.activationPolicy(),
+                    binding.capabilityContractKey(),
+                    binding.contextKey(),
+                    binding.scopeRef(),
+                    binding.targetType(),
+                    binding.targetId(),
+                    binding.targetVersion(),
+                    binding.commandMethod(),
+                    binding.commandPath(),
+                    binding.idempotencyKey(),
+                    binding.payloadSha256(),
+                    binding.decisionRevision(),
+                    challenge.issuer(),
+                    Timestamp.from(challenge.expiresAt().plus(java.time.Duration.ofHours(24))));
+            if (inserted != 1) throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "The TIM step-up replay ledger did not consume the challenge.");
+        } catch (DuplicateKeyException replay) {
+            throw new BaseException(
+                    ErrorCode.STEP_UP_CHALLENGE_REPLAY,
+                    "The TIM step-up challenge nonce has already been consumed.",
+                    replay);
+        } catch (DataAccessException unavailable) {
+            throw new BaseException(
+                    ErrorCode.AUTHORITY_RESOLUTION_UNAVAILABLE,
+                    "The TIM step-up replay ledger is unavailable.",
+                    unavailable);
+        }
     }
 
     private void insertOutbox(ClockEvent event, long eventOrder, UUID receiptId) {
@@ -799,7 +940,7 @@ public final class JdbcClockEventRepository implements ClockEventRepository {
             UUID correlationId,
             Instant createdAt) {
 
-        private ClockCommandReceipt toView(boolean replayed) {
+        private ClockCommandReceipt toView(boolean replayed, Long eventVersion) {
             return new ClockCommandReceipt(
                     receiptId,
                     commandType,
@@ -815,7 +956,7 @@ public final class JdbcClockEventRepository implements ClockEventRepository {
                     correlationId,
                     requestDigest,
                     createdAt,
-                    null,
+                    eventVersion,
                     eventId.toString(),
                     idempotencyKey,
                     eventId,

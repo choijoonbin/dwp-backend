@@ -61569,6 +61569,14 @@
       "entitlementExpressions": [],
       "predicatePolicies": [],
       "routes": []
+    },
+    {
+      "version": 37,
+      "capabilities": [],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": []
     }
   ],
   "descriptorEnrichments": {
@@ -62981,6 +62989,15 @@
             "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
             "ownerServiceKey": "people",
             "audience": "dwp-people-server"
+          }
+        ]
+      },
+      {
+        "routeContractKey": "route.hcm.operations.time-clock-event-void.action",
+        "versionedAccessProfileRemovals": [
+          {
+            "introducedInVersion": 37,
+            "profileKey": "self-service"
           }
         ]
       }

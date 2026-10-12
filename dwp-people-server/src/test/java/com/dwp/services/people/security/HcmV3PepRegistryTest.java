@@ -14,7 +14,7 @@ class HcmV3PepRegistryTest {
             new HcmV3PepRegistry(new ObjectMapper().findAndRegisterModules());
 
     @Test
-    void loadsTheExactV36PeopleClosure() {
+    void loadsTheExactV37PeopleClosure() {
         assertThat(registry.bindingContracts()).hasSize(100);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)

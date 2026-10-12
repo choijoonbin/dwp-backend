@@ -91,13 +91,15 @@ class ProductAuthorizationContractReleaseLineageTest
                 generatedDocument("product-surfaces-v1.bundle-v35.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionThirtySix = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v36.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(36);
-        assertThat(index.latestChecksum()).isEqualTo(versionThirtySix.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionThirtySeven = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v37.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(37);
+        assertThat(index.latestChecksum()).isEqualTo(versionThirtySeven.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L,
-                        26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L);
+                        26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L, 37L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -429,6 +431,43 @@ class ProductAuthorizationContractReleaseLineageTest
                 .containsExactlyElementsOf(versionThirtyFive.routes().stream()
                         .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
                         .toList());
+        assertThat(versionThirtySeven.capabilities()).hasSize(237)
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsExactlyElementsOf(versionThirtySix.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList());
+        assertThat(versionThirtySeven.routes()).hasSize(974)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsExactlyElementsOf(versionThirtySix.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList());
+        String voidRoute = "route.hcm.operations.time-clock-event-void.action";
+        assertThat(versionThirtySix.routes())
+                .filteredOn(route -> voidRoute.equals(route.routeContractKey()))
+                .singleElement()
+                .satisfies(route -> assertThat(route.accessProfiles())
+                        .extracting(ProductAuthorizationContractDtos.AccessProfile::profileKey)
+                        .containsExactly("full-management", "self-service"));
+        assertThat(versionThirtySeven.routes())
+                .filteredOn(route -> voidRoute.equals(route.routeContractKey()))
+                .singleElement()
+                .satisfies(route -> {
+                    assertThat(route.accessProfiles())
+                            .extracting(ProductAuthorizationContractDtos.AccessProfile::profileKey)
+                            .containsExactly("full-management");
+                    assertThat(route.stepUpCommandBindings()).singleElement().satisfies(stepUp -> {
+                        assertThat(stepUp.targetType()).isEqualTo("CLOCK_EVENT");
+                        assertThat(stepUp.ownerServiceKey()).isEqualTo("time");
+                        assertThat(stepUp.audience()).isEqualTo("dwp-time-server");
+                    });
+                });
+        assertThat(versionThirtySeven.capabilities())
+                .filteredOn(capability -> "hcm.personal.time.submit".equals(
+                        capability.contractKey()))
+                .singleElement()
+                .satisfies(capability -> assertThat(capability.routeContractKeys())
+                        .doesNotContain(voidRoute)
+                        .contains("route.hcm.personal.time-clock-event-record.action"));
         assertThat(versionSix.routes()).filteredOn(value -> value.routeContractKey().equals(
                 "route.services.work.request-information-response.action"))
                 .singleElement().satisfies(route -> {

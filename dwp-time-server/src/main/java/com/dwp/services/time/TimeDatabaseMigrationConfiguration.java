@@ -219,7 +219,7 @@ public class TimeDatabaseMigrationConfiguration {
                 configurationGuard.migrationUser());
     }
 
-    private static TrustedPublisherPolicy publisherPolicy(
+    static TrustedPublisherPolicy publisherPolicy(
             String publisher, boolean requireSteadyState) {
         Set<AuxiliaryRoleAclGuard.AllowedPrivilege> mutable = new LinkedHashSet<>();
         mutable.add(privilege(publisher, "SCHEMA", "public", "public", "USAGE"));
@@ -243,6 +243,12 @@ public class TimeDatabaseMigrationConfiguration {
                         "population_revision", "people_assignment_revision",
                         "membership_revision", "lifecycle_state", "effective_from",
                         "effective_to", "source_digest", "updated_at", "updated_by")));
+        mutable.add(privilege(publisher, "RELATION", "public",
+                "public.tme_clock_outbox_events", "SELECT"));
+        mutable.add(privilege(publisher, "COLUMN", "public",
+                "public.tme_clock_outbox_events.publish_attempts", "UPDATE"));
+        mutable.add(privilege(publisher, "COLUMN", "public",
+                "public.tme_clock_outbox_events.published_at", "UPDATE"));
         Set<AuxiliaryRoleAclGuard.AllowedPrivilege> allowed = Set.copyOf(mutable);
         return new TrustedPublisherPolicy(
                 publisher, allowed, requireSteadyState ? allowed : Set.of());

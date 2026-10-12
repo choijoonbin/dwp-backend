@@ -21,6 +21,7 @@ public class ApprovalWorkflowQuorumFacade {
     private final ObjectProvider<ApprovalWorkflowQuorumAuthority> authorities;
     private final AuditOutboxRecorder audit;
     private final ApprovalWorkflowQuorumInformationFacade information;
+    private final ApprovalTerminalDecisionSink terminalDecisions;
     private java.util.function.Consumer<ApprovalWorkflowQuorumSlaRuntime> slaInitializer;
     void bindSlaInitializer(java.util.function.Consumer<ApprovalWorkflowQuorumSlaRuntime> initializer) { slaInitializer = java.util.Objects.requireNonNull(initializer); }
 
@@ -40,14 +41,34 @@ public class ApprovalWorkflowQuorumFacade {
     public ApprovalWorkflowQuorumFacade(ApprovalCommandRepository commands, NamedParameterJdbcTemplate jdbc,
             ObjectMapper mapper, PlatformTransactionManager manager,
             ObjectProvider<ApprovalWorkflowQuorumAuthority> authorities, AuditOutboxRecorder audit) {
-        this(commands, jdbc, mapper, manager, authorities, audit, null);
+        this(commands, jdbc, mapper, manager, authorities, audit, null,
+                (ApprovalTerminalDecisionSink) null);
+    }
+
+    public ApprovalWorkflowQuorumFacade(ApprovalCommandRepository commands, NamedParameterJdbcTemplate jdbc,
+            ObjectMapper mapper, PlatformTransactionManager manager,
+            ObjectProvider<ApprovalWorkflowQuorumAuthority> authorities, AuditOutboxRecorder audit,
+            ApprovalWorkflowQuorumInformationFacade information) {
+        this(commands, jdbc, mapper, manager, authorities, audit, information,
+                (ApprovalTerminalDecisionSink) null);
     }
 
     @org.springframework.beans.factory.annotation.Autowired
     public ApprovalWorkflowQuorumFacade(ApprovalCommandRepository commands, NamedParameterJdbcTemplate jdbc,
             ObjectMapper mapper, PlatformTransactionManager manager,
             ObjectProvider<ApprovalWorkflowQuorumAuthority> authorities, AuditOutboxRecorder audit,
-            ApprovalWorkflowQuorumInformationFacade information) {
+            ApprovalWorkflowQuorumInformationFacade information,
+            ObjectProvider<ApprovalTerminalDecisionSink> terminalDecisions) {
+        this(commands, jdbc, mapper, manager, authorities, audit, information,
+                terminalDecisions.getIfAvailable());
+    }
+
+    private ApprovalWorkflowQuorumFacade(ApprovalCommandRepository commands,
+            NamedParameterJdbcTemplate jdbc, ObjectMapper mapper,
+            PlatformTransactionManager manager,
+            ObjectProvider<ApprovalWorkflowQuorumAuthority> authorities,
+            AuditOutboxRecorder audit, ApprovalWorkflowQuorumInformationFacade information,
+            ApprovalTerminalDecisionSink terminalDecisions) {
         this.commands = commands;
         this.jdbc = jdbc;
         this.mapper = mapper;
@@ -55,6 +76,7 @@ public class ApprovalWorkflowQuorumFacade {
         this.authorities = authorities;
         this.audit = audit;
         this.information = information;
+        this.terminalDecisions = terminalDecisions;
     }
 
     void prepareDecision(ApprovalRequestContext.Actor actor, ApprovalQueryRepository.TaskAccess task, ExpectedVote expected) {
@@ -93,7 +115,8 @@ public class ApprovalWorkflowQuorumFacade {
     }
 
     private ApprovalWorkflowQuorumRuntime runtime() {
-        return new ApprovalWorkflowQuorumRuntime(jdbc, mapper, transactions, authority(), audit);
+        return new ApprovalWorkflowQuorumRuntime(
+                jdbc, mapper, transactions, authority(), audit, terminalDecisions);
     }
 
     public void submit(ApprovalRequestContext.Actor actor, UUID request, long version, String correlation) {
