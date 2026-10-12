@@ -1,0 +1,156 @@
+{
+  "manifestVersion": "1.0",
+  "scope": "HRIS G7 control backend bootstrap",
+  "recordedOn": "2026-10-12",
+  "branch": "codex/hris-g1-integration-backend-20261006",
+  "canonicalRelease": {
+    "productAuthorizationVersion": 35,
+    "productAuthorizationChecksumSha256": "38ef33070a33b5da9a7825c764bd24daacd24c8ca4008f3a926727321d3d098d",
+    "routeCount": 974,
+    "routeKindCounts": {
+      "ACTION": 555,
+      "DATA": 295,
+      "PAGE": 124
+    },
+    "pilotFixtureChecksumSha256": "062942c44145280dbf27cb6a6bb2105050b7da5d397350f3d27a8c10e147c7f2",
+    "crossModuleContract": {
+      "contractId": "XCON_022",
+      "schemaDefinition": "EmployeeChangeApplied.v1",
+      "normalizedSchemaSha256": "46a66b88f5298fef21bfd4a983b30ca09340087ff91ea967418b7300a870df03"
+    },
+    "approvalBinding": {
+      "bindingId": "SVC-PEP-APR-001",
+      "method": "POST",
+      "path": "/internal/hris-approval/v1/approval-requests",
+      "purpose": "HRIS_EMPLOYEE_CHANGE_APPROVAL_REQUEST_SUBMIT"
+    }
+  },
+  "scopeGuards": {
+    "wholeSuiteExecuted": false,
+    "w1Executed": false,
+    "perOrTimBusinessImplementationModified": false,
+    "perOrTimDatabaseMigrationModified": false,
+    "genericAdminBypassIntroduced": false,
+    "cancelledAttempt": {
+      "status": "CANCELLED_BEFORE_RESULT",
+      "reason": "A multi-module Gradle selector admitted an unrelated PostgreSQL integration test; it was stopped and replaced with exact per-module test selections."
+    }
+  },
+  "verification": [
+    {
+      "command": "python3 scripts/generate-product-authorization-contracts.py --check",
+      "result": "PASS",
+      "evidence": "v35, 974 routes, canonical checksum verified"
+    },
+    {
+      "command": "python3 scripts/generate-product-authorization-fixtures.py --check",
+      "result": "PASS",
+      "evidence": "v35 fixture checksum and generated copies verified"
+    },
+    {
+      "command": "python3 scripts/generate-hris-contracts.py --check",
+      "result": "PASS",
+      "evidence": "36 contract mappings and 38 generated Java sources verified"
+    },
+    {
+      "command": "python3 scripts/export-openapi-contracts.py --check --approved-snapshots",
+      "result": "PASS",
+      "evidence": "12 services and 1664 gateway paths verified"
+    },
+    {
+      "command": "python3 -m unittest scripts.tests.test_product_authorization_v35 scripts.tests.test_product_authorization_fixture_schema scripts.tests.test_product_authorization_v21 scripts.tests.test_generate_hris_contracts scripts.tests.test_export_openapi_contracts",
+      "result": "PASS",
+      "evidence": "58 focused tests"
+    },
+    {
+      "command": "./gradlew :dwp-platform-contracts:test --tests 'com.dwp.platform.contract.Xcon022EmployeeChangeAppliedV1Test' --no-daemon",
+      "result": "PASS",
+      "evidence": "XCON_022 generated contract shape, validation, and round trip"
+    },
+    {
+      "command": "./gradlew :dwp-approval-server:test --tests 'com.dwp.services.approval.hrisbridge.HrisEmployeeChangeApprovalProviderContractTest' --no-daemon",
+      "result": "PASS",
+      "evidence": "Approval provider admission, idempotency, replay, and fail-closed negatives"
+    },
+    {
+      "command": "./gradlew :dwp-people-server:test --tests 'com.dwp.services.people.hris.approval.HrisApprovalBridgeProviderConsumerContractTest' --no-daemon",
+      "result": "PASS",
+      "evidence": "People create-and-submit and callback consumer contracts"
+    },
+    {
+      "command": "./gradlew :dwp-people-server:test --tests 'com.dwp.services.people.security.HcmV3PepRegistryTest' --no-daemon",
+      "result": "PASS",
+      "evidence": "People v35 exact route/predicate registry"
+    },
+    {
+      "command": "./gradlew :dwp-platform-server:test --tests 'com.dwp.services.platform.security.HcmPlatformPepSecurityContractTest' --no-daemon",
+      "result": "PASS",
+      "evidence": "Platform exact HCM registry/filter handoff and generic-admin bypass negatives"
+    },
+    {
+      "command": "git diff --check",
+      "result": "PASS",
+      "evidence": "No whitespace errors"
+    },
+    {
+      "command": "JSON parse check for eight canonical/generated evidence artifacts",
+      "result": "PASS",
+      "evidence": "All selected JSON documents parsed successfully"
+    }
+  ],
+  "sourceIntegrity": {
+    "algorithm": "SHA-256",
+    "combinedDigestInput": "For each entry in path order: <sha256><two spaces><path><LF>",
+    "manifestPathExcludedFromDigest": true,
+    "fileCount": 46,
+    "combinedSha256": "3be408f1a06c631df699c67763f02b73a204ed4e58a6d809e6b0fbd15fa1c896",
+    "files": [
+      {"path": "contracts/hris/canonical/hris-contract-codegen-manifest.v1.json", "sha256": "3624bc4fce7d4775099d9eff041c890adebdf557c4f6c197db4d2784432a4006", "bytes": 29803},
+      {"path": "contracts/hris/canonical/schemas/cross-module-canonical-schemas.v1.json", "sha256": "8109568c1cfafa5021b5e831ac17c5dbbfeaaf2b3a7472fc4ff488eacb0bc866", "bytes": 30400},
+      {"path": "contracts/in-process/hris/approval-employee-change-bridge.v1.json", "sha256": "a1fd98a9f90efe118a211800e8c0ed2b421e890b7b85f044c1955122b8d26dbc", "bytes": 3539},
+      {"path": "contracts/product-authorization/pilot-fixtures.v1.generated.json", "sha256": "3acfef934376735060e110323f96cab4479978f29b120c597229452201b98e51", "bytes": 112323},
+      {"path": "contracts/product-authorization/pilot-fixtures.v1.schema.json", "sha256": "a77607de84a22fcaa59f6922ca8d1fe435501f4a720d9960cda154a5a51209e2", "bytes": 24993},
+      {"path": "contracts/product-authorization/product-surfaces-v1.bundle-v35.json", "sha256": "ec9de27c6cb46d93f908c4b54f558b172d706b0d39f1953c97bfafab1f59e9ff", "bytes": 2296617},
+      {"path": "contracts/product-authorization/product-surfaces-v1.index.json", "sha256": "8f1bc21121cd3b1f0d7b29820873bb1d8d589b9b22ae428defc7a7a16834a92d", "bytes": 16548},
+      {"path": "contracts/product-authorization/product-surfaces-v1.json", "sha256": "ec9de27c6cb46d93f908c4b54f558b172d706b0d39f1953c97bfafab1f59e9ff", "bytes": 2296617},
+      {"path": "contracts/product-authorization/product-surfaces-v1.yaml", "sha256": "799edbf3ea2ff8071ae490324dcefdf884b5a21dd9584527112b661c2411f040", "bytes": 2263607},
+      {"path": "docs/architecture/verification/hris-g7-control-backend/authority.md", "sha256": "cd9919470791de679d7bb888ca07803b984bd661be682731e051fbd2f7878675", "bytes": 3246},
+      {"path": "dwp-approval-server/src/test/java/com/dwp/services/approval/hrisbridge/HrisEmployeeChangeApprovalProviderContractTest.java", "sha256": "182e52cebbf4c34a0fbb05a5a33c64fe25a1082498a22f352289615b40976b64", "bytes": 9112},
+      {"path": "dwp-auth-server/src/main/java/com/dwp/services/auth/service/ProductAuthorizationReleaseLineage.java", "sha256": "9f7cdee3090a5623e551b39cbd8ddc5a8a496492ba58a68a20aca57ea20ec0a0", "bytes": 11357},
+      {"path": "dwp-auth-server/src/main/resources/db/migration/V243__declare_hris_g7_v35_authorization_seed.sql", "sha256": "cd42278f93e03dc0b7d630ad95f181c5053fc1b476d55a423e96dc37f52c76ef", "bytes": 585},
+      {"path": "dwp-auth-server/src/main/resources/product-authorization/product-surfaces-v1.bundle-v35.generated.json", "sha256": "ec9de27c6cb46d93f908c4b54f558b172d706b0d39f1953c97bfafab1f59e9ff", "bytes": 2296617},
+      {"path": "dwp-auth-server/src/main/resources/product-authorization/product-surfaces-v1.generated.json", "sha256": "ec9de27c6cb46d93f908c4b54f558b172d706b0d39f1953c97bfafab1f59e9ff", "bytes": 2296617},
+      {"path": "dwp-auth-server/src/main/resources/product-authorization/product-surfaces-v1.index.generated.json", "sha256": "8f1bc21121cd3b1f0d7b29820873bb1d8d589b9b22ae428defc7a7a16834a92d", "bytes": 16548},
+      {"path": "dwp-auth-server/src/test/java/com/dwp/services/auth/config/ProductAuthorizationSeedLoaderTest.java", "sha256": "07b4dba87becba0bb54b9f66fff8354104143ac5d100d6825dc5e8b879e38f28", "bytes": 6483},
+      {"path": "dwp-auth-server/src/test/java/com/dwp/services/auth/migration/HrisG7V35AuthorizationSeedMigrationTest.java", "sha256": "6def1ffb9d7f2954017f5e8284245349bce10e658381267cd9344c7b630b5422", "bytes": 1308},
+      {"path": "dwp-auth-server/src/test/java/com/dwp/services/auth/service/ProductAuthorizationContractReleaseLineageTest.java", "sha256": "11fae10c512d3a01c3cda72b230b5657b91011e34dc8a8b41c831d59aec62cc1", "bytes": 32310},
+      {"path": "dwp-auth-server/src/test/java/com/dwp/services/auth/service/ProductAuthorizationExtensionProjectionSchemaTest.java", "sha256": "91f2adc86a4ab79aeef5e055f1f524c8f7be473d7d26c04861cd4db8f9bbe36d", "bytes": 10732},
+      {"path": "dwp-auth-server/src/test/java/com/dwp/services/auth/service/ProductAuthorizationRecovery11ProjectionSchemaTest.java", "sha256": "0f2cb0a53da1004db918393b4a4b7418fa2a04b5c73ea6951cec588eb5eb8985", "bytes": 10075},
+      {"path": "dwp-auth-server/src/test/java/com/dwp/services/auth/service/ProductAuthorizationRelease10ProjectionSchemaTest.java", "sha256": "c13dccef580c5f22d6d5dea34798856077775d5004822ebabfe5924313f343de", "bytes": 6728},
+      {"path": "dwp-auth-server/src/test/java/com/dwp/services/auth/service/ProductAuthorizationReleaseLineageTest.java", "sha256": "bb43513754cd38700cd689d7361e7f19e8ad2e02cf2f413890399a8b9517d561", "bytes": 5531},
+      {"path": "dwp-auth-server/src/test/java/com/dwp/services/auth/support/PilotAuthorizationFixtureAdapter.java", "sha256": "758a07124059ae329beca0be034348bd6d9bd7fd6587cc69ba730284e31d4539", "bytes": 17425},
+      {"path": "dwp-auth-server/src/test/java/com/dwp/services/auth/support/PilotAuthorizationFixtureAdapterTest.java", "sha256": "a84edcbaee6b70b26edcac3375ccb0e13160de62269d76be38e161d196e5df20", "bytes": 8019},
+      {"path": "dwp-people-server/src/main/java/com/dwp/services/people/security/HcmScopeSelectionValidator.java", "sha256": "30ba15120001b0d64ccb2970e215e74921050175e3b9151975f389cedca8149d", "bytes": 5067},
+      {"path": "dwp-people-server/src/main/java/com/dwp/services/people/security/HcmV3PepRegistry.java", "sha256": "da50ad62a51228aeb50d5a509bacf688fb0c3d987f8a13a4821794174f97be5b", "bytes": 30565},
+      {"path": "dwp-people-server/src/main/resources/product-authorization/hcm-people-pep-v35.generated.json", "sha256": "5f652939dcbcc40f94d193d1a45d3fa55e96de5e429f4036fd853821b476fe4e", "bytes": 225012},
+      {"path": "dwp-people-server/src/test/java/com/dwp/services/people/hris/approval/HrisApprovalBridgeProviderConsumerContractTest.java", "sha256": "d8b5ec3b5d45abb5eab295a9bb853ef157b0df6970cd044fc1332ee88c2293ab", "bytes": 8029},
+      {"path": "dwp-people-server/src/test/java/com/dwp/services/people/security/HcmV3PepRegistryTest.java", "sha256": "dd16a3222ef0323e40ec0d5aab38bf6dd0194af1d5f1b56d778f81316b0ae2ea", "bytes": 14710},
+      {"path": "dwp-platform-contracts/src/main/java/com/dwp/contracts/hris/xcon/v1/Xcon022EmployeeChangeAppliedV1.java", "sha256": "1f9ef300b6443a0e009f278f4c22ccaddd9c5813d07c86329e856162d37143fe", "bytes": 19872},
+      {"path": "dwp-platform-contracts/src/main/java/com/dwp/platform/contracts/hris/approval/v1/HrisApprovalBridgeV1.java", "sha256": "0c714818778544e17d85cab1b6f929830118f99d65334ffe0bdb871acf394960", "bytes": 19843},
+      {"path": "dwp-platform-contracts/src/test/java/com/dwp/platform/contract/Xcon022EmployeeChangeAppliedV1Test.java", "sha256": "cb15569c23e9831f1c342ae190b634bc16c31f16845b56c023360fe0a843c0ed", "bytes": 4678},
+      {"path": "dwp-platform-server/src/main/java/com/dwp/services/platform/security/HcmPlatformPepRegistry.java", "sha256": "f1f87f728a65ebc5bc1fbaab5933fa5bed589a1c988322eca7e5f22c37474b8e", "bytes": 17446},
+      {"path": "dwp-platform-server/src/main/java/com/dwp/services/platform/security/PlatformSecurityFilter.java", "sha256": "2aec1d5b8bf60b7581a37b9d84c5e50c0987244e6d35fb22e8309068a5ea0e8a", "bytes": 28835},
+      {"path": "dwp-platform-server/src/main/resources/product-authorization/hcm-platform-pep-v35.generated.json", "sha256": "4c1852b79ffd06e4fab31bc9ea0a32c4189426ba2aea35eb2ae935d64f4abc51", "bytes": 56301},
+      {"path": "dwp-platform-server/src/test/java/com/dwp/services/platform/security/HcmPlatformPepSecurityContractTest.java", "sha256": "62a8cfea80ee7af5cbb8967c3fa3c6c5102e0b9ba5144d1b52477648817d0e45", "bytes": 7219},
+      {"path": "dwp-time-server/src/main/resources/product-authorization/hcm-time-pep-v35.generated.json", "sha256": "d136d78aa8e12097bfae6abe0e216e8b4f46a909f6546549d6bc41869e0b9a56", "bytes": 34782},
+      {"path": "scripts/export-openapi-contracts.py", "sha256": "148a71816f2fd9009294ac98a4836d291992408ee71cec2d4038f2528b16cda8", "bytes": 48713},
+      {"path": "scripts/generate-hris-contracts.py", "sha256": "9cc3c5602b6e0b2d44ee96d786fb1c5f4103d192e57ed36ee081fc45ea9f6bcb", "bytes": 95691},
+      {"path": "scripts/generate-product-authorization-contracts.py", "sha256": "3d8b4f557d3222a7dbf384083757a11c007c35fb942369cde90a74605558c2b1", "bytes": 160887},
+      {"path": "scripts/generate-product-authorization-fixtures.py", "sha256": "d39a1b5a628f7432a1ee32972abf24a4656421aa235e726dfdbdb5ea11af6ec3", "bytes": 64810},
+      {"path": "scripts/tests/test_export_openapi_contracts.py", "sha256": "ab1ced9055f12dac7d978cfdfefcc5a110db92f084cafb8c364bf294d7a5f5f7", "bytes": 79001},
+      {"path": "scripts/tests/test_generate_hris_contracts.py", "sha256": "a6601bb78c7ce5f6542b13132f8be3fedd7115f6c76e7916d7ad7762cdb7cd7f", "bytes": 43618},
+      {"path": "scripts/tests/test_product_authorization_v21.py", "sha256": "798455870eafde53011d00b44b4a5842ee1921060e15c7a226135f02fde75cf0", "bytes": 16708},
+      {"path": "scripts/tests/test_product_authorization_v35.py", "sha256": "acdd3d3c144a1cd4f1f3f01c10667d42d7755d1a0b9aad47b0c2709ea6bc64a7", "bytes": 8945}
+    ]
+  }
+}

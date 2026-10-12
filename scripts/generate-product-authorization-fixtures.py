@@ -52,7 +52,7 @@ ALLOWED_OVERRIDE_REFS = {
 RESERVED_CONTRACTS = {"hcm.reference.publish", "hcm.integration.rotate-secret"}
 REGISTRY_VERSIONS = (
     1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
-    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34,
+    12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35,
 )
 FIXED_GROUP_VERSIONS = {"CANARY": 1, "APPROVALS": 2, "HCM": 3}
 PRESERVED_V7_CATALOG_HASHES = {
@@ -584,6 +584,41 @@ def validate_monotonic_registry_lineage(
             )
         return descriptor_monotonic_contains(candidate, inherited)
 
+    def is_v35_performance_authority_upgrade(
+        version: int,
+        identity: tuple[str, str],
+        current: dict[str, Any],
+        inherited: dict[str, Any],
+    ) -> bool:
+        if version != 35:
+            return False
+        section, key = identity
+        candidate = copy.deepcopy(current)
+        if section == "capabilities" and key == "hcm.operations.talent.update":
+            candidate["routeContractKeys"] = sorted(
+                set(candidate.get("routeContractKeys", []))
+                | {"route.hcm.operations.performance-cycle-population-preview.action"}
+            )
+            return descriptor_monotonic_contains(candidate, inherited)
+        if section != "routes" or key \
+                != "route.hcm.operations.performance-cycle-population-preview.action":
+            return False
+        inherited_profiles = {
+            profile["profileKey"]: profile
+            for profile in inherited.get("accessProfiles", [])
+        }
+        profiles = candidate.get("accessProfiles", [])
+        if len(profiles) != 1 or profiles[0].get("profileKey") != "full-management" \
+                or profiles[0].get("requiredAccess") != {
+                    "type": "CAPABILITY",
+                    "capabilityContractKey": "hcm.operations.performance.update",
+                }:
+            return False
+        profiles[0]["requiredAccess"] = copy.deepcopy(
+            inherited_profiles["full-management"]["requiredAccess"]
+        )
+        return descriptor_monotonic_contains(candidate, inherited)
+
     keyed_sections = list(DESCRIPTOR_SECTIONS.values()) + [
         ("authorityEndpoints", "endpointKey")
     ]
@@ -603,6 +638,9 @@ def validate_monotonic_registry_lineage(
             or (
                 not descriptor_monotonic_contains(current[identity], record)
                 and not is_v30_research_authority_upgrade(
+                    version, identity, current[identity], record
+                )
+                and not is_v35_performance_authority_upgrade(
                     version, identity, current[identity], record
                 )
             )

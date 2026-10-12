@@ -44,6 +44,7 @@ EXPECTED_XCON_TYPES = {
     "com.dwp.contracts.hris.xcon.v1.Xcon019WorkerBankAccountTokenSnapshotV1",
     "com.dwp.contracts.hris.xcon.v1.Xcon020ApprovedCompensationPlanSnapshotV1",
     "com.dwp.contracts.hris.xcon.v1.Xcon021ApprovedCompensationPlanSnapshotPublishedV2",
+    "com.dwp.contracts.hris.xcon.v1.Xcon022EmployeeChangeAppliedV1",
 }
 
 EXPECTED_PLATFORM_TYPES = {
@@ -85,6 +86,7 @@ EXPECTED_FIELDS = {
     "Xcon019WorkerBankAccountTokenSnapshotV1": ("bankAccountToken", "currency", "effectiveFrom", "effectiveTo", "maskedAccountDisplay", "payloadDigest", "paymentPriority", "snapshotId", "snapshotRevision", "sourceVersion", "workerId"),
     "Xcon020ApprovedCompensationPlanSnapshotV1": ("approvalReceiptId", "cycleId", "effectiveFrom", "effectiveTo", "lineCount", "lines", "payloadDigest", "planId", "snapshotId", "snapshotRevision", "sourceVersion"),
     "Xcon021ApprovedCompensationPlanSnapshotPublishedV2": ("aggregateId", "aggregateVersion", "approvalReceiptId", "approvalRevision", "correlationId", "cycleId", "effectiveDate", "fromState", "lineCount", "occurredAt", "payloadDigest", "planId", "snapshotId", "snapshotRevision", "sourceVersion", "toState"),
+    "Xcon022EmployeeChangeAppliedV1": ("aggregateId", "aggregateVersion", "appliedTargetVersion", "causationId", "changedFieldGroups", "correlationId", "effectiveDate", "eventId", "occurredAt", "payloadDigest", "requestPublicId", "schemaVersion", "targetAggregatePublicId", "targetAggregateType", "tenantId"),
     "HrisConfigurationVersionV1": ("configurationId", "configurationType", "scopeType", "scopeId", "version", "state", "effectiveFrom", "effectiveTo", "payloadSchemaVersion", "payloadDigest", "approvalReceiptId"),
     "HrisConfigurationPublishedV1": ("configurationId", "configurationType", "scopeType", "scopeId", "version", "effectiveFrom", "effectiveTo", "payloadSchemaVersion", "payloadDigest", "approvalReceiptId", "publishedAt", "eventSequence"),
     "HrisConfigurationInvalidatedV1": ("configurationId", "configurationType", "scopeType", "scopeId", "invalidatedVersion", "replacementVersion", "reasonCode", "invalidatedAt", "eventSequence"),
@@ -102,11 +104,11 @@ EXPECTED_FIELDS = {
 }
 
 EXPECTED_SOURCE_DIGESTS = {
-    "xcon-v1": "f6fb63f52e2b6043b62f8afdd87b7acdbd89fe9db3330d8a2818be9e5c8326c4",
+    "xcon-v1": "8109568c1cfafa5021b5e831ac17c5dbbfeaaf2b3a7472fc4ff488eacb0bc866",
     "platform-dependency-v1": "5778f82aa3b76511a19dc3df47f4fb1d2f51502d96906197abbe143359eddfd4",
 }
 
-EXPECTED_MANIFEST_DIGEST = "7b43a95aa815cd622b12b6b2fa19c3695501917bcd88dc08a900ff58f23fd2fa"
+EXPECTED_MANIFEST_DIGEST = "e72fc11eac5f6143706f053e3db56e5b91759a82ff6f32ae9a36511bbe31b3f4"
 
 SESSION_MODULES = {
     "HRIS-HRM": "dwp-people-server",
@@ -158,10 +160,10 @@ class HrisContractGeneratorTest(unittest.TestCase):
         }
         self.assertEqual(EXPECTED_XCON_TYPES, xcon)
         self.assertEqual(EXPECTED_PLATFORM_TYPES, platform)
-        self.assertEqual(35, len(contracts))
+        self.assertEqual(36, len(contracts))
 
         outputs = GENERATOR.expected_outputs(ROOT)
-        self.assertEqual(37, len(outputs))
+        self.assertEqual(38, len(outputs))
         for contract in contracts:
             with self.subTest(java_type=contract.java_type):
                 expected_fields = EXPECTED_FIELDS[contract.class_name]
@@ -194,7 +196,7 @@ class HrisContractGeneratorTest(unittest.TestCase):
                 path.relative_to(root): path.read_bytes()
                 for path in root.glob("dwp-platform-contracts/src/main/java/**/*.java")
             }
-            self.assertEqual(37, len(first))
+            self.assertEqual(38, len(first))
             self.assertEqual([], GENERATOR.check_outputs(root))
             self.assertEqual(0, GENERATOR.write_outputs(root))
             second = {

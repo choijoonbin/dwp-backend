@@ -37,6 +37,7 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
     private final PlatformCanaryPepRegistry canaryPepRegistry;
     private final boolean approvalsProductAuthorizationV2Enabled;
     private final PlatformApprovalsPepRegistry approvalsPepRegistry;
+    private final HcmPlatformPepRegistry hcmPlatformPepRegistry;
     private final PlatformProductAuthorizationSupport productAuthorization;
 
     @Autowired
@@ -47,13 +48,15 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
             boolean approvalsProductAuthorizationV2Enabled,
             ObjectMapper objectMapper,
             PlatformCanaryPepRegistry canaryPepRegistry,
-            PlatformApprovalsPepRegistry approvalsPepRegistry) {
+            PlatformApprovalsPepRegistry approvalsPepRegistry,
+            HcmPlatformPepRegistry hcmPlatformPepRegistry) {
         this.serviceToken = serviceToken == null ? "" : serviceToken.trim();
         this.runtimeServiceToken = runtimeServiceToken == null ? "" : runtimeServiceToken.trim();
         this.objectMapper = objectMapper;
         this.canaryPepRegistry = canaryPepRegistry;
         this.approvalsProductAuthorizationV2Enabled = approvalsProductAuthorizationV2Enabled;
         this.approvalsPepRegistry = approvalsPepRegistry;
+        this.hcmPlatformPepRegistry = hcmPlatformPepRegistry;
         this.productAuthorization = new PlatformProductAuthorizationSupport(
                 canaryPepRegistry, approvalsPepRegistry);
     }
@@ -72,17 +75,31 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
             ObjectMapper objectMapper,
             PlatformCanaryPepRegistry canaryPepRegistry) {
         this(serviceToken, runtimeServiceToken, false, objectMapper, canaryPepRegistry,
-                new PlatformApprovalsPepRegistry(objectMapper));
+                new PlatformApprovalsPepRegistry(objectMapper),
+                new HcmPlatformPepRegistry(objectMapper));
     }
 
-    PlatformSecurityFilter(
+    public PlatformSecurityFilter(
             String serviceToken,
             String runtimeServiceToken,
             boolean approvalsProductAuthorizationV2Enabled,
             ObjectMapper objectMapper) {
         this(serviceToken, runtimeServiceToken, approvalsProductAuthorizationV2Enabled,
                 objectMapper, new PlatformCanaryPepRegistry(objectMapper),
-                new PlatformApprovalsPepRegistry(objectMapper));
+                new PlatformApprovalsPepRegistry(objectMapper),
+                new HcmPlatformPepRegistry(objectMapper));
+    }
+
+    public PlatformSecurityFilter(
+            String serviceToken,
+            String runtimeServiceToken,
+            boolean approvalsProductAuthorizationV2Enabled,
+            ObjectMapper objectMapper,
+            PlatformCanaryPepRegistry canaryPepRegistry,
+            PlatformApprovalsPepRegistry approvalsPepRegistry) {
+        this(serviceToken, runtimeServiceToken, approvalsProductAuthorizationV2Enabled,
+                objectMapper, canaryPepRegistry, approvalsPepRegistry,
+                new HcmPlatformPepRegistry(objectMapper));
     }
 
     @Override
@@ -183,7 +200,8 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
         boolean canaryProductPath = canaryPepRegistry.ownsPath(path)
                 && !ServicesProductSurfacePepFilter.hasVerifiedRequesterResponseAuthority(request);
         boolean approvalProductPath = approvalsPepRegistry.governsPathFamily(path);
-        boolean productPath = canaryProductPath || approvalProductPath;
+        boolean hcmPlatformPath = hcmPlatformPepRegistry.governsPathFamily(path);
+        boolean productPath = canaryProductPath || approvalProductPath || hcmPlatformPath;
         boolean exactEnforcement = false;
         if (productPath && gatewayIdentity) {
             String rolloutState = productAuthorization.exactHeader(
@@ -196,7 +214,7 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
                         "Trusted product rollout evidence is missing or invalid.");
                 return;
             }
-            exactEnforcement = rolloutState.charAt(1) == '1';
+            exactEnforcement = hcmPlatformPath || rolloutState.charAt(1) == '1';
         }
         boolean supportAccess = !isBlank(request.getHeader(SUPPORT_SESSION_HEADER));
         if (supportAccess && !authorizedSupportRequest(request)) {
@@ -322,6 +340,48 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
             response.setHeader(RESPONSE_DECISION_REVISION_HEADER,
                     trustedAuthority.currentRevision());
         }
+        boolean exactHcmPlatformAccess = false;
+        if (hcmPlatformPath && exactEnforcement) {
+            if (supportAccess
+                    || RolePlaneBoundary.isProviderIdentity(
+                    parseValues(request.getHeader(ROLES_HEADER)))
+                    || !"TENANT".equals(request.getHeader("X-DWP-Identity-Plane"))) {
+                writeError(response, ErrorCode.FORBIDDEN,
+                        "HCM configuration requires a tenant control-plane identity.");
+                return;
+            }
+            HcmPlatformPepRegistry.Decision decision = hcmPlatformPepRegistry.authorize(
+                    new HcmPlatformPepRegistry.RequestEvidence(
+                            request.getMethod(), path,
+                            parseValues(request.getHeader(PERMISSIONS_HEADER)),
+                            trustedAuthority.routeContractKey()));
+            if (!decision.allowed()) {
+                writeError(response, ErrorCode.FORBIDDEN,
+                        "The exact HCM Platform route authority is required.");
+                return;
+            }
+            String expected = productAuthorization.exactHeader(
+                    request, EXPECTED_DECISION_REVISION_HEADER);
+            if ("ACTION".equals(decision.authority().routeKind())
+                    && !trustedAuthority.currentRevision().equals(expected)) {
+                writeError(response, ErrorCode.DECISION_REVISION_CONFLICT,
+                        "HCM Platform authority changed after the client decision.");
+                return;
+            }
+            if (decision.authority().highRisk()
+                    && !"ELEVATED".equals(productAuthorization.exactHeader(
+                    request, "X-DWP-Active-Access-Mode"))) {
+                writeError(response, ErrorCode.STEP_UP_REQUIRED,
+                        "Elevated access mode is required for this HCM configuration command.");
+                return;
+            }
+            request.setAttribute(
+                    HcmPlatformPepRegistry.class.getName() + ".authority",
+                    decision.authority());
+            response.setHeader(RESPONSE_DECISION_REVISION_HEADER,
+                    trustedAuthority.currentRevision());
+            exactHcmPlatformAccess = true;
+        }
         if (canaryProductPath && !exactEnforcement
                 && !productAuthorization.legacyProductAuthorized(request, supportAccess)) {
             writeError(response, ErrorCode.FORBIDDEN,
@@ -445,6 +505,7 @@ public class PlatformSecurityFilter extends PlatformSecurityPolicySupport {
                 && !delegatedWorkplaceAccess && !delegatedMailAccess
                 && !delegatedDwaionAgentAccess && !delegatedHomeExperienceAccess
                 && !delegatedTenantAdministrationAccess
+                && !exactHcmPlatformAccess
                 && path.startsWith("/v1/admin/")
                 && !hasRole(request.getHeader(ROLES_HEADER), ADMIN_ROLES)) {
             writeError(response, ErrorCode.FORBIDDEN, "Tenant administrator permission is required.");

@@ -1,0 +1,93 @@
+{
+  "schemaVersion": 1,
+  "contractId": "HRIS-APPROVAL-EMPLOYEE-CHANGE-BRIDGE-V1",
+  "lifecycleState": "BOOTSTRAP_BEFORE_MODULE_TOKEN",
+  "authority": {
+    "callback": "G2 SVC-PEP-HRM-001 and HRM recordEmployeeChangeDecision contract",
+    "createAndSubmit": "G7 Control successor decision over canonical PDX-010",
+    "decision": "PDX-010 has no DRAFT state; People creates and submits one PENDING approval request atomically",
+    "forbiddenAlternative": "No separate internal submit endpoint or orphanable remote draft"
+  },
+  "bindings": [
+    {
+      "bindingId": "SVC-PEP-APR-001",
+      "operationId": "createAndSubmitEmployeeChangeApprovalRequest",
+      "ownerWorkloadId": "dwp-approval-server",
+      "callerWorkloadId": "dwp-people-server",
+      "method": "POST",
+      "path": "/internal/hris-approval/v1/approval-requests",
+      "audience": "dwp-approval-server",
+      "purpose": "HRIS_EMPLOYEE_CHANGE_APPROVAL_REQUEST_SUBMIT",
+      "request": {
+        "canonicalSchema": "PDX-010 ApprovalRequestV1",
+        "requiredState": "PENDING"
+      },
+      "response": {
+        "name": "CreateAndSubmitReceiptV1",
+        "fields": ["requestId", "requestRevision", "state", "receiptDigest"]
+      },
+      "idempotency": {
+        "semanticKey": ["tenantId", "subjectRef", "subjectRevision"],
+        "requestDigest": "payloadDigest",
+        "sameDigest": "RETURN_ORIGINAL_RECEIPT",
+        "differentDigest": "HTTP_409"
+      }
+    },
+    {
+      "bindingId": "SVC-PEP-HRM-001",
+      "operationId": "recordEmployeeChangeDecision",
+      "ownerWorkloadId": "dwp-people-server",
+      "callerWorkloadId": "dwp-approval-server",
+      "method": "POST",
+      "path": "/internal/hris-people/v1/employee-change-requests/{requestPublicId}/approval-decisions",
+      "audience": "dwp-people-server",
+      "purpose": "HRIS_APPROVAL_DECISION_CALLBACK",
+      "request": {
+        "name": "ApprovalDecisionCallbackV1",
+        "fields": [
+          "approvalRequestId",
+          "decisionEventId",
+          "decision",
+          "decidedAt",
+          "decisionActorPublicId",
+          "approvalPolicyRevision",
+          "correlationId",
+          "payloadDigest"
+        ]
+      },
+      "response": {
+        "canonicalSchema": "CommandReceiptV1",
+        "wireOwnership": "HRIS-HRM module implementation"
+      },
+      "idempotency": {
+        "semanticKey": ["tenantId", "decisionEventId"],
+        "requestDigest": "SHA-256 exact request body",
+        "sameDigest": "RETURN_ORIGINAL_RECEIPT",
+        "differentDigest": "HTTP_409"
+      }
+    }
+  ],
+  "transportAdmission": {
+    "authentication": ["MTLS_SPIFFE_WORKLOAD_IDENTITY", "OAUTH2_CLIENT_CREDENTIAL_JWT_AUDIENCE_PINNED"],
+    "tenantEvidence": ["SIGNED_TENANT_CLAIM", "OWNER_TENANT_GRANT_REVALIDATION", "TARGET_TENANT_MATCH", "NO_CALLER_TENANT_OVERRIDE"],
+    "network": ["NO_BROWSER_ROUTE", "TLS_1_3", "AUDIENCE_PINNED", "RATE_LIMITED"],
+    "bodyDigest": "SHA-256 exact request body",
+    "maximumProofLifetimeSeconds": 30,
+    "replay": "proofId and requestNonce are single-use",
+    "prohibitedRequestHeaders": [
+      "Authorization",
+      "Cookie",
+      "Origin",
+      "Referer",
+      "Sec-Fetch-*",
+      "Sec-CH-UA-*",
+      "X-DWP-User-ID",
+      "X-DWP-Person-Public-ID",
+      "X-DWP-Display-Name-B64",
+      "X-Forwarded-User",
+      "X-Forwarded-Email"
+    ],
+    "tokenWireFormat": "DEFERRED_TO_POST_TOKEN_TRANSPORT_ADAPTER",
+    "bootstrapBoundary": "Only typed, already authenticated AdmissionEvidence reaches the isolated dispatcher"
+  }
+}

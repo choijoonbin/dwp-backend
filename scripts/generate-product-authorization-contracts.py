@@ -128,15 +128,28 @@ LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT = (
 LEGACY_HCM_PEOPLE_PEP_V33_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
     "hcm-people-pep-v33.generated.json"
 )
-HCM_PEOPLE_PEP_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+LEGACY_HCM_PEOPLE_PEP_V34_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
     "hcm-people-pep-v34.generated.json"
+)
+HCM_PEOPLE_PEP_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+    "hcm-people-pep-v35.generated.json"
+)
+HCM_TIME_PEP_OUTPUT = (
+    ROOT
+    / "dwp-time-server/src/main/resources/product-authorization/"
+    / "hcm-time-pep-v35.generated.json"
+)
+HCM_PLATFORM_PEP_OUTPUT = (
+    ROOT
+    / "dwp-platform-server/src/main/resources/product-authorization/"
+    / "hcm-platform-pep-v35.generated.json"
 )
 PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 35))
+BUNDLE_VERSIONS = tuple(range(1, 36))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -238,6 +251,8 @@ EXPECTED_RELEASE_COUNTS = {
          "predicatePolicies": 54, "routes": 945, "PAGE": 119, "DATA": 290, "ACTION": 536},
     34: {"capabilities": 223, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 54, "routes": 952, "PAGE": 119, "DATA": 293, "ACTION": 540},
+    35: {"capabilities": 236, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 57, "routes": 974, "PAGE": 124, "DATA": 295, "ACTION": 555},
 }
 
 V30_RESEARCH_AUTHORITY_UPGRADE_ROUTES = frozenset({
@@ -325,6 +340,7 @@ IMMUTABLE_RELEASE_CHECKSUMS = {
     32: "b620ea86a8310cf23796e3e380b74c39764bdca28f41033496d21887a89da9cc",
     33: "9c9a18b44eb83de0e98f4ec16e44c1df0ce216e00bc7075462f4e35f7fb87639",
     34: "852d20e1e639e1a7170f02b5714d21d8c51a9eb8ff5ac32d8b7940b82d6be83b",
+    35: "38ef33070a33b5da9a7825c764bd24daacd24c8ca4008f3a926727321d3d098d",
 }
 APPROVAL_DOCUMENT_V8_SCHEMAS = {
     "route.approvals.work.request-document-tools.data": ("ApprovalDocumentTools",
@@ -1336,12 +1352,30 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
             ):
                 continue
             if (
+                current["version"] == 35
+                and section == "routes"
+                and _is_v35_performance_authority_upgrade(
+                    descriptor_key, prior_descriptor, candidate_descriptor
+                )
+            ):
+                continue
+            if (
                 current["version"] == 30
                 and section == "accessPolicies"
                 and descriptor_key == "dwaion.work-access.v1"
                 and prior_descriptor == candidate_descriptor
                 and candidate_routes
                 == prior_routes - V30_RESEARCH_READ_AUTHORITY_UPGRADE_ROUTES
+            ):
+                continue
+            if (
+                current["version"] == 35
+                and section == "capabilities"
+                and descriptor_key == "hcm.operations.talent.update"
+                and prior_descriptor == candidate_descriptor
+                and candidate_routes == prior_routes - {
+                    "route.hcm.operations.performance-cycle-population-preview.action"
+                }
             ):
                 continue
             if prior_descriptor != candidate_descriptor or not prior_routes <= candidate_routes:
@@ -1431,6 +1465,35 @@ def _is_v33_hris_query_discriminator_upgrade(
             )
         else:
             binding.pop("queryParameterConstraints", None)
+    return candidate == prior
+
+
+def _is_v35_performance_authority_upgrade(
+    route_key: str,
+    previous: dict[str, Any],
+    current: dict[str, Any],
+) -> bool:
+    if route_key != "route.hcm.operations.performance-cycle-population-preview.action":
+        return False
+    prior = copy.deepcopy(previous)
+    candidate = copy.deepcopy(current)
+    prior_profiles = unique(
+        prior["accessProfiles"], "profileKey", f"{route_key} previous profiles"
+    )
+    candidate_profiles = unique(
+        candidate["accessProfiles"], "profileKey", f"{route_key} current profiles"
+    )
+    if prior_profiles.keys() != candidate_profiles.keys() \
+            or "full-management" not in candidate_profiles:
+        return False
+    if candidate_profiles["full-management"].get("requiredAccess") != {
+        "type": "CAPABILITY",
+        "capabilityContractKey": "hcm.operations.performance.update",
+    }:
+        return False
+    candidate_profiles["full-management"]["requiredAccess"] = copy.deepcopy(
+        prior_profiles["full-management"]["requiredAccess"]
+    )
     return candidate == prior
 
 
@@ -2898,7 +2961,10 @@ def verify_no_out_of_lineage_artifacts() -> None:
         PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT,
         LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT,
         LEGACY_HCM_PEOPLE_PEP_V33_OUTPUT,
+        LEGACY_HCM_PEOPLE_PEP_V34_OUTPUT,
         HCM_PEOPLE_PEP_OUTPUT,
+        HCM_TIME_PEP_OUTPUT,
+        HCM_PLATFORM_PEP_OUTPUT,
     }
     candidates = {
         *CONTRACT_DIRECTORY.glob("product-surfaces-v1.bundle-v*.json"),
@@ -2917,6 +2983,8 @@ def verify_no_out_of_lineage_artifacts() -> None:
             "platform-telemetry-dimensions-v*.generated.json"
         ),
         *HCM_PEOPLE_PEP_OUTPUT.parent.glob("hcm-people-pep-v*.generated.json"),
+        *HCM_TIME_PEP_OUTPUT.parent.glob("hcm-time-pep-v*.generated.json"),
+        *HCM_PLATFORM_PEP_OUTPUT.parent.glob("hcm-platform-pep-v*.generated.json"),
     }
     stale = sorted(path.relative_to(ROOT) for path in candidates - allowed)
     require(not stale, f"out-of-lineage generated artifacts are forbidden: {stale}")
@@ -3170,7 +3238,7 @@ def main() -> int:
             version=33,
             product_key="hcm",
         )
-        hcm_people_pep = build_approvals_pep(
+        legacy_hcm_people_pep_v34 = build_approvals_pep(
             snapshots[33],
             "people",
             "hcm-people-pep-v34",
@@ -3184,6 +3252,54 @@ def main() -> int:
                 "predicatePolicies": 13,
             },
             version=34,
+            product_key="hcm",
+        )
+        hcm_people_pep = build_approvals_pep(
+            snapshots[34],
+            "people",
+            "hcm-people-pep-v35",
+            {
+                "routes": 73,
+                "bindings": 100,
+                "routeKinds": {"ACTION": 34, "DATA": 13, "PAGE": 26},
+                "capabilities": 42,
+                "accessPolicies": 5,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 14,
+            },
+            version=35,
+            product_key="hcm",
+        )
+        hcm_time_pep = build_approvals_pep(
+            snapshots[34],
+            "time",
+            "hcm-time-pep-v35",
+            {
+                "routes": 12,
+                "bindings": 12,
+                "routeKinds": {"ACTION": 8, "DATA": 2, "PAGE": 2},
+                "capabilities": 9,
+                "accessPolicies": 0,
+                "entitlementExpressions": 0,
+                "predicatePolicies": 3,
+            },
+            version=35,
+            product_key="hcm",
+        )
+        hcm_platform_pep = build_approvals_pep(
+            snapshots[34],
+            "platform",
+            "hcm-platform-pep-v35",
+            {
+                "routes": 19,
+                "bindings": 20,
+                "routeKinds": {"ACTION": 10, "DATA": 6, "PAGE": 3},
+                "capabilities": 5,
+                "accessPolicies": 4,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 3,
+            },
+            version=35,
             product_key="hcm",
         )
     except ContractError as exc:
@@ -3293,8 +3409,23 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                LEGACY_HCM_PEOPLE_PEP_V34_OUTPUT,
+                render(legacy_hcm_people_pep_v34),
+                args.check,
+            ),
+            write_or_check(
                 HCM_PEOPLE_PEP_OUTPUT,
                 render(hcm_people_pep),
+                args.check,
+            ),
+            write_or_check(
+                HCM_TIME_PEP_OUTPUT,
+                render(hcm_time_pep),
+                args.check,
+            ),
+            write_or_check(
+                HCM_PLATFORM_PEP_OUTPUT,
+                render(hcm_platform_pep),
                 args.check,
             ),
         ]
@@ -3351,7 +3482,12 @@ def main() -> int:
         verify_approvals_pep(
             LEGACY_HCM_PEOPLE_PEP_V33_OUTPUT, legacy_hcm_people_pep_v33
         )
+        verify_approvals_pep(
+            LEGACY_HCM_PEOPLE_PEP_V34_OUTPUT, legacy_hcm_people_pep_v34
+        )
         verify_approvals_pep(HCM_PEOPLE_PEP_OUTPUT, hcm_people_pep)
+        verify_approvals_pep(HCM_TIME_PEP_OUTPUT, hcm_time_pep)
+        verify_approvals_pep(HCM_PLATFORM_PEP_OUTPUT, hcm_platform_pep)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)
         return 1

@@ -14,11 +14,11 @@ class HcmV3PepRegistryTest {
             new HcmV3PepRegistry(new ObjectMapper().findAndRegisterModules());
 
     @Test
-    void loadsTheExactV34PeopleClosure() {
-        assertThat(registry.bindingContracts()).hasSize(94);
+    void loadsTheExactV35PeopleClosure() {
+        assertThat(registry.bindingContracts()).hasSize(100);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)
-                .distinct()).hasSize(67);
+                .distinct()).hasSize(73);
         assertThat(registry.bindingContracts())
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.team.home.page")
@@ -34,9 +34,13 @@ class HcmV3PepRegistryTest {
                 .anyMatch(value -> value.routeContractKey()
                         .equals("route.hcm.operations.assignment-proposal-submit.action")
                         && value.servicePath().equals(
-                        "/v1/workforce/assignment-proposals/{proposalId}/submit"));
+                        "/v1/workforce/assignment-proposals/{proposalId}/submit"))
+                .anyMatch(value -> value.routeContractKey()
+                        .equals("route.hcm.operations.employee-change-request-apply.action")
+                        && value.servicePath().equals(
+                        "/v1/hris/employee-change-requests/{requestPublicId}/apply"));
         assertThat(registry.highRiskBindingContracts())
-                .hasSize(9)
+                .hasSize(10)
                 .extracting(HcmV3PepRegistry.BindingContract::routeContractKey)
                 .containsExactlyInAnyOrder(
                         "route.hcm.management.org-publish.action",
@@ -47,15 +51,17 @@ class HcmV3PepRegistryTest {
                         "route.hcm.management.integration-execute.action",
                         "route.hcm.management.integration-execute.action",
                         "route.hcm.operations.performance-cycle-publish.action",
-                        "route.hcm.operations.assignment-proposal-submit.action");
+                        "route.hcm.operations.assignment-proposal-submit.action",
+                        "route.hcm.operations.employee-change-request-apply.action");
         assertThat(HcmScopeSelectionValidator.ownerPredicateClosure())
-                .hasSize(13)
+                .hasSize(14)
                 .containsOnlyKeys(
                         "predicate.directory-visible-person.v1",
                         "predicate.hcm-configuration-scope.v1",
                         "predicate.hcm-domain-target-population.v1",
                         "predicate.hcm-export-population.v1",
                         "predicate.hcm-integration-nonsecret-update.v1",
+                        "predicate.hcm-employee-change-authority.v1",
                         "predicate.hcm-org-approval-sod.v1",
                         "predicate.hcm-org-publish-sod.v1",
                         "predicate.hcm-performance-cycle-object.v1",

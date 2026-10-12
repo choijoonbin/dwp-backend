@@ -15,6 +15,8 @@ final class HcmScopeSelectionValidator {
                             "HcmPopulationScopeService:configuration-scope"),
                     java.util.Map.entry("predicate.hcm-domain-target-population.v1",
                             "HcmPopulationRepository:domain-population"),
+                    java.util.Map.entry("predicate.hcm-employee-change-authority.v1",
+                            "EmployeeChangeRequestService:locked-request-authority"),
                     java.util.Map.entry("predicate.hcm-export-population.v1",
                             "WorkforceExportService:locked-export-population"),
                     java.util.Map.entry("predicate.hcm-integration-nonsecret-update.v1",

@@ -22,7 +22,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_PATH = Path("contracts/hris/canonical/hris-contract-codegen-manifest.v1.json")
 JAVA_OUTPUT_ROOT = Path("dwp-platform-contracts/src/main/java")
-EXPECTED_MANIFEST_SHA256 = "7b43a95aa815cd622b12b6b2fa19c3695501917bcd88dc08a900ff58f23fd2fa"
+EXPECTED_MANIFEST_SHA256 = "e72fc11eac5f6143706f053e3db56e5b91759a82ff6f32ae9a36511bbe31b3f4"
 SHA256 = re.compile(r"[0-9a-f]{64}")
 FQN = re.compile(
     r"[a-z][a-z0-9_]*(?:\.[a-z][a-z0-9_]*)*\.[A-Z][A-Za-z0-9]*"
