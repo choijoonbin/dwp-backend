@@ -4120,6 +4120,30 @@
       "surfaceKey": "hcm.operations"
     },
     {
+      "action": "APPROVE",
+      "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+      "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+      "contractKey": "hcm.operations.performance.freeze",
+      "legacySource": null,
+      "lifecycleState": "ACTIVE",
+      "mappingVersion": 1,
+      "owner": "People + HCM + Security",
+      "policyVersion": 1,
+      "productKey": "hcm",
+      "requiresProductEntitlement": false,
+      "resolvedCapabilityCode": "DATA.HR_TALENT:APPROVE",
+      "resourceKey": "DATA.HR_TALENT",
+      "responsibilityRequirement": "NOT_REQUIRED",
+      "riskTier": "HIGH",
+      "routeContractKeys": [
+        "route.hcm.operations.performance-population-freeze.action"
+      ],
+      "scopeResolver": "TALENT_TARGET_POPULATION",
+      "sodPolicyId": null,
+      "sunsetAt": null,
+      "surfaceKey": "hcm.operations"
+    },
+    {
       "action": "UPDATE",
       "activationPolicy": null,
       "authorityMode": "PERMISSION_AND_RELATIONSHIP",
@@ -4136,8 +4160,7 @@
       "responsibilityRequirement": "NOT_REQUIRED",
       "riskTier": "MEDIUM",
       "routeContractKeys": [
-        "route.hcm.operations.performance-cycle-population-preview.action",
-        "route.hcm.operations.performance-population-freeze.action"
+        "route.hcm.operations.performance-cycle-population-preview.action"
       ],
       "scopeResolver": "TALENT_TARGET_POPULATION",
       "sodPolicyId": null,
@@ -7183,7 +7206,7 @@
       "surfaceKey": "workplace.work"
     }
   ],
-  "checksum": "38ef33070a33b5da9a7825c764bd24daacd24c8ca4008f3a926727321d3d098d",
+  "checksum": "12e4b9329ab53ab1efd6c5f6e23ccc7869c4184a79e5a64f614fe9c40a9e704b",
   "checksumAlgorithm": "SHA-256",
   "entitlementExpressions": [
     {
@@ -42590,7 +42613,7 @@
           "profileKey": "full-management",
           "readOnly": false,
           "requiredAccess": {
-            "capabilityContractKey": "hcm.operations.performance.update",
+            "capabilityContractKey": "hcm.operations.performance.freeze",
             "type": "CAPABILITY"
           },
           "targetBindingKinds": [
@@ -42623,6 +42646,17 @@
         }
       ],
       "sideEffectFree": null,
+      "stepUpCommandBindings": [
+        {
+          "audience": "dwp-people-server",
+          "bindingKey": "route.hcm.operations.performance-population-freeze.action.binding.01",
+          "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+          "expectedObjectVersionSource": "COMMAND_HEADER",
+          "ownerServiceKey": "people",
+          "targetIdPathParameter": "cycleId",
+          "targetType": "PERFORMANCE_CYCLE"
+        }
+      ],
       "subject": {
         "productKey": "hcm",
         "surfaceKey": "hcm.operations",
@@ -68418,5 +68452,5 @@
     }
   ],
   "schemaVersion": 1,
-  "version": 35
+  "version": 36
 }

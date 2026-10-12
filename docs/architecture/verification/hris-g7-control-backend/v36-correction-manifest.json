@@ -1,0 +1,78 @@
+{
+  "manifestVersion": "1.0",
+  "scope": "HRIS G7 Product Authorization v36 population-freeze correction",
+  "recordedOn": "2026-10-12",
+  "branch": "codex/hris-g1-integration-backend-20261006",
+  "canonicalRelease": {
+    "version": 36,
+    "checksumSha256": "12e4b9329ab53ab1efd6c5f6e23ccc7869c4184a79e5a64f614fe9c40a9e704b",
+    "capabilityCount": 237,
+    "routeCount": 974,
+    "routeKindCounts": {"ACTION": 555, "DATA": 295, "PAGE": 124},
+    "preservedVersion": 35,
+    "preservedChecksumSha256": "38ef33070a33b5da9a7825c764bd24daacd24c8ca4008f3a926727321d3d098d",
+    "addedCapability": "hcm.operations.performance.freeze",
+    "correctedRoute": "route.hcm.operations.performance-population-freeze.action"
+  },
+  "scopeGuards": {
+    "wholeSuiteExecuted": false,
+    "w1Executed": false,
+    "sealedV35Modified": false,
+    "routeInventoryExpanded": false,
+    "automaticImportApprovalActivationOrTenantAssignment": false
+  },
+  "verification": [
+    {"command": "python3 scripts/generate-product-authorization-contracts.py --check", "result": "PASS", "evidence": "v1-v36 verified; v35 preserved; v36 checksum exact"},
+    {"command": "python3 scripts/generate-product-authorization-fixtures.py --check", "result": "PASS", "evidence": "71 tests, 46 negative cases, 41 mutation controls; fixture checksum fc3a388e3fe57610ff623a7a6489ea94911fe7e2cd7aec12ab48b0dd670659eb"},
+    {"command": "python3 scripts/export-openapi-contracts.py --check --approved-snapshots", "result": "PASS", "evidence": "12 services and 1664 public Gateway paths"},
+    {"command": "python3 -m unittest scripts.tests.test_product_authorization_v35 scripts.tests.test_product_authorization_v36 scripts.tests.test_product_authorization_fixture_schema scripts.tests.test_product_authorization_v21 scripts.tests.test_export_openapi_contracts", "result": "PASS", "evidence": "47 focused tests"},
+    {"command": "./gradlew :dwp-auth-server:test --tests exact v36 lineage/loader/migration/fixture classes --no-daemon", "result": "PASS", "evidence": "five selected Auth test classes"},
+    {"command": "./gradlew :dwp-people-server:test --tests 'com.dwp.services.people.security.HcmV3PepRegistryTest' --no-daemon", "result": "PASS", "evidence": "People v36 closure and population-freeze step-up binding"},
+    {"command": "./gradlew :dwp-platform-server:test --tests 'com.dwp.services.platform.security.HcmPlatformPepSecurityContractTest' --no-daemon", "result": "PASS", "evidence": "Platform v36 closure and exact filter boundary"},
+    {"command": "git diff --check", "result": "PASS", "evidence": "no whitespace errors"},
+    {"command": "JSON parse check", "result": "PASS", "evidence": "12 selected canonical/generated artifacts parsed"}
+  ],
+  "targetedRepairHistory": [
+    "The first People compile exposed a test-only accessor that is intentionally not part of StepUpBinding; the assertion was removed because registry construction already validates the version header binding.",
+    "The first People/Platform runtime checks exposed stale v35 envelope pins and the People capability count. Those exact constants were updated, then only the affected test classes were rerun."
+  ],
+  "sourceIntegrity": {
+    "algorithm": "SHA-256",
+    "combinedDigestInput": "For each entry in path order: <sha256><two spaces><path><LF>",
+    "manifestPathExcludedFromDigest": true,
+    "fileCount": 30,
+    "combinedSha256": "c06341c08b59872026c56d32eca5461126e84ae4e9f35a53c9b9f6264b0ba728",
+    "files": [
+      {"path":"contracts/product-authorization/pilot-fixtures.v1.generated.json","sha256":"c2fd2dd574e7476f08ed43e8fbcacb22d061cbf5ecb2bda8c5cbcaa86659d3db","bytes":112489},
+      {"path":"contracts/product-authorization/pilot-fixtures.v1.schema.json","sha256":"53b51b8f7a39f22ebc5dac3b56b3e9121ee27ca7f6035f710a59b5dc548e9924","bytes":25169},
+      {"path":"contracts/product-authorization/product-surfaces-v1.bundle-v36.json","sha256":"9a3a099e45225488a1aca89630c20dbd40c6f2fd4390ed197264f875ac68541d","bytes":2297856},
+      {"path":"contracts/product-authorization/product-surfaces-v1.index.json","sha256":"31e7982240f0274ca2f1506018abb0d9ed1c4183af7c4635e431140b93f6963d","bytes":17009},
+      {"path":"contracts/product-authorization/product-surfaces-v1.json","sha256":"9a3a099e45225488a1aca89630c20dbd40c6f2fd4390ed197264f875ac68541d","bytes":2297856},
+      {"path":"contracts/product-authorization/product-surfaces-v1.yaml","sha256":"7196b7579a50563d0152a0857f48490738e1a3f735cf0ed244d9779e2a983141","bytes":2265433},
+      {"path":"docs/architecture/verification/hris-g7-control-backend/v36-population-freeze-correction.md","sha256":"483c421f3a5a2b2e171116a673505221b671aee5fa0299f35a20111131b0851a","bytes":2313},
+      {"path":"dwp-auth-server/src/main/java/com/dwp/services/auth/service/ProductAuthorizationReleaseLineage.java","sha256":"2c29e2b2c76e9c82a649c94c3824ccdbbcdd93f67aac87de48167a76482abb76","bytes":11511},
+      {"path":"dwp-auth-server/src/main/resources/db/migration/V244__declare_hris_g7_v36_authorization_correction.sql","sha256":"607c94e48ef2bebc1e2428ac29a05a1825938b38a9ef22ede4aa67c782bda3f6","bytes":586},
+      {"path":"dwp-auth-server/src/main/resources/product-authorization/product-surfaces-v1.bundle-v36.generated.json","sha256":"9a3a099e45225488a1aca89630c20dbd40c6f2fd4390ed197264f875ac68541d","bytes":2297856},
+      {"path":"dwp-auth-server/src/main/resources/product-authorization/product-surfaces-v1.generated.json","sha256":"9a3a099e45225488a1aca89630c20dbd40c6f2fd4390ed197264f875ac68541d","bytes":2297856},
+      {"path":"dwp-auth-server/src/main/resources/product-authorization/product-surfaces-v1.index.generated.json","sha256":"31e7982240f0274ca2f1506018abb0d9ed1c4183af7c4635e431140b93f6963d","bytes":17009},
+      {"path":"dwp-auth-server/src/test/java/com/dwp/services/auth/config/ProductAuthorizationSeedLoaderTest.java","sha256":"17a8c646697db1d36588f2f2d9eabdcbf79580f321b94318dd163073a5ef2b9e","bytes":6493},
+      {"path":"dwp-auth-server/src/test/java/com/dwp/services/auth/migration/HrisG7V36AuthorizationCorrectionMigrationTest.java","sha256":"1a058be1596497e5c8a099f314ca95f2e9087dafe3bcc964e124109d4a44c07a","bytes":1476},
+      {"path":"dwp-auth-server/src/test/java/com/dwp/services/auth/service/ProductAuthorizationContractReleaseLineageTest.java","sha256":"bb6502acae9abd39e339fe732ca492832b8055b3f1bb45757794bd68df9384ee","bytes":33289},
+      {"path":"dwp-auth-server/src/test/java/com/dwp/services/auth/service/ProductAuthorizationReleaseLineageTest.java","sha256":"ef1a1b201719741aeac0bceffedd368e02a2d9bfc008790285bf07c8fc1de34a","bytes":6025},
+      {"path":"dwp-auth-server/src/test/java/com/dwp/services/auth/support/PilotAuthorizationFixtureAdapter.java","sha256":"df3850b3b35b04e5f23a5629d1091f1010d301bb303f44d8f298650f83d5165f","bytes":17425},
+      {"path":"dwp-auth-server/src/test/java/com/dwp/services/auth/support/PilotAuthorizationFixtureAdapterTest.java","sha256":"82092596f446e32a28c7f1bf8f3d9b22e617975140a4d9b41f8f0d4d09135933","bytes":8019},
+      {"path":"dwp-people-server/src/main/java/com/dwp/services/people/security/HcmV3PepRegistry.java","sha256":"3cb8f95ff64d8618cb783de96f1d81f0570364531648407589e38918e529d4e6","bytes":30565},
+      {"path":"dwp-people-server/src/main/resources/product-authorization/hcm-people-pep-v36.generated.json","sha256":"a9f862458010f3307de6c287ebc290a5e42b5253bc16151b6d110770842aab0e","bytes":226251},
+      {"path":"dwp-people-server/src/test/java/com/dwp/services/people/security/HcmV3PepRegistryTest.java","sha256":"876795451137f0b31f41431d401562701a5000b192607b69f18722074e634548","bytes":16327},
+      {"path":"dwp-platform-server/src/main/java/com/dwp/services/platform/security/HcmPlatformPepRegistry.java","sha256":"81e74f6cf7517887b01518a90285d77a64799395a6872bc5ee72deecff9a5b81","bytes":17446},
+      {"path":"dwp-platform-server/src/main/resources/product-authorization/hcm-platform-pep-v36.generated.json","sha256":"d67e3f95d0f95461fb988cf8c7f4570e6bc1b14ba4367633ed40bc7d88af5001","bytes":56301},
+      {"path":"dwp-time-server/src/main/resources/product-authorization/hcm-time-pep-v36.generated.json","sha256":"1cee709197ee2e91bc44fec91e41c221239bf1c2f27b836a07c02d4ef462883a","bytes":34782},
+      {"path":"scripts/export-openapi-contracts.py","sha256":"3066b50637c54da9c6f4810868faa117e3840cf0d12872a13b3bee0f601ea464","bytes":48713},
+      {"path":"scripts/generate-product-authorization-contracts.py","sha256":"13e9d5eac35f8298176ccb2237205a6a419ee5f6931ae3feaa6c3ad50321f9d1","bytes":166447},
+      {"path":"scripts/generate-product-authorization-fixtures.py","sha256":"ba8aff3fbc090c266d5e148f2c0f35be4c44a91cb1b70099a19ea30fa49fcc41","bytes":67187},
+      {"path":"scripts/tests/test_export_openapi_contracts.py","sha256":"c8b001be9f80ff83c55c89f69d4786db532283cf998f78ad1e22e18a40906c94","bytes":79001},
+      {"path":"scripts/tests/test_product_authorization_v21.py","sha256":"5f76c0d05518ea6561d8085ef2e73e8b3bb704090af7f098201fc3814cc81932","bytes":16708},
+      {"path":"scripts/tests/test_product_authorization_v36.py","sha256":"e999918f4967db332990d1d9af8ea5367b87fa5f69fd5a27fb70df40fd47c840","bytes":4072}
+    ]
+  }
+}

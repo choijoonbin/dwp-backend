@@ -61539,6 +61539,36 @@
           "stepUpCommandBindings": [{"bindingKey": "route.hcm.configuration.configuration-version-retire.action.binding.01", "targetType": "HRIS_CONFIGURATION", "targetIdPathParameter": "configId", "expectedObjectVersionSource": "COMMAND_HEADER", "expectedObjectVersionName": "X-DWP-Expected-Object-Version", "ownerServiceKey": "platform", "audience": "dwp-platform-server"}]
         }
       ]
+    },
+    {
+      "version": 36,
+      "capabilities": [
+        {
+          "contractKey": "hcm.operations.performance.freeze",
+          "resolvedCapabilityCode": "DATA.HR_TALENT:APPROVE",
+          "mappingVersion": 1,
+          "productKey": "hcm",
+          "surfaceKey": "hcm.operations",
+          "resourceKey": "DATA.HR_TALENT",
+          "action": "APPROVE",
+          "authorityMode": "PERMISSION_AND_RELATIONSHIP",
+          "responsibilityRequirement": "NOT_REQUIRED",
+          "scopeResolver": "TALENT_TARGET_POPULATION",
+          "riskTier": "HIGH",
+          "activationPolicy": "STEPUP-MGMT-HIGH-V1",
+          "sodPolicyId": null,
+          "requiresProductEntitlement": false,
+          "sunsetAt": null,
+          "legacySource": null,
+          "owner": "People + HCM + Security",
+          "policyVersion": 1,
+          "lifecycleState": "ACTIVE"
+        }
+      ],
+      "accessPolicies": [],
+      "entitlementExpressions": [],
+      "predicatePolicies": [],
+      "routes": []
     }
   ],
   "descriptorEnrichments": {
@@ -62932,6 +62962,27 @@
             "capabilityContractKey": "hcm.operations.performance.update"
           }
         }
+      },
+      {
+        "routeContractKey": "route.hcm.operations.performance-population-freeze.action",
+        "introducedInVersion": 36,
+        "requiredAccessByProfile": {
+          "full-management": {
+            "type": "CAPABILITY",
+            "capabilityContractKey": "hcm.operations.performance.freeze"
+          }
+        },
+        "stepUpCommandBindings": [
+          {
+            "bindingKey": "route.hcm.operations.performance-population-freeze.action.binding.01",
+            "targetType": "PERFORMANCE_CYCLE",
+            "targetIdPathParameter": "cycleId",
+            "expectedObjectVersionSource": "COMMAND_HEADER",
+            "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+            "ownerServiceKey": "people",
+            "audience": "dwp-people-server"
+          }
+        ]
       }
     ]
   }

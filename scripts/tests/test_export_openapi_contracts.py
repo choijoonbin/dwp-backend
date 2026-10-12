@@ -447,7 +447,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "unexpected"):
             EXPORTER["validate_approval_signature_operations"](unexpected)
 
-    def test_gateway_openapi_projection_consumes_append_only_v35_registry(self) -> None:
+    def test_gateway_openapi_projection_consumes_append_only_v36_registry(self) -> None:
         registry_path = EXPORTER["PRODUCT_AUTHORIZATION_REGISTRY"]
         registry = json.loads(registry_path.read_text(encoding="utf-8"))
         dwaion_routes = [
@@ -456,8 +456,8 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             if route["subject"].get("productKey") == "dwaion"
         ]
 
-        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 35)
-        self.assertEqual(registry["version"], 35)
+        self.assertEqual(EXPORTER["PRODUCT_AUTHORIZATION_VERSION"], 36)
+        self.assertEqual(registry["version"], 36)
         self.assertEqual(len(dwaion_routes), 160)
         self.assertEqual(
             sum(route["routeKind"] == "ACTION" for route in dwaion_routes), 93

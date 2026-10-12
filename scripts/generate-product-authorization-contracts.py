@@ -131,25 +131,34 @@ LEGACY_HCM_PEOPLE_PEP_V33_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
 LEGACY_HCM_PEOPLE_PEP_V34_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
     "hcm-people-pep-v34.generated.json"
 )
-HCM_PEOPLE_PEP_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+LEGACY_HCM_PEOPLE_PEP_V35_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
     "hcm-people-pep-v35.generated.json"
 )
-HCM_TIME_PEP_OUTPUT = (
+HCM_PEOPLE_PEP_OUTPUT = LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT.with_name(
+    "hcm-people-pep-v36.generated.json"
+)
+LEGACY_HCM_TIME_PEP_V35_OUTPUT = (
     ROOT
     / "dwp-time-server/src/main/resources/product-authorization/"
     / "hcm-time-pep-v35.generated.json"
 )
-HCM_PLATFORM_PEP_OUTPUT = (
+HCM_TIME_PEP_OUTPUT = LEGACY_HCM_TIME_PEP_V35_OUTPUT.with_name(
+    "hcm-time-pep-v36.generated.json"
+)
+LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "hcm-platform-pep-v35.generated.json"
+)
+HCM_PLATFORM_PEP_OUTPUT = LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT.with_name(
+    "hcm-platform-pep-v36.generated.json"
 )
 PLATFORM_TELEMETRY_DIMENSIONS_OUTPUT = (
     ROOT
     / "dwp-platform-server/src/main/resources/product-authorization/"
     / "platform-telemetry-dimensions-v3.generated.json"
 )
-BUNDLE_VERSIONS = tuple(range(1, 36))
+BUNDLE_VERSIONS = tuple(range(1, 37))
 VERSIONED_CONTRACT_OUTPUTS = {
     version: CONTRACT_DIRECTORY / f"product-surfaces-v1.bundle-v{version}.json"
     for version in BUNDLE_VERSIONS
@@ -252,6 +261,8 @@ EXPECTED_RELEASE_COUNTS = {
     34: {"capabilities": 223, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 54, "routes": 952, "PAGE": 119, "DATA": 293, "ACTION": 540},
     35: {"capabilities": 236, "accessPolicies": 24, "entitlementExpressions": 17,
+         "predicatePolicies": 57, "routes": 974, "PAGE": 124, "DATA": 295, "ACTION": 555},
+    36: {"capabilities": 237, "accessPolicies": 24, "entitlementExpressions": 17,
          "predicatePolicies": 57, "routes": 974, "PAGE": 124, "DATA": 295, "ACTION": 555},
 }
 
@@ -1360,6 +1371,14 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
             ):
                 continue
             if (
+                current["version"] == 36
+                and section == "routes"
+                and _is_v36_performance_freeze_authority_upgrade(
+                    descriptor_key, prior_descriptor, candidate_descriptor
+                )
+            ):
+                continue
+            if (
                 current["version"] == 30
                 and section == "accessPolicies"
                 and descriptor_key == "dwaion.work-access.v1"
@@ -1375,6 +1394,16 @@ def _validate_exact_superset(previous: dict[str, Any], current: dict[str, Any]) 
                 and prior_descriptor == candidate_descriptor
                 and candidate_routes == prior_routes - {
                     "route.hcm.operations.performance-cycle-population-preview.action"
+                }
+            ):
+                continue
+            if (
+                current["version"] == 36
+                and section == "capabilities"
+                and descriptor_key == "hcm.operations.performance.update"
+                and prior_descriptor == candidate_descriptor
+                and candidate_routes == prior_routes - {
+                    "route.hcm.operations.performance-population-freeze.action"
                 }
             ):
                 continue
@@ -1494,6 +1523,52 @@ def _is_v35_performance_authority_upgrade(
     candidate_profiles["full-management"]["requiredAccess"] = copy.deepcopy(
         prior_profiles["full-management"]["requiredAccess"]
     )
+    return candidate == prior
+
+
+def _is_v36_performance_freeze_authority_upgrade(
+    route_key: str,
+    previous: dict[str, Any],
+    current: dict[str, Any],
+) -> bool:
+    if route_key != "route.hcm.operations.performance-population-freeze.action":
+        return False
+    prior = copy.deepcopy(previous)
+    candidate = copy.deepcopy(current)
+    prior_profiles = unique(
+        prior["accessProfiles"], "profileKey", f"{route_key} previous profiles"
+    )
+    candidate_profiles = unique(
+        candidate["accessProfiles"], "profileKey", f"{route_key} current profiles"
+    )
+    if prior_profiles.keys() != candidate_profiles.keys() \
+            or "full-management" not in candidate_profiles:
+        return False
+    if candidate_profiles["full-management"].get("requiredAccess") != {
+        "type": "CAPABILITY",
+        "capabilityContractKey": "hcm.operations.performance.freeze",
+    }:
+        return False
+    expected_step_up = [{
+        "audience": "dwp-people-server",
+        "bindingKey": route_key + ".binding.01",
+        "expectedObjectVersionName": "X-DWP-Expected-Object-Version",
+        "expectedObjectVersionSource": "COMMAND_HEADER",
+        "ownerServiceKey": "people",
+        "targetIdPathParameter": "cycleId",
+        "targetType": "PERFORMANCE_CYCLE",
+    }]
+    if candidate.get("stepUpCommandBindings") != expected_step_up:
+        return False
+    candidate_profiles["full-management"]["requiredAccess"] = copy.deepcopy(
+        prior_profiles["full-management"]["requiredAccess"]
+    )
+    if "stepUpCommandBindings" in prior:
+        candidate["stepUpCommandBindings"] = copy.deepcopy(
+            prior["stepUpCommandBindings"]
+        )
+    else:
+        candidate.pop("stepUpCommandBindings", None)
     return candidate == prior
 
 
@@ -2962,8 +3037,11 @@ def verify_no_out_of_lineage_artifacts() -> None:
         LEGACY_HCM_PEOPLE_PEP_V3_OUTPUT,
         LEGACY_HCM_PEOPLE_PEP_V33_OUTPUT,
         LEGACY_HCM_PEOPLE_PEP_V34_OUTPUT,
+        LEGACY_HCM_PEOPLE_PEP_V35_OUTPUT,
         HCM_PEOPLE_PEP_OUTPUT,
+        LEGACY_HCM_TIME_PEP_V35_OUTPUT,
         HCM_TIME_PEP_OUTPUT,
+        LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT,
         HCM_PLATFORM_PEP_OUTPUT,
     }
     candidates = {
@@ -3254,7 +3332,7 @@ def main() -> int:
             version=34,
             product_key="hcm",
         )
-        hcm_people_pep = build_approvals_pep(
+        legacy_hcm_people_pep_v35 = build_approvals_pep(
             snapshots[34],
             "people",
             "hcm-people-pep-v35",
@@ -3270,7 +3348,23 @@ def main() -> int:
             version=35,
             product_key="hcm",
         )
-        hcm_time_pep = build_approvals_pep(
+        hcm_people_pep = build_approvals_pep(
+            snapshots[35],
+            "people",
+            "hcm-people-pep-v36",
+            {
+                "routes": 73,
+                "bindings": 100,
+                "routeKinds": {"ACTION": 34, "DATA": 13, "PAGE": 26},
+                "capabilities": 43,
+                "accessPolicies": 5,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 14,
+            },
+            version=36,
+            product_key="hcm",
+        )
+        legacy_hcm_time_pep_v35 = build_approvals_pep(
             snapshots[34],
             "time",
             "hcm-time-pep-v35",
@@ -3286,7 +3380,23 @@ def main() -> int:
             version=35,
             product_key="hcm",
         )
-        hcm_platform_pep = build_approvals_pep(
+        hcm_time_pep = build_approvals_pep(
+            snapshots[35],
+            "time",
+            "hcm-time-pep-v36",
+            {
+                "routes": 12,
+                "bindings": 12,
+                "routeKinds": {"ACTION": 8, "DATA": 2, "PAGE": 2},
+                "capabilities": 9,
+                "accessPolicies": 0,
+                "entitlementExpressions": 0,
+                "predicatePolicies": 3,
+            },
+            version=36,
+            product_key="hcm",
+        )
+        legacy_hcm_platform_pep_v35 = build_approvals_pep(
             snapshots[34],
             "platform",
             "hcm-platform-pep-v35",
@@ -3300,6 +3410,22 @@ def main() -> int:
                 "predicatePolicies": 3,
             },
             version=35,
+            product_key="hcm",
+        )
+        hcm_platform_pep = build_approvals_pep(
+            snapshots[35],
+            "platform",
+            "hcm-platform-pep-v36",
+            {
+                "routes": 19,
+                "bindings": 20,
+                "routeKinds": {"ACTION": 10, "DATA": 6, "PAGE": 3},
+                "capabilities": 5,
+                "accessPolicies": 4,
+                "entitlementExpressions": 3,
+                "predicatePolicies": 3,
+            },
+            version=36,
             product_key="hcm",
         )
     except ContractError as exc:
@@ -3414,13 +3540,28 @@ def main() -> int:
                 args.check,
             ),
             write_or_check(
+                LEGACY_HCM_PEOPLE_PEP_V35_OUTPUT,
+                render(legacy_hcm_people_pep_v35),
+                args.check,
+            ),
+            write_or_check(
                 HCM_PEOPLE_PEP_OUTPUT,
                 render(hcm_people_pep),
                 args.check,
             ),
             write_or_check(
+                LEGACY_HCM_TIME_PEP_V35_OUTPUT,
+                render(legacy_hcm_time_pep_v35),
+                args.check,
+            ),
+            write_or_check(
                 HCM_TIME_PEP_OUTPUT,
                 render(hcm_time_pep),
+                args.check,
+            ),
+            write_or_check(
+                LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT,
+                render(legacy_hcm_platform_pep_v35),
                 args.check,
             ),
             write_or_check(
@@ -3485,8 +3626,17 @@ def main() -> int:
         verify_approvals_pep(
             LEGACY_HCM_PEOPLE_PEP_V34_OUTPUT, legacy_hcm_people_pep_v34
         )
+        verify_approvals_pep(
+            LEGACY_HCM_PEOPLE_PEP_V35_OUTPUT, legacy_hcm_people_pep_v35
+        )
         verify_approvals_pep(HCM_PEOPLE_PEP_OUTPUT, hcm_people_pep)
+        verify_approvals_pep(
+            LEGACY_HCM_TIME_PEP_V35_OUTPUT, legacy_hcm_time_pep_v35
+        )
         verify_approvals_pep(HCM_TIME_PEP_OUTPUT, hcm_time_pep)
+        verify_approvals_pep(
+            LEGACY_HCM_PLATFORM_PEP_V35_OUTPUT, legacy_hcm_platform_pep_v35
+        )
         verify_approvals_pep(HCM_PLATFORM_PEP_OUTPUT, hcm_platform_pep)
     except (ContractError, OSError, json.JSONDecodeError) as exc:
         print(f"authorization artifact error: {exc}", file=sys.stderr)

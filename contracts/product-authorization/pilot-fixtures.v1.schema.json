@@ -65,7 +65,7 @@
           "pattern": "^[a-f0-9]{64}$"
         },
         "latestAliasVersion": {
-          "const": 35
+          "const": 36
         },
         "versions": {
           "type": "array",
@@ -73,8 +73,8 @@
             "$ref": "#/$defs/registryReference"
           },
           "uniqueItems": true,
-          "minItems": 35,
-          "maxItems": 35
+          "minItems": 36,
+          "maxItems": 36
         }
       }
     },
@@ -350,6 +350,11 @@
           "bundleKey": "product-surfaces",
           "version": 35,
           "sha256": "38ef33070a33b5da9a7825c764bd24daacd24c8ca4008f3a926727321d3d098d"
+        },
+        {
+          "bundleKey": "product-surfaces",
+          "version": 36,
+          "sha256": "12e4b9329ab53ab1efd6c5f6e23ccc7869c4184a79e5a64f614fe9c40a9e704b"
         }
       ]
     },

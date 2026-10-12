@@ -14,7 +14,7 @@ class HcmV3PepRegistryTest {
             new HcmV3PepRegistry(new ObjectMapper().findAndRegisterModules());
 
     @Test
-    void loadsTheExactV35PeopleClosure() {
+    void loadsTheExactV36PeopleClosure() {
         assertThat(registry.bindingContracts()).hasSize(100);
         assertThat(registry.bindingContracts().stream()
                 .map(HcmV3PepRegistry.BindingContract::routeContractKey)
@@ -40,7 +40,7 @@ class HcmV3PepRegistryTest {
                         && value.servicePath().equals(
                         "/v1/hris/employee-change-requests/{requestPublicId}/apply"));
         assertThat(registry.highRiskBindingContracts())
-                .hasSize(10)
+                .hasSize(11)
                 .extracting(HcmV3PepRegistry.BindingContract::routeContractKey)
                 .containsExactlyInAnyOrder(
                         "route.hcm.management.org-publish.action",
@@ -51,6 +51,7 @@ class HcmV3PepRegistryTest {
                         "route.hcm.management.integration-execute.action",
                         "route.hcm.management.integration-execute.action",
                         "route.hcm.operations.performance-cycle-publish.action",
+                        "route.hcm.operations.performance-population-freeze.action",
                         "route.hcm.operations.assignment-proposal-submit.action",
                         "route.hcm.operations.employee-change-request-apply.action");
         assertThat(HcmScopeSelectionValidator.ownerPredicateClosure())
@@ -210,6 +211,35 @@ class HcmV3PepRegistryTest {
         HcmV3PepRegistry.StepUpBinding stepUp = submit.authority().stepUpBinding();
         assertThat(stepUp.targetType()).isEqualTo("ASSIGNMENT_PROPOSAL");
         assertThat(stepUp.targetIdPathParameter()).isEqualTo("proposalId");
+        assertThat(stepUp.ownerServiceKey()).isEqualTo("people");
+        assertThat(stepUp.audience()).isEqualTo("dwp-people-server");
+    }
+
+    @Test
+    void populationFreezeExposesDedicatedHighRiskAuthorityAndExactStepUpBinding() {
+        HcmV3PepRegistry.Decision freeze = registry.authorize(
+                new HcmV3PepRegistry.RequestEvidence(
+                        "POST",
+                        "/v1/hris/performance/cycles/"
+                                + "00000000-0000-0000-0000-000000000003/population-freezes",
+                        Set.of("DATA.HR_TALENT:APPROVE"),
+                        null,
+                        "NORMAL",
+                        Set.of(),
+                        "route.hcm.operations.performance-population-freeze.action",
+                        null));
+
+        assertThat(freeze.allowed()).isTrue();
+        assertThat(freeze.authority().capabilityContractKey())
+                .isEqualTo("hcm.operations.performance.freeze");
+        assertThat(freeze.authority().activationPolicy())
+                .isEqualTo("STEPUP-MGMT-HIGH-V1");
+        assertThat(freeze.authority().predicatePolicyKeys()).containsExactlyInAnyOrder(
+                "predicate.hcm-domain-target-population.v1",
+                "predicate.hcm-performance-cycle-object.v1");
+        HcmV3PepRegistry.StepUpBinding stepUp = freeze.authority().stepUpBinding();
+        assertThat(stepUp.targetType()).isEqualTo("PERFORMANCE_CYCLE");
+        assertThat(stepUp.targetIdPathParameter()).isEqualTo("cycleId");
         assertThat(stepUp.ownerServiceKey()).isEqualTo("people");
         assertThat(stepUp.audience()).isEqualTo("dwp-people-server");
     }

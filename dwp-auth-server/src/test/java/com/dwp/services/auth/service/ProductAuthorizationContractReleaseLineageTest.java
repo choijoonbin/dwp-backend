@@ -89,13 +89,15 @@ class ProductAuthorizationContractReleaseLineageTest
                 generatedDocument("product-surfaces-v1.bundle-v34.generated.json"));
         ProductAuthorizationContractDtos.BundleContract versionThirtyFive = validator.validateDocument(
                 generatedDocument("product-surfaces-v1.bundle-v35.generated.json"));
-        assertThat(index.latestVersion()).isEqualTo(35);
-        assertThat(index.latestChecksum()).isEqualTo(versionThirtyFive.checksum());
+        ProductAuthorizationContractDtos.BundleContract versionThirtySix = validator.validateDocument(
+                generatedDocument("product-surfaces-v1.bundle-v36.generated.json"));
+        assertThat(index.latestVersion()).isEqualTo(36);
+        assertThat(index.latestChecksum()).isEqualTo(versionThirtySix.checksum());
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::version)
                 .containsExactly(1L, 2L, 3L, 4L, 5L, 6L, 7L, 8L, 9L, 10L, 11L,
                         12L, 13L, 14L, 15L, 16L, 17L, 18L, 19L, 20L, 21L, 22L, 23L, 24L, 25L,
-                        26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L);
+                        26L, 27L, 28L, 29L, 30L, 31L, 32L, 33L, 34L, 35L, 36L);
         assertThat(index.versions())
                 .extracting(ProductAuthorizationContractDtos.SeedIndexEntry::bundleStatus)
                 .containsOnly("DRAFT");
@@ -416,6 +418,17 @@ class ProductAuthorizationContractReleaseLineageTest
                         "route.hcm.configuration.settings-reference.page",
                         "route.hcm.operations.employee-change-request-apply.action",
                         "route.hcm.configuration.configuration-version-publish.action");
+        assertThat(versionThirtySix.capabilities()).hasSize(237)
+                .extracting(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                .containsAll(versionThirtyFive.capabilities().stream()
+                        .map(ProductAuthorizationContractDtos.CapabilityContract::contractKey)
+                        .toList())
+                .contains("hcm.operations.performance.freeze");
+        assertThat(versionThirtySix.routes()).hasSize(974)
+                .extracting(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                .containsExactlyElementsOf(versionThirtyFive.routes().stream()
+                        .map(ProductAuthorizationContractDtos.GovernedRoute::routeContractKey)
+                        .toList());
         assertThat(versionSix.routes()).filteredOn(value -> value.routeContractKey().equals(
                 "route.services.work.request-information-response.action"))
                 .singleElement().satisfies(route -> {

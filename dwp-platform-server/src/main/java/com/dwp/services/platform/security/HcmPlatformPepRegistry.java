@@ -23,14 +23,14 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-/** Closed Platform-owned HCM PEP projection for the v35 SYS configuration handoff. */
+/** Closed Platform-owned HCM PEP projection for the v36 SYS configuration handoff. */
 @Component
 public final class HcmPlatformPepRegistry {
 
     static final String RESOURCE =
-            "product-authorization/hcm-platform-pep-v35.generated.json";
-    static final String REGISTRY_V35_CHECKSUM =
-            "38ef33070a33b5da9a7825c764bd24daacd24c8ca4008f3a926727321d3d098d";
+            "product-authorization/hcm-platform-pep-v36.generated.json";
+    static final String REGISTRY_V36_CHECKSUM =
+            "12e4b9329ab53ab1efd6c5f6e23ccc7869c4184a79e5a64f614fe9c40a9e704b";
     private static final String CONFIGURATION_ROOT = "/v1/admin/hris/configurations";
     private static final String WORKBENCH_PATH = "/v1/hris/workbench/settings-reference";
 
@@ -131,12 +131,12 @@ public final class HcmPlatformPepRegistry {
     private void validateEnvelope(ObjectNode projection) {
         JsonNode registry = projection.path("registryRef");
         require(projection.path("schemaVersion").asInt() == 1
-                        && "hcm-platform-pep-v35".equals(
+                        && "hcm-platform-pep-v36".equals(
                         projection.path("projectionKey").asText())
                         && "platform".equals(projection.path("ownerServiceKey").asText())
                         && "product-surfaces".equals(registry.path("bundleKey").asText())
-                        && registry.path("version").asInt() == 35
-                        && REGISTRY_V35_CHECKSUM.equals(registry.path("sha256").asText()),
+                        && registry.path("version").asInt() == 36
+                        && REGISTRY_V36_CHECKSUM.equals(registry.path("sha256").asText()),
                 "Unexpected HCM Platform PEP envelope");
         require(projection.path("sourceRegistryRouteCount").asInt() == 974
                         && projection.path("projectedRouteContractCount").asInt() == 19
