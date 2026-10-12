@@ -298,7 +298,7 @@ final class EmployeeChangeApprovalBridgeService {
                      WHERE worker.tenant_id=:tenant AND worker.public_id=:aggregate
                        AND person.public_id=:targetPerson FOR UPDATE OF worker
                     """;
-            case "WORK_RELATIONSHIP" -> """
+            case "EMPLOYMENT_RELATIONSHIP", "WORK_RELATIONSHIP" -> """
                     SELECT relationship.version FROM ppl_work_relationships relationship
                       JOIN ppl_workers worker
                         ON worker.tenant_id=relationship.tenant_id

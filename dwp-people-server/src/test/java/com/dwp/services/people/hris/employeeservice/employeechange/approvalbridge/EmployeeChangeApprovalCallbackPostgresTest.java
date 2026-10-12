@@ -39,7 +39,6 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 @Testcontainers(disabledWithoutDocker = true)
 class EmployeeChangeApprovalCallbackPostgresTest {
     private static final long TENANT = 1L;
-    private static final Instant NOW = Instant.parse("2026-10-12T09:00:00Z");
 
     @Container
     static final PostgreSQLContainer<?> POSTGRES =
@@ -54,6 +53,7 @@ class EmployeeChangeApprovalCallbackPostgresTest {
     private EmployeeChangeApprovalTrustProfile trust;
     private EmployeeChangeApprovalCallbackLedger ledger;
     private RSAKey approvalKey;
+    private Instant now;
 
     @BeforeEach
     void initialize() throws Exception {
@@ -70,6 +70,7 @@ class EmployeeChangeApprovalCallbackPostgresTest {
         var manager = new DataSourceTransactionManager(source);
         transactions = new TransactionTemplate(manager);
         mapper = new ObjectMapper().findAndRegisterModules();
+        now = Instant.now();
         approvalKey = new RSAKeyGenerator(2048).keyUse(KeyUse.SIGNATURE)
                 .algorithm(JWSAlgorithm.RS256).keyID("approval-callback-key-1")
                 .generate();
@@ -88,7 +89,7 @@ class EmployeeChangeApprovalCallbackPostgresTest {
         ledger = new EmployeeChangeApprovalCallbackLedger(named, manager, mapper);
         service = new EmployeeChangeApprovalBridgeService(
                 mapper, trust, replays, ledger, named,
-                java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC));
+                java.time.Clock.fixed(now, java.time.ZoneOffset.UTC));
     }
 
     @Test
@@ -292,7 +293,7 @@ class EmployeeChangeApprovalCallbackPostgresTest {
         long targetId = insertPerson(targetPublicId, "target-" + sequence, 0);
         String payloadDigest = Integer.toHexString(sequence).substring(0, 1)
                 .repeat(64);
-        Instant submittedAt = NOW.minusSeconds(60);
+        Instant submittedAt = now.minusSeconds(60);
         ApprovalRequestV1 approvalRequest = new ApprovalRequestV1(
                 approvalRequestId, "hris.employee-change.v1", 1,
                 "employee-change:" + requestPublicId, 1,
@@ -417,7 +418,7 @@ class EmployeeChangeApprovalCallbackPostgresTest {
             throws Exception {
         return mapper.writeValueAsBytes(
                 new HrisApprovalBridgeV2.ApprovalDecisionCallbackV1(
-                        fixture.approvalRequestId(), eventId, "APPROVED", NOW,
+                        fixture.approvalRequestId(), eventId, "APPROVED", now,
                         actorId, 7, fixture.correlationId(), fixture.payloadDigest()));
     }
 
@@ -431,9 +432,9 @@ class EmployeeChangeApprovalCallbackPostgresTest {
         claims.put("iss", "dwp-approval-server");
         claims.put("aud", "dwp-people-server");
         claims.put("sub", "dwp-approval-server");
-        claims.put("iat", NOW.minusSeconds(1).getEpochSecond());
-        claims.put("nbf", NOW.minusSeconds(1).getEpochSecond());
-        claims.put("exp", NOW.plusSeconds(20).getEpochSecond());
+        claims.put("iat", now.minusSeconds(1).getEpochSecond());
+        claims.put("nbf", now.minusSeconds(1).getEpochSecond());
+        claims.put("exp", now.plusSeconds(20).getEpochSecond());
         claims.put("jti", uuid(9_000 + sequence * 2).toString());
         claims.put("requestNonce", uuid(9_001 + sequence * 2).toString());
         claims.put("bindingId", HrisApprovalBridgeV2.DECISION_CALLBACK.bindingId());
