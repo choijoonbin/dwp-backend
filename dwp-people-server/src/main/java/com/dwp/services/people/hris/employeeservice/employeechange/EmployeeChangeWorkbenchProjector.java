@@ -94,15 +94,22 @@ final class EmployeeChangeWorkbenchProjector {
             PreparedQuery query,
             List<EmployeeChangeRepository.WorkbenchRow> source,
             Set<String> readableFieldGroups,
-            UUID actorPersonPublicId) {
-        List<EmployeeChangeRepository.WorkbenchRow> filtered = source.stream()
+            UUID actorPersonPublicId,
+            EmployeeChangeAuthority.ActionTruth actionTruth) {
+        List<EmployeeChangeRepository.WorkbenchRow> matching = source.stream()
                 .filter(row -> matches(row, query.filter()))
+                .toList();
+        boolean invalidRevision = matching.stream().anyMatch(row -> row.version() < 1);
+        List<EmployeeChangeRepository.WorkbenchRow> filtered = matching.stream()
+                .filter(row -> row.version() >= 1)
                 .sorted(comparator(query.sorts()))
                 .toList();
         int from = Math.min(query.offset(), filtered.size());
         int to = Math.min(from + query.limit(), filtered.size());
         List<EmployeeChangeDtos.WorkbenchItem> items = filtered.subList(from, to).stream()
-                .map(row -> item(row, readableFieldGroups, actorPersonPublicId, query.asOf()))
+                .map(row -> item(
+                        row, readableFieldGroups, actorPersonPublicId,
+                        query.asOf(), actionTruth))
                 .toList();
         String next = to < filtered.size()
                 ? encode(new CursorEnvelope(to, query.scopeRevision(), query.queryDigest(),
@@ -110,15 +117,43 @@ final class EmployeeChangeWorkbenchProjector {
                         query.queryDigest(), query.asOf())))
                 : null;
         EmployeeChangeDtos.FieldDecisionSummary summary = summary(items);
-        String state = items.isEmpty() ? "EMPTY" : "COMPLETE";
-        return new EmployeeChangeDtos.WorkbenchProjection(
+        List<EmployeeChangeDtos.PartialFailure> failures = invalidRevision
+                ? List.of(new EmployeeChangeDtos.PartialFailure(
+                        "employee-change.request", "INVALID_REQUEST_REVISION",
+                        query.correlationId(), false))
+                : List.of();
+        String state = !failures.isEmpty()
+                ? "PARTIAL" : items.isEmpty() ? "EMPTY" : "COMPLETE";
+        String freshness = "PARTIAL".equals(state) ? "STALE" : "CURRENT";
+        return validate(new EmployeeChangeDtos.WorkbenchProjection(
                 "1", query.asOf(), "EMPLOYEE_CHANGE_REQUESTS",
                 new EmployeeChangeDtos.QueryState(
-                        state, query.scopeRevision(), "CURRENT", next, summary, List.of(),
+                        state, query.scopeRevision(), freshness, next, summary, failures,
                         query.correlationId(), new EmployeeChangeDtos.CachePolicy(
                                 0, "dwp.hris.access.assignment.changed.v1",
                                 query.scopeRevision())),
-                items);
+                items));
+    }
+
+    EmployeeChangeDtos.WorkbenchProjection unavailable(
+            PreparedQuery query,
+            String errorCode,
+            boolean retryable) {
+        if (errorCode == null || !errorCode.matches("[A-Z][A-Z0-9_]{1,63}")) {
+            throw new IllegalArgumentException("IAQ-009 unavailable error code is invalid.");
+        }
+        return validate(new EmployeeChangeDtos.WorkbenchProjection(
+                "1", query.asOf(), "EMPLOYEE_CHANGE_REQUESTS",
+                new EmployeeChangeDtos.QueryState(
+                        "UNAVAILABLE", query.scopeRevision(), "UNAVAILABLE", null,
+                        new EmployeeChangeDtos.FieldDecisionSummary(0, 0, 0),
+                        List.of(new EmployeeChangeDtos.PartialFailure(
+                                "employee-change.repository", errorCode,
+                                query.correlationId(), retryable)),
+                        query.correlationId(), new EmployeeChangeDtos.CachePolicy(
+                                0, "dwp.hris.access.assignment.changed.v1",
+                                query.scopeRevision())),
+                List.of()));
     }
 
     EmployeeChangeDtos.FieldDecisionSummary summary(
@@ -138,7 +173,8 @@ final class EmployeeChangeWorkbenchProjector {
             EmployeeChangeRepository.WorkbenchRow row,
             Set<String> readable,
             UUID actorPersonPublicId,
-            Instant asOf) {
+            Instant asOf,
+            EmployeeChangeAuthority.ActionTruth actionTruth) {
         Map<String, EmployeeChangeDtos.FieldDecision<?>> fields = new LinkedHashMap<>();
         fields.put("CHANGE_REQUEST_SUMMARY", decision(
                 readable.contains("DIRECTORY"),
@@ -156,12 +192,14 @@ final class EmployeeChangeWorkbenchProjector {
                 "employee.change.employment.masked"));
 
         List<EmployeeChangeDtos.AvailableAction> actions = new ArrayList<>();
-        actions.add(action(EmployeeChangeDtos.CREATE_ACTION, CREATE_HREF));
-        if ("DRAFT".equals(row.lifecycleState())
+        if (actionTruth.create()) {
+            actions.add(action(EmployeeChangeDtos.CREATE_ACTION, CREATE_HREF));
+        }
+        if (actionTruth.submit() && "DRAFT".equals(row.lifecycleState())
                 && row.requesterPublicId().equals(actorPersonPublicId)) {
             actions.add(action(EmployeeChangeDtos.SUBMIT_ACTION, SUBMIT_HREF));
         }
-        if ("APPROVED".equals(row.lifecycleState())
+        if (actionTruth.apply() && "APPROVED".equals(row.lifecycleState())
                 && !row.requesterPublicId().equals(actorPersonPublicId)) {
             actions.add(action(EmployeeChangeDtos.APPLY_ACTION, APPLY_HREF));
         }
@@ -173,6 +211,43 @@ final class EmployeeChangeWorkbenchProjector {
                 new EmployeeChangeDtos.DeepLink(
                         EmployeeChangeDtos.DEEP_LINK_ROUTE, row.publicId().toString()),
                 actions);
+    }
+
+    private EmployeeChangeDtos.WorkbenchProjection validate(
+            EmployeeChangeDtos.WorkbenchProjection projection) {
+        EmployeeChangeDtos.QueryState query = projection.queryState();
+        boolean emptyItems = projection.items().isEmpty();
+        boolean hasFailures = !query.partialFailures().isEmpty();
+        boolean valid = switch (query.state()) {
+            case "COMPLETE" -> !emptyItems && !hasFailures
+                    && "CURRENT".equals(query.freshness());
+            case "EMPTY" -> emptyItems && !hasFailures
+                    && "CURRENT".equals(query.freshness())
+                    && query.nextCursor() == null;
+            case "PARTIAL" -> hasFailures && "STALE".equals(query.freshness());
+            case "UNAVAILABLE" -> emptyItems && "UNAVAILABLE".equals(query.freshness())
+                    && query.nextCursor() == null;
+            default -> false;
+        };
+        if (!valid || projection.items().stream().anyMatch(this::hasInvalidRevision)) {
+            throw new IllegalStateException("The IAQ-009 projection state is inconsistent.");
+        }
+        return projection;
+    }
+
+    private boolean hasInvalidRevision(EmployeeChangeDtos.WorkbenchItem item) {
+        for (EmployeeChangeDtos.FieldDecision<?> decision : item.fieldGroups().values()) {
+            if (!(decision instanceof EmployeeChangeDtos.ViewFieldDecision<?> viewed)) continue;
+            Object value = viewed.value();
+            long revision = switch (value) {
+                case EmployeeChangeDtos.AggregateValue aggregate -> aggregate.revision();
+                case EmployeeChangeDtos.StatusValue status -> status.revision();
+                case EmployeeChangeDtos.EffectiveRangeValue range -> range.revision();
+                default -> 0;
+            };
+            if (revision < 1) return true;
+        }
+        return false;
     }
 
     private EmployeeChangeDtos.FieldDecision<?> decision(

@@ -38,31 +38,37 @@ class HrmIaEntryQueryContractTest {
     void emptyUnavailableHaveNoItems() {
         EmployeeChangeDtos.WorkbenchProjection empty = projector.project(
                 projector.prepare(request(25, null), SCOPE_REVISION, NOW),
-                List.of(), Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR);
-        EmployeeChangeDtos.QueryState unavailable = new EmployeeChangeDtos.QueryState(
-                "UNAVAILABLE", SCOPE_REVISION, "STALE", null,
-                new EmployeeChangeDtos.FieldDecisionSummary(0, 0, 0),
-                List.of(), CORRELATION,
-                new EmployeeChangeDtos.CachePolicy(
-                        0, "dwp.hris.access.assignment.changed.v1", SCOPE_REVISION));
+                List.of(), Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions());
+        EmployeeChangeDtos.WorkbenchProjection unavailable = projector.unavailable(
+                projector.prepare(request(25, null), SCOPE_REVISION, NOW),
+                "EMPLOYEE_CHANGE_QUERY_UNAVAILABLE", true);
 
         assertThat(empty.queryState().state()).isEqualTo("EMPTY");
         assertThat(empty.items()).isEmpty();
-        assertThat(stateInvariant(unavailable, List.of())).isTrue();
-        assertThat(stateInvariant(unavailable, List.of(item(1)))).isFalse();
+        assertThat(unavailable.queryState().state()).isEqualTo("UNAVAILABLE");
+        assertThat(unavailable.queryState().freshness()).isEqualTo("UNAVAILABLE");
+        assertThat(unavailable.queryState().partialFailures()).singleElement()
+                .satisfies(failure -> {
+                    assertThat(failure.errorCode())
+                            .isEqualTo("EMPLOYEE_CHANGE_QUERY_UNAVAILABLE");
+                    assertThat(failure.retryable()).isTrue();
+                });
+        assertThat(unavailable.items()).isEmpty();
     }
 
     @Test
     void partialRequiresFailure() {
-        EmployeeChangeDtos.QueryState invalid = state("PARTIAL", List.of());
-        EmployeeChangeDtos.QueryState valid = state(
-                "PARTIAL",
-                List.of(new EmployeeChangeDtos.PartialFailure(
-                        "employee-change.approval", "OWNER_UNAVAILABLE",
-                        CORRELATION, true)));
+        EmployeeChangeDtos.WorkbenchProjection partial = projector.project(
+                projector.prepare(request(25, null), SCOPE_REVISION, NOW),
+                List.of(row(1, "DRAFT", ACTOR, 0L)),
+                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions());
 
-        assertThat(stateInvariant(invalid, List.of())).isFalse();
-        assertThat(stateInvariant(valid, List.of())).isTrue();
+        assertThat(partial.queryState().state()).isEqualTo("PARTIAL");
+        assertThat(partial.queryState().freshness()).isEqualTo("STALE");
+        assertThat(partial.queryState().partialFailures()).singleElement()
+                .extracting(EmployeeChangeDtos.PartialFailure::errorCode)
+                .isEqualTo("INVALID_REQUEST_REVISION");
+        assertThat(partial.items()).isEmpty();
     }
 
     @Test
@@ -70,11 +76,11 @@ class HrmIaEntryQueryContractTest {
         EmployeeChangeDtos.WorkbenchProjection projection = projector.project(
                 projector.prepare(request(25, null), SCOPE_REVISION, NOW),
                 List.of(row(1, "DRAFT", ACTOR)),
-                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR);
+                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions());
 
         assertThat(projection.queryState().state()).isEqualTo("COMPLETE");
         assertThat(projection.queryState().partialFailures()).isEmpty();
-        assertThat(stateInvariant(projection.queryState(), projection.items())).isTrue();
+        assertThat(projection.items()).hasSize(1);
     }
 
     @Test
@@ -84,7 +90,7 @@ class HrmIaEntryQueryContractTest {
         String cursor = projector.project(
                 first,
                 List.of(row(1, "DRAFT", ACTOR), row(2, "SUBMITTED", uuid(70))),
-                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR)
+                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions())
                 .queryState().nextCursor();
 
         assertThat(cursor).matches("[A-Za-z0-9_-]{16,1024}");
@@ -105,7 +111,7 @@ class HrmIaEntryQueryContractTest {
                 row(2, "SUBMITTED", uuid(70)), row(1, "DRAFT", ACTOR));
         EmployeeChangeDtos.WorkbenchProjection first = projector.project(
                 projector.prepare(request(1, null), SCOPE_REVISION, NOW),
-                reverseInput, Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR);
+                reverseInput, Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions());
 
         assertThat(first.items()).hasSize(1);
         assertThat(first.items().getFirst().itemPublicId()).isEqualTo(uuid(1).toString());
@@ -114,7 +120,7 @@ class HrmIaEntryQueryContractTest {
         EmployeeChangeDtos.WorkbenchProjection second = projector.project(
                 projector.prepare(
                         request(1, first.queryState().nextCursor()), SCOPE_REVISION, NOW),
-                reverseInput, Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR);
+                reverseInput, Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions());
         assertThat(second.items()).hasSize(1);
         assertThat(second.items().getFirst().itemPublicId()).isEqualTo(uuid(2).toString());
         assertThat(second.queryState().nextCursor()).isNull();
@@ -125,7 +131,7 @@ class HrmIaEntryQueryContractTest {
         EmployeeChangeDtos.WorkbenchProjection projection = projector.project(
                 projector.prepare(request(25, null), SCOPE_REVISION, NOW),
                 List.of(row(1, "DRAFT", ACTOR)),
-                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR);
+                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions());
         EmployeeChangeDtos.FieldDecisionSummary summary =
                 projection.queryState().fieldDecisionSummary();
 
@@ -141,7 +147,7 @@ class HrmIaEntryQueryContractTest {
         EmployeeChangeDtos.WorkbenchItem draft = projector.project(
                 projector.prepare(request(25, null), SCOPE_REVISION, NOW),
                 List.of(row(1, "DRAFT", ACTOR)),
-                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR).items().getFirst();
+                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions()).items().getFirst();
 
         assertThat(draft.deepLink()).isEqualTo(new EmployeeChangeDtos.DeepLink(
                 "/hr/operations/people/employee-change-requests", uuid(1).toString()));
@@ -162,7 +168,7 @@ class HrmIaEntryQueryContractTest {
         EmployeeChangeDtos.WorkbenchItem approved = projector.project(
                 projector.prepare(request(25, null), SCOPE_REVISION, NOW),
                 List.of(row(2, "APPROVED", uuid(70))),
-                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR).items().getFirst();
+                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions()).items().getFirst();
         assertThat(approved.availableActions())
                 .extracting(EmployeeChangeDtos.AvailableAction::actionKey)
                 .containsExactly(
@@ -175,7 +181,7 @@ class HrmIaEntryQueryContractTest {
         EmployeeChangeDtos.WorkbenchProjection projection = projector.project(
                 projector.prepare(request(25, null), SCOPE_REVISION, NOW),
                 List.of(row(1, "DRAFT", ACTOR)),
-                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR);
+                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions());
 
         String json = mapper.writeValueAsString(projection);
 
@@ -239,8 +245,79 @@ class HrmIaEntryQueryContractTest {
                 ErrorCode.INVALID_INPUT_VALUE);
         EmployeeChangeDtos.WorkbenchProjection projection = projector.project(
                 projector.prepare(request(25, null), SCOPE_REVISION, NOW),
-                List.of(), Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR);
+                List.of(), Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions());
         assertThat(projection.queryState().correlationId()).isEqualTo(CORRELATION);
+    }
+
+    @Test
+    void draftProjectionKeepsCanonicalPositiveRevision() {
+        EmployeeChangeDtos.WorkbenchProjection projection = projector.project(
+                projector.prepare(request(25, null), SCOPE_REVISION, NOW),
+                List.of(row(1, "DRAFT", ACTOR, 1L)),
+                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions());
+
+        assertThat(projection.queryState().state()).isEqualTo("COMPLETE");
+        assertThat(projection.items().getFirst().fieldGroups().values())
+                .allSatisfy(decision -> {
+                    assertThat(decision).isInstanceOf(EmployeeChangeDtos.ViewFieldDecision.class);
+                    Object value = ((EmployeeChangeDtos.ViewFieldDecision<?>) decision).value();
+                    long revision = value instanceof EmployeeChangeDtos.AggregateValue aggregate
+                            ? aggregate.revision()
+                            : value instanceof EmployeeChangeDtos.StatusValue status
+                            ? status.revision()
+                            : ((EmployeeChangeDtos.EffectiveRangeValue) value).revision();
+                    assertThat(revision).isEqualTo(1L);
+                });
+    }
+
+    @Test
+    void appliesFilterGlobalOrderAndCursorBeyondFiveHundredRows() {
+        List<EmployeeChangeRepository.WorkbenchRow> rows = java.util.stream.IntStream
+                .rangeClosed(1, 650)
+                .mapToObj(ordinal -> row(
+                        ordinal,
+                        ordinal <= 525 ? "SUBMITTED" : "APPROVED",
+                        uuid(70)))
+                .sorted(java.util.Comparator.comparing(
+                        EmployeeChangeRepository.WorkbenchRow::publicId).reversed())
+                .toList();
+        EmployeeChangeDtos.WorkbenchFilter filter = new EmployeeChangeDtos.WorkbenchFilter(
+                null, new EmployeeChangeDtos.StatusFilter(List.of("APPROVED"), 1L),
+                null, null);
+        EmployeeChangeDtos.WorkbenchQuery firstRequest = new EmployeeChangeDtos.WorkbenchQuery(
+                100, filter, List.of("itemPublicId:ASC"), "ko-KR", "Asia/Seoul",
+                CORRELATION, NOW, null);
+
+        EmployeeChangeDtos.WorkbenchProjection first = projector.project(
+                projector.prepare(firstRequest, SCOPE_REVISION, NOW), rows,
+                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions());
+        assertThat(first.queryState().state()).isEqualTo("COMPLETE");
+        assertThat(first.items()).hasSize(100);
+        assertThat(first.items().getFirst().itemPublicId()).isEqualTo(uuid(526).toString());
+        assertThat(first.items().getLast().itemPublicId()).isEqualTo(uuid(625).toString());
+        assertThat(first.queryState().nextCursor()).isNotNull();
+
+        EmployeeChangeDtos.WorkbenchQuery secondRequest = new EmployeeChangeDtos.WorkbenchQuery(
+                100, filter, List.of("itemPublicId:ASC"), "ko-KR", "Asia/Seoul",
+                CORRELATION, NOW, first.queryState().nextCursor());
+        EmployeeChangeDtos.WorkbenchProjection second = projector.project(
+                projector.prepare(secondRequest, SCOPE_REVISION, NOW), rows,
+                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR, actions());
+        assertThat(second.items()).hasSize(25);
+        assertThat(second.items().getFirst().itemPublicId()).isEqualTo(uuid(626).toString());
+        assertThat(second.items().getLast().itemPublicId()).isEqualTo(uuid(650).toString());
+        assertThat(second.queryState().nextCursor()).isNull();
+    }
+
+    @Test
+    void actionsFailClosedWhenCapabilityTruthIsAbsent() {
+        EmployeeChangeDtos.WorkbenchProjection projection = projector.project(
+                projector.prepare(request(25, null), SCOPE_REVISION, NOW),
+                List.of(row(1, "DRAFT", ACTOR)),
+                Set.of("DIRECTORY", "EMPLOYMENT"), ACTOR,
+                EmployeeChangeAuthority.ActionTruth.none());
+
+        assertThat(projection.items().getFirst().availableActions()).isEmpty();
     }
 
     private EmployeeChangeDtos.WorkbenchQuery request(int limit, String cursor) {
@@ -254,41 +331,22 @@ class HrmIaEntryQueryContractTest {
             int ordinal,
             String state,
             UUID requester) {
+        return row(ordinal, state, requester, ordinal + 2L);
+    }
+
+    private EmployeeChangeRepository.WorkbenchRow row(
+            int ordinal,
+            String state,
+            UUID requester,
+            long version) {
         return new EmployeeChangeRepository.WorkbenchRow(
                 uuid(ordinal), state, "PROFILE_UPDATE", LocalDate.of(2026, 10, 12),
-                ordinal + 2L, List.of("PERSON_NAME", "PERSON_PROFILE"),
+                version, List.of("PERSON_NAME", "PERSON_PROFILE"),
                 NOW.minusSeconds(ordinal), "Employee " + ordinal, requester, ordinal + 100L);
     }
 
-    private EmployeeChangeDtos.WorkbenchItem item(int ordinal) {
-        return new EmployeeChangeDtos.WorkbenchItem(
-                uuid(ordinal).toString(), "Employee " + ordinal, "DRAFT", Map.of(),
-                new EmployeeChangeDtos.DeepLink(
-                        EmployeeChangeDtos.DEEP_LINK_ROUTE, uuid(ordinal).toString()),
-                List.of());
-    }
-
-    private EmployeeChangeDtos.QueryState state(
-            String state,
-            List<EmployeeChangeDtos.PartialFailure> failures) {
-        return new EmployeeChangeDtos.QueryState(
-                state, SCOPE_REVISION, "PARTIAL".equals(state) ? "STALE" : "CURRENT",
-                null, new EmployeeChangeDtos.FieldDecisionSummary(0, 0, 0),
-                failures, CORRELATION,
-                new EmployeeChangeDtos.CachePolicy(
-                        0, "dwp.hris.access.assignment.changed.v1", SCOPE_REVISION));
-    }
-
-    private boolean stateInvariant(
-            EmployeeChangeDtos.QueryState state,
-            List<EmployeeChangeDtos.WorkbenchItem> items) {
-        if (List.of("EMPTY", "UNAVAILABLE").contains(state.state()) && !items.isEmpty()) {
-            return false;
-        }
-        if ("PARTIAL".equals(state.state()) && state.partialFailures().isEmpty()) {
-            return false;
-        }
-        return !"COMPLETE".equals(state.state()) || state.partialFailures().isEmpty();
+    private EmployeeChangeAuthority.ActionTruth actions() {
+        return new EmployeeChangeAuthority.ActionTruth(true, true, true);
     }
 
     private void assertCode(Runnable operation, ErrorCode expected) {

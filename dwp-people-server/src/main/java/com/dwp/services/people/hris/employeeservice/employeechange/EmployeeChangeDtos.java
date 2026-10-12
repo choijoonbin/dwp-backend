@@ -208,4 +208,38 @@ public final class EmployeeChangeDtos {
             String idempotencyPolicy,
             String stepUpPolicy) {
     }
+
+    @Schema(name = "Iaq009ProblemDetailsV1")
+    @JsonIgnoreProperties(ignoreUnknown = false)
+    public record Iaq009ProblemDetailsV1(
+            String type,
+            String title,
+            int status,
+            String code,
+            UUID correlationId,
+            boolean retryable) {
+    }
+
+    @Schema(name = "HrisProblemDetailsV1")
+    @JsonIgnoreProperties(ignoreUnknown = false)
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    public record HrisProblemDetailsV1(
+            String type,
+            String title,
+            int status,
+            String code,
+            UUID correlationId,
+            boolean retryable,
+            String safeDetail,
+            Long currentVersion,
+            UUID receiptId,
+            List<FieldError> fieldErrors) {
+        public HrisProblemDetailsV1 {
+            fieldErrors = fieldErrors == null ? null : List.copyOf(fieldErrors);
+        }
+    }
+
+    @JsonIgnoreProperties(ignoreUnknown = false)
+    public record FieldError(String field, String code) {
+    }
 }

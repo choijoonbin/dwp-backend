@@ -15,6 +15,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.dao.DataAccessException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -34,7 +35,7 @@ import java.util.UUID;
 @Service
 @ConditionalOnProperty(prefix = "dwp.hris.employee-change", name = "enabled",
         havingValue = "true")
-final class EmployeeChangeService {
+class EmployeeChangeService {
 
     private static final String CREATE_COMMAND = "EMPLOYEE_CHANGE_CREATE";
     private static final String SUBMIT_COMMAND = "EMPLOYEE_CHANGE_SUBMIT";
@@ -117,7 +118,7 @@ final class EmployeeChangeService {
     }
 
     @Transactional(readOnly = true)
-    WorkbenchResult workbench(EmployeeChangeDtos.WorkbenchQuery query) {
+    public WorkbenchResult workbench(EmployeeChangeDtos.WorkbenchQuery query) {
         authority.require("READ");
         PeopleRequestContext.Actor actor = actor();
         HcmPopulationScopeService.ResolvedPopulation population =
@@ -128,16 +129,23 @@ final class EmployeeChangeService {
         HcmPepContext.Evidence pep = HcmPepContext.require();
         EmployeeChangeWorkbenchProjector.PreparedQuery prepared = projector.prepare(
                 query, pep.decisionRevision(), clock.instant());
-        List<EmployeeChangeRepository.WorkbenchRow> rows = repository.workbench(
-                actor.tenantId(), prepared.asOf(), population.scope());
-        EmployeeChangeDtos.WorkbenchProjection projection = projector.project(
-                prepared, rows, population.scope().fieldGroups(), actor.personPublicId());
+        EmployeeChangeDtos.WorkbenchProjection projection;
+        try {
+            List<EmployeeChangeRepository.WorkbenchRow> rows = repository.workbench(
+                    actor.tenantId(), prepared.asOf(), population.scope());
+            projection = projector.project(
+                    prepared, rows, population.scope().fieldGroups(), actor.personPublicId(),
+                    authority.actionTruth(actor));
+        } catch (DataAccessException exception) {
+            projection = projector.unavailable(
+                    prepared, "EMPLOYEE_CHANGE_QUERY_UNAVAILABLE", true);
+        }
         String etag = '"' + canonicalizer.requestDigest(projection).substring(0, 32) + '"';
         return new WorkbenchResult(projection, prepared.scopeRevision(), etag);
     }
 
     @Transactional
-    CommandResult create(
+    public CommandResult create(
             EmployeeChangeDtos.CreateRequest request,
             String idempotencyKey,
             String ifMatch,
@@ -147,21 +155,11 @@ final class EmployeeChangeService {
         PeopleRequestContext.Actor actor = actor();
         String key = idempotencyKey(idempotencyKey);
         String purpose = purpose(capability, requestedPurpose);
-        long expectedTargetVersion = expectedVersion(ifMatch);
+        long expectedTargetVersion = expectedVersion(ifMatch, true);
         EmployeeChangeCanonicalizer.CanonicalPatch patch = canonicalizer.canonicalPatch(request);
-        requireUniqueEvidence(request.evidence());
-        ScopeBinding scope = mutationScope(capability);
-        EmployeeChangeRepository.TargetRow target = repository.targetForMutation(
-                actor.tenantId(), request.targetPersonPublicId(),
-                patch.targetAggregateType(), request.targetAggregatePublicId())
-                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
-        requireTarget(actor, scope, target, true);
-        requireFields(scope, patch.fieldGroups());
         UUID requestPublicId = deterministicUuid(
                 "employee-change-request", actor.tenantId(),
                 request.targetPersonPublicId(), CREATE_ACTION, key);
-        CommandEvidence evidence = evidence(
-                actor, scope, purpose, capability, request.targetPersonPublicId());
         Map<String, Object> requestBinding = new LinkedHashMap<>();
         requestBinding.put("method", "POST");
         requestBinding.put("path", CREATE_PATH);
@@ -172,6 +170,22 @@ final class EmployeeChangeService {
         requestBinding.put("purposeCode", purpose);
         requestBinding.put("body", request);
         String requestDigest = canonicalizer.requestDigest(requestBinding);
+        CommandResult reconciled = reconcile(
+                actor, CREATE_COMMAND, CREATE_ACTION, key, requestDigest,
+                request.targetPersonPublicId(), requestPublicId,
+                expectedTargetVersion, correlationId, purpose);
+        if (reconciled != null) return reconciled;
+
+        requireUniqueEvidence(request.evidence());
+        ScopeBinding scope = mutationScope(capability);
+        EmployeeChangeRepository.TargetRow target = repository.targetForMutation(
+                actor.tenantId(), request.targetPersonPublicId(),
+                patch.targetAggregateType(), request.targetAggregatePublicId())
+                .orElseThrow(() -> new BaseException(ErrorCode.NOT_FOUND));
+        requireTarget(actor, scope, target, true);
+        requireFields(scope, patch.fieldGroups());
+        CommandEvidence evidence = evidence(
+                actor, scope, purpose, capability, request.targetPersonPublicId());
         Claim claim = claim(
                 actor, evidence, CREATE_COMMAND, CREATE_ACTION, key, requestDigest,
                 requestPublicId, expectedTargetVersion, correlationId);
@@ -207,7 +221,7 @@ final class EmployeeChangeService {
     }
 
     @Transactional
-    CommandResult submit(
+    public CommandResult submit(
             UUID requestPublicId,
             String idempotencyKey,
             String ifMatch,
@@ -217,7 +231,15 @@ final class EmployeeChangeService {
         PeopleRequestContext.Actor actor = actor();
         String key = idempotencyKey(idempotencyKey);
         String purpose = purpose(capability, requestedPurpose);
-        long expectedRequestVersion = expectedVersion(ifMatch);
+        long expectedRequestVersion = expectedVersion(ifMatch, false);
+        String path = REQUEST_PATH_PREFIX + requestPublicId + "/submit";
+        String requestDigest = commandDigest(
+                path, requestPublicId, expectedRequestVersion, key, correlationId, purpose);
+        CommandResult reconciled = reconcile(
+                actor, SUBMIT_COMMAND, SUBMIT_ACTION, key, requestDigest,
+                null, requestPublicId, expectedRequestVersion, correlationId, purpose);
+        if (reconciled != null) return reconciled;
+
         ScopeBinding scope = mutationScope(capability);
         EmployeeChangeRepository.RequestRow request = requireRequest(
                 actor.tenantId(), requestPublicId);
@@ -230,9 +252,6 @@ final class EmployeeChangeService {
         requireFields(scope, request.fieldGroups());
         CommandEvidence evidence = evidence(
                 actor, scope, purpose, capability, request.targetPersonPublicId());
-        String path = REQUEST_PATH_PREFIX + requestPublicId + "/submit";
-        String requestDigest = commandDigest(
-                path, requestPublicId, expectedRequestVersion, key, correlationId, purpose);
         Claim claim = claim(
                 actor, evidence, SUBMIT_COMMAND, SUBMIT_ACTION, key, requestDigest,
                 requestPublicId, expectedRequestVersion, correlationId);
@@ -267,7 +286,7 @@ final class EmployeeChangeService {
     }
 
     @Transactional
-    CommandResult apply(
+    public CommandResult apply(
             UUID requestPublicId,
             String idempotencyKey,
             String ifMatch,
@@ -282,7 +301,15 @@ final class EmployeeChangeService {
                     "The apply idempotency key is not bound to step-up evidence.");
         }
         String purpose = purpose(capability, requestedPurpose);
-        long expectedRequestVersion = expectedVersion(ifMatch);
+        long expectedRequestVersion = expectedVersion(ifMatch, false);
+        String path = REQUEST_PATH_PREFIX + requestPublicId + "/apply";
+        String requestDigest = commandDigest(
+                path, requestPublicId, expectedRequestVersion, key, correlationId, purpose);
+        CommandResult reconciled = reconcile(
+                actor, APPLY_COMMAND, APPLY_ACTION, key, requestDigest,
+                null, requestPublicId, expectedRequestVersion, correlationId, purpose);
+        if (reconciled != null) return reconciled;
+
         ScopeBinding scope = mutationScope(capability);
         EmployeeChangeRepository.RequestRow request = requireRequest(
                 actor.tenantId(), requestPublicId);
@@ -295,22 +322,13 @@ final class EmployeeChangeService {
         requireFields(scope, request.fieldGroups());
         CommandEvidence evidence = evidence(
                 actor, scope, purpose, capability, request.targetPersonPublicId());
-        String path = REQUEST_PATH_PREFIX + requestPublicId + "/apply";
-        String requestDigest = commandDigest(
-                path, requestPublicId, expectedRequestVersion, key, correlationId, purpose);
         Claim claim = claim(
                 actor, evidence, APPLY_COMMAND, APPLY_ACTION, key, requestDigest,
                 requestPublicId, expectedRequestVersion, correlationId);
         Map<String, Object> stepUpPayload = Map.of(
                 "requestPublicId", requestPublicId,
                 "expectedVersion", expectedRequestVersion);
-        if (!claim.fresh()) {
-            highRisk.requireExact(
-                    EmployeeChangeAuthority.APPLY_CAPABILITY,
-                    "EMPLOYEE_CHANGE_REQUEST", requestPublicId.toString(),
-                    expectedRequestVersion, path, stepUpPayload, stepUp);
-            return replay(claim.receipt());
-        }
+        if (!claim.fresh()) return replay(claim.receipt());
 
         requireStateAndVersion(request, "APPROVED", expectedRequestVersion);
         requireEffectiveDate(request.effectiveDate(), target);
@@ -543,6 +561,42 @@ final class EmployeeChangeService {
         return new Claim(existing, false);
     }
 
+    private CommandResult reconcile(
+            PeopleRequestContext.Actor actor,
+            String commandType,
+            String action,
+            String key,
+            String requestDigest,
+            UUID subjectPublicId,
+            UUID targetPublicId,
+            long expectedVersion,
+            UUID correlationId,
+            String purpose) {
+        EmployeeChangeRepository.ReceiptRow existing = repository.receiptForReconciliation(
+                actor.tenantId(), actor.personPublicId(), action, key,
+                commandType, targetPublicId, correlationId).orElse(null);
+        if (existing == null) return null;
+        if (!commandType.equals(existing.commandType())
+                || !key.equals(existing.idempotencyKey())
+                || !requestDigest.equals(existing.requestDigest())
+                || !actor.personPublicId().equals(existing.actorPublicId())
+                || !action.equals(existing.action())
+                || (subjectPublicId != null
+                    && !subjectPublicId.equals(existing.subjectPublicId()))
+                || !purpose.equals(existing.purpose())
+                || !targetPublicId.equals(existing.targetPublicId())
+                || !Objects.equals(expectedVersion, existing.expectedVersion())
+                || !correlationId.equals(existing.correlationId())) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
+                    "The idempotency key is bound to different command evidence.");
+        }
+        if (!"SUCCEEDED".equals(existing.lifecycleState())) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
+                    "The prior employee-change command has not completed.");
+        }
+        return replay(existing);
+    }
+
     private CommandResult replay(EmployeeChangeRepository.ReceiptRow receipt) {
         return new CommandResult(toReceipt(receipt), replayEntityVersion(receipt));
     }
@@ -623,19 +677,25 @@ final class EmployeeChangeService {
         return value;
     }
 
-    private long expectedVersion(String value) {
+    private long expectedVersion(String value, boolean allowZero) {
         if (value == null || !value.matches("(?:W/)?\"(?:v:)?[0-9]+\"")) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
                     "If-Match must contain a numeric governed version.");
         }
+        long version;
         try {
             String number = value.replaceFirst("^(?:W/)?\"(?:v:)?", "")
                     .replace("\"", "");
-            return Long.parseLong(number);
+            version = Long.parseLong(number);
         } catch (RuntimeException exception) {
             throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
                     "If-Match contains an invalid governed version.");
         }
+        if (!allowZero && version < 1) {
+            throw new BaseException(ErrorCode.INVALID_INPUT_VALUE,
+                    "Employee-change request versions must be positive.");
+        }
+        return version;
     }
 
     private String purpose(String capability, String requested) {

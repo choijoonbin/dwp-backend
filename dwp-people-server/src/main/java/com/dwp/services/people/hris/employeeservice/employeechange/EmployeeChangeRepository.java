@@ -194,12 +194,12 @@ final class EmployeeChangeRepository {
                     patch_schema_key,patch_schema_version,encrypted_patch,patch_hash,
                     key_reference,field_groups,population_scope_digest,
                     field_policy_revision,authorization_revision,
-                    originating_context_digest,correlation_id,created_by,updated_by)
+                    originating_context_digest,correlation_id,version,created_by,updated_by)
                 VALUES(:publicId,:tenant,:requester,:targetPerson,:targetType,:targetAggregate,
                     :changeType,:effectiveDate,'DRAFT',:targetVersion,:schemaKey,1,
                     :encryptedPatch,:patchHash,:keyReference,CAST(:fieldGroups AS jsonb),
                     :populationDigest,:fieldRevision,:authorizationRevision,
-                    :contextDigest,:correlation,:actor,:actor)
+                    :contextDigest,:correlation,1,:actor,:actor)
                 RETURNING *
                 """, new MapSqlParameterSource()
                 .addValue("publicId", requestPublicId)
@@ -534,6 +534,43 @@ final class EmployeeChangeRepository {
         return rows.stream().findFirst();
     }
 
+    Optional<ReceiptRow> receiptForReconciliation(
+            long tenantId,
+            UUID actorPublicId,
+            String action,
+            String idempotencyKey,
+            String commandType,
+            UUID targetPublicId,
+            UUID correlationId) {
+        establishTenant(tenantId);
+        List<ReceiptRow> rows = jdbc.query("""
+                SELECT * FROM ppl_command_receipts
+                 WHERE tenant_id=:tenant
+                   AND ((actor_public_id=:actor AND originating_action=:action
+                         AND idempotency_key=:idempotency
+                         AND target_public_id=:target)
+                        OR (command_type=:commandType AND correlation_id=:correlation))
+                 ORDER BY CASE WHEN actor_public_id=:actor
+                                    AND originating_action=:action
+                                    AND idempotency_key=:idempotency
+                                    AND target_public_id=:target THEN 0 ELSE 1 END
+                 LIMIT 2
+                 FOR UPDATE
+                """, new MapSqlParameterSource()
+                        .addValue("tenant", tenantId)
+                        .addValue("actor", actorPublicId)
+                        .addValue("action", action)
+                        .addValue("idempotency", idempotencyKey)
+                        .addValue("commandType", commandType)
+                        .addValue("target", targetPublicId)
+                        .addValue("correlation", correlationId), this::receiptRow);
+        if (rows.size() > 1) {
+            throw new BaseException(ErrorCode.RESOURCE_CONFLICT,
+                    "The employee-change command identity is ambiguous.");
+        }
+        return rows.stream().findFirst();
+    }
+
     ReceiptRow completeReceipt(
             long tenantId,
             UUID receiptId,
@@ -664,7 +701,6 @@ final class EmployeeChangeRepository {
                         OR worker.manager_assignment_key=:managerAssignment
                         OR worker.organization_public_id IN (:organizationIds))
                  ORDER BY request.public_id
-                 LIMIT 500
                 """, new MapSqlParameterSource()
                         .addValue("tenant", tenantId)
                         .addValue("asOf", Timestamp.from(asOf))
