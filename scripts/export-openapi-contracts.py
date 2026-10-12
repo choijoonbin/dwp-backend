@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import copy
+import hashlib
 import json
 import os
 import re
@@ -105,6 +106,100 @@ SYS_REFERENCE_CONFIGURATION_OPERATION_CONTRACTS = {
 SYS_REFERENCE_CONFIGURATION_ROUTE_KEYS = frozenset(
     SYS_REFERENCE_CONFIGURATION_OPERATION_CONTRACTS
 )
+HRM_EMPLOYEE_CHANGE_OPERATION_CONTRACTS = {
+    "route.hcm.operations.employee-change-requests.page": (
+        "get",
+        "/v1/hris/workbench/operations/employee/change/requests",
+        "employeeChangeRequestWorkbench",
+        "200",
+    ),
+    "route.hcm.operations.employee-change-request-create.action": (
+        "post",
+        "/v1/hris/employee-change-requests",
+        "createEmployeeChangeRequest",
+        "202",
+    ),
+    "route.hcm.operations.employee-change-request-submit.action": (
+        "post",
+        "/v1/hris/employee-change-requests/{requestPublicId}/submit",
+        "submitEmployeeChangeRequest",
+        "202",
+    ),
+    "route.hcm.operations.employee-change-request-apply.action": (
+        "post",
+        "/v1/hris/employee-change-requests/{requestPublicId}/apply",
+        "applyEmployeeChangeRequest",
+        "202",
+    ),
+}
+HRM_EMPLOYEE_CHANGE_ROUTE_KEYS = frozenset(
+    HRM_EMPLOYEE_CHANGE_OPERATION_CONTRACTS
+)
+HRM_EMPLOYEE_CHANGE_INTERNAL_OPERATION = (
+    "post",
+    "/internal/hris-people/v1/employee-change-requests/{requestPublicId}/approval-decisions",
+    "recordEmployeeChangeDecision",
+    "200",
+)
+HRM_REQUEST_PUBLIC_ID_PARAMETER = {
+    "in": "path",
+    "name": "requestPublicId",
+    "required": True,
+    "schema": {"format": "uuid", "type": "string"},
+}
+HRM_COMMAND_ERROR_STATUSES = frozenset({
+    "400", "401", "403", "404", "409", "422", "423", "429", "500",
+})
+HRM_WORKBENCH_ERROR_STATUSES = frozenset({
+    "400", "401", "403", "404", "409", "429", "503",
+})
+HRM_RESPONSE_HEADER_CONTRACTS = {
+    "ETag": {
+        "description": "Entity version for conditional follow-up requests.",
+        "schema": {"type": "string", "minLength": 1},
+    },
+    "X-Correlation-ID": {
+        "description": "End-to-end request correlation identifier.",
+        "schema": {"type": "string", "format": "uuid"},
+    },
+    "X-Authorization-Decision-Revision": {
+        "description": "Authorization decision revision used for this response.",
+        "schema": {"type": "string", "minLength": 1, "maxLength": 128},
+    },
+    "Cache-Control": {
+        "description": "Authorization-aware response cache policy.",
+        "schema": {"type": "string", "minLength": 1},
+    },
+}
+HRM_RESPONSE_HEADERS = frozenset(HRM_RESPONSE_HEADER_CONTRACTS)
+HRM_CANONICAL_SCHEMA_SHA256 = {
+    "HrisUuid": "bcba6987baaf3ab7dad13356df3cb4125229d151ded2d51c97be1668fb562414",
+    "HrisDate": "0bd47e8b24e7520f30c77a23997f34e33542c25d6a2b3fd90ac7e525581fe981",
+    "HrisDigest": "0c1c444817fdd79b088e2b418e6a85461413177f651a625f5f6f168dfaeb2f64",
+    "EmployeeChangeRequestCreateV1": "217e9b8bd5e5e3185af98e49ab3d0e9fdf35cb4a9fe60ba4839df48497736c18",
+    "EmptyCommandV1": "88dc81f2f7e45ebb6c3a27c4f0347be758459e23b246a0645530421ff82ff4ba",
+    "HrisProblemDetailsV1": "e373ef4b10749b1d690607c9f833f08ccb561adf59e9d2751b4d5ef42afc4292",
+    "Iaq009EmployeeChangeRequestFilterV1": "799a91a191851d077f13189be3c9433f7af8394f97b818115e40f37c47f6e2cb",
+    "Iaq009EmployeeChangeRequestQueryV1": "72c216f6e1e61b4e2f4ae26fe5c1ce62116bbd888dc018b56378f1f61de2d38f",
+    "Iaq009EmployeeChangeRequestProjectionV1": "33d49ed51cae1c901fa6083c834bd5bced99b14a31b9e2c0451a3a03f6e83190",
+    "Iaq009ProblemDetailsV1": "a9739f600f711b7f022ba55b58b65e71a2697b62af0864a5aefbdd68b67952af",
+    "IaqStatusFilterV1": "babfa049273fcd993f995e6a3fd77488ff2389625e0d77b555176046bf188953",
+    "IaqAggregateFilterV1": "82a7c188f32b6b894c456a750bee3bfd2c0c309487a12f8f2bc36a60615e00dd",
+    "IaqEffectiveRangeFilterV1": "da2cbb42a4a5fb19e519f8cf3417c44778c56f1b2709f236204c8b3cc402a01b",
+    "IaqStatusValueV1": "5b3560221544b336691b8c661c658eb1ec5303612d295626d30f2d1aaeab3005",
+    "IaqAggregateValueV1": "7c537eadcf924e1dac1ee12e66466ae4e8d3768fa07a6fb212391a7967e28319",
+    "IaqEffectiveRangeValueV1": "74f21cf2c2130710c1642db2d64239608fcbea7612453aae99ed5c8e4156cb82",
+    "CommandReceiptV1": "b464534080642275344bdfdf7d11c6b1dbf864d5c4307b425ad6b805857b58a2",
+    "ApprovalDecisionCallbackV1": "1f9d93ba4c5263b19ab0209dec0b301447c149eb85120cdcbf51866cfdc07ec1",
+}
+HRM_WORKLOAD_PROOF_V2 = {
+    "audience": "dwp-people-server",
+    "bindingId": "SVC-PEP-HRM-001",
+    "callerWorkloadId": "dwp-approval-server",
+    "method": "POST",
+    "pathTemplate": HRM_EMPLOYEE_CHANGE_INTERNAL_OPERATION[1],
+    "purpose": "HRIS_APPROVAL_DECISION_CALLBACK",
+}
 PATH_PARAMETER_PATTERN = re.compile(r"\{[^{}]+}")
 TELEMETRY_PUBLIC_PATH = "/api/platform/v1/observability/product-surface-events"
 TELEMETRY_TRUSTED_HEADERS = {"X-DWP-Tenant-ID", "X-DWP-Rollout-Cohort"}
@@ -619,7 +714,14 @@ def apply_design_time_overlay(
                         f"found {actual_operation_id}"
                     )
                 captured_slice = canonical.get("x-dwp-reviewed-springdoc-capture") is True
-                if not (approved_snapshot and captured_slice):
+                reviewed_design_time_revision = (
+                    approved_snapshot
+                    and canonical.get("x-dwp-reviewed-design-time-contract")
+                    == "HRM-010"
+                )
+                if not (
+                    approved_snapshot and captured_slice
+                ) and not reviewed_design_time_revision:
                     # Preserve springdoc's exact schemas while canonicalizing the public
                     # identifier. A marked reviewed slice only replaces a stale approved
                     # snapshot; a live service remains authoritative.
@@ -1324,6 +1426,703 @@ def validate_sys_reference_configuration_contract(
                     )
 
 
+def canonical_contract_hash(value: Any) -> str:
+    payload = json.dumps(
+        value, ensure_ascii=False, sort_keys=True, separators=(",", ":")
+    ).encode("utf-8")
+    return hashlib.sha256(payload).hexdigest()
+
+
+def normalize_gateway_people_schema(value: Any) -> Any:
+    if isinstance(value, list):
+        return [normalize_gateway_people_schema(item) for item in value]
+    if isinstance(value, str) and value.startswith("#/components/schemas/people_"):
+        return value.replace("#/components/schemas/people_", "#/components/schemas/", 1)
+    if isinstance(value, dict):
+        return {
+            key: normalize_gateway_people_schema(child)
+            for key, child in value.items()
+        }
+    return value
+
+
+def validate_hrm_employee_change_contract(
+    people_document: dict[str, Any], gateway_document: dict[str, Any]
+) -> None:
+    """Pin HRM-010 source, owner, browser, and workload-only callback contracts."""
+    registry = load_product_authorization_registry()
+    routes = {
+        route.get("routeContractKey"): route
+        for route in registry["routes"]
+        if isinstance(route.get("routeContractKey"), str)
+        and route["routeContractKey"].startswith(
+            "route.hcm.operations.employee-change-"
+        )
+    }
+    if set(routes) != HRM_EMPLOYEE_CHANGE_ROUTE_KEYS:
+        missing = sorted(HRM_EMPLOYEE_CHANGE_ROUTE_KEYS - set(routes))
+        unexpected = sorted(set(routes) - HRM_EMPLOYEE_CHANGE_ROUTE_KEYS)
+        raise RuntimeError(
+            "HRM employee-change authorization routes are not exact: "
+            f"missing={missing}, unexpected={unexpected}"
+        )
+
+    expected_public: list[
+        tuple[str, str, str, str, str, dict[str, Any]]
+    ] = []
+    for route_key, route in sorted(routes.items()):
+        if (
+            route.get("lifecycleState") != "ACTIVE"
+            or route.get("subject", {}).get("type") != "PRODUCT"
+        ):
+            raise RuntimeError(
+                f"HRM employee-change route is not active PRODUCT: {route_key}"
+            )
+        gateway_bindings = route.get("gatewayApiBindings")
+        owner_bindings = route.get("servicePepBindings")
+        if (
+            not isinstance(gateway_bindings, list)
+            or len(gateway_bindings) != 1
+            or not isinstance(owner_bindings, list)
+            or len(owner_bindings) != 1
+        ):
+            raise RuntimeError(
+                "HRM employee-change route must have one browser and owner binding: "
+                f"{route_key}"
+            )
+        gateway_binding = gateway_bindings[0]
+        owner_binding = owner_bindings[0]
+        expected_method, expected_owner_path, operation_id, response_status = (
+            HRM_EMPLOYEE_CHANGE_OPERATION_CONTRACTS[route_key]
+        )
+        method = str(gateway_binding.get("method", "")).lower()
+        browser_path = gateway_binding.get("path")
+        owner_path = owner_binding.get("path")
+        if (
+            method != expected_method
+            or str(owner_binding.get("method", "")).lower() != method
+            or gateway_binding.get("bindingKey") != owner_binding.get("bindingKey")
+            or owner_binding.get("serviceKey") != "people"
+            or owner_path != expected_owner_path
+            or not isinstance(browser_path, str)
+            or prefixed("/api/people")(owner_path) != browser_path
+        ):
+            raise RuntimeError(
+                f"HRM employee-change browser/owner binding drift: {route_key}"
+            )
+        expected_public.append((
+            method,
+            owner_path,
+            browser_path,
+            operation_id,
+            response_status,
+            route,
+        ))
+
+    people_source = load_design_time_overlays().get("people", {})
+    people_overlay = people_source.get("paths", {})
+    source_schemas = people_source.get("components", {}).get("schemas", {})
+    owner_schemas = people_document.get("components", {}).get("schemas", {})
+    gateway_schemas = gateway_document.get("components", {}).get("schemas", {})
+    gateway_public_schema_names = (
+        set(HRM_CANONICAL_SCHEMA_SHA256) - {"ApprovalDecisionCallbackV1"}
+    )
+    for schema_name, expected_hash in HRM_CANONICAL_SCHEMA_SHA256.items():
+        for contract_name, schemas, published_name, normalize in (
+            ("design-time", source_schemas, schema_name, False),
+            ("People owner", owner_schemas, schema_name, False),
+            (
+                "Gateway",
+                gateway_schemas,
+                f"people_{schema_name}",
+                True,
+            ),
+        ):
+            if contract_name == "Gateway" and schema_name not in gateway_public_schema_names:
+                continue
+            schema = schemas.get(published_name) if isinstance(schemas, dict) else None
+            if not isinstance(schema, dict):
+                raise RuntimeError(
+                    "HRM employee-change canonical schema is missing: "
+                    f"{contract_name} {published_name}"
+                )
+            canonical_schema = (
+                normalize_gateway_people_schema(schema) if normalize else schema
+            )
+            if canonical_contract_hash(canonical_schema) != expected_hash:
+                raise RuntimeError(
+                    "HRM employee-change canonical schema drift: "
+                    f"{contract_name} {published_name}"
+                )
+    internal_method, internal_path, internal_operation_id, internal_status = (
+        HRM_EMPLOYEE_CHANGE_INTERNAL_OPERATION
+    )
+    expected_source_operations = {
+        (method, owner_path)
+        for method, owner_path, _, _, _, _ in expected_public
+    } | {(internal_method, internal_path)}
+
+    def is_employee_change_path(path: str) -> bool:
+        return (
+            path == "/v1/hris/workbench/operations/employee/change/requests"
+            or "employee-change-requests" in path
+        )
+
+    source_operations = {
+        (method, path)
+        for path, path_item in people_overlay.items()
+        if is_employee_change_path(path)
+        for method in path_item
+        if method in HTTP_METHODS
+    }
+    owner_operations = {
+        (method, path)
+        for path, path_item in people_document.get("paths", {}).items()
+        if is_employee_change_path(path)
+        for method in path_item
+        if method in HTTP_METHODS
+    }
+    expected_gateway_operations = {
+        (method, browser_path)
+        for method, _, browser_path, _, _, _ in expected_public
+    }
+    gateway_operations = {
+        (method, path)
+        for path, path_item in gateway_document.get("paths", {}).items()
+        if (
+            path == "/api/people/v1/hris/workbench/operations/employee/change/requests"
+            or "employee-change-requests" in path
+        )
+        for method in path_item
+        if method in HTTP_METHODS
+    }
+    for contract_name, actual, expected in (
+        ("design-time", source_operations, expected_source_operations),
+        ("People owner", owner_operations, expected_source_operations),
+        ("Gateway", gateway_operations, expected_gateway_operations),
+    ):
+        if actual != expected:
+            raise RuntimeError(
+                f"HRM employee-change {contract_name} operations are not exact: "
+                f"missing={sorted(expected - actual)}, "
+                f"unexpected={sorted(actual - expected)}"
+            )
+
+    if any(path.startswith("/api/hris/v1") for _, path in gateway_operations):
+        raise RuntimeError("HRM employee-change /api/hris/v1 alias is forbidden")
+
+    def parameters_by_identity(
+        operation: dict[str, Any],
+    ) -> dict[tuple[str, str], dict[str, Any]]:
+        return {
+            (
+                str(parameter.get("in", "")).lower(),
+                str(parameter.get("name", "")).lower(),
+            ): parameter
+            for parameter in operation.get("parameters", [])
+            if isinstance(parameter, dict)
+        }
+
+    def expected_pep_binding(
+        route_key: str, route: dict[str, Any]
+    ) -> dict[str, Any]:
+        subject = route["subject"]
+        owner_binding = route["servicePepBindings"][0]
+        return {
+            "authentication": "HUMAN_SESSION",
+            "bindingKey": owner_binding["bindingKey"],
+            "ownerServiceKey": owner_binding["serviceKey"],
+            "productKey": subject["productKey"],
+            "registryVersion": PRODUCT_AUTHORIZATION_VERSION,
+            "routeContractKey": route_key,
+            "subjectType": subject["type"],
+            "surfaceKey": subject["surfaceKey"],
+        }
+
+    def validate_auth_semantics(
+        contract_name: str,
+        operation: dict[str, Any],
+        expected_pep: dict[str, Any] | None = None,
+    ) -> None:
+        security = operation.get("security")
+        if security is not None and (
+            not isinstance(security, list)
+            or not security
+            or any(not isinstance(requirement, dict) or not requirement
+                   for requirement in security)
+        ):
+            raise RuntimeError(
+                "HRM employee-change empty/anonymous security semantics: "
+                f"{contract_name}"
+            )
+        if expected_pep is not None and (
+            operation.get("x-dwp-product-authorization-v37") != expected_pep
+        ):
+            raise RuntimeError(
+                "HRM employee-change v37 PEP authorization linkage drift: "
+                f"{contract_name}"
+            )
+
+    def validate_response(
+        contract_name: str,
+        response: Any,
+        schema_name: str,
+        *,
+        gateway: bool,
+        problem: bool = False,
+    ) -> None:
+        if not isinstance(response, dict):
+            raise RuntimeError(
+                f"HRM employee-change response is invalid: {contract_name}"
+            )
+        media_type = "application/problem+json" if problem else "application/json"
+        prefix = "people_" if gateway else ""
+        expected_content = {
+            media_type: {
+                "schema": {
+                    "$ref": f"#/components/schemas/{prefix}{schema_name}"
+                }
+            }
+        }
+        if (
+            response.get("content") != expected_content
+            or response.get("headers") != HRM_RESPONSE_HEADER_CONTRACTS
+        ):
+            raise RuntimeError(
+                "HRM employee-change response schema/header drift: "
+                f"{contract_name}"
+            )
+
+    for (
+        method,
+        owner_path,
+        browser_path,
+        operation_id,
+        response_status,
+        route,
+    ) in expected_public:
+        source_operation = people_overlay.get(owner_path, {}).get(method)
+        owner_operation = people_document.get("paths", {}).get(
+            owner_path, {}
+        ).get(method)
+        browser_operation = gateway_document.get("paths", {}).get(
+            browser_path, {}
+        ).get(method)
+        if not all(
+            isinstance(operation, dict)
+            for operation in (source_operation, owner_operation, browser_operation)
+        ):
+            raise RuntimeError(
+                "HRM employee-change operation is missing from source, owner, or Gateway: "
+                f"{method.upper()} {owner_path}"
+            )
+        assert isinstance(source_operation, dict)
+        assert isinstance(owner_operation, dict)
+        assert isinstance(browser_operation, dict)
+        if (
+            source_operation.get("x-dwp-overlay-mode") != "ADD"
+            or source_operation.get("x-dwp-runtime-default") != "OFF"
+            or source_operation.get("x-dwp-reviewed-design-time-contract") != "HRM-010"
+            or owner_operation.get("x-dwp-runtime-default") != "OFF"
+            or owner_operation.get("x-dwp-reviewed-design-time-contract") != "HRM-010"
+            or browser_operation.get("x-dwp-runtime-default") != "OFF"
+            or browser_operation.get("x-dwp-reviewed-design-time-contract") != "HRM-010"
+        ):
+            raise RuntimeError(
+                "HRM employee-change operation must remain default-off: "
+                f"{method.upper()} {owner_path}"
+            )
+        expected_pep = expected_pep_binding(route["routeContractKey"], route)
+        expected_statuses = (
+            {response_status} | HRM_WORKBENCH_ERROR_STATUSES
+            if method == "get"
+            else {response_status} | HRM_COMMAND_ERROR_STATUSES
+        )
+        for contract_name, operation, expected_operation_id, is_gateway in (
+            ("source", source_operation, operation_id, False),
+            ("owner", owner_operation, operation_id, False),
+            ("Gateway", browser_operation, f"people_{operation_id}", True),
+        ):
+            if operation.get("operationId") != expected_operation_id:
+                raise RuntimeError(
+                    "HRM employee-change operationId drift: "
+                    f"{contract_name} {method.upper()} {owner_path}"
+                )
+            responses = operation.get("responses", {})
+            if set(responses) != expected_statuses:
+                raise RuntimeError(
+                    "HRM employee-change response drift: "
+                    f"{contract_name} {method.upper()} {owner_path}"
+                )
+            validate_auth_semantics(
+                f"{contract_name} {method.upper()} {owner_path}",
+                operation,
+                expected_pep,
+            )
+            validate_response(
+                f"{contract_name} {method.upper()} {owner_path} {response_status}",
+                responses[response_status],
+                (
+                    "Iaq009EmployeeChangeRequestProjectionV1"
+                    if method == "get"
+                    else "CommandReceiptV1"
+                ),
+                gateway=is_gateway,
+            )
+            for error_status in expected_statuses - {response_status}:
+                validate_response(
+                    f"{contract_name} {method.upper()} {owner_path} {error_status}",
+                    responses[error_status],
+                    (
+                        "Iaq009ProblemDetailsV1"
+                        if method == "get"
+                        else "HrisProblemDetailsV1"
+                    ),
+                    gateway=is_gateway,
+                    problem=True,
+                )
+
+        browser_parameters = parameters_by_identity(browser_operation)
+        if browser_parameters.get(("query", "contextscopekey")) != SCOPE_SELECTION_PARAMETER:
+            raise RuntimeError(
+                "HRM employee-change Gateway operation is not governed: "
+                f"{method.upper()} {browser_path}"
+            )
+        if "{requestPublicId}" in owner_path and any(
+            parameters.get(("path", "requestpublicid"))
+            != HRM_REQUEST_PUBLIC_ID_PARAMETER
+            for parameters in (
+                parameters_by_identity(source_operation),
+                parameters_by_identity(owner_operation),
+                browser_parameters,
+            )
+        ):
+            raise RuntimeError(
+                "HRM employee-change requestPublicId path parameter drift: "
+                f"{method.upper()} {owner_path}"
+            )
+        if method == "get":
+            query_schema = source_schemas["Iaq009EmployeeChangeRequestQueryV1"]
+            query_properties = query_schema["properties"]
+            required_queries = set(query_schema["required"])
+            expected_query_names = set(query_properties)
+            for contract_name, operation, is_gateway in (
+                ("source", source_operation, False),
+                ("owner", owner_operation, False),
+                ("Gateway", browser_operation, True),
+            ):
+                query_parameters = [
+                    parameter
+                    for parameter in operation.get("parameters", [])
+                    if isinstance(parameter, dict)
+                    and str(parameter.get("in", "")).lower() == "query"
+                ]
+                query_parameters_by_name = {
+                    parameter.get("name"): parameter
+                    for parameter in query_parameters
+                }
+                expected_names = expected_query_names | (
+                    {"contextScopeKey"} if is_gateway else set()
+                )
+                if (
+                    len(query_parameters) != len(expected_names)
+                    or set(query_parameters_by_name) != expected_names
+                ):
+                    raise RuntimeError(
+                        "HRM employee-change IAQ-009 query parameter drift: "
+                        f"{contract_name}"
+                    )
+                for query_name, schema in query_properties.items():
+                    expected_schema = copy.deepcopy(schema)
+                    expected_parameter = {
+                        "in": "query",
+                        "name": query_name,
+                        "required": query_name in required_queries,
+                        "schema": expected_schema,
+                    }
+                    if query_name == "filter":
+                        expected_schema = {
+                            "$ref": "#/components/schemas/"
+                            + ("people_" if is_gateway else "")
+                            + "Iaq009EmployeeChangeRequestFilterV1"
+                        }
+                        expected_parameter["schema"] = expected_schema
+                        expected_parameter["style"] = "deepObject"
+                        expected_parameter["explode"] = True
+                    if query_parameters_by_name[query_name] != expected_parameter:
+                        raise RuntimeError(
+                            "HRM employee-change IAQ-009 query schema drift: "
+                            f"{contract_name} {query_name}"
+                        )
+                if is_gateway and (
+                    query_parameters_by_name.get("contextScopeKey")
+                    != SCOPE_SELECTION_PARAMETER
+                ):
+                    raise RuntimeError(
+                        "HRM employee-change Gateway operation is not governed: "
+                        f"{method.upper()} {browser_path}"
+                    )
+                expected_query_ref = {
+                    "$ref": "#/components/schemas/"
+                    + ("people_" if is_gateway else "")
+                    + "Iaq009EmployeeChangeRequestQueryV1"
+                }
+                if operation.get("x-dwp-query-schema") != expected_query_ref:
+                    raise RuntimeError(
+                        "HRM employee-change IAQ-009 named query drift: "
+                        f"{contract_name}"
+                    )
+        if method != "post":
+            continue
+
+        source_parameters = parameters_by_identity(source_operation)
+        owner_parameters = parameters_by_identity(owner_operation)
+        idempotency = ("header", "idempotency-key")
+        if_match = ("header", "if-match")
+        correlation = ("header", "x-correlation-id")
+        purpose = ("header", "x-purpose-code")
+        expected_idempotency_schema = {
+            "type": "string", "minLength": 16, "maxLength": 128,
+        }
+        expected_if_match_schema = {
+            "type": "string", "pattern": '^(W/)?"[A-Za-z0-9._:-]+"$',
+        }
+        if (
+            any(
+                parameters.get(idempotency, {}).get("required") is not True
+                or parameters.get(idempotency, {}).get("schema")
+                != expected_idempotency_schema
+                or parameters.get(if_match, {}).get("required") is not True
+                or parameters.get(if_match, {}).get("schema")
+                != expected_if_match_schema
+                or parameters.get(correlation, {}).get("required") is not True
+                or parameters.get(correlation, {}).get("schema")
+                != {"type": "string", "format": "uuid"}
+                for parameters in (
+                    source_parameters,
+                    owner_parameters,
+                    browser_parameters,
+                )
+            )
+            or any(
+                parameters.get(purpose) != {
+                    "in": "header",
+                    "name": "X-Purpose-Code",
+                    "required": False,
+                    "schema": {
+                        "maxLength": 64,
+                        "minLength": 3,
+                        "type": "string",
+                    },
+                }
+                for parameters in (
+                    source_parameters,
+                    owner_parameters,
+                    browser_parameters,
+                )
+            )
+            or any(
+                operation.get("requestBody", {}).get("required") is not True
+                for operation in (
+                    source_operation,
+                    owner_operation,
+                    browser_operation,
+                )
+            )
+        ):
+            raise RuntimeError(
+                "HRM employee-change mutation is not idempotent: "
+                f"{method.upper()} {owner_path}"
+            )
+
+        request_schema = (
+            "EmployeeChangeRequestCreateV1"
+            if owner_path == "/v1/hris/employee-change-requests"
+            else "EmptyCommandV1"
+        )
+        for contract_name, operation, is_gateway in (
+            ("source", source_operation, False),
+            ("owner", owner_operation, False),
+            ("Gateway", browser_operation, True),
+        ):
+            expected_request_body = {
+                "content": {
+                    "application/json": {
+                        "schema": {
+                            "$ref": "#/components/schemas/"
+                            + ("people_" if is_gateway else "")
+                            + request_schema
+                        }
+                    }
+                },
+                "required": True,
+            }
+            if operation.get("requestBody") != expected_request_body:
+                raise RuntimeError(
+                    "HRM employee-change request schema drift: "
+                    f"{contract_name} {method.upper()} {owner_path}"
+                )
+
+        step_up_bindings = route.get("stepUpCommandBindings", [])
+        if not isinstance(step_up_bindings, list):
+            raise RuntimeError(
+                f"HRM employee-change step-up binding is invalid: "
+                f"{route['routeContractKey']}"
+            )
+        proof_parameters = {
+            ("header", "x-dwp-step-up-challenge"): {
+                "in": "header",
+                "name": "X-DWP-Step-Up-Challenge",
+                "required": True,
+                "schema": {"minLength": 1, "type": "string"},
+            },
+            ("header", "x-dwp-expected-decision-revision"): {
+                "in": "header",
+                "name": "X-DWP-Expected-Decision-Revision",
+                "required": True,
+                "schema": {
+                    "maxLength": 200,
+                    "minLength": 1,
+                    "type": "string",
+                },
+            },
+            ("header", "x-dwp-expected-object-version"): {
+                "in": "header",
+                "name": "X-DWP-Expected-Object-Version",
+                "required": True,
+                "schema": {
+                    "format": "int64",
+                    "minimum": 0,
+                    "type": "integer",
+                },
+            },
+        }
+        proof_headers = set(proof_parameters)
+        if step_up_bindings:
+            if (
+                len(step_up_bindings) != 1
+                or source_operation.get("x-dwp-command-proof-required") is not True
+                or owner_operation.get("x-dwp-command-proof-required") is not True
+                or browser_operation.get("x-dwp-command-proof-required") is not True
+                or not proof_headers <= set(source_parameters)
+                or not proof_headers <= set(owner_parameters)
+                or not proof_headers <= set(browser_parameters)
+                or any(
+                    parameters.get(identity) != expected
+                    for identity, expected in proof_parameters.items()
+                    for parameters in (
+                        source_parameters,
+                        owner_parameters,
+                        browser_parameters,
+                    )
+                )
+            ):
+                raise RuntimeError(
+                    "HRM employee-change step-up proof drift: "
+                    f"{route['routeContractKey']}"
+                )
+        else:
+            unexpected_proof = proof_headers - {
+                ("header", "x-dwp-expected-decision-revision")
+            }
+            if (
+                source_operation.get("x-dwp-command-proof-required") is True
+                or owner_operation.get("x-dwp-command-proof-required") is True
+                or browser_operation.get("x-dwp-command-proof-required") is True
+                or unexpected_proof & set(source_parameters)
+                or unexpected_proof & set(owner_parameters)
+                or unexpected_proof & set(browser_parameters)
+                or browser_parameters.get(
+                    ("header", "x-dwp-expected-decision-revision")
+                ) != EXPECTED_DECISION_REVISION_PARAMETER
+            ):
+                raise RuntimeError(
+                    "HRM employee-change non-step-up proof drift: "
+                    f"{route['routeContractKey']}"
+                )
+
+    internal_source = people_overlay.get(internal_path, {}).get(internal_method)
+    internal_owner = people_document.get("paths", {}).get(
+        internal_path, {}
+    ).get(internal_method)
+    if not isinstance(internal_source, dict) or not isinstance(internal_owner, dict):
+        raise RuntimeError(
+            "HRM employee-change internal callback is missing from source or owner"
+        )
+    required_callback_parameters = {
+        ("path", "requestpublicid"): HRM_REQUEST_PUBLIC_ID_PARAMETER,
+        ("header", "x-dwp-service-identity"): {
+            "in": "header",
+            "name": "X-DWP-Service-Identity",
+            "required": True,
+            "schema": {"enum": ["dwp-approval-server"], "type": "string"},
+        },
+        ("header", "x-dwp-workload-proof"): {
+            "in": "header",
+            "name": "X-DWP-Workload-Proof",
+            "required": True,
+            "schema": {"minLength": 1, "type": "string"},
+        },
+    }
+    for contract_name, operation, is_gateway in (
+        ("source", internal_source, False),
+        ("owner", internal_owner, False),
+    ):
+        parameters = parameters_by_identity(operation)
+        if (
+            operation.get("operationId") != internal_operation_id
+            or set(operation.get("responses", {})) != {internal_status, "403", "409"}
+            or operation.get("x-dwp-runtime-default") != "OFF"
+            or operation.get("x-dwp-workload-proof-required") is not True
+            or operation.get("x-dwp-workload-proof-v2") != HRM_WORKLOAD_PROOF_V2
+            or operation.get("requestBody", {}).get("required") is not True
+            or any(
+                parameters.get(identity) != expected
+                for identity, expected in required_callback_parameters.items()
+            )
+        ):
+            raise RuntimeError(
+                f"HRM employee-change internal callback security drift: {contract_name}"
+            )
+        validate_auth_semantics(f"{contract_name} internal callback", operation)
+        expected_callback_body = {
+            "content": {
+                "application/json": {
+                    "schema": {
+                        "$ref": "#/components/schemas/ApprovalDecisionCallbackV1"
+                    }
+                }
+            },
+            "required": True,
+        }
+        if operation.get("requestBody") != expected_callback_body:
+            raise RuntimeError(
+                f"HRM employee-change callback request schema drift: {contract_name}"
+            )
+        responses = operation["responses"]
+        validate_response(
+            f"{contract_name} internal callback {internal_status}",
+            responses[internal_status],
+            "CommandReceiptV1",
+            gateway=is_gateway,
+        )
+        for error_status in ("403", "409"):
+            validate_response(
+                f"{contract_name} internal callback {error_status}",
+                responses[error_status],
+                "HrisProblemDetailsV1",
+                gateway=is_gateway,
+                problem=True,
+            )
+    if any(
+        internal_path in path or "approval-decisions" in path
+        for path in gateway_document.get("paths", {})
+    ):
+        raise RuntimeError(
+            "HRM employee-change internal callback was exposed through Gateway"
+        )
+
+
 def prune_unreachable_components(document: dict[str, Any]) -> dict[str, Any]:
     """Keep only components reachable from public operations and their transitive refs."""
     components = document.get("components", {})
@@ -1423,6 +2222,9 @@ def main() -> int:
     validate_unique_operation_ids(outputs["gateway-public.json"], "gateway-public")
     validate_sys_reference_configuration_contract(
         outputs["platform.json"], outputs["gateway-public.json"]
+    )
+    validate_hrm_employee_change_contract(
+        outputs["people.json"], outputs["gateway-public.json"]
     )
     validate_platform_device_identity(outputs["platform.json"])
     validate_platform_device_identity(outputs["gateway-public.json"], gateway=True)

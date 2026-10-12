@@ -661,6 +661,31 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             "people": {
                 ("get", "/v1/hr/home", "people360"),
                 ("get", "/v1/hr/team", "teamPeople360"),
+                (
+                    "post",
+                    "/internal/hris-people/v1/employee-change-requests/{requestPublicId}/approval-decisions",
+                    "record",
+                ),
+                (
+                    "post",
+                    "/v1/hris/employee-change-requests",
+                    "create",
+                ),
+                (
+                    "post",
+                    "/v1/hris/employee-change-requests/{requestPublicId}/apply",
+                    "apply",
+                ),
+                (
+                    "post",
+                    "/v1/hris/employee-change-requests/{requestPublicId}/submit",
+                    "submit",
+                ),
+                (
+                    "get",
+                    "/v1/hris/workbench/operations/employee/change/requests",
+                    "workbench",
+                ),
                 ("get", "/v1/workforce/people", "searchPeople360"),
                 ("get", "/v1/workforce/people/{publicId}", "getPeople360"),
                 ("get", "/v1/hris/performance/cycles", "cycles"),
@@ -843,6 +868,361 @@ class ExportOpenApiContractsTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "anonymous security override"):
             EXPORTER["validate_sys_reference_configuration_contract"](
                 platform, anonymous_operation
+            )
+
+    def test_hrm_employee_change_source_owner_gateway_and_callback_are_exact(self) -> None:
+        people = json.loads(
+            (ROOT / "contracts/openapi/people.json").read_text(encoding="utf-8")
+        )
+        gateway = json.loads(
+            (ROOT / "contracts/openapi/gateway-public.json").read_text(encoding="utf-8")
+        )
+
+        self.assertEqual(len(EXPORTER["HRM_EMPLOYEE_CHANGE_ROUTE_KEYS"]), 4)
+        EXPORTER["validate_hrm_employee_change_contract"](people, gateway)
+        self.assertNotIn(
+            "/internal/hris-people/v1/employee-change-requests/"
+            "{requestPublicId}/approval-decisions",
+            gateway["paths"],
+        )
+        self.assertFalse(
+            any(path.startswith("/api/hris/v1") for path in gateway["paths"])
+        )
+
+        people_schemas = people["components"]["schemas"]
+        gateway_schemas = gateway["components"]["schemas"]
+        receipt = people_schemas["CommandReceiptV1"]
+        self.assertEqual(
+            set(receipt["required"]),
+            {
+                "receiptId",
+                "commandType",
+                "originatingAction",
+                "subjectPrincipalPublicId",
+                "populationScopeDigest",
+                "fieldPolicyRevision",
+                "purposeCode",
+                "authorizationRevision",
+                "status",
+                "correlationId",
+                "requestDigest",
+                "createdAt",
+            },
+        )
+        self.assertEqual(
+            receipt["properties"]["status"]["enum"],
+            [
+                "ACCEPTED",
+                "RUNNING",
+                "SUCCEEDED",
+                "REJECTED",
+                "FAILED",
+                "RESULT_UNKNOWN",
+            ],
+        )
+        self.assertIn("people_CommandReceiptV1", gateway_schemas)
+
+        create = gateway["paths"][
+            "/api/people/v1/hris/employee-change-requests"
+        ]["post"]
+        self.assertEqual(
+            create["requestBody"]["content"]["application/json"]["schema"],
+            {"$ref": "#/components/schemas/people_EmployeeChangeRequestCreateV1"},
+        )
+        self.assertEqual(
+            create["responses"]["202"]["content"]["application/json"]["schema"],
+            {"$ref": "#/components/schemas/people_CommandReceiptV1"},
+        )
+        self.assertEqual(
+            set(create["responses"]),
+            {"202"} | EXPORTER["HRM_COMMAND_ERROR_STATUSES"],
+        )
+        self.assertEqual(
+            create["responses"]["202"]["headers"],
+            EXPORTER["HRM_RESPONSE_HEADER_CONTRACTS"],
+        )
+
+        workbench = gateway["paths"][
+            "/api/people/v1/hris/workbench/operations/employee/change/requests"
+        ]["get"]
+        workbench_parameters = {
+            parameter["name"]: parameter for parameter in workbench["parameters"]
+        }
+        self.assertNotIn("effectiveOn", workbench_parameters)
+        self.assertEqual(
+            set(workbench_parameters),
+            {
+                "limit",
+                "filter",
+                "sort",
+                "locale",
+                "timeZone",
+                "correlationId",
+                "asOf",
+                "cursor",
+                "contextScopeKey",
+            },
+        )
+        self.assertEqual(workbench_parameters["filter"]["style"], "deepObject")
+        self.assertEqual(
+            workbench_parameters["sort"]["schema"]["items"]["enum"],
+            [
+                "changeRequestSummary:ASC",
+                "approvalStatus:ASC",
+                "employment:ASC",
+                "changeRequestSummary:DESC",
+                "approvalStatus:DESC",
+                "employment:DESC",
+                "itemPublicId:ASC",
+                "itemPublicId:DESC",
+            ],
+        )
+        projection = people_schemas["Iaq009EmployeeChangeRequestProjectionV1"]
+        query_state = projection["properties"]["queryState"]
+        self.assertEqual(
+            query_state["properties"]["state"]["enum"],
+            ["COMPLETE", "EMPTY", "PARTIAL", "UNAVAILABLE"],
+        )
+        item = projection["properties"]["items"]["items"]
+        self.assertEqual(
+            set(item["properties"]["fieldGroups"]["properties"]),
+            {"CHANGE_REQUEST_SUMMARY", "APPROVAL_STATUS", "EMPLOYMENT"},
+        )
+        actions = item["properties"]["availableActions"]["items"]["oneOf"]
+        self.assertEqual(
+            {
+                action["properties"]["actionKey"]["const"]:
+                action["properties"]["hrefTemplate"]["const"]
+                for action in actions
+            },
+            {
+                "hris.action.hrm.create-employee-change-request":
+                    "/api/people/v1/hris/employee-change-requests",
+                "hris.action.hrm.submit-employee-change-request":
+                    "/api/people/v1/hris/employee-change-requests/"
+                    "{requestPublicId}/submit",
+                "hris.action.hrm.apply-employee-change-request":
+                    "/api/people/v1/hris/employee-change-requests/"
+                    "{requestPublicId}/apply",
+            },
+        )
+
+        incomplete_gateway = copy.deepcopy(gateway)
+        del incomplete_gateway["paths"][
+            "/api/people/v1/hris/workbench/operations/employee/change/requests"
+        ]
+        with self.assertRaisesRegex(
+            RuntimeError, "Gateway operations are not exact"
+        ):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, incomplete_gateway
+            )
+
+        invalid_operation_id = copy.deepcopy(gateway)
+        invalid_operation_id["paths"][
+            "/api/people/v1/hris/employee-change-requests"
+        ]["post"]["operationId"] = "people_employeeChangeCreate"
+        with self.assertRaisesRegex(RuntimeError, "operationId drift"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, invalid_operation_id
+            )
+
+        missing_pep = copy.deepcopy(gateway)
+        del missing_pep["paths"][
+            "/api/people/v1/hris/employee-change-requests"
+        ]["post"]["x-dwp-product-authorization-v37"]
+        with self.assertRaisesRegex(RuntimeError, "v37 PEP authorization linkage drift"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, missing_pep
+            )
+
+        empty_pep = copy.deepcopy(gateway)
+        empty_pep["paths"][
+            "/api/people/v1/hris/employee-change-requests"
+        ]["post"]["x-dwp-product-authorization-v37"] = {}
+        with self.assertRaisesRegex(RuntimeError, "v37 PEP authorization linkage drift"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, empty_pep
+            )
+
+        anonymous_operation = copy.deepcopy(gateway)
+        anonymous_operation["paths"][
+            "/api/people/v1/hris/employee-change-requests"
+        ]["post"]["security"] = []
+        with self.assertRaisesRegex(RuntimeError, "empty/anonymous security semantics"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, anonymous_operation
+            )
+
+        empty_security_requirement = copy.deepcopy(gateway)
+        empty_security_requirement["paths"][
+            "/api/people/v1/hris/employee-change-requests"
+        ]["post"]["security"] = [{}]
+        with self.assertRaisesRegex(RuntimeError, "empty/anonymous security semantics"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, empty_security_requirement
+            )
+
+        weakened_receipt = copy.deepcopy(gateway)
+        weakened_receipt["components"]["schemas"][
+            "people_CommandReceiptV1"
+        ]["properties"]["status"]["enum"].remove("RESULT_UNKNOWN")
+        with self.assertRaisesRegex(RuntimeError, "canonical schema drift"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, weakened_receipt
+            )
+
+        bodyless_success = copy.deepcopy(gateway)
+        del bodyless_success["paths"][
+            "/api/people/v1/hris/employee-change-requests"
+        ]["post"]["responses"]["202"]["content"]
+        with self.assertRaisesRegex(RuntimeError, "response schema/header drift"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, bodyless_success
+            )
+
+        for header_name in EXPORTER["HRM_RESPONSE_HEADER_CONTRACTS"]:
+            weakened_header = copy.deepcopy(gateway)
+            weakened_header["paths"][
+                "/api/people/v1/hris/employee-change-requests"
+            ]["post"]["responses"]["202"]["headers"][header_name]["schema"] = {}
+            with self.subTest(response_header=header_name), self.assertRaisesRegex(
+                RuntimeError, "response schema/header drift"
+            ):
+                EXPORTER["validate_hrm_employee_change_contract"](
+                    people, weakened_header
+                )
+
+        weakened_sort = copy.deepcopy(gateway)
+        weakened_sort["paths"][
+            "/api/people/v1/hris/workbench/operations/employee/change/requests"
+        ]["get"]["parameters"][2]["schema"]["items"]["enum"].pop()
+        with self.assertRaisesRegex(RuntimeError, "IAQ-009 query schema drift"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, weakened_sort
+            )
+
+        mis_cased_query = copy.deepcopy(gateway)
+        mis_cased_parameters = mis_cased_query["paths"][
+            "/api/people/v1/hris/workbench/operations/employee/change/requests"
+        ]["get"]["parameters"]
+        next(
+            parameter
+            for parameter in mis_cased_parameters
+            if parameter.get("name") == "limit"
+        )["name"] = "LIMIT"
+        with self.assertRaisesRegex(RuntimeError, "query parameter drift"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, mis_cased_query
+            )
+
+        weakened_sort_serialization = copy.deepcopy(gateway)
+        weakened_sort_parameters = weakened_sort_serialization["paths"][
+            "/api/people/v1/hris/workbench/operations/employee/change/requests"
+        ]["get"]["parameters"]
+        next(
+            parameter
+            for parameter in weakened_sort_parameters
+            if parameter.get("name") == "sort"
+        )["explode"] = False
+        with self.assertRaisesRegex(RuntimeError, "query schema drift"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, weakened_sort_serialization
+            )
+
+        duplicate_sort = copy.deepcopy(gateway)
+        duplicate_sort_parameters = duplicate_sort["paths"][
+            "/api/people/v1/hris/workbench/operations/employee/change/requests"
+        ]["get"]["parameters"]
+        duplicate_sort_parameters.append(
+            copy.deepcopy(next(
+                parameter
+                for parameter in duplicate_sort_parameters
+                if parameter.get("name") == "sort"
+            ))
+        )
+        with self.assertRaisesRegex(RuntimeError, "query parameter drift"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, duplicate_sort
+            )
+
+        missing_apply_proof = copy.deepcopy(gateway)
+        apply_operation = missing_apply_proof["paths"][
+            "/api/people/v1/hris/employee-change-requests/{requestPublicId}/apply"
+        ]["post"]
+        apply_operation["parameters"] = [
+            parameter
+            for parameter in apply_operation["parameters"]
+            if parameter.get("name") != "X-DWP-Expected-Object-Version"
+        ]
+        with self.assertRaisesRegex(RuntimeError, "step-up proof drift"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, missing_apply_proof
+            )
+
+        for proof_header_name in (
+            "X-DWP-Step-Up-Challenge",
+            "X-DWP-Expected-Decision-Revision",
+            "X-DWP-Expected-Object-Version",
+        ):
+            weakened_apply_proof = copy.deepcopy(gateway)
+            proof_parameters = weakened_apply_proof["paths"][
+                "/api/people/v1/hris/employee-change-requests/"
+                "{requestPublicId}/apply"
+            ]["post"]["parameters"]
+            next(
+                parameter
+                for parameter in proof_parameters
+                if parameter.get("name") == proof_header_name
+            )["schema"] = {}
+            with self.subTest(proof_header=proof_header_name), self.assertRaisesRegex(
+                RuntimeError, "step-up proof drift"
+            ):
+                EXPORTER["validate_hrm_employee_change_contract"](
+                    people, weakened_apply_proof
+                )
+
+        missing_request_public_id = copy.deepcopy(gateway)
+        submit_parameters = missing_request_public_id["paths"][
+            "/api/people/v1/hris/employee-change-requests/"
+            "{requestPublicId}/submit"
+        ]["post"]["parameters"]
+        missing_request_public_id["paths"][
+            "/api/people/v1/hris/employee-change-requests/"
+            "{requestPublicId}/submit"
+        ]["post"]["parameters"] = [
+            parameter
+            for parameter in submit_parameters
+            if parameter.get("name") != "requestPublicId"
+        ]
+        with self.assertRaisesRegex(RuntimeError, "requestPublicId path parameter drift"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                people, missing_request_public_id
+            )
+
+        weakened_callback = copy.deepcopy(people)
+        callback = weakened_callback["paths"][
+            "/internal/hris-people/v1/employee-change-requests/"
+            "{requestPublicId}/approval-decisions"
+        ]["post"]
+        callback["parameters"] = [
+            parameter
+            for parameter in callback["parameters"]
+            if parameter.get("name") != "X-DWP-Workload-Proof"
+        ]
+        with self.assertRaisesRegex(RuntimeError, "callback security drift"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                weakened_callback, gateway
+            )
+
+        missing_workload_semantics = copy.deepcopy(people)
+        del missing_workload_semantics["paths"][
+            "/internal/hris-people/v1/employee-change-requests/"
+            "{requestPublicId}/approval-decisions"
+        ]["post"]["x-dwp-workload-proof-v2"]
+        with self.assertRaisesRegex(RuntimeError, "callback security drift"):
+            EXPORTER["validate_hrm_employee_change_contract"](
+                missing_workload_semantics, gateway
             )
 
     def test_people360_variant_parameters_remain_conditional(self) -> None:
@@ -1101,7 +1481,7 @@ class ExportOpenApiContractsTest(unittest.TestCase):
                 "PopulationFreeze",
                 "Projection",
                 "QueryState",
-            },
+            } | set(EXPORTER["HRM_CANONICAL_SCHEMA_SHA256"]),
         )
         self.assertEqual(
             set(schemas["AssignmentProposalCreateRequest"]["required"]),
@@ -1429,7 +1809,10 @@ class ExportOpenApiContractsTest(unittest.TestCase):
             service = services[name]
             for owner_path, path_item in overlay["paths"].items():
                 public_path = service.public_path(owner_path)
-                self.assertIsNotNone(public_path)
+                if public_path is None:
+                    self.assertTrue(owner_path.startswith("/internal/"))
+                    self.assertNotIn(owner_path, gateway["paths"])
+                    continue
                 for method in path_item:
                     self.assertIn(
                         method,
