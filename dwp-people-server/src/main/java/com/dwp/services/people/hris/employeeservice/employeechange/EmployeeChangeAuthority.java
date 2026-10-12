@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.HrisEmployeeChangeSecurityBridge;
 import com.dwp.services.people.security.HcmPepContext;
 import com.dwp.services.people.security.HcmV3PepRegistry;
+import com.dwp.services.people.security.PeopleRequestContext;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +20,10 @@ final class EmployeeChangeAuthority {
 
     static final String READ_CAPABILITY = "hcm.operations.people.view";
     static final String APPLY_CAPABILITY = "hcm.operations.people-change.approve";
+    private static final String OPERATIONS_CHANGE_PERMISSION_CODE =
+            "DATA.HRIS_WORKFORCE:UPDATE";
+    private static final String APPLY_PERMISSION_CODE =
+            "ACTION.HRIS_WORKFORCE_CHANGE_APPROVE:APPROVE";
     private static final Set<String> CREATE_CAPABILITIES = Set.of(
             "hcm.operations.people.update",
             "hcm.team.people-change.request",
@@ -55,6 +60,24 @@ final class EmployeeChangeAuthority {
                     "The exact HCM route does not authorize this employee-change operation.");
         }
         return authority.capabilityContractKey();
+    }
+
+    ActionTruth actionTruth(PeopleRequestContext.Actor actor) {
+        Set<String> permissions = actor == null || actor.permissions() == null
+                ? Set.of() : actor.permissions();
+        boolean canCreateOrSubmit = permissions.stream()
+                .map(value -> value.toUpperCase(java.util.Locale.ROOT))
+                .anyMatch(OPERATIONS_CHANGE_PERMISSION_CODE::equals);
+        boolean canApply = permissions.stream()
+                .map(value -> value.toUpperCase(java.util.Locale.ROOT))
+                .anyMatch(APPLY_PERMISSION_CODE::equals);
+        return new ActionTruth(canCreateOrSubmit, canCreateOrSubmit, canApply);
+    }
+
+    record ActionTruth(boolean create, boolean submit, boolean apply) {
+        static ActionTruth none() {
+            return new ActionTruth(false, false, false);
+        }
     }
 
     private record Expected(

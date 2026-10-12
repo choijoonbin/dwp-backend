@@ -16,6 +16,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.dao.DataAccessResourceFailureException;
 
 import java.lang.reflect.Method;
 import java.time.Clock;
@@ -23,7 +24,10 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.nio.charset.StandardCharsets;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
@@ -132,6 +136,27 @@ class EmployeeChangeServiceTest {
     }
 
     @Test
+    void workbenchRepositoryFailureProducesValidatedUnavailableProjection() {
+        when(authority.require("READ")).thenReturn(EmployeeChangeAuthority.READ_CAPABILITY);
+        when(populationScopes.requireOperations("READ")).thenReturn(population);
+        when(repository.workbench(TENANT, NOW, population.scope()))
+                .thenThrow(new DataAccessResourceFailureException("unavailable"));
+        EmployeeChangeDtos.WorkbenchQuery query = new EmployeeChangeDtos.WorkbenchQuery(
+                25, EmployeeChangeDtos.WorkbenchFilter.empty(),
+                List.of("itemPublicId:ASC"), "ko-KR", "Asia/Seoul",
+                CORRELATION, NOW, null);
+
+        EmployeeChangeService.WorkbenchResult result = service.workbench(query);
+
+        assertThat(result.projection().queryState().state()).isEqualTo("UNAVAILABLE");
+        assertThat(result.projection().queryState().freshness()).isEqualTo("UNAVAILABLE");
+        assertThat(result.projection().items()).isEmpty();
+        assertThat(result.projection().queryState().partialFailures()).singleElement()
+                .extracting(EmployeeChangeDtos.PartialFailure::errorCode)
+                .isEqualTo("EMPLOYEE_CHANGE_QUERY_UNAVAILABLE");
+    }
+
+    @Test
     void submitReplayReturnsOriginalReceiptBeforeLifecycleChecksAndRejectsDrift()
             throws Exception {
         EmployeeChangeRepository.RequestRow submitted = request(
@@ -189,6 +214,169 @@ class EmployeeChangeServiceTest {
         verify(repository, never()).submit(
                 anyLong(), any(), any(), anyString(), anyLong(), any(), anyLong());
         verify(approvalOutbox, never()).enqueueSubmitted(anyLong(), any());
+    }
+
+    @Test
+    void createReplayAtTargetVersionZeroReturnsOriginalCanonicalVersionOne() {
+        EmployeeChangeDtos.CreateRequest request = createRequest();
+        UUID requestPublicId = UUID.nameUUIDFromBytes((
+                "employee-change-request\n" + TENANT + '\n' + TARGET_PERSON + '\n'
+                        + "CREATE_EMPLOYEE_CHANGE_REQUEST\n" + KEY)
+                .getBytes(StandardCharsets.UTF_8));
+        Map<String, Object> binding = new LinkedHashMap<>();
+        binding.put("method", "POST");
+        binding.put("path", "/api/people/v1/hris/employee-change-requests");
+        binding.put("requestPublicId", requestPublicId);
+        binding.put("ifMatch", 0L);
+        binding.put("idempotencyKey", KEY);
+        binding.put("correlationId", CORRELATION);
+        binding.put("purposeCode", "HR_OPERATIONS");
+        binding.put("body", request);
+        String digest = canonicalizer.requestDigest(binding);
+        EmployeeChangeRepository.ReceiptRow original = replayReceipt(
+                "EMPLOYEE_CHANGE_CREATE", "CREATE_EMPLOYEE_CHANGE_REQUEST",
+                TARGET_PERSON, requestPublicId, 0L, "HR_OPERATIONS", digest, 1L);
+        when(authority.require("CREATE")).thenReturn("hcm.operations.people.update");
+        when(repository.receiptForReconciliation(
+                TENANT, ACTOR, "CREATE_EMPLOYEE_CHANGE_REQUEST", KEY,
+                "EMPLOYEE_CHANGE_CREATE", requestPublicId, CORRELATION))
+                .thenReturn(Optional.of(original));
+
+        EmployeeChangeService.CommandResult replay = service.create(
+                request, KEY, "\"v:0\"", CORRELATION, null);
+
+        assertThat(replay.entityVersion()).isEqualTo(1L);
+        assertThat(replay.receipt().receiptId()).isEqualTo(original.receiptId());
+        verify(repository, never()).targetForMutation(anyLong(), any(), anyString(), any());
+        verify(repository, never()).insertReceipt(
+                anyLong(), any(), anyString(), anyString(), anyString(), any(),
+                anyString(), any(), anyString(), anyLong(), anyString(), anyLong(),
+                anyString(), any(), anyLong(), any(), any());
+
+        assertThatThrownBy(() -> service.create(
+                request, KEY, "\"v:1\"", CORRELATION, null))
+                .isInstanceOf(BaseException.class)
+                .extracting(error -> ((BaseException) error).getErrorCode())
+                .isEqualTo(ErrorCode.RESOURCE_CONFLICT);
+    }
+
+    @Test
+    void lifecycleCommandsRejectZeroRequestRevisionBeforeReconciliation() {
+        when(authority.require("SUBMIT")).thenReturn("hcm.operations.people.update");
+        when(authority.require("APPLY"))
+                .thenReturn(EmployeeChangeAuthority.APPLY_CAPABILITY);
+
+        assertThatThrownBy(() -> service.submit(
+                REQUEST, KEY, "\"v:0\"", CORRELATION, null))
+                .isInstanceOf(BaseException.class)
+                .extracting(error -> ((BaseException) error).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+        assertThatThrownBy(() -> service.apply(
+                REQUEST, KEY, "\"v:0\"", CORRELATION, null,
+                new HcmStepUpHeaders(
+                        "challenge", KEY, "decision:employee-change:31", 0L)))
+                .isInstanceOf(BaseException.class)
+                .extracting(error -> ((BaseException) error).getErrorCode())
+                .isEqualTo(ErrorCode.INVALID_INPUT_VALUE);
+        verify(repository, never()).receiptForReconciliation(
+                anyLong(), any(), anyString(), anyString(), anyString(), any(), any());
+    }
+
+    @Test
+    void submitReconcilesOriginalReceiptBeforeReloadingChangedLifecycle() {
+        String path = "/api/people/v1/hris/employee-change-requests/" + REQUEST + "/submit";
+        String digest = lifecycleDigest(path, 3L, "HR_OPERATIONS");
+        EmployeeChangeRepository.ReceiptRow original = replayReceipt(
+                "EMPLOYEE_CHANGE_SUBMIT", "SUBMIT_EMPLOYEE_CHANGE_REQUEST",
+                TARGET_PERSON, REQUEST, 3L, "HR_OPERATIONS", digest, 4L);
+        when(authority.require("SUBMIT")).thenReturn("hcm.operations.people.update");
+        when(repository.receiptForReconciliation(
+                TENANT, ACTOR, "SUBMIT_EMPLOYEE_CHANGE_REQUEST", KEY,
+                "EMPLOYEE_CHANGE_SUBMIT", REQUEST, CORRELATION))
+                .thenReturn(Optional.of(original));
+
+        EmployeeChangeService.CommandResult replay = service.submit(
+                REQUEST, KEY, "\"v:3\"", CORRELATION, null);
+
+        assertThat(replay.receipt().receiptId()).isEqualTo(original.receiptId());
+        assertThat(replay.entityVersion()).isEqualTo(4L);
+        verify(repository, never()).requestForMutation(anyLong(), any());
+        verify(approvalOutbox, never()).enqueueSubmitted(anyLong(), any());
+    }
+
+    @Test
+    void applyReplayDoesNotReconsumeStepUpAndDigestDriftConflicts() {
+        String path = "/api/people/v1/hris/employee-change-requests/" + REQUEST + "/apply";
+        String digest = lifecycleDigest(path, 5L, "HR_LIFECYCLE");
+        EmployeeChangeRepository.ReceiptRow original = replayReceipt(
+                "EMPLOYEE_CHANGE_APPLY", "APPLY_EMPLOYEE_CHANGE_REQUEST",
+                TARGET_PERSON, REQUEST, 5L, "HR_LIFECYCLE", digest, 7L);
+        when(authority.require("APPLY"))
+                .thenReturn(EmployeeChangeAuthority.APPLY_CAPABILITY);
+        when(repository.receiptForReconciliation(
+                TENANT, ACTOR, "APPLY_EMPLOYEE_CHANGE_REQUEST", KEY,
+                "EMPLOYEE_CHANGE_APPLY", REQUEST, CORRELATION))
+                .thenReturn(Optional.of(original));
+        HcmStepUpHeaders consumedEvidence = new HcmStepUpHeaders(
+                "already-consumed", KEY, "decision:employee-change:31", 5L);
+
+        EmployeeChangeService.CommandResult replay = service.apply(
+                REQUEST, KEY, "\"v:5\"", CORRELATION, null, consumedEvidence);
+
+        assertThat(replay.receipt().receiptId()).isEqualTo(original.receiptId());
+        assertThat(replay.entityVersion()).isEqualTo(7L);
+        verify(highRisk, never()).requireExact(
+                anyString(), anyString(), anyString(), anyLong(), anyString(), any(), any());
+        verify(repository, never()).requestForMutation(anyLong(), any());
+
+        assertThatThrownBy(() -> service.apply(
+                REQUEST, KEY, "\"v:4\"", CORRELATION, null,
+                new HcmStepUpHeaders(
+                        "already-consumed", KEY, "decision:employee-change:31", 4L)))
+                .isInstanceOf(BaseException.class)
+                .extracting(error -> ((BaseException) error).getErrorCode())
+                .isEqualTo(ErrorCode.RESOURCE_CONFLICT);
+        verify(highRisk, never()).requireExact(
+                anyString(), anyString(), anyString(), anyLong(), anyString(), any(), any());
+    }
+
+    @Test
+    void applyLateClaimRaceReturnsOriginalReceiptWithoutConsumingStepUp() {
+        UUID requester = uuid(72);
+        EmployeeChangeRepository.RequestRow approved = request(
+                "APPROVED", requester, 5L, null);
+        String path = "/api/people/v1/hris/employee-change-requests/" + REQUEST + "/apply";
+        EmployeeChangeRepository.ReceiptRow original = replayReceipt(
+                "EMPLOYEE_CHANGE_APPLY", "APPLY_EMPLOYEE_CHANGE_REQUEST",
+                TARGET_PERSON, REQUEST, 5L, "HR_LIFECYCLE",
+                lifecycleDigest(path, 5L, "HR_LIFECYCLE"), 7L);
+        when(authority.require("APPLY"))
+                .thenReturn(EmployeeChangeAuthority.APPLY_CAPABILITY);
+        when(repository.requestForMutation(TENANT, REQUEST))
+                .thenReturn(Optional.of(approved));
+        when(repository.targetForMutation(
+                TENANT, TARGET_PERSON, "PERSON", TARGET_AGGREGATE))
+                .thenReturn(Optional.of(target()));
+        when(repository.insertReceipt(
+                anyLong(), any(), anyString(), anyString(), anyString(), any(),
+                anyString(), any(), anyString(), anyLong(), anyString(), anyLong(),
+                anyString(), any(), anyLong(), any(), any()))
+                .thenReturn(Optional.empty());
+        when(repository.receipt(
+                TENANT, TARGET_PERSON, "APPLY_EMPLOYEE_CHANGE_REQUEST", KEY,
+                "EMPLOYEE_CHANGE_APPLY", CORRELATION))
+                .thenReturn(Optional.of(original));
+
+        EmployeeChangeService.CommandResult replay = service.apply(
+                REQUEST, KEY, "\"v:5\"", CORRELATION, null,
+                new HcmStepUpHeaders(
+                        "already-consumed", KEY, "decision:employee-change:31", 5L));
+
+        assertThat(replay.receipt().receiptId()).isEqualTo(original.receiptId());
+        assertThat(replay.entityVersion()).isEqualTo(7L);
+        verify(highRisk, never()).requireExact(
+                anyString(), anyString(), anyString(), anyLong(), anyString(), any(), any());
+        verify(repository, never()).beginApply(anyLong(), any(), any(), anyLong());
     }
 
     @Test
@@ -320,6 +508,37 @@ class EmployeeChangeServiceTest {
                 "c".repeat(64), ACTOR, "EMPLOYEE_CHANGE_ACTION", TARGET_PERSON,
                 "d".repeat(64), 11L, "HR_OPERATIONS", 13L, "e".repeat(64),
                 REQUEST, 5L, state, null, null, CORRELATION, NOW);
+    }
+
+    private EmployeeChangeRepository.ReceiptRow replayReceipt(
+            String commandType,
+            String action,
+            UUID subject,
+            UUID target,
+            long expectedVersion,
+            String purpose,
+            String digest,
+            long resultVersion) {
+        return new EmployeeChangeRepository.ReceiptRow(
+                uuid(82), TENANT, commandType, KEY, digest, ACTOR, action, subject,
+                "d".repeat(64), 11L, purpose, 13L, "e".repeat(64),
+                target, expectedVersion, "SUCCEEDED", "COMPLETED",
+                "{\"requestPublicId\":\"" + target + "\",\"requestVersion\":"
+                        + resultVersion + "}",
+                CORRELATION, NOW);
+    }
+
+    private String lifecycleDigest(String path, long expectedVersion, String purpose) {
+        Map<String, Object> binding = new LinkedHashMap<>();
+        binding.put("method", "POST");
+        binding.put("path", path);
+        binding.put("requestPublicId", REQUEST);
+        binding.put("ifMatch", expectedVersion);
+        binding.put("idempotencyKey", KEY);
+        binding.put("correlationId", CORRELATION);
+        binding.put("purposeCode", purpose);
+        binding.put("body", Map.of());
+        return canonicalizer.requestDigest(binding);
     }
 
     private HcmPopulationScopeService.ResolvedPopulation population() {
