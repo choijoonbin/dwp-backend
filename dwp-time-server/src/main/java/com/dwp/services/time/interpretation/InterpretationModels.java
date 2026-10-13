@@ -465,15 +465,19 @@ public final class InterpretationModels {
             Instant asOf,
             int limit,
             int offset,
-            LocalDate effectiveOn,
-            List<String> statusCodes) {
+            InterpretationIaQueryModels.InterpretationFilter filter,
+            List<String> sort) {
         public InterpretationQuery {
             if (tenantId <= 0 || limit < 1 || limit > 101 || offset < 0) {
                 throw new IllegalArgumentException("interpretation query is invalid");
             }
             workerScope = immutable(workerScope);
             Objects.requireNonNull(asOf, "asOf");
-            statusCodes = statusCodes == null ? List.of() : List.copyOf(statusCodes);
+            Objects.requireNonNull(filter, "filter");
+            sort = sort == null ? List.of() : List.copyOf(sort);
+            if (sort.isEmpty()) {
+                throw new IllegalArgumentException("interpretation query sort is required");
+            }
         }
     }
 
@@ -489,6 +493,7 @@ public final class InterpretationModels {
             int regularMinutes,
             int overtimeMinutes,
             int attemptNo,
+            int traceItemCount,
             String inputDigest,
             String ruleDigest,
             String outputDigest,

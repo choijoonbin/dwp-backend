@@ -5,9 +5,11 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.dwp.services.time.interpretation.InterpretationModels.InterpretationAppend;
 import com.dwp.services.time.interpretation.InterpretationModels.InterpretationComputation;
+import com.dwp.services.time.interpretation.InterpretationModels.InterpretationQuery;
 import com.dwp.services.time.interpretation.InterpretationModels.InterpretationRun;
 import com.dwp.services.time.interpretation.InterpretationModels.RunStatus;
 import com.dwp.services.time.interpretation.InterpretationModels.TraceStep;
+import com.dwp.services.time.interpretation.InterpretationModels.VerifiedInterpretationRequest;
 import com.dwp.services.time.interpretation.InterpretationModels.WorkerMinuteResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.sql.Timestamp;
@@ -15,6 +17,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
@@ -39,7 +42,12 @@ class TimeInterpretationMigrationIntegrationTest {
     private static final String RUNTIME_ROLE = "tim_interpret_runtime";
     private static final String PUBLISHER_ROLE = "tim_interpret_publisher";
     private static final long TENANT = 49_010L;
+    private static final long QUERY_TENANT = 49_011L;
     private static final UUID RULE_ID = uuid("49010000-0000-4000-8000-000000000001");
+    private static final UUID QUERY_RULE_LOW =
+            uuid("49011000-0000-4000-8000-000000000001");
+    private static final UUID QUERY_RULE_HIGH =
+            uuid("49011000-0000-4000-8000-000000000002");
     private static final UUID WORKER = uuid("49010000-0000-4000-8000-000000000002");
     private static final Instant NOW = Instant.parse("2026-10-13T03:00:00Z");
 
@@ -93,6 +101,15 @@ class TimeInterpretationMigrationIntegrationTest {
                     """,
                     RULE_ID, TENANT, LocalDate.parse("2026-01-01"),
                     LocalDate.parse("2027-01-01"), "c".repeat(64), Timestamp.from(NOW));
+            jdbc.queryForObject(
+                    "SELECT set_config('dwp.tenant_id', ?, true)", String.class,
+                    Long.toString(QUERY_TENANT));
+            insertQueryRule(
+                    QUERY_RULE_LOW, 7,
+                    LocalDate.parse("2025-01-01"), LocalDate.parse("2026-01-01"));
+            insertQueryRule(
+                    QUERY_RULE_HIGH, 8,
+                    LocalDate.parse("2026-01-01"), LocalDate.parse("2027-01-01"));
         });
         repository = new JdbcInterpretationRepository(
                 jdbc,
@@ -156,6 +173,219 @@ class TimeInterpretationMigrationIntegrationTest {
                 """, Integer.class)).isEqualTo(2);
     }
 
+    @Test
+    void queryFiltersAndOrdersBeforePagingAndProjectsActualTraceCounts() {
+        UUID lowOne = uuid("49011000-0000-4000-8000-000000000011");
+        UUID lowTwo = uuid("49011000-0000-4000-8000-000000000012");
+        UUID high = uuid("49011000-0000-4000-8000-000000000013");
+        appendQueryRun(lowOne, QUERY_RULE_LOW, 7, 1, NOW.minusSeconds(1));
+        appendQueryRun(lowTwo, QUERY_RULE_LOW, 7, 2, NOW.minusSeconds(2));
+        appendQueryRun(high, QUERY_RULE_HIGH, 8, 3, NOW.minusSeconds(30));
+
+        var onlyHighRule = new InterpretationIaQueryModels.InterpretationFilter(
+                null,
+                new InterpretationIaQueryModels.PolicyFilter(
+                        List.of("tim.rule." + QUERY_RULE_HIGH), 8L),
+                null,
+                InterpretationTestFixtures.WORK_DATE);
+        var filtered = repository.query(new InterpretationQuery(
+                QUERY_TENANT,
+                Set.of(WORKER),
+                NOW.plusSeconds(1),
+                2,
+                0,
+                onlyHighRule,
+                List.of("itemPublicId:ASC")));
+        assertThat(filtered).singleElement().satisfies(row -> {
+            assertThat(row.runPublicId()).isEqualTo(high);
+            assertThat(row.traceItemCount()).isEqualTo(3);
+        });
+
+        var traceDescending = repository.query(new InterpretationQuery(
+                QUERY_TENANT,
+                Set.of(WORKER),
+                NOW.plusSeconds(1),
+                3,
+                0,
+                InterpretationIaQueryModels.InterpretationFilter.empty(),
+                List.of("traceSummary:DESC")));
+        assertThat(traceDescending)
+                .extracting(row -> itemId(row.runPublicId(), row.workerPublicId()))
+                .containsExactly(
+                        itemId(high, WORKER),
+                        itemId(lowTwo, WORKER),
+                        itemId(lowOne, WORKER));
+        assertThat(traceDescending)
+                .extracting(InterpretationModels.InterpretationSummary::traceItemCount)
+                .containsExactly(3, 2, 1);
+
+        assertTraceCountPages(high, lowTwo);
+    }
+
+    private void assertTraceCountPages(UUID high, UUID lowTwo) {
+        var authority = queryViewAuthority();
+        var projections = new InterpretationIaProjectionService(
+                java.time.Clock.fixed(NOW, java.time.ZoneOffset.UTC),
+                "tim-query-integration-cursor-secret");
+        var traceFilter = new InterpretationIaQueryModels.InterpretationFilter(
+                null,
+                null,
+                new InterpretationIaQueryModels.AggregateFilter(2L, 3L),
+                null);
+        var firstRequest = new InterpretationIaQueryModels.InterpretationQueryRequest(
+                1,
+                traceFilter,
+                List.of("traceSummary:DESC"),
+                "en-US",
+                "UTC",
+                authority.correlationId(),
+                NOW.plusSeconds(1),
+                null);
+        var firstPrepared = projections.prepare(authority, firstRequest);
+        var firstRows = repository.query(query(authority, firstPrepared));
+        var first = projections.projectWindow(authority, firstRequest, firstRows);
+        assertThat(first.items()).singleElement().satisfies(item -> {
+            assertThat(item.itemPublicId()).isEqualTo(itemId(high, WORKER));
+            assertThat(item.fieldGroups().TRACE_SUMMARY().value().itemCount()).isEqualTo(3);
+        });
+        assertThat(first.queryState().nextCursor()).isNotBlank();
+
+        var secondRequest = new InterpretationIaQueryModels.InterpretationQueryRequest(
+                1,
+                traceFilter,
+                List.of("traceSummary:DESC"),
+                "en-US",
+                "UTC",
+                authority.correlationId(),
+                NOW.plusSeconds(1),
+                first.queryState().nextCursor());
+        var secondPrepared = projections.prepare(authority, secondRequest);
+        var secondRows = repository.query(query(authority, secondPrepared));
+        var second = projections.projectWindow(authority, secondRequest, secondRows);
+        assertThat(second.items()).singleElement().satisfies(item -> {
+            assertThat(item.itemPublicId()).isEqualTo(itemId(lowTwo, WORKER));
+            assertThat(item.fieldGroups().TRACE_SUMMARY().value().itemCount()).isEqualTo(2);
+        });
+        assertThat(second.queryState().nextCursor()).isNull();
+    }
+
+    private static InterpretationQuery query(
+            VerifiedInterpretationRequest authority,
+            InterpretationIaProjectionService.PreparedQuery prepared) {
+        return new InterpretationQuery(
+                authority.tenantId(),
+                authority.authorizedWorkerPublicIds(),
+                prepared.asOf(),
+                prepared.limit() + 1,
+                prepared.offset(),
+                prepared.filter(),
+                prepared.sort());
+    }
+
+    private static VerifiedInterpretationRequest queryViewAuthority() {
+        return new VerifiedInterpretationRequest(
+                QUERY_TENANT,
+                72,
+                InterpretationTestFixtures.SUBJECT,
+                Set.of("hcm.operations.time.view", "hcm.operations.time.update"),
+                Set.of(
+                        InterpretationModels.InterpretationAction.VIEW,
+                        InterpretationModels.InterpretationAction.RUN,
+                        InterpretationModels.InterpretationAction.TRACE),
+                InterpretationModels.PopulationKind.TIME_GROUP,
+                InterpretationTestFixtures.POPULATION,
+                9,
+                11,
+                InterpretationTestFixtures.DIGEST,
+                13,
+                InterpretationIaProjectionService.VIEW_PURPOSE,
+                37,
+                "psr-" + "b".repeat(64),
+                NOW.plusSeconds(300),
+                InterpretationTestFixtures.CORRELATION,
+                Set.of(WORKER),
+                Set.of(),
+                Set.of());
+    }
+
+    private void appendQueryRun(
+            UUID runId,
+            UUID ruleId,
+            long ruleRevision,
+            int traceCount,
+            Instant createdAt) {
+        List<TraceStep> trace = java.util.stream.IntStream.rangeClosed(1, traceCount)
+                .mapToObj(sequence -> new TraceStep(
+                        sequence,
+                        "TRACE_STEP_" + sequence,
+                        480 - sequence,
+                        480 - sequence))
+                .toList();
+        List<WorkerMinuteResult> results = List.of(
+                new WorkerMinuteResult(WORKER, 480, 480, 0, 60));
+        InterpretationComputation computation = new InterpretationComputation(
+                InterpretationDigests.sha256("query-input", runId),
+                InterpretationDigests.sha256("query-rule", ruleId, ruleRevision),
+                InterpretationDigests.sha256("query-output", runId),
+                results,
+                trace);
+        InterpretationLedgerPlanner.Plan plan = InterpretationLedgerPlanner.plan(
+                runId, computation, null);
+        InterpretationRun run = new InterpretationRun(
+                runId,
+                QUERY_TENANT,
+                InterpretationTestFixtures.SUBJECT,
+                InterpretationTestFixtures.WORK_DATE,
+                InterpretationTestFixtures.WORK_DATE,
+                InterpretationTestFixtures.AS_OF,
+                ruleId,
+                ruleRevision,
+                computation.inputDigest(),
+                computation.ruleDigest(),
+                computation.outputDigest(),
+                1,
+                RunStatus.SUCCEEDED,
+                plan.ledgerDeltaApplied(),
+                null,
+                InterpretationTestFixtures.CORRELATION,
+                createdAt,
+                results,
+                plan.entries(),
+                trace);
+        UUID idempotencyKey = InterpretationDigests.stableUuid("query-idempotency", runId);
+        repository.append(new InterpretationAppend(
+                InterpretationTestFixtures.authority(
+                        QUERY_TENANT,
+                        Set.of(InterpretationService.RUN_PERMISSION),
+                        InterpretationModels.PopulationKind.ORG_UNIT,
+                        Set.of(WORKER)),
+                idempotencyKey,
+                InterpretationDigests.sha256("query-request", idempotencyKey),
+                run));
+    }
+
+    private void insertQueryRule(
+            UUID ruleId,
+            long revision,
+            LocalDate effectiveFrom,
+            LocalDate effectiveTo) {
+        jdbc.update("""
+                INSERT INTO tme_interpretation_rule_versions (
+                    public_id, tenant_id, revision, effective_from, effective_to,
+                    lifecycle_state, registry_id, registry_version, rule_payload,
+                    rule_digest, published_at)
+                VALUES (?, ?, ?, ?, ?, 'PUBLISHED', 'TIM_RULE_AST_V1', 1,
+                        CAST('[{}]' AS jsonb), ?, ?)
+                """,
+                ruleId,
+                QUERY_TENANT,
+                revision,
+                effectiveFrom,
+                effectiveTo,
+                InterpretationDigests.sha256("query-rule-row", ruleId),
+                Timestamp.from(NOW));
+    }
+
     private InterpretationModels.InterpretationCommandReceipt appendAfterBarrier(
             UUID runId,
             UUID idempotencyKey,
@@ -216,5 +446,10 @@ class TimeInterpretationMigrationIntegrationTest {
 
     private static UUID uuid(String value) {
         return UUID.fromString(value);
+    }
+
+    private static String itemId(UUID runId, UUID workerId) {
+        return InterpretationDigests.sha256(
+                "IAQ-041-InterpretationItem.v1", runId, workerId);
     }
 }
