@@ -33,9 +33,9 @@ class WorkforceSnapshotContractTest {
             "22222222-2222-2222-2222-222222222222:"
                     + "11111111-1111-1111-1111-111111111111";
     private static final String SCHEMA_SHA256 =
-            "848d526cf6789350bbc6a85648b265be3de85c545c50643516c28bd9c659d178";
+            "02c1485291354cea6864dba17a0f528848563a251e1ca668f3bd310cb4a5b7f3";
     private static final String SCHEMA_SEMANTICS_SHA256 =
-            "b5fb2775cf41d186343a0cf5a6a4535a5d6be23703232ab7ebe011dda3810778";
+            "533f4f52a1579d186e1ebc4f01408535ad549796dd359c50683e0da5b39c1d21";
 
     @Test
     void publicQueryContainsNoCallerSuppliedTenantOrCallerAuthority() {
@@ -250,6 +250,8 @@ class WorkforceSnapshotContractTest {
                 WorkforceSnapshotProvider.class,
                 VerifiedWorkforceSnapshotRequest.class,
                 VerifiedWorkforceSnapshotCursor.class,
+                VerifiedCompensationPopulationRequest.class,
+                VerifiedCompensationPopulationCursor.class,
                 WorkforceSnapshotQueryPorts.class);
         assertThat(ownerExtensions).allSatisfy(type ->
                 assertThat(Modifier.isPublic(type.getModifiers())).isTrue());
@@ -381,6 +383,8 @@ class WorkforceSnapshotContractTest {
                         "WorkforceSnapshotProvider",
                         "VerifiedWorkforceSnapshotRequest",
                         "VerifiedWorkforceSnapshotCursor",
+                        "VerifiedCompensationPopulationRequest",
+                        "VerifiedCompensationPopulationCursor",
                         "WorkforceSnapshotQueryPorts");
         assertThat(schema.path("$defs").path("WorkforceSnapshotQuery")
                 .path("properties").path("limit").path("maximum").asInt()).isEqualTo(500);
@@ -429,6 +433,8 @@ class WorkforceSnapshotContractTest {
                 WorkforceSnapshotProvider.class,
                 VerifiedWorkforceSnapshotRequest.class,
                 VerifiedWorkforceSnapshotCursor.class,
+                VerifiedCompensationPopulationRequest.class,
+                VerifiedCompensationPopulationCursor.class,
                 WorkforceSnapshotQueryPorts.class,
                 GuardedWorkforceSnapshotQueryPort.class);
         String normalized = relativePath.toString().replace('\\', '/');
@@ -463,6 +469,8 @@ class WorkforceSnapshotContractTest {
                 WorkforceSnapshotProvider.class,
                 VerifiedWorkforceSnapshotRequest.class,
                 VerifiedWorkforceSnapshotCursor.class,
+                VerifiedCompensationPopulationRequest.class,
+                VerifiedCompensationPopulationCursor.class,
                 WorkforceSnapshotQueryPorts.class,
                 GuardedWorkforceSnapshotQueryPort.class);
         for (Class<?> type : ownerOnly) {

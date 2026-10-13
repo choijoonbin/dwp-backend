@@ -16,8 +16,8 @@
     "issuedCursorClaims": "VerifiedWorkforceSnapshotCursor",
     "provider": "WorkforceSnapshotProvider",
     "enforcement": "GuardedWorkforceSnapshotQueryPort",
-    "consumerVisibleTypes": ["WorkforceSnapshotQueryPort", "WorkforceSnapshotQuery", "WorkforceSnapshotPage", "WorkforceSnapshotV1", "WorkforceSnapshotProjection", "WorkforceSnapshotContract"],
-    "ownerExtensionTypes": ["WorkforceSnapshotRequestVerifier", "WorkforceSnapshotProvider", "VerifiedWorkforceSnapshotRequest", "VerifiedWorkforceSnapshotCursor", "WorkforceSnapshotQueryPorts"],
+    "consumerVisibleTypes": ["WorkforceSnapshotQueryPort", "WorkforceSnapshotQuery", "WorkforceSnapshotPage", "WorkforceSnapshotV1", "CompensationPopulationSnapshotQuery", "CompensationPopulationSnapshotPage", "CompensationPopulationLine", "WorkforceSnapshotProjection", "WorkforceSnapshotContract"],
+    "ownerExtensionTypes": ["WorkforceSnapshotRequestVerifier", "WorkforceSnapshotProvider", "VerifiedWorkforceSnapshotRequest", "VerifiedWorkforceSnapshotCursor", "VerifiedCompensationPopulationRequest", "VerifiedCompensationPopulationCursor", "WorkforceSnapshotQueryPorts"],
     "controlInternalTypes": ["GuardedWorkforceSnapshotQueryPort"],
     "tenantContext": "OWNER_RESOLVED_NOT_CALLER_SUPPLIED",
     "purposeCode": "HRIS_WORKFORCE_SNAPSHOT_BOOTSTRAP",
@@ -26,7 +26,26 @@
     "pageOrdering": ["assignmentPublicId:ASC", "workerPublicId:ASC"],
     "orderingVersion": "assignmentPublicId-asc-workerPublicId-asc.v1",
     "pageInvariants": ["snapshots.size <= request.limit", "assignmentPublicId unique", "workerPublicId+assignmentPublicId unique", "next page first position > authenticated cursor position", "non-null nextCursor authenticates ownerRevision+lastEmittedCanonicalPosition"],
-    "pageDigest": "SHA_256_CANONICAL_BINARY_V1_WITH_ORDERING_VERSION"
+    "pageDigest": "SHA_256_CANONICAL_BINARY_V1_WITH_ORDERING_VERSION",
+    "compensationPopulation": {
+      "method": "queryCompensationPopulation",
+      "request": "CompensationPopulationSnapshotQuery",
+      "verifiedRequest": "VerifiedCompensationPopulationRequest",
+      "result": "CompensationPopulationSnapshotPage",
+      "line": "CompensationPopulationLine",
+      "issuedCursorClaims": "VerifiedCompensationPopulationCursor",
+      "projection": "COMPENSATION_POPULATION_V1",
+      "purposeCode": "HRIS_PER_COMPENSATION_POPULATION",
+      "transport": "IN_PROCESS_OWNER_PORT_ONLY_NO_SELF_HTTP_NO_BROWSER_ROUTE",
+      "cursorBinding": ["tenantId", "callerModule", "snapshotPublicId", "ownerRevision", "asOf", "projection", "purposeCode", "fullPopulationDigest", "lastEmittedAssignmentPublicId", "lastEmittedWorkerPublicId"],
+      "pageOrdering": ["assignmentPublicId:ASC", "workerPublicId:ASC"],
+      "orderingVersion": "assignmentPublicId-asc-workerPublicId-asc.v1",
+      "canonicalJson": "RFC8785_JCS",
+      "encoding": "UTF-8",
+      "pageDigest": "SHA256_CANONICAL_PAGE_HEADER_PLUS_ORDERED_LINES_PLUS_NEXT_CURSOR",
+      "fullPopulationDigest": "SHA256_OF_CANONICAL_COMPENSATION_POPULATION_CONTENT_V1_BYTES",
+      "pageInvariants": ["lines.size <= request.limit", "assignmentPublicId unique across all pages", "workerPublicId+assignmentPublicId unique", "next page first assignmentPublicId > authenticated last assignmentPublicId", "next page first position > authenticated cursor position", "non-null nextCursor authenticates tenant+caller+snapshot+revision+asOf+projection+purpose+fullPopulationDigest+lastEmittedCanonicalPosition"]
+    }
   },
   "$defs": {
     "WorkforceSnapshotQuery": {
@@ -106,6 +125,91 @@
         "managerAssignmentPublicId": {"type": ["string", "null"], "format": "uuid"},
         "jobProfilePublicId": {"type": ["string", "null"], "format": "uuid"},
         "gradePublicId": {"type": ["string", "null"], "format": "uuid"}
+      }
+    },
+    "CompensationPopulationSnapshotQuery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshotPublicId", "ownerRevision", "asOf", "projection", "purposeCode", "limit", "cursorToken"],
+      "properties": {
+        "snapshotPublicId": {"type": "string", "format": "uuid"},
+        "ownerRevision": {"type": "integer", "format": "int64", "minimum": 1},
+        "asOf": {"type": "string", "format": "date-time"},
+        "projection": {"const": "COMPENSATION_POPULATION_V1"},
+        "purposeCode": {"const": "HRIS_PER_COMPENSATION_POPULATION"},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 500},
+        "cursorToken": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": ".*\\S.*", "x-maxUtf8Bytes": 2048}]}
+      }
+    },
+    "VerifiedCompensationPopulationRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Owner-internal DTO produced after tenant, caller, purpose, target population, field policy, and opaque cursor revalidation.",
+      "x-invariant": "cursorFullPopulationDigest, verifiedCursorPosition, and cursorTokenDigest are either all null or all valid",
+      "required": ["tenantId", "tenantGrantRevision", "policyRevision", "callerModule", "correlationId", "snapshotPublicId", "ownerRevision", "asOf", "projection", "purposeCode", "limit", "cursorFullPopulationDigest", "verifiedCursorPosition", "cursorTokenDigest"],
+      "properties": {
+        "tenantId": {"type": "integer", "format": "int64", "minimum": 1},
+        "tenantGrantRevision": {"type": "integer", "format": "int64", "minimum": 1},
+        "policyRevision": {"type": "integer", "format": "int64", "minimum": 1},
+        "callerModule": {"const": "HRIS-PER"},
+        "correlationId": {"type": "string", "format": "uuid"},
+        "snapshotPublicId": {"type": "string", "format": "uuid"},
+        "ownerRevision": {"type": "integer", "format": "int64", "minimum": 1},
+        "asOf": {"type": "string", "format": "date-time"},
+        "projection": {"const": "COMPENSATION_POPULATION_V1"},
+        "purposeCode": {"const": "HRIS_PER_COMPENSATION_POPULATION"},
+        "limit": {"type": "integer", "minimum": 1, "maximum": 500},
+        "cursorFullPopulationDigest": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9a-f]{64}$"}]},
+        "verifiedCursorPosition": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"}]},
+        "cursorTokenDigest": {"oneOf": [{"type": "null"}, {"type": "string", "pattern": "^[0-9a-f]{64}$"}]}
+      }
+    },
+    "VerifiedCompensationPopulationCursor": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Owner-authenticated claims for a non-null compensation population continuation cursor.",
+      "required": ["tenantId", "callerModule", "snapshotPublicId", "ownerRevision", "asOf", "projection", "purposeCode", "fullPopulationDigest", "position", "cursorTokenDigest"],
+      "properties": {
+        "tenantId": {"type": "integer", "format": "int64", "minimum": 1},
+        "callerModule": {"const": "HRIS-PER"},
+        "snapshotPublicId": {"type": "string", "format": "uuid"},
+        "ownerRevision": {"type": "integer", "format": "int64", "minimum": 1},
+        "asOf": {"type": "string", "format": "date-time"},
+        "projection": {"const": "COMPENSATION_POPULATION_V1"},
+        "purposeCode": {"const": "HRIS_PER_COMPENSATION_POPULATION"},
+        "fullPopulationDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "position": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"},
+        "cursorTokenDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
+    "CompensationPopulationSnapshotPage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["snapshotPublicId", "ownerRevision", "asOf", "projection", "purposeCode", "fullPopulationDigest", "pageDigest", "lines", "nextCursor"],
+      "properties": {
+        "snapshotPublicId": {"type": "string", "format": "uuid"},
+        "ownerRevision": {"type": "integer", "format": "int64", "minimum": 1},
+        "asOf": {"type": "string", "format": "date-time"},
+        "projection": {"const": "COMPENSATION_POPULATION_V1"},
+        "purposeCode": {"const": "HRIS_PER_COMPENSATION_POPULATION"},
+        "fullPopulationDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "pageDigest": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "lines": {"type": "array", "maxItems": 500, "x-uniqueBy": ["assignmentPublicId", "workerPublicId+assignmentPublicId"], "x-orderBy": ["assignmentPublicId:ASC", "workerPublicId:ASC"], "items": {"$ref": "#/$defs/CompensationPopulationLine"}},
+        "nextCursor": {"oneOf": [{"type": "null"}, {"type": "string", "minLength": 1, "maxLength": 2048, "pattern": ".*\\S.*", "x-maxUtf8Bytes": 2048}]}
+      }
+    },
+    "CompensationPopulationLine": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["workerPublicId", "assignmentPublicId", "organizationPublicId", "gradePublicId", "jobProfilePublicId", "assignmentOwnerRevision", "eligibleComponentCodes"],
+      "properties": {
+        "workerPublicId": {"type": "string", "format": "uuid"},
+        "assignmentPublicId": {"type": "string", "format": "uuid"},
+        "organizationPublicId": {"type": "string", "format": "uuid"},
+        "gradePublicId": {"type": ["string", "null"], "format": "uuid"},
+        "jobProfilePublicId": {"type": ["string", "null"], "format": "uuid"},
+        "assignmentOwnerRevision": {"type": "integer", "format": "int64", "minimum": 1},
+        "eligibleComponentCodes": {"type": "array", "minItems": 1, "maxItems": 1000, "items": {"type": "string"}}
       }
     }
   }

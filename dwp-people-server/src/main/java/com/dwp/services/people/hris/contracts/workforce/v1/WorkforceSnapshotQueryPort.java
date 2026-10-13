@@ -18,6 +18,11 @@ public final class WorkforceSnapshotQueryPort {
         return enforcement.query(query);
     }
 
+    public CompensationPopulationSnapshotPage queryCompensationPopulation(
+            CompensationPopulationSnapshotQuery query) {
+        return enforcement.queryCompensationPopulation(query);
+    }
+
     Class<?> enforcementType() {
         return enforcement.getClass();
     }

@@ -11,4 +11,22 @@ public interface WorkforceSnapshotRequestVerifier {
     VerifiedWorkforceSnapshotCursor verifyIssuedCursor(
             VerifiedWorkforceSnapshotRequest request,
             WorkforceSnapshotPage page);
+
+    /**
+     * Additive compensation-population authority boundary. Existing owner implementations remain
+     * fail closed until they explicitly implement the sealed projection.
+     */
+    default VerifiedCompensationPopulationRequest verifyCompensationPopulation(
+            CompensationPopulationSnapshotQuery query) {
+        throw new IllegalStateException(
+                "compensation population authority verification is unavailable");
+    }
+
+    /** Authenticates every owner-issued compensation continuation cursor. */
+    default VerifiedCompensationPopulationCursor verifyIssuedCompensationPopulationCursor(
+            VerifiedCompensationPopulationRequest request,
+            CompensationPopulationSnapshotPage page) {
+        throw new IllegalStateException(
+                "compensation population cursor verification is unavailable");
+    }
 }

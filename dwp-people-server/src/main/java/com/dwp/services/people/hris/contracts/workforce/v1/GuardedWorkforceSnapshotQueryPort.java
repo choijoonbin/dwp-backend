@@ -31,4 +31,24 @@ final class GuardedWorkforceSnapshotQueryPort {
         }
         return page;
     }
+
+    CompensationPopulationSnapshotPage queryCompensationPopulation(
+            CompensationPopulationSnapshotQuery query) {
+        Objects.requireNonNull(query, "query must not be null");
+        VerifiedCompensationPopulationRequest verified = Objects.requireNonNull(
+                verifier.verifyCompensationPopulation(query),
+                "verifier must return a verified compensation population request");
+        verified.verifyDerivedFrom(query);
+        CompensationPopulationSnapshotPage page = Objects.requireNonNull(
+                provider.queryCompensationPopulation(verified),
+                "provider must return a compensation population page");
+        page.verifyFor(verified);
+        if (page.nextCursor() != null) {
+            VerifiedCompensationPopulationCursor issued = Objects.requireNonNull(
+                    verifier.verifyIssuedCompensationPopulationCursor(verified, page),
+                    "verifier must return authenticated compensation cursor claims");
+            issued.verifyFor(verified, page);
+        }
+        return page;
+    }
 }
