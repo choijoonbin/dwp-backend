@@ -127,7 +127,7 @@ public class CompensationPlanningService {
                 "POST", CYCLE_BASE, null, actor.tenantId(), subject, request);
         Optional<CompensationPlanningDtos.CommandReceipt> replay = replay(
                 actor.tenantId(), subject, PROPOSE_ACTION, key,
-                CREATE, null, 0, hash, correlation);
+                CREATE, null, 0, hash, correlation, authority);
         if (replay.isPresent()) return replay.get();
 
         CompensationPopulationMaterializer.VerifiedPopulation verified =
@@ -137,7 +137,7 @@ public class CompensationPlanningService {
                 actor.tenantId(), actor.userId(), subject, receiptId, key,
                 CREATE, PROPOSE_ACTION, cycleId, 0, hash, authority)) {
             return concurrentReplay(actor.tenantId(), subject, PROPOSE_ACTION, key,
-                    CREATE, null, 0, hash, correlation);
+                    CREATE, null, 0, hash, correlation, authority);
         }
         Instant now = databaseNow();
         UUID guidelineId = UUID.randomUUID();
@@ -240,11 +240,11 @@ public class CompensationPlanningService {
                 cycleId, expectedVersion, request, idempotencyKey, correlationId,
                 false, List.of("BUDGET_AMOUNT", "ORGANIZATION"),
                 CYCLE_BASE + '/' + cycleId + "/budget-allocations", PROPOSE_ACTION);
-        if (context.replay() != null) return context.replay();
         if (!context.authority().targetPopulation()
                 .permitsOrganization(request.organizationPublicId())) {
             throw forbidden("Budget organization is outside the authorized population.");
         }
+        if (context.replay() != null) return context.replay();
         CompensationPlanningRepository.CycleRow cycle = cycleForUpdate(
                 context.actor().tenantId(), cycleId, expectedVersion, "DRAFT", "OPEN");
         validateBudgetMutation(context.actor().tenantId(), cycle, request);
@@ -896,7 +896,7 @@ public class CompensationPlanningService {
                 "POST", path, expectedVersion, actor.tenantId(), subject, body);
         CompensationPlanningDtos.CommandReceipt replay = replay(
                 actor.tenantId(), subject, originatingAction, key, operation,
-                aggregateId, expectedVersion, hash, correlation).orElse(null);
+                aggregateId, expectedVersion, hash, correlation, authority).orElse(null);
         return new CommandContext(
                 actor, subject, authority, key, correlation, hash,
                 operation, originatingAction, databaseNow(), replay);
@@ -971,7 +971,8 @@ public class CompensationPlanningService {
         return new Reservation(null, concurrentReplay(
                 context.actor().tenantId(), context.subject(), context.originatingAction(),
                 context.idempotencyKey(), context.operation(), aggregateId,
-                expectedVersion, context.requestHash(), context.correlationId()));
+                expectedVersion, context.requestHash(), context.correlationId(),
+                context.authority()));
     }
 
     private Optional<CompensationPlanningDtos.CommandReceipt> replay(
@@ -983,7 +984,8 @@ public class CompensationPlanningService {
             UUID aggregateId,
             long expectedVersion,
             String requestHash,
-            UUID currentCorrelationId) {
+            UUID currentCorrelationId,
+            CompensationPlanningAuthorityPort.AuthorityEvidence authority) {
         Optional<CompensationPlanningRepository.ReceiptRecord> existing = repository
                 .receiptByIdempotency(tenantId, subject, originatingAction, key);
         if (existing.isEmpty()) return Optional.empty();
@@ -994,6 +996,12 @@ public class CompensationPlanningService {
                 || (aggregateId != null && !aggregateId.equals(receipt.aggregateId()))) {
             throw conflict("Idempotency-Key is bound to a different command.", null);
         }
+        if (!Objects.equals(authority.populationScopeDigest(), receipt.populationScopeDigest())
+                || authority.fieldPolicyRevision() != receipt.fieldPolicyRevision()
+                || !Objects.equals(authority.purposeCode(), receipt.purposeCode())
+                || authority.authorizationRevision() != receipt.authorizationRevision()) {
+            throw forbidden("Current authority no longer matches the command receipt.");
+        }
         if (!"SUCCEEDED".equals(receipt.state())) {
             UUID replayCorrelation = correlation(receipt.outboxPayload());
             return Optional.of(new CompensationPlanningDtos.CommandReceipt(
@@ -1003,6 +1011,7 @@ public class CompensationPlanningService {
                     receipt.completedAt() == null ? receipt.acceptedAt() : receipt.completedAt(),
                     requestHash));
         }
+        requireReplayOwnerAndPopulation(tenantId, operation, receipt.aggregateId(), authority);
         String payloadDigest = PUBLISH.equals(operation)
                 && receipt.outboxPayload() != null
                 ? receipt.outboxPayload().path("payloadDigest").asText(requestHash)
@@ -1027,11 +1036,61 @@ public class CompensationPlanningService {
             UUID aggregateId,
             long expectedVersion,
             String hash,
-            UUID correlationId) {
+            UUID correlationId,
+            CompensationPlanningAuthorityPort.AuthorityEvidence authority) {
         return replay(tenantId, subject, originatingAction, key, operation,
-                aggregateId, expectedVersion, hash, correlationId)
+                aggregateId, expectedVersion, hash, correlationId, authority)
                 .orElseThrow(() -> conflict(
                         "The concurrent idempotent command winner is unavailable.", null));
+    }
+
+    private void requireReplayOwnerAndPopulation(
+            long tenantId,
+            String operation,
+            UUID aggregateId,
+            CompensationPlanningAuthorityPort.AuthorityEvidence authority) {
+        String purpose = APPROVE.equals(operation) || PUBLISH.equals(operation)
+                ? PerTypedArtifactQueryPort.APPROVAL_PURPOSE
+                : PerTypedArtifactQueryPort.PLANNING_PURPOSE;
+        if (UPSERT_PROPOSAL.equals(operation) || SUBMIT_PROPOSAL.equals(operation)) {
+            CompensationPlanningRepository.ProposalSelection selection = repository
+                    .proposalById(tenantId, aggregateId)
+                    .orElseThrow(() -> forbidden(
+                            "The replayed proposal is outside current ownership."));
+            CompensationPlanningRepository.CycleRow cycle = repository
+                    .cycle(tenantId, selection.cycleId(), false)
+                    .orElseThrow(() -> forbidden(
+                            "The replayed proposal cycle is outside current ownership."));
+            Population currentPopulation = population(tenantId, cycle, purpose);
+            Proposal content = sealedProposal(
+                    tenantId, cycle.publicId(), selection.proposal(), purpose);
+            boolean permitted = currentPopulation.lines().stream()
+                    .filter(line -> line.workerPublicId().equals(content.workerPublicId()))
+                    .filter(line -> line.assignmentPublicId().equals(
+                            content.assignmentPublicId()))
+                    .anyMatch(line -> authority.targetPopulation()
+                            .permitsWorkerAssignment(
+                                    line.workerPublicId(), line.assignmentPublicId())
+                            && authority.targetPopulation()
+                            .permitsOrganization(line.organizationPublicId()));
+            if (!permitted) {
+                throw forbidden("The replayed proposal is outside current population authority.");
+            }
+            return;
+        }
+        CompensationPlanningRepository.CycleRow cycle = repository
+                .cycle(tenantId, aggregateId, false)
+                .orElseThrow(() -> forbidden(
+                        "The replayed cycle is outside current ownership."));
+        Population currentPopulation = population(tenantId, cycle, purpose);
+        if (!authority.targetPopulation().tenantWide()
+                && currentPopulation.lines().stream().noneMatch(line ->
+                authority.targetPopulation().permitsWorkerAssignment(
+                        line.workerPublicId(), line.assignmentPublicId())
+                        && authority.targetPopulation()
+                        .permitsOrganization(line.organizationPublicId()))) {
+            throw forbidden("The replayed cycle is outside current population authority.");
+        }
     }
 
     private UUID correlation(JsonNode payload) {
@@ -1163,7 +1222,11 @@ public class CompensationPlanningService {
         List<CompensationPlanningCanonicalizer.ProposalForSnapshot> snapshot =
                 snapshotProposals(context.actor().tenantId(), cycle.publicId(), proposals,
                         PerTypedArtifactQueryPort.APPROVAL_PURPOSE);
-        canonicalizer.materializeLines(snapshot, UUID::randomUUID);
+        try {
+            canonicalizer.materializeLines(snapshot, UUID::randomUUID);
+        } catch (IllegalArgumentException exception) {
+            throw invalid("Approval proposal set is invalid.");
+        }
         validateCommittedBudgets(context.actor().tenantId(), cycle,
                 population, null, null);
         for (CompensationPlanningRepository.ProposalRow proposal : proposals) {
@@ -1191,7 +1254,7 @@ public class CompensationPlanningService {
             CompensationPlanningRepository.CycleRow cycle,
             CompensationPlanningDtos.BudgetEntryRequest request) {
         Map<CompensationPlanningRepository.BudgetBucket, BigDecimal> totals =
-                new HashMap<>(repository.budgetTotals(tenantId, cycle.internalId()));
+                new HashMap<>(boundedBudgetTotals(tenantId, cycle.internalId()));
         CompensationPlanningRepository.BudgetBucket bucket =
                 new CompensationPlanningRepository.BudgetBucket(
                         request.organizationPublicId(), request.currency());
@@ -1200,7 +1263,11 @@ public class CompensationPlanningService {
                 == CompensationPlanningDtos.LedgerEntryType.REVERSE) {
             delta = delta.negate();
         }
-        totals.merge(bucket, delta, BigDecimal::add);
+        try {
+            totals.merge(bucket, delta, PostedMoney::addExact);
+        } catch (IllegalArgumentException exception) {
+            throw invalid("Budget aggregate exceeds DECIMAL(19,4).");
+        }
         if (totals.get(bucket).signum() < 0) {
             throw invalid("Budget reversal would make availability negative.");
         }
@@ -1226,7 +1293,7 @@ public class CompensationPlanningService {
             Proposal replacement,
             CompensationPlanningRepository.ProposalRow replaced) {
         Map<CompensationPlanningRepository.BudgetBucket, BigDecimal> budgets =
-                repository.budgetTotals(tenantId, cycle.internalId());
+                boundedBudgetTotals(tenantId, cycle.internalId());
         Map<CompensationPlanningRepository.BudgetBucket, BigDecimal> committed =
                 committedByBucket(
                         tenantId, cycle, population, replacement, replaced, false);
@@ -1270,12 +1337,26 @@ public class CompensationPlanningService {
             if (organization == null) {
                 throw invalid("Proposal assignment has no population organization.");
             }
-            committed.merge(
-                    new CompensationPlanningRepository.BudgetBucket(
-                            organization, proposal.currency()),
-                    PostedMoney.decimal(proposal.amount()), BigDecimal::add);
+            try {
+                committed.merge(
+                        new CompensationPlanningRepository.BudgetBucket(
+                                organization, proposal.currency()),
+                        PostedMoney.decimal(proposal.amount()), PostedMoney::addExact);
+            } catch (IllegalArgumentException exception) {
+                throw invalid("Proposal commitment aggregate exceeds DECIMAL(19,4).");
+            }
         }
         return committed;
+    }
+
+    private Map<CompensationPlanningRepository.BudgetBucket, BigDecimal> boundedBudgetTotals(
+            long tenantId,
+            long cycleInternalId) {
+        try {
+            return repository.budgetTotals(tenantId, cycleInternalId);
+        } catch (IllegalArgumentException exception) {
+            throw invalid("Budget aggregate exceeds DECIMAL(19,4).");
+        }
     }
 
     private List<CompensationPlanningCanonicalizer.ProposalForSnapshot> snapshotProposals(

@@ -152,6 +152,44 @@ class CompensationPlanningBudgetInvariantPostgresTest {
     }
 
     @Test
+    void rejectsAggregateBudgetOverflowAcrossIndividuallyValidMaximumRows() {
+        String maximum = "999999999999999.9999";
+        insertEntry(UUID.randomUUID(), 1L, maximum, "USD", "ALLOCATE", null,
+                cycleInternalId);
+
+        assertThatThrownBy(() -> insertEntry(
+                UUID.randomUUID(), 2L, maximum, "USD", "ALLOCATE", null,
+                cycleInternalId))
+                .isInstanceOf(DataAccessException.class)
+                .hasMessageContaining("PER_COMPENSATION_BUDGET_OVERFLOW");
+
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM hris_performance.prf_cmp_budget_ledger
+                 WHERE tenant_id = ? AND compensation_cycle_id = ?
+                """, Integer.class, TENANT, cycleInternalId)).isOne();
+        assertThat(jdbc.queryForObject("""
+                SELECT SUM(amount) FROM hris_performance.prf_cmp_budget_ledger
+                 WHERE tenant_id = ? AND compensation_cycle_id = ?
+                """, BigDecimal.class, TENANT, cycleInternalId))
+                .isEqualByComparingTo(maximum);
+        assertThat(jdbc.queryForMap("""
+                SELECT status, aggregate_version
+                  FROM hris_performance.prf_cmp_cycles
+                 WHERE tenant_id = ? AND prf_cmp_cycles_internal_id = ?
+                """, TENANT, cycleInternalId))
+                .containsEntry("status", "OPEN")
+                .containsEntry("aggregate_version", 1L);
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM hris_performance.prf_command_receipts
+                 WHERE tenant_id = ?
+                """, Integer.class, TENANT)).isZero();
+        assertThat(jdbc.queryForObject("""
+                SELECT COUNT(*) FROM hris_performance.prf_outbox_events
+                 WHERE tenant_id = ?
+                """, Integer.class, TENANT)).isZero();
+    }
+
+    @Test
     void rejectsHostileFrozenCommitmentsAndCannotReverseTheirBackingBudget() {
         UUID allocation = UUID.randomUUID();
         insertEntry(allocation, 1L, "100", "USD", "ALLOCATE", null,

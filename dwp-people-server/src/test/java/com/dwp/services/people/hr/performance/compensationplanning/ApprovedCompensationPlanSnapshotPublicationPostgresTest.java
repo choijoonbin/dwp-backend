@@ -237,6 +237,7 @@ class ApprovedCompensationPlanSnapshotPublicationPostgresTest {
         UUID secondRevision = UUID.randomUUID();
         UUID secondArtifact = UUID.randomUUID();
         UUID secondMaker = UUID.randomUUID();
+        UUID submitOnlyMaker = UUID.randomUUID();
         insertProposalArtifact(firstArtifact, firstRevision);
         transaction.executeWithoutResult(status -> {
             long proposalInternalId = jdbc.queryForObject("""
@@ -258,6 +259,10 @@ class ApprovedCompensationPlanSnapshotPublicationPostgresTest {
         UUID proposalReceipt = UUID.randomUUID();
         insertReceipt(proposalReceipt, "modern.compplan.proposal.upsert", "PROPOSE",
                 "SUCCEEDED", 0L, 1L, firstRevision);
+        insertReceipt(
+                UUID.randomUUID(), "modern.compplan.proposal.submit",
+                "hcm.compensation.plan.propose", "SUCCEEDED", 1L, 2L,
+                proposal, submitOnlyMaker, proposal);
 
         insertProposalArtifact(secondArtifact, secondRevision);
         transaction.executeWithoutResult(status -> {
@@ -279,7 +284,7 @@ class ApprovedCompensationPlanSnapshotPublicationPostgresTest {
         assertThat(proposalEvidence.revision()).isOne();
         assertThat(proposalEvidence.artifactId()).isEqualTo(firstArtifact);
         assertThat(repository.proposalMakerIds(TENANT, cycle.internalId()))
-                .containsExactlyInAnyOrder(SUBJECT, secondMaker);
+                .containsExactlyInAnyOrder(SUBJECT, secondMaker, submitOnlyMaker);
     }
 
     private CompensationPlanningRepository.CycleRow seedCycleAndReceipts() {
@@ -379,6 +384,21 @@ class ApprovedCompensationPlanSnapshotPublicationPostgresTest {
             long expected,
             Long applied,
             UUID resultRef) {
+        insertReceipt(
+                receipt, operation, action, state, expected, applied,
+                resultRef, SUBJECT, CYCLE);
+    }
+
+    private void insertReceipt(
+            UUID receipt,
+            String operation,
+            String action,
+            String state,
+            long expected,
+            Long applied,
+            UUID resultRef,
+            UUID subject,
+            UUID aggregateId) {
         jdbc.update("""
                 INSERT INTO hris_performance.prf_command_receipts (
                     command_receipt_id, tenant_id, idempotency_key, command_type,
@@ -390,8 +410,8 @@ class ApprovedCompensationPlanSnapshotPublicationPostgresTest {
                     accepted_at, completed_at)
                 VALUES (?, ?, ?, ?, ?, 9, ?, ?, ?, ?, ?, ?, 1,
                         'COMPENSATION_PLANNING', 1, ?, ?, ?, ?)
-                """, receipt, TENANT, "idem-" + receipt, operation, action, SUBJECT,
-                CYCLE, expected, applied, "a".repeat(64), "b".repeat(64), state,
+                """, receipt, TENANT, "idem-" + receipt, operation, action, subject,
+                aggregateId, expected, applied, "a".repeat(64), "b".repeat(64), state,
                 resultRef, timestamp(), "SUCCEEDED".equals(state) ? timestamp() : null);
     }
 

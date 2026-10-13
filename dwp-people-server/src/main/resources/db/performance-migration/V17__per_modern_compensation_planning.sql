@@ -323,7 +323,7 @@ CREATE FUNCTION hris_performance.prf_cmp_validate_budget_entry()
 RETURNS TRIGGER AS $$
 DECLARE
     source_row hris_performance.prf_cmp_budget_ledger%ROWTYPE;
-    balance NUMERIC(19,4);
+    balance NUMERIC;
     cycle_state VARCHAR(40);
 BEGIN
     SELECT status INTO cycle_state
@@ -391,6 +391,11 @@ BEGIN
             THEN NEW.amount ELSE -NEW.amount END) < 0 THEN
         RAISE EXCEPTION 'PER_COMPENSATION_NEGATIVE_BUDGET'
             USING ERRCODE = '23514';
+    END IF;
+    IF ABS(balance + (CASE WHEN NEW.entry_type = 'ALLOCATE'
+            THEN NEW.amount ELSE -NEW.amount END)) > 999999999999999.9999 THEN
+        RAISE EXCEPTION 'PER_COMPENSATION_BUDGET_OVERFLOW'
+            USING ERRCODE = '22003';
     END IF;
     RETURN NEW;
 END;

@@ -1,11 +1,14 @@
 package com.dwp.services.people.hr.performance.typedartifact;
 
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
 /** Canonical DECIMAL(19,4) lexical value. Binary floating point is never accepted. */
 public final class PostedMoney {
+
+    private static final BigDecimal MAXIMUM = new BigDecimal("999999999999999.9999");
 
     private static final Pattern CANONICAL = Pattern.compile(
             "^(?:0|[1-9][0-9]{0,14})(?:\\.[0-9]{1,4})?$");
@@ -33,5 +36,19 @@ public final class PostedMoney {
 
     public static BigDecimal decimal(String value) {
         return new BigDecimal(require(value));
+    }
+
+    /** Bounds an aggregate, not only its individually canonical operands, to NUMERIC(19,4). */
+    public static BigDecimal requireAggregate(BigDecimal value) {
+        Objects.requireNonNull(value, "money aggregate must not be null");
+        BigDecimal fixed = value.setScale(4, RoundingMode.UNNECESSARY);
+        if (fixed.abs().compareTo(MAXIMUM) > 0) {
+            throw new IllegalArgumentException("money aggregate exceeds DECIMAL(19,4)");
+        }
+        return fixed;
+    }
+
+    public static BigDecimal addExact(BigDecimal left, BigDecimal right) {
+        return requireAggregate(left.add(right));
     }
 }

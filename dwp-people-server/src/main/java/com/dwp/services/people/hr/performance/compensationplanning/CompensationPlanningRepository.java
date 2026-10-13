@@ -471,7 +471,7 @@ class CompensationPlanningRepository {
             while (rs.next()) {
                 totals.put(new BudgetBucket(
                         uuid(rs, "org_public_id"), rs.getString("currency_code")),
-                        rs.getBigDecimal("total"));
+                        PostedMoney.requireAggregate(rs.getBigDecimal("total")));
             }
             return Map.copyOf(totals);
         });
@@ -600,6 +600,25 @@ class CompensationPlanningRepository {
                                revision.compensation_proposal_id
                          WHERE proposal.tenant_id = :tenantId
                            AND proposal.compensation_cycle_id = :cycleInternalId
+                        UNION
+                        SELECT receipt.subject_principal_public_id AS maker_id
+                          FROM hris_performance.prf_command_receipts receipt
+                          JOIN hris_performance.prf_cmp_cycles cycle
+                            ON cycle.tenant_id = receipt.tenant_id
+                           AND cycle.prf_cmp_cycles_internal_id = :cycleInternalId
+                         WHERE receipt.tenant_id = :tenantId
+                           AND receipt.originating_action = 'hcm.compensation.plan.propose'
+                           AND receipt.receipt_state = 'SUCCEEDED'
+                           AND (
+                                receipt.aggregate_id = cycle.public_id
+                                OR EXISTS (
+                                    SELECT 1
+                                      FROM hris_performance.prf_cmp_proposals proposal
+                                     WHERE proposal.tenant_id = receipt.tenant_id
+                                       AND proposal.compensation_cycle_id = :cycleInternalId
+                                       AND proposal.public_id = receipt.aggregate_id
+                                )
+                           )
                        ) makers
                  ORDER BY maker_id
                 """, new MapSqlParameterSource()
@@ -999,6 +1018,9 @@ class CompensationPlanningRepository {
                        receipt.subject_principal_public_id, receipt.aggregate_id,
                        receipt.expected_aggregate_version,
                        receipt.applied_aggregate_version, receipt.request_hash,
+                       receipt.population_scope_digest,
+                       receipt.field_policy_revision, receipt.purpose_code,
+                       receipt.authorization_revision,
                        receipt.receipt_state, receipt.result_ref,
                        receipt.accepted_at, receipt.completed_at,
                        outbox.payload
@@ -1012,7 +1034,12 @@ class CompensationPlanningRepository {
                 uuid(rs, "subject_principal_public_id"), uuid(rs, "aggregate_id"),
                 rs.getLong("expected_aggregate_version"),
                 nullableLong(rs, "applied_aggregate_version"),
-                rs.getString("request_hash"), rs.getString("receipt_state"),
+                rs.getString("request_hash"),
+                rs.getString("population_scope_digest"),
+                rs.getLong("field_policy_revision"),
+                rs.getString("purpose_code"),
+                rs.getLong("authorization_revision"),
+                rs.getString("receipt_state"),
                 uuidNullable(rs, "result_ref"),
                 instant(rs, "accepted_at"),
                 instant(rs, "completed_at"),
@@ -1214,6 +1241,10 @@ class CompensationPlanningRepository {
             long expectedVersion,
             Long appliedVersion,
             String requestHash,
+            String populationScopeDigest,
+            long fieldPolicyRevision,
+            String purposeCode,
+            long authorizationRevision,
             String state,
             UUID resultRef,
             Instant acceptedAt,

@@ -5,6 +5,11 @@ import com.dwp.core.common.ErrorCode;
 import com.dwp.core.exception.BaseException;
 import com.dwp.services.people.security.PeopleRequestContext;
 import com.dwp.services.people.hr.performance.typedartifact.CompensationArtifactContents.Guidelines;
+import com.dwp.services.people.hr.performance.typedartifact.CompensationArtifactContents.Guideline;
+import com.dwp.services.people.hr.performance.typedartifact.CompensationArtifactContents.Population;
+import com.dwp.services.people.hr.performance.typedartifact.CompensationArtifactContents.PopulationLine;
+import com.dwp.services.people.hr.performance.typedartifact.CompensationArtifactContents.Proposal;
+import com.dwp.services.people.hr.performance.typedartifact.PerArtifactType;
 import com.dwp.services.people.hr.performance.typedartifact.PerTypedArtifactQueryPort;
 import com.dwp.services.people.hr.performance.typedartifact.PerTypedArtifactService;
 import com.fasterxml.jackson.databind.DeserializationFeature;
@@ -14,7 +19,10 @@ import org.springframework.util.LinkedMultiValueMap;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.math.BigDecimal;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -144,6 +152,91 @@ class CompensationPlanningAuthorizationTest {
     }
 
     @Test
+    void successfulMakerReceiptSubjectCannotApproveOrPublishThroughService() {
+        assertServiceMakerDenied(false);
+        assertServiceMakerDenied(true);
+    }
+
+    @Test
+    void hostileApprovalCardinalityFailsBeforeAnyTransition() {
+        CompensationPlanningRepository repository =
+                mock(CompensationPlanningRepository.class);
+        CompensationPlanningAuthorityPort authority =
+                mock(CompensationPlanningAuthorityPort.class);
+        when(authority.authorize(any())).thenAnswer(invocation ->
+                authorityEvidence(invocation.getArgument(0), "a".repeat(64)));
+        Instant now = Instant.parse("2027-01-01T00:00:00Z");
+        CompensationPlanningRepository.CycleRow cycle = cycle("PROPOSAL_REVIEW", now);
+        when(repository.cycle(10L, AGGREGATE, true)).thenReturn(Optional.of(cycle));
+        CompensationPlanningRepository.ProposalRow submitted = proposalRow(
+                validProposal(UUID.randomUUID(), UUID.randomUUID(), "1"), now);
+        when(repository.proposals(10L, cycle.internalId(), true))
+                .thenReturn(List.of())
+                .thenReturn(java.util.Collections.nCopies(100_001, submitted));
+        CompensationPlanningService service = service(
+                repository, authority,
+                new CompensationPlanningCanonicalizer(new ObjectMapper()), now);
+
+        PeopleRequestContext.set(20L, 10L, SUBJECT, Set.of(),
+                Set.of("DATA.HR_TALENT:APPROVE"));
+        try {
+            assertCode(() -> service.approve(
+                    AGGREGATE, 7L,
+                    new CompensationPlanningDtos.ApprovePlanRequest(
+                            "APPROVE", "EMPTY_SET"),
+                    "empty-set", UUID.randomUUID().toString()), ErrorCode.INVALID_STATE);
+            assertCode(() -> service.approve(
+                    AGGREGATE, 7L,
+                    new CompensationPlanningDtos.ApprovePlanRequest(
+                            "APPROVE", "OVERFLOW_SET"),
+                    "overflow-set", UUID.randomUUID().toString()), ErrorCode.INVALID_STATE);
+            assertNoApprovalMutation(repository);
+        } finally {
+            PeopleRequestContext.clear();
+        }
+    }
+
+    @Test
+    void nonHardCapCollisionZeroAndMoneyOverflowFailBeforeAnyTransition() {
+        Instant now = Instant.parse("2027-01-01T00:00:00Z");
+        UUID workerOne = UUID.fromString("00000000-0000-4000-8000-000000000010");
+        UUID assignmentOne = UUID.fromString("00000000-0000-4000-8000-000000000011");
+        UUID workerTwo = UUID.fromString("00000000-0000-4000-8000-000000000012");
+        UUID assignmentTwo = UUID.fromString("00000000-0000-4000-8000-000000000013");
+        UUID organization = UUID.fromString("00000000-0000-4000-8000-000000000014");
+        Population oneMember = populationOf(List.of(
+                populationLine(workerOne, assignmentOne, organization)));
+        Guidelines hardCap = guidelines("999999999999999.9999");
+        Guidelines nonHardCap = mock(Guidelines.class);
+        when(nonHardCap.budgetMode()).thenReturn("EXCEPTION_APPROVAL");
+
+        assertHostileApprovalDenied(
+                List.of(validProposal(workerOne, assignmentOne, "1")),
+                oneMember, nonHardCap, now, Map.of());
+        assertHostileApprovalDenied(
+                List.of(
+                        validProposal(workerOne, assignmentOne, "1"),
+                        validProposal(workerOne, assignmentOne, "2")),
+                oneMember, hardCap, now, Map.of());
+        assertHostileApprovalDenied(
+                List.of(validProposal(workerOne, assignmentOne, "0")),
+                oneMember, hardCap, now, Map.of());
+        Population twoMembers = populationOf(List.of(
+                populationLine(workerOne, assignmentOne, organization),
+                populationLine(workerTwo, assignmentTwo, organization)));
+        assertHostileApprovalDenied(
+                List.of(
+                        validProposal(workerOne, assignmentOne,
+                                "999999999999999.9999"),
+                        validProposal(workerTwo, assignmentTwo,
+                                "999999999999999.9999")),
+                twoMembers, hardCap, now,
+                Map.of(new CompensationPlanningRepository.BudgetBucket(
+                                organization, "USD"),
+                        new BigDecimal("999999999999999.9999")));
+    }
+
+    @Test
     void viewOnlyDutyCannotReceiveDetailedCompensationFields() {
         PeopleRequestContext.Actor viewOnly = new PeopleRequestContext.Actor(
                 20L, 10L, SUBJECT, Set.of(), Set.of("DATA.HR_TALENT:VIEW"));
@@ -203,7 +296,9 @@ class CompensationPlanningAuthorizationTest {
                 .thenReturn(Optional.of(new CompensationPlanningRepository.ReceiptRecord(
                         receiptId, key, CompensationPlanningService.BUDGET,
                         "hcm.compensation.plan.propose", SUBJECT, cycleId,
-                        expectedVersion, null, hash, "ACCEPTED", null,
+                        expectedVersion, null, hash, "a".repeat(64), 1L,
+                        CompensationPlanningAuthorization.PURPOSE, 1L,
+                        "ACCEPTED", null,
                         acceptedAt, null, null)));
         CompensationPlanningService service = new CompensationPlanningService(
                 repository, mock(PerTypedArtifactService.class),
@@ -225,6 +320,61 @@ class CompensationPlanningAuthorizationTest {
             assertThat(replay.correlationId()).isEqualTo(correlationId);
             assertThat(replay.occurredAt()).isEqualTo(acceptedAt);
             assertThat(replay.payloadDigest()).isEqualTo(hash);
+            verify(repository, never()).reserveReceipt(
+                    anyLong(), anyLong(), any(), any(), any(), any(), any(),
+                    any(), anyLong(), any(), any());
+            verify(repository, never()).appendBudget(
+                    anyLong(), any(), any(), anyLong(), any(), any(), any(), any());
+        } finally {
+            PeopleRequestContext.clear();
+        }
+    }
+
+    @Test
+    void succeededReplayIsDeniedWhenCurrentScopeEvidenceHasChangedWithoutMutation() {
+        long tenantId = 10L;
+        long actorId = 20L;
+        long expectedVersion = 7L;
+        UUID organizationId = UUID.randomUUID();
+        UUID receiptId = UUID.randomUUID();
+        Instant now = Instant.parse("2027-01-01T00:00:00Z");
+        String key = "budget-replay-scope-shrink";
+        CompensationPlanningDtos.BudgetEntryRequest request =
+                new CompensationPlanningDtos.BudgetEntryRequest(
+                        organizationId, "100", "USD",
+                        CompensationPlanningDtos.LedgerEntryType.ALLOCATE, null);
+        CompensationPlanningCanonicalizer canonicalizer =
+                new CompensationPlanningCanonicalizer(new ObjectMapper());
+        String hash = canonicalizer.commandDigest(
+                "POST",
+                "/api/people/v1/hris/performance/compensation-planning/cycles/"
+                        + AGGREGATE + "/budget-allocations",
+                expectedVersion, tenantId, SUBJECT, request);
+        CompensationPlanningRepository repository =
+                mock(CompensationPlanningRepository.class);
+        CompensationPlanningAuthorityPort authority =
+                mock(CompensationPlanningAuthorityPort.class);
+        when(authority.authorize(any())).thenAnswer(invocation -> {
+            CompensationPlanningAuthorityPort.AuthorityRequest requested =
+                    invocation.getArgument(0);
+            return authorityEvidence(requested, "c".repeat(64));
+        });
+        when(repository.receiptByIdempotency(
+                tenantId, SUBJECT, "hcm.compensation.plan.propose", key))
+                .thenReturn(Optional.of(new CompensationPlanningRepository.ReceiptRecord(
+                        receiptId, key, CompensationPlanningService.BUDGET,
+                        "hcm.compensation.plan.propose", SUBJECT, AGGREGATE,
+                        expectedVersion, 8L, hash, "b".repeat(64), 1L,
+                        CompensationPlanningAuthorization.PURPOSE, 1L,
+                        "SUCCEEDED", AGGREGATE, now, now, null)));
+        CompensationPlanningService service = service(repository, authority, canonicalizer, now);
+
+        PeopleRequestContext.set(actorId, tenantId, SUBJECT, Set.of(),
+                Set.of("DATA.HR_TALENT:UPDATE"));
+        try {
+            assertCode(() -> service.allocateBudget(
+                    AGGREGATE, expectedVersion, request, key, UUID.randomUUID().toString()),
+                    ErrorCode.FORBIDDEN);
             verify(repository, never()).reserveReceipt(
                     anyLong(), anyLong(), any(), any(), any(), any(), any(),
                     any(), anyLong(), any(), any());
@@ -291,6 +441,226 @@ class CompensationPlanningAuthorizationTest {
                 "a".repeat(64), population(),
                 Map.of("PROPOSAL_AMOUNT",
                         CompensationPlanningAuthorityPort.FieldDecision.VIEW),
+                1L, 1L, true);
+    }
+
+    private static void assertServiceMakerDenied(boolean publish) {
+        long tenantId = 10L;
+        long actorId = 20L;
+        long version = 7L;
+        Instant now = Instant.parse("2027-01-01T00:00:00Z");
+        UUID proposalId = UUID.randomUUID();
+        UUID approvalReceiptId = UUID.randomUUID();
+        CompensationPlanningRepository repository =
+                mock(CompensationPlanningRepository.class);
+        CompensationPlanningAuthorityPort authority =
+                mock(CompensationPlanningAuthorityPort.class);
+        when(authority.authorize(any())).thenAnswer(invocation ->
+                authorityEvidence(invocation.getArgument(0), "a".repeat(64)));
+        CompensationPlanningRepository.CycleRow cycle =
+                new CompensationPlanningRepository.CycleRow(
+                        1L, AGGREGATE, version, now, UUID.randomUUID(), now,
+                        UUID.randomUUID(), "FY27", UUID.randomUUID(), UUID.randomUUID(),
+                        LocalDate.parse("2027-01-01"), null,
+                        publish ? "APPROVED" : "PROPOSAL_REVIEW");
+        CompensationPlanningRepository.ProposalRow proposal =
+                new CompensationPlanningRepository.ProposalRow(
+                        2L, proposalId, 1L, now, UUID.randomUUID(), now,
+                        UUID.randomUUID(), cycle.internalId(), null, 1L,
+                        publish ? "FROZEN" : "SUBMITTED", UUID.randomUUID(),
+                        UUID.randomUUID(), UUID.randomUUID(), "d".repeat(64));
+        when(repository.cycle(tenantId, AGGREGATE, true)).thenReturn(Optional.of(cycle));
+        when(repository.proposals(tenantId, cycle.internalId(), true))
+                .thenReturn(List.of(proposal));
+        when(repository.proposalMakerIds(tenantId, cycle.internalId()))
+                .thenReturn(List.of(SUBJECT));
+        when(repository.receiptById(tenantId, approvalReceiptId)).thenReturn(Optional.of(
+                new CompensationPlanningRepository.ReceiptRecord(
+                        approvalReceiptId, "approve-key", CompensationPlanningService.APPROVE,
+                        "hcm.compensation.plan.approve", UUID.randomUUID(), AGGREGATE,
+                        6L, 7L, "e".repeat(64), "a".repeat(64), 1L,
+                        CompensationPlanningAuthorization.PURPOSE, 1L,
+                        "SUCCEEDED", AGGREGATE, now, now, null)));
+        CompensationPlanningService service = service(
+                repository, authority,
+                new CompensationPlanningCanonicalizer(new ObjectMapper()), now);
+
+        PeopleRequestContext.set(actorId, tenantId, SUBJECT, Set.of(),
+                Set.of("DATA.HR_TALENT:APPROVE"));
+        try {
+            Runnable action = publish
+                    ? () -> service.publish(
+                            AGGREGATE, version,
+                            new CompensationPlanningDtos.PublishSnapshotRequest(
+                                    approvalReceiptId),
+                            "publish-key", UUID.randomUUID().toString())
+                    : () -> service.approve(
+                            AGGREGATE, version,
+                            new CompensationPlanningDtos.ApprovePlanRequest(
+                                    "APPROVE", "ANNUAL_REVIEW"),
+                            "approve-key", UUID.randomUUID().toString());
+            assertCode(action, ErrorCode.SOD_CONFLICT);
+            verify(repository, never()).reserveReceipt(
+                    anyLong(), anyLong(), any(), any(), any(), any(), any(),
+                    any(), anyLong(), any(), any());
+            verify(repository, never()).approve(anyLong(), any(), anyLong(), any(), any());
+            verify(repository, never()).insertSnapshot(
+                    anyLong(), any(), any(), anyLong(), any(), any(), anyLong(),
+                    any(), any(), any(), any());
+        } finally {
+            PeopleRequestContext.clear();
+        }
+    }
+
+    private static CompensationPlanningService service(
+            CompensationPlanningRepository repository,
+            CompensationPlanningAuthorityPort authority,
+            CompensationPlanningCanonicalizer canonicalizer,
+            Instant now) {
+        return new CompensationPlanningService(
+                repository, mock(PerTypedArtifactService.class),
+                mock(PerTypedArtifactQueryPort.class),
+                mock(CompensationPopulationMaterializer.class), canonicalizer,
+                mock(AuditOutboxRecorder.class),
+                Clock.fixed(now, ZoneOffset.UTC), () -> authority);
+    }
+
+    private static void assertHostileApprovalDenied(
+            List<Proposal> contents,
+            Population population,
+            Guidelines guidelines,
+            Instant now,
+            Map<CompensationPlanningRepository.BudgetBucket, BigDecimal> budgets) {
+        CompensationPlanningRepository repository =
+                mock(CompensationPlanningRepository.class);
+        CompensationPlanningAuthorityPort authority =
+                mock(CompensationPlanningAuthorityPort.class);
+        PerTypedArtifactQueryPort artifactQuery = mock(PerTypedArtifactQueryPort.class);
+        AuditOutboxRecorder audit = mock(AuditOutboxRecorder.class);
+        when(authority.authorize(any())).thenAnswer(invocation ->
+                authorityEvidence(invocation.getArgument(0), "a".repeat(64)));
+        CompensationPlanningRepository.CycleRow cycle = cycle("PROPOSAL_REVIEW", now);
+        List<CompensationPlanningRepository.ProposalRow> rows = contents.stream()
+                .map(content -> proposalRow(content, now)).toList();
+        when(repository.cycle(10L, AGGREGATE, true)).thenReturn(Optional.of(cycle));
+        when(repository.proposals(10L, cycle.internalId(), true)).thenReturn(rows);
+        when(repository.proposalMakerIds(10L, cycle.internalId()))
+                .thenReturn(List.of(UUID.randomUUID()));
+        when(repository.budgetTotals(10L, cycle.internalId())).thenReturn(budgets);
+        Map<UUID, PerTypedArtifactQueryPort.TypedArtifact> artifacts = new HashMap<>();
+        artifacts.put(cycle.populationArtifactId(), typed(
+                cycle.populationArtifactId(), PerArtifactType.COMPENSATION_POPULATION,
+                "a".repeat(64), population));
+        artifacts.put(cycle.guidelineArtifactId(), typed(
+                cycle.guidelineArtifactId(), PerArtifactType.COMPENSATION_GUIDELINES,
+                "b".repeat(64), guidelines));
+        for (int index = 0; index < rows.size(); index++) {
+            CompensationPlanningRepository.ProposalRow row = rows.get(index);
+            artifacts.put(row.artifactId(), typed(
+                    row.artifactId(), PerArtifactType.COMPENSATION_PROPOSAL,
+                    row.contentDigest(), contents.get(index)));
+        }
+        when(artifactQuery.query(anyLong(), any(), any(), any(), any(), any()))
+                .thenAnswer(invocation -> artifacts.get(invocation.getArgument(1)));
+        CompensationPlanningService service = new CompensationPlanningService(
+                repository, mock(PerTypedArtifactService.class), artifactQuery,
+                mock(CompensationPopulationMaterializer.class),
+                new CompensationPlanningCanonicalizer(new ObjectMapper()), audit,
+                Clock.fixed(now, ZoneOffset.UTC), () -> authority);
+
+        PeopleRequestContext.set(20L, 10L, SUBJECT, Set.of(),
+                Set.of("DATA.HR_TALENT:APPROVE"));
+        try {
+            assertCode(() -> service.approve(
+                    AGGREGATE, 7L,
+                    new CompensationPlanningDtos.ApprovePlanRequest(
+                            "APPROVE", "HOSTILE_SET"),
+                    "hostile-" + UUID.randomUUID(), UUID.randomUUID().toString()),
+                    ErrorCode.INVALID_STATE);
+            assertNoApprovalMutation(repository);
+            verify(audit, never()).record(any());
+        } finally {
+            PeopleRequestContext.clear();
+        }
+    }
+
+    private static CompensationPlanningRepository.CycleRow cycle(
+            String status, Instant now) {
+        return new CompensationPlanningRepository.CycleRow(
+                1L, AGGREGATE, 7L, now, UUID.randomUUID(), now,
+                UUID.randomUUID(), "FY27", UUID.randomUUID(), UUID.randomUUID(),
+                LocalDate.parse("2027-01-01"), null, status);
+    }
+
+    private static CompensationPlanningRepository.ProposalRow proposalRow(
+            Proposal content, Instant now) {
+        return new CompensationPlanningRepository.ProposalRow(
+                Math.abs(UUID.randomUUID().getLeastSignificantBits()), UUID.randomUUID(),
+                1L, now, UUID.randomUUID(), now, UUID.randomUUID(), 1L,
+                content, 1L, "SUBMITTED", UUID.randomUUID(), UUID.randomUUID(),
+                UUID.randomUUID(), "d".repeat(64));
+    }
+
+    private static Proposal validProposal(UUID worker, UUID assignment, String amount) {
+        return new Proposal(
+                AGGREGATE, worker, assignment, "BASE", "USD", amount,
+                LocalDate.parse("2027-01-01"), null, null, null);
+    }
+
+    private static Guidelines guidelines(String maximum) {
+        return new Guidelines(List.of(new Guideline(
+                "BASE", "USD", "0", maximum, "NONE", UUID.randomUUID())),
+                "HARD_CAP", LocalDate.parse("2027-01-01"), null);
+    }
+
+    private static Population populationOf(List<PopulationLine> lines) {
+        return new Population(Instant.parse("2027-01-01T00:00:00Z"), 1L, lines);
+    }
+
+    private static PopulationLine populationLine(
+            UUID worker, UUID assignment, UUID organization) {
+        return new PopulationLine(
+                worker, assignment, organization, null, null, 1L, List.of("BASE"));
+    }
+
+    private static PerTypedArtifactQueryPort.TypedArtifact typed(
+            UUID id,
+            PerArtifactType type,
+            String digest,
+            com.dwp.services.people.hr.performance.typedartifact
+                    .CompensationArtifactContents.Content content) {
+        return new PerTypedArtifactQueryPort.TypedArtifact(
+                id, type, 1L, 1, digest, LocalDate.parse("2027-01-01"), null, content);
+    }
+
+    private static void assertNoApprovalMutation(
+            CompensationPlanningRepository repository) {
+        verify(repository, never()).reserveReceipt(
+                anyLong(), anyLong(), any(), any(), any(), any(), any(),
+                any(), anyLong(), any(), any());
+        verify(repository, never()).approve(anyLong(), any(), anyLong(), any(), any());
+        verify(repository, never()).completeReceipt(
+                anyLong(), any(), anyLong(), any(), any());
+        verify(repository, never()).insertTransitionOutbox(
+                anyLong(), any(), any(), any(), any(), anyLong(), any(), any(),
+                any(), any(), any());
+    }
+
+    private static CompensationPlanningAuthorityPort.AuthorityEvidence authorityEvidence(
+            CompensationPlanningAuthorityPort.AuthorityRequest request,
+            String scopeDigest) {
+        return new CompensationPlanningAuthorityPort.AuthorityEvidence(
+                request.tenantId(), request.actorId(), request.subjectPrincipalPublicId(),
+                request.applicationEntitlement(), request.resource(), request.action(),
+                request.operationId(), request.capability(), request.purposeCode(),
+                scopeDigest, population(), Map.of(
+                "PROPOSAL_AMOUNT", CompensationPlanningAuthorityPort.FieldDecision.VIEW,
+                "WORKER", CompensationPlanningAuthorityPort.FieldDecision.VIEW,
+                "ASSIGNMENT", CompensationPlanningAuthorityPort.FieldDecision.VIEW,
+                "BUDGET_AMOUNT", CompensationPlanningAuthorityPort.FieldDecision.VIEW,
+                "ORGANIZATION", CompensationPlanningAuthorityPort.FieldDecision.VIEW,
+                "GUIDELINES", CompensationPlanningAuthorityPort.FieldDecision.VIEW,
+                "POPULATION", CompensationPlanningAuthorityPort.FieldDecision.VIEW),
                 1L, 1L, true);
     }
 

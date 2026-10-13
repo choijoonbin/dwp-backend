@@ -58,6 +58,7 @@ class CompensationPlanningMigrationContractTest {
                 .contains("exception_approval_receipt_public_id IS NULL")
                 .contains("DEFERRABLE INITIALLY DEFERRED")
                 .contains("PER_COMPENSATION_APPEND_ONLY")
+                .contains("PER_COMPENSATION_BUDGET_OVERFLOW")
                 .contains("PER_COMPENSATION_CYCLE_CAS_VIOLATION")
                 .contains("PER_COMPENSATION_PROPOSAL_CAS_VIOLATION")
                 .contains("BEFORE TRUNCATE")
