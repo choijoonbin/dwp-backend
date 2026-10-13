@@ -5,6 +5,7 @@ import com.dwp.core.exception.BaseException;
 import com.dwp.platform.contracts.hris.generated.HrisConfigurationPublishedV1;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -83,6 +84,7 @@ public class ReferenceConfigurationService {
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
+    @Autowired
     public ReferenceConfigurationService(
             ReferenceConfigurationRepository repository,
             ObjectMapper objectMapper) {
