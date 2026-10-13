@@ -113,7 +113,7 @@ public final class InterpretationIaProjectionService {
                                 .count();
         List<Candidate> matching = scoped.stream()
                 .filter(summary -> !invalid(summary, counts))
-                .map(summary -> new Candidate(summary, counts.getOrDefault(summary.runPublicId(), 0)))
+                .map(summary -> new Candidate(summary, traceItemCount(summary, counts)))
                 .filter(candidate -> !candidate.summary().createdAt().isAfter(query.asOf()))
                 .filter(candidate -> matches(candidate, query.filter()))
                 .sorted(comparator(query.sort()))
@@ -471,7 +471,7 @@ public final class InterpretationIaProjectionService {
             Map<UUID, Integer> traceItemCounts) {
         Integer traceCount = summary.runPublicId() == null
                 ? null
-                : traceItemCounts.getOrDefault(summary.runPublicId(), 0);
+                : traceItemCount(summary, traceItemCounts);
         return summary.runPublicId() == null
                 || summary.workerPublicId() == null
                 || summary.periodStart() == null
@@ -586,10 +586,16 @@ public final class InterpretationIaProjectionService {
     }
 
     private static String itemPublicId(InterpretationSummary summary) {
-        return InterpretationDigests.stableUuid(
+        return InterpretationDigests.sha256(
                 "IAQ-041-InterpretationItem.v1",
                 summary.runPublicId(),
-                summary.workerPublicId()).toString();
+                summary.workerPublicId());
+    }
+
+    private static int traceItemCount(
+            InterpretationSummary summary,
+            Map<UUID, Integer> traceItemCounts) {
+        return traceItemCounts.getOrDefault(summary.runPublicId(), summary.traceItemCount());
     }
 
     private String issueCursor(int offset, String scope, String queryDigest, Instant asOf) {

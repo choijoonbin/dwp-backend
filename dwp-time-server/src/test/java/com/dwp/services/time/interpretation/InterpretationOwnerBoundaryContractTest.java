@@ -122,7 +122,7 @@ class InterpretationOwnerBoundaryContractTest {
     }
 
     @Test
-    void workbenchFetchesOneLookaheadRowForThePreparedRepositoryWindow() throws Exception {
+    void workbenchPassesNormalizedFiltersSortAndLookaheadToRepository() throws Exception {
         VerifiedInterpretationRequest authority = authority(
                 InterpretationAction.VIEW,
                 Set.of("APP.HCM:VIEW", "hcm.operations.time.view"),
@@ -134,10 +134,17 @@ class InterpretationOwnerBoundaryContractTest {
 
         mockMvc.perform(get("/v1/hris/workbench/time-interpretation")
                         .queryParam("limit", "1")
-                        .queryParam("sort", "itemPublicId:ASC")
+                        .queryParam("sort", "traceSummary:DESC", "ruleVersion:ASC")
                         .queryParam("locale", "en-US")
                         .queryParam("timeZone", "UTC")
-                        .queryParam("correlationId", CORRELATION.toString()))
+                        .queryParam("correlationId", CORRELATION.toString())
+                        .queryParam("effectiveOn", "2026-10-03")
+                        .queryParam("interpretationResultCodes", " succeeded ")
+                        .queryParam("minimumInterpretationResultRevision", "2")
+                        .queryParam("ruleVersionPolicyKeys", " tim.rule." + SUBJECT + " ")
+                        .queryParam("minimumRuleVersionRevision", "3")
+                        .queryParam("minimumTraceItemCount", "4")
+                        .queryParam("maximumTraceItemCount", "8"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.queryState.state").value("EMPTY"));
 
@@ -146,6 +153,22 @@ class InterpretationOwnerBoundaryContractTest {
         verify(repository).query(query.capture());
         assertThat(query.getValue().limit()).isEqualTo(2);
         assertThat(query.getValue().offset()).isZero();
+        assertThat(query.getValue().sort())
+                .containsExactly("traceSummary:DESC", "ruleVersion:ASC");
+        assertThat(query.getValue().filter().effectiveOn())
+                .isEqualTo(java.time.LocalDate.parse("2026-10-03"));
+        assertThat(query.getValue().filter().interpretationResult().codes())
+                .containsExactly("SUCCEEDED");
+        assertThat(query.getValue().filter().interpretationResult().minimumRevision())
+                .isEqualTo(2L);
+        assertThat(query.getValue().filter().ruleVersion().policyKeys())
+                .containsExactly("tim.rule." + SUBJECT);
+        assertThat(query.getValue().filter().ruleVersion().minimumRevision())
+                .isEqualTo(3L);
+        assertThat(query.getValue().filter().traceSummary().minimumItemCount())
+                .isEqualTo(4L);
+        assertThat(query.getValue().filter().traceSummary().maximumItemCount())
+                .isEqualTo(8L);
     }
 
     @Test

@@ -535,49 +535,8 @@ public final class JdbcInterpretationRepository implements InterpretationReposit
     }
 
     private List<InterpretationSummary> queryInTransaction(InterpretationQuery query) {
-        MapSqlParameterSource parameters = new MapSqlParameterSource()
-                .addValue("tenantId", query.tenantId())
-                .addValue("workers", query.workerScope())
-                .addValue("asOf", Timestamp.from(query.asOf()))
-                .addValue("limit", query.limit())
-                .addValue("offset", query.offset());
-        StringBuilder where = new StringBuilder("""
-                 WHERE r.tenant_id = :tenantId AND r.created_at <= :asOf
-                   AND s.worker_public_id IN (:workers)
-                """);
-        if (query.effectiveOn() != null) {
-            where.append(" AND r.period_start <= :effectiveOn AND r.period_end >= :effectiveOn");
-            parameters.addValue("effectiveOn", query.effectiveOn());
-        }
-        if (!query.statusCodes().isEmpty()) {
-            where.append(" AND r.status IN (:statuses)");
-            parameters.addValue("statuses", query.statusCodes());
-        }
-        return namedJdbc.query("""
-                SELECT r.public_id, s.worker_public_id, r.period_start, r.period_end,
-                       r.status, r.rule_version_public_id, r.rule_version_revision,
-                       r.attempt_no, r.input_snapshot_digest, r.rule_snapshot_digest,
-                       r.output_digest, r.created_at,
-                       SUM(CASE WHEN s.segment_type = 'REGULAR_MINUTES'
-                                THEN s.minutes ELSE 0 END) AS regular_minutes,
-                       SUM(CASE WHEN s.segment_type = 'OVERTIME_MINUTES'
-                                THEN s.minutes ELSE 0 END) AS overtime_minutes
-                  FROM tme_interpretation_runs r
-                  JOIN tme_interpretation_attempts a
-                    ON a.tenant_id = r.tenant_id
-                   AND a.interpretation_run_id = r.interpretation_run_id
-                  JOIN tme_interpreted_segments s
-                    ON s.tenant_id = a.tenant_id
-                   AND s.interpretation_attempt_id = a.interpretation_attempt_id
-                """ + where + """
-                 GROUP BY r.public_id, s.worker_public_id, r.period_start, r.period_end,
-                          r.status, r.rule_version_public_id, r.rule_version_revision,
-                          r.attempt_no, r.input_snapshot_digest, r.rule_snapshot_digest,
-                          r.output_digest, r.created_at
-                 ORDER BY r.created_at DESC, r.public_id, s.worker_public_id
-                 LIMIT :limit
-                 OFFSET :offset
-                """, parameters, (row, ignored) -> {
+        InterpretationSummaryQuery.Prepared prepared = InterpretationSummaryQuery.prepare(query);
+        return namedJdbc.query(prepared.sql(), prepared.parameters(), (row, ignored) -> {
             int regular = row.getInt("regular_minutes");
             int overtime = row.getInt("overtime_minutes");
             return new InterpretationSummary(
@@ -592,6 +551,7 @@ public final class JdbcInterpretationRepository implements InterpretationReposit
                     regular,
                     overtime,
                     row.getInt("attempt_no"),
+                    row.getInt("trace_item_count"),
                     row.getString("input_snapshot_digest").trim(),
                     row.getString("rule_snapshot_digest").trim(),
                     row.getString("output_digest").trim(),

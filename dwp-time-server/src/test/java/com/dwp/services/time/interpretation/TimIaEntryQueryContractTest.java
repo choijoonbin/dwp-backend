@@ -256,6 +256,7 @@ class TimIaEntryQueryContractTest {
                 first.regularMinutes(),
                 first.overtimeMinutes(),
                 first.attemptNo(),
+                first.traceItemCount(),
                 first.inputDigest(),
                 first.ruleDigest(),
                 first.outputDigest(),
@@ -472,6 +473,7 @@ class TimIaEntryQueryContractTest {
                 420,
                 60,
                 attempt,
+                0,
                 "b".repeat(64),
                 "c".repeat(64),
                 "d".repeat(64),
@@ -494,7 +496,7 @@ class TimIaEntryQueryContractTest {
     }
 
     private static String itemId(UUID runId, UUID worker) {
-        return InterpretationDigests.stableUuid(
-                "IAQ-041-InterpretationItem.v1", runId, worker).toString();
+        return InterpretationDigests.sha256(
+                "IAQ-041-InterpretationItem.v1", runId, worker);
     }
 }

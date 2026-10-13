@@ -127,8 +127,8 @@ public class InterpretationOwnerController {
                             prepared.asOf(),
                             prepared.limit() + 1,
                             prepared.offset(),
-                            effectiveOn,
-                            interpretationResultCodes));
+                            prepared.filter(),
+                            prepared.sort()));
             return ApiResponse.success(
                     projections.projectWindow(verified, request, summaries));
         } catch (BaseException contractFailure) {
