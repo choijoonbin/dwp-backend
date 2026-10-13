@@ -6,6 +6,7 @@ import com.dwp.services.people.hris.contracts.workforce.v1.WorkforceSnapshotQuer
 import com.dwp.services.people.hris.contracts.workforce.v1.WorkforceSnapshotQueryPort;
 import com.dwp.services.people.hris.contracts.workforce.v1.WorkforceSnapshotV1;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 
@@ -30,6 +31,7 @@ public final class PerformanceWorkforceProjectionService {
     private final Supplier<WorkforceSnapshotQueryPort> portSupplier;
     private final PerformanceWorkforceProjectionStore store;
 
+    @Autowired
     public PerformanceWorkforceProjectionService(
             ObjectProvider<WorkforceSnapshotQueryPort> portProvider,
             PerformanceWorkforceProjectionStore store) {
