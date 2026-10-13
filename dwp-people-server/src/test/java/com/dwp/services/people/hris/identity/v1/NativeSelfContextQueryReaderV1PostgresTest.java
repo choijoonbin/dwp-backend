@@ -56,11 +56,10 @@ class NativeSelfContextQueryReaderV1PostgresTest {
         var flyway = Flyway.configure().dataSource(ownerSource)
                 .locations("filesystem:src/main/resources/db/migration").validateOnMigrate(true).outOfOrder(false).load();
         flyway.migrate();
-        // V49 reserves the owner identifier, V50 aligns the independent role-code
-        // constraint, V51 hardens audit evidence, V52 only rebinds defaults, and V53
-        // adds governed assignment-proposal evidence; none may synthesize identity.
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("53");
-        assertThat(flyway.info().applied()).hasSize(53);
+        // V49 through V55 add governed owner, authorization, workflow, and
+        // employment evidence; none may synthesize identity.
+        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("55");
+        assertThat(flyway.info().applied()).hasSize(55);
         assertThat(owner.queryForList("SELECT legal_employer_id,tenant_id,employer_key,legal_name,lifecycle_state,version FROM ppl_legal_employers ORDER BY legal_employer_id")).isEqualTo(originalEmployers);
         assertThat(owner.queryForList("SELECT work_relationship_id,tenant_id,worker_id,legal_employer_id FROM ppl_work_relationships ORDER BY work_relationship_id")).isEqualTo(originalParents);
         assertThat(owner.queryForList("SELECT conname,pg_get_constraintdef(oid) definition FROM pg_constraint WHERE contype='f' AND confrelid='public.ppl_legal_employers'::regclass ORDER BY conname")).isEqualTo(originalParentConstraints);

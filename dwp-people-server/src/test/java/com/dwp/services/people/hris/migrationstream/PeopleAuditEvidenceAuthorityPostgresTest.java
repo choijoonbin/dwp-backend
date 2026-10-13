@@ -80,7 +80,7 @@ class PeopleAuditEvidenceAuthorityPostgresTest {
                 .locations("filesystem:src/main/resources/db/migration")
                 .load();
         afterHardening.migrate();
-        assertThat(afterHardening.info().current().getVersion().getVersion()).isEqualTo("53");
+        assertThat(afterHardening.info().current().getVersion().getVersion()).isEqualTo("55");
         preExistingEvidenceCountAfterHardening = owner.queryForObject("""
                 SELECT COUNT(*)
                   FROM public.sys_people_audit_events

@@ -58,10 +58,10 @@ class HcmWorkspaceOpenApiContractTest {
         JsonNode gateway = openApi("gateway-public.json");
         HcmV3PepRegistry registry = new HcmV3PepRegistry(
                 new ObjectMapper().findAndRegisterModules());
-        assertThat(registry.bindingContracts()).hasSize(94);
+        assertThat(registry.bindingContracts()).hasSize(100);
         assertThat(registry.bindingContracts().stream()
                 .map(value -> value.method() + " " + value.servicePath())
-                .distinct()).hasSize(82);
+                .distinct()).hasSize(88);
         Set<String> missingServiceOperations = registry.bindingContracts().stream()
                 .filter(binding -> !service.path("paths").path(binding.servicePath())
                         .has(binding.method().toLowerCase()))
